@@ -31,7 +31,7 @@ namespace LearnStack.Infrastructure.MultiTenancy;
 /// <para>
 /// <b>No <c>set_config('app.tenant_id', …)</c>, and no <c>SET TRANSACTION READ ONLY</c>.</b>
 /// The first because there is no policy to announce to — the role bypasses them — which
-/// is also why this is not an eighth out-of-band setter. The second because nothing calls
+/// is also why this is not a ninth out-of-band setter. The second because nothing calls
 /// this path read-only: both named consumers, GDPR redaction and the retention purge,
 /// write.
 /// </para>

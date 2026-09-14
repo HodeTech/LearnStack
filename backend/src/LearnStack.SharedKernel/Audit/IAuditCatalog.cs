@@ -189,9 +189,15 @@ public interface IAuditCatalogBuilder
     /// Declares that this request is known and audits nothing.
     /// </summary>
     /// <remarks>
-    /// The eight test-only request types register here, in their fixture. Registered and
-    /// silent is not the same as unregistered — the first is a decision, the second is
-    /// an omission, and only the second is refused.
+    /// No production request type registers here yet. Test-only types do: the
+    /// integration suite's, in <c>TestAuditCatalogSource</c>, and probe types in the
+    /// unit and architecture suites. Registered and silent is not the same as
+    /// unregistered — the first is a decision, the second is an omission, and only the
+    /// second is refused. Which class a <c>[PublicSurface]</c> request registers, and
+    /// whether a rule makes <c>Off</c> the only one permitted, is G28 (a) in
+    /// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">
+    /// Phase 02d's decision register</see>; the pass that closes it edits this remark
+    /// with its answer.
     /// </remarks>
     IAuditCatalogBuilder Off<TRequest>()
         where TRequest : notnull;

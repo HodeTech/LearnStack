@@ -21,6 +21,12 @@ Add a permission to the module's
 naming convention, register it on the right endpoint, and update the per-module
 permission matrix.
 
+> **Not wired yet.** `IPermissionRegistry`, `IModule.RegisterPermissions` and the
+> `Roles` catalogue land with the Identity module in
+> [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md); none exists in
+> `backend/src`. Until then only Step 1 and Step 5 apply, as a forward declaration on
+> [the Tenancy precedent](../../../docs/modules/tenancy/permissions.md).
+
 ## When to use
 
 - A new resource needs an `[Authorize]` policy.

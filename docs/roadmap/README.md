@@ -29,9 +29,10 @@ later means touching every query, every migration, every job payload.
 
 **No → ship the port now, the adapter on demand.** Dapr, Kafka, APISIX, Vault, the Hub
 integration, signed licence keys, custom-domain TLS automation, `audit_log`
-partitioning. Each has a port in `LearnStack.SharedKernel`, a working default
-implementation, an owning phase, and a written trigger condition. None of them blocks a
-user-visible artefact.
+partitioning. Each has a working default implementation, an owning phase and a written
+trigger condition, and a port wherever
+[ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md#the-gated-set)
+names one. None of them blocks a user-visible artefact.
 
 The second consequence of that principle is **Phase 02d**: a two-tenant vertical slice
 that puts a working education site in a browser immediately after the kernel is sound,
@@ -42,8 +43,8 @@ not deferred to the showcase phase.
 
 - [Phase 00: Product Strategy and Architecture Definition](phase-00-product-architecture.md) — **complete**
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
-- [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped; [Phase 02d](phase-02d-walking-skeleton.md) is next)
-- [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md)
+- [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped)
+- [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) — **in progress** (see its Status block)
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
@@ -113,9 +114,11 @@ billed or plan-gated, which is the trigger condition
 | Phase 12 — Hub Marketplace | Pointer; post-MVP, optional | Product-market evidence |
 | Demand-gated adapters (Dapr, Kafka, APISIX, Vault, licence keys, custom-domain TLS, `audit_log` partitioning) | Land in Phase 11 unless their trigger fires earlier | Per the table in [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) |
 
-A demand-gated item is not "deferred". It has a port, a working default implementation,
-an owning phase, and a trigger condition — all four written down. If a trigger fires
-early, the item moves to the phase where it fired and ADR-0035's table is amended.
+A demand-gated item is not "deferred". It has a working default implementation,
+an owning phase and a trigger condition, all written down, and a port wherever
+[ADR-0035 § The gated set](../decisions/0035-demand-gated-infrastructure.md#the-gated-set)
+names one. If a trigger fires early, the item moves to the phase where it fired and
+ADR-0035's table is amended.
 
 ## Roadmap Logic
 
@@ -133,8 +136,12 @@ retrofit**, and **thin where it is not**:
   ([ADR-0033](../decisions/0033-audit-durability-model.md)). Audit correctness cannot be
   added later; audit *scale* can, and is.
 - Module boundaries stay clear; architecture tests enforce them from Phase 02a,
-  including `Core_Modules_HaveNo_DomainSpecific_Names` — the mechanical guarantee behind
-  the platform's entire premise.
+  including `Core_Modules_HaveNo_DomainSpecific_Names`, which keeps every name the
+  platform ships free of the forbidden domain terms. That rule reads names and strips
+  literals, so it cannot show that no production code branches on which tenant it
+  serves. What mechanically backs that claim is open as G20 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
+  and the pass that closes G20 edits this bullet with its answer.
 - CMS and education catalog capabilities work together against tenant-defined content
   types, blocks, lesson items, taxonomies, and scoring / completion rules
   ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).
@@ -166,9 +173,9 @@ Three exceptions, all deliberate:
 
 - [Phase 09b](phase-09b-hub-billing.md) and [Phase 12](phase-12-hub-marketplace.md) are
   **pointer documents** into the `learnstack-hub` repository, which owns their plan.
-  They carry Goal, Scope on the LearnStack side, Trigger and Phase Exit Decision only;
-  Deliverables, Completion Criteria and Risks live in the Hub's own roadmap. Restating
-  them here would duplicate a plan this repository does not own.
+  They carry Goal, Scope on the LearnStack side, Trigger and Phase Exit Decision, and no
+  Deliverables, Completion Criteria or Risks, which live in the Hub's own roadmap.
+  Restating them here would duplicate a plan this repository does not own.
 - [Phase 01](phase-01-repository-tooling.md) predates the `## Phase Exit Decision`
   convention and carries `## Technical Notes` instead. Its annotation block records
   this; it is not a gap to fill.
@@ -179,6 +186,40 @@ mergeable slice with its own pull request; see [Glossary](../glossary.md).
 
 The roadmap deliberately carries **no effort estimates, owners, or timeboxes**. It is a
 dependency and scope plan; sequencing decisions belong here, capacity decisions do not.
+
+## Decision Timing
+
+A phase document registers the questions its packets cannot be written without, and
+answers none of them ahead of the code they govern. An answer given early is written
+against code that does not exist yet, and is usually amended when that code arrives. In
+Phase 02a, [ADR-0033](../decisions/0033-audit-durability-model.md) was Accepted a month
+before Packet 9 implemented it and took six amendments while that packet was written,
+the first titled *The write path against the code that shipped after this ADR*.
+
+Each open question is a **gate**, answered at its last responsible moment:
+
+- **When.** A gate is Accepted before the first packet whose code would have to change
+  if it were answered differently — not earlier, and never after. It is the
+  [one-way-door test](#sequencing-principle) applied to a decision rather than to a
+  building block: *if this answer waited one more packet, would code written in between
+  have to change?*
+- **Coupled gates close together.** Gates that define one mechanism — one state
+  machine, one amendment — close in the same pass. A gate whose parts shape different
+  packets' code is split into parts, and each part blocks the first packet that writes
+  what it decides.
+- **Two layers.** The contract — ownership, invariants, the shape of a state machine —
+  is the decision record, an ADR or a dated amendment, and closes before its first
+  writer. The detail — DDL, slugs, metric names and labels, catalogue rows, glossary
+  headwords — lives in the standard or register that owns it and lands with the first
+  packet that uses it.
+- **Every packet opens with a decision pass.** Each premise its gates cite is
+  re-verified against `HEAD` — the code, the corpus, the Hub repository, pinned package
+  versions — its records are drafted and Accepted, and the decisions and their catalogue
+  rows are the packet's first commit. A contradiction the implementation finds is
+  amended inside the packet, before it merges.
+- **A register pre-assigns nothing that moves.** An amendment takes the next free number
+  on the day it is written. A phase that waits behind another re-verifies its register
+  when that phase exits, before its first decision pass.
 
 ## Success Criteria
 

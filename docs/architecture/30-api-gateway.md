@@ -210,7 +210,7 @@ The banding is therefore **specific-beats-general, written down**:
 | Band | Priority | Contents |
 |---|---|---|
 | Infrastructure | 400 | `/healthz`, `/openapi/*` and `/docs*` (environment-gated), `/admin/hangfire*` |
-| Public anonymous | 300 | Named public paths: localization, public catalog reads, auth endpoints with their own strict limits |
+| Public anonymous | 300 | Named public paths: localization, every anonymous read enumerated in [API Standards § Public surface](../standards/04-api-design.md#public-surface), auth endpoints with their own strict limits. The route table below does not yet carry a route per enumerated read; they arrive with the reviewed route allow-list in [Phase 11](../roadmap/phase-11-production-hardening.md) |
 | CORS preflight | 200 | `OPTIONS` on the versioned prefix — must beat the authenticated band so preflight never reaches `openid-connect` |
 | Authenticated catch-all | 100 | Everything else under the versioned prefix |
 

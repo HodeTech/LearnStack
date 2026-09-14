@@ -178,14 +178,28 @@ Mirrored events (e.g. `user.created`) are propagated via Keycloak webhooks into 
 
 ## Local Development
 
-Local Keycloak runs in Docker Compose (`infra/compose/keycloak.yml`). Seed data sets up:
+Local Keycloak runs in Docker Compose, in the default profile of
+[`infra/compose/dev.yml`](../../infra/compose/dev.yml), and imports the `learnstack` and
+`learnstack-hub` realms from `infra/keycloak/realms/` at first start. The imports carry
+the demo users [`infra/keycloak/README.md`](../../infra/keycloak/README.md) lists: a
+tenant admin and a tenant learner in `learnstack`, whose `tenant_id` attribute is the
+slug `tenant-a` and names neither seed tenant, and an operator in `learnstack-hub`. No
+platform-admin user belongs in `learnstack`, because operators are the `learnstack-hub`
+population
+([ADR-0004 Amendment 1](../decisions/0004-authentication-strategy.md#amendment-1--learnstack-hub-realm-for-operators-2026-05-18)).
 
-- Realm `learnstack`.
-- Two tenants (Tenant A and Tenant B) with admin users.
-- A user with memberships in both tenants for cross-tenant testing.
-- A platform admin user.
+`make seed` checks that both realms answer and writes nothing to Keycloak.
+`LearnStack.Tools.Seeder` provisions the two seed tenants, `demo-english` and
+`demo-yoga`, through the request path
+([Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md#delivery-record-packet-7)),
+and a re-run is idempotent.
 
-The seed is idempotent and runs on `make seed`.
+> **Open in Phase 02b.** How seed users, mappers and the client scope reach a Keycloak
+> database that has already consumed the import is G12 in
+> [Phase 02b's decision register](../roadmap/phase-02b-events-auth.md#the-decision-register);
+> whether one token can name two tenants is its G10. A user who belongs to both tenants
+> also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
+> delivers. The pass that closes each gate edits this section with its answer.
 
 ## Risks
 

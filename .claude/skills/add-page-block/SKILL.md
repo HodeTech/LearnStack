@@ -60,6 +60,18 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 | **Composite renderer** | C# composite registry + React renderer (`default-card`, `content-list`, `card-grid`). | LearnStack engineering. | Tenants compose this in `TenantPageBlock` rows. |
 | **Tenant block** | `tenant_page_blocks` row (data only). | Tenant admin via Studio editor. | Tenant-specific shape (`vocabulary-list` for English, `asana-card` for yoga). |
 
+> **Open in Phase 02d.** The code paths in this step and the next two describe intended
+> shape. At HEAD the frontend registry is `frontend/apps/web/src/lib/customization/` —
+> `PRIMITIVE_KEYS` and `COMPOSITE_KEYS` as closed key lists with `resolveRendererKey`,
+> no component and no `registerPrimitive` / `registerComposite` — and the backend's
+> closed sets are `PrimitiveRendererKey` and `CompositeRendererKey` in
+> `LearnStack.Modules.Customization.Domain`; no `PageBlockRegistry` exists. Where
+> primitive and composite components live — `components/blocks/` here, `packages/blocks`
+> in Frontend Architecture Standards — is G41 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes it, which ships the lesson renderer's first components, edits
+> this skill with its answer.
+
 ### Step 2: Primitive block (path A)
 
 #### A.1 — Author the JSON Schema
@@ -196,8 +208,20 @@ the page.
 
 - JSON Schema validation test for the new primitive / tenant schema.
 - Renderer snapshot test.
-- Accessibility test (`axe-core` violations fail).
-- Lighthouse budget check for representative pages embedding the block.
+- Accessibility test (`axe-core` violations fail). No test runs `axe-core` yet:
+  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md#end-to-end-tests)
+  puts automated axe through Playwright in
+  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md). Which
+  accessibility checks fail a build on Phase 02d's pages, jsdom axe among the options,
+  is G43 in
+  [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+  whose pass edits this bullet with its answer.
+- Budgets in [Performance Standards](../../../docs/standards/15-performance.md) for
+  representative pages embedding the block — judged by reading while CI's
+  `lighthouse budget` job remains a placeholder. Whether it activates in Phase 02d
+  is G44 in
+  [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this bullet.
 
 ## Validation
 
@@ -208,7 +232,11 @@ the page.
   editor.
 - For a tenant block: a page can be authored that uses the new block; the
   renderer dispatches correctly.
-- Accessibility (`axe-core`) and contrast checks pass.
+- Accessibility: a keyboard walkthrough of the block and a contrast check of its text
+  and UI colours pass, per
+  [Accessibility Standards § Testing](../../../docs/standards/16-accessibility.md#testing),
+  recorded in the PR description. Automated `axe-core` is not a gate yet — Step 7 names
+  its owner and G43, the Phase 02d gate open on it.
 
 ## Common pitfalls
 

@@ -172,10 +172,12 @@ migrationBuilder.Sql("""
 context filters the row out instead of raising on a pooled connection. Write the
 `app.scope` term into the policy even though **nothing sets it**: the flag derives from
 the actor's role and roles arrive in
-[Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which is the earliest
-phase that can own the carrier, so the cross-organization read hatch is unreachable at
-runtime until then — the correct default, and the reason the two `AS RESTRICTIVE`
-guards need a test that sets the variable by hand.
+[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), which is the earliest
+phase that can own the carrier
+([Security Standards § Tenant Context](../../../docs/standards/11-security.md#tenant-context)),
+so the cross-organization read hatch is unreachable at runtime until then — the correct
+default, and the reason the two `AS RESTRICTIVE` guards need a test that sets the
+variable by hand.
 
 **Roles.** Migrations run as `learnstack_migration` (the table owner);
 the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the

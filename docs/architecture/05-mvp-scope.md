@@ -25,11 +25,13 @@ Run an end-to-end online English-learning tenant on LearnStack, where:
   from `TenantContentType`, `TenantLevelTaxonomy`, `TenantScoringRule`, etc. **No
   English-specific code lives in any module.**
 - A second tenant — a **yoga studio** — has existed since
-  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), with its own
-  taxonomy, content types and branding loaded from its own customization data. The
-  substrate-genericity proof is therefore continuous from
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) onward, not a checkbox at MVP
-  exit.
+  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), holding the same
+  built-in customization rows as the English school, owned per tenant.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) gives each tenant its own
+  taxonomy, content type and branding as tenant data and renders both sites
+  ([§ Genericity proof](../roadmap/phase-02d-walking-skeleton.md#genericity-proof)). The
+  substrate-genericity proof is therefore continuous from Phase 02d onward, not a
+  checkbox at MVP exit.
 
 ## Vertical Slice First
 
@@ -232,6 +234,15 @@ since [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Phase 10 is therefo
 **depth** showcase rather than a breadth one: its job is to exercise *every*
 customization aggregate against one real tenant, proving the customization surface is
 complete. Genericity is already proven, and re-proven on every CI run.
+
+> **Open in Phase 02d.** No CI job renders either site today. Whether one re-proves
+> after Phase 02d exits that each host renders its own tenant — an HTTP smoke against
+> `next start`, a narrow browser smoke, or a dated manual record instead — is G38 (c);
+> whether the Lighthouse job runs over both hosts is G44; and what mechanically backs
+> "no production code branches on which tenant it serves" is G20, all in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The passes that close those gates edit this paragraph with their answers, and
+> Phase 02d's exit re-verifies it against what shipped.
 
 ## Deferred
 

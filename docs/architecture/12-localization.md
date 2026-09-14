@@ -21,7 +21,14 @@ Out of scope for the initial implementation:
 
 ## Locale Identifiers
 
-- Format: BCP 47 (`en`, `tr`, `en-US`, `tr-TR`). LearnStack stores locale codes as canonical lowercase BCP 47 strings.
+- Format: BCP 47 (`en`, `tr`, `en-US`, `tr-TR`). The shipped `tenant_locales.locale`
+  column and `LocalizedText` keys hold the tag in the case `LocaleTag.Canonicalize`
+  produces: language lowercase, a four-letter script Title-cased, a two-letter region
+  uppercased (`tr-TR`, `zh-Hans`).
+  [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes)
+  currently states lowercase. Which spelling content tables and request parameters use
+  is G6 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - A tenant declares its **available locales** and one **default locale**.
 - A user can have a **preferred locale**; if absent, the tenant default is used; if the requested resource doesn't have content in that locale, fallback rules apply (see below).
 
@@ -40,6 +47,10 @@ CREATE TABLE tenant_locales (
 ```
 
 A tenant with no `tenant_locales` row falls back to the platform default (`en`).
+
+> **Open in Phase 02d.** Nothing implements this fallback yet; what a tenant with no
+> `tenant_locales` row serves is G13 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
@@ -69,7 +80,7 @@ CREATE TABLE courses (
     -- non-translatable columns only: no title, no description, no slug
     created_at      timestamptz NOT NULL,
     -- ...
-    CONSTRAINT ux_courses_tenant_id_slug_key UNIQUE (tenant_id, slug_key),
+    -- slug_key: unique per tenant among live rows; the index is in Database Standards.
     CONSTRAINT ux_courses_tenant_id_id       UNIQUE (tenant_id, id)
 );
 
@@ -118,8 +129,8 @@ CREATE TABLE course_translations (
   satellite carrying `title` and `slug` carries the content.
 - `organization_id` mirrors the parent and exists **only** so the satellite can carry the
   same isolation predicate. It is deliberately absent from the slug constraint — see
-  [§ Slugs and URLs](#slugs-and-urls). Denormalizing it is safe because
-  `organization_id` on a tenant-owned row is immutable after insert; see
+  [§ Slugs and URLs](#slugs-and-urls). What keeps the mirror equal to the parent's is
+  stated in
   [Database Standards § Translation satellite tables](../standards/05-database.md).
 - The foreign key is composite on `tenant_id` for the reason in
   [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md):
@@ -169,6 +180,12 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 
 ## Fallback Rules
 
+> **Open in Phase 02d.** This chain and the one in
+> [Localization Standards § Locale Model](../standards/08-localization.md#locale-model)
+> differ. Which is canonical, and the terminal state of a missing field or label, are
+> G24 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
 When the requested locale is unavailable:
 
 1. Try the requested locale (e.g. `tr-TR`).
@@ -187,6 +204,10 @@ Slugs are **per locale**. Two patterns:
 - **Locale-by-host**: `english.learnstack.io` always English, `ingilizce.learnstack.io` always Turkish. Available as a tenant-level configuration.
 
 The Next.js renderer reads tenant locale config at the edge and produces locale-aware routes.
+
+> **Open in Phase 02d.** Whether the edge reads it, and how the renderer gets a tenant's
+> locales, are G25 and G36 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`, declared on the translation table,
 and **flat across organizations**. The same entity can have completely different slugs
@@ -234,7 +255,16 @@ apps/web/locales/
     studio.json
 ```
 
-Keys are dotted, namespaced by feature, ICU MessageFormat for plural/select. The frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the choice is captured in [Frontend Architecture](14-frontend-architecture.md).
+Keys are dotted, namespaced by feature, ICU MessageFormat for plural/select. The
+frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the choice
+is ADR-0027, reserved and not yet made — see
+[the decisions index](../decisions/README.md#open-adr-drafts).
+
+> **Open in Phase 02d.** Where the catalogue lives — this tree,
+> [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code)
+> and the `add-i18n-key` skill each name a different path — and whether ADR-0027 is
+> Accepted in that phase are G39 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 API responses do **not** localise system-level identifiers, only human-facing strings. Error codes are stable English strings; human-readable messages are localised by the consumer when needed, using the locale from the JWT or request.
 

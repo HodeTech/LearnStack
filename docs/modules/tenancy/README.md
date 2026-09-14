@@ -58,9 +58,13 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   `IEntitlementProvider.RefreshAsync`, and never calls the Hub to read it.
 - **Certificate material.** It moves by secret-store replication and is
   referenced by path; `tenant_domains` carries verification state and no keys.
-- **Branding tokens.** `OrganizationBranding` and the token merge are
-  [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md); the column arrives with
-  them rather than as an unused `jsonb` nobody writes.
+- **The per-organization branding override.** `OrganizationBranding` and the token merge
+  are [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md); the column arrives
+  with them rather than as an unused `jsonb` nobody writes. The tenant's own token
+  values are not a separate store: they are `TenantSetting` rows
+  ([Frontend Architecture Standards § Tenant Branding](../../standards/07-frontend-architecture.md#tenant-branding)),
+  and their key set and value grammar are G16 in
+  [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - **Any domain-specific shape.** CEFR levels, asana catalogs, kyu/dan ranks and
   every other vertical concept are tenant customization data
   ([ADR-0018](../../decisions/0018-tenant-driven-customization-model.md)), not
@@ -68,31 +72,30 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## Entity-relationship diagram
 
-Aggregate roots in the shipped code are `Tenant` and `Organization` — the two
-that implement `IAggregateRoot<TId>`; the promotion below adds `TenantDomain` and
-`TenantSetting`, which carry the shape of a root but which no command writes yet. `PlatformHostMapping` and `PlatformEntitlement` are
-projections rather than aggregates: nothing in this module mutates them through
-a root.
+Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
+`TenantSetting` — the four that implement `IAggregateRoot<TId>`, the last two by the
+promotion below. No command writes `TenantDomain` or `TenantSetting` yet.
+`PlatformHostMapping` and `PlatformEntitlement` are projections rather than
+aggregates: nothing in this module mutates them through a root.
 
-**The other four resolve two ways, and Packet 7 settles them as promotion.**
-`TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
-a public factory, a top-level `DbSet` on `TenancyDbContext`, and no navigation
-from `Tenant` — so there is no path through a root, which
+**The other four split two ways, and Packet 7 settled the split.** `TenantDomain` and
+`TenantSetting` are root-shaped — a surrogate Vogen id, `AuditableEntity`, their own
+`row_version` and RLS policy, and a top-level `DbSet` on `TenancyDbContext` — so they
+are aggregate roots in their own right. `TenantLocale` and `TenantFeatureFlag` have
+composite natural keys and no id, so they cannot be `IAggregateRoot<TId>` under any
+reading: they are navigations owned by `Tenant`, with internal factories and no
+top-level `DbSet`, so every state change goes through the root, as
 [Standards 01 § Aggregate Ownership](../../standards/01-architecture-standards.md)
-requires for state changes inside an aggregate. They also split:
-`TenantDomain` and `TenantSetting` are root-shaped already (a surrogate Vogen id,
-`AuditableEntity`, `row_version`, their own RLS policy), while `TenantLocale` and
-`TenantFeatureFlag` have composite natural keys and no id at all and therefore
-cannot be `IAggregateRoot<TId>` under any reading.
-
-So the first pair becomes aggregate roots in their own right and the second
-becomes navigations inside `Tenant` — four roots in Tenancy, with a write to
-`TenantLocale` or `TenantFeatureFlag` bumping `Tenant.row_version` and the two
-promoted roots carrying their own.
-[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) writes the first command
-that touches any of them, which is the evidence the boundary had none of and
-where the promotion lands; provisioning writing `Tenant` and its default
-`Organization` in one transaction is sanctioned by enumeration in
+requires, and a write to either bumps `Tenant.row_version`.
+[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) landed the promotion, and none of
+its three commands touches `TenantDomain`, `TenantSetting`, `TenantLocale` or
+`TenantFeatureFlag`. The first commands that do — the locale and setting commands
+raising `tenancy.locale.write` and `tenancy.setting.write` — are Phase 02d's, and
+their shape is G11 in
+[Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+the pass that closes it edits this section with its answer. Provisioning writing
+`Tenant` and its default `Organization` in one transaction is sanctioned by
+enumeration in
 [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 
 ```mermaid
@@ -353,7 +356,7 @@ In [audit.md](audit.md), the file
 | Host → tenant resolution (cache miss) | **< 15 ms** p95 | One indexed single-row read in its own short transaction |
 | Entitlement projection read (L1 hit) | **< 1 ms** | Read on every feature check |
 | Tenant provisioning (3 statements) | **< 100 ms** p95 | Interactive but rare |
-| Settings read for a request | **< 5 ms** p95 | Cached; a miss is one indexed read |
+| Settings read for a request | **< 5 ms** p95 | Cached; a miss is one indexed read. Whether settings are cached before Phase 02b's `learnstack.tenancy.settings` event exists, and how a cached read keys tenant-wide and organization rows, is G23 in [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register); its pass edits this row |
 
 The two resolution numbers are the load-bearing ones: they sit in front of every
 request and are the only Tenancy work an anonymous visitor pays for.

@@ -30,6 +30,14 @@ Examples:
 
 Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
+> **Open in Phase 02d.** The template has one identity slot, `{id?}`, and the course
+> examples fill it with an id. Phase 02d's public detail reads address a course by slug.
+> Whether they share that slot with Phase 05's authoring `/courses/{id}`, take a
+> distinct public prefix or use `/courses/by-slug/{slug}` is G26 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> It is answered in the decision pass of the packet that ships the public reads, which
+> edits this section with the answer before the OpenAPI baseline is stored.
+
 ## Versioning
 
 The full versioning policy lives in
@@ -192,6 +200,14 @@ reconciliation matrix are the separate case — no tenant context resolves at al
 [ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md)
 is the authority for why the ceiling holds and what a forged host reaches under it. The
 matrix is not restated here.
+
+> **Open in Phase 02d.** Which audit class this phase's marked requests register, and
+> whether a rule makes `Off` the only permitted one; whether the phase's rows permit
+> `GET` alone or `GET` and `HEAD`, and what the permitted-methods check compares a row
+> against; and what mechanically stops a marked request from writing are G28 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The default above is ADR-0036's; G28 decides what this phase's rows declare under it.
+> The pass that closes it edits this section with its answer before the first row lands.
 
 The set is this table and nothing else:
 
@@ -364,6 +380,14 @@ statuses it can answer before the action runs.
 
 Mutable resources expose `ETag` (or `version` field).
 
+> **Open in Phase 02d.** Whether the anonymous public reads emit an `ETag` and honour
+> `If-None-Match` — a composite read cannot use
+> [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)'s one derivation without
+> publishing `row_version` — is G27 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The decision pass of the packet that ships the public reads answers it and adds this
+> section's sentence on anonymous read contracts, which is owed under either answer.
+
 ```
 GET /api/v1/courses/{id}        → ETag: "7"
 PATCH /api/v1/courses/{id}
@@ -421,7 +445,17 @@ SDK has no branch for.
   the serializer omits defaults.
 - TypeScript SDK `@learnstack/sdk` is generated from this spec;
   [Standards 07 § SDK](07-frontend-architecture.md) owns how and when.
-- Breaking OpenAPI changes fail CI unless the version bumps.
+- Breaking OpenAPI changes fail CI unless the version bumps — once the `openapi diff`
+  job is active. Today that job is a placeholder behind the unset
+  `vars.ENABLE_OPENAPI_DIFF` and reports as skipped, so no breaking change fails CI yet.
+
+> **Open in Phase 02d.** How that job activates and what it can see are G31 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register):
+> the committed snapshot and the base copy it is diffed against, the `oasdiff` version
+> and fail level, which [ADR-0024](../decisions/0024-api-versioning-policy.md) breaking
+> changes that level detects and which it cannot see, and whether the job keeps its
+> skip condition. It is answered in the decision pass of the packet that ships the
+> public reads, which edits this section with the answer.
 
 ## Request and Response Limits
 
@@ -436,7 +470,7 @@ a limit, and the first version of this table was four of those.
 | URL length | 8 KiB | Kestrel (`MaxRequestLineSize`), server default |
 | Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
-| Rate limit (anonymous) | 60 req/min per peer | `AddLearnStackRateLimiting` |
+| Rate limit (anonymous) | 60 req/min per peer | `AddLearnStackRateLimiting`. A request over the trusted hop is partitioned on its socket peer like any other, so every visitor of the server-rendered pages shares one partition; whether the hop changes the key or the budget is G34 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the decision pass that closes it edits this row with its answer |
 | Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 

@@ -140,7 +140,8 @@ Built on the Studio shell, permission system, and typed SDK from
 - Lesson resources.
 - Progress summary (driven by `TenantCompletionRule`).
 - Profile basics (with optional tenant-defined custom fields via `TenantCustomFieldDef`
-  on `User`).
+  on `MembershipProfile`, per
+  [Phase 03 § Tenant Data Ownership](phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)).
 
 ### Progress Tracking
 
@@ -190,6 +191,14 @@ consumes the stream for reporting.
   unentitled request returns 404, not 403 — the existence of another tenant's or another
   learner's content is not disclosed.
 - Admin and instructor preview capabilities are separate from learner access.
+- Whether the lesson content [Phase 02d](phase-02d-walking-skeleton.md) publishes
+  anonymously stays on the public path once enrollment exists, or moves behind
+  `CourseAccess` in whole or in part — and what its public URL then answers — is open.
+  This phase's decision pass answers it before the first access check ships;
+  [Phase 02d § Explicitly not in this phase](phase-02d-walking-skeleton.md#explicitly-not-in-this-phase)
+  assigns the question here. What "published" means to an anonymous reader in
+  Phase 02d is G3 in
+  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
 
 ### Isolation and Audit
 

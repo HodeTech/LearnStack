@@ -27,9 +27,9 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 /// <para>
 /// <b>It never announces anything.</b> <c>TransactionBehavior</c> has already announced
 /// the tenant this command names, by reading <c>IProvisionsTenant</c> off the request at
-/// step 6. A handler that announced would be an eighth setter of <c>app.tenant_id</c>
-/// against a set two ADRs close at seven, and would hand every handler in the solution
-/// the ability to move the ambient tenant.
+/// step 6. A handler that announced would be a ninth setter of <c>app.tenant_id</c>
+/// against the set ADR-0040 closes at eight (Amendment 7), and would hand every handler
+/// in the solution the ability to move the ambient tenant.
 /// </para>
 /// <para>
 /// <b>A name already taken is an answer, not a crash.</b> Every uniqueness the schema

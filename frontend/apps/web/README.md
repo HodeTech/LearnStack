@@ -14,10 +14,16 @@ don't collide at `/`:
 
 | Route group        | URL prefix | Purpose                                          | Phase that fills it in |
 | ------------------ | ---------- | ------------------------------------------------ | ---------------------- |
-| `(public)/`        | `/`        | Tenant-facing public site                        | 04 / 06                |
+| `(public)/`        | `/`        | Tenant-facing public site                        | 02d / 04 / 06          |
 | `(studio)/studio/` | `/studio`  | Admin + content studio                           | 04 / 06                |
 | `(portal)/portal/` | `/portal`  | Learner + instructor portal                      | 07                     |
 | `api/`             | `/api/*`   | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                   |
+
+> **Open in Phase 02d.** Which `(public)` pages ship first, what becomes of the platform
+> placeholder at `(public)/page.tsx`, and what `/studio` and `/portal` answer on a
+> tenant host are G25 and G40 in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The decision passes of P02d-4 and P02d-6 edit this section with their answers.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),

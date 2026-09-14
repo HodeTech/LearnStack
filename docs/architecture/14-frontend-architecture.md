@@ -61,6 +61,12 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
+> **Open in Phase 02d.** Where composite and primitive components live (G41), where the
+> UI string catalogue lives (G39) and what `middleware.ts` resolves (G25, G36) are open
+> in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The tree records the plan written before them.
+
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
 tree.
@@ -73,6 +79,18 @@ Two boundaries inside one app:
 Splitting into separate apps is governed by [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md); the split triggers (independent deploy cadence, build-time becomes a bottleneck, separate teams) are listed there.
 
 ## Tenant + Organization Resolution at the Edge
+
+> **Open in Phase 02d.** Whether the edge calls an API host lookup at all, and what it
+> returns, is G25; what the middleware carries inward and answers is G36; the server
+> SDK's transport, including the headers the sketch below sends, is G35; and how the
+> locale reaches the API is G30 — all in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> This section's "Phase 02d ships it", the diagram's host-lookup step and the SDK sketch
+> record the plan the section was written against. Each pass reconciles them with its
+> answer, together with
+> [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)
+> and
+> [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution).
 
 Next.js middleware resolves the tenant, and optionally the organization, before any
 route handler runs. Four rules, all of them from
@@ -197,6 +215,11 @@ In text, for a reader whose renderer does not draw it:
 
 ## Rendering Strategies
 
+> **Open in Phase 02d.** How tenant-varying `(public)` routes render, and which caches
+> may hold tenant data, is G37 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The `(public)` row below records the plan written before it; that pass rewrites it.
+
 Per segment:
 
 | Segment | Strategy | Notes |
@@ -209,23 +232,28 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-A tenant's branding flows from the API as design tokens. The renderer applies them as
-CSS variables on the document root. When the resolved request carries an organization
-id and that organization has a `BrandingOverride`, the override merges on top of the
-tenant defaults before injection — the merged token set is the source of truth for the
-SSR'd page.
+A tenant's branding flows from the API as design tokens, and the renderer applies them
+as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` set
+[Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)
+names and the shared Tailwind preset reads; this document keeps no second vocabulary.
+Which tokens a tenant may set and the value each accepts are G16 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+How the tokens reach the document, and how that mechanism stays compatible with the
+nonce-based policy that
+[Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as
+the target, is G42 in the same register.
 
-```html
-<html style="--brand-primary: #1f3a8a; --brand-on-primary: #ffffff; --brand-font: 'Inter';">
-```
+When the resolved request carries an organization id and that organization has a
+`BrandingOverride`, the override merges on top of the tenant defaults before injection —
+the merged token set is the source of truth for the SSR'd page.
 
-Tailwind reads these variables via
-`theme.extend.colors.brand.primary = 'rgb(var(--brand-primary) / <alpha-value>)'`.
 The first paint is themed; there is no FOUC because tokens are injected into the SSR'd
 HTML.
 
 Logo and font assets are URLs (served from CDN). Custom fonts are validated and
-rate-limited at upload to prevent unbounded font payloads.
+rate-limited at upload to prevent unbounded font payloads. Whether branding may name a
+logo or font asset at all (G16) and whether a public page may load one from another
+origin (G21) are open in the same register.
 
 A `ThemeProvider` is **not** introduced unless dynamic theme switching is needed; the
 CSS-variable approach handles the static-per-request case (one render = one theme = one
@@ -357,22 +385,31 @@ The classroom screen is the only place that knows the LiveKit URL; the rest of t
 
 ## Performance Budgets
 
-The public renderer has hard budgets:
-
-- Time to First Byte: < 200 ms at the origin under steady state.
-- Largest Contentful Paint: < 2.5 s on a mid-tier mobile device on 4G.
-- JavaScript shipped on the public segment: < 150 KB gzipped initial route bundle.
+The public renderer's budgets — time to first byte, Largest Contentful Paint, layout
+shift, interaction latency and the initial JavaScript payload — are owned by
+[Performance Standards § Initial Budgets and § Bundle Size](../standards/15-performance.md).
+This document does not restate them.
 
 Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
 
-CI runs Lighthouse on representative public pages on every PR; budgets failing the threshold fail the build.
+CI's Lighthouse job over representative public pages is scaffolded and not yet active.
+Whether it activates in [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), and what
+it asserts, is G44 in
+[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Accessibility
 
 - WCAG 2.2 AA is the target.
-- `axe-core` runs in component tests; violations fail the test.
+- Automated `axe-core` checks run through Playwright, per
+  [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling);
+  [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
+  names the owning phase.
 - Keyboard navigation and focus order are reviewed before any block ships.
-- Color contrast is verified for every branded theme — tenant brand tokens that violate contrast cannot be saved.
+- Color contrast is verified for every branded theme, including the merged tenant and
+  organization token set, per
+  [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast).
+  Whether a failing token set is refused or saved with a warning is G16 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Splitting into Multiple Apps Later
 
@@ -393,6 +430,13 @@ The route-segment structure today is deliberately shaped to make this extraction
 mechanical.
 
 ## Risks
+
+> **Open in Phase 02d.** Two bullets below state answers Phase 02d has not given.
+> Whether the `(public)` routes it ships are cached at all, and on what key, is G37;
+> whether a brand-token set that fails the contrast check is refused or saved with a
+> warning is G16 (d). Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each gate edits its bullet with the answer.
 
 - **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
   Cardinality is bounded; budget memory headroom.

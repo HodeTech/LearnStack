@@ -73,6 +73,12 @@ Output at the end of Step 1: a one-paragraph problem statement in your own
 words, the phase the task belongs to, the standards that govern the change, and
 the specific skill(s) you'll invoke for the implementation.
 
+When the task is a phase packet, Step 1 also opens its **decision pass**
+([Roadmap § Decision Timing](../../../docs/roadmap/README.md#decision-timing)): the
+gates the packet waits on are re-verified against `HEAD`, their records are shown to
+the user and Accepted, and the decisions are the packet's first commit — before Step 4
+writes any code.
+
 ### Step 2 — Inspect and understand
 
 Read every file the change will touch **before** modifying any of them. Trace
@@ -156,8 +162,11 @@ match the change:
 
 - Backend changes → `dotnet build`, `LearnStack.Tests.Architecture`,
   `LearnStack.Tests.Unit`, `LearnStack.Tests.Integration` (Testcontainers).
-- Frontend changes → `pnpm lint`, `pnpm typecheck`, `pnpm test`, and Lighthouse on
-  representative routes if the public surface changed. There is no `pnpm test:a11y` yet
+- Frontend changes → `pnpm lint`, `pnpm typecheck` and `pnpm test`. No Lighthouse
+  command exists yet, locally or in CI — the `lighthouse-budget` job is a deferred
+  placeholder — so judge public-route budgets against
+  [Performance Standards](../../../docs/standards/15-performance.md) by reading. There
+  is no `pnpm test:a11y` yet
   — the axe suite arrives in Phase 06 ([run-tests-locally](../run-tests-locally/SKILL.md)).
 - Documentation-only → broken-link sweep + `docs/analysis/` residual scan
   (see Step 7's link audit).
@@ -244,8 +253,8 @@ prompt for that agent so it doesn't have to re-learn the context. Use the
 [code-review § Generating a review-agent prompt](../code-review/SKILL.md)
 template. The prompt must:
 
-- Set the project context (LearnStack PaaS, pre-implementation phase, the
-  hard-rules summary).
+- Set the project context (LearnStack PaaS, the live phase from `CLAUDE.md` § What
+  state this is in, the hard-rules summary).
 - Point at the specific commit / branch / file list under review.
 - Tell the review agent to walk security + bug / potential bug + optimisation
   + refactor + standards conformance.

@@ -257,6 +257,18 @@ See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 
 ### Step 5: Permission policy
 
+> **Not wired yet.** No `IPermissionRegistry`, `registry.Tenant(...)` or `Roles`
+> catalogue exists in `backend/src`, `LearnStack.Api` registers no authorization
+> middleware, and `AuthorizationBehavior` passes every request through; the catalogue
+> lands with the Identity module in
+> [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md). Until then this step's
+> registration, Step 7's `[Authorize(Policy = …)]` and the `403` check under
+> § Validation have nothing to bind to. A module's `permissions.md` is a forward
+> declaration, a handler with no HTTP route stands on reachability, as
+> [the Tenancy permission matrix](../../../docs/modules/tenancy/permissions.md)
+> records, and an anonymous endpoint carries `[AllowAnonymous]` with its reason
+> ([Permissions Standards § HTTP endpoints](../../../docs/standards/19-permissions.md#http-endpoints)).
+
 The endpoint that invokes this handler is guarded by
 `[Authorize(Policy = "enrollment.enrollment.write")]`. Register the permission in
 the module:

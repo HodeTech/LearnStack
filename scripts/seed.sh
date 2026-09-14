@@ -265,6 +265,10 @@ fi
 
 green "  ✓ demo-english and demo-yoga present."
 
+# Open in Phase 02d. The hostnames below mirror SeedData. Whether they stay, and the
+# step a browser needs to reach them, is G32; what `make demo` prints is G45. The pass
+# that closes each gate edits this block with its answer. Both gates are in
+# docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register
 cat <<'HOSTS'
 
   Both tenants resolve by host. Add them to /etc/hosts to reach either in a

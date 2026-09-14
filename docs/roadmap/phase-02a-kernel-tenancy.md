@@ -1466,9 +1466,8 @@ Per [API Standards](../standards/04-api-design.md):
 - Secret handling — never in source.
 - Tenant-level + organization-level settings model: `tenant_settings`, with org-scoped
   rows on its nullable `organization_id`, ships in Packet 6. The typed accessor over it
-  lands with its first reader — [Phase 02d](phase-02d-walking-skeleton.md)'s renderer,
-  which takes layout, typography and colour from it; nothing in this phase reads a
-  setting.
+  lands with its first reader — [Phase 02d](phase-02d-walking-skeleton.md)'s renderer;
+  nothing in this phase reads a setting.
 
 ### Architecture Tests
 

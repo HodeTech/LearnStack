@@ -247,7 +247,11 @@ domain the diff doesn't touch.
 - [ ] Route group correct (`(public)` / `(studio)` / `(portal)`).
 - [ ] Server Components default; `"use client"` only when needed.
 - [ ] Tenant + organization + locale resolution via middleware; not
-  re-implemented in the page.
+  re-implemented in the page. The API resolves tenant and organization from the host
+  ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop));
+  what the middleware resolves or carries for `(public)` routes is G25 and G36 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+  and the pass that closes them edits this item.
 - [ ] Folder structure under `frontend/apps/web/`.
 
 #### `08-localization.md`
@@ -275,9 +279,17 @@ domain the diff doesn't touch.
 #### `11-security.md`
 - [ ] 4-step auth order on every write (Authn → Tenant membership →
   Role/permission → Resource scope).
-- [ ] Tenant id from JWT only, never from request body.
+- [ ] Tenant id from the resolved context, never from request body — the host lookup of
+  the effective host, or validated claims plus live membership on a platform host, per
+  [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md);
+  `X-Tenant-Id` and `X-Organization-Id` are assertions, never sources.
 - [ ] Secrets via `ISecretProvider`; no plaintext in source / `appsettings`.
-- [ ] Secure headers set (HSTS, CSP, COOP, CORP).
+- [ ] Secure headers set (HSTS, CSP, COOP, CORP). **Not enforced yet:** nothing sets
+  them today, and the
+  [standards index](../../../docs/standards/README.md#honest-status-today) row for
+  Security Standards carves § Transport and § HTTP Headers out to
+  [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md#security), so a
+  missing header is not a failure until that phase sets them.
 - [ ] File-upload validation (MIME sniff, size, EXIF strip, scoped key).
 - [ ] Two-realm separation enforced.
 
@@ -302,10 +314,14 @@ domain the diff doesn't touch.
 - [ ] No `--force` on `main`; no `--amend` on a published commit.
 
 #### `15-performance.md`
-- [ ] Public-route Lighthouse budgets respected (LCP < 2.5s, INP < 200ms,
-  CLS < 0.05). **Not mechanically checkable yet** — `ci.yml`'s
-  `lighthouse-budget` job is a placeholder deferred to Phase 02d. Judge by
-  reading; do not report a pass or a failure as measured.
+- [ ] Public-route budgets in
+  [15-performance.md § Initial Budgets](../../../docs/standards/15-performance.md#initial-budgets)
+  and [§ Bundle Size](../../../docs/standards/15-performance.md#bundle-size) respected.
+  **Not mechanically checkable yet** — `ci.yml`'s `lighthouse-budget` job is a
+  placeholder. Whether it activates in Phase 02d is G44 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this paragraph. Judge by reading; do not report a pass
+  or a failure as measured.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`

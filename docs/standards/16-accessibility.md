@@ -50,6 +50,9 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 - UI components and graphical objects ≥ 3:1.
 - Never rely on color alone to convey meaning; pair with text, icon, or shape.
 - Tenant theme tokens are validated for contrast before saving (Admin Studio surfaces a warning).
+  Whether a failing pair refuses a write that has no Studio screen, or records a
+  warning, is G16 (d) in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ### Images and Media
 
@@ -89,6 +92,15 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 - `axe-core` integrated with Playwright; runs on every E2E test for the public renderer and portal critical flows.
 - Lighthouse accessibility audit runs in CI for public routes.
 - Manual keyboard walkthroughs for new screens in the PR review.
+
+> **Open in Phase 02d.** Its public pages are the first routes this section binds.
+> Whether the Lighthouse job activates there, and whether its accessibility audit is
+> asserted, is G44; which checks fail a build on those pages — route tests, `jsx-a11y`
+> at error severity or component axe — is G43. Both are in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the passes that close them edit this section. The Playwright axe run is
+> [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s, per
+> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests).
 
 ## Testing
 

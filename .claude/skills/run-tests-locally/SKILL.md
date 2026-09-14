@@ -71,9 +71,10 @@ backend/tests/
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
-                                   # arrive in Phase 06; CI's `lighthouse budget`
-                                   # job stops being deferred earlier, in Phase 02d,
-                                   # with the first content-bearing pages.
+                                   # arrive in Phase 06. Whether CI's deferred
+                                   # `lighthouse budget` job activates in Phase 02d
+                                   # is G44 in that phase's decision register; the
+                                   # pass that closes it edits this comment.
 ```
 
 ### Step 3: Run unit tests
@@ -161,9 +162,12 @@ pnpm lint                # next lint — what `pnpm -r lint` runs in CI
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
-> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md); CI's
-> deferred `lighthouse budget` job activates earlier, in Phase 02d, with the first
-> content-bearing pages. Until then there is no accessibility or end-to-end gate to run.
+> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md). Whether
+> CI's deferred `lighthouse budget` job activates earlier, in Phase 02d, is G44, and
+> which accessibility checks fail a build on that phase's pages is G43;
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
+> holds both, and the pass that closes each edits this note. Today there is no
+> accessibility or end-to-end gate to run.
 
 ### Step 7: Single-test focus
 
@@ -247,8 +251,10 @@ dotnet test --blame-hang --blame-hang-timeout 5min
 - For integration suites, Docker is running and nothing else holds 5432.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
-  The accessibility gate joins this list in Phase 06, with the suite that
-  enforces it.
+  The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
+  findings fail a build earlier, on Phase 02d's pages, is G43 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+  and the pass that closes it edits this line.
 
 ## Common pitfalls
 
@@ -265,7 +271,10 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   against stale binaries.
 - **Assuming an accessibility gate exists.**
   [16-accessibility.md](../../../docs/standards/16-accessibility.md) makes WCAG
-  2.2 AA binding, and Phase 06 is what makes a suite enforce it. Reading the
-  standard is the gate until then.
+  2.2 AA binding, and Phase 06 brings the axe suite that enforces it. Reading the
+  standard is the gate today; whether a route test or lint rule fails a build
+  earlier, on Phase 02d's pages, is G43 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+  and the pass that closes it edits this pitfall.
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

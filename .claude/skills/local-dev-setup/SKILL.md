@@ -185,8 +185,8 @@ Three properties of that inventory matter while you are setting up:
   silently leaves them running, which is why every teardown target carries
   `--profile '*'`.
 - **Neither application host is a compose service.** `LearnStack.Api` runs on
-  the workstation via `dotnet run` on the `ASPNETCORE_URLS` port in
-  `.env.example` (5080), and `apps/web` runs via `pnpm dev` on 3000.
+  the workstation via `dotnet run` on the launch profile's `applicationUrl`
+  (5080), and `apps/web` runs via `pnpm dev` on 3000.
 
 To read the resolved truth rather than any document, ask the stack:
 
@@ -216,9 +216,13 @@ What it does not write yet, and which phase owns each:
    the `users` table arrives with
    [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md)'s Identity
    migration, and Packet 7 creates none.
-4. Customization data (`TenantContentType`, `TenantPageBlock`,
-   `TenantLevelTaxonomy`, …) — the Customization module is empty until
-   [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), which is what first needs them.
+4. Each tenant's **own** content type, level taxonomy and branding token values, and
+   the customization aggregates that have no schema yet (`TenantPageBlock`, …). The
+   built-in `card` content type and `plain` taxonomy are already written for both
+   tenants, since
+   [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). Which phase
+   adds each of the rest is in
+   [seed-tenant § Step 4: What a later phase adds](../seed-tenant/SKILL.md#step-4-what-a-later-phase-adds).
 5. SeaweedFS buckets and Meilisearch indexes — both adapters are demand-gated to
    [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) under
    [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
@@ -232,7 +236,7 @@ its way through.
 
 ```bash
 # API health
-# 5080 is ASPNETCORE_URLS in .env.example - the single source of truth for it.
+# 5080 is the `http` launch profile's applicationUrl (Properties/launchSettings.json).
 curl -fsS http://localhost:5080/healthz | jq
 
 # APISIX (gateway pass-through; only after `make dev-gated` and while the API runs)
@@ -245,19 +249,24 @@ open http://localhost:8080/realms/learnstack-hub/account
 # SeaweedFS filer UI (replaces the MinIO console of the prior stack)
 open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 
-# Web app
-open http://localhost:3000       # one of the demo tenants
-
-# A second demo tenant (use the Hosts file to alias)
-# /etc/hosts: 127.0.0.1 demo-yoga.learnstack.local demo-english.learnstack.local
-open http://demo-english.learnstack.local:3000
+# Web app (after `pnpm --filter @learnstack/web dev`): the scaffold page only.
+# `localhost` is a platform host (Tenancy:PlatformHosts in
+# appsettings.Development.json) and never resolves a tenant. No tenant-rendered
+# page exists on any host yet: browsing the two demo tenants, and the host step
+# it needs, arrive with Phase 02d (docs/roadmap/phase-02d-walking-skeleton.md
+# § Host-based tenant resolution, end to end).
+open http://localhost:3000
 ```
 
 ### Step 6: Switch deployment modes locally
 
-Edit `.env` to flip `DEPLOYMENT_MODE`. This changes the composition paths that
-already exist, such as error tracking and telemetry. It does not make the
-demand-gated Dapr adapters exist early:
+Set `Deployment__Mode` in the shell that runs `dotnet run`, or `Deployment:Mode` in the
+user-secrets store Step 3 uses, to flip the mode. Editing `.env` does nothing: it has no
+mode key, and `dotnet run` reads no `.env` (Step 3). The committed value is
+`Development`, under `Deployment:Mode` in `appsettings.Development.json`, and the
+composition root refuses to start without the key rather than defaulting it. The mode
+changes the composition paths that already exist, such as error tracking and telemetry.
+It does not make the demand-gated Dapr adapters exist early:
 
 | Value | What happens |
 |-------|--------------|
@@ -272,7 +281,7 @@ For **every** value today, the three demand-gated ports still resolve to
 `ConfigurationSecretProvider`. `DaprEventBus`, `DaprCacheService`, and
 `DaprSecretProvider` land in Phase 11 only after their ADR-0035 triggers fire.
 
-After changing `.env`, stop and rerun the API process:
+After changing the mode, stop and rerun the API process:
 
 ```bash
 # In the terminal running `dotnet run`, press Ctrl+C, then:
@@ -287,7 +296,6 @@ dotnet run --project backend/src/LearnStack.Api
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
-| Web app shows raw i18n keys | i18n bundle build skipped; `pnpm build:i18n`. |
 | Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |
 
@@ -303,12 +311,17 @@ state.
 
 ## Validation
 
+> **Open in Phase 02d.** Which hostnames serve the two demo tenants, and the step a
+> browser needs to reach them, is G32; what `make demo` starts and guarantees is G45.
+> Both are in
+> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each adds its check to this list with its answer.
+
 - `make dev` exits 0; after starting the API separately, `/healthz` responds 200.
 - After `make dev-gated` and with that API running, APISIX forwards `/healthz`.
-- The web app loads against a demo tenant's host (either default subdomain or
-  Hosts-aliased custom domain).
+- The web app serves the scaffold page on `http://localhost:3000` (Step 5); no tenant
+  page renders on either demo host yet.
 - Keycloak login works for both realms.
-- A test learner can complete a lesson against the seeded English tenant's data.
 - `dotnet test backend/tests/LearnStack.Tests.Integration` passes against the
   same containers (the Testcontainers fixture is independent; this is just a
   consistency check).

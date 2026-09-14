@@ -178,16 +178,25 @@ Exceptions stay for things like "database is down" or "the program is in a bug s
 Each use case is a command or query:
 
 ```csharp
-public sealed record PublishCourseCommand(CourseId CourseId, UserId ActorId) : IRequest<Result<CourseVersionId>>;
+public sealed record PublishCourseCommand(
+    Guid CourseId,  // module-local id: crosses the contract as Guid, per § Types
+    UserId ActorId) // SharedKernel id: typed everywhere
+    : IRequest<Result<Guid>>;
 
-public sealed class PublishCourseHandler : IRequestHandler<PublishCourseCommand, Result<CourseVersionId>>
+public sealed class PublishCourseHandler : IRequestHandler<PublishCourseCommand, Result<Guid>>
 {
-    public async Task<Result<CourseVersionId>> Handle(PublishCourseCommand command, CancellationToken ct)
+    public async Task<Result<Guid>> Handle(PublishCourseCommand command, CancellationToken ct)
     {
         // ...
     }
 }
 ```
+
+> **Open in Phase 02d.** The example's names are illustrative. Phase 02d writes the
+> first Education commands, and whether a course version exists yet, which command sets
+> a publication state and whether publishing is its own command are G2, G3 and G11 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The decision pass that closes them edits this example with its answer.
 
 Rules:
 - Handlers are thin; orchestrate domain methods and persistence.

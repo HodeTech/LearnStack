@@ -315,6 +315,15 @@ yet:
 > the set of setters is closed and a closed set is worth stating whole; it is not evidence
 > that a seventh short transaction runs on any Packet 7 request path.
 
+> **Open in Phase 02d.** One shipped caller this table does not list already announces
+> `app.tenant_id`: `SeedRunner`'s ownership check opens a transaction of its own and
+> calls `IUnitOfWork.SetTenantContextAsync` on it, and nothing mechanical closes that
+> method's caller set. Whether the seeder is admitted here or routed through `ISender`
+> is G15, and whether the customization projection's loader or the settings accessor's
+> becomes an out-of-band setter is G22 and G23, all in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each edits this section with its answer.
+
 **Both audit writers announce both variables.** `WriteStandaloneAsync` and
 `WriteBestEffortAsync` issue `app.tenant_id` **and** `app.organization_id` from the
 draft, as the first statements of their short transaction, because `audit_log` is
@@ -476,6 +485,14 @@ gates it to [Phase 11](../roadmap/phase-11-production-hardening.md)), only the
 anonymous row is enforced, in process, keyed on the socket peer — see
 [Standards 04 § Request and Response Limits](04-api-design.md) for what enforces
 which row today.
+
+> **Open in Phase 02d.** Its server-rendered pages call the API from the renderer's
+> peer, so every visitor of both seed tenants shares that peer's anonymous partition.
+> How the limiter treats a request arriving over the authenticated trusted hop — the
+> partition key, the budget, and any visitor address the renderer states — is G34 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes it edits the anonymous row and the paragraph above with its
+> answer.
 
 | Surface | Limit |
 |---------|-------|
@@ -647,7 +664,9 @@ Security-relevant durability rules:
 - Storing passwords or password derivatives in any LearnStack table.
 - Storing third-party tokens in plain text — encrypt at rest if storage is unavoidable.
 - Trusting `tenant_id` or `organization_id` from a request body or query param. Both
-  come from authenticated context only.
+  come from the resolved tenant context only
+  ([API Standards § Tenant Context](04-api-design.md#tenant-context)), which an
+  anonymous request resolves from its effective host.
 - Implementing custom crypto. Use established libraries.
 - Disabling RLS in production for any reason short of an investigated incident with an
   ADR.

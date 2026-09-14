@@ -93,6 +93,12 @@ written through `ProvisionTenantCommand` and the same handlers a request uses, s
 browser — which is how the genericity claim is tested continuously rather than asserted
 once at the end.
 
+> **Open in Phase 02d.** Whether the seed hosts stay under `*.learnstack.local` with the
+> hosts-file step above, and what a reviewer does between a clean checkout and both
+> sites, is G32; what `make demo` starts and prints is G45. Both are in
+> [Phase 02d's decision register](docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes each gate edits this section with its answer.
+
 ---
 
 ## Where it is today
@@ -109,7 +115,7 @@ repository right now, and the documentation says so wherever it describes them.
 | Tenant customization foundation — content types and level taxonomy | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** (2 of the 8 aggregates) |
 | Audit trail, written inside the business transaction | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
 | API conventions, entitlement socket, foundation ports | [02a](docs/roadmap/phase-02a-kernel-tenancy.md) | **Running** |
-| Two tenants rendering their own sites, side by side | [02d](docs/roadmap/phase-02d-walking-skeleton.md) | **Next** |
+| Two tenants rendering their own sites, side by side | [02d](docs/roadmap/phase-02d-walking-skeleton.md) | **In progress** |
 | Authentication, sessions, events | [02b](docs/roadmap/phase-02b-events-auth.md) | Planned |
 | Users, roles, permissions, admin foundation | [03](docs/roadmap/phase-03-identity-admin.md) | Planned |
 | Headless CMS, page builder, media library | [04](docs/roadmap/phase-04-cms-media-pages.md) | Planned |

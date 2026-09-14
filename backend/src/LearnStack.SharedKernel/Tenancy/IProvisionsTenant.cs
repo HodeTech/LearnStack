@@ -24,7 +24,7 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// and any statement issued in it is silently fail-closed, and would hand every handler
 /// in the solution the ability to retarget the ambient tenant. The setter set
 /// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-/// Amendment 3</see> closes at seven stays closed.
+/// Amendment 7</see> closes at eight stays closed.
 /// </para>
 /// <para>
 /// <b>It grants nothing on its own.</b> The behavior honours it only when the context is

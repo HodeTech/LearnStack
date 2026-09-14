@@ -40,7 +40,6 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
   - Required status checks (the job names from `.github/workflows/ci.yml`):
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
-    - `meta (compose + commit hygiene + link audit)`
     - `secret scan (leakwatch)`
     - `meta (compose + commit hygiene + link audit)` — ⚠️ **the live rule still
       requires the pre-rename name** `meta (commit hygiene + link audit)`, which
@@ -77,6 +76,13 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     GitHub matches required checks **by name**, so the rename is the dangerous
     half: a renamed check that nobody re-required is a check that no longer blocks
     anything, and the PR still shows green.
+
+    > **Open in Phase 02d.** Whether the Lighthouse job activates in Phase 02d, and on
+    > what harness, is G44; whether an activated job keeps its `vars.ENABLE_*`
+    > condition — GitHub treats a skipped required job as passing — is G31.
+    > [Phase 02d's decision register](../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
+    > holds both. The pass that closes each gate edits the activation steps and the
+    > Lighthouse entry above with its answer.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

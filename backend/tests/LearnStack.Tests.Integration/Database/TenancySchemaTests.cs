@@ -728,7 +728,7 @@ public sealed class TenancySchemaTests
         // and this case exists because no policy does.
         //
         // Run as a TENANT-scope session — no app.organization_id. Since ADR-0003
-        // Amendment 4 the restrictive UPDATE guard refuses an organization-scoped session
+        // Amendment 5 the restrictive UPDATE guard refuses an organization-scoped session
         // the tenant-wide row outright, so attempting the move from one filters to zero
         // rows and the trigger never fires: the case would pass while testing nothing. A
         // tenant-scope session is the one that can still reach the row, which makes it

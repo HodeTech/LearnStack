@@ -15,7 +15,7 @@ namespace LearnStack.Modules.Customization.Domain;
 /// The first half of what
 /// <see href="../../../../../docs/decisions/0018-tenant-driven-customization-model.md">ADR-0018</see>
 /// means by "the difference lives in their database rows". A language school's
-/// <c>vocabulary-card</c> and a yoga studio's <c>asana-pose</c> are two rows in
+/// <c>grammar-topic</c> and a yoga studio's <c>asana-pose</c> are two rows in
 /// this table, not two types in an assembly, and
 /// <see href="../../../../../docs/roadmap/phase-02d-walking-skeleton.md">Phase 02d</see>
 /// renders both from the same code path.
@@ -57,7 +57,15 @@ public sealed class TenantContentType
         RendererKey = null!;
     }
 
-    /// <summary>The draft 2020-12 document, as authored, already gated.</summary>
+    /// <summary>The draft 2020-12 document, already gated.</summary>
+    /// <remarks>
+    /// As authored only on the instance a caller built: the column is <c>jsonb</c>, so
+    /// an instance materialized from the row carries the same members and values but
+    /// not the author's key order or whitespace. How a content type's field order and
+    /// labels are carried is G18 in
+    /// <see href="../../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">Phase 02d's decision register</see>,
+    /// whose pass edits this remark with its answer.
+    /// </remarks>
     public string JsonSchema { get; private set; }
 
     /// <summary>A key from the closed set in <see cref="CompositeRendererKey"/>.</summary>

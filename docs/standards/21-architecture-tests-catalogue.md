@@ -412,11 +412,17 @@ otherwise).
 
 #### `Handlers_Return_Result`
 
-- **Asserts:** every `IRequestHandler<TRequest, TResponse>` implementation
-  in a `*.Application` assembly has `TResponse : IResultBase`. A handler
-  that returns a raw DTO would satisfy none of the
-  `where TResponse : IResultBase`-constrained pipeline behaviors and so
-  would silently bypass validation / audit / tenant-context + RLS.
+- **Asserts:** every `IRequestHandler<TRequest, TResponse>` implementation in any
+  `LearnStack.*` project under `backend/src` (derived from the tree, not listed) has
+  `TResponse : IResultBase`. Every pipeline behavior is constrained
+  `where TResponse : IResultBase`, so a handler returning a raw DTO runs with none of
+  them: no validation, no audit classification, no authority ceiling and no transaction.
+  A module `DbContext` it resolves is refused outside the ambient transaction, so its EF
+  access fails loudly. SQL it issues on `IUnitOfWork.Connection` carries no tenant
+  announcement and reads zero rows.
+- **What it does not catch:** code that never dispatches a request: a controller that
+  queries, or that opens the unit of work and announces a tenant itself. No rule in this
+  catalogue constrains what a controller depends on.
 - **Source:** ADR-0032 § Sub-decision 2;
   [02-backend-coding.md § MediatR Use Cases](02-backend-coding.md).
 - **Type:** xUnit + reflection over `IRequestHandler<,>` implementations.
@@ -568,8 +574,8 @@ otherwise).
   (and its 2026-08-08 genericity-boundary amendment);
   [00-principles.md § 1](00-principles.md).
 - **Type:** xUnit — reflection over the production assemblies, the EF models, the
-  audit catalogue and the key registries, plus a file scan of `frontend/apps/web`.
-  **Kind:** structural.
+  audit catalogue and the key registries, plus a file scan of every app and package
+  under `frontend/`. **Kind:** structural.
 - **Status:** **Implemented** — `DomainGenericityTests.cs`, Packet 10. It is the mechanical
   guarantee behind the platform's entire premise — "the core stays generic" — and it had no
   implementation while its far weaker sibling `No_Source_Folder_Named_Verticals` stayed green
@@ -666,8 +672,11 @@ otherwise).
 #### `No_Architecture_Test_Is_Skippable`
 
 - **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
-  `[Theory]`, and — at the runner, where the rule itself cannot see — no suite reports a
-  case that did not run.
+  `[Theory]`, and — at the runner, where the rule itself cannot see — no backend suite's
+  `.trx` reports a case that did not run. The `frontend` job's Vitest run is not read: a
+  skipped or todo case there, including one in `lint-rules.test.ts`, exits 0 today, and
+  closing that gap is G38 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -1406,7 +1415,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   of them — a unique prefix already yields at most one candidate row, which is why
   `tenants`' primary key supports the composite
   `fk_tenants_default_organization`. Every foreign key in this schema is
-  `ON DELETE RESTRICT`, so every parent delete pays the child scan.
+  `ON DELETE RESTRICT`, or `ON DELETE CASCADE` for a child inside an aggregate boundary
+  ([Database Standards § Foreign keys between tenant-owned tables](05-database.md#foreign-keys-between-tenant-owned-tables)),
+  so every parent delete pays the child scan.
 - **Source:** [05-database.md § Indexes](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL), reading
   `pg_constraint` / `pg_index`. **Kind:** structural.
@@ -3490,6 +3501,14 @@ structural test proves — and what it does not.
   header produced **zero** rejections against eleven without it, and the
   composition root refuses to start in that configuration now.
 - **Phase:** 02a (Packet 4).
+- **Note:** the partition key is open for one class of request.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s server-rendered reads reach
+  the API over the authenticated trusted hop from the renderer's peer, so every visitor
+  of both seed tenants shares one partition. How the limiter keys and budgets such a
+  request is G34 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  An answer keyed on a visitor address the renderer states changes the "never comes from
+  a header" clause above, and the pass that closes G34 edits this entry.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -3668,8 +3687,20 @@ structural test proves — and what it does not.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [Standards 04 § Public surface](04-api-design.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (`RequestSurfaceTests`, Packet 7 step 6).
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** for the enumeration legs (`RequestSurfaceTests`, Packet 7
+  step 6): every marked request type is a row of the table, every row names a marked
+  type, and the attribute keeps the shape `TenantContextBehavior` reads it with. The
+  table parser reads only the **Request type** cell, and nothing in the suite checks a
+  row's permitted methods or that a marked request writes nothing. The permitted-methods
+  leg and the tenant-owned-write leg are Registered.
+- **Phase:** 02a (Packet 7) for the enumeration legs. The permitted-methods and
+  tenant-owned-write legs arrive with the first `[PublicSurface]` request type, in
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Which methods that phase's rows
+  permit, `GET` alone or the `GET` / `HEAD` default, what the methods leg compares a row
+  against, and whether the write leg is a structural scan, a `READ ONLY` unit of work or
+  both are G28 in
+  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this entry with its answer.
 - **Note:** the two directions are not equally vacuous, and the existing note above covers
   only one of them. **Marked set → table** is vacuous while no type carries the marker.
   **Table → marked set** is live from the day it ships: the table may not name a type that

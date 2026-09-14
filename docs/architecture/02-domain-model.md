@@ -43,7 +43,6 @@ flowchart LR
     Tenant
     Organization
     TenantDomain
-    TenantBranding
     TenantFeatureFlag
     TenantLocale
     TenantSetting
@@ -220,7 +219,7 @@ flowchart LR
 | `Tenant` | Yes | Tenant-owned, **self-keyed**: no `tenant_id` column, because its `id` *is* the tenant id and its RLS policy keys on `id`. Status: Trial / Active / Suspended / Archived. |
 | `Organization` | Yes | Sub-unit within a tenant (branch, studio, campus, department, cohort). Two-level hierarchy strict (ADR-0017). Every tenant has at least one default org. |
 | `TenantDomain` | Yes | Subdomain on `{slug}.learnstack.app` (always available) or custom domain (Hub-managed; see [27-custom-domain-tls.md](27-custom-domain-tls.md)). |
-| `TenantBranding` | Inside Tenant | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |
+| `TenantBranding` | No — not an entity; the values are `TenantSetting` rows ([Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)) | Logo, colors, typography tokens. May be overridden per-organization via `OrganizationBranding`. |
 | `OrganizationBranding` | Inside Organization | Optional partial design-token override (logo / colors / typography) merged on top of `TenantBranding` at render time. When the resolved request carries an organization id and a row exists, the merged token set is injected as CSS variables on the SSR'd HTML root; missing fields fall through to the tenant default. See [Glossary § Branding](../glossary.md). |
 | `TenantFeatureFlag` | Inside Tenant | Experimental / gradual-rollout flags. Plan-level features are surfaced via the entitlement projection (ADR-0021), not stored here. See [21-feature-flags.md](21-feature-flags.md). |
 | `TenantLocale` | Inside Tenant | The locales a tenant publishes in ([ADR-0008](../decisions/0008-localization-schema.md)). Composite key `(tenant_id, locale)`, no surrogate id; exactly one row is the default. |
@@ -285,6 +284,13 @@ per ADR-0018, not on `Membership` extension tables.
 
 > **Course vs. CourseVersion.** `Course` carries identity, catalog metadata, SEO, public visibility. `CourseVersion` carries the structure (modules, lessons, items) and is what enrollments and progress bind to. Editing a course never breaks a learner currently progressing through a published version.
 
+> **Open in Phase 02d.** Whether [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)
+> ships a minimal `CourseVersion` is G2, and which publication state `Course` carries
+> is G3, in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The split above is Phase 05's target model; see the note under
+> [§ Learning Content](#learning-content).
+
 ## Learning Content
 
 | Entity | Aggregate root? | Notes |
@@ -294,6 +300,17 @@ per ADR-0018, not on `Membership` extension tables.
 | `LessonItem` | Inside Lesson | Polymorphic: rich text, video, file, quiz reference, live-session reference, embedded tool. |
 | `LearningPath` | Yes | Optional cross-course traversal. |
 | `CompletionRule` | Inside CourseVersion | Determines when a lesson / module / course is complete. |
+
+> **Open in Phase 02d.** [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) ships
+> `Course` and `Lesson` ahead of Phase 05. Which aggregate `Lesson` belongs to and what
+> its parent is — an entity inside `Course`, its own root referencing `Course`, or a
+> minimal `CourseVersion` and default `Module` — is G2, and which publication state
+> `Course` and `Lesson` carry is G3, in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> Placing `Lesson` inside `Course` makes every lesson edit a structural change to
+> `Course`, which [§ Education Catalog](#education-catalog) says a published course
+> never undergoes. Where an answer departs from these tables, the pass that closes its
+> gate records an interim note here; the tables stay Phase 05's target model.
 
 ## Assessment
 

@@ -65,6 +65,12 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 
 ## Tenant Resolution
 
+> **Open in Phase 02d.** For the public site, whether the edge resolves a tenant and
+> what it carries inward (G25, G36), and whether the anonymous path sets any cookie
+> (G21), are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each edits this section with its answer.
+
 ```mermaid
 flowchart TD
   req[Request lands at edge]
@@ -98,14 +104,25 @@ Rules:
 
 ## Locale Resolution
 
+> **Open in Phase 02d.** How the locale reaches the API on the public reads — the query
+> parameter or `X-Locale` — is G30 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes it edits this section with its answer.
+
 - Public-site URL: `/{locale}/...`.
-- Default locale from tenant settings.
+- Default locale from the tenant's default `tenant_locales` row, which the Tenancy
+  module owns ([ADR-0008](../decisions/0008-localization-schema.md)).
 - Locale propagated as `X-Locale` to downstream API calls.
 - Client-side locale switching triggers `router.push` to the new locale path.
 
 ## SDK
 
 The SDK is the only allowed way to talk to the API from frontend code.
+
+> **Open in Phase 02d.** The server SDK's transport and options (G35), and the surface
+> the package exposes once regeneration makes `paths` non-empty (G31), are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each edits this section with its answer.
 
 - **Generated** from the backend's `/openapi/v{N}.json` by `openapi-typescript`
   into `src/generated/schema.d.ts`, which is **checked in** so a reviewer sees the
@@ -146,7 +163,17 @@ export default async function CourseListPage() {
 - `params` and `searchParams` server-side; thread through carefully.
 - Each route group has its own `layout.tsx`, `loading.tsx`, `error.tsx`.
 
+> **Open in Phase 02d.** Which of these files the `(public)` group ships in Phase 02d,
+> and any dated carve-out that needs, is G40 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
 ## Public Site Renderer
+
+> **Open in Phase 02d.** How tenant-varying `(public)` routes render and which caches
+> may hold tenant data (G37), and where composite and primitive components live (G41),
+> are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each edits this section with its answer.
 
 - Renders **published** pages, courses, blog content.
 - Server-side rendering with `revalidate` based on tenant + content type.
@@ -168,6 +195,11 @@ export default async function CourseListPage() {
 - Reconnection states visible to the user.
 
 ## Tenant Branding
+
+> **Open in Phase 02d.** Which branding keys exist and the value each accepts (G16), and
+> how validated values reach the server-rendered document (G42), are open in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The pass that closes each edits this section with its answer.
 
 - Tenant theme tokens loaded at the layout level via RSC.
 - Tokens map to CSS variables; Tailwind reads them via `--ls-primary`, `--ls-bg`, etc.

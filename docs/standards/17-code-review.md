@@ -61,11 +61,20 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] No hardcoded user-facing strings in JSX (grep for new strings outside `t('...')`).
 - [ ] Strict TypeScript: no `any`, no `// @ts-ignore` (use `@ts-expect-error` with a comment if absolutely necessary).
 - [ ] Server Components are the default; `"use client"` only where interactivity needs it.
-- [ ] Cache keys include `tenantId` and `locale` where relevant.
+- [ ] Cache keys carry the tenant, the organization where applicable, and the locale
+  ([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist)).
 - [ ] New forms use React Hook Form + Zod and render errors at the field level.
 - [ ] New routes have `error.tsx` and `loading.tsx` where appropriate.
-- [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass.
+- [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass where a suite runs them — none does yet (see the note below).
 - [ ] Bundle size delta acceptable on public routes (< 200 KB gzipped per route).
+
+> **Open in Phase 02d.** No axe-core suite exists in `frontend/` today, and
+> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests) assigns the
+> Playwright axe run to [Phase 06](../roadmap/phase-06-renderer-admin-studio.md). Which
+> accessibility checks fail a build on Phase 02d's public pages — route tests,
+> `jsx-a11y` at error severity or component axe — is G43 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
+> and the pass that closes it edits the accessibility box with its answer.
 
 If a checkbox doesn't apply to your diff, omit it. If you cannot tick a checkbox, fix the gap before requesting review.
 

@@ -112,7 +112,7 @@ matching localization key adds the `lockey_` prefix.
 | `audit_unavailable` | A MUST-class audit row could not be written durably | 503 |
 | `audit_unclassified_operation` | Operation absent from the audit catalogue | 500 |
 | `recording_consent_required` | Live session requires consent | 409 |
-| `unsupported_locale` | Locale not enabled for tenant | 400 |
+| `unsupported_locale` | Locale not enabled for tenant. Whether Phase 02d's public reads answer a not-enabled locale with this code or with `not_found` is G30 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row with its answer | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |
@@ -317,7 +317,12 @@ Rules:
 - FluentValidation produces field-level errors.
 - Always include all failures, not just the first one.
 - Field names match the request shape (`camelCase`).
-- Messages are localizable; the API returns the locale-appropriate message based on the request's `Accept-Language` or tenant default.
+- Messages are localizable because they travel as keys: `messageKey` and each `errors`
+  entry are `LocalizedMessage` payloads (`key` + optional `params`) the frontend
+  resolves against its i18n catalogue, as [§ API Surface](#api-surface) states. The API
+  returns no message text today; locale negotiation from `Accept-Language` for any
+  message text the API composes later is
+  [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s.
 - **`ValidationBehavior` returns `Result.Fail(validation_failed, errors)` —
   it does NOT throw `FluentValidation.ValidationException`.** Per
   [ADR-0032 § Sub-decision 3](../decisions/0032-exception-handling-logging-and-observability.md),

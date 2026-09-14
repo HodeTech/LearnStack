@@ -162,7 +162,7 @@ public sealed class PlatformAdminScopeConventionTests
 
         code.Should().NotContain(SourceText.WithoutWhitespace("set_config("),
             "a BYPASSRLS connection has no policy to announce a tenant to, and announcing "
-            + "one would make this an eighth setter in a set two ADRs close at seven");
+            + "one would make this a ninth setter in the set ADR-0040 closes at eight");
         code.Should().NotContain(SourceText.WithoutWhitespace("SetTenantContextAsync"));
         code.Should().NotContain(SourceText.WithoutWhitespace("IUnitOfWork"),
             "enlisting would put the bypass on the request's own connection");

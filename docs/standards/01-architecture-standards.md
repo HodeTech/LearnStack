@@ -152,6 +152,14 @@ Allowed patterns (see [Cross-Module Contracts](../architecture/10-cross-module-c
 3. Integration event — written to the outbox in the same transaction; consumed asynchronously.
 4. Read-model projection — public read-only table owned by one module.
 
+> **Open in Phase 02d.** No shipped `Application.Contracts` assembly declares a service
+> interface — the contracts so far are MediatR requests — and no module calls another's
+> yet. Whether
+> the Customization contract an Education lesson writer calls is an interface or a
+> MediatR query, and how it is classified, is G12 in
+> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+> the pass that closes it edits item 1 with its answer.
+
 Forbidden patterns:
 - Cross-module EF navigation properties.
 - Cross-module raw SQL joining tables owned by different modules.
