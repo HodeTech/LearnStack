@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
@@ -95,6 +96,9 @@ public sealed class EducationConstraintTests(SchemaFixture schema)
             .ToArray();
         states.Select(state => state.Stored).Should().BeEquivalentTo(PublicationStates,
             "ADR-0048 fixes exactly two lowercase stored states for both roots");
+        var definition = await PublicationCheckAsync(connection, transaction, table);
+        PublicationCheckMatches(definition, states.Select(state => state.Stored)).Should().BeTrue(
+            "the applied CHECK must admit exactly the converter's values, without an extra predicate: {0}", definition);
 
         var id = table == "courses" ? TenantWide.CourseId : TenantWide.LessonId;
         foreach (var (status, stored) in states)
@@ -109,6 +113,55 @@ public sealed class EducationConstraintTests(SchemaFixture schema)
             () => UpdateAsync(connection, transaction, table, id, "status = @value", invalid),
             $"ck_{table}_status");
     });
+
+    [Theory]
+    [InlineData("courses", "extra-state")]
+    [InlineData("lessons", "extra-state")]
+    [InlineData("courses", "tautology")]
+    [InlineData("lessons", "tautology")]
+    public async Task Publication_check_comparison_rejects_a_widened_applied_constraint(string table, string defect)
+    {
+        // Structural mutation only: the independent value/write cases above
+        // authenticate as learnstack_app. Every DDL mutation rolls back here.
+        await using var owner = await PostgresFixture.OpenAsync(schema.Postgres.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
+        var original = await PublicationCheckAsync(owner, transaction, table);
+        PublicationCheckMatches(original, PublicationStates).Should().BeTrue();
+
+        var predicate = defect == "extra-state"
+            ? "status IN ('draft', 'published', 'retired')"
+            : "status IN ('draft', 'published') OR status IS NOT NULL";
+        await SchemaQueries.ExecuteAsync(owner, transaction,
+            $"ALTER TABLE {table} DROP CONSTRAINT ck_{table}_status; "
+            + $"ALTER TABLE {table} ADD CONSTRAINT ck_{table}_status CHECK ({predicate})");
+        PublicationCheckMatches(await PublicationCheckAsync(owner, transaction, table), PublicationStates)
+            .Should().BeFalse("adding values or a bypass branch must invalidate the closed set proof");
+
+        await SchemaQueries.ExecuteAsync(owner, transaction,
+            $"ALTER TABLE {table} DROP CONSTRAINT ck_{table}_status; "
+            + $"ALTER TABLE {table} ADD CONSTRAINT ck_{table}_status {original}");
+        PublicationCheckMatches(await PublicationCheckAsync(owner, transaction, table), PublicationStates)
+            .Should().BeTrue();
+    }
+
+    private static async Task<string> PublicationCheckAsync(
+        DbConnection connection, DbTransaction transaction, string table) =>
+        (await SchemaQueries.ReadStringsAsync(connection,
+            $"SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+            + $"WHERE conrelid = 'public.{table}'::regclass AND conname = 'ck_{table}_status' "
+            + "AND contype = 'c' AND convalidated", transaction)).Single();
+
+    private static bool PublicationCheckMatches(string definition, IEnumerable<string> expected)
+    {
+        // PostgreSQL 18 deparses IN as = ANY(ARRAY[...]). Match the complete
+        // predicate before extracting literals, so an OR escape cannot pass by
+        // merely mentioning the approved values somewhere in its expression.
+        var match = Regex.Match(definition,
+            @"\ACHECK \(\(status = ANY \(ARRAY\[(?<values>'[^']+'::text(?:, '[^']+'::text)*)\]\)\)\)\z",
+            RegexOptions.CultureInvariant);
+        return match.Success && Regex.Matches(match.Groups["values"].Value, "'([^']+)'::text")
+            .Select(value => value.Groups[1].Value).ToHashSet(StringComparer.Ordinal).SetEquals(expected);
+    }
 
     [Fact]
     public Task Lesson_sort_permits_zero_positive_values_and_ties_but_not_negative_values() =>
