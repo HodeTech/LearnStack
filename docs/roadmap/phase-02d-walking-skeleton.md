@@ -2001,7 +2001,7 @@ architecture run pass. The local-test skill now records that working procedure;
 no test or assertion was skipped or weakened.
 
 Backend formatting, all 177 architecture cases, 1,479 changed-Markdown relative
-path/anchor checks, the scan for references to local-only files and strict commit
+path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
 hygiene pass. The two fresh-agent review rounds and PR required-check rollup
 comparison are recorded below.
 
@@ -2099,7 +2099,7 @@ items that proposed a new rule are distinguished from defects in the accepted sc
 | C3 | Aligned the illustrative `created_at` DDL with the existing application-clock audit convention. No database timestamp fallback was added. |
 | C4 | Compared actual converter output with the applied closed-set constraint, including the additional round-2 mutation controls above. |
 | T3 | Added explicit authenticated/effective application-role and no-superuser/no-bypass assertions at the reported connection boundaries. |
-| Doc1 | Reworded the earlier scan description; it referenced the private-directory policy, not a private artifact. The scan's historical result is preserved. |
+| Doc1 | Not a defect: the earlier wording names the repository policy scan, not a private artifact. Its exact historical wording is preserved under the [delivery-record rule](../standards/13-documentation.md#doc-types). |
 | Doc2 | Added glossary entries for publication, revision pin and parent organization mirror, with links to their existing authorities and from the module spec. |
 | Doc3 | Kept normative slug grammar in [Standard 08](../standards/08-localization.md#education-slug-grammar) and executable checks in Standard 05; architecture and module prose link to them. The accepted-answer table remains its historical decision summary. |
 | Doc5 | Added the current resource/action/scope matrix with no registered permissions or default grants, preserving the named owners of later command surfaces. |
