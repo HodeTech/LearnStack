@@ -365,8 +365,6 @@ rules:
 - For doc-only commits: `docs(scope): ...` where scope is one of
   `architecture`, `decisions`, `standards`, `roadmap`, or omitted for
   cross-cutting changes.
-- Commits made with AI assistance carry the trailer
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 
 ## Things to never do
 

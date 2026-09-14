@@ -69,16 +69,6 @@ Rules:
 - ≤ 72 chars subject.
 - Each commit is a meaningful unit; squash messy WIP before opening the PR.
 - For multi-module changes, pick the primary module as `scope`; list the others in the body.
-- Co-author tags allowed (`Co-authored-by: ...`).
-- AI-assisted commits **must** include a `Co-Authored-By` trailer naming the assistant
-  that materially contributed. The canonical form is the agent's product name +
-  underlying model + context length, with `<noreply@anthropic.com>` as the email
-  unless the agent vendor specifies otherwise. Examples:
-  - `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
-    (default for Claude Code sessions in this repo).
-  - `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>` (when the
-    assistant is OpenAI Codex / a Codex-derived agent acting on `AGENTS.md`).
-  - One trailer per assistant when multiple were used in the same commit.
 
 ### Trailers
 
@@ -89,7 +79,6 @@ Trailers go at the end of the commit body and make `git log --grep` queryable:
 | `ADR: NNNN` | The commit implements or derives directly from a specific ADR. Multiple ADRs allowed (`ADR: 0004, 0010`). |
 | `I18n: <keys>` | The commit adds, renames, or removes user-facing i18n keys. List the keys or namespaces. |
 | `Module: <list>` | Multi-module commits — names of all modules touched. |
-| `Co-Authored-By: ...` | Standard co-authorship trailer. Required for AI-assisted commits. |
 
 Example:
 
@@ -101,7 +90,6 @@ backed by ILiveClassProvider.CreateJoinTokenAsync.
 
 ADR: 0005
 Module: Classroom, Identity
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ```
 
 ## Pull Requests

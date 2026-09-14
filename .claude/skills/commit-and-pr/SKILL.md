@@ -2,9 +2,9 @@
 name: commit-and-pr
 description: >
   Format LearnStack commits and pull requests to the project's conventions —
-  Conventional Commits + AI co-author trailer + scope-correct PR body. USE FOR:
+  Conventional Commits + scope-correct PR body. USE FOR:
   preparing a commit, opening a PR, picking the right scope for a doc-only change,
-  adding the AI co-author trailer correctly. DO NOT USE FOR: deciding whether a
+  adding applicable trailers correctly. DO NOT USE FOR: deciding whether a
   change is ready to commit (that's a code-review concern, not a commit-format
   concern), force-pushing, or changing what an Accepted ADR decides (write a new
   ADR that supersedes it — amendments and the bounded corrections in
@@ -25,7 +25,7 @@ move fast and `git log --grep` stays useful.
 
 - Producing one or more commits at the end of a unit of work.
 - Opening a pull request against `main`.
-- Adding trailers (ADR refs, module list, AI co-author).
+- Adding trailers (ADR refs, module list, i18n keys).
 
 ## When not to use
 
@@ -81,20 +81,8 @@ Trailers go at the **end** of the body (after a blank line). The supported set:
 | `ADR: NNNN[, NNNN]` | The commit implements or derives from one or more ADRs. **Bare numbers** — `ADR: 0040, 0003` — never `ADR: ADR-0040`: `git log --grep='ADR: 0017'` is what the trailer exists for, and the prefixed form does not match it. A `feat` commit that creates a schema an ADR decides carries this too; the trailer is about the *derivation*, not the commit type. |
 | `Module: <list>` | Multi-module change; list every module touched. |
 | `I18n: <keys>` | Added / renamed / removed user-facing i18n keys. |
-| `Co-Authored-By: …` | Required for AI-assisted commits. |
 
-### Step 4: AI co-author trailer
-
-Pick the trailer that matches the agent that did material work:
-
-- Claude Code session:
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
-- OpenAI Codex session:
-  `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>`
-
-Multiple assistants: include one trailer per assistant.
-
-### Step 5: HEREDOC the message
+### Step 4: HEREDOC the message
 
 Always pass the message via a HEREDOC so newlines and quotes survive:
 
@@ -107,12 +95,11 @@ access shares the per-learner entitlement read path with free access.
 
 ADR: 0010
 Module: Enrollment, Billing
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
 
-### Step 6: Pull request
+### Step 5: Pull request
 
 The PR body uses the structure in
 [14-git-workflow.md § Pull Requests](../../../docs/standards/14-git-workflow.md).
@@ -148,7 +135,7 @@ If the change touches the Hub HTTPS surface, the entitlement projection, or any
 tenant-isolation boundary, the PR description **must** call it out under "Risk" and
 reference the relevant ADR.
 
-### Step 7: Open the PR
+### Step 6: Open the PR
 
 ```bash
 gh pr create --title "<imperative subject>" --body "$(cat <<'EOF'
@@ -164,7 +151,6 @@ The PR title follows the **same** rules as the commit subject (imperative mood,
 
 - `git log --pretty=format:'%s' main..HEAD` shows commits in
   `type(scope): subject` form.
-- Every AI-assisted commit carries the `Co-Authored-By` trailer.
 - `git log --grep='ADR: 0017'` finds commits that implemented ADR-0017.
 - PR title matches the convention; PR body follows § Description's canonical
   sections and includes this skill's applicable Risk disclosure.
