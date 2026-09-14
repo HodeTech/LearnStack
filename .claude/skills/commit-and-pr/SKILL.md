@@ -116,19 +116,30 @@ EOF
 
 The PR body uses the structure in
 [14-git-workflow.md § Pull Requests](../../../docs/standards/14-git-workflow.md).
-Minimum sections:
+Use the canonical sections below; `Approach` is needed only when non-obvious and
+`Migration / Rollback` for schema or configuration changes. This skill also calls
+out the risk relevant to the change:
 
 ```markdown
 ## Summary
 - <1-3 bullet points: what changed and why>
 
-## Test plan
-- [ ] <Concrete checks the reviewer can run>
+## Approach
+<Only when non-obvious>
+
+## Tests
+<Completed checks and concrete checks the reviewer can run>
 
 ## Risk
 - <Anything that could ripple: schema, contract, perf>
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+## Migration / Rollback
+<For schema or configuration changes>
+
+## Related
+<Links to the relevant issues, ADRs and standards>
+
+Prepared with <assistant used>.
 ```
 
 If the change touches the Hub HTTPS surface, the entitlement projection, or any
@@ -153,7 +164,8 @@ The PR title follows the **same** rules as the commit subject (imperative mood,
   `type(scope): subject` form.
 - Every AI-assisted commit carries the `Co-Authored-By` trailer.
 - `git log --grep='ADR: 0017'` finds commits that implemented ADR-0017.
-- PR title matches the convention; PR body has Summary + Test plan + Risk.
+- PR title matches the convention; PR body follows § Description's canonical
+  sections and includes this skill's applicable Risk disclosure.
 - No commit on the branch force-pushes after review starts.
 
 ## Common pitfalls

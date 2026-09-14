@@ -125,9 +125,10 @@ owner; where a choice is still open, it names the register row that answers it.
   [Frontend Architecture Standards § SDK](../standards/07-frontend-architecture.md#sdk)
   gives its drift gate to this phase. The contract suite asserts only a `200`
   ([Testing Standards § API Contract Tests](../standards/06-testing.md#api-contract-tests)).
-  The `backend integration (Testcontainers)` job runs on every pull request and is not a
-  required check; CONTRIBUTING records that edit and a renamed `meta` check as
-  outstanding. `make dev` starts containers only, `dotnet run` reads no `.env`, and
+  The `backend integration (Testcontainers)` job runs on every pull request and is
+  required as of P02d-1. The inherited required-check gaps, including the renamed `meta`
+  check, are [repaired and verified in Step 3](#step-3--packet-completion-2026-09-14).
+  `make dev` starts containers only, `dotnet run` reads no `.env`, and
   `make seed` waits on every default-profile service and both Keycloak realms
   ([Infrastructure Standards § Healthchecks and the readiness gate](../standards/12-infrastructure.md#healthchecks-and-the-readiness-gate)).
   No job starts the API or `next start` as a process a browser can reach. **G31**,
@@ -1999,7 +2000,17 @@ The subsequent unit/integration coverage runs and uninstrumented **177-case**
 architecture run pass. The local-test skill now records that working procedure;
 no test or assertion was skipped or weakened.
 
-Backend formatting, all 177 architecture cases, 1,470 changed-Markdown relative
+Backend formatting, all 177 architecture cases, 1,479 changed-Markdown relative
 path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
 hygiene pass. Two fresh-agent review rounds and the PR required-check rollup comparison
 follow this step's commit; packet review remains in progress until they are recorded.
+
+Round 1 reviewed commit `7c50e01` with two fresh reviewers. The delivery reviewer
+recomputed the TRX and coverage figures, checked the migration assertions and reran
+the link audit without findings. The operational reviewer independently verified the
+live protection setting and found one stale inherited-baseline paragraph still saying
+integration was not required; it is corrected above. The author's PR preparation also
+found that CONTRIBUTING and the commit skill prescribed headings different from
+Standard 14. Both now follow its canonical description structure, with the skill's
+existing isolation-risk disclosure retained. These are carrier corrections, not new
+decisions. Round 2 follows the repair commit with fresh reviewers.

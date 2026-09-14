@@ -104,12 +104,9 @@ Per CLAUDE.md § Commit conventions:
 ## Pull requests
 
 - Title mirrors the primary commit's subject.
-- Description has three sections:
-  1. **What** — bullet list of changes grouped by area.
-  2. **Why** — one paragraph; link to the ADR / phase / issue.
-  3. **Verification** — what suites you ran locally, what manual checks
-     you walked.
-- Link the related ADR / phase doc with relative paths (`../docs/...`).
+- Follow [Git Workflow § Description](../docs/standards/14-git-workflow.md#description)
+  for the canonical structure, including migration/rollback details for schema or
+  configuration changes and links to the related ADR / phase documents.
 
 ## Local checks before pushing
 
