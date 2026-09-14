@@ -1818,15 +1818,21 @@ diagnostic above row security, not the boundary, as its own note says.
   never widen that namespace. Parent translatable fields and ad-hoc locale columns
   such as `title_en` are rejected. Education satellites carry no surrogate id,
   independent audit/soft-delete columns or concurrency token; their parent foreign
-  keys are tenant-composite and CASCADE, while Lesson → Course is RESTRICT.
+  keys are tenant-composite and CASCADE, while Lesson → Course is RESTRICT. The
+  satellite column inventory pins the current Education module spec, not every
+  field that another Pattern A entity could contain; a schema extension updates
+  the owning spec and inventory together.
 - **Source:** [ADR-0008](../decisions/0008-localization-schema.md);
   [08-localization.md § Pattern A](08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and migration/schema inspection. **Kind:** structural.
 - **Status:** **Implemented** (P02d-1 step 2, `LearnStack.Tests.Integration`,
   `EducationStructureTests`). Companions plant parent translatable fields, ad-hoc
-  locale columns, absent satellites and widened slug keys. The nonempty declaration
-  set is checked against actual model types and applied schema metadata.
+  locale columns (including misplaced `locale` and `slug` suffixes), absent
+  satellites and widened slug keys. Separate model probes exercise unmapped CLR
+  properties and shadow properties mapped to localized column names. Both retain
+  `SlugKey` / `slug_key` as valid non-routable authoring handles. The nonempty
+  declaration set is checked against actual model types and applied schema metadata.
 - **Phase:** 02d (P02d-1).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`

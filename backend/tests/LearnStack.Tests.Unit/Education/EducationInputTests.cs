@@ -3,6 +3,7 @@ using LearnStack.Modules.Education.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Xunit;
+using static LearnStack.Tests.Unit.Education.EducationAssertions;
 
 namespace LearnStack.Tests.Unit.Education;
 
@@ -44,8 +45,10 @@ public sealed class EducationInputTests
         create.Should().Throw<ArgumentException>();
         var course = NewCourse();
         var lesson = NewLesson();
-        course.AddTranslation("en", "Title", null, slug, Clock, Actor).Error?.Code.Should().Be("validation_failed");
-        lesson.AddTranslation("en", "Title", slug, "{}", Clock, Actor).Error?.Code.Should().Be("validation_failed");
+        AssertFailure(course.AddTranslation("en", "Title", null, slug, Clock, Actor),
+            "validation_failed", "Slug", "lockey_education_slug_invalid");
+        AssertFailure(lesson.AddTranslation("en", "Title", slug, "{}", Clock, Actor),
+            "validation_failed", "Slug", "lockey_education_slug_invalid");
         course.Translations.Should().BeEmpty();
         lesson.Translations.Should().BeEmpty();
         course.Version.Should().Be(0);
@@ -107,8 +110,10 @@ public sealed class EducationInputTests
     {
         var course = NewCourse();
         var lesson = NewLesson();
-        course.AddTranslation(locale, "Title", null, "course", Clock, Actor).Error?.Code.Should().Be("validation_failed");
-        lesson.AddTranslation(locale, "Title", "lesson", "{}", Clock, Actor).Error?.Code.Should().Be("validation_failed");
+        AssertFailure(course.AddTranslation(locale, "Title", null, "course", Clock, Actor),
+            "validation_failed", "Locale", "lockey_education_locale_invalid");
+        AssertFailure(lesson.AddTranslation(locale, "Title", "lesson", "{}", Clock, Actor),
+            "validation_failed", "Locale", "lockey_education_locale_invalid");
         course.Version.Should().Be(0);
         lesson.Version.Should().Be(0);
         course.Translations.Should().BeEmpty();
@@ -123,8 +128,10 @@ public sealed class EducationInputTests
     {
         var course = NewCourse();
         var lesson = NewLesson();
-        course.AddTranslation("en", title, null, "course", Clock, Actor).IsFailure.Should().BeTrue();
-        lesson.AddTranslation("en", title, "lesson", "{}", Clock, Actor).IsFailure.Should().BeTrue();
+        AssertFailure(course.AddTranslation("en", title, null, "course", Clock, Actor),
+            "validation_failed", "Title", "lockey_education_title_invalid");
+        AssertFailure(lesson.AddTranslation("en", title, "lesson", "{}", Clock, Actor),
+            "validation_failed", "Title", "lockey_education_title_invalid");
         course.Version.Should().Be(0);
         lesson.Version.Should().Be(0);
     }
@@ -141,8 +148,28 @@ public sealed class EducationInputTests
         course.Translations.Single().Summary.Should().Be(title);
         lesson.Translations.Single().Title.Should().Be(title);
         var invalid = "Text" + (char)0xD800;
-        NewCourse().AddTranslation("en", invalid, null, "course", Clock, Actor).IsFailure.Should().BeTrue();
-        NewCourse().AddTranslation("en", "Title", invalid, "course", Clock, Actor).IsFailure.Should().BeTrue();
+        AssertFailure(NewCourse().AddTranslation("en", invalid, null, "course", Clock, Actor),
+            "validation_failed", "Title", "lockey_education_title_invalid");
+        AssertFailure(NewCourse().AddTranslation("en", "Title", invalid, "course", Clock, Actor),
+            "validation_failed", "Summary", "lockey_education_summary_invalid");
+    }
+
+    [Theory]
+    [InlineData(0x0000)]
+    [InlineData(0xD800)]
+    [InlineData(0xDC00)]
+    public void Translation_UnstorableSummaryRefusesWithoutChangingGraphOrAudit(int invalidCodeUnit)
+    {
+        var summary = "Summary" + (char)invalidCodeUnit;
+        var course = NewCourse();
+        course.AddTranslation("en", "Original", "Original summary", "course", Clock, Actor).IsSuccess.Should().BeTrue();
+        var result = course.AddTranslation("tr", "Yeni", summary, "kurs", Clock, Actor);
+
+        AssertFailure(result, "validation_failed", "Summary", "lockey_education_summary_invalid");
+        course.Translations.Should().ContainSingle().Which.Summary.Should().Be("Original summary");
+        course.Version.Should().Be(1);
+        course.UpdatedAt.Should().Be(Clock.UtcNow);
+        course.UpdatedBy.Should().Be(Actor);
     }
 
     [Theory]
@@ -164,8 +191,7 @@ public sealed class EducationInputTests
         var lesson = NewLesson();
         lesson.AddTranslation("en", "Original", "lesson", "{}", Clock, Actor).IsSuccess.Should().BeTrue();
         var result = lesson.AddTranslation("tr", "Yeni", "ders", body, Clock, Actor);
-        result.Error?.Code.Should().Be("validation_failed");
-        result.Error?.Details.Should().ContainKey("Body");
+        AssertFailure(result, "validation_failed", "Body", "lockey_education_body_invalid");
         lesson.Version.Should().Be(1);
         lesson.Translations.Should().ContainSingle().Which.Body.Should().Be("{}");
     }

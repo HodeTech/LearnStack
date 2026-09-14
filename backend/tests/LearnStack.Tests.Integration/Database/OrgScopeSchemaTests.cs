@@ -215,6 +215,7 @@ public sealed class OrgScopeSchemaTests
         string table, string sessionOrganization, string rowOrganization, bool tenantReadHatch, bool accepted)
     {
         await using var app = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
         await using var transaction = await app.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(app, transaction, SchemaFixture.TenantA);
         await SchemaQueries.SetSettingAsync(app, transaction, "app.organization_id",
@@ -263,6 +264,7 @@ public sealed class OrgScopeSchemaTests
         int firstBackend;
         await using (var first = await source.OpenConnectionAsync())
         {
+            await SchemaQueries.AssertApplicationRoleAsync(first);
             firstBackend = first.ProcessID;
             await using var announcement = await first.BeginTransactionAsync();
             await SchemaQueries.SetTenantAsync(first, announcement, SchemaFixture.TenantA);
@@ -279,6 +281,7 @@ public sealed class OrgScopeSchemaTests
         }
 
         await using var reused = await source.OpenConnectionAsync();
+        await SchemaQueries.AssertApplicationRoleAsync(reused);
         reused.ProcessID.Should().Be(firstBackend, "this must exercise a reused physical session");
         await using var transaction = await reused.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(reused, transaction, SchemaFixture.TenantA);
@@ -318,6 +321,7 @@ public sealed class OrgScopeSchemaTests
         }
 
         await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
         foreach (var (original, replacement) in new (Guid?, Guid?)[]
                  { (null, SchemaFixture.OrgA1), (SchemaFixture.OrgA1, null), (SchemaFixture.OrgA1, SchemaFixture.OrgA2) })
         {
@@ -358,6 +362,7 @@ public sealed class OrgScopeSchemaTests
         }
 
         await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
         await using var transaction = await app.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(app, transaction, SchemaFixture.TenantA);
         var id = Guid.CreateVersion7();

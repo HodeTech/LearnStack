@@ -188,6 +188,12 @@ public sealed partial class EducationStructureTests
     [InlineData("lessons", "seo_description")]
     [InlineData("lessons", "body")]
     [InlineData("courses", "title_en")]
+    [InlineData("courses", "locale")]
+    [InlineData("courses", "slug")]
+    [InlineData("courses", "seo_slug")]
+    [InlineData("lessons", "course_slug")]
+    [InlineData("courses", "localized_locale")]
+    [InlineData("lessons", "course_locale")]
     [InlineData("lesson_translations", "title_en")]
     [InlineData("course_translations", "id")]
     [InlineData("course_translations", "deleted_at")]
@@ -238,6 +244,24 @@ public sealed partial class EducationStructureTests
         (await PatternOffendersAsync(owner, transaction)).Should().Contain($"{table}: missing table");
         await SchemaQueries.ExecuteAsync(owner, transaction, $"ALTER TABLE missing_satellite_probe RENAME TO {table}");
         (await PatternOffendersAsync(owner, transaction)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void The_Pattern_A_Guard_Rejects_Unmapped_Localized_CLR_Fields()
+    {
+        using var context = new PatternProbeContext();
+        MisplacedModelFields(context.Model.FindEntityType(typeof(ClrRootProbe))!)
+            .Should().BeEquivalentTo("CLR:DescriptionEn", "CLR:SeoDescription", "CLR:CourseSlug",
+                "CLR:SeoSlug", "CLR:CourseLocale", "CLR:LocalizedLocale");
+    }
+
+    [Fact]
+    public void The_Pattern_A_Guard_Rejects_Localized_Shadow_Columns()
+    {
+        using var context = new PatternProbeContext();
+        MisplacedModelFields(context.Model.FindEntityType(typeof(MappedRootProbe))!)
+            .Should().BeEquivalentTo("column:description_en", "column:seo_description", "column:course_slug",
+                "column:seo_slug", "column:course_locale", "column:localized_locale");
     }
 
     private static async Task<string> DefinitionAsync(

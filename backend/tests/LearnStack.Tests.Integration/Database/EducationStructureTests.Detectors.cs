@@ -27,6 +27,9 @@ public sealed partial class EducationStructureTests
 
     private sealed record PatternRoot(Type Root, Type Satellite, string Table, string SatelliteTable, string ParentId, string[] Columns);
 
+    // The current Education spec owns these exact satellite shapes. Pattern A
+    // permits other localized fields, but adding one changes this inventory and
+    // the owning spec together; it is not an implicit schema extension.
     private static readonly PatternRoot[] PatternRoots =
     [
         new(typeof(Course), typeof(CourseTranslation), "courses", "course_translations", "course_id",
@@ -189,8 +192,7 @@ public sealed partial class EducationStructureTests
             }
 
             if (columnRows.Any(row => row[0] == root.Table
-                && Regex.IsMatch(row[1], @"^(title|description|summary|body|locale|slug)(_|$)|_(title|description|summary|body)$")
-                && row[1] != "slug_key"))
+                && IsLocalizedColumn(row[1])))
             {
                 offenders.Add($"{root.Table}: misplaced columns");
             }
@@ -244,10 +246,7 @@ public sealed partial class EducationStructureTests
             }
 
             var parentEntity = model.FindEntityType(root.Root);
-            if (root.Root.GetProperties().Any(property => property.Name != "SlugKey"
-                    && Regex.IsMatch(property.Name, @"^(Title|Description|Summary|Body|Locale|Slug)($|[A-Z_])|(Title|Description|Summary|Body)$"))
-                || (parentEntity is not null && Columns(parentEntity.GetProperties()).Any(column =>
-                    column != "slug_key" && Regex.IsMatch(column, @"^(title|description|summary|body|locale|slug)(_|$)|_(title|description|summary|body)$"))))
+            if (parentEntity is not null && MisplacedModelFields(parentEntity).Any())
             {
                 offenders.Add($"{root.Table}: misplaced model fields");
             }
@@ -288,6 +287,16 @@ public sealed partial class EducationStructureTests
 
         return offenders.Order(StringComparer.Ordinal).ToList();
     }
+
+    private static bool IsLocalizedColumn(string column) => column != "slug_key"
+        && Regex.IsMatch(column, @"^(title|description|summary|body|locale|slug)(_|$)|_(title|description|summary|body|locale|slug)$");
+
+    private static IEnumerable<string> MisplacedModelFields(IReadOnlyEntityType entity) =>
+        entity.ClrType.GetProperties()
+            .Where(property => property.Name != "SlugKey"
+                && Regex.IsMatch(property.Name, @"^(Title|Description|Summary|Body|Locale|Slug)($|[A-Z_])|(Title|Description|Summary|Body|Locale|Slug)$"))
+            .Select(property => "CLR:" + property.Name)
+            .Concat(Columns(entity.GetProperties()).Where(IsLocalizedColumn).Select(column => "column:" + column));
 
     private static IEnumerable<string> Columns(IEnumerable<IReadOnlyProperty> properties) =>
         properties.Select(property => property.GetColumnName());

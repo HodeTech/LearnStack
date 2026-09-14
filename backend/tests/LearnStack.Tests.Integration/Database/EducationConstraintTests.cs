@@ -1,6 +1,9 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Tenancy;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
 using Xunit;
@@ -81,10 +84,24 @@ public sealed class EducationConstraintTests(SchemaFixture schema)
     public Task Publication_columns_accept_both_lowercase_states_and_refuse_other_values(
         string table, string invalid) => InScopeAsync(async (connection, transaction) =>
     {
+        using var context = new EducationDbContext(
+            new DbContextOptionsBuilder<EducationDbContext>()
+                .UseNpgsql(schema.Postgres.AppConnectionString).Options,
+            StaticTenantContextAccessor.Unresolved);
+        var entity = context.Model.FindEntityType(table == "courses" ? typeof(Course) : typeof(Lesson))!;
+        var converter = entity.FindProperty(nameof(Course.Status))!.GetTypeMapping().Converter!;
+        var states = Enum.GetValues<PublicationStatus>()
+            .Select(status => (Status: status, Stored: (string)converter.ConvertToProvider(status)!))
+            .ToArray();
+        states.Select(state => state.Stored).Should().BeEquivalentTo(PublicationStates,
+            "ADR-0048 fixes exactly two lowercase stored states for both roots");
+
         var id = table == "courses" ? TenantWide.CourseId : TenantWide.LessonId;
-        foreach (var status in PublicationStates)
+        foreach (var (status, stored) in states)
         {
-            (await UpdateAsync(connection, transaction, table, id, "status = @value", status))
+            stored.Should().Be(status.ToString().ToLowerInvariant());
+            converter.ConvertFromProvider(stored).Should().Be(status);
+            (await UpdateAsync(connection, transaction, table, id, "status = @value", stored))
                 .Should().Be(1);
         }
 
@@ -293,6 +310,7 @@ public sealed class EducationConstraintTests(SchemaFixture schema)
     private async Task InScopeAsync(Func<DbConnection, DbTransaction, Task> body)
     {
         await using var connection = await PostgresFixture.OpenAsync(schema.Postgres.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(connection);
         await using var transaction = await connection.BeginTransactionAsync();
         await EducationSchemaSeed.AnnounceAsync(connection, transaction, TenantWide.TenantId, null);
         await body(connection, transaction);

@@ -3,6 +3,7 @@ using LearnStack.Modules.Education.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Xunit;
+using static LearnStack.Tests.Unit.Education.EducationAssertions;
 
 namespace LearnStack.Tests.Unit.Education;
 
@@ -66,14 +67,16 @@ public sealed class EducationAggregateTests
         lesson.Status.Should().Be(PublicationStatus.Published);
         lesson.Version.Should().Be(1);
         lesson.UpdatedAt.Should().Be(Later.UtcNow);
-        lesson.Publish(Clock, Actor).Error?.Code.Should().Be("business_rule_violation");
+        AssertFailure(lesson.Publish(Clock, Actor),
+            "business_rule_violation", "Status", "lockey_education_publish_requires_draft");
         lesson.Version.Should().Be(1);
         lesson.UpdatedAt.Should().Be(Later.UtcNow);
 
         course.Publish(Later, Actor).IsSuccess.Should().BeTrue();
         course.Status.Should().Be(PublicationStatus.Published);
         course.Version.Should().Be(1);
-        course.Publish(Clock, Actor).Error?.Code.Should().Be("business_rule_violation");
+        AssertFailure(course.Publish(Clock, Actor),
+            "business_rule_violation", "Status", "lockey_education_publish_requires_draft");
         course.Version.Should().Be(1);
         course.UpdatedAt.Should().Be(Later.UtcNow);
         lesson.Version.Should().Be(1);
@@ -132,8 +135,10 @@ public sealed class EducationAggregateTests
         var lesson = NewLesson(course);
         course.AddTranslation("en-us", "Original", null, "original", Clock, Actor).IsSuccess.Should().BeTrue();
         lesson.AddTranslation("en-us", "Original", "original", "{}", Clock, Actor).IsSuccess.Should().BeTrue();
-        course.AddTranslation("EN-US", "Replacement", "summary", "replacement", Later, Actor).Error?.Code.Should().Be("business_rule_violation");
-        lesson.AddTranslation("EN-US", "Replacement", "replacement", "{\"a\":1}", Later, Actor).Error?.Code.Should().Be("business_rule_violation");
+        AssertFailure(course.AddTranslation("EN-US", "Replacement", "summary", "replacement", Later, Actor),
+            "business_rule_violation", "Locale", "lockey_education_locale_already_exists");
+        AssertFailure(lesson.AddTranslation("EN-US", "Replacement", "replacement", "{\"a\":1}", Later, Actor),
+            "business_rule_violation", "Locale", "lockey_education_locale_already_exists");
         course.Translations.Should().ContainSingle().Which.Title.Should().Be("Original");
         course.Translations.Single().Summary.Should().BeNull();
         lesson.Translations.Should().ContainSingle().Which.Body.Should().Be("{}");
@@ -161,10 +166,14 @@ public sealed class EducationAggregateTests
             lesson.Publish(Clock, Actor).IsSuccess.Should().BeTrue();
         }
 
-        course.AddTranslation("en", "Title", null, "course", Later, Actor).Error?.Code.Should().Be("business_rule_violation");
-        lesson.AddTranslation("en", "Title", "lesson", "{}", Later, Actor).Error?.Code.Should().Be("business_rule_violation");
-        course.Publish(Later, Actor).Error?.Code.Should().Be("business_rule_violation");
-        lesson.Publish(Later, Actor).Error?.Code.Should().Be("business_rule_violation");
+        AssertFailure(course.AddTranslation("en", "Title", null, "course", Later, Actor),
+            "business_rule_violation", "Status", "lockey_education_translation_requires_draft");
+        AssertFailure(lesson.AddTranslation("en", "Title", "lesson", "{}", Later, Actor),
+            "business_rule_violation", "Status", "lockey_education_translation_requires_draft");
+        AssertFailure(course.Publish(Later, Actor),
+            "business_rule_violation", "Status", "lockey_education_publish_requires_draft");
+        AssertFailure(lesson.Publish(Later, Actor),
+            "business_rule_violation", "Status", "lockey_education_publish_requires_draft");
         course.Translations.Should().BeEmpty();
         lesson.Translations.Should().BeEmpty();
         course.Version.Should().Be(1);
