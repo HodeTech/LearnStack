@@ -1868,3 +1868,29 @@ Accepted Amendment 6. The Education spec is design stable, the module matrix lis
 includes Education, and the four structural rules are Registered. Production code,
 migrations, regression proofs and the live required-check changes remain to be
 implemented and verified in the approved sequence above. P02d-1 is in progress.
+
+### Step 1 — Shared database controls (2026-09-14)
+
+The Tenancy and Audit forward migrations require exact organization scope for
+INSERT while preserving reads, existing restrictive write policies and stored rows.
+Tenancy's shared immutability function now supports natural-key rows without `id`.
+The tenant-composite FK and organization-immutability catalogue rules are Implemented,
+with planted violations and repaired positive controls over the applied schema.
+
+Behavioral proofs use authenticated `learnstack_app` connections. They cover both
+existing tables, the tenant reporting hatch, pooled-session reuse after commit and
+rollback, the no-id function and audit's append-only alternative. Disposable databases
+keep test-only grants and control removal outside the shared schema. A populated
+historical-schema test proves upgrade, exact Down restoration and reapplication.
+
+The full backend suite passes **2,082** cases: 1,373 unit, 175 architecture,
+533 integration and one contract, with zero skips. Backend formatting and generated
+SQL checks pass. The first full run exposed three legacy audit tests whose manually
+declared intents omitted the organization their transaction announced; those fixtures
+now copy the execution context exactly as `AuditLogBehavior` does. No production audit
+exception or policy relaxation was needed. The localization overview and storage
+examples also now distinguish accepted Education storage from later authoring behavior.
+
+Implementation verification is complete; the two independent review rounds for this
+step follow its implementation commit. Education implementation and packet completion
+remain in steps 2 and 3.

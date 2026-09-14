@@ -227,14 +227,16 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             var capture = services.GetRequiredService<IAuditStateCapture>();
 
             await using var transaction = await unitOfWork.BeginTransactionAsync();
-            await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+            var context = services.GetRequiredService<ITenantContext>();
+            await unitOfWork.SetTenantContextAsync(context);
 
-            // The frame a request would open, declared before the work — as step 3 does.
+            // Match step 3: declare the frame before the work and copy the announced
+            // organization from the execution context, even for a tenant-wide aggregate.
             capture.OpenFrame();
             capture.DeclareIntent(new AuditIntent(
                 intentId,
                 Tenant.TenantId,
-                OrganizationId: null,
+                OrganizationId: context.OrganizationId,
                 UserId.From(Actor),
                 Correlation,
                 "customization",
@@ -286,13 +288,14 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             var capture = services.GetRequiredService<IAuditStateCapture>();
 
             await using var transaction = await unitOfWork.BeginTransactionAsync();
-            await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+            var context = services.GetRequiredService<ITenantContext>();
+            await unitOfWork.SetTenantContextAsync(context);
 
             capture.OpenFrame();
             capture.DeclareIntent(new AuditIntent(
                 intentId,
                 Tenant.TenantId,
-                OrganizationId: null,
+                OrganizationId: context.OrganizationId,
                 UserId.From(Actor),
                 Correlation,
                 "customization",
@@ -354,13 +357,14 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             var clock = services.GetRequiredService<IClock>();
 
             await using var transaction = await unitOfWork.BeginTransactionAsync();
-            await unitOfWork.SetTenantContextAsync(services.GetRequiredService<ITenantContext>());
+            var context = services.GetRequiredService<ITenantContext>();
+            await unitOfWork.SetTenantContextAsync(context);
 
             capture.OpenFrame();
             capture.DeclareIntent(new AuditIntent(
                 intentId,
                 Tenant.TenantId,
-                OrganizationId: null,
+                OrganizationId: context.OrganizationId,
                 actor,
                 Correlation,
                 "customization",

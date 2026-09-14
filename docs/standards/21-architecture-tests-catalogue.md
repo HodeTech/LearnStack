@@ -124,8 +124,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**140 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
-The other 41 are no less binding, and most could not live there. The table says where and
+**142 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+The other 43 are no less binding, and most could not live there. The table says where and
 why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
 and the first version of this table claimed "three rules" for a suite that holds ten.
 
@@ -1441,9 +1441,10 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
   [05-database.md § Foreign keys between tenant-owned tables](05-database.md#foreign-keys-between-tenant-owned-tables).
 - **Type:** xUnit + applied PostgreSQL schema catalogue. **Kind:** structural.
-- **Status:** **Registered** — the decision-first commit reserves the name; no test
-  implementation is claimed. Its companion must plant a tenant-unsafe foreign key
-  and prove the same predicate reports it, while accepting the self-keyed exception.
+- **Status:** **Implemented** (P02d-1 step 1, `LearnStack.Tests.Integration`,
+  `OrgScopeSchemaTests`). Companions plant missing and positionally mispaired tenant
+  columns, and unsafe replacements in both self-keyed directions, then exercise
+  the same detector against the repaired key.
 - **Phase:** 02d (P02d-1).
 
 #### `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`
@@ -1775,9 +1776,11 @@ diagnostic above row security, not the boundary, as its own note says.
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md#tenant-owned-and-organization-scoped-tables).
 - **Type:** xUnit + applied PostgreSQL schema catalogue, with behavioral companion
   evidence for the append-only alternative. **Kind:** structural.
-- **Status:** **Registered** — P02d-1 must prove the predicate rejects a missing or
-  ineffective guard and exercises a satellite without `id`. A privilege rejection
-  alone is not proof of the audit trigger's behavior.
+- **Status:** **Implemented** (P02d-1 step 1, `LearnStack.Tests.Integration`,
+  `OrgScopeSchemaTests`). Companions plant missing, disabled, conditional and
+  column-restricted triggers on a new table, and remove each existing guard.
+  Separate app-login proofs exercise the shared function on a no-id natural-key
+  table and the audit trigger after a committed test-only UPDATE grant.
 - **Phase:** 02d (P02d-1).
 
 #### `Every_Organization_Mirroring_Child_Has_A_Parent_Scope_Guard`

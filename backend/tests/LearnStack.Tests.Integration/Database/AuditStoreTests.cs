@@ -41,15 +41,19 @@ public sealed class AuditStoreTests
     private static readonly Guid StoreTenant = Guid.Parse("eeeeeeee-1111-7111-8111-111111111111");
     private static readonly Guid StoreOrg = Guid.Parse("eeeeeeee-2222-7222-8222-222222222222");
 
-    [Fact]
-    public async Task WritePending_writes_one_row_per_MUST_intent_on_the_business_transaction()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WritePending_writes_one_row_per_MUST_intent_on_the_business_transaction(
+        bool organizationScoped)
     {
         // Intents are plural — one per audited (resource, operation), not one per request
         // — because ProvisionTenantCommand writes two aggregate roots on one transaction
         // and the Tenancy matrix classifies both MUST (ADR-0033 Amendment 2 § 1).
         var capture = new AuditStateCapture();
-        var first = Intent(capture, "tenancy.tenant.create");
-        var second = Intent(capture, "tenancy.organization.create");
+        var organization = organizationScoped ? StoreOrg : (Guid?)null;
+        var first = Intent(capture, "tenancy.tenant.create", organizationId: organization);
+        var second = Intent(capture, "tenancy.organization.create", organizationId: organization);
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
         var store = Store(capture, dataSource);
@@ -59,7 +63,7 @@ public sealed class AuditStoreTests
             await using (var unitOfWork = new NpgsqlUnitOfWork(dataSource, NullLogger<NpgsqlUnitOfWork>.Instance))
             {
                 await using var scope = await unitOfWork.BeginTransactionAsync();
-                await AnnounceAsync(unitOfWork);
+                await AnnounceAsync(unitOfWork, organization);
 
                 await store.WritePendingAsync(unitOfWork);
 
@@ -304,14 +308,16 @@ public sealed class AuditStoreTests
                 "WITH CHECK refuses a row outside the tenant the transaction announced");
     }
 
-    [Fact]
-    public async Task The_standalone_write_announces_both_session_variables()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_standalone_write_announces_both_session_variables(bool organizationScoped)
     {
         // The consequence of the org-scoped class that binds this writer: a row whose
         // organization_id is non-null while app.organization_id is unset fails WITH
         // CHECK. Every `denied` row for an org-scoped resource travels this path, which
         // is the path whose whole job is that the record survives (ADR-0044 § 9).
-        var draft = Draft(organizationId: StoreOrg);
+        var draft = Draft(organizationId: organizationScoped ? StoreOrg : null);
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
         var store = Store(new AuditStateCapture(), dataSource);
@@ -680,12 +686,14 @@ public sealed class AuditStoreTests
         (await CountAsync(draft.Id)).Should().Be(0);
     }
 
-    [Fact]
-    public async Task The_best_effort_write_actually_writes_the_row()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_best_effort_write_actually_writes_the_row(bool organizationScoped)
     {
         // The accepting half. Without it the method could be reduced to a no-op with the
         // whole suite green, and every SHOULD/MAY row would be silently lost.
-        var draft = Draft(organizationId: StoreOrg);
+        var draft = Draft(organizationId: organizationScoped ? StoreOrg : null);
 
         await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
         var store = Store(new AuditStateCapture(), dataSource);
@@ -1114,12 +1122,13 @@ public sealed class AuditStoreTests
         AuditStateCapture capture,
         string operation,
         OperationClass operationClass = OperationClass.Must,
-        Type? entityType = null)
+        Type? entityType = null,
+        Guid? organizationId = null)
     {
         var intent = new AuditIntent(
             AuditEntryId.From(Guid.CreateVersion7()),
             TenantId.From(StoreTenant),
-            OrganizationId: null,
+            OrganizationId: organizationId is null ? null : OrganizationId.From(organizationId.Value),
             ActorUserId: null,
             CorrelationId: null,
             operation.Split('.')[0],
@@ -1167,16 +1176,22 @@ public sealed class AuditStoreTests
     /// so the announcement is issued directly here — which is also what a provisioning
     /// command's transaction does through <c>SetProvisioningTenantContextAsync</c>.
     /// </remarks>
-    private static async Task AnnounceAsync(NpgsqlUnitOfWork unitOfWork)
+    private static async Task AnnounceAsync(NpgsqlUnitOfWork unitOfWork, Guid? organizationId = null)
     {
         await using var command = unitOfWork.Connection.CreateCommand();
         command.Transaction = unitOfWork.Transaction;
-        command.CommandText = "SELECT set_config('app.tenant_id', @tenant, true)";
+        command.CommandText = "SELECT set_config('app.tenant_id', @tenant, true), "
+            + "set_config('app.organization_id', @organization, true)";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "tenant";
         parameter.Value = StoreTenant.ToString();
         command.Parameters.Add(parameter);
+
+        var organization = command.CreateParameter();
+        organization.ParameterName = "organization";
+        organization.Value = organizationId?.ToString() ?? string.Empty;
+        command.Parameters.Add(organization);
 
         await command.ExecuteNonQueryAsync();
     }

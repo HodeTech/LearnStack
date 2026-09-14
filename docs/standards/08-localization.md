@@ -167,7 +167,7 @@ atomic strings where joining a translation table would be overkill.
 |---|---|
 | Long text, multiple fields per entity, SEO metadata | A (side table) |
 | Short atomic string, few fields | B (JSONB) |
-| Rich content with version history | A (side table, with `is_published`, `version`) |
+| Rich content with version history | A (side table; the entity's lifecycle owns publication and versioning) |
 | Taxonomy display names | B |
 
 The full table + worked examples live in

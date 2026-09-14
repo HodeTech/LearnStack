@@ -865,8 +865,10 @@ public sealed class TenancySchemaTests
             .Which.SqlState.Should().Be("23505");
     }
 
-    [Fact]
-    public async Task An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row(bool tenantReadHatch)
     {
         // Database Standards § Tenant-Owned and Organization-Scoped Tables: "a
         // tenant-scope reporting query may read across organizations, but NOTHING may
@@ -878,9 +880,9 @@ public sealed class TenancySchemaTests
         // org-scoped one to them as well. Measured before ADR-0003 Amendment 5: a session
         // announcing tenant A and organization A1 rewrote tenant A's tenant-wide row.
         //
-        // The refusal is silent by construction: a RESTRICTIVE USING clause on UPDATE
-        // FILTERS the rows the statement may target rather than raising, so what this
-        // asserts is zero rows affected and the value unchanged — not an exception.
+        // UPDATE and DELETE silently filter targets through their restrictive USING
+        // clauses. INSERT instead raises from WITH CHECK (Amendment 6). The tenant
+        // reporting hatch must not widen any of those three operations.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
 
@@ -888,6 +890,10 @@ public sealed class TenancySchemaTests
         await SchemaQueries.ExecuteAsync(connection, transaction,
             "SELECT set_config('app.organization_id', @org, true)",
             ("org", SchemaFixture.OrgA1.ToString()));
+        if (tenantReadHatch)
+        {
+            await SchemaQueries.SetSettingAsync(connection, transaction, "app.scope", "tenant");
+        }
 
         await using (var update = new NpgsqlCommand(
             """
@@ -902,6 +908,15 @@ public sealed class TenancySchemaTests
             (await update.ExecuteNonQueryAsync()).Should().Be(0,
                 "the tenant-wide row is outside this session's organization, so the "
                 + "restrictive guard does not let the statement target it");
+        }
+
+        await using (var delete = new NpgsqlCommand(
+            "DELETE FROM tenant_settings WHERE tenant_id = @tenant AND organization_id IS NULL",
+            (NpgsqlConnection)connection, (NpgsqlTransaction)transaction))
+        {
+            delete.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            (await delete.ExecuteNonQueryAsync()).Should().Be(0,
+                "a readable tenant-wide row is still outside the organization's delete scope");
         }
 
         // And the row is still there, unchanged — so the zero above is the guard
@@ -921,6 +936,18 @@ public sealed class TenancySchemaTests
             // read across, write only your own.
             (await read.ExecuteScalarAsync()).Should().Be(1L);
         }
+
+        var insert = async () => await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_settings
+                (id, tenant_id, organization_id, key, value, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, NULL, @key, '{}', now(), @actor, 0)
+            """, ("tenant", SchemaFixture.TenantA), ("key", $"scope-refusal-{Guid.NewGuid():N}"),
+            ("actor", SchemaFixture.Actor));
+        var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        refused.MessageText.Should().Contain("row-level security",
+            "WITH CHECK must refuse creating a tenant-wide row from an organization session");
 
         await transaction.RollbackAsync();
     }
