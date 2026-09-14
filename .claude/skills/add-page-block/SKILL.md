@@ -217,8 +217,11 @@ the page.
   [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
   whose pass edits this bullet with its answer.
 - Budgets in [Performance Standards](../../../docs/standards/15-performance.md) for
-  representative pages embedding the block — judged by reading until CI's
-  `lighthouse budget` job, deferred to Phase 02d, is active.
+  representative pages embedding the block — judged by reading while CI's
+  `lighthouse budget` job remains a placeholder. Whether it activates in Phase 02d
+  is G44 in
+  [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this bullet.
 
 ## Validation
 

@@ -78,22 +78,16 @@ promotion below. No command writes `TenantDomain` or `TenantSetting` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
 aggregates: nothing in this module mutates them through a root.
 
-**The other four resolve two ways, and Packet 7 settles them as promotion.**
-`TenantDomain`, `TenantSetting`, `TenantLocale` and `TenantFeatureFlag` each have
-a public factory, a top-level `DbSet` on `TenancyDbContext`, and no navigation
-from `Tenant` — so there is no path through a root, which
+**The other four split two ways, and Packet 7 settled the split.** `TenantDomain` and
+`TenantSetting` are root-shaped — a surrogate Vogen id, `AuditableEntity`, their own
+`row_version` and RLS policy, and a top-level `DbSet` on `TenancyDbContext` — so they
+are aggregate roots in their own right. `TenantLocale` and `TenantFeatureFlag` have
+composite natural keys and no id, so they cannot be `IAggregateRoot<TId>` under any
+reading: they are navigations owned by `Tenant`, with internal factories and no
+top-level `DbSet`, so every state change goes through the root, as
 [Standards 01 § Aggregate Ownership](../../standards/01-architecture-standards.md)
-requires for state changes inside an aggregate. They also split:
-`TenantDomain` and `TenantSetting` are root-shaped already (a surrogate Vogen id,
-`AuditableEntity`, `row_version`, their own RLS policy), while `TenantLocale` and
-`TenantFeatureFlag` have composite natural keys and no id at all and therefore
-cannot be `IAggregateRoot<TId>` under any reading.
-
-So the first pair becomes aggregate roots in their own right and the second
-becomes navigations inside `Tenant` — four roots in Tenancy, with a write to
-`TenantLocale` or `TenantFeatureFlag` bumping `Tenant.row_version` and the two
-promoted roots carrying their own.
-[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) lands the promotion, and none of
+requires, and a write to either bumps `Tenant.row_version`.
+[Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) landed the promotion, and none of
 its three commands touches `TenantDomain`, `TenantSetting`, `TenantLocale` or
 `TenantFeatureFlag`. The first commands that do — the locale and setting commands
 raising `tenancy.locale.write` and `tenancy.setting.write` — are Phase 02d's, and

@@ -318,8 +318,10 @@ domain the diff doesn't touch.
   [15-performance.md § Initial Budgets](../../../docs/standards/15-performance.md#initial-budgets)
   and [§ Bundle Size](../../../docs/standards/15-performance.md#bundle-size) respected.
   **Not mechanically checkable yet** — `ci.yml`'s `lighthouse-budget` job is a
-  placeholder deferred to Phase 02d. Judge by reading; do not report a pass or a
-  failure as measured.
+  placeholder. Whether it activates in Phase 02d is G44 in
+  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
+  the pass that closes it edits this paragraph. Judge by reading; do not report a pass
+  or a failure as measured.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`

@@ -185,8 +185,8 @@ Three properties of that inventory matter while you are setting up:
   silently leaves them running, which is why every teardown target carries
   `--profile '*'`.
 - **Neither application host is a compose service.** `LearnStack.Api` runs on
-  the workstation via `dotnet run` on the `ASPNETCORE_URLS` port in
-  `.env.example` (5080), and `apps/web` runs via `pnpm dev` on 3000.
+  the workstation via `dotnet run` on the launch profile's `applicationUrl`
+  (5080), and `apps/web` runs via `pnpm dev` on 3000.
 
 To read the resolved truth rather than any document, ask the stack:
 
@@ -236,7 +236,7 @@ its way through.
 
 ```bash
 # API health
-# 5080 is ASPNETCORE_URLS in .env.example - the single source of truth for it.
+# 5080 is the `http` launch profile's applicationUrl (Properties/launchSettings.json).
 curl -fsS http://localhost:5080/healthz | jq
 
 # APISIX (gateway pass-through; only after `make dev-gated` and while the API runs)
