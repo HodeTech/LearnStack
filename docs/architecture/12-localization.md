@@ -258,14 +258,11 @@ parent's soft deletion does not release it because the satellite has no independ
 make draft content public. Future slug release belongs to Phase 05 with Phase 04's
 redirect/slug registry.
 
-Education's accepted storage grammar is 1–160 lowercase ASCII letters or digits with
-single interior hyphens, excluding UUID `N` and `D` forms. Invalid input is refused
-without trimming, lowercasing or transliteration. This limits URL segments, while
-translated content remains Unicode. The
-[Education locale and URL identity](../modules/education/README.md#localization-and-url-identity)
-and [Localization Standards](../standards/08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities)
-own the details; public route templates and request normalization remain later packet
-decisions.
+[Localization Standards § Education slug grammar](../standards/08-localization.md#education-slug-grammar)
+owns the accepted storage grammar. Its URL-segment restrictions leave translated
+content fully Unicode. The [Education spec](../modules/education/README.md#localization-and-url-identity)
+owns the module's identity rules; public route templates and request normalization
+remain later packet decisions.
 
 The routing consequences follow directly, and are behaviour rather than defects:
 

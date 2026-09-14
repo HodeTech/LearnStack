@@ -2001,7 +2001,7 @@ architecture run pass. The local-test skill now records that working procedure;
 no test or assertion was skipped or weakened.
 
 Backend formatting, all 177 architecture cases, 1,479 changed-Markdown relative
-path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
+path/anchor checks, the scan for references to local-only files and strict commit
 hygiene pass. The two fresh-agent review rounds and PR required-check rollup
 comparison are recorded below.
 
@@ -2056,3 +2056,67 @@ Draft-only body guard and links the lifecycle question that ADR-0043 § 6 alread
 with Phase 04; it does not introduce a successor-draft/history-storage design or change
 the accepted versioned identity. These documentation corrections preserve P02d-1's
 implementation and accepted scope.
+
+
+#### Independent PR review follow-up (2026-09-14)
+
+The maintainer's review report was assessed against `35e54eb` and the accepted
+P02d-1 answers. Two bounded follow-up steps address its verified findings without
+adding production behavior or changing an accepted decision.
+
+**Step 1 — proofs (`c98bcb2`, `58afa6d`).** All eight Education field-level refusal
+keys now have exact field and message-key assertions. Invalid summary controls cover
+NUL and unpaired high/low surrogates while preserving prior content and the root's
+version. Pattern A detects localized slug/locale suffixes in the applied schema and
+uses separate probes for unmapped CLR fields and EF shadow columns. The old detector
+fails six new controls; the repaired detector passes all 49 structural cases.
+Application-role checks now cover the remaining constraint and organization-scope
+connection boundaries, including both pool checkouts.
+
+Two fresh reviewers approved round 1. Round 2 used two different reviewers and found
+that publication tests sampled invalid values without proving the database's complete
+closed set. `58afa6d` compares the validated applied CHECK's whole predicate and value
+set with each root's actual EF converter. Four planted constraints cover extra states
+and an OR bypass on both roots; each is rejected by the comparison and passes after
+repair. The reviewer who identified the gap verified the fix and closed the finding.
+
+**Step 2 — corpus reconciliation.** The result of every report item is recorded below;
+items that proposed a new rule are distinguished from defects in the accepted scope.
+
+| Report item | Disposition |
+|---|---|
+| H1 | Corrected Database Standards' stale P02d-1 completion statement. |
+| H2 | Exact field/reason assertions cover all eight Education keys, including dedicated Summary refusals. |
+| H3; T1; T2 | Repaired slug/locale suffix detection; added applied, unmapped-CLR and shadow-column controls. |
+| H4; Doc4 | Kept the accepted Education column inventory; aligned Standard 08's illustrative satellite with `summary` and clarified the inventory's scope in the test catalogue. Pattern A does not require every possible SEO field on every entity. Also corrected the stale publish-only collision wording: a draft reserves its slug on translation insertion. |
+| H5 | Indexed existing Amendments 4–6. Preserved ADR-0003's Status under [the immutable-metadata rule](../standards/13-documentation.md#when-the-body-says-something-false). No ADR body or decision changed. |
+| D1 | No nonblank rule exists for optional Summary in the accepted model. Whitespace acceptance is not a demonstrated defect; the proposed rejection policy was not introduced. |
+| D2 | Canonicalization remains the shipped application responsibility, per [Localization architecture](../architecture/12-localization.md#tenant-locale-configuration). A new database locale-shape policy was not part of the accepted P02d-1 contract. |
+| D3 | Parent scope and public eligibility are separate contracts. [ADR-0048](../decisions/0048-walking-skeleton-publication.md) assigns combined parent/deletion eligibility to reads; an active-parent creation rule was not silently added. |
+| D4 | The private helper's `nameof(key)` names its actual parameter. Assigned-id helper reuse, parsing consolidation and cached read-only wrappers are optional refactors without a demonstrated correctness or workload defect; no production cleanup was bundled. |
+| C1 | Corrected the ordering claim: fixtures and `make migrate` both honor Tenancy's dependencies; their independent Audit/Customization order need not match. |
+| C2 | Documented the full-index versus live-only ordered-index purposes in the [Education performance section](../modules/education/README.md#performance-budget); retained the indexes. |
+| C3 | Aligned the illustrative `created_at` DDL with the existing application-clock audit convention. No database timestamp fallback was added. |
+| C4 | Compared actual converter output with the applied closed-set constraint, including the additional round-2 mutation controls above. |
+| T3 | Added explicit authenticated/effective application-role and no-superuser/no-bypass assertions at the reported connection boundaries. |
+| Doc1 | Reworded the earlier scan description; it referenced the private-directory policy, not a private artifact. The scan's historical result is preserved. |
+| Doc2 | Added glossary entries for publication, revision pin and parent organization mirror, with links to their existing authorities and from the module spec. |
+| Doc3 | Kept normative slug grammar in [Standard 08](../standards/08-localization.md#education-slug-grammar) and executable checks in Standard 05; architecture and module prose link to them. The accepted-answer table remains its historical decision summary. |
+| Doc5 | Added the current resource/action/scope matrix with no registered permissions or default grants, preserving the named owners of later command surfaces. |
+| Doc6 | Distinguished Standard 14's canonical PR sections from the commit skill's existing risk and attribution supplements. |
+| Doc7 | Stale at the reviewed head: the final-check checkbox was already checked for `35e54eb`. Later heads are verified through the live PR rollup. |
+
+The report's R1–R5 observations introduce no new packet defect. The
+[isolation template and role model](../standards/05-database.md#tenant-owned-and-organization-scoped-tables),
+[migration dependency and reversal rules](../standards/05-database.md#migrations),
+[accepted database privileges](#p02d-1-accepted-answers) and
+[Education scope/locale contract](../modules/education/README.md#data-model-and-invariants)
+remain their authorities. No new production writer, cross-chain foreign key or
+publication/deletion policy is inferred from those observations.
+
+The full Release backend run after the test fixes passes **2,381** cases:
+**1,456 unit, 177 architecture, 747 integration and one contract**, with zero failures
+or skips. The nonempty-run checker verifies every assembly. The earlier 2,366-case
+and coverage figures above remain dated evidence for their original heads. This
+follow-up changes no production source or migration. [PR #22](https://github.com/HodeTech/LearnStack/pull/22)
+remains the current check-rollup and review surface.

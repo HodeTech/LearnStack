@@ -13,13 +13,18 @@ Accepted ADRs are not rewritten. A new decision is a new ADR, possibly supersedi
 
 A body that says something **false** is the one exception, and it is bounded by [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md): an **inline erratum** beside the text is the default, **in-place replacement** only where the text is a canonical artifact for reuse, both only for a statement false when it entered the record, and both owing a dated Amendment in every Accepted ADR the diff changes. The operating rule is [Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md).
 
+This index links later amendments without rewriting an Accepted ADR's Status summary.
+Status is preserved under
+[Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md#correcting-and-amending-adrs);
+an amendment is not a lifecycle status change.
+
 ## Active ADRs
 
 | # | Title | Topic |
 |---|---|---|
 | 0001 | [Platform Name](0001-platform-name.md) | Name and naming conventions |
 | 0002 | [Initial Architecture](0002-initial-architecture.md) | .NET 10 + EF Core + PostgreSQL + Valkey + SeaweedFS + Next.js; modular monolith |
-| 0003 | [Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) | Query filters + RLS + audit + architecture tests (Amendment 1: Organization scope, 2026-05-18; Amendment 2: identity row terminology, 2026-05-19; **Amendment 3: corrected RLS policy template + database role model, 2026-08-08**; **Amendment 6: exact INSERT scope, invoker parent-scope guards and no-id immutability, 2026-09-14**) |
+| 0003 | [Tenant Isolation Defense in Depth](0003-tenant-isolation-defense-in-depth.md) | Query filters + RLS + audit + architecture tests (Amendment 1: Organization scope, 2026-05-18; Amendment 2: identity row terminology, 2026-05-19; **Amendment 3: corrected RLS policy template + database role model, 2026-08-08**; [Amendment 4: stale Phase 02a table list, 2026-08-29](0003-tenant-isolation-defense-in-depth.md#amendment-4--the-phase-02a-table-list-has-gone-stale-2026-08-29); [Amendment 5: UPDATE/DELETE guards exclude organization-scoped sessions from tenant-wide rows, 2026-09-04](0003-tenant-isolation-defense-in-depth.md#amendment-5--the-write-guards-admitted-an-organization-scoped-session-to-tenant-wide-rows-2026-09-04); **[Amendment 6: exact INSERT scope, invoker parent-scope guards and no-id immutability, 2026-09-14](0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)**) |
 | 0004 | [Authentication Strategy](0004-authentication-strategy.md) | Off-the-shelf identity provider preferred over hand-rolled auth (Amendment 1: `learnstack-hub` realm, 2026-05-18) |
 | 0005 | [Live Classroom Media Stack](0005-live-classroom-media-stack.md) | LiveKit OSS self-hosted by default; LiveKit Cloud optional; no custom SFU |
 | 0006 | [Events and Outbox](0006-events-and-outbox.md) | Domain + integration events; outbox pattern; idempotent handlers (Amendment 1: Dapr pub/sub dispatch transport, 2026-05-18) |

@@ -116,9 +116,11 @@ EOF
 
 The PR body uses the structure in
 [14-git-workflow.md § Pull Requests](../../../docs/standards/14-git-workflow.md).
-Use the canonical sections below; `Approach` is needed only when non-obvious and
-`Migration / Rollback` for schema or configuration changes. This skill also calls
-out the risk relevant to the change:
+Use that standard's canonical sections; `Approach` is needed only when non-obvious
+and `Migration / Rollback` for schema or configuration changes. The template below
+also includes this skill's existing supplements: the `Risk` section, used as described
+below, and the assistant attribution footer. Those supplements are not canonical
+sections defined by Standard 14.
 
 ```markdown
 ## Summary

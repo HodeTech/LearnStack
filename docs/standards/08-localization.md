@@ -102,10 +102,8 @@ CREATE TABLE course_translations (
     organization_id uuid NULL,        -- mirrors the parent; for RLS, never for uniqueness
     locale          varchar(35) NOT NULL,
     title           text NOT NULL,
-    description     text NULL,
+    summary         text NULL,
     slug            varchar(160) NOT NULL,
-    seo_title       text NULL,
-    seo_description text NULL,
     PRIMARY KEY (course_id, locale),
     CONSTRAINT ux_course_translations_tenant_id_locale_slug
         UNIQUE (tenant_id, locale, slug),
@@ -127,6 +125,8 @@ keeps that reservation when the parent is soft-deleted. Parent eligibility exclu
 the content from public reads. Phase 05 decides any future release together with
 Phase 04's redirect/slug registry.
 
+#### Education slug grammar
+
 Education's routable slugs and non-routable course `slug_key` use 1–160 characters:
 lowercase ASCII letters and digits, separated by single interior hyphens. UUIDs in
 32-hex (`N`) or hyphenated (`D`) form are refused. Invalid case, whitespace or native
@@ -141,8 +141,11 @@ display fields after the entity is found; it never resolves a slug. An entity wi
 translation in the requested locale has no URL in that locale, and a link to it is
 omitted rather than rendered dead.
 
-A slug collision returns `Result.Fail(business_rule_violation, …)` from the publish
-command. It names the conflicting entity when the caller may read it — tenant-wide rows
+A slug collision is refused when the translation is inserted; its writing command
+returns `Result.Fail(business_rule_violation, …)`. P02d-2
+[G11](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) names that command
+and its concrete error mapping. The refusal names the conflicting entity when the
+caller may read it — tenant-wide rows
 and the caller's own organization's rows both qualify under the canonical policy — and
 otherwise names only the slug and the locale, because naming a row in another
 organization would leak across the boundary Row Level Security exists to hold.

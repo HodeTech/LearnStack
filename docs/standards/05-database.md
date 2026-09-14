@@ -34,9 +34,9 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
-As of P02d-1 Step 2, five migration chains exist: Tenancy, shared persistence,
-Customization, Audit and Education. They contain twenty-one data tables and five
-migration-history tables. P02d-1 review and completion remain in progress.
+With [P02d-1 complete](../roadmap/phase-02d-walking-skeleton.md#delivery-record-p02d-1),
+five migration chains exist: Tenancy, shared persistence, Customization, Audit and
+Education. They contain twenty-one data tables and five migration-history tables.
 
 ## Naming
 
@@ -101,7 +101,7 @@ CREATE TABLE courses (
     -- No title, no description, no slug: translatable columns live in
     -- course_translations per ADR-0008. See § Translation satellite tables.
     -- ... domain columns ...
-    created_at      timestamptz NOT NULL DEFAULT now(),
+    created_at      timestamptz NOT NULL,       -- supplied by MarkCreated from IClock
     created_by      uuid NOT NULL,
     -- NULL until the first update. MarkCreated stamps only created_*; a row that
     -- has never been changed has no updater, and NOT NULL here would fail every
@@ -503,12 +503,11 @@ the parent through the factory and the independent
 refuses scope changes. Both markers and `IOrganizationScoped` make the ordinary EF
 filter sweep reach the satellite even though it has no auditable base class.
 
-For the Education shape implemented in P02d-1 Step 2, `locale` is the shipped
-`LocaleTag`'s canonical spelling in `varchar(35)` (`tr-TR`, `zh-Hans`). Slugs are 1–160 lowercase ASCII letters
-or digits separated by single interior hyphens, excluding UUID `N` and `D` forms.
-The named checks above refuse invalid data; they never normalize it. The application
-uses the same predicate without trimming, lowercasing or transliteration. Education
-owns a width constant of 160; Tenancy's `UrlSlug.MaxLength` remains 63.
+For the Education shape implemented in P02d-1, `locale` is the shipped
+`LocaleTag`'s canonical spelling in `varchar(35)` (`tr-TR`, `zh-Hans`).
+[Localization Standards § Education slug grammar](08-localization.md#education-slug-grammar)
+owns the slug grammar; the named checks above enforce its predicate independently of
+application validation.
 
 A satellite has its natural primary key and no surrogate `id`, independent audit
 timestamps, `row_version` or `deleted_at`. Changes advance the owning root's token and
@@ -1338,9 +1337,10 @@ changes `xmin` while leaving `row_version` intact.
   not reached before Audit. A coverage rule cannot stand in for it:
   `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix is
   deleted, because the glob still reaches Tenancy, while every fresh deployment breaks
-  from that commit onward. The integration fixture that applies the chains orders them
-  the same way, for the same reason: a fixture that hand-orders what the recipe globs is
-  how a suite goes green over a deployment path that cannot build the schema.
+  from that commit onward. The integration fixture preserves the same dependency
+  order: Tenancy precedes every dependent chain. Independent chains may differ in
+  relative order: the fixture applies Customization before Audit, while the recipe
+  discovers Audit first. Neither depends on the other.
   Reversal removes the dependent Education and Audit schema before reversing Tenancy;
   restoring the old shared function while Education still uses it is not a valid
   rollback order. Fresh application, reversed application and reapplication belong

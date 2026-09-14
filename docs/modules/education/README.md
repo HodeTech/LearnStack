@@ -89,9 +89,9 @@ owns their storage conventions.
   organization scope under
   [ADR-0003 Amendment 6](../../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14).
   Every foreign key has a supporting index.
-- Every lesson has exactly its course's scope, including tenant-wide scope. Every
-  translation has exactly its parent's scope. Factories derive child scope from the
-  parent; the database independently rejects a mismatch on insertion or reparenting.
+- Every lesson and translation carries a
+  [parent organization mirror](../../glossary.md#multi-tenancy), including tenant-wide
+  scope. Factories derive child scope from the parent; the database independently rejects a mismatch on insertion or reparenting.
 - `sort` is a nonnegative integer. Ties are legal; lessons are ordered by
   `(sort ASC, id ASC)`. This avoids requiring a cross-root reorder transaction to
   create a lesson. No reorder command ships in Phase 02d.
@@ -102,9 +102,9 @@ owns their storage conventions.
   among live courses. It uses the Education slug width and grammar below.
 - The optional course level reference is all-or-none:
   `(level_taxonomy_key, level_taxonomy_schema_version, level_band_key)`. A present
-  version is positive. It pins a taxonomy revision rather than resolving the active
-  revision on every read. This explicit course reference is distinct from an
-  `x-taxonomy` field's live concept lookup. Phase 05 must preserve the pin when it
+  version is positive. This [revision pin](../../glossary.md#education--learning)
+  identifies the taxonomy used by the course. This explicit course reference is
+  distinct from an `x-taxonomy` field's live concept lookup. Phase 05 must preserve the pin when it
   introduces `Level`; it cannot silently substitute the then-active revision.
 - A lesson binds exactly one `(content_type_key, content_type_schema_version)`;
   the version is positive. Every translated `body` is a JSON object validated against
@@ -125,14 +125,11 @@ owns their storage conventions.
   `LocaleTag` (`tr-TR`, `zh-Hans`). Tenant locale membership is a P02d-2 command
   concern; that packet supplies the Tenancy application contract for enforcement.
   No cross-chain key is introduced.
-- Routable slugs use a separate Education width constant of 160 characters and
-  `UrlSlug`'s lowercase ASCII letters, digits and single interior hyphens. Invalid
-  case, whitespace and native-script text are refused, with no automatic trim,
-  transliteration or lowercasing. Content stays fully Unicode; this constraint is
-  on URL segments only. The 63-character tenant-host limit does not change.
-- A slug shaped as a UUID in either 32-hex (`N`) or hyphenated (`D`) form is refused
-  in application validation and by a named database check. P02d-4 can still choose
-  a separate public path; this does not choose its route template in advance.
+- Routable slugs and the course authoring handle follow the canonical
+  [Education slug grammar](../../standards/08-localization.md#education-slug-grammar).
+  `EducationSlug` supplies its separate width and predicate to domain validation;
+  named database checks enforce the same storage rule. Public route templates
+  and parameter handling remain P02d-4 decisions.
 - Each satellite has a flat `UNIQUE (tenant_id, locale, slug)`, across all courses
   or all lessons respectively, and across organizations. Parent identity and
   organization are excluded from that key. There is no cross-table slug registry.
@@ -144,8 +141,8 @@ owns their storage conventions.
 ## State diagrams
 
 [ADR-0048](../../decisions/0048-walking-skeleton-publication.md#lifecycle) owns the
-publication diagram and its semantics. The two roots use it independently. Neither
-satellite has a publication state separate from its parent.
+[publication](../../glossary.md#education--learning) diagram and its semantics. The two
+roots use it independently. Neither satellite has a publication state separate from its parent.
 
 ## Primary write sequence
 
@@ -219,8 +216,11 @@ remaining operation rows with its command decisions and catalogue source.
 [Performance Standards](../../standards/15-performance.md#initial-budgets) owns the
 budgets: Education reads target API p95 below 200 ms and writes below 500 ms; catalog
 server response below 300 ms. These are targets, not P02d-1 measurements: no API exists.
-The schema indexes foreign keys, scoped catalog order and lesson order for their first
-consumers. P02d-4 verifies query shape when it writes those consumers.
+Full scope and foreign-key indexes include soft-deleted rows. The additional partial
+indexes serve live ordered reads: `(tenant_id, organization_id, created_at, id)` on
+courses and `(tenant_id, course_id, sort, id)` on lessons. They cannot replace the full
+scope/FK indexes because they exclude deleted rows; the shorter full indexes do not
+provide those ordering suffixes. P02d-4 verifies query shape when it writes the consumers.
 
 ## Risks and open questions
 
