@@ -189,7 +189,7 @@ public sealed partial class EducationStructureTests
             }
 
             if (columnRows.Any(row => row[0] == root.Table
-                && Regex.IsMatch(row[1], @"^(title|summary|body|locale|slug)(_|$)|_(title|summary|body)$")
+                && Regex.IsMatch(row[1], @"^(title|description|summary|body|locale|slug)(_|$)|_(title|description|summary|body)$")
                 && row[1] != "slug_key"))
             {
                 offenders.Add($"{root.Table}: misplaced columns");
@@ -245,9 +245,9 @@ public sealed partial class EducationStructureTests
 
             var parentEntity = model.FindEntityType(root.Root);
             if (root.Root.GetProperties().Any(property => property.Name != "SlugKey"
-                    && Regex.IsMatch(property.Name, @"^(Title|Summary|Body|Locale|Slug)($|[A-Z_])"))
+                    && Regex.IsMatch(property.Name, @"^(Title|Description|Summary|Body|Locale|Slug)($|[A-Z_])|(Title|Description|Summary|Body)$"))
                 || (parentEntity is not null && Columns(parentEntity.GetProperties()).Any(column =>
-                    column != "slug_key" && Regex.IsMatch(column, @"^(title|summary|body|locale|slug)(_|$)|_(title|summary|body)$"))))
+                    column != "slug_key" && Regex.IsMatch(column, @"^(title|description|summary|body|locale|slug)(_|$)|_(title|description|summary|body)$"))))
             {
                 offenders.Add($"{root.Table}: misplaced model fields");
             }

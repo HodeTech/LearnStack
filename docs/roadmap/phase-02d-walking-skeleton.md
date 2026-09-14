@@ -1926,5 +1926,16 @@ The full backend run passes **2,363** cases: 1,453 unit, 177 architecture,
 changes; backend formatting, generated Up/Down SQL and the documentation link audit pass. PostgreSQL text
 validation reuses the shared predicate instead of introducing an Education copy.
 
-The two review rounds follow the implementation commit. Packet completion and the
+Round 1 reviewed commit `e5b8187` with three independent reviewers. Domain/EF/audit
+and security/migration reviews approved; the latter independently reran all twelve
+parent-scope cases and the complete reverse/reapply case. The proof review found one
+Major gap: Pattern A's parent-field detector omitted `description` and
+`seo_description`, although Standards 08 explicitly forbids them on a parent. The
+production schema contained neither field. Three new applied-schema companions
+failed against the old detector (plain, locale-suffixed and SEO-prefixed descriptions),
+then passed after both the schema and CLR/model predicates were corrected. Each
+companion also removes its planted column and verifies the same detector is clean.
+All 41 Education structural cases pass with zero skips after this repair.
+
+Round 2 follows that fix commit with fresh reviewers. Packet completion and the
 approved live required-check repair remain in step 3.
