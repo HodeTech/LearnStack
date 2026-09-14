@@ -143,9 +143,10 @@ omitted rather than rendered dead.
 
 A slug collision is refused when the translation is inserted; its writing command
 returns `Result.Fail(business_rule_violation, …)`. P02d-2
-[G11](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) names that command
-and its concrete error mapping. The refusal names the conflicting entity when the
-caller may read it — tenant-wide rows
+[G11](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) remains open;
+the pass that resolves it names the selected command and its concrete error mapping
+here and in [Phase 04's collision criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria).
+The refusal names the conflicting entity when the caller may read it — tenant-wide rows
 and the caller's own organization's rows both qualify under the canonical policy — and
 otherwise names only the slug and the locale, because naming a row in another
 organization would leak across the boundary Row Level Security exists to hold.

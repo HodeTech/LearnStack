@@ -185,18 +185,19 @@ one thing a per-table constraint cannot do.
   `UNIQUE (tenant_id, locale, path)`, on the same flat namespace and for the same reason.
   Per-table uniqueness cannot see across tables, and a page silently shadowing a redirect
   is the same class of defect as an organization row shadowing a tenant-wide one.
-- A slug collision returns `Result.Fail(business_rule_violation, …)` from the publish
-  command. It names the conflicting entity when the caller may read it — tenant-wide rows
-  and the caller's own organization's rows both qualify under the canonical policy — and
+- A slug collision returns `Result.Fail(business_rule_violation, …)` from the command
+  responsible for the conflicting write. It names the conflicting entity when the
+  caller may read it — tenant-wide rows and the caller's own organization's rows both
+  qualify under the canonical policy — and
   otherwise names only the slug and the locale, because naming a row in another
   organization would leak across the boundary Row Level Security exists to hold. It is
   never resolved by picking a winner at render time.
 
 > **Open in Phase 02d.** For `Course` and `Lesson`, whose translation rows hold their
-> slug from the moment they are inserted under the key Phase 02d ships, which command
-> reports a collision, and whether it is still the publish command, is G11 in
+> slug from the moment they are inserted under the key Phase 02d ships, the selected
+> reporting command and its concrete error mapping are G11 in
 > [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits this section with its answer.
+> The pass that closes it names both here and in the completion criterion below.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
@@ -397,14 +398,17 @@ describes.
 - At most one `Active` revision exists per `(tenant_id, key)`, asserted by an integration
   test that attempts to activate a second. A newly registered concept may hold only
   drafts; publishing leaves the selected revision Active and any incumbent Deprecated.
-- Two different courses in one tenant cannot both publish `/en/courses/beginner`; the
-  second publish returns a business-rule failure naming the first. The same holds for a
-  page and a redirect competing for one root path, and for an organization-scoped entity
-  competing with a tenant-wide one. An integration test attempts all three and the
-  database rejects each, connected as `learnstack_app`. For courses, which command
-  reports the collision, and so whether the second one fails at publish, is G11 in
+- Two different courses in one tenant cannot reserve the same locale/slug pair: a
+  course translation reserves its slug on insertion, including while draft. The same
+  uniqueness rule holds for a page and a redirect competing for one root path, and for
+  an organization-scoped entity competing with a tenant-wide one. An integration test
+  attempts all three and the
+  database rejects each, connected as `learnstack_app`. The reporting command returns
+  `Result.Fail(business_rule_violation, …)` with the disclosure rules above. For courses,
+  the selected command and its concrete error mapping remain G11 in
   [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it edits this criterion.
+  once G11 is resolved, this criterion must name that command and mapping and verify
+  the command-level refusal.
 - When the conflicting row belongs to another organization, the failure names the slug and
   the locale but not the row — asserted by a test, because the constraint is enforced with
   Row Level Security bypassed and the handler has to make that choice deliberately.
