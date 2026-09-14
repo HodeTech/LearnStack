@@ -9,7 +9,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
-> | P02d-1 | Education schema and database-level isolation | implementation verified — 2026-09-14; final review in progress; [delivery record](#delivery-record-p02d-1) |
+> | P02d-1 | Education schema and database-level isolation | implementation and agent reviews complete — 2026-09-14; PR validation pending; [delivery record](#delivery-record-p02d-1) |
 > | P02d-2 | Writers and seed | not started |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
@@ -2002,8 +2002,8 @@ no test or assertion was skipped or weakened.
 
 Backend formatting, all 177 architecture cases, 1,479 changed-Markdown relative
 path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
-hygiene pass. Two fresh-agent review rounds and the PR required-check rollup comparison
-follow this step's commit; packet review remains in progress until they are recorded.
+hygiene pass. The two fresh-agent review rounds are recorded below; the PR
+required-check rollup comparison remains pending.
 
 Round 1 reviewed commit `7c50e01` with two fresh reviewers. The delivery reviewer
 recomputed the TRX and coverage figures, checked the migration assertions and reran
@@ -2013,4 +2013,12 @@ integration was not required; it is corrected above. The author's PR preparation
 found that CONTRIBUTING and the commit skill prescribed headings different from
 Standard 14. Both now follow its canonical description structure, with the skill's
 existing isolation-risk disclosure retained. These are carrier corrections, not new
-decisions. Round 2 follows the repair commit with fresh reviewers.
+decisions.
+
+Round 2 reviewed `4d46560..ddb3454` with two fresh reviewers. Both approved without
+further findings. They independently recomputed test/coverage figures, reran the
+1,479-link audit, checked migration evidence, verified the live required-check names
+and attribution against CI, and confirmed that the merge tree matches its first
+parent and all unrelated protection fields remain unchanged. All three implementation
+steps and their two review rounds are complete. The maintainer's PR review and the
+PR check-rollup comparison follow this record.
