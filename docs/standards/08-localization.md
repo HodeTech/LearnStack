@@ -22,13 +22,16 @@ Localization covers:
 
 - A tenant has a **default locale**.
 - A tenant has a set of **enabled locales**.
-- Translatable fields are explicitly marked at the schema level (`isLocalized: true`).
+- Translatable fields use Pattern A or Pattern B storage below. There is no
+  `isLocalized` keyword in the content-type schema profile. Education's inline lesson
+  body is a JSON object per translation locale, including repeated non-translatable
+  values; the exact content-type revision pin belongs to its lesson root
+  ([Education data model](../modules/education/README.md#data-model-and-invariants)).
 - Slug is unique per `(tenant_id, locale)`, enforced on the translation table and flat
   across organizations — see [§ Pattern A](#pattern-a--side-translation-table-default-for-content-shaped-entities).
 - Fallback chain: requested → tenant default → field-level fallback (if allowed) → render-safe missing-content state.
 
-> **Open in Phase 02d.** Whether a schema marker such as `isLocalized` exists (G4),
-> whether a read resolves under a disabled locale and what a tenant with no locale rows
+> **Open in Phase 02d.** Whether a read resolves under a disabled locale and what a tenant with no locale rows
 > serves (G13), and which document owns the display fallback chain — this list and
 > [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules)
 > state different ones (G24) — are open in
@@ -72,7 +75,11 @@ Four rules. A migration reviewer checks all four.
    inherited from a parent through a check constraint, and a satellite carrying `title`
    and `slug` carries the content. It also carries a mirrored `organization_id` when the
    parent is `[OrganizationScoped]`, for the isolation predicate only, and its foreign
-   key to the parent is composite on `tenant_id`.
+   key to the parent is composite on `tenant_id`. The factory derives this scope;
+   the independent INSERT/UPDATE
+   [parent-scope trigger](05-database.md#parent-organization-mirrors) verifies it,
+   alongside the organization immutability guard. Neither RLS nor the tenant-only
+   composite foreign key can prove a correct organization mirror alone.
 3. **Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`** on the translation table.
    `UNIQUE (<entity>_id, locale, slug)` is **forbidden**: its columns are a proper
    superset of the primary key, so it can reject no row the table would otherwise
@@ -93,10 +100,10 @@ CREATE TABLE course_translations (
     course_id       uuid NOT NULL,
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,        -- mirrors the parent; for RLS, never for uniqueness
-    locale          text NOT NULL,
+    locale          varchar(35) NOT NULL,
     title           text NOT NULL,
     description     text NULL,
-    slug            text NOT NULL,
+    slug            varchar(160) NOT NULL,
     seo_title       text NULL,
     seo_description text NULL,
     PRIMARY KEY (course_id, locale),
@@ -112,6 +119,22 @@ This sketch shows where the translatable columns and the slug key live. The tabl
 complete DDL — its foreign-key index, policy set and triggers — is
 [Database Standards § Translation satellite tables](05-database.md#translation-satellite-tables),
 the canonical artefact.
+
+The accepted P02d-1 Education satellites have no independent `id`, audit timestamps,
+concurrency token or `deleted_at`. They belong to their own aggregate root's lifecycle
+and audit capture. A draft translation reserves its slug on insertion; the flat key
+keeps that reservation when the parent is soft-deleted. Parent eligibility excludes
+the content from public reads. Phase 05 decides any future release together with
+Phase 04's redirect/slug registry.
+
+Education's routable slugs and non-routable course `slug_key` use 1–160 characters:
+lowercase ASCII letters and digits, separated by single interior hyphens. UUIDs in
+32-hex (`N`) or hyphenated (`D`) form are refused. Invalid case, whitespace or native
+script is rejected with no implicit lowercasing, trimming or transliteration; the
+content itself remains Unicode. The same predicate is an application check and a
+named database check in the canonical DDL. The Education width is separate from
+Tenancy's 63-character hostname slug limit. This accepted storage grammar does not
+choose P02d-4's public route template or parameter handling.
 
 Slug lookup is **exact** on `(tenant_id, locale, slug)`. The fallback chain resolves
 display fields after the entity is found; it never resolves a slug. An entity with no
@@ -183,15 +206,18 @@ var msg = _stringLocalizer["course.publish.success"];
 
 ## Locale Codes
 
-- IETF BCP 47: `tr`, `en`, `en-GB`, `de`. Lowercase.
-- Always store the full code, not a truncated form.
-- An enum-like registry of supported locales lives in `LearnStack.SharedKernel.Locales`.
+- IETF BCP 47 identity uses the shipped `LocaleTag` validator and canonicalizer:
+  lowercase language, Title-cased script and uppercase region (`tr`, `en-GB`,
+  `tr-TR`, `zh-Hans`).
+- Education translation keys store the full canonical code in `varchar(35)`, never a
+  truncated or fully lowercased form. This is G6 (a)'s accepted storage decision.
+- Tenant locale membership is validated through a Tenancy application contract when
+  the P02d-2 writer lands, not through a cross-chain Education foreign key.
 
-> **Open in Phase 02d.** The shipped `LocaleTag` canonicalizes a script subtag
-> Title-cased and a region uppercased (`tr-TR`, `zh-Hans`), which "Lowercase" does not
-> describe, and no `LearnStack.SharedKernel.Locales` namespace exists. Which spelling
-> content tables and request parameters use (G6) and whether a platform registry bounds
-> a tenant's enabled set (G13) are open in
+> **Open in Phase 02d.** Request-parameter canonicalization remains G6 (b), and
+> whether a platform registry bounds a tenant's enabled set remains G13. No
+> `LearnStack.SharedKernel.Locales` namespace or platform registry exists today. These
+> remaining parts are in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Right-to-Left

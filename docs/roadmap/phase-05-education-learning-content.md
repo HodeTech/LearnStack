@@ -9,11 +9,11 @@ their per-tenant shape. Every model here is **domain-agnostic**. Domain-specific
 **tenant customization data**
 ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)), never as code.
 
-This phase **deepens** what [Phase 02d](phase-02d-walking-skeleton.md) already shipped
-rather than creating it. `Course` and `Lesson` exist in thin form from the walking
-skeleton — a published state, a per-locale slug, title and summary held in translation
-satellites, an ordered lesson list, and a body drawn through its content type's
-composite over the primitive subset that phase implements (G18 in
+This phase **deepens** the [Phase 02d](phase-02d-walking-skeleton.md) walking
+skeleton. Its accepted design supplies independent `Course` and `Lesson` roots,
+each with its own publication state and translation satellites; an ordered lesson
+list; and a lesson body drawn through its content type's composite over the primitive
+subset that phase implements (G18 in
 [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register)).
 Phase 05 adds the structure a real catalog needs: programs, versioning, modules, lesson
 items, and tenant-defined item types.
@@ -36,25 +36,33 @@ Decisions consumed:
   are platform features.
 - [ADR-0013 Page Block Schema Versioning](../decisions/0013-page-block-schema-versioning.md)
   — the same `(key, schemaVersion)` semantics apply to lesson item types.
+- [ADR-0048 Publication Before Course Versioning](../decisions/0048-walking-skeleton-publication.md)
+  — independent publication states, no course-version snapshot, and preservation
+  obligations for this phase's migration.
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
   — the runtime limits below are `LimitKeys` entries, so a plan raises them up to a
   platform ceiling rather than the ceiling being hard-coded per tenant.
 
 ## Scope
 
-### What Phase 02d already shipped
+<a id="what-phase-02d-already-shipped"></a>
 
-Phase 05 does not re-create these. Its destructive changes are enumerated in this
-phase's own decision pass. They include lesson bodies becoming lesson items, and
-whatever it takes to bring Phase 02d's lessons under course versions and modules, given
-the model recorded as G2 in
-[Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
-Each follows [Database Standards § Migrations](../standards/05-database.md#migrations).
+### What Phase 02d supplies
 
-| Already exists | Phase 05 adds |
+Phase 05 does not re-create these. Phase 02d's
+[delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
+accepted design from shipped implementation. This phase's decision pass designs the
+move from independent lessons referencing courses to course versions and modules,
+and from translated inline bodies to lesson items. It must preserve course and
+lesson ids, published localized URLs, lesson order, organization scope, translated
+bodies and exact content-type and taxonomy revision bindings. The migration and its
+tests must carry existing rows forward; re-seeding is not a migration strategy.
+Each change follows [Database Standards § Migrations](../standards/05-database.md#migrations).
+
+| Phase 02d baseline | Phase 05 adds |
 |---|---|
-| `Course` — the publication state G3 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) records, with its per-locale slug, title and summary in `course_translations` ([Phase 02d § Localization schema](phase-02d-walking-skeleton.md#localization-schema--the-one-way-door-this-phase-walks-through)) | Program membership, versioning, categories, tags, SEO, catalog visibility — and how that visibility and `CourseVersion` state compose with 02d's publication state, decided in this phase's decision pass against the values and meaning G3 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) records |
-| `Lesson` — ordered within a course, its body drawn through its content type's composite over Phase 02d's primitive subset (G18) | Module membership, lesson items, required / optional, duration, prerequisites |
+| `Course` — independent root with `draft` / `published` under [ADR-0048](../decisions/0048-walking-skeleton-publication.md); title, summary and routable slug in `course_translations`; an optional exact taxonomy/band revision pin | Program membership, versioning, categories, tags, SEO and catalog visibility; this phase decides how those compose with existing publication, which currently does not snapshot the lesson set |
+| `Lesson` — independent root referencing a course, with its own `draft` / `published` state; ordered by `(sort, id)`; its translated body pins one exact content-type revision ([Education spec](../modules/education/README.md)) | Module membership, lesson items, required / optional, duration, prerequisites; preserve identity, ordering and translated content through the migration |
 | The anonymous public reads Phase 02d ships — their paths, shapes and count are G25 and G26 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) | The authenticated authoring surface and the versioned read path |
 | The customization definition read path — content types and taxonomies through the generation-keyed cache ([32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)) | The `TenantLessonItemType` read, the batched reference walk and the measured cost model |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
@@ -102,7 +110,10 @@ scoring and does not re-decide it.
   and a band's name is its `display_name`. Which key the yoga taxonomy uses is G14 in
   [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
   and the decision pass that closes it writes the key here. The taxonomy is data, not
-  code; the `Level` aggregate holds whatever items the active taxonomy declares.
+  code. The `Level` projection must preserve the exact revision and band referenced
+  by an existing course; a new Active taxonomy cannot silently relabel or remove that
+  stored binding. This phase's decision pass defines how the revision-aware projection
+  composes with the target `Level` identity.
 - Tag.
 - Instructor profile reference, with tenant-defined custom fields via
   `TenantCustomFieldDef` (which lands in [Phase 03](phase-03-identity-admin.md)) for
@@ -271,15 +282,19 @@ that no plan exceeds.
 
 | Limit | Default | Why it exists |
 |---|---|---|
-| `$ref` depth | 3 | Bounds resolution round trips and makes cycle detection cheap |
+| Reference resolution depth (entry → entry) | 3 | Bounds resolution round trips and makes cycle detection cheap |
 | Block instances per page version | 100 | Bounds render fan-out and editor payload size |
 | Lesson items per lesson | 100 | Same, on the learning path |
 | Array items per field | 200, and every array schema must declare `maxItems` | An unbounded array is an unbounded render |
 | Resolved references per render | 200 | Caps total fan-out even when each level is within depth |
 | Customization row payload size | 256 KB | Keeps schema and rule bodies inside one round trip |
 
-Reference cycles are rejected at save. A schema that references itself within the depth
-cap is legal; one that cannot terminate is not.
+Entry-reference cycles are rejected at save. This depth bounds references between
+stored entries, not `$ref` expansion inside one JSON Schema. Every schema `$ref` cycle,
+including productive recursion, is refused by
+[ADR-0043 Amendment 2](../decisions/0043-customization-payload-validation.md#amendment-2--every-cycle-and-a-bound-on-the-graph-2026-09-05);
+[Tenant Customization Model § 8.4](../architecture/32-tenant-customization-model.md#84-declared-limits)
+owns the schema's separate depth and expansion limits.
 
 **The `embed-html` sanitisation contract.**
 

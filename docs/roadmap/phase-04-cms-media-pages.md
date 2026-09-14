@@ -100,12 +100,11 @@ Also in scope:
 [ADR-0013](../decisions/0013-page-block-schema-versioning.md) requires immutable
 versioned schemas: a breaking change ships as a new `schemaVersion` and the previous
 version stays supported while any instance references it.
-[Tenant Customization Model § 11](../architecture/32-tenant-customization-model.md)
-requires `UNIQUE (tenant_id, key)` on every customization table. The two cannot both
-hold — the same document's own § 4 example shows `vocabulary-card` at
-`schema_version = 1` and `schema_version = 2` in `tenant_content_types`, and the unique
-constraint rejects the second row. Written as published, the first breaking change a
-tenant makes fails on a constraint violation.
+[Tenant Customization Model § 11](../architecture/32-tenant-customization-model.md#11-hard-architectural-invariants)
+and [Phase 02a Packet 8](phase-02a-kernel-tenancy.md#delivery-record-packet-8)
+already implement the versioned key for content types and taxonomies. The earlier
+`UNIQUE (tenant_id, key)` design would have rejected the second revision of a concept;
+this phase extends the corrected shape to its new aggregates.
 
 The key shape LearnStack ships, for every versioned customization aggregate
 (`TenantContentType`, `TenantPageBlock`, and `TenantLessonItemType` when
@@ -385,8 +384,9 @@ describes.
   entries rendering against version 1, and does not violate a unique constraint.
 - An additive edit submitted as a `schema_revision` bump that in fact removes a field is
   rejected at save time with the offending field named.
-- Exactly one `active` revision exists per `(tenant_id, key)` at all times, asserted by
-  an integration test that attempts to activate a second.
+- At most one `Active` revision exists per `(tenant_id, key)`, asserted by an integration
+  test that attempts to activate a second. A newly registered concept may hold only
+  drafts; publishing leaves the selected revision Active and any incumbent Deprecated.
 - Two different courses in one tenant cannot both publish `/en/courses/beginner`; the
   second publish returns a business-rule failure naming the first. The same holds for a
   page and a redirect competing for one root path, and for an organization-scoped entity
@@ -464,7 +464,7 @@ hold:
   content types and page blocks, with media, without a LearnStack code change — on both
   seed tenants, with different shapes.
 - The versioned key shape is in the schema, a breaking change ships as a new
-  `schema_version`, exactly one revision is active per key, and the additive-vs-breaking
+  `schema_version`, at most one revision is Active per key, and the additive-vs-breaking
   diff rejects a mis-declared edit.
 - `ContentType` no longer exists anywhere in the corpus or the codebase; every content
   shape resolves through `TenantContentType`.

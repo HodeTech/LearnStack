@@ -1428,6 +1428,24 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   vacuous.
 - **Phase:** 02a (Packet 6).
 
+#### `Every_TenantOwned_Foreign_Key_Includes_TenantId`
+
+- **Asserts:** every foreign key between tenant-owned tables pairs the child's tenant
+  key with the parent's tenant key, in addition to parent identity. The self-keyed
+  `tenants` exception is exact: a child references `tenants.id` through its own
+  `tenant_id`; `tenants.default_organization_id` still requires the composite
+  `(id, default_organization_id) → (tenant_id, id)` key. A single-column parent-id
+  reference, or a composite key that does not actually pair the tenant columns,
+  fails. Table classification must cover the applied schema, not only a hand-picked
+  list of Education tables.
+- **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [05-database.md § Foreign keys between tenant-owned tables](05-database.md#foreign-keys-between-tenant-owned-tables).
+- **Type:** xUnit + applied PostgreSQL schema catalogue. **Kind:** structural.
+- **Status:** **Registered** — the decision-first commit reserves the name; no test
+  implementation is claimed. Its companion must plant a tenant-unsafe foreign key
+  and prove the same predicate reports it, while accepting the self-keyed exception.
+- **Phase:** 02d (P02d-1).
+
 #### `Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows`
 
 - **Asserts:** every unique index on an entity whose table carries a `deleted_at` column,
@@ -1741,6 +1759,65 @@ diagnostic above row security, not the boundary, as its own note says.
   step 3 to every module that has a schema, over the enumerated `Modules.Scoped` list
   `Every_Module_With_A_Schema_Is_Swept` holds current).
 - **Phase:** 02a (Packet 7 introduces, Packet 8 widens).
+
+#### `Every_OrgScoped_Table_Has_An_Organization_Immutability_Guard`
+
+- **Asserts:** every tenant-owned, organization-scoped table has an effective row
+  guard refusing an `organization_id` change, including NULL-to-value and
+  value-to-NULL transitions. The canonical shape is the shared BEFORE UPDATE trigger;
+  `audit_log`'s append-only guard is accepted only with independent proof that it
+  refuses the same change. The shared function cannot assume a surrogate `id` exists.
+  Scope follows table class: `platform_host_to_tenant` is platform-scoped and
+  `outbox_messages`' organization column is tenant-wide event metadata, so those two
+  are not subjects. An exemption must not silently exclude a newly introduced
+  org-scoped table.
+- **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md#tenant-owned-and-organization-scoped-tables).
+- **Type:** xUnit + applied PostgreSQL schema catalogue, with behavioral companion
+  evidence for the append-only alternative. **Kind:** structural.
+- **Status:** **Registered** — P02d-1 must prove the predicate rejects a missing or
+  ineffective guard and exercises a satellite without `id`. A privilege rejection
+  alone is not proof of the audit trigger's behavior.
+- **Phase:** 02d (P02d-1).
+
+#### `Every_Organization_Mirroring_Child_Has_A_Parent_Scope_Guard`
+
+- **Asserts:** every declared parent-mirroring relation has its tenant-composite
+  foreign key and an independent, enabled BEFORE INSERT OR UPDATE row trigger.
+  The trigger invokes a SECURITY INVOKER function with a restricted search path,
+  schema-qualified parent lookup, both tenant and parent-id predicates, and
+  `FOR KEY SHARE`. Its nullable organization comparison and uniform `23514` refusal
+  cover missing, hidden and mismatched parents. Initial subjects are Lesson → Course,
+  CourseTranslation → Course and LessonTranslation → Lesson; subject discovery and
+  declaration coverage must make an omitted relation fail.
+- **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [05-database.md § Parent organization mirrors](05-database.md#parent-organization-mirrors);
+  [Education data model](../modules/education/README.md#data-model-and-invariants).
+- **Type:** xUnit + EF model and applied PostgreSQL schema inspection. **Kind:** structural.
+- **Status:** **Registered** — P02d-1 must pair the rule with planted omissions or
+  weakened controls. Separate `learnstack_app` integration proofs exercise insertion,
+  reparenting, concurrent parent replacement and temporary-table shadowing; a
+  well-shaped trigger alone is not an isolation proof.
+- **Phase:** 02d (P02d-1).
+
+#### `Pattern_A_Content_Uses_Translation_Satellites`
+
+- **Asserts:** every declared Pattern A root keeps translatable fields on its
+  contained satellite, whose natural key is `(parent_id, locale)`, whose tenant and
+  nullable organization columns carry the isolation markers and EF filter, and whose
+  slug key is exactly `(tenant_id, locale, slug)`. Parent identity and organization
+  never widen that namespace. Parent translatable fields and ad-hoc locale columns
+  such as `title_en` are rejected. Education satellites carry no surrogate id,
+  independent audit/soft-delete columns or concurrency token; their parent foreign
+  keys are tenant-composite and CASCADE, while Lesson → Course is RESTRICT.
+- **Source:** [ADR-0008](../decisions/0008-localization-schema.md);
+  [08-localization.md § Pattern A](08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities);
+  [Education data model](../modules/education/README.md#data-model-and-invariants).
+- **Type:** xUnit + EF model and migration/schema inspection. **Kind:** structural.
+- **Status:** **Registered** — P02d-1 owns the first subjects and companions that
+  plant parent translatable fields, ad-hoc locale columns and a widened slug key.
+  The declared subject set must be nonempty and checked against actual model types.
+- **Phase:** 02d (P02d-1).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
 

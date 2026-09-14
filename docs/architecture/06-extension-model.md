@@ -20,8 +20,9 @@ The word "extension" appears in this codebase in two senses; ADR-0018 narrows it
 
 ### 1a. Provider adapters — still active
 
-The core platform talks to external systems through **interfaces** in
-`LearnStack.SharedKernel`:
+The core platform's provider boundary uses **interfaces**, with the intended contracts
+below. The foundation ports are implemented; the other contracts arrive with their
+consumers. [§ 5](#5-provider-adapter-ports) identifies the defaults that run today.
 
 | Concern | Interface |
 |---------|-----------|
@@ -30,7 +31,7 @@ The core platform talks to external systems through **interfaces** in
 | SMS delivery | `ISmsProvider` |
 | WhatsApp delivery | `IWhatsAppProvider` |
 | Object storage | `IFileStorageService` |
-| Search | `ISearchProvider` (or `ITenantSearch` / `IPlatformSearch` per ADR-0012) |
+| Search | `ITenantSearch` / `IPlatformSearch` per ADR-0012 |
 | Live classroom transport | `ILiveClassProvider` |
 | Recording egress | `IRecordingEgressProvider` |
 | Identity provider | (covered by Keycloak baseline; ADR-0004) |
@@ -38,9 +39,9 @@ The core platform talks to external systems through **interfaces** in
 | Cache | `ICacheService` → in-memory now; Dapr → Valkey target (ADR-0038) |
 | Secret store | `ISecretProvider` → configuration now; Dapr → Vault target (ADR-0038) |
 
-Implementations live in `LearnStack.Infrastructure.<Concern>.<Provider>` projects.
-Modules never import provider SDK types. Architecture tests enforce this — same pattern
-as the original Extension Model document. **This part is unchanged.**
+Implementations live behind the adapter boundary, per
+[Architecture Standards § Provider Adapters](../standards/01-architecture-standards.md#provider-adapters).
+Modules never import provider SDK types; architecture tests enforce that boundary.
 
 ### 1b. Tenant-driven customization — the new extension surface
 
@@ -57,16 +58,15 @@ a third-party DLL.
 | Level taxonomies | `tenant_level_taxonomies` | CEFR (A1-C2), yoga difficulty (Beginner-Master), kyu/dan |
 | Scoring rules | `tenant_scoring_rules` | CEFR placement DSL, code challenge auto-grading rules |
 | Completion rules | `tenant_completion_rules` | "all items viewed AND quiz score >= passing_threshold" |
-| Custom fields | `tenant_custom_field_defs` | Extra fields on `User`, `Course`, `Enrollment`, etc. |
+| Custom fields | `tenant_custom_field_defs` | Extra fields on `MembershipProfile`, `Course`, `Enrollment`, etc.; tenant fields belong to the membership, not the global user |
 | Notification templates | `tenant_template_library` | Liquid / Handlebars per channel + locale |
 
 Every row carries `tenant_id`, RLS-isolated. Some are org-scoped as well.
 
-The frontend renders these through a **closed, generic primitive set** (text, markdown,
-image, video, audio, pdf, code, math, link, list, tabs, sanitised-html) composed by a
-small fixed set of composite renderers (default-card, content-list, lesson-shell,
-quiz-shell, …). Adding a new primitive or composite is a LearnStack release; tenants
-**cannot** bring custom JSX.
+The frontend renders these through the **closed, generic primitive and composite sets**
+in [Tenant Customization Model § 2](32-tenant-customization-model.md#2-generic-primitive-renderers),
+whose sanitised-HTML primitive is `embed-html`. Adding a primitive or composite is a
+LearnStack release; tenants **cannot** bring custom JSX.
 
 ## 2. What the new model preserves
 
@@ -82,8 +82,8 @@ The original Extension Model document's invariants are preserved by ADR-0018:
   - Importing live-classroom SDK types in Domain or Application.
   - Hardcoding tenant ids in code (configuration is per-tenant data).
   - Feature flags scattered without a registry (typed `FeatureKeys`, ADR-0021).
-- **Tenant feature enablement.** Now via `IFeatureFlags` reading the entitlement
-  projection ([ADR-0021](../decisions/0021-feature-based-entitlement.md) Amendment 1),
+- **Tenant feature enablement.** Via `IFeatureFlags` composing over
+  `IEntitlementProvider` ([ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md)),
   not via "vertical loaded but not enabled."
 
 ## 3. What the new model removes
@@ -108,7 +108,7 @@ tenant_content_types:
 tenant_lesson_item_types:
   - speaking-practice   { prompt, scoring_rubric, expected_duration_sec }
 tenant_level_taxonomies:
-  - cefr                [A1, A2, B1, B2, C1, C2]
+  - cefr                [a1, a2, b1, b2, c1, c2]
 tenant_scoring_rules:
   - cefr-placement-v1   ← sandboxed DSL expression
 ```
@@ -122,7 +122,7 @@ tenant_content_types:
 tenant_lesson_item_types:
   - guided-sequence     { poses[], music_url, intro_audio_url }
 tenant_level_taxonomies:
-  - yoga-difficulty     [Beginner, Intermediate, Advanced, Master]
+  - yoga-difficulty     [beginner, intermediate, advanced, master]
 tenant_scoring_rules: (none — yoga isn't graded)
 ```
 
@@ -134,17 +134,21 @@ tenant_content_types:
 tenant_lesson_item_types:
   - code-runner-item    { challenge_ref, time_limit_minutes, max_attempts }
 tenant_level_taxonomies:
-  - coding-difficulty   [Easy, Medium, Hard, Expert]
+  - coding-difficulty   [easy, medium, hard, expert]
 tenant_scoring_rules:
-  - auto-grade-runner   ← runs test suite against submission
+  - submission-score    ← evaluates already-recorded submission results
 ```
 
-Same modules. Same code. Different rows.
+The lists contain item keys; localized band names live in `display_name`, per
+[ADR-0018's key rule](../decisions/0018-tenant-driven-customization-model.md#2026-09-04--customization-keys-and-item-keys-are-lowercase).
+The coding example declares content and evaluates facts. Executing a submission is
+subject to [Platform Vision § Genericity boundary](01-platform-vision.md#genericity-boundary).
 
-## 5. Provider adapter ports (unchanged from earlier doc)
+## 5. Provider adapter ports
 
-Existing `LearnStack.SharedKernel` ports for external integrations remain. Concrete
-implementations:
+The provider-specific adapters below are intended choices, not shipped implementations.
+The [roadmap](../roadmap/README.md) owns their delivery phases. The foundation rows
+identify the defaults that run today.
 
 | Interface | Implementation |
 |-----------|----------------|
@@ -152,11 +156,11 @@ implementations:
 | `IEmailProvider` | `PostmarkEmailProvider`, `ResendEmailProvider`, `SmtpEmailProvider` |
 | `ISmsProvider` | `TwilioSmsProvider`, `NetGsmSmsProvider` |
 | `ILiveClassProvider` | `LiveKitSelfHostedProvider`, `LiveKitCloudProvider` |
-| `IFileStorageService` | `MinioFileStorageService`, `S3FileStorageService` |
-| `IEventBus` | `InProcessEventBus` (lands with the port in Packet 5), `DaprEventBus` (demand-gated to Phase 11) |
-| `ICacheService` | `InMemoryCacheService` (lands with the port in Packet 5), `DaprCacheService` (demand-gated to Phase 11) |
+| `IFileStorageService` | SeaweedFS through its S3-compatible API ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) |
+| `IEventBus` | `InProcessEventBus` (registered today, Packet 5), `DaprEventBus` (demand-gated to Phase 11) |
+| `ICacheService` | `InMemoryCacheService` (registered today, Packet 5), `DaprCacheService` (demand-gated to Phase 11) |
 | `ISecretProvider` | `ConfigurationSecretProvider` (**registered today**, shipped in Packet 3), `DaprSecretProvider` (demand-gated to Phase 11) |
-| `IEntitlementProvider` | `NullEntitlementProvider` (Packet 9), `HubEntitlementProvider` (Phase 02c), `SignedLicenseKeyEntitlementProvider` (skeleton from Hub `P02c-6`, hardened in Phase 11) |
+| `IEntitlementProvider` | `NullEntitlementProvider` (registered today, Packet 9), `HubEntitlementProvider` (Phase 02c), `SignedLicenseKeyEntitlementProvider` (skeleton from Hub `P02c-6`, hardened in Phase 11) |
 
 The last four rows are the demand-gated set from
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md): the port and its default
@@ -164,24 +168,24 @@ ship together, and the vendor adapter ships in the phase named against its writt
 trigger. All four ports and their defaults have shipped — `ISecretProvider` in Packet 3,
 `IEventBus` and `ICacheService` in Packet 5, `IEntitlementProvider` in Packet 9 of
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) — and only the vendor adapters wait on
-their triggers. The
-in-process implementations are not a development convenience: once registered they are
-the only implementations in **every** deployment mode until Phase 11.
+their triggers. The defaults run in **every** deployment mode until each port's own
+trigger selects its adapter.
 
 Adding a new provider is a code change in core (new adapter implementation in
 `LearnStack.Infrastructure`) — not a tenant action.
 
 ## 6. Frontend rendering of customization data
 
-A tenant's content types are rendered through a fixed pipeline:
+A tenant's content types follow this intended rendering pipeline; its first consumer
+lands in [Phase 02d](../roadmap/phase-02d-walking-skeleton.md):
 
 ```
 Tenant defines content type "vocabulary-card" with JSON Schema
                       ↓
-Module reads tenant_content_types where tenant_id = current
+Consumer resolves definitions through Customization.Application.Contracts
                       ↓
 For each JSON Schema field, frontend matches to a PRIMITIVE_RENDERER
-  (text, markdown, image, video, audio, pdf, code, math, link, list, tabs)
+  (the canonical set in Tenant Customization Model § 2)
                       ↓
 Composite renderer (default-card / content-list / lesson-shell) composes the primitives
                       ↓
@@ -190,24 +194,18 @@ Tenant's brand tokens applied as CSS variables
 Rendered output
 ```
 
-Architecture tests enforce:
+The [architecture-test catalogue](../standards/21-architecture-tests-catalogue.md)
+records the registry checks and their implementation status. Renderer vocabulary is a
+platform change; tenant data selects from the registered keys. No CODEOWNERS file
+exists today ([Contributing](../../.github/CONTRIBUTING.md)), so it is not a mechanical
+approval gate.
 
-- The primitive renderer set is closed (only what's in `PRIMITIVE_RENDERERS`).
-- The composite renderer set is closed (only what's in `COMPOSITE_RENDERERS`).
-- Adding to either set requires CODEOWNERS approval — LearnStack team only.
+## 7. First-party module registration
 
-## 7. What this means for `IModule`
-
-`IModule` (LearnStack's module-loading contract) remains, but slimmer than the
-Nexora-pattern `IModuleExtension`. **No `IModuleExtension` interface in LearnStack.** The
-"vertical module = third-party DLL implementing `IModuleExtension`" Nexora pattern does
-not apply.
-
-LearnStack's own modules (`LearnStack.Modules.Identity`, `LearnStack.Modules.Tenancy`,
-`LearnStack.Modules.Content`, `LearnStack.Modules.Catalog`,
-`LearnStack.Modules.Enrollment`, `LearnStack.Modules.Classroom`,
-`LearnStack.Modules.Audit`, etc.) implement `IModule`. All are first-party. Tenants do
-**not** install third-party modules.
+No `IModule` interface exists in the shipped runtime. Module services are registered at
+the composition root; [Module Boundaries](03-module-boundaries.md) owns the layout.
+All LearnStack modules are first-party. Tenants do **not** install third-party modules
+or implement `IModuleExtension`.
 
 ## 8. Risks and trade-offs
 
@@ -228,14 +226,8 @@ LearnStack's own modules (`LearnStack.Modules.Identity`, `LearnStack.Modules.Ten
 
 ## 9. Phasing
 
-| Phase | Deliverable |
-|-------|-------------|
-| 02 | Customization tables created (empty). Primitive renderer set scaffolded. `IModule` interface in SharedKernel. Provider adapter interfaces in SharedKernel + Null implementations. |
-| 04 | CMS / Page Builder: page blocks as data; first composite renderers; JSON form editor for content types. |
-| 05 | Catalog / Learning Content: lesson item types as data; lesson player composites. |
-| 06 | Admin Studio visual schema editor (drag-and-drop field builder); preview pane. |
-| 08a | Assessment: scoring rule DSL + sandbox; level taxonomies; completion rules. |
-| 12 (optional) | Content template marketplace: pre-built JSON Schema + scoring rule + level taxonomy bundles for tenants to install with one click. Data sharing only, no code. |
+The delivery sequence and shipped state live in
+[Tenant Customization Model § 12](32-tenant-customization-model.md#12-phasing).
 
 ## References
 

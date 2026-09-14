@@ -160,11 +160,11 @@ public sealed partial class AuditConventionTests
             .EnumerateDirectories(Path.Combine(RepositoryPaths.RepoRoot(), "docs", "modules"))
             .ToList();
 
-        // Named, not counted. Three module specs exist and each of them is a decision;
-        // a fourth appearing without a matrix is what this rule is for, and a bare count
+        // Named, not counted. Each module spec is an accepted design decision;
+        // another appearing without a matrix is what this rule is for, and a bare count
         // would let one be swapped for another.
         modules.Select(Path.GetFileName).Should().BeEquivalentTo(
-            ["tenancy", "customization", "audit"]);
+            ["tenancy", "customization", "audit", "education"]);
 
         WithoutMatrix(modules).Should().BeEmpty(
             "a module spec without a coverage matrix is a module whose audit obligations "

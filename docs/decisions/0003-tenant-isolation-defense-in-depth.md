@@ -335,6 +335,14 @@ are untouched.
 OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
 ```
 
+> **Erratum — 2026-09-14.** The write-scope statement below is true for UPDATE and
+> DELETE, but was false for INSERT when Amendment 5 entered the record: its migration
+> changed only the restrictive guards, while `WITH CHECK` still admitted tenant-wide
+> rows from an organization-scoped session. A real `learnstack_app` INSERT against
+> PostgreSQL 18.4 reproduced the gap. The Decision is unchanged. Current authority:
+> [Database Standards](../standards/05-database.md). Recorded in
+> [Amendment 6](#amendment-6--insert-scope-and-parent-mirrors-2026-09-14).
+
 A tenant-scope session still writes tenant-wide rows; an organization-scoped session
 writes only its own organization's. `app.scope` is deliberately absent here for the same
 reason Amendment 3 keeps it out of `WITH CHECK` — the read hatch is not a write hatch, and
@@ -346,3 +354,122 @@ told to copy — the instrument [ADR-0041](0041-correcting-false-statements-in-a
 reserves for exactly that. `tenant_settings` is the only shipped organization-scoped table
 and is corrected by a forward-only migration; every table created after this carries the
 corrected guards from the template.
+
+## Amendment 6 — INSERT scope and parent mirrors (2026-09-14)
+
+**Accepted — 2026-09-14.** Approved by the maintainer in
+[P02d-1's decision pass](../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14),
+before implementation. The original Decision and Status history remain unchanged.
+
+### What the pass verified
+
+Amendment 5 corrected the UPDATE and DELETE guards, but its statement that an
+organization-scoped session writes only its own organization's rows is false for
+INSERT. Both the original `tenant_settings` migration and the later `audit_log`
+migration retain an unconditional null-organization arm in `WITH CHECK`. A test as
+`learnstack_app` on the project's pinned PostgreSQL 18.4 accepted a tenant-wide
+INSERT from an organization-scoped session. The stricter predicate refused the same
+insert with `42501` while permitting the matching-scope positive control.
+
+The statement was false when Amendment 5 entered the record: its migration changed
+only the two restrictive guards. An
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) erratum now sits beside
+that statement, leaving its wording intact and linking to this amendment. The
+canonical template in [Database Standards](../standards/05-database.md) is corrected
+in place, and forward migrations correct both existing tables. The Decision remains
+unchanged: defense in depth with tenant and organization isolation.
+
+### Control
+
+1. **Exact write scope includes INSERT.** On every organization-scoped table, a
+   tenant-wide row is writable only when the session announces no organization; an
+   organization row is writable only when the session announces that organization.
+   `app.scope = 'tenant'` stays a read hatch. Tenant-wide reads from organization
+   sessions remain permitted. The four-role model and tenant predicate do not change.
+2. **Children mirror their parent continuously.** A lesson has its course's tenant
+   and organization; a translation has its root's tenant and organization. Factories
+   derive these values from the parent. A `SECURITY INVOKER` row trigger runs
+   **BEFORE INSERT OR UPDATE**, including a change of parent id. It queries by
+   tenant and parent id under the caller's RLS, compares organizations with null-safe
+   equality, and rejects a missing, hidden or mismatched parent with the same `23514`
+   failure, without disclosing parent values. The ordinary tenant-composite foreign
+   key remains and supplies referential integrity and delete semantics.
+3. **No privileged parent lookup.** The trigger runs in the writing transaction,
+   uses the caller's privileges, and introduces no role, GUC setter or RLS bypass.
+   Its parent is in the same Education migration chain. The lookup locks the parent
+   `FOR KEY SHARE` until transaction end, preventing deletion and replacement under
+   the same id between the mirror check and the foreign-key check. The root's existing
+   SELECT and UPDATE grants permit that lock. Parent organization immutability and
+   the composite foreign key remain separate controls. Parent relations are explicitly
+   schema-qualified and the function fixes a restricted `search_path`; a caller's
+   temporary table must never substitute for the real parent. The test suite plants
+   a same-named temporary table and proves that the real parent still governs.
+4. **The shared immutability function requires no surrogate id.** Its error reports
+   the table and the violation, without dereferencing `OLD.id`. A no-id translation
+   receives the intended `23514`, not PostgreSQL's `42703` missing-field error.
+
+### Alternatives examined
+
+- **Writer derivation alone** leaves direct or defective writes unprotected and is
+  rejected. The database is an independent layer, not a restatement of the handler.
+- **A nullable three-column foreign key** is rejected: `MATCH SIMPLE` omits the
+  entire check when one referencing value is null, including the tenant check.
+- **A stored, non-null generated organization key plus a scope-inclusive FK** works
+  in PostgreSQL, including reparenting. It is rejected for this implementation after
+  reproducing the natural mapping with EF Core 10.0.12 and Npgsql EF 10.0.0: a
+  computed alternate key rejects `ValueGeneratedOnAddOrUpdate`; changing it to
+  `ValueGeneratedOnAdd` makes relationship fixup explicitly insert the generated
+  value on a translation, which PostgreSQL refuses with `428C9`. The test includes
+  a previously stored Course and a new Lesson/Translation graph. A workaround or
+  duplicate scope state is unnecessary when the invoker trigger fits the existing
+  mapping.
+- **An INSERT-only parent check** is rejected because a later parent-id UPDATE can
+  invalidate the mirror without changing `organization_id`.
+
+### Audit compatibility and implementation obligations
+
+The existing in-transaction audit path copies the announced organization onto each
+intent. Standalone and best-effort writers announce the draft's organization on their
+own transaction, including its absence; provisioning announces none. Platform-scope
+audit uses its separately credentialed connection. None needs an exception to the
+stricter INSERT rule. Regression tests must preserve each path's positive case.
+
+P02d-1 applies the shared function replacement in the Tenancy chain, and the policy
+corrections separately in Tenancy and Audit. Education creates its parent checks in
+its own chain and uses Tenancy's shared immutability function. The migration runner
+and test fixtures apply Tenancy first and reverse dependents before Tenancy. No applied
+migration is edited.
+
+Standards 05 owns the updated policy, parent-check template,
+immutability function and chain dependencies. Standards 21 registers the structural
+rules before their implementation. Their proofs include a missing trigger, malformed
+parent predicate, mismatched null/non-null scope, reparenting, a no-id satellite,
+foreign tenant and matching-scope positive controls. The immutable-organization
+guard applies to the organization-scoped table class; a host projection or an outbox
+metadata column does not change that table's class.
+
+**Carriers updated by this acceptance.** Database Standards owns the canonical SQL
+and migration dependencies; Architecture Tests Catalogue registers its structural
+proofs; the Education module spec, Phase 02d decision pass and ADR index link this
+amendment. Only the adjacent erratum changes the earlier accepted body.
+
+The concurrency probe reproduced a parent DELETE/reinsert between an unlocked scope
+read and the child FK check, leaving different organizations under one valid parent
+id. With `FOR KEY SHARE`, deletion waited and was refused by the FK after the child
+committed. The fixture granted DELETE only to measure this race; production Education
+root grants do not include it.
+
+A BEFORE parent trigger may reject a foreign-tenant child with `23514` before RLS
+or the FK runs. Independent RLS (`42501`) and FK (`23503`) proofs use a separate
+disposable database: the owner commits removal of that one guard, then an actual
+`learnstack_app` login executes the assertions. Missing write grants are treated the
+same way when testing UPDATE/DELETE policy behavior. The untouched fixture proves
+the production grants and all controls together. An uncommitted owner GRANT is not
+visible to the application's separate connection and is not a valid test setup.
+
+### References
+
+- [PostgreSQL 18: Row security](https://www.postgresql.org/docs/18/ddl-rowsecurity.html)
+- [PostgreSQL 18: Constraints](https://www.postgresql.org/docs/18/ddl-constraints.html)
+- [PostgreSQL 18: Generated columns](https://www.postgresql.org/docs/18/ddl-generated-columns.html)
+- [Education module spec](../modules/education/README.md)
