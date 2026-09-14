@@ -60,10 +60,13 @@ reader. The whole .NET suite runs with **zero skips**, which the runner now refu
 let change.
 **[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
 shipped the packet table and the decision register, and every later packet opens with
-its decision pass. **P02d-1 is complete**: Education's domain, schema and isolation
-proofs pass, all three steps completed two independent agent review rounds, and the
-five live required checks pass on [PR #22](https://github.com/HodeTech/LearnStack/pull/22). Education
-commands and seed writes belong to P02d-2; public reads belong to P02d-4.
+its decision pass. **P02d-1 is complete and merged** through
+[PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
+domain, schema and isolation proofs pass; all three steps completed two independent
+agent review rounds. The [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+records verification of the final PR head and merge commit. **Next: P02d-2's decision
+pass**, then Education commands and seed writes. That packet has not started; public
+reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -242,7 +245,7 @@ and `Organization` aggregates and `TenancyDbContext`; Customization —
 `CustomizationDbContext`; Audit — `AuditEntry`, `AuditConfig` and `AuditDbContext`;
 and Education — separate `Course` and `Lesson` roots, their contained translations
 and `EducationDbContext`. Content, Identity and Media remain scaffolded.
-P02d-1's implementation, agent reviews and required PR checks are complete.
+P02d-1 is merged; its implementation, agent reviews and required PR checks are complete.
 Command and public-read surfaces belong to the later packets. Other module-level references
 in the docs (e.g. `ILiveClassProvider`, `ITenantSearch`) still describe intended
 shape owned by their named phases.

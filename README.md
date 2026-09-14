@@ -58,10 +58,11 @@ items, rules, custom fields and notification templates; their delivery is tracke
 ## Where it is today
 
 **Phase 01 and Phase 02a are complete. Phase 02d is in progress.**
-[P02d-1](docs/roadmap/phase-02d-walking-skeleton.md) delivers the Education domain,
-schema and isolation proofs. **P02d-2** owns course and lesson command handlers and
-seed writes; **P02d-4** owns anonymous public API reads. Browser rendering follows
-in P02d-5–7.
+[P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
+**complete and merged**: Education domain, schema and isolation proofs.
+**Next is P02d-2's decision pass**, followed by course and lesson command handlers and
+seed writes. **P02d-4** owns anonymous public API reads. Browser rendering follows
+in P02d-5–7; none of these later packets has started.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|

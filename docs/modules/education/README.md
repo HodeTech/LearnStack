@@ -1,7 +1,9 @@
 # Education Module
 
-**Status:** P02d-1 complete — 2026-09-14. Domain, persistence, isolation proofs,
-both agent review rounds per step and all five required PR checks are complete.
+**Status:** P02d-1 complete and merged — 2026-09-14. Domain, persistence, isolation
+proofs and both agent review rounds per step are complete. The
+[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+records all five required checks on the final PR head and merge commit.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
 records the accepted scope. Commands, audit catalogue entries and seed writes remain
 planned for P02d-2; public reads remain planned for P02d-4.

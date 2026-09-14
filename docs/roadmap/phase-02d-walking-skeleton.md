@@ -9,13 +9,17 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
-> | P02d-1 | Education schema and database-level isolation | ✅ complete — 2026-09-14; [delivery record](#delivery-record-p02d-1) |
+> | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | not started |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
+
+**Next: P02d-2's decision pass.** The schema prerequisite is merged. Its remaining
+gate parts in [the packet table](#packets-and-decision-gates) still require explicit
+acceptance before implementation; this closeout accepts none of them.
 
 ## Goal
 
@@ -2120,3 +2124,40 @@ or skips. The nonempty-run checker verifies every assembly. The earlier 2,366-ca
 and coverage figures above remain dated evidence for their original heads. This
 follow-up changes no production source or migration. [PR #22](https://github.com/HodeTech/LearnStack/pull/22)
 remains the current check-rollup and review surface.
+
+#### Merge and closeout (2026-09-14)
+
+[PR #22](https://github.com/HodeTech/LearnStack/pull/22) merged into `main` at
+**20:22:17 UTC**, with final PR head `bc181702e379fec99da43015b2ee357ad772d6d1`
+and merge commit `1d3a0f717523bebbf8c397ae9facba7c80eafae9`. The merge tree is
+identical to the final PR head. `development` was fast-forwarded to that merge
+commit without switching branches, rewriting history or changing file contents.
+
+- [x] P02d-1's accepted decision parts, all three implementation steps and their
+  two review rounds are complete, as recorded above.
+- [x] The final review's three verified documentation findings are resolved in
+  `bc18170`: README delivery status, the Course/Lesson glossary distinction between
+  Phase 02d and Phase 05, and Phase 02b G19's stale module count.
+- [x] The README refresh and the requested removal of mandatory commit coauthor
+  attribution (`dde8e0b`) are included in the merged head.
+- [x] The final PR-head and merge-commit CI runs both completed successfully.
+
+| Verified revision | CI evidence | Result |
+|---|---|---|
+| Final PR head `bc18170` | [Run 34892449509](https://github.com/HodeTech/LearnStack/actions/runs/34892449509) | All five required jobs succeeded |
+| `main` merge commit `1d3a0f7` | [Run 34892508893](https://github.com/HodeTech/LearnStack/actions/runs/34892508893) | All five required jobs succeeded |
+
+The live required-check list still has the five contexts recorded in Step 3, with
+GitHub Actions `app_id: 15368` and `strict: true`. The merge run verifies **2,381
+backend tests**: 1,456 unit, 177 architecture, 171 Docker-free integration,
+576 Docker integration and one contract, with zero failures or skips. The frontend,
+meta and secret-scan jobs also pass. The OpenAPI and Lighthouse placeholders remain
+outside the required set, with their existing P02d-4 and P02d-7 decision gates.
+Both completed runs were verified at **20:25 UTC**.
+
+**P02d-1 is closed. Phase 02d remains in progress.** P02d-2 through P02d-7 have not
+started. P02d-2 first resolves its writer, customization-contract, locale, branding,
+seed-context and data-safety decisions, then implements the commands, audit wiring
+and repeatable tenant-specific seed. The packet table and decision register above
+own its exact scope and open gate parts. Public reads, rendering and the browser
+demo remain the later packets' work; this merge does not complete those surfaces.
