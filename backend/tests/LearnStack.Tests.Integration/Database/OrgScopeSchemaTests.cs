@@ -34,6 +34,7 @@ public sealed class OrgScopeSchemaTests
         scanned.Should().Contain([
             "fk_organizations_tenant", "fk_tenants_default_organization",
             "fk_tenant_level_taxonomy_items_taxonomy",
+            "fk_lessons_course", "fk_course_translations_course", "fk_lesson_translations_lesson",
         ], "the self-keyed parent, self-keyed child and independent module must all be scanned");
 
         (await TenantForeignKeyOffendersAsync(owner)).Should().BeEmpty(
@@ -112,7 +113,8 @@ public sealed class OrgScopeSchemaTests
         var scoped = await SchemaQueries.ReadStringsAsync(owner, OrganizationTables +
             "SELECT relname FROM organization_scoped ORDER BY relname");
 
-        scoped.Should().Contain(["tenant_settings", "audit_log"],
+        scoped.Should().Contain(["tenant_settings", "audit_log",
+            "courses", "lessons", "course_translations", "lesson_translations"],
             "a guard over no classified tables proves nothing");
         all.Except(scoped).Should().BeEquivalentTo(["platform_host_to_tenant", "outbox_messages"],
             "these are the two documented table-class exceptions, not an extensible exclusion list");
@@ -176,6 +178,10 @@ public sealed class OrgScopeSchemaTests
     [Theory]
     [InlineData("tenant_settings", "tg_tenant_settings_organization_id_immutable")]
     [InlineData("audit_log", "audit_log_append_only_guard")]
+    [InlineData("courses", "tg_courses_organization_id_immutable")]
+    [InlineData("lessons", "tg_lessons_organization_id_immutable")]
+    [InlineData("course_translations", "tg_course_translations_organization_id_immutable")]
+    [InlineData("lesson_translations", "tg_lesson_translations_organization_id_immutable")]
     public async Task The_Organization_Guard_Rejects_A_Missing_Guard_On_Each_Existing_Table(
         string table, string trigger)
     {

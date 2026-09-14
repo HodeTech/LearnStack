@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -18,7 +19,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <remarks>
 /// <para>
 /// Database Standards § Migrations says reversal is expected for a non-destructive
-/// migration, and every chain here only creates. Neither of the first two reversed
+/// migration. These chains create schema and tighten controls. Neither of the first two reversed
 /// as shipped:
 /// the tenancy <c>Down()</c> aborted on its first statement, because
 /// <c>DROP FUNCTION fn_organization_id_immutable()</c> fails while the trigger on
@@ -48,20 +49,22 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(21L,
+        (await CountAsync(connection, TablesQuery)).Should().Be(26L,
             "eight tenancy tables, three platform tables, four customization tables, "
-            + "two audit tables, and the four history tables");
+            + "two audit tables, four Education tables, and five history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
             "fn_audit_log_append_only and fn_audit_log_no_truncate back the two "
             + "append-only triggers");
+        (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L,
+            "each Education parent relation has its own invoker scope check");
 
         await _fixture.RollBackAsync();
 
         // The history tables survive: `database update 0` empties them, it does not
-        // drop them. Everything the two migrations created is gone.
-        (await CountAsync(connection, TablesQuery)).Should().Be(4L);
+        // drop them. Everything the five chains created is gone.
+        (await CountAsync(connection, TablesQuery)).Should().Be(5L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(0L);
 
         // The audit triggers went with their table; the FUNCTIONS did not, and a
@@ -69,7 +72,24 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         // would then keep whichever body happened to be there, because CREATE FUNCTION
         // with a matching signature is not an error the migration surfaces.
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(0L);
+        (await CountAsync(connection, EducationFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
+
+        // A successful Down must also leave a state that can be installed again.
+        await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
+        (await CountAsync(connection, TablesQuery)).Should().Be(26L);
+        (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
+        (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
+        (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
+        await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
+        await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+        foreach (var table in EducationSchemaSeed.Tables)
+        {
+            (await SchemaQueries.CountAsync(app, $"SELECT count(*) FROM {table}", transaction))
+                .Should().Be(1L, "reapplied constraints and policies must admit a real app write and scoped read");
+        }
     }
 
     private const string TablesQuery =
@@ -84,6 +104,11 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
     private const string PolicyQuery =
         "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'";
+
+    private const string EducationFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
+        + "AND proname IN ('fn_lessons_parent_scope', 'fn_course_translations_parent_scope', "
+        + "'fn_lesson_translations_parent_scope')";
 
     private static async Task<long> CountAsync(System.Data.Common.DbConnection connection, string sql)
     {
@@ -104,8 +129,7 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     {
         await Postgres.InitializeAsync();
 
-        // The shared applier, so a fifth chain reaches this fixture without anybody
-        // remembering. The four CreateX helpers below stay: the REVERSAL half needs
+        // The shared applier reaches every chain. The CreateX helpers below stay: the REVERSAL half needs
         // per-chain control, which is the half that cannot be shared.
         await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
     }
@@ -114,12 +138,18 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
 
     /// <summary>
     /// Reverses every chain in the reverse of the order that applied them — the
-    /// order a developer undoing a packet would use, and the one that proves no
-    /// chain depends on another's tables.
+    /// order a developer undoing a packet would use. Dependents release their
+    /// references before the chain owning a shared table or function reverses.
     /// </summary>
     public async Task RollBackAsync()
     {
-        // Audit first, because it is the only chain that depends on another's tables:
+        // Education first: its four immutability triggers call Tenancy's function.
+        await using (var education = CreateEducation())
+        {
+            await education.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
+        }
+
+        // Audit next, because it depends on another chain's tables:
         // fk_audit_config_tenant references `tenants` with ON DELETE RESTRICT, and a
         // DROP TABLE tenants while audit_config still exists fails on the dependency
         // rather than on any row. Reversal order is application order reversed, which
@@ -148,6 +178,14 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
             new DbContextOptionsBuilder<TenancyDbContext>()
                 .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
                     npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
+                .Options,
+            StaticTenantContextAccessor.Unresolved);
+
+    private EducationDbContext CreateEducation() =>
+        new(
+            new DbContextOptionsBuilder<EducationDbContext>()
+                .UseNpgsql(Postgres.MigrationConnectionString, npgsql =>
+                    npgsql.MigrationsHistoryTable(EducationDbContextFactory.HistoryTable))
                 .Options,
             StaticTenantContextAccessor.Unresolved);
 

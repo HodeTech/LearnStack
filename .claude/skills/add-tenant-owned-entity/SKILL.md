@@ -267,7 +267,8 @@ dotnet ef migrations add add_<name> \
 
 `--output-dir` is not optional, and this is the skill that needs it most: EF
 defaults the output to `Migrations/` when the project has no sibling migration to
-reuse, which is six of the seven module assemblies today. `make migrate`,
+reuse. Content, Identity and Media are the three module assemblies without a
+migration chain after P02d-1 Step 2. `make migrate`,
 `backend/.editorconfig` and `Migrate_Target_Covers_Every_Migration_Chain` all key
 on `Persistence/Migrations` — a chain landing one directory up is skipped by the
 Makefile loop in silence and is invisible to the architecture test written for
@@ -427,14 +428,20 @@ Two gaps remain, and both are yours to close by hand:
 - **A marker-gated rule cannot catch a missing marker.** It iterates what it
   finds. An entity you forget to mark is invisible to both rules, and the
   isolation test in Step 5 is the net for it.
-- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization and
-  Audit today. A module with a schema that is missing from that list fails
+- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization,
+  Audit and Education after P02d-1 Step 2. A module with a schema that is missing
+  from that list fails
   `Every_Module_With_A_Schema_Is_Swept`, so add yours there.
 
 Also live against your migration: `Every_Foreign_Key_Has_A_Supporting_Index` and
 the schema sweeps in `TenancySchemaTests` — row security enabled *and* forced,
 no second permissive policy for one command, snake_case identifiers, and the exact
-grant matrix. Those run against the applied schema.
+grant matrix. Those run against the applied schema. P02d-1 Step 2's
+[EducationStructureTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationStructureTests.cs)
+also exercises the parent-mirror and Pattern A detectors with planted violations;
+[EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
+proves natural-key satellite persistence, owning-root concurrency and contained audit
+capture through the actual composition roots.
 
 If you're adding a *new* marker attribute or a *new* isolation pattern, write a
 new architecture test (see
@@ -478,8 +485,8 @@ public sealed class <Name>IsolationTests(SchemaFixture schema)
 
 There is no `TestFixture`, no `CreateTenantAsync` and no `AsTenant(...)` helper —
 an earlier version of this file used all three. The shipped fixtures are
-`PostgresFixture` (container + the four roles) and `SchemaFixture` (both migration
-chains, every table seeded for two tenants), shared with
+`PostgresFixture` (container + the four roles) and `SchemaFixture` (all five migration
+chains, tenant-owned tables seeded for two tenants), shared with
 `[Collection(SharedSchema.Name)]`. The fixture must seed **both** tenants: a count
 of zero against a table nothing populated passes whatever the policy says.
 

@@ -1,6 +1,7 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +54,7 @@ internal static class MigrationChains
             await customization.Database.MigrateAsync();
         }
 
-        // Audit is last, and Tenancy first, and that order is not cosmetic: audit_config
+        // Tenancy is first, and that order is not cosmetic: audit_config
         // carries the schema's only foreign key crossing two chains, to `tenants`. A
         // fixture that hand-orders what `make migrate` globs is how a suite goes green
         // over a deployment path that cannot build the schema, so this method orders them
@@ -64,6 +65,13 @@ internal static class MigrationChains
             StaticTenantContextAccessor.Unresolved);
 
         await audit.Database.MigrateAsync();
+
+        // Education's organization guards call the shared function owned by Tenancy.
+        // Its parent references remain inside Education (ADR-0003 Amendment 6).
+        await using var education = new EducationDbContext(
+            Options<EducationDbContext>(migrationConnectionString, EducationDbContextFactory.HistoryTable),
+            StaticTenantContextAccessor.Unresolved);
+        await education.Database.MigrateAsync();
     }
 
     /// <summary>The history table every chain declares, for a fixture that counts them.</summary>
@@ -73,6 +81,7 @@ internal static class MigrationChains
         PlatformDbContextFactory.HistoryTable,
         CustomizationDbContextFactory.HistoryTable,
         AuditDbContextFactory.HistoryTable,
+        EducationDbContextFactory.HistoryTable,
     ];
 
     private static DbContextOptions<TContext> Options<TContext>(

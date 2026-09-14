@@ -145,8 +145,9 @@ owner; where a choice is still open, it names the register row that answers it.
   now **G32**; the shared-peer premise of its **G14**, now **G34**; and its criterion
   that both sites still render anonymously with Keycloak stopped.
 
-What remains unimplemented after the accepted P02d-1 design: every Education type,
-table, command and endpoint; every renderer component; the server SDK transport; any trusted-hop configuration;
+P02d-1 step 2 implements Education's roots, translations, migration and isolation
+proofs. What remains unimplemented: every Education command and endpoint;
+every renderer component; the server SDK transport; any trusted-hop configuration;
 any Lighthouse tooling; and a `make demo` target.
 
 ### Explicitly not in this phase
@@ -1891,6 +1892,39 @@ now copy the execution context exactly as `AuditLogBehavior` does. No production
 exception or policy relaxation was needed. The localization overview and storage
 examples also now distinguish accepted Education storage from later authoring behavior.
 
-Implementation verification is complete; the two independent review rounds for this
-step follow its implementation commit. Education implementation and packet completion
-remain in steps 2 and 3.
+Commit `807049a` completed two independent review rounds: three reviewers in round 1,
+two fresh reviewers in round 2, covering security, migrations, runtime writers, proof
+soundness and corpus consistency. Both rounds approved without findings or a required
+fix commit. Each round independently reran 39 focused schema/migration cases; round 2
+also reran six architecture/corpus checks. All reported zero skips.
+
+### Step 2 — Education schema and isolation (2026-09-14)
+
+Both aggregate roots and their natural-key translations are implemented. Education's
+fifth migration chain creates four tables with exact organization INSERT scope,
+restrictive UPDATE/DELETE policies, immutable organization ids, tenant-composite FKs,
+parent-scope checks and the accepted grants. The API and seeder resolve its context on
+the existing ambient transaction. No command or endpoint is introduced here.
+
+The parent-mirror and Pattern A catalogue rules are Implemented. Their companions
+plant absent subjects, weakened trigger controls, misplaced localized fields and
+widened slug uniqueness. The applied schema sweeps and populated fixture include all
+four Education tables. Domain tests constrain independent publication, locale
+identity, exact pins, slug grammar and mutation atomicity. Actual app-role EF writes
+prove graph persistence, contained audit capture and optimistic concurrency for
+translation additions. Raw and filter-bypassing reads independently prove RLS.
+
+Disposable databases isolate tests that grant missing mutation/TEMP privileges or
+remove the parent trigger to reach RLS and foreign keys separately. Parent checks are
+tested on insertion and reparenting, against temporary-table shadowing, and while a
+test barrier holds execution between the lookup and the FK. This distinguishes the
+required lookup lock from the FK's later lock. Reversal removes dependent chains first;
+reapplication then persists populated Education rows as `learnstack_app`.
+
+The full backend run passes **2,363** cases: 1,453 unit, 177 architecture,
+732 integration and one contract, with zero skips. The migration model has no pending
+changes; backend formatting, generated Up/Down SQL and the documentation link audit pass. PostgreSQL text
+validation reuses the shared predicate instead of introducing an Education copy.
+
+The two review rounds follow the implementation commit. Packet completion and the
+approved live required-check repair remain in step 3.

@@ -34,6 +34,10 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
 
+As of P02d-1 Step 2, five migration chains exist: Tenancy, shared persistence,
+Customization, Audit and Education. They contain twenty-one data tables and five
+migration-history tables. P02d-1 review and completion remain in progress.
+
 ## Naming
 
 | Element | Convention | Example |
@@ -258,13 +262,12 @@ The standing exception is a **child inside an aggregate boundary**, which
 cascades from its own root: it is not an independent row, and outliving its root
 would leave it referring to nothing. That is deletion *within* an aggregate, not
 deletion *of* one, and it is why the two fences differ. Two shapes are in the
-class — a **translation satellite** (`ON DELETE CASCADE` in the `course_translations`
-fence in § Translation satellite tables below; no shipped chain creates one yet), and
-`tenant_level_taxonomy_items`, whose composite key names the taxonomy revision it
-belongs to and which is meaningless without it. A cascade from anything that is *not* a
+class — **translation satellites** (`course_translations` and `lesson_translations`,
+implemented in P02d-1 Step 2), and `tenant_level_taxonomy_items`, whose composite key
+names the taxonomy revision it belongs to and which is meaningless without it. A cascade from anything that is *not* a
 root's own child is still a decision, not a convenience, and it needs a record.
 
-**Accepted for P02d-1:** `Course` and `Lesson` are separate aggregate roots;
+**Implemented in P02d-1 Step 2:** `Course` and `Lesson` are separate aggregate roots;
 `lessons → courses` is `ON DELETE RESTRICT`. Each root contains its own translations,
 whose foreign key cascades from that root. The
 [Education data model](../modules/education/README.md#data-model-and-invariants)
@@ -323,10 +326,11 @@ Rules:
   every organization-scoped table, not an optional hardening step. `WITH CHECK`'s
   tenant-wide arm also requires an unset or empty `app.organization_id`: an
   organization-scoped session may read a tenant-wide row but may neither insert,
-  update nor delete one. P02d-1 applies this accepted
+  update nor delete one. P02d-1 Step 1 applied this accepted
   [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)
   correction to the existing `tenant_settings` and `audit_log` policies by forward
-  migrations; applied migrations are not rewritten.
+  migrations; Step 2 applies it to all four Education tables. Applied migrations
+  are not rewritten.
 - The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
   `app.resolving_host` are canonical and the set is closed; do not invent alternatives
   (`app.current_tenant_id`, `learnstack.tenant_id`, …). `app.tenant_id` and
@@ -430,6 +434,14 @@ CREATE TRIGGER tg_lesson_translations_parent_scope
     FOR EACH ROW EXECUTE FUNCTION public.fn_lesson_translations_parent_scope();
 ```
 
+P02d-1 Step 2 implements this control on `lessons`, `course_translations` and
+`lesson_translations`. The applied schema and its planted violations are covered by
+[EducationStructureTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationStructureTests.cs);
+[EducationIsolationTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationIsolationTests.cs)
+exercises insertion through separately authenticated `learnstack_app` connections;
+[EducationParentScopeTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationParentScopeTests.cs)
+exercises reparenting and the parent lock before the FK executes.
+
 The lookup carries **both** tenant and parent identity, runs under the caller's RLS,
 and uses `IS DISTINCT FROM` so tenant-wide `NULL` is compared as a value. A missing,
 hidden or mismatched parent produces the same `23514`, without exposing its identity
@@ -491,8 +503,8 @@ the parent through the factory and the independent
 refuses scope changes. Both markers and `IOrganizationScoped` make the ordinary EF
 filter sweep reach the satellite even though it has no auditable base class.
 
-For the accepted Education shape, `locale` is the shipped `LocaleTag`'s canonical
-spelling in `varchar(35)` (`tr-TR`, `zh-Hans`). Slugs are 1–160 lowercase ASCII letters
+For the Education shape implemented in P02d-1 Step 2, `locale` is the shipped
+`LocaleTag`'s canonical spelling in `varchar(35)` (`tr-TR`, `zh-Hans`). Slugs are 1–160 lowercase ASCII letters
 or digits separated by single interior hyphens, excluding UUID `N` and `D` forms.
 The named checks above refuse invalid data; they never normalize it. The application
 uses the same predicate without trimming, lowercasing or transliteration. Education
@@ -521,7 +533,7 @@ migration states which one its table is.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 adds ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)) |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
 | **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes are either tenant-keyed or reserved to `learnstack_platform` | `platform_host_to_tenant`, `platform_killswitches` |
@@ -943,7 +955,7 @@ GRANT USAGE         ON SCHEMA public
 -- table belongs in THIS script: it runs at initdb time, before any table exists, and
 -- under ON_ERROR_STOP=1 one `relation "…" does not exist` aborts the whole init and
 -- the container never becomes healthy. This fence previously ended with a grant on
--- `courses`, a Phase 05 table; measured, it does exactly that.
+-- `courses` before its owning migration; measured, it does exactly that.
 ```
 
 Migrations connect **as** `learnstack_migration`, so every table it creates is already
@@ -983,13 +995,13 @@ privileges implicitly.
 | `customization_generations` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
 | `audit_log` | `SELECT, INSERT` | `SELECT, INSERT, DELETE`, `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)` | — |
 | `audit_config` | `SELECT` | `SELECT` | — |
-| `courses` (P02d-1) | `SELECT, INSERT, UPDATE` | `SELECT` | — |
-| `lessons` (P02d-1) | `SELECT, INSERT, UPDATE` | `SELECT` | — |
-| `course_translations` (P02d-1) | `SELECT, INSERT` | `SELECT` | — |
-| `lesson_translations` (P02d-1) | `SELECT, INSERT` | `SELECT` | — |
+| `courses` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
+| `lessons` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
+| `course_translations` | `SELECT, INSERT` | `SELECT` | — |
+| `lesson_translations` | `SELECT, INSERT` | `SELECT` | — |
 
-The four Education rows are **accepted grants to implement in P02d-1**, not a claim
-that their migration has shipped. Root UPDATE supports publication and concurrency;
+The four Education grants are **implemented in P02d-1 Step 2** and checked against
+the applied schema. Root UPDATE supports publication and concurrency;
 satellite UPDATE/DELETE and root DELETE have no Phase 02d command and are not
 pre-granted. Their later introduction requires the owning command's decision and
 coverage. No Education privilege is granted to `PUBLIC` or the outbox role.
@@ -1188,6 +1200,14 @@ stamps `UpdatedAt` / `UpdatedBy`, so an audited mutation is a versioned
 mutation. `SoftDelete` routes through that primitive too; stamping the fields
 itself would leave a soft delete un-versioned, and a client holding the
 pre-delete ETag would still satisfy `If-Match` on the row it deleted.
+
+Education's plain translation satellites have no independent token. `AddTranslation`
+advances the owning `Course` or `Lesson` token in the same save as the new member.
+[EducationPersistenceTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
+loads competing copies of each root, adds different locales, and proves that the
+losing concurrency write leaves no satellite row. Its capture assertions keep the
+satellite change inside that root's audit subject. Education's command catalogue
+remains planned for P02d-2.
 
 **`xmin` is not used as a concurrency token anywhere**, and is no longer an
 alternative. [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)

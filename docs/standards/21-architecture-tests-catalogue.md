@@ -95,11 +95,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**132 test methods run in
+**133 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9 and Packet 10. Methods are not rows: a `[Theory]` is one row and many cases,
+Packet 8, Packet 9, Packet 10 and P02d-1. Methods are not rows: a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
@@ -124,8 +124,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**142 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
-The other 43 are no less binding, and most could not live there. The table says where and
+**144 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+The other 45 are no less binding, and most could not live there. The table says where and
 why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
 and the first version of this table claimed "three rules" for a suite that holds ten.
 
@@ -136,8 +136,9 @@ and the first version of this table claimed "three rules" for a suite that holds
 | `backend/analyzers/LearnStack.Analyzers` | `LearnStackException-DomainExceptionThrow` is the analyzer itself; the architecture assembly runs it over module source in `Domain_Methods_Do_Not_Throw_For_Expected_Cases`. |
 | `frontend/` | `Only_SanitizedHtmlPrimitive_Uses_DangerouslySetInnerHtml` is an ESLint rule, with a Vitest case that lints fixtures through the real configuration so a preset that stops applying it fails rather than falls silent. |
 
-Both backend assemblies run in the same required `backend` CI check, split only by the
-`Requires=Docker` trait, and a rule belongs where it can actually fail: the route-shape rule was
+The architecture assembly and Docker-free integration cases run in the `backend` CI check;
+`Requires=Docker` integration cases run in `backend integration (Testcontainers)`.
+A rule belongs where it can actually fail: the route-shape rule was
 originally written as a reflection scan in the architecture assembly and passed against a host
 serving unversioned endpoints.
 
@@ -1177,7 +1178,7 @@ otherwise).
   **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 4,
   `LearnStack.Tests.Architecture`, `TenancyConventionTests`), and whole: it reads every
-  module `Domain` assembly, including the four — Content, Education, Identity, Media —
+  module `Domain` assembly, including the three — Content, Identity, Media —
   that declare no domain type yet, only an `AssemblyMarker`, so the first `Organization` or `OrganizationBranding` to land
   in one of them fails it. `OrganizationBranding` itself arrives with
   [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s branding; until then "exactly
@@ -1294,7 +1295,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Migrate_Target_Applies_The_Tenancy_Chain_First`
 
-- **Asserts:** the `migrate` recipe visits the Tenancy chain before the Audit chain.
+- **Asserts:** the `migrate` recipe visits Tenancy before Audit and Education.
+  Education's four organization-immutability triggers call Tenancy's shared function
+  (P02d-1). The two dependent-first companions exercise and repair the same detector.
   From Phase 02a Packet 9 the chains are no longer independent — `audit_config`
   carries the schema's only foreign key crossing two chains, to `tenants` — and the
   recipe's project list is a glob that expands alphabetically, with `Modules/Audit`
@@ -1512,16 +1515,17 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 > Widened to **six** files, keyed by directory, in Packet 8 step 3, and to **seven**
 > in Packet 9 step 3: a design-time factory lands with every migration chain, so
 > Customization's joined the allow-list and then Audit's.
+> P02d-1 step 2 adds Education's factory as the eighth connection site.
 
 - **Asserts:** two halves. The composition root's persistence registration is run,
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
-  its own connection. And under `backend/src`, exactly **seven** files may reach for a
-  connection at all: the four design-time factories — one per migration chain, where a
+  its own connection. And under `backend/src`, exactly **eight** files may reach for a
+  connection at all: the five design-time factories — one per migration chain, where a
   connection string is the point; the shared helper, which passes a *connection*; and the
   two composition roots — `LearnStack.Api`'s, which builds the one application data
   source behind its credential guard, and `LearnStack.Tools.Seeder`'s, which is the same
-  act for a host with no HTTP surface. An eighth is a new decision. A context on its own connection never saw the
+  act for a host with no HTTP surface. A ninth is a new decision. A context on its own connection never saw the
   announcement, so every read through it returns zero rows under the corrected policy —
   silently.
 
@@ -1532,7 +1536,7 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
   keyed by directory in Packet 7 step 10, to six in Packet 8 step 3 and to seven in
-  Packet 9 step 3, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  Packet 9 step 3 and eight in P02d-1 step 2, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 - **Phase:** 02a (Packet 6).
 
 #### `The_registration_marker_does_not_vouch_across_containers`
@@ -1797,10 +1801,12 @@ diagnostic above row security, not the boundary, as its own note says.
   [05-database.md § Parent organization mirrors](05-database.md#parent-organization-mirrors);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and applied PostgreSQL schema inspection. **Kind:** structural.
-- **Status:** **Registered** — P02d-1 must pair the rule with planted omissions or
-  weakened controls. Separate `learnstack_app` integration proofs exercise insertion,
-  reparenting, concurrent parent replacement and temporary-table shadowing; a
-  well-shaped trigger alone is not an isolation proof.
+- **Status:** **Implemented** (P02d-1 step 2, `LearnStack.Tests.Integration`,
+  `EducationStructureTests`). Companions plant missing declarations, relations and
+  triggers, and weaken timing, scope predicates, search path, invoker mode and locking.
+  Separate `learnstack_app` proofs exercise insertion, reparenting, the lock before the
+  FK runs and temporary-table shadowing. A well-shaped trigger alone is not an
+  isolation proof.
 - **Phase:** 02d (P02d-1).
 
 #### `Pattern_A_Content_Uses_Translation_Satellites`
@@ -1817,9 +1823,10 @@ diagnostic above row security, not the boundary, as its own note says.
   [08-localization.md § Pattern A](08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and migration/schema inspection. **Kind:** structural.
-- **Status:** **Registered** — P02d-1 owns the first subjects and companions that
-  plant parent translatable fields, ad-hoc locale columns and a widened slug key.
-  The declared subject set must be nonempty and checked against actual model types.
+- **Status:** **Implemented** (P02d-1 step 2, `LearnStack.Tests.Integration`,
+  `EducationStructureTests`). Companions plant parent translatable fields, ad-hoc
+  locale columns, absent satellites and widened slug keys. The nonempty declaration
+  set is checked against actual model types and applied schema metadata.
 - **Phase:** 02d (P02d-1).
 
 #### `No_IgnoreQueryFilters_Outside_PlatformAdminScope`
@@ -3059,7 +3066,7 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
   inline. A namespace ban cannot express it: modules legitimately depend on
   `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
   `IIntegrationEventHandler<T>`. The module sweep has had a subject since Packet 7 —
-  three modules ship code — and the checker is also pointed at direct-injection,
+  four modules ship code — and the checker is also pointed at direct-injection,
   method-injection and service-locator deliberate offenders in the test assembly, so a
   clean sweep is evidence rather than an absence.
 - **Phase:** 02a (Packet 5).

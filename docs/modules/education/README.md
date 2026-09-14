@@ -1,14 +1,16 @@
 # Education Module
 
-**Status:** Design stable, ready to implement — Accepted 2026-09-14. No Education
-domain or persistence implementation exists yet. The
-[decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
-records the approved scope; acceptance does not mark P02d-1 delivered.
+**Status:** Domain and persistence implemented in P02d-1 Step 2 — 2026-09-14.
+Packet review, Step 3's required-check repairs and completion remain in progress.
+The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
+records the accepted scope. Commands, audit catalogue entries and seed writes remain
+planned for P02d-2; public reads remain planned for P02d-4.
 
 ## Overview
 
-Education owns courses, lessons and their translated content. This packet introduces
-their database shape and isolation. P02d-2 owns command handlers and seed writes;
+Education owns courses, lessons and their translated content. P02d-1 Step 2
+implements their domain model, database shape and isolation. P02d-2 owns command
+handlers and seed writes;
 P02d-4 owns public reads. [Phase 05](../../roadmap/phase-05-education-learning-content.md)
 owns course versions, modules, lesson items and the authenticated authoring surface.
 
@@ -106,7 +108,7 @@ owns their storage conventions.
   introduces `Level`; it cannot silently substitute the then-active revision.
 - A lesson binds exactly one `(content_type_key, content_type_schema_version)`;
   the version is positive. Every translated `body` is a JSON object validated against
-  that same revision on the command path under
+  that same revision on P02d-2's command path under
   [ADR-0043](../../decisions/0043-customization-payload-validation.md).
   All body fields are carried per locale, including any repeated non-translatable
   values. There is no `isLocalized` keyword in the schema profile. Phase 05's lesson
@@ -121,7 +123,8 @@ owns their storage conventions.
 
 - `locale` is `varchar(35)`, validated and canonicalized through the shipped
   `LocaleTag` (`tr-TR`, `zh-Hans`). Tenant locale membership is a P02d-2 command
-  concern, enforced through a Tenancy application contract, not a cross-chain key.
+  concern; that packet supplies the Tenancy application contract for enforcement.
+  No cross-chain key is introduced.
 - Routable slugs use a separate Education width constant of 160 characters and
   `UrlSlug`'s lowercase ASCII letters, digits and single interior hyphens. Invalid
   case, whitespace and native-script text are refused, with no automatic trim,
@@ -181,9 +184,19 @@ flowchart LR
     EI --> SK[Shared persistence and audit infrastructure]
 ```
 
-The four Education projects are scaffolded today. P02d-1 introduces the domain and
-persistence; the dashed contract consumers arrive in P02d-2. No public read flow
-exists until P02d-4. No Education code names a Customization or Tenancy table.
+The Domain and Infrastructure projects implement the two roots, their satellites
+and a dedicated migration chain. Both API and Seeder register `EducationDbContext`
+on the ambient unit of work; neither exposes an Education command yet. The dashed
+contract consumers arrive in P02d-2. No public read flow exists until P02d-4.
+No Education code names a Customization or Tenancy table.
+
+[EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
+exercises persisted graphs, exact pin and locale round trips, independent root
+concurrency and natural-key satellite capture inside the owning root's audit subject.
+[EducationIsolationTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationIsolationTests.cs)
+exercises the policies and parent-scope controls as `learnstack_app`;
+[EducationStructureTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationStructureTests.cs)
+checks the applied parent-mirror and Pattern A structure with planted violations.
 
 ## Integration-event catalogue
 
@@ -212,8 +225,8 @@ consumers. P02d-4 verifies query shape when it writes those consumers.
 ## Risks and open questions
 
 - The invoker parent check runs on INSERT and UPDATE. Checking insertion alone would
-  leave later parent-id changes unprotected. The migration suite must test both;
-  SQL-only success does not substitute for a persisted EF graph test.
+  leave later parent-id changes unprotected. The isolation suite exercises both,
+  alongside the persisted EF graph tests linked above.
 - RLS protects each satellite independently. Its plain CLR base is never an isolation
   exemption. Parent soft deletion still requires parent-aware public reads in P02d-4.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
