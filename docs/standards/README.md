@@ -70,8 +70,8 @@ bookkeeping pass.
 The table below describes the implementation as of 2026-09-14:
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) Packets 0–3, 3b and 4–10
 shipped; P02d-1's Education domain, schema and live required-check repairs are
-implemented and verified. Both agent review rounds per step are complete; PR validation
-remains pending.
+implemented and verified. Both agent review rounds per step and all five required PR
+checks are complete; P02d-1's delivery record carries the evidence.
 
 **The documents and this table say the same thing, and a test holds them to it.**
 [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) reconciled the twenty-two

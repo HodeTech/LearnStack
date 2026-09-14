@@ -9,7 +9,7 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
-> | P02d-1 | Education schema and database-level isolation | implementation and agent reviews complete — 2026-09-14; PR validation pending; [delivery record](#delivery-record-p02d-1) |
+> | P02d-1 | Education schema and database-level isolation | ✅ complete — 2026-09-14; [delivery record](#delivery-record-p02d-1) |
 > | P02d-2 | Writers and seed | not started |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
@@ -2002,8 +2002,8 @@ no test or assertion was skipped or weakened.
 
 Backend formatting, all 177 architecture cases, 1,479 changed-Markdown relative
 path/anchor checks, the tracked-file `docs/analysis/` residual scan and strict commit
-hygiene pass. The two fresh-agent review rounds are recorded below; the PR
-required-check rollup comparison remains pending.
+hygiene pass. The two fresh-agent review rounds and PR required-check rollup
+comparison are recorded below.
 
 Round 1 reviewed commit `7c50e01` with two fresh reviewers. The delivery reviewer
 recomputed the TRX and coverage figures, checked the migration assertions and reran
@@ -2020,5 +2020,30 @@ further findings. They independently recomputed test/coverage figures, reran the
 1,479-link audit, checked migration evidence, verified the live required-check names
 and attribution against CI, and confirmed that the merge tree matches its first
 parent and all unrelated protection fields remain unchanged. All three implementation
-steps and their two review rounds are complete. The maintainer's PR review and the
-PR check-rollup comparison follow this record.
+steps and their two review rounds are complete.
+
+#### PR verification (2026-09-14)
+
+[PR #22](https://github.com/HodeTech/LearnStack/pull/22), `development` → `main`,
+passed [CI run 34848230938](https://github.com/HodeTech/LearnStack/actions/runs/34848230938)
+on head `158f67da62dd6d8b4b542ec27ca0107c980d3ff5`. At **13:20 UTC**, a fresh live
+protection read was compared with the commit's check runs. Each of the five required
+contexts appeared exactly once with `app_id: 15368`, status `completed` and conclusion
+`success`; none was satisfied by a skipped job or a legacy name.
+
+| Required context | Result |
+|---|---|
+| `backend (build + unit + arch + contract)` | [Success](https://github.com/HodeTech/LearnStack/actions/runs/34848230938/job/103989296320) |
+| `frontend (typecheck + lint + build + test)` | [Success](https://github.com/HodeTech/LearnStack/actions/runs/34848230938/job/103989296248) |
+| `secret scan (leakwatch)` | [Success](https://github.com/HodeTech/LearnStack/actions/runs/34848230938/job/103989295976) |
+| `meta (compose + commit hygiene + link audit)` | [Success](https://github.com/HodeTech/LearnStack/actions/runs/34848230938/job/103989296236) |
+| `backend integration (Testcontainers)` | [Success](https://github.com/HodeTech/LearnStack/actions/runs/34848230938/job/103989296276) |
+
+The backend jobs reran the same **2,366** cases: 564 Docker integration, 171 HTTP
+integration, 1,453 unit, 177 architecture and one contract, all with zero skips.
+Both jobs' nonempty-run checks passed.
+
+The deferred OpenAPI and Lighthouse placeholders are outside this required set and
+retain their later packet gates. The PR's current check rollup is the verification
+source for any later head. P02d-1 is complete and the PR is ready for the maintainer's
+detailed review.
