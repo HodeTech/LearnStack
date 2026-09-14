@@ -140,7 +140,8 @@ Built on the Studio shell, permission system, and typed SDK from
 - Lesson resources.
 - Progress summary (driven by `TenantCompletionRule`).
 - Profile basics (with optional tenant-defined custom fields via `TenantCustomFieldDef`
-  on `User`).
+  on `MembershipProfile`, per
+  [Phase 03 § Tenant Data Ownership](phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)).
 
 ### Progress Tracking
 

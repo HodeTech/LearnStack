@@ -65,7 +65,7 @@ Before requesting reviews, run the relevant checklist on your own diff:
   ([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist)).
 - [ ] New forms use React Hook Form + Zod and render errors at the field level.
 - [ ] New routes have `error.tsx` and `loading.tsx` where appropriate.
-- [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass.
+- [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass where a suite runs them — none does yet (see the note below).
 - [ ] Bundle size delta acceptable on public routes (< 200 KB gzipped per route).
 
 > **Open in Phase 02d.** No axe-core suite exists in `frontend/` today, and

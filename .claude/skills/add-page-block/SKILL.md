@@ -232,8 +232,11 @@ the page.
   editor.
 - For a tenant block: a page can be authored that uses the new block; the
   renderer dispatches correctly.
-- Accessibility (`axe-core`) and contrast checks pass — Step 7 says what runs `axe-core`
-  and names the Phase 02d gate open on it.
+- Accessibility: a keyboard walkthrough of the block and a contrast check of its text
+  and UI colours pass, per
+  [Accessibility Standards § Testing](../../../docs/standards/16-accessibility.md#testing),
+  recorded in the PR description. Automated `axe-core` is not a gate yet — Step 7 names
+  its owner and G43, the Phase 02d gate open on it.
 
 ## Common pitfalls
 

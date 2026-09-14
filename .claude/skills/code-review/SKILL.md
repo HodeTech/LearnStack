@@ -164,7 +164,8 @@ This is the lens that generic reviewers miss. Walk:
 - For frontend changes: route group is correct, SDK is the only API path,
   middleware-resolved `x-tenant-id` / `x-organization-id` honoured, no
   hand-rolled `fetch('/v1/...')`. The API treats an `X-Tenant-Id` or `X-Organization-Id`
-  it receives as an assertion, never a source
+  it receives as an assertion, never a source: it validates the header against its own
+  resolution and answers a mismatch with `404`
   ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#one-header-names-a-host-and-it-is-still-not-a-source)).
   Whether the frontend holds a tenant or organization id at all, and what the middleware
   carries inward, is G25 and G36 in
