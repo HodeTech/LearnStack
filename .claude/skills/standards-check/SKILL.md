@@ -309,7 +309,6 @@ domain the diff doesn't touch.
 
 #### `14-git-workflow.md`
 - [ ] `type(scope): subject` commit format; subject imperative ≤ 72 chars.
-- [ ] AI-assisted commit carries `Co-Authored-By` trailer (Claude or Codex).
 - [ ] `ADR:` / `Module:` / `I18n:` trailers where applicable.
 - [ ] No `--force` on `main`; no `--amend` on a published commit.
 

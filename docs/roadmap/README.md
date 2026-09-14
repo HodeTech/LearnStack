@@ -217,6 +217,13 @@ Each open question is a **gate**, answered at its last responsible moment:
   versions — its records are drafted and Accepted, and the decisions and their catalogue
   rows are the packet's first commit. A contradiction the implementation finds is
   amended inside the packet, before it merges.
+- **Acceptance is explicit.** Preserve each original gate question and record
+  `Accepted — YYYY-MM-DD` with a link to its answer and accepted vehicle, including
+  phase-doc, standard and catalogue answers. For a split gate, name exactly the part
+  closed and the parts still open. Each packet's status and delivery record list its
+  closed parts. A Proposed record closes nothing. This notation applies roadmap-wide,
+  accepted in [P02d-1's decision pass](phase-02d-walking-skeleton.md#p02d-1-accepted-answers)
+  on 2026-09-14.
 - **A register pre-assigns nothing that moves.** An amendment takes the next free number
   on the day it is written. A phase that waits behind another re-verifies its register
   when that phase exits, before its first decision pass.

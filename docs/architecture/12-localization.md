@@ -25,9 +25,10 @@ Out of scope for the initial implementation:
   column and `LocalizedText` keys hold the tag in the case `LocaleTag.Canonicalize`
   produces: language lowercase, a four-letter script Title-cased, a two-letter region
   uppercased (`tr-TR`, `zh-Hans`).
-  [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes)
-  currently states lowercase. Which spelling content tables and request parameters use
-  is G6 in
+  P02d-1 accepts the same canonical spelling in Education's `varchar(35)` translation
+  keys, closing G6 (a); see
+  [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes).
+  Request-parameter canonicalization remains G6 (b) in
   [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - A tenant declares its **available locales** and one **default locale**.
 - A user can have a **preferred locale**; if absent, the tenant default is used; if the requested resource doesn't have content in that locale, fallback rules apply (see below).
@@ -68,18 +69,25 @@ Two patterns are used; the choice depends on the entity shape.
 
 ### Pattern A: Side Table (for content with many translatable fields)
 
-For entities like `Course`, `Lesson`, `Page`, `ContentEntry`:
+For entities like `Course`, `Lesson`, `Page`, `ContentEntry`. This column sketch follows
+the accepted P02d-1 Course shape; the
+[Education module spec](../modules/education/README.md#data-model-and-invariants)
+owns its complete model. `Course` and `Lesson` are independent roots with independent
+`draft` / `published` states under
+[ADR-0048](../decisions/0048-walking-skeleton-publication.md). Catalog visibility,
+SEO and course versions are Phase 05 additions, not columns this sketch implies have
+already shipped.
 
 ```sql
 CREATE TABLE courses (
     id              uuid PRIMARY KEY,
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,          -- null = tenant-wide, per ADR-0017
-    slug_key        text NOT NULL,      -- stable authoring handle; NOT routable
-    visibility      text NOT NULL,
+    slug_key        varchar(160) NOT NULL, -- stable authoring handle; NOT routable
+    status          text NOT NULL,        -- draft / published, per ADR-0048
     -- non-translatable columns only: no title, no description, no slug
     created_at      timestamptz NOT NULL,
-    -- ...
+    -- ... exact optional taxonomy/band revision pin and remaining aggregate columns ...
     -- slug_key: unique per tenant among live rows; the index is in Database Standards.
     CONSTRAINT ux_courses_tenant_id_id       UNIQUE (tenant_id, id)
 );
@@ -88,12 +96,10 @@ CREATE TABLE course_translations (
     course_id       uuid NOT NULL,
     tenant_id       uuid NOT NULL,      -- a real column: RLS is per table, never inherited
     organization_id uuid NULL,          -- mirrors the parent; for RLS, never for uniqueness
-    locale          text NOT NULL,
+    locale          varchar(35) NOT NULL,
     title           text NOT NULL,
-    description     text NULL,
-    slug            text NOT NULL,      -- locale-specific URL slug
-    seo_title       text NULL,
-    seo_description text NULL,
+    summary         text NULL,
+    slug            varchar(160) NOT NULL, -- locale-specific URL slug
     PRIMARY KEY (course_id, locale),
     -- The routing constraint. Every column in it is NOT NULL, so PostgreSQL's
     -- nulls-are-distinct rule cannot apply and it rejects every duplicate.
@@ -104,6 +110,11 @@ CREATE TABLE course_translations (
         ON DELETE CASCADE
 );
 ```
+
+The canonical DDL, including slug checks, policy set, foreign-key indexes and scope
+triggers, lives in
+[Database Standards § Translation satellite tables](../standards/05-database.md#translation-satellite-tables).
+This sketch does not duplicate those controls.
 
 > **Corrected 2026-08-09.** The block above previously declared
 > `CREATE UNIQUE INDEX course_translations_slug_unique ON
@@ -117,6 +128,11 @@ CREATE TABLE course_translations (
 
 - A row in the parent table represents the entity. A row in the translation table
   represents the entity *in a specific locale*.
+- Education's translation rows are plain contained entities with natural keys and no
+  independent id, audit timestamps, row version or soft deletion. Their changes belong
+  to the owning root's concurrency token and audit capture. A lesson's body is a JSON
+  object on each translation, bound to the exact content-type revision held by its
+  lesson root; there is no `isLocalized` schema keyword.
 - Slug is per-locale; the same course has `/tr/kurslar/baslangic-ingilizce` and
   `/en/courses/beginner-english`.
 - `slug_key` is an authoring convenience — a stable handle for translators and for
@@ -129,9 +145,10 @@ CREATE TABLE course_translations (
   satellite carrying `title` and `slug` carries the content.
 - `organization_id` mirrors the parent and exists **only** so the satellite can carry the
   same isolation predicate. It is deliberately absent from the slug constraint — see
-  [§ Slugs and URLs](#slugs-and-urls). What keeps the mirror equal to the parent's is
-  stated in
-  [Database Standards § Translation satellite tables](../standards/05-database.md).
+  [§ Slugs and URLs](#slugs-and-urls). The factory derives the scope and the independent
+  INSERT/UPDATE parent-scope trigger checks it, alongside the immutability guard and
+  tenant-composite foreign key; the canonical control is in
+  [Database Standards § Parent organization mirrors](../standards/05-database.md#parent-organization-mirrors).
 - The foreign key is composite on `tenant_id` for the reason in
   [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md):
   referential-integrity checks run with Row Level Security bypassed, so a single-column
@@ -139,7 +156,11 @@ CREATE TABLE course_translations (
 
 ### Pattern B: JSONB Field (for compact, optional translations)
 
-For value-style fields like `Level.display_name`, `Tag.label`, `Category.name`:
+For value-style fields like `Level.display_name`, `Tag.label`, `Category.name`.
+The following is a later Level-model illustration, not P02d-1's course level
+reference: that packet stores an exact taxonomy/band revision pin under the
+[Education model](../modules/education/README.md#data-model-and-invariants).
+Phase 05 must preserve that pin when it introduces `Level`.
 
 ```sql
 CREATE TABLE levels (
@@ -175,7 +196,7 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 |---|---|
 | Long text, multiple fields per entity, SEO metadata | A (side table) |
 | Short atomic string, few fields | B (JSONB) |
-| Rich content with version history | A (side table, with `is_published`, `version`) |
+| Rich content with version history | A (side table; the entity's lifecycle owns publication and versioning) |
 | Taxonomy display names | B |
 
 ## Fallback Rules
@@ -224,8 +245,24 @@ owns the tenant-wide row — the "URL changes are breaking" risk below, arrived 
 anyone editing a slug. Preferring the tenant-wide row is worse: it lets an organization
 author create a row no URL can reach. One flat namespace per `(tenant_id, locale)`
 removes the question. An organization that wants its own variant of a shared course gives
-it its own slug, and the publish command rejects the collision with a business-rule
-failure rather than resolving it at render time.
+it its own slug. The constraint refuses a collision when the translation is inserted;
+P02d-2's G11 decision names the writing command and its error contract. Rendering never
+chooses between two colliding translations.
+
+For Education, the flat namespace is separate per translation table: all course slugs
+share one namespace and all lesson slugs another. A lesson's parent course does not
+narrow the lesson namespace. A draft translation reserves its slug immediately, and a
+parent's soft deletion does not release it because the satellite has no independent
+`deleted_at`. Parent publication and deletion still gate public read eligibility under
+[ADR-0048](../decisions/0048-walking-skeleton-publication.md); a reserved slug does not
+make draft content public. Future slug release belongs to Phase 05 with Phase 04's
+redirect/slug registry.
+
+[Localization Standards § Education slug grammar](../standards/08-localization.md#education-slug-grammar)
+owns the accepted storage grammar. Its URL-segment restrictions leave translated
+content fully Unicode. The [Education spec](../modules/education/README.md#localization-and-url-identity)
+owns the module's identity rules; public route templates and request normalization
+remain later packet decisions.
 
 The routing consequences follow directly, and are behaviour rather than defects:
 
@@ -234,7 +271,7 @@ The routing consequences follow directly, and are behaviour rather than defects:
   slug is reserved tenant-wide.
 - A host resolving to `(tenant_id, organization_id)` serves both tiers, and the flat key
   guarantees at most one match.
-- Slug lookup is **exact**. The fallback chain below resolves display fields after the
+- Slug lookup is **exact**. The fallback chain resolves display fields after the
   entity is found; it never resolves a slug. An entity with no translation in the
   requested locale has no URL in that locale, and a link to it is omitted rather than
   rendered dead.

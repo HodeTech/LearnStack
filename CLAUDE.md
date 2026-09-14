@@ -60,7 +60,10 @@ reader. The whole .NET suite runs with **zero skips**, which the runner now refu
 let change.
 **[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
 shipped the packet table and the decision register, and every later packet opens with
-its decision pass.
+its decision pass. **P02d-1 is complete**: Education's domain, schema and isolation
+proofs pass, all three steps completed two independent agent review rounds, and the
+five live required checks pass on [PR #22](https://github.com/HodeTech/LearnStack/pull/22). Education
+commands and seed writes belong to P02d-2; public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -233,17 +236,16 @@ is the next user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
-**Three modules hold domain code**, as of Packet 9: Tenancy — the `Tenant` and
-`Organization` aggregates, their entities, and `TenancyDbContext`;
-Customization, with `TenantContentType`, `TenantLevelTaxonomy`, their
-generation counter and `CustomizationDbContext`; and Audit, with `AuditEntry`,
-`AuditConfig` and `AuditDbContext`. The other four module
-assemblies are still empty, and
-module-level references in the docs (e.g.
-`LearnStack.Modules.Education.Application`, `ILiveClassProvider`,
-`ITenantSearch`) describe **intended** shape that the corpus anchors
-against; Phase 02a packets 7–9 and Phase 02d are where the first of those
-types actually land.
+**Four modules hold domain code**, as of P02d-1 Step 2: Tenancy — the `Tenant`
+and `Organization` aggregates and `TenancyDbContext`; Customization —
+`TenantContentType`, `TenantLevelTaxonomy`, their generation counter and
+`CustomizationDbContext`; Audit — `AuditEntry`, `AuditConfig` and `AuditDbContext`;
+and Education — separate `Course` and `Lesson` roots, their contained translations
+and `EducationDbContext`. Content, Identity and Media remain scaffolded.
+P02d-1's implementation, agent reviews and required PR checks are complete.
+Command and public-read surfaces belong to the later packets. Other module-level references
+in the docs (e.g. `ILiveClassProvider`, `ITenantSearch`) still describe intended
+shape owned by their named phases.
 
 ## Where to start
 
@@ -363,8 +365,6 @@ rules:
 - For doc-only commits: `docs(scope): ...` where scope is one of
   `architecture`, `decisions`, `standards`, `roadmap`, or omitted for
   cross-cutting changes.
-- Commits made with AI assistance carry the trailer
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 
 ## Things to never do
 

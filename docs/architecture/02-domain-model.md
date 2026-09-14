@@ -284,12 +284,14 @@ per ADR-0018, not on `Membership` extension tables.
 
 > **Course vs. CourseVersion.** `Course` carries identity, catalog metadata, SEO, public visibility. `CourseVersion` carries the structure (modules, lessons, items) and is what enrollments and progress bind to. Editing a course never breaks a learner currently progressing through a published version.
 
-> **Open in Phase 02d.** Whether [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)
-> ships a minimal `CourseVersion` is G2, and which publication state `Course` carries
-> is G3, in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The split above is Phase 05's target model; see the note under
-> [§ Learning Content](#learning-content).
+> **Phase 02d interim model — Accepted 2026-09-14.** `Course` and `Lesson` are
+> independent roots; no `CourseVersion` or `Module` exists in the walking skeleton.
+> [ADR-0048](../decisions/0048-walking-skeleton-publication.md) gives each root its own
+> `draft → published` lifecycle. Course publication does not freeze or snapshot its
+> independently published lesson set. The catalog/version split above is Phase 05's
+> target model; the [Education spec](../modules/education/README.md) records the
+> interim schema, including the exact taxonomy revision pin the future `Level`
+> projection must preserve.
 
 ## Learning Content
 
@@ -301,16 +303,15 @@ per ADR-0018, not on `Membership` extension tables.
 | `LearningPath` | Yes | Optional cross-course traversal. |
 | `CompletionRule` | Inside CourseVersion | Determines when a lesson / module / course is complete. |
 
-> **Open in Phase 02d.** [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) ships
-> `Course` and `Lesson` ahead of Phase 05. Which aggregate `Lesson` belongs to and what
-> its parent is — an entity inside `Course`, its own root referencing `Course`, or a
-> minimal `CourseVersion` and default `Module` — is G2, and which publication state
-> `Course` and `Lesson` carry is G3, in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> Placing `Lesson` inside `Course` makes every lesson edit a structural change to
-> `Course`, which [§ Education Catalog](#education-catalog) says a published course
-> never undergoes. Where an answer departs from these tables, the pass that closes its
-> gate records an interim note here; the tables stay Phase 05's target model.
+> **Phase 02d interim model — Accepted 2026-09-14.** `Lesson` is an independent
+> root referencing `Course` by typed id, with its own concurrency token and audit
+> subject. Each root contains its translation entities. The tables above remain
+> Phase 05's target; its migration must preserve course and lesson ids, published
+> localized URLs, lesson order, organization scope, translated bodies and exact
+> customization bindings. The [Education spec](../modules/education/README.md) owns
+> the interim model and [Phase 05](../roadmap/phase-05-education-learning-content.md#what-phase-02d-supplies)
+> owns the migration and its verification. P02d-1 accepts this design before its
+> implementation.
 
 ## Assessment
 

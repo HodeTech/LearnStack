@@ -3,6 +3,8 @@ using LearnStack.Modules.Audit.Domain;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -65,6 +67,7 @@ internal static class Modules
         (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>),
         (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>),
         (typeof(AuditEntry).Assembly, ModelOnly<AuditDbContext>),
+        (typeof(Course).Assembly, ModelOnly<EducationDbContext>),
     ];
 
     /// <summary>

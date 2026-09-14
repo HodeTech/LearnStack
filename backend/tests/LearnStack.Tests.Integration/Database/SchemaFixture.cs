@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The seventeen tables the four chains create, used only to prove that a
+    /// The twenty-one tables the five chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -76,6 +76,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         "customization_generations",
         "audit_log", "audit_config",
         "platform_killswitches",
+        "courses", "lessons", "course_translations", "lesson_translations",
     ];
 
     /// <summary>What tenant A sees with its tenant context set and no organization scope.</summary>
@@ -107,6 +108,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         // tenants and to a request with no tenant at all. The only row in the schema for
         // which "no tenant context ⇒ zero rows" is false on purpose.
         ["platform_killswitches"] = 1,
+        ["courses"] = 1,
+        ["lessons"] = 1,
+        ["course_translations"] = 1,
+        ["lesson_translations"] = 1,
     };
 
     /// <summary>What tenant B sees with its tenant context set.</summary>
@@ -134,6 +139,10 @@ public sealed class SchemaFixture : IAsyncLifetime
         // tenants and to a request with no tenant at all. The only row in the schema for
         // which "no tenant context implies zero rows" is false on purpose.
         ["platform_killswitches"] = 1,
+        ["courses"] = 1,
+        ["lessons"] = 1,
+        ["course_translations"] = 1,
+        ["lesson_translations"] = 1,
     };
 
     public PostgresFixture Postgres { get; } = new();
@@ -145,6 +154,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
 
         await SeedAsync();
+        await EducationSchemaSeed.SeedAsync(Postgres.AppConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();

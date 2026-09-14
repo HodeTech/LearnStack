@@ -169,13 +169,13 @@ public sealed partial class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Seven files under backend/src may reach for a connection at all: the four
+        // Eight files under backend/src may reach for a connection at all: the five
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
         // helper, which passes a connection rather than a string; and the two
         // composition roots — the API's, which builds the one application data
         // source behind its credential guard, and the seeder's, which is the same act
-        // for a host with no HTTP surface. An eighth is a new decision.
+        // for a host with no HTTP surface. A ninth is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -204,13 +204,14 @@ public sealed partial class PersistenceConventionTests
             "Persistence/TenancyDbContextFactory.cs",
 
             // One design-time factory per migration chain. Customization's is the
-            // third and Audit's the fourth, and both are here rather than exempted for
-            // the same reason the seeder is: the list is what makes the next one a
+            // third, Audit's the fourth and Education's the fifth. All are here
+            // rather than exempted: the list makes the next connection site a
             // reviewed diff.
             "Persistence/CustomizationDbContextFactory.cs",
             "Persistence/AuditDbContextFactory.cs",
+            "Persistence/EducationDbContextFactory.cs",
 
-            // The seventh, and a deliberate entry rather than a discovered one: the seeder
+            // A deliberate entry rather than a discovered one: the seeder
             // is a second composition root, and building the one application data source
             // is the same act PersistenceCompositionExtensions performs for the API. It
             // is in the set — not exempted from it — so the next tool that reaches for a
@@ -677,7 +678,7 @@ public sealed partial class PersistenceConventionTests
     }
 
     /// <summary>
-    /// <c>make migrate</c> applies the Tenancy chain before the Audit chain.
+    /// <c>make migrate</c> applies Tenancy before the Audit and Education chains.
     /// </summary>
     [Fact]
     public void Migrate_Target_Applies_The_Tenancy_Chain_First()
@@ -696,22 +697,39 @@ public sealed partial class PersistenceConventionTests
         // prefix is deleted from the recipe — the glob still reaches Tenancy — while
         // every fresh deployment breaks from that commit onward. So does every suite
         // whose fixture applies the chains in its own order.
-        var order = MigrateChainOrder();
-
-        order.Should().Contain(TenancyChain).And.Contain(AuditChain);
-
-        order.IndexOf(TenancyChain).Should().BeLessThan(
-            order.IndexOf(AuditChain),
-            "`make migrate` names the Tenancy chain ahead of the glob that finds the "
-            + "rest, because audit_config references tenants and the glob expands "
-            + "alphabetically (Standards 05 § Migrations)");
+        var order = MigrateChainOrder(ReadMigrateRecipe());
+        MigrationDependencyOffenders(order).Should().BeEmpty(
+            "Fix: apply Tenancy before Audit (tenants FK) and Education "
+            + "(the shared organization immutability function), per Standards 05 § Migrations");
     }
+
+    [Theory]
+    [InlineData("Audit")]
+    [InlineData("Education")]
+    public void The_Migration_Order_Guard_Rejects_Each_Dependent_Chain_First(string module)
+    {
+        var dependent = module == "Audit" ? AuditChain : EducationChain;
+        var glob = "backend/src/Modules/*/LearnStack.Modules.*.Infrastructure";
+        var bad = MigrateChainOrder($"{dependent} {TenancyChain} {glob}");
+        MigrationDependencyOffenders(bad).Should().ContainSingle().Which.Should().Be(dependent);
+        MigrationDependencyOffenders(MigrateChainOrder($"{TenancyChain} {glob}"))
+            .Should().BeEmpty("the same glob expansion and detector must accept the repaired order");
+    }
+
+    private static List<string> MigrationDependencyOffenders(List<string> order) =>
+        new[] { AuditChain, EducationChain }
+            .Where(chain => !order.Contains(TenancyChain) || !order.Contains(chain)
+                || order.IndexOf(TenancyChain) >= order.IndexOf(chain))
+            .ToList();
 
     private const string TenancyChain =
         "backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure";
 
     private const string AuditChain =
         "backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure";
+
+    private const string EducationChain =
+        "backend/src/Modules/Education/LearnStack.Modules.Education.Infrastructure";
 
     /// <summary>
     /// The chains <c>make migrate</c> visits, in the order it visits them.
@@ -727,12 +745,12 @@ public sealed partial class PersistenceConventionTests
     /// literal <c>Modules/Tenancy</c> does not appear at all — so a search for it finds
     /// nothing to compare, while the replay expands the glob and reports Audit first.
     /// </remarks>
-    private static List<string> MigrateChainOrder()
+    private static List<string> MigrateChainOrder(string recipe)
     {
         var chains = MigrationChains();
         var visited = new List<string>();
 
-        var tokens = ReadMigrateRecipe()
+        var tokens = recipe
             .Split([' ', '\n', '\t', ';'], StringSplitOptions.RemoveEmptyEntries)
             .Where(token => token.StartsWith("backend/src", StringComparison.Ordinal));
 

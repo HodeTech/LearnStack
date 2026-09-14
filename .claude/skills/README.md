@@ -56,7 +56,7 @@ index plus the relevant [Architecture](../../docs/architecture/) doc.
 | [implement-task](implement-task/SKILL.md) | The default entry point for substantive work — scope, implement, self-check, run linter + tests, update docs, commit, produce a review-agent prompt. |
 | [start-task](start-task/SKILL.md) | Lightweight scoping-only entry point. Reading order + alignment check. Use when you don't need the full end-to-end workflow. |
 | [write-adr](write-adr/SKILL.md) | Capturing a one-time architectural decision. Uses Decision Drivers + Considered Options template. |
-| [commit-and-pr](commit-and-pr/SKILL.md) | Conventional Commit + AI trailer + PR body conventions. |
+| [commit-and-pr](commit-and-pr/SKILL.md) | Conventional Commit + applicable trailers + PR body conventions. |
 | [update-glossary](update-glossary/SKILL.md) | Introducing a new project-specific term anywhere in the corpus. |
 
 ### Review

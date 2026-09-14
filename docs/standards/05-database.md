@@ -5,8 +5,9 @@
 (Amendments 1 + 2),
 [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md)
 (Amendment 1: Organization Scope; **Amendment 3: corrected RLS policy template and
-database role model**; **Amendment 5: the write guards exclude an organization-scoped
-session from tenant-wide rows**),
+database role model**; **Amendment 5: the UPDATE/DELETE guards exclude an
+organization-scoped session from tenant-wide rows**; **Amendment 6: exact INSERT
+scope and independently enforced parent mirrors**),
 [ADR-0006 Events and Outbox](../decisions/0006-events-and-outbox.md)
 (Amendment 1: Dapr pub/sub dispatch transport),
 [ADR-0038 Cross-Cutting Port and Event Contracts](../decisions/0038-cross-cutting-port-and-event-contracts.md),
@@ -32,6 +33,10 @@ PostgreSQL schema, EF Core, and migration conventions.
 - One database per environment; single schema (`public`).
 - One `DbContext` per module (not one global).
 - Schema migrations live with the owning module.
+
+With [P02d-1 complete](../roadmap/phase-02d-walking-skeleton.md#delivery-record-p02d-1),
+five migration chains exist: Tenancy, shared persistence, Customization, Audit and
+Education. They contain twenty-one data tables and five migration-history tables.
 
 ## Naming
 
@@ -85,18 +90,18 @@ may be tenant-wide), and the organization term is `AND`-ed into that same policy
 > ADR-0003 Amendment 3 corrects, and it made every tenant-wide row visible to every
 > tenant. A second policy is allowed only when it is declared `AS RESTRICTIVE`, which
 > combines with `AND` and therefore cannot widen anything. The template below uses
-> exactly one of each.
+> one permissive isolation policy and two restrictive write guards.
 
 ```sql
 CREATE TABLE courses (
     id              uuid PRIMARY KEY,
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,                -- org-scoped; null = tenant-wide
-    slug_key        text NOT NULL,            -- stable authoring handle; NOT routable
+    slug_key        varchar(160) NOT NULL,    -- stable authoring handle; NOT routable
     -- No title, no description, no slug: translatable columns live in
     -- course_translations per ADR-0008. See § Translation satellite tables.
     -- ... domain columns ...
-    created_at      timestamptz NOT NULL DEFAULT now(),
+    created_at      timestamptz NOT NULL,       -- supplied by MarkCreated from IClock
     created_by      uuid NOT NULL,
     -- NULL until the first update. MarkCreated stamps only created_*; a row that
     -- has never been changed has no updater, and NOT NULL here would fail every
@@ -113,7 +118,12 @@ CREATE TABLE courses (
     -- Composite unique on (tenant_id, id) exists solely so child tables can
     -- carry a composite FK. See § Foreign keys between tenant-owned tables.
     -- It contains the primary key, so § Soft Delete's partial rule exempts it.
-    CONSTRAINT ux_courses_tenant_id_id   UNIQUE (tenant_id, id)
+    CONSTRAINT ux_courses_tenant_id_id   UNIQUE (tenant_id, id),
+    CONSTRAINT ck_courses_slug_key_format CHECK (
+        slug_key ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+        AND slug_key !~ '^[0-9a-f]{32}$'
+        AND slug_key !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    )
 );
 
 -- slug_key is unique per tenant among live rows. A table with deleted_at takes a
@@ -149,7 +159,8 @@ CREATE POLICY courses_isolation ON courses
     WITH CHECK (
         tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
         AND (
-            organization_id IS NULL
+            (organization_id IS NULL
+             AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
             OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
         )
     );
@@ -220,6 +231,7 @@ CREATE TABLE lessons (
     -- ... domain columns ...
     CONSTRAINT fk_lessons_course
         FOREIGN KEY (tenant_id, course_id) REFERENCES courses (tenant_id, id)
+        ON DELETE RESTRICT
 );
 -- Plus an index led by (tenant_id, course_id) — § Indexes: index every foreign key.
 ```
@@ -250,18 +262,17 @@ The standing exception is a **child inside an aggregate boundary**, which
 cascades from its own root: it is not an independent row, and outliving its root
 would leave it referring to nothing. That is deletion *within* an aggregate, not
 deletion *of* one, and it is why the two fences differ. Two shapes are in the
-class — a **translation satellite** (`ON DELETE CASCADE` in the `course_translations`
-fence in § Translation satellite tables below; no shipped chain creates one yet), and
-`tenant_level_taxonomy_items`, whose composite key names the taxonomy revision it
-belongs to and which is meaningless without it. A cascade from anything that is *not* a
+class — **translation satellites** (`course_translations` and `lesson_translations`,
+implemented in P02d-1 Step 2), and `tenant_level_taxonomy_items`, whose composite key
+names the taxonomy revision it belongs to and which is meaningless without it. A cascade from anything that is *not* a
 root's own child is still a decision, not a convenience, and it needs a record.
 
-> **Open in Phase 02d.** The `lessons` fence above illustrates the composite key, not
-> Education's model. Which aggregate `Lesson` belongs to, what its foreign key targets,
-> and whether it cascades as a child inside an aggregate — a third shape in the class
-> above — or restricts as its own root are G2 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits this section with its answer.
+**Implemented in P02d-1 Step 2:** `Course` and `Lesson` are separate aggregate roots;
+`lessons → courses` is `ON DELETE RESTRICT`. Each root contains its own translations,
+whose foreign key cascades from that root. The
+[Education data model](../modules/education/README.md#data-model-and-invariants)
+owns this interim hierarchy and the preservation obligations for Phase 05's versioned
+model. This decision does not introduce a content-deletion command.
 
 **The circular reference, and why it is still composite.**
 `tenants.default_organization_id` points at `organizations`, which points back at
@@ -312,12 +323,14 @@ Rules:
   for `DELETE`, and `USING` is also what selects the rows an `UPDATE` may target — so
   the two `AS RESTRICTIVE` `FOR UPDATE` / `FOR DELETE` guards in the template above are
   what actually close the `USING`-only write paths. They are part of the template for
-  every organization-scoped table, not an optional hardening step. One write path is
-  not closed: the organization arm of `WITH CHECK` admits `organization_id IS NULL`
-  from any session, so an organization-scoped session can `INSERT` a tenant-wide row
-  that the guards then stop it updating or deleting. Whether that arm is tightened is
-  G7 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  every organization-scoped table, not an optional hardening step. `WITH CHECK`'s
+  tenant-wide arm also requires an unset or empty `app.organization_id`: an
+  organization-scoped session may read a tenant-wide row but may neither insert,
+  update nor delete one. P02d-1 Step 1 applied this accepted
+  [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)
+  correction to the existing `tenant_settings` and `audit_log` policies by forward
+  migrations; Step 2 applies it to all four Education tables. Applied migrations
+  are not rewritten.
 - The session variable names `app.tenant_id`, `app.organization_id`, `app.scope` and
   `app.resolving_host` are canonical and the set is closed; do not invent alternatives
   (`app.current_tenant_id`, `learnstack.tenant_id`, …). `app.tenant_id` and
@@ -351,8 +364,8 @@ Rules:
   BEGIN
       IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
           RAISE EXCEPTION
-              'organization_id is immutable after insert (table %, row %)',
-              TG_TABLE_NAME, OLD.id
+              'organization_id is immutable after insert (table %)',
+              TG_TABLE_NAME
               USING ERRCODE = '23514';
       END IF;
       RETURN NEW;
@@ -377,21 +390,95 @@ Rules:
   orphan three subsystems at once. Moving content between organizations is a copy, not
   an update.
 
+  The shared function names no primary-key column: translation satellites have no
+  `id`, and a violation must remain `23514` rather than a missing-field error.
+  Tenancy owns the function; every dependent chain installs its own table triggers
+  after Tenancy has applied (§ Migrations). This obligation follows the **org-scoped
+  table class**, not the mere presence of `organization_id`: the platform host map
+  and tenant-wide outbox metadata are not org-scoped rows. `audit_log` satisfies it
+  through its append-only guard, whose refusal of an organization change must be
+  proved independently of the role's absent UPDATE privilege.
+
+### Parent organization mirrors
+
+When a child must share its parent's organization, its factory derives the scope
+from that parent. The database independently enforces the same equality with a
+`SECURITY INVOKER` row trigger on **both INSERT and UPDATE**, in addition to the
+tenant-composite foreign key and the immutability trigger. The following is the
+canonical form; substitute the owning child, parent and parent-id column:
+
+```sql
+CREATE FUNCTION public.fn_lesson_translations_parent_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY INVOKER
+    SET search_path = pg_catalog
+AS $$
+DECLARE
+    parent_organization_id uuid;
+BEGIN
+    SELECT parent.organization_id INTO parent_organization_id
+    FROM public.lessons AS parent
+    WHERE parent.tenant_id = NEW.tenant_id AND parent.id = NEW.lesson_id
+    FOR KEY SHARE;
+
+    IF NOT FOUND OR parent_organization_id IS DISTINCT FROM NEW.organization_id THEN
+        RAISE EXCEPTION 'parent scope is unavailable or mismatched (table %)', TG_TABLE_NAME
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tg_lesson_translations_parent_scope
+    BEFORE INSERT OR UPDATE ON public.lesson_translations
+    FOR EACH ROW EXECUTE FUNCTION public.fn_lesson_translations_parent_scope();
+```
+
+P02d-1 Step 2 implements this control on `lessons`, `course_translations` and
+`lesson_translations`. The applied schema and its planted violations are covered by
+[EducationStructureTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationStructureTests.cs);
+[EducationIsolationTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationIsolationTests.cs)
+exercises insertion through separately authenticated `learnstack_app` connections;
+[EducationParentScopeTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationParentScopeTests.cs)
+exercises reparenting and the parent lock before the FK executes.
+
+The lookup carries **both** tenant and parent identity, runs under the caller's RLS,
+and uses `IS DISTINCT FROM` so tenant-wide `NULL` is compared as a value. A missing,
+hidden or mismatched parent produces the same `23514`, without exposing its identity
+or scope. `FOR KEY SHARE` holds the parent until the transaction ends, closing the
+delete/reinsert race in which the same parent id could otherwise acquire another
+organization between the check and the child commit. Schema-qualified relations and
+the restricted `search_path` prevent a temporary relation from shadowing the parent.
+
+The composite foreign key remains independent: the trigger does not replace the
+tenant-reference invariant. PostgreSQL runs BEFORE triggers ahead of policy and
+constraint checks, so the complete stack can refuse an invalid child with `23514`
+before RLS (`42501`) or the foreign key (`23503`) executes. Isolation tests exercise
+the complete stack and each layer separately, with positive controls. A test-only
+control removal or privilege grant must commit in a disposable database before a
+separate authenticated `learnstack_app` connection tests the remaining layer; neither
+an owner connection nor `SET ROLE` is an isolation proof.
+
 ### Translation satellite tables
 
-A `<entity>_translations` table is a tenant-owned table in its own right, not an
-extension of its parent, and it gets the full template:
+A `<entity>_translations` table is independently protected as a tenant-owned table
+and gets the full template. In the domain it is a contained entity of its parent:
 
 ```sql
 CREATE TABLE course_translations (
     course_id       uuid NOT NULL,
     tenant_id       uuid NOT NULL,     -- a real column; RLS is per table, never inherited
     organization_id uuid NULL,         -- mirrors the parent; for RLS, never for uniqueness
-    locale          text NOT NULL,
+    locale          varchar(35) NOT NULL,
     title           text NOT NULL,
-    slug            text NOT NULL,
+    slug            varchar(160) NOT NULL,
     -- ... other translatable columns ...
     PRIMARY KEY (course_id, locale),
+    CONSTRAINT ck_course_translations_slug_format CHECK (
+        slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+        AND slug !~ '^[0-9a-f]{32}$'
+        AND slug !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ),
     CONSTRAINT ux_course_translations_tenant_id_locale_slug
         UNIQUE (tenant_id, locale, slug),
     CONSTRAINT fk_course_translations_course
@@ -410,20 +497,26 @@ one-permissive-policy-plus-two-restrictive-guards set as its parent. A satellite
 policy of its own is unprotected — a check constraint on the parent does not propagate
 Row Level Security, and a table holding `title` and `slug` holds the content.
 
-`organization_id` on a satellite exists **only** to carry the isolation predicate.
-The immutability rule above keeps a correct mirror correct; it does not make a mirror
-correct at insert. Neither does the composite foreign key, which carries no
-organization, nor `WITH CHECK`, which admits `organization_id IS NULL` from any session
-— so nothing in this template forces a satellite's `organization_id` to equal its
-parent's. The insert-time control is G7 in
-[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-answered before the first Education migration. So are four things this template shows
-only one way: the `locale` column's type and stored spelling (G6); the slug's shape,
-width and `CHECK` backstop (G9); whether a satellite maps `deleted_at` (G2); and how
-`fn_organization_id_immutable`, which reports `OLD.id`, serves a satellite that has no
-`id` (G8). The pass that closes each gate edits this section with its answer.
-`organization_id` is deliberately **absent** from the slug unique key — see
-§ Constraints and [Localization Standards § Pattern A](08-localization.md).
+`organization_id` on a satellite carries isolation, never slug uniqueness. It mirrors
+the parent through the factory and the independent
+[parent-scope trigger](#parent-organization-mirrors); the immutability trigger then
+refuses scope changes. Both markers and `IOrganizationScoped` make the ordinary EF
+filter sweep reach the satellite even though it has no auditable base class.
+
+For the Education shape implemented in P02d-1, `locale` is the shipped
+`LocaleTag`'s canonical spelling in `varchar(35)` (`tr-TR`, `zh-Hans`).
+[Localization Standards § Education slug grammar](08-localization.md#education-slug-grammar)
+owns the slug grammar; the named checks above enforce its predicate independently of
+application validation.
+
+A satellite has its natural primary key and no surrogate `id`, independent audit
+timestamps, `row_version` or `deleted_at`. Changes advance the owning root's token and
+belong to that root's audit capture. Consequently a draft translation reserves its
+slug immediately, and soft-deleting its parent **does not release the slug**. Public
+read eligibility must also check the parent; the satellite has no second soft-delete
+lifecycle. Phase 05 owns future deletion/release behavior with Phase 04's redirects
+and slug registry. `organization_id` is deliberately **absent** from the slug unique
+key — see § Constraints and [Localization Standards § Pattern A](08-localization.md).
 
 The foreign key is composite on `tenant_id` for the reason in § Foreign keys between
 tenant-owned tables. A composite key that also carried `organization_id` would not work:
@@ -439,7 +532,7 @@ migration states which one its table is.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 adds ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)) |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
 | **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes are either tenant-keyed or reserved to `learnstack_platform` | `platform_host_to_tenant`, `platform_killswitches` |
@@ -861,7 +954,7 @@ GRANT USAGE         ON SCHEMA public
 -- table belongs in THIS script: it runs at initdb time, before any table exists, and
 -- under ON_ERROR_STOP=1 one `relation "…" does not exist` aborts the whole init and
 -- the container never becomes healthy. This fence previously ended with a grant on
--- `courses`, a Phase 05 table; measured, it does exactly that.
+-- `courses` before its owning migration; measured, it does exactly that.
 ```
 
 Migrations connect **as** `learnstack_migration`, so every table it creates is already
@@ -901,6 +994,16 @@ privileges implicitly.
 | `customization_generations` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
 | `audit_log` | `SELECT, INSERT` | `SELECT, INSERT, DELETE`, `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)` | — |
 | `audit_config` | `SELECT` | `SELECT` | — |
+| `courses` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
+| `lessons` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
+| `course_translations` | `SELECT, INSERT` | `SELECT` | — |
+| `lesson_translations` | `SELECT, INSERT` | `SELECT` | — |
+
+The four Education grants are **implemented in P02d-1 Step 2** and checked against
+the applied schema. Root UPDATE supports publication and concurrency;
+satellite UPDATE/DELETE and root DELETE have no Phase 02d command and are not
+pre-granted. Their later introduction requires the owning command's decision and
+coverage. No Education privilege is granted to `PUBLIC` or the outbox role.
 
 **`audit_log`'s `UPDATE` is column-restricted, and the column list is the control.**
 `learnstack_platform` may rewrite only the six columns a GDPR erasure touches —
@@ -1097,6 +1200,14 @@ mutation. `SoftDelete` routes through that primitive too; stamping the fields
 itself would leave a soft delete un-versioned, and a client holding the
 pre-delete ETag would still satisfy `If-Match` on the row it deleted.
 
+Education's plain translation satellites have no independent token. `AddTranslation`
+advances the owning `Course` or `Lesson` token in the same save as the new member.
+[EducationPersistenceTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
+loads competing copies of each root, adds different locales, and proves that the
+losing concurrency write leaves no satellite row. Its capture assertions keep the
+satellite change inside that root's audit subject. Education's command catalogue
+remains planned for P02d-2.
+
 **`xmin` is not used as a concurrency token anywhere**, and is no longer an
 alternative. [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)
 closed the fork this line used to leave open: the token is client-visible
@@ -1213,8 +1324,11 @@ changes `xmin` while leaving `row_version` intact.
 - **Chain application order is load-bearing, and the Tenancy chain applies first.**
   `audit_config` references `tenants`
   ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)), which is the schema's only
-  foreign key crossing two migration chains, so a run that reaches the Audit chain first
-  fails on a clean database with `relation "tenants" does not exist`. Alphabetical order
+  foreign key crossing two migration chains. P02d-1's Education triggers also depend
+  on Tenancy's shared `fn_organization_id_immutable`, including its no-`id` correction
+  ([ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)).
+  Education adds no cross-chain foreign key. A run reaching a dependent chain first
+  fails on a clean database with a missing relation or function. Alphabetical order
   produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
   `make migrate` names the Tenancy chain ahead of the glob that finds the rest. The
   ordering is held by `Migrate_Target_Applies_The_Tenancy_Chain_First`, which replays
@@ -1223,9 +1337,14 @@ changes `xmin` while leaving `row_version` intact.
   not reached before Audit. A coverage rule cannot stand in for it:
   `Migrate_Target_Covers_Every_Migration_Chain` stays green when the Tenancy prefix is
   deleted, because the glob still reaches Tenancy, while every fresh deployment breaks
-  from that commit onward. The integration fixture that applies the chains orders them
-  the same way, for the same reason: a fixture that hand-orders what the recipe globs is
-  how a suite goes green over a deployment path that cannot build the schema.
+  from that commit onward. The integration fixture preserves the same dependency
+  order: Tenancy precedes every dependent chain. Independent chains may differ in
+  relative order: the fixture applies Customization before Audit, while the recipe
+  discovers Audit first. Neither depends on the other.
+  Reversal removes the dependent Education and Audit schema before reversing Tenancy;
+  restoring the old shared function while Education still uses it is not a valid
+  rollback order. Fresh application, reversed application and reapplication belong
+  to the migration-chain integration proof.
 
 ## Data Migrations
 

@@ -25,10 +25,12 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 > force pushes, no direct pushes — is live today. Only the two named settings
 > are deferred.
 >
-> **Two required-check edits are outstanding**, both flagged in the list below:
-> the `meta` check is required under a name nothing reports any more, and
-> `backend integration (Testcontainers)` runs on every pull request and is not
-> required at all. The first blocks every merge; the second gates nothing.
+> **Required checks repaired — 2026-09-14 (P02d-1).** The live rule now requires
+> the current `meta` name and `backend integration (Testcontainers)`. A fresh API
+> read verified all five check names and their GitHub Actions attribution, with
+> strict up-to-date checking and every other protection setting preserved.
+> [P02d-1's delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#step-3--packet-completion-2026-09-14)
+> carries the dated verification.
 
 - **Require a pull request before merging**
   - Require approvals: **1** (raise to 2 once the team grows past two
@@ -41,21 +43,13 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     - `backend (build + unit + arch + contract)`
     - `frontend (typecheck + lint + build + test)`
     - `secret scan (leakwatch)`
-    - `meta (compose + commit hygiene + link audit)` — ⚠️ **the live rule still
-      requires the pre-rename name** `meta (commit hygiene + link audit)`, which
-      nothing reports. GitHub matches by name, so that required check never
-      arrives and **every** pull request sits at "Expected — waiting for status to
-      be reported". Re-require it under the current name; the job itself is green.
-      This is the failure the warning below describes, in the direction that
-      blocks rather than the one that waves through.
+    - `meta (compose + commit hygiene + link audit)`
     - `backend integration (Testcontainers)` — **activated in Phase 02a Packet 6**
       with the four-role provisioning suite, one packet earlier than planned:
       Packet 6 ships the first Docker-bound test and is therefore the packet that
       has to split them. The job carries no `vars.ENABLE_*` gate and no placeholder
-      step, so it already runs on every pull request. **Adding it to the live
-      branch-protection rule is the one remaining edit**, and it is a repository
-      setting rather than a file in this repo — until it is made, the job runs and
-      gates nothing. Once it is made the check cannot pass empty: both backend jobs
+      step, so it runs on every pull request. **Required since P02d-1,
+      2026-09-14.** The check cannot pass empty: both backend jobs
       end with `scripts/assert-tests-ran.py`, which fails a run whose filter matched
       no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
       `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
@@ -101,21 +95,15 @@ Per CLAUDE.md § Commit conventions:
 
 - **Conventional Commits**: `type(scope): subject` with subject in
   imperative mood, ≤ 72 chars.
-- AI-assisted commits carry the trailer
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
-  (replace the model name when authoring with a different assistant).
 - `docs(scope)` for doc-only commits; scope ∈ `architecture | decisions |
   standards | roadmap` or omitted for cross-cutting changes.
 
 ## Pull requests
 
 - Title mirrors the primary commit's subject.
-- Description has three sections:
-  1. **What** — bullet list of changes grouped by area.
-  2. **Why** — one paragraph; link to the ADR / phase / issue.
-  3. **Verification** — what suites you ran locally, what manual checks
-     you walked.
-- Link the related ADR / phase doc with relative paths (`../docs/...`).
+- Follow [Git Workflow § Description](../docs/standards/14-git-workflow.md#description)
+  for the canonical structure, including migration/rollback details for schema or
+  configuration changes and links to the related ADR / phase documents.
 
 ## Local checks before pushing
 

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\LearnStack.Infrastructure\LearnStack.Infrastructure.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Education.Domain\LearnStack.Modules.Education.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Education.Application\LearnStack.Modules.Education.Application.csproj" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using FluentAssertions;
 using Npgsql;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -14,6 +15,21 @@ namespace LearnStack.Tests.Integration.Database;
 /// </remarks>
 internal static class SchemaQueries
 {
+    public static async Task AssertApplicationRoleAsync(DbConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT session_user, current_user, rolsuper, rolbypassrls
+            FROM pg_roles WHERE rolname = current_user
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetString(0).Should().Be("learnstack_app", "the connection must authenticate as the application role");
+        reader.GetString(1).Should().Be("learnstack_app", "SET ROLE must not change the effective test role");
+        reader.GetBoolean(2).Should().BeFalse("superusers bypass row-level security");
+        reader.GetBoolean(3).Should().BeFalse("the application role must not bypass row-level security");
+    }
+
     /// <summary>
     /// Every ordinary table in schema <c>public</c>, minus EF's history tables.
     /// </summary>

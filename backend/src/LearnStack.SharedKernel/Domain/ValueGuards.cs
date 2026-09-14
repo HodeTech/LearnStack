@@ -368,12 +368,11 @@ public static class JsonValue
     /// backslash followed by <c>u0000</c> and stores, measured.
     /// </remarks>
     /// <remarks>
-    /// Reachable from <see cref="Audit.AuditJson"/> as well as from this file's own
-    /// gates: the audit capture has to answer the same question about a value it did not
-    /// validate, and a second implementation of "what PostgreSQL can hold" is a second
-    /// thing to keep true.
+    /// Shared by domain text-field validation, JSON storage gates and
+    /// <see cref="Audit.AuditJson"/>. Rejects NUL and unpaired surrogates without
+    /// normalizing Unicode or imposing a field-length limit.
     /// </remarks>
-    internal static bool IsStorableText(string text)
+    public static bool IsStorableText(string text)
     {
         for (var index = 0; index < text.Length; index++)
         {

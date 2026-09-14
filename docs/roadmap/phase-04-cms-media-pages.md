@@ -100,12 +100,11 @@ Also in scope:
 [ADR-0013](../decisions/0013-page-block-schema-versioning.md) requires immutable
 versioned schemas: a breaking change ships as a new `schemaVersion` and the previous
 version stays supported while any instance references it.
-[Tenant Customization Model § 11](../architecture/32-tenant-customization-model.md)
-requires `UNIQUE (tenant_id, key)` on every customization table. The two cannot both
-hold — the same document's own § 4 example shows `vocabulary-card` at
-`schema_version = 1` and `schema_version = 2` in `tenant_content_types`, and the unique
-constraint rejects the second row. Written as published, the first breaking change a
-tenant makes fails on a constraint violation.
+[Tenant Customization Model § 11](../architecture/32-tenant-customization-model.md#11-hard-architectural-invariants)
+and [Phase 02a Packet 8](phase-02a-kernel-tenancy.md#delivery-record-packet-8)
+already implement the versioned key for content types and taxonomies. The earlier
+`UNIQUE (tenant_id, key)` design would have rejected the second revision of a concept;
+this phase extends the corrected shape to its new aggregates.
 
 The key shape LearnStack ships, for every versioned customization aggregate
 (`TenantContentType`, `TenantPageBlock`, and `TenantLessonItemType` when
@@ -131,11 +130,21 @@ version and the corpus does not currently say which edits those are:
 - Strictly additive changes — an optional field with a default, a widened enum, a new
   facet — raise `schema_revision` within the same `schema_version`. Instances pin
   `schema_version` only; `schema_revision` is not part of any unique key.
+  The shipped `TenantContentType.ReviseSchema` permits body changes only while the
+  row is `Draft`; this counter does not permit mutating a published schema body
+  ([Customization spec § Risks and open questions](../modules/customization/README.md#risks-and-open-questions)).
 - The classification is not left to the author's judgement. On save, the editor diffs
   the submitted schema against the current revision and refuses an additive claim that
   removes or narrows anything.
 - `status` moves `draft → active → deprecated`. After first publish, `status` and
   presentation metadata are the only mutable columns on the row.
+
+**Open decision for this phase:**
+[ADR-0043 § 6](../decisions/0043-customization-payload-validation.md#6-there-is-no-compiled-validator-cache)
+deliberately leaves the lifecycle stage of a `schema_revision` bump unresolved.
+Resolve it before implementing the editor's revision workflow or extending that
+workflow to this phase's new customization aggregates, including how additive changes
+after publication fit the versioned identity and published-history requirements above.
 
 ### Page Model
 
@@ -176,18 +185,19 @@ one thing a per-table constraint cannot do.
   `UNIQUE (tenant_id, locale, path)`, on the same flat namespace and for the same reason.
   Per-table uniqueness cannot see across tables, and a page silently shadowing a redirect
   is the same class of defect as an organization row shadowing a tenant-wide one.
-- A slug collision returns `Result.Fail(business_rule_violation, …)` from the publish
-  command. It names the conflicting entity when the caller may read it — tenant-wide rows
-  and the caller's own organization's rows both qualify under the canonical policy — and
+- A slug collision returns `Result.Fail(business_rule_violation, …)` from the command
+  responsible for the conflicting write. It names the conflicting entity when the
+  caller may read it — tenant-wide rows and the caller's own organization's rows both
+  qualify under the canonical policy — and
   otherwise names only the slug and the locale, because naming a row in another
   organization would leak across the boundary Row Level Security exists to hold. It is
   never resolved by picking a winner at render time.
 
 > **Open in Phase 02d.** For `Course` and `Lesson`, whose translation rows hold their
-> slug from the moment they are inserted under the key Phase 02d ships, which command
-> reports a collision, and whether it is still the publish command, is G11 in
+> slug from the moment they are inserted under the key Phase 02d ships, the selected
+> reporting command and its concrete error mapping are G11 in
 > [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits this section with its answer.
+> The pass that closes it names both here and in the completion criterion below.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
@@ -385,16 +395,20 @@ describes.
   entries rendering against version 1, and does not violate a unique constraint.
 - An additive edit submitted as a `schema_revision` bump that in fact removes a field is
   rejected at save time with the offending field named.
-- Exactly one `active` revision exists per `(tenant_id, key)` at all times, asserted by
-  an integration test that attempts to activate a second.
-- Two different courses in one tenant cannot both publish `/en/courses/beginner`; the
-  second publish returns a business-rule failure naming the first. The same holds for a
-  page and a redirect competing for one root path, and for an organization-scoped entity
-  competing with a tenant-wide one. An integration test attempts all three and the
-  database rejects each, connected as `learnstack_app`. For courses, which command
-  reports the collision, and so whether the second one fails at publish, is G11 in
+- At most one `Active` revision exists per `(tenant_id, key)`, asserted by an integration
+  test that attempts to activate a second. A newly registered concept may hold only
+  drafts; publishing leaves the selected revision Active and any incumbent Deprecated.
+- Two different courses in one tenant cannot reserve the same locale/slug pair: a
+  course translation reserves its slug on insertion, including while draft. The same
+  uniqueness rule holds for a page and a redirect competing for one root path, and for
+  an organization-scoped entity competing with a tenant-wide one. An integration test
+  attempts all three and the
+  database rejects each, connected as `learnstack_app`. The reporting command returns
+  `Result.Fail(business_rule_violation, …)` with the disclosure rules above. For courses,
+  the selected command and its concrete error mapping remain G11 in
   [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it edits this criterion.
+  once G11 is resolved, this criterion must name that command and mapping and verify
+  the command-level refusal.
 - When the conflicting row belongs to another organization, the failure names the slug and
   the locale but not the row — asserted by a test, because the constraint is enforced with
   Row Level Security bypassed and the handler has to make that choice deliberately.
@@ -464,7 +478,7 @@ hold:
   content types and page blocks, with media, without a LearnStack code change — on both
   seed tenants, with different shapes.
 - The versioned key shape is in the schema, a breaking change ships as a new
-  `schema_version`, exactly one revision is active per key, and the additive-vs-breaking
+  `schema_version`, at most one revision is Active per key, and the additive-vs-breaking
   diff rejects a mis-declared edit.
 - `ContentType` no longer exists anywhere in the corpus or the codebase; every content
   shape resolves through `TenantContentType`.

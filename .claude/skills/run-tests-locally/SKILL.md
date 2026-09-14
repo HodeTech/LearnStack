@@ -194,11 +194,21 @@ pnpm test -t "shows danger tone"  # name filter
 ### Step 8: Coverage (optional)
 
 ```bash
-dotnet test --collect:"XPlat Code Coverage"
-reportgenerator -reports:"**/coverage.cobertura.xml" \
-                -targetdir:"coverage-html" \
+# From the repository root; collect behavioral suites separately.
+dotnet test backend/tests/LearnStack.Tests.Unit \
+  --collect:"XPlat Code Coverage" --results-directory coverage/unit
+dotnet test backend/tests/LearnStack.Tests.Integration \
+  --collect:"XPlat Code Coverage" --results-directory coverage/integration
+dotnet test backend/tests/LearnStack.Tests.Architecture
+reportgenerator -reports:"coverage/**/coverage.cobertura.xml" \
+                -targetdir:"coverage/html" \
                 -reporttypes:Html
 ```
+
+Keep the architecture suite uninstrumented. In P02d-1, a solution-wide Coverlet
+run injected a tracker type that NetArchTest's IL/reflection sweep could not resolve,
+raising `TypeLoadException`; unit and integration coverage plus a normal architecture
+run passed. Do not skip or weaken the structural test to make coverage succeed.
 
 Targets per
 [06-testing.md § Coverage Targets](../../../docs/standards/06-testing.md): Domain

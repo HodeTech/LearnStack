@@ -482,6 +482,27 @@ public sealed class TenancySchemaTests
             VALUES (uuidv7(), @foreign, 'tenancy', 'tenancy.tenant.provision',
                     'Create', 'Must', 'success', now())
             """,
+        ["courses"] =
+            """
+            INSERT INTO courses (id, tenant_id, slug_key, status, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, 'foreign-course', 'draft', now(), @actor, 0)
+            """,
+        ["lessons"] =
+            """
+            INSERT INTO lessons (id, tenant_id, course_id, sort, status,
+                content_type_key, content_type_schema_version, created_at, created_by, row_version)
+            VALUES (uuidv7(), @foreign, @course, 0, 'draft', 'topic', 1, now(), @actor, 0)
+            """,
+        ["course_translations"] =
+            """
+            INSERT INTO course_translations (course_id, tenant_id, locale, title, slug)
+            VALUES (@course, @foreign, 'tr', 'Foreign title', 'foreign-course')
+            """,
+        ["lesson_translations"] =
+            """
+            INSERT INTO lesson_translations (lesson_id, tenant_id, locale, title, slug, body)
+            VALUES (@lesson, @foreign, 'tr', 'Foreign title', 'foreign-lesson', '{}')
+            """,
     };
 
     /// <summary>
@@ -549,6 +570,23 @@ public sealed class TenancySchemaTests
     [MemberData(nameof(TablesWithAWithCheck))]
     public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
     {
+        if (table is "lessons" or "course_translations" or "lesson_translations")
+        {
+            // A BEFORE parent check otherwise rejects the hidden parent first (23514).
+            // Remove only that control in a disposable database; keep RLS and FKs live,
+            // with a real matching foreign parent, to prove WITH CHECK independently.
+            await using var database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
+            await EducationSchemaSeed.SeedAsync(database.AppConnectionString);
+            await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            {
+                await SchemaQueries.ExecuteAsync(owner, null,
+                    $"DROP TRIGGER tg_{table}_parent_scope ON public.{table};");
+            }
+
+            await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table], database.AppConnectionString);
+            return;
+        }
+
         await ExpectForeignWriteRefusedAsync(
             ForeignTenantWrites[table], _schema.Postgres.AppConnectionString);
     }
@@ -622,6 +660,9 @@ public sealed class TenancySchemaTests
         await using var command = new NpgsqlCommand(
             statement, (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
         command.Parameters.AddWithValue("foreign", SchemaFixture.TenantA);
+        var parent = EducationSchemaSeed.Find(SchemaFixture.TenantA, null);
+        command.Parameters.AddWithValue("course", parent.CourseId);
+        command.Parameters.AddWithValue("lesson", parent.LessonId);
 
         if (statement.Contains("@actor", StringComparison.Ordinal))
         {
@@ -630,8 +671,10 @@ public sealed class TenancySchemaTests
 
         var act = async () => await command.ExecuteNonQueryAsync();
 
-        (await act.Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be("42501", "WITH CHECK refuses a row outside the caller's tenant");
+        var refusal = (await act.Should().ThrowAsync<PostgresException>()).Which;
+        refusal.SqlState.Should().Be("42501", "WITH CHECK refuses a row outside the caller's tenant");
+        refusal.MessageText.Should().Contain("row-level security",
+            "an absent GRANT returning the same SQLSTATE is not a policy proof");
     }
 
     [Fact]
@@ -865,8 +908,10 @@ public sealed class TenancySchemaTests
             .Which.SqlState.Should().Be("23505");
     }
 
-    [Fact]
-    public async Task An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task An_Organization_Scoped_Session_Cannot_Write_A_Tenant_Wide_Row(bool tenantReadHatch)
     {
         // Database Standards § Tenant-Owned and Organization-Scoped Tables: "a
         // tenant-scope reporting query may read across organizations, but NOTHING may
@@ -878,9 +923,9 @@ public sealed class TenancySchemaTests
         // org-scoped one to them as well. Measured before ADR-0003 Amendment 5: a session
         // announcing tenant A and organization A1 rewrote tenant A's tenant-wide row.
         //
-        // The refusal is silent by construction: a RESTRICTIVE USING clause on UPDATE
-        // FILTERS the rows the statement may target rather than raising, so what this
-        // asserts is zero rows affected and the value unchanged — not an exception.
+        // UPDATE and DELETE silently filter targets through their restrictive USING
+        // clauses. INSERT instead raises from WITH CHECK (Amendment 6). The tenant
+        // reporting hatch must not widen any of those three operations.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
 
@@ -888,6 +933,10 @@ public sealed class TenancySchemaTests
         await SchemaQueries.ExecuteAsync(connection, transaction,
             "SELECT set_config('app.organization_id', @org, true)",
             ("org", SchemaFixture.OrgA1.ToString()));
+        if (tenantReadHatch)
+        {
+            await SchemaQueries.SetSettingAsync(connection, transaction, "app.scope", "tenant");
+        }
 
         await using (var update = new NpgsqlCommand(
             """
@@ -902,6 +951,15 @@ public sealed class TenancySchemaTests
             (await update.ExecuteNonQueryAsync()).Should().Be(0,
                 "the tenant-wide row is outside this session's organization, so the "
                 + "restrictive guard does not let the statement target it");
+        }
+
+        await using (var delete = new NpgsqlCommand(
+            "DELETE FROM tenant_settings WHERE tenant_id = @tenant AND organization_id IS NULL",
+            (NpgsqlConnection)connection, (NpgsqlTransaction)transaction))
+        {
+            delete.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            (await delete.ExecuteNonQueryAsync()).Should().Be(0,
+                "a readable tenant-wide row is still outside the organization's delete scope");
         }
 
         // And the row is still there, unchanged — so the zero above is the guard
@@ -922,7 +980,56 @@ public sealed class TenancySchemaTests
             (await read.ExecuteScalarAsync()).Should().Be(1L);
         }
 
+        var insert = async () => await SchemaQueries.ExecuteAsync(connection, transaction,
+            """
+            INSERT INTO tenant_settings
+                (id, tenant_id, organization_id, key, value, created_at, created_by, row_version)
+            VALUES (uuidv7(), @tenant, NULL, @key, '{}', now(), @actor, 0)
+            """, ("tenant", SchemaFixture.TenantA), ("key", $"scope-refusal-{Guid.NewGuid():N}"),
+            ("actor", SchemaFixture.Actor));
+        var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        refused.MessageText.Should().Contain("row-level security",
+            "WITH CHECK must refuse creating a tenant-wide row from an organization session");
+
         await transaction.RollbackAsync();
+        await AssertOrganizationCannotWriteTenantWideCourseAsync(tenantReadHatch);
+    }
+
+    private async Task AssertOrganizationCannotWriteTenantWideCourseAsync(bool tenantReadHatch)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
+        await EducationSchemaSeed.SeedAsync(database.AppConnectionString);
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            // Production intentionally grants no DELETE. Commit this test-only grant
+            // before a separate app login so the assertion reaches the restrictive policy.
+            await SchemaQueries.ExecuteAsync(owner, null, "GRANT DELETE ON public.courses TO learnstack_app;");
+        }
+
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await EducationSchemaSeed.AnnounceAsync(app, transaction,
+            SchemaFixture.TenantA, SchemaFixture.OrgA1, tenantReadHatch);
+        foreach (var sql in new[]
+        {
+            "UPDATE courses SET status = 'published' WHERE organization_id IS NULL",
+            "DELETE FROM courses WHERE organization_id IS NULL",
+        })
+        {
+            await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)app, (NpgsqlTransaction)transaction);
+            (await command.ExecuteNonQueryAsync()).Should().Be(0,
+                "a readable tenant-wide course is outside the session's write scope");
+        }
+
+        (await SchemaQueries.CountAsync(app,
+            "SELECT count(*) FROM courses WHERE organization_id IS NULL AND status = 'draft'", transaction))
+            .Should().Be(1L, "the actual tenant-wide course remains visible and unchanged");
+        var insert = async () => await EducationSchemaSeed.InsertAsync(app, transaction,
+            "courses", SchemaFixture.TenantA, null, Guid.NewGuid(), Guid.Empty);
+        var refusal = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        refusal.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        refusal.MessageText.Should().Contain("row-level security");
     }
 
     [Fact]
@@ -1131,8 +1238,16 @@ public sealed class TenancySchemaTests
             "learnstack_platform audit_log DELETE,INSERT,SELECT",
             "learnstack_app audit_config SELECT",
             "learnstack_platform audit_config SELECT",
+            "learnstack_app courses INSERT,SELECT,UPDATE",
+            "learnstack_app lessons INSERT,SELECT,UPDATE",
+            "learnstack_app course_translations INSERT,SELECT",
+            "learnstack_app lesson_translations INSERT,SELECT",
+            "learnstack_platform courses SELECT",
+            "learnstack_platform lessons SELECT",
+            "learnstack_platform course_translations SELECT",
+            "learnstack_platform lesson_translations SELECT",
         ],
-        "every line is one line of the three migrations' grant matrices, and "
+        "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds nothing beyond the outbox");
     }
 }

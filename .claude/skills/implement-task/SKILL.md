@@ -223,8 +223,7 @@ Run [commit-and-pr](../commit-and-pr/SKILL.md). Concretely:
 - Subject imperative, ≤ 72 chars.
 - Body: one short paragraph saying *why* (not *what* — the diff is what).
 - Trailers in this order: `ADR:` (if applicable), `Module:` (if multi-module),
-  `I18n:` (if applicable), `Co-Authored-By:` (the AI assistant doing the
-  work — Claude / Codex / both).
+  `I18n:` (if applicable).
 - HEREDOC every multi-line message.
 
 Do **not** push or open a PR unless the user has asked. Default = local

@@ -11,6 +11,7 @@ using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -105,6 +106,7 @@ public static class SeedComposition
         services.AddSingleton<IJsonSchemaValidator, JsonSchemaNetValidator>();
 
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddModuleDbContext<EducationDbContext>();
         services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();

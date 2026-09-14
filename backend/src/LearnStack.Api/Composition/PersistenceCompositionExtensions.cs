@@ -8,6 +8,7 @@ using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
@@ -162,6 +163,7 @@ public static class PersistenceCompositionExtensions
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddModuleDbContext<EducationDbContext>();
 
         // Audit's context is registered for the model, not for a writer. Rows reach
         // audit_log as PostgresAuditStore's parameterised INSERT on the ambient

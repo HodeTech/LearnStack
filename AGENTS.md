@@ -10,20 +10,6 @@ follow the `AGENTS.md` convention) look for that filename specifically before fa
 back to `CLAUDE.md`. The repository keeps both filenames so neither runtime is left
 without a guide.
 
-## Differences from CLAUDE.md
-
-There are no rule differences. The only thing that varies between agent runtimes is
-the **`Co-Authored-By` commit trailer**, which names the assistant that contributed:
-
-- Claude Code sessions:
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
-- OpenAI Codex sessions:
-  `Co-Authored-By: Codex Opus 4.7 (1M context) <noreply@anthropic.com>`
-
-If multiple agents contributed materially to the same commit, include one trailer per
-agent. The full trailer convention lives in
-[docs/standards/14-git-workflow.md § Trailers](docs/standards/14-git-workflow.md#trailers).
-
 ## Skills
 
 Both Claude Code and Codex respect skills declared as `SKILL.md` files. LearnStack's

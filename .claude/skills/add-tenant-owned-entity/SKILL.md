@@ -86,7 +86,7 @@ authority.
 | Owning module | Yes | Determines DbContext, namespace, migration project. |
 | Org-scoped? | Yes | `false` = tenant-wide; `true` = needs `OrganizationId` + org RLS. |
 | Soft-deletable? | Yes | Decides the **query filter**, not the columns: `AuditableEntity<TId>` implements `ISoftDelete` unconditionally, so `deleted_at` / `deleted_by` are on every derived table either way ([Database Standards § Audit Columns](../../../docs/standards/05-database.md)). |
-| Strongly-typed id | Yes | Even simple entities use `<Name>Id : strongly-typed Guid` per [02-backend-coding.md](../../../docs/standards/02-backend-coding.md). |
+| Strongly-typed id | For roots and surrogate-key entities | Use `<Name>Id : strongly-typed Guid` per [02-backend-coding.md](../../../docs/standards/02-backend-coding.md). Contained translation satellites use their accepted natural composite key, with no surrogate id ([Database Standards § Translation satellite tables](../../../docs/standards/05-database.md#translation-satellite-tables)). |
 
 ## Workflow
 
@@ -139,12 +139,15 @@ Rules:
 - `OrganizationId` is nullable on every `[OrganizationScoped]` entity — null means
   tenant-wide — and `Every_OrgScoped_Entity_HasOrgIdAndFilter` fails a mapped
   `organization_id` that is not nullable (Step 4).
-  > **Open in Phase 02d.** Whether a child or satellite row carries its parent's
-  > organization, and what forces it to at insert, is G7 in
-  > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-  > The pass that closes it edits this rule with its answer.
+  A child whose scope mirrors its parent derives both tenant and organization in its
+  factory. The independent INSERT/UPDATE parent-scope trigger, immutable organization
+  guard and composite tenant foreign key enforce that relation in the database; use
+  [Database Standards § Parent organization mirrors](../../../docs/standards/05-database.md#parent-organization-mirrors).
 - Use `AuditableEntity<<Name>Id>` for mutable aggregates. **Never** `Entity<TId>`
   unless the aggregate is append-only (e.g. `AuditEntry`).
+  A contained translation satellite uses its natural key as a plain entity, with no
+  independent audit timestamps, row version or soft-delete lifecycle; changes belong
+  to its owning root ([Translation satellite tables](../../../docs/standards/05-database.md#translation-satellite-tables)).
 - Domain events for state changes; don't write to other aggregates from this one.
 - Mark PII properties `[PiiSensitive]`. From Packet 9 the audit capture replaces a
   marked — or name-token-matched — value with `SensitiveTokenCatalog.RedactedValue` in
@@ -264,7 +267,8 @@ dotnet ef migrations add add_<name> \
 
 `--output-dir` is not optional, and this is the skill that needs it most: EF
 defaults the output to `Migrations/` when the project has no sibling migration to
-reuse, which is six of the seven module assemblies today. `make migrate`,
+reuse. Content, Identity and Media are the three module assemblies without a
+migration chain after P02d-1 Step 2. `make migrate`,
 `backend/.editorconfig` and `Migrate_Target_Covers_Every_Migration_Chain` all key
 on `Persistence/Migrations` — a chain landing one directory up is skipped by the
 Makefile loop in silence and is invisible to the architecture test written for
@@ -366,10 +370,11 @@ what you pasted — a reviewer will:
   nothing may *write* outside its own. `WITH CHECK` is not sufficient on its own for
   that guarantee — PostgreSQL has no `WITH CHECK` for `DELETE`, and `USING` is also
   what selects the rows an `UPDATE` may target — which is why the two `AS RESTRICTIVE`
-  guards above are part of the template and not an optional extra. One write path stays
-  open — the organization arm of `WITH CHECK` admits `organization_id IS NULL` from any
-  session, so an organization-scoped session can `INSERT` a tenant-wide row; its status
-  is in
+  guards above are part of the template and not an optional extra. The tenant-wide
+  arm of `WITH CHECK` also requires an unset or empty `app.organization_id`, so an
+  organization-scoped session cannot `INSERT` a tenant-wide row. Copy the accepted
+  [ADR-0003 Amendment 6](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)
+  predicate from
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](../../../docs/standards/05-database.md#tenant-owned-and-organization-scoped-tables).
 - **The composite `UNIQUE (tenant_id, id)` and the composite foreign keys** — referential
   integrity is checked on behalf of the table owner and bypasses RLS entirely, so a
@@ -377,13 +382,16 @@ what you pasted — a reviewer will:
   policy. See
   [05-database.md § Foreign keys between tenant-owned tables](../../../docs/standards/05-database.md).
 
-Two obligations the policy block does not carry, both in
+Three obligations the policy block does not carry, all in
 [05-database.md](../../../docs/standards/05-database.md): the `BEFORE UPDATE`
 organization immutability trigger on every org-scoped table (the rule after the
-template), and an index supporting every foreign key
-([§ Indexes](../../../docs/standards/05-database.md#indexes)). Neither makes a child's
-or satellite's mirrored `organization_id` equal its parent's at insert — see
-[§ Translation satellite tables](../../../docs/standards/05-database.md#translation-satellite-tables).
+template), an index supporting every foreign key
+([§ Indexes](../../../docs/standards/05-database.md#indexes)), and the independent
+INSERT/UPDATE [parent-scope trigger](../../../docs/standards/05-database.md#parent-organization-mirrors)
+for a child whose scope mirrors its parent. Derive that child's tenant and organization
+from the parent in its factory; retain the composite tenant foreign key as a separate
+database control. The shared immutability function assumes no surrogate `id`, because
+contained translation satellites have none.
 
 Always call `current_setting` with the second argument `true`. Without it an unset
 context raises inside a pooled connection instead of simply filtering the row out.
@@ -420,14 +428,20 @@ Two gaps remain, and both are yours to close by hand:
 - **A marker-gated rule cannot catch a missing marker.** It iterates what it
   finds. An entity you forget to mark is invisible to both rules, and the
   isolation test in Step 5 is the net for it.
-- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization and
-  Audit today. A module with a schema that is missing from that list fails
+- **The sweep covers every module in `Modules.Scoped`** — Tenancy, Customization,
+  Audit and Education after P02d-1 Step 2. A module with a schema that is missing
+  from that list fails
   `Every_Module_With_A_Schema_Is_Swept`, so add yours there.
 
 Also live against your migration: `Every_Foreign_Key_Has_A_Supporting_Index` and
 the schema sweeps in `TenancySchemaTests` — row security enabled *and* forced,
 no second permissive policy for one command, snake_case identifiers, and the exact
-grant matrix. Those run against the applied schema.
+grant matrix. Those run against the applied schema. P02d-1 Step 2's
+[EducationStructureTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationStructureTests.cs)
+also exercises the parent-mirror and Pattern A detectors with planted violations;
+[EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
+proves natural-key satellite persistence, owning-root concurrency and contained audit
+capture through the actual composition roots.
 
 If you're adding a *new* marker attribute or a *new* isolation pattern, write a
 new architecture test (see
@@ -471,8 +485,8 @@ public sealed class <Name>IsolationTests(SchemaFixture schema)
 
 There is no `TestFixture`, no `CreateTenantAsync` and no `AsTenant(...)` helper —
 an earlier version of this file used all three. The shipped fixtures are
-`PostgresFixture` (container + the four roles) and `SchemaFixture` (both migration
-chains, every table seeded for two tenants), shared with
+`PostgresFixture` (container + the four roles) and `SchemaFixture` (all five migration
+chains, tenant-owned tables seeded for two tenants), shared with
 `[Collection(SharedSchema.Name)]`. The fixture must seed **both** tenants: a count
 of zero against a table nothing populated passes whatever the policy says.
 
