@@ -323,6 +323,13 @@ SDK generation ships as a wired-but-empty scaffold — there are no endpoints to
 generate from until [Phase 02d](phase-02d-walking-skeleton.md).
 
 **Packet 5 — Foundation ports and default implementations ✅** ([delivery record](#delivery-record-packet-5))
+
+> **Clarification — 2026-09-17.** The shared defaults below describe this packet's
+> event-bus, cache and secret ports, not every mode-specific provider. Error tracking
+> already differs by mode. Current support claims live in
+> [Deployment Models](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam).
+> The shipped packet's scope and record are unchanged.
+
 `IEventBus` / `ICacheService` / `ISecretProvider` in
 `LearnStack.SharedKernel`, with `InProcessEventBus` / `InMemoryCacheService` in
 `LearnStack.Infrastructure` — `ISecretProvider` and `ConfigurationSecretProvider`
@@ -1045,12 +1052,11 @@ here with **working default implementations**; the vendor adapters ship on a tri
   Hub; an anonymous page load must not depend on a control plane being reachable
   ([ADR-0034](../decisions/0034-hub-contract-surface-invariant.md)).
 
-Composition-root branching on `DeploymentMode` is present and exercised, with
-`Development` and `SaaS` wired end to end. `Dedicated`, `SelfHostedOnline` and
-`SelfHostedAirGapped` resolve to the same defaults and are **prepared seams, not
-supported deployments**, until [Phase 11](phase-11-production-hardening.md) builds
-their adapters and integration suites. Modules never read `DeploymentMode`
-(`Modules_Do_Not_Reference_DeploymentMode`).
+Composition-root branching on `DeploymentMode` is present and exercised. The foundation
+ports in this section use shared defaults; other providers may differ by mode.
+[Deployment Models § Supported today versus prepared seam](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+owns current readiness and the remaining adapters and integration suites. Modules never
+read `DeploymentMode` (`Modules_Do_Not_Reference_DeploymentMode`).
 
 **Not in this phase**, per ADR-0035's trigger table: the Dapr sidecar and its pub/sub,
 state and secret components; Kafka; APISIX; Vault.
@@ -1460,9 +1466,9 @@ Per [API Standards](../standards/04-api-design.md):
   **`DeploymentMode`-based composition** (Development / SaaS / Dedicated /
   SelfHostedOnline / SelfHostedAirGapped) per
   [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). All five values
-  exist and the composition root branches on all five; `Development` and `SaaS` are
-  wired end to end, and the remaining three are prepared seams until
-  [Phase 11](phase-11-production-hardening.md).
+  exist and the composition root branches on all five. See
+  [Deployment Models § Supported today versus prepared seam](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+  for the distinction between foundation wiring and a supported deployment.
 - Secret handling — never in source.
 - Tenant-level + organization-level settings model: `tenant_settings`, with org-scoped
   rows on its nullable `organization_id`, ships in Packet 6. The typed accessor over it

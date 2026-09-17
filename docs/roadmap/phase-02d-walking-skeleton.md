@@ -362,6 +362,24 @@ with or after the earlier one, never contradicting it:
 - G39 and G40 — routing and strings.
 - G44 and G45 — one stack entrypoint.
 
+### Pending Course Marketplace proposal
+
+**Pending direction review — 2026-09-17.** At the maintainer's request, P02d-2's
+decision pass first considers institution sites alongside a
+[Course Marketplace](../decisions/0049-institution-sites-and-course-marketplace.md).
+ADR-0049 is Proposed; this note accepts no gate and assigns no marketplace delivery
+scope to P02d-2. Its
+[acceptance checklist](../decisions/0049-institution-sites-and-course-marketplace.md#implementation-notes)
+records the unresolved product, delivery and commercial decisions.
+
+G3's publication/transition answer accepted on 2026-09-14 remains binding under
+ADR-0048. Only G3's command names and seeded states remain for P02d-2. If protected
+authoring is explicitly selected, the
+[proposed reopening process](../decisions/0049-institution-sites-and-course-marketplace.md#publication-discovery-and-access)
+requires maintainer approval, a superseding access ADR and a dated G3 supersession
+entry before implementation. The original question, accepted answer and delivery
+record remain intact. Resolving the product direction alone does not reopen G3.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

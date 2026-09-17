@@ -66,6 +66,20 @@ an amendment is not a lifecycle status change.
 | 0045 | [The Entitlement and Feature-Flag Socket](0045-entitlement-and-feature-flag-socket.md) | **Amendment 1 (2026-09-08)** reads it against the Hub's merged code: the limit vocabulary is the Hub's, `expires_at`/`valid_until` are nullable, the generation guard admits the equal case, and `platform_killswitches` ships **unwritten** because `DenyAllPlatformAdminGate` makes a writer unreachable until Phase 03. **Amendment 2 (2026-09-11):** a registry's membership is the vocabulary the contract names — fourteen Hub features, nine `limits.*`, two tenant flags, three killswitches — and enforcement, not membership, waits for a consumer. **Amendment 3 (2026-09-11):** a key's fail-open/fail-closed class decides only when no projection exists; one past its grace window is read-only, as ADR-0021 decides. **Amendment 4 (2026-09-11):** of the projection's names, `PlanCode` differs from the wire (`tier`) and `ExpiresAt` from the column (`valid_until`) — § 1 had called both wire differences. Declares the port twenty documents name and none define. `IEntitlementProvider.GetAsync(TenantId)` + `RefreshAsync(projection)`, the projection carrying every field `entitlement-v1.schema.json` requires — **`compliance` and `generation` included**, both already `NOT NULL` columns — and the refresh **generation-guarded inside the write statement**, so a stale push cannot resurrect a revoked plan. `IFeatureFlags` is the only module-facing read and **composes over the provider** rather than querying `platform_entitlement_cache`, which is the only reading under which the Phase 02a criterion — swapping the provider changes the answer — can be true. Limits: **`-1` unlimited, `0` denied**, `long` not `long?`; the inverse reading would have made the degraded read-only mode grant unlimited. `NullEntitlementProvider` is registered in **every** deployment mode, per ADR-0035's default-implementation gate rather than ADR-0020's Development-only switch. Killswitches leave `tenant_feature_flags` for a platform-scoped `platform_killswitches`: a foreign key to `tenants` is a constraint no role or `BYPASSRLS` moves, so the sentinel could never have satisfied it. Push-primary, **not** push-only — ADR-0034's `license/verify` fallback stands; the no-Hub absolute belongs to host resolution |
 | 0048 | [Publication Before Course Versioning](0048-walking-skeleton-publication.md) | Accepted 2026-09-14: independent course/lesson publication, combined anonymous-read eligibility and Phase 05 preservation obligations |
 
+## Proposed ADRs
+
+| # | Title | Topic | Target phase / decision point |
+|---|---|---|---|
+| 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Proposed 2026-09-15: hybrid product direction; accepts no gate and does not supersede ADR-0048 | P02d-2 decision pass, before its first application writers |
+
+The target records the maintainer's request to settle product direction before
+P02d-2 implementation planning. This is a planning hold, not a new architecture gate
+or automatic ADR acceptance. Retaining the Accepted scope is one possible outcome;
+this draft cannot reopen G3. The
+[phase record](../roadmap/phase-02d-walking-skeleton.md#pending-course-marketplace-proposal)
+tracks that pending choice. On acceptance, move the row to Active ADRs instead of
+duplicating it. The draft SLAs below remain unchanged.
+
 ## Superseded ADRs
 
 - **ADR-0014 — Adopt Dapr for Cross-Cutting Infrastructure** — superseded by

@@ -22,9 +22,10 @@ capability invocation (running submitted code, scoring speech) are
 platform features gated by plan — they need a release, not a
 customization row. Link to that section; do not restate it.
 
-LearnStack ships in three production deployment modes — SaaS, Dedicated,
-Self-Hosted — backed by the companion **LearnStack Hub** control plane
-(separate repository, see
+LearnStack targets three production deployment modes — SaaS, Dedicated,
+Self-Hosted — with current readiness recorded in
+[Deployment Models](docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam).
+The companion **LearnStack Hub** control plane lives in a separate repository (see
 [ADR-0019](docs/decisions/0019-learnstack-hub.md)). On developer
 workstations the Hub repo is the sibling directory `../LearnStack-Hub`;
 GitHub: https://github.com/HodeTech/LearnStack-Hub. The Hub repository
@@ -321,7 +322,13 @@ let the entry point pick it.
   - **No → ship the port now, the adapter on a named trigger.** Dapr pub/sub, Kafka, Valkey-backed cache, Vault, APISIX, the Hub entitlement source, signed licence keys, custom-domain TLS automation, `audit_log` partitioning. Each has a port in `LearnStack.SharedKernel` wherever [ADR-0035 § The gated set](docs/decisions/0035-demand-gated-infrastructure.md#the-gated-set) names one, a working default implementation (`InProcessEventBus`, `InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider`), an owning phase, and a written trigger condition. A building block missing any of those, other than a port that table records as absent, is not demand-gated — it is missing.
 - **Provider adapters everywhere.** Payments, auth, storage, search, live classroom, notifications, **event bus, cache, secrets, Hub contract, entitlement source, host resolver** — all sit behind interfaces. No SaaS lock-in in `Domain` or `Application`. See [20-infrastructure-stack.md](docs/standards/20-infrastructure-stack.md).
 - **The Hub contract is governed by two invariants, not by a count** ([ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md)): (1) the Hub stores **no tenant content** — courses, lessons, learners, enrollments, sessions and media live only in LearnStack, and the Hub holds tenant *metadata* only; (2) **every LearnStack↔Hub crossing goes through a named adapter** — `IEntitlementProvider`, `IUsageReporter`, `IHubTenantSync`, and nothing else may hold a Hub client. Adding an endpoint still requires an ADR, because the surface is a cross-repository contract both repositories have to agree on.
-- **One binary, five `DeploymentMode` values, two of them wired.** Selection happens at the composition root; module code never branches on the mode ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md), enforced by `Modules_Do_Not_Reference_DeploymentMode`). `Development` and `SaaS` are wired end to end; `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until [Phase 11](docs/roadmap/phase-11-production-hardening.md) builds their adapters and integration suites.
+- **One binary, five `DeploymentMode` values.** Selection happens at the composition
+  root; module code never branches on the mode
+  ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md), enforced by
+  `Modules_Do_Not_Reference_DeploymentMode`).
+  [Deployment Models § Supported today versus prepared seam](docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns the current foundation wiring, remaining adapters and production-readiness
+  boundary; a selectable enum value is not a supported deployment.
 
 ## Conventions when editing docs
 

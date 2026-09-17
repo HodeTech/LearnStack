@@ -31,8 +31,8 @@ What is **not** fixed is the subject those businesses teach. The same code paths
 - An art workshop with portfolio uploads and peer-review assessments.
 - A certification body, an exam-prep provider, or a domain not anticipated above.
 
-LearnStack ships **one codebase, one set of container images, one Helm chart** that
-serves all of these customers. The differentiator across customers is their **data**
+LearnStack targets **one codebase, one set of container images, one Helm chart** for
+all of these customers. The differentiator across customers is their **data**
 (content, content type definitions, page block schemas, scoring rules, level taxonomies,
 custom fields) — not their code. LearnStack engineers never write per-vertical code.
 That claim holds inside a stated edge — see
@@ -56,8 +56,9 @@ Education businesses need infrastructure that is:
   ([24-learnstack-hub.md](24-learnstack-hub.md)).
 - **Deployment-flexible.** Same codebase deploys as SaaS, Dedicated (LearnStack-managed
   single-tenant), or Self-Hosted ([25-deployment-models.md](25-deployment-models.md)).
-  `Development` and `SaaS` are wired end to end today; the other three `DeploymentMode`
-  values are prepared seams until Phase 11 builds their adapters and integration suites
+  [Deployment Models § Supported today versus prepared seam](25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns current readiness. Foundation wiring does not imply that production adapters
+  or supported Dedicated/Self-Hosted releases have shipped
   ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
 
 ## The three layers

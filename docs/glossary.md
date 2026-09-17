@@ -96,6 +96,8 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
+| **Course Marketplace** | The proposed learner-facing channel for discovering and buying institutions' courses through platform checkout, with commission and seller payouts. [ADR-0049](decisions/0049-institution-sites-and-course-marketplace.md) is Proposed; this is not accepted roadmap scope or the Hub Marketplace. |
+| **Hub Marketplace** | The optional, post-MVP exchange of reusable tenant customization bundles owned by [Phase 12](roadmap/phase-12-hub-marketplace.md). Its initial scope is free-only and its ADR-0034 content-boundary decision remains open; it is distinct from the Course Marketplace. |
 | **Product** | A sellable platform item. |
 | **Plan (tenant storefront)** | A package or subscription definition referencing one or more products. Lives in the LearnStack core `Billing` module — what a tenant sells to its own learners. Distinct from the Hub-side `Plan` (see *Hub & Licensing*) that governs the tenant's own LearnStack subscription. |
 | **Price** | A currency / interval / amount combination attached to a plan. |

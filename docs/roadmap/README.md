@@ -249,10 +249,9 @@ At the end of this roadmap, LearnStack can:
   recording consent, and recording metadata.
 - Extend payment, notifications, search, storage, analytics, and live-classroom
   providers through adapters.
-- Run with `NullEntitlementProvider` (no Hub), `HubEntitlementProvider` (SaaS /
-  Dedicated), or `SignedLicenseKeyEntitlementProvider` (Self-Hosted, air-gappable)
-  without code changes — only `DeploymentMode` configuration. `Development` and `SaaS`
-  are wired end to end **today**; `Dedicated`, `SelfHostedOnline` and
-  `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until
-  [Phase 11](phase-11-production-hardening.md) builds their adapters and integration
-  suites ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+- Target interchangeable entitlement providers selected by `DeploymentMode`, without
+  module changes: `NullEntitlementProvider`, a Hub-backed provider and a signed-licence
+  provider. [Deployment Models § Supported today versus prepared seam](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns current wiring and readiness; these target choices do not claim the adapters
+  have shipped. Owners and triggers remain
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s.
