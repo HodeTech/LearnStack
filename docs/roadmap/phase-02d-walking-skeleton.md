@@ -372,6 +372,13 @@ scope to P02d-2. Its
 [acceptance checklist](../decisions/0049-institution-sites-and-course-marketplace.md#implementation-notes)
 records the unresolved product, delivery and commercial decisions.
 
+**Review follow-up — 2026-10-01.** The
+[scoping companion](../architecture/34-course-marketplace-scoping.md) separates
+live-product delivery, operations, privacy, regional topology and commerce recovery
+from this packet. Public-only P02d-2 has no technical dependency on those capabilities;
+the maintainer's planning hold remains until they resolve or release it. No review
+recommendation selects protected authoring or accepts marketplace delivery scope.
+
 G3's publication/transition answer accepted on 2026-09-14 remains binding under
 ADR-0048. Only G3's command names and seeded states remain for P02d-2. If protected
 authoring is explicitly selected, the

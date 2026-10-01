@@ -80,6 +80,9 @@ this draft cannot reopen G3. The
 tracks that pending choice. On acceptance, move the row to Active ADRs instead of
 duplicating it. The draft SLAs below remain unchanged.
 
+The [scoping companion](../architecture/34-course-marketplace-scoping.md) records the
+reviewed delivery alternatives and proposed ownership; it accepts no module or phase.
+
 ## Superseded ADRs
 
 - **ADR-0014 — Adopt Dapr for Cross-Cutting Infrastructure** — superseded by

@@ -274,8 +274,8 @@ schema that can never change.
   registration, its `docs/modules/<module>/audit.md`, and its permission-catalogue rows.
 - Billing domain primitives and the `OrderPaidV1` producer path.
 - Payment adapter infrastructure with the manual provider working end to end.
-- Credit-pack purchase path, with the balance boundary against
-  [Phase 07](phase-07-enrollment-learner-portal.md) settled and written down.
+- Credit-pack purchase path, with the absence of an in-platform consumption ledger
+  explicit and the separate ADR/release boundary recorded.
 - Integration registry with per-tenant provider configuration and health.
 - Meilisearch adapter behind `ITenantSearch`, with engine-enforced tenant tokens and
   the closed index topology.
@@ -291,8 +291,9 @@ schema that can never change.
 - Product, plan, and price can be created for a tenant.
 - The manual payment provider drives an order to paid through the adapter, and a paid
   order produces a `CourseAccess` in the Enrollment module via `OrderPaidV1`.
-- A credit pack can be bought, its balance decremented by a confirmed booking, and
-  refunded by a cancellation inside the tenant's window.
+- A credit-pack `Product` can be bought through the `Order` path. This phase does not
+  expose, decrement or refund a remaining-session balance; consumption stays outside
+  the platform until the separate ledger ADR and release described in Scope.
 - Webhook idempotency is tested: the same provider event delivered twice produces one
   order state change.
 - Search runs on Meilisearch through `ITenantSearch` with per-request tenant tokens.
@@ -318,9 +319,10 @@ schema that can never change.
 - **Merging billing and enrollment into the same model.** The bridge is one integration
   event in one direction. If Phase 09 code reads `CourseAccess` or Phase 07 code reads
   `Order`, the boundary is gone.
-- **A second credit ledger.** The most likely place is a "remaining sessions" counter
-  added here for convenience while Phase 07 holds the authoritative one. Two counters
-  disagree the first time a refund races a booking.
+- **A premature or duplicate credit ledger.** A `remaining_sessions` counter in
+  Billing, Enrollment or Scheduling would invent a consumption capability this
+  roadmap does not deliver. The separate ledger ADR must select one authoritative
+  balance aggregate and its booking/refund contract before those writers exist.
 - **Migrating search without the engine-enforced layer.** The tempting version of this
   phase ships the Meilisearch adapter with the existing application-side filter and
   leaves tenant tokens for later. That version makes tenant isolation strictly weaker

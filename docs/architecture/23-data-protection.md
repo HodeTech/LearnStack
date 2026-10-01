@@ -185,6 +185,14 @@ These are tracked as Phase-11+ work and are not implementation blockers for the 
 
 ## Processor Agreements
 
+**Proposed marketplace impact (2026-10-01).** The arrangement below describes the
+institution service. It is not an accepted legal-role assignment for central buyer,
+order, fraud or support processing. [ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md)
+requires a purpose-based role, consent, DSAR, retention, transfer and media-rights
+decision before the first marketplace PII writer. Its
+[scoping companion](34-course-marketplace-scoping.md#privacy-residency-and-media)
+records those open boundaries; no new legal role or retention period is selected here.
+
 For tenants subject to KVKK / GDPR, LearnStack acts as a **data processor** while the tenant is the **data controller**. The processor agreement template lives outside this repository (legal). Engineering-side commitments:
 
 - Sub-processor list maintained in the tenant onboarding pack (Keycloak host, LiveKit host, S3 / SeaweedFS provider, email provider, SMS provider, payment provider).

@@ -135,6 +135,14 @@ Two rules make the table enforceable:
 **DSAR boundary.** A data subject access request is scoped to a tenant unless the
 person themselves asks for the account itself.
 
+**Proposed marketplace impact (2026-10-01).** This institution-service contract does
+not assign central order history or marketplace consent to a tenant membership.
+[ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md) requires a
+separate purpose-based privacy/export/erasure contract, coordinated with
+[Data Protection](../architecture/23-data-protection.md#processor-agreements), before
+marketplace identity/order/support writers. No such scope is approved in Phase 03
+by this note.
+
 | Request | Initiated by | Scope | Effect on other tenants |
 |---|---|---|---|
 | Tenant-scoped export | Tenant admin, or the person acting inside that tenant | Rows where `tenant_id = <tenant>` | None |
