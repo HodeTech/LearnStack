@@ -332,3 +332,22 @@ solve none.
   permits it and no command refuses it, because "is this key still needed?" is a
   question only the module that owns the content rows can answer —
   [Phase 04](../../roadmap/phase-04-cms-media-pages.md) again.
+
+## P02d-2 Step 1 delivery
+
+`IExactCustomizationDefinitionReader` now returns immutable exact-revision DTOs
+through the ambient tenant-filtered context, without a cache or live-key
+substitution. New bindings require Active; existing pins admit Active/Deprecated.
+Draft, deleted and invisible definitions share the bounded validation refusal.
+
+ADR-0051's optional root `x-fields` is admitted by the generic schema profile and
+semantically resolved by Customization after all four gates, before persistence.
+Descriptors cover every direct string property once, preserve array order and
+carry validated `LocalizedText` labels; only `default-card` is compatible. Legacy
+schemas without the extension retain their original admission and empty presentation.
+The exact reader returns the same resolved descriptors; a new rendering consumer
+still belongs to P02d-6, rather than being implied by valid schema storage.
+
+The contextual content-type/taxonomy queries supply exact seed verification DTOs
+and are classified Off. Their adapters and the exact reader are registered in both
+API and Seeder composition roots.

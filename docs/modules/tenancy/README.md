@@ -503,3 +503,16 @@ request and are the only Tenancy work an anonymous visitor pays for.
 - **Tenant hard-deprovisioning has no owning phase.** Every foreign key is
   `ON DELETE RESTRICT`, so the absence is loud rather than silent — a delete
   fails instead of cascading through a path nobody designed.
+
+## P02d-2 Step 1 delivery
+
+`ITenantLocaleEligibilityReader` checks canonical enabled membership on the ambient
+transaction without fallback or caching. Missing membership and invalid stored
+locale configuration return a bounded validation refusal. Locale writers and the
+default-enabled database CHECK follow in Step 2.
+
+Contextual tenant, organization, host-mapping and setting verification queries
+return immutable DTOs through the composed request pipeline. They are explicitly
+Off, have no public marker or HTTP endpoint, and are registered in both API and
+Seeder roots. Setting reads retain organization filters; host-mapping verification
+additionally restricts the platform lookup row to the announced tenant.

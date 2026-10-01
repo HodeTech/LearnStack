@@ -58,13 +58,19 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
             return CustomizationFailures.SchemaRefused<TenantContentTypeDto>(admitted.Error!);
         }
 
+        var presentation = TextCardPresentation.Resolve(request.JsonSchema, request.RendererKey);
+        if (presentation.IsFailure)
+        {
+            return CustomizationFailures.SchemaRefused<TenantContentTypeDto>(presentation.Error);
+        }
+
         // The gates admit LearnStack's own keywords without resolving them —
         // ADR-0043 § 4 — so the half that needs the registries happens here, before
         // anything is written. A schema naming a renderer or a taxonomy that does
         // not exist would otherwise be stored, published, and then trusted by a
         // read path that never validates.
         var unresolved = await SchemaExtensionResolution.UnresolvedAsync(
-            admitted.Value!, taxonomies, cancellationToken);
+            admitted.Value!, taxonomies, cancellationToken, textCardResolved: true);
 
         if (unresolved.Count > 0)
         {

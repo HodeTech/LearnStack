@@ -5,11 +5,12 @@ proofs and both agent review rounds per step are complete. The
 [merge closeout](../../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
 records all five required checks on the final PR head and merge commit.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
-records the accepted scope. Commands, audit catalogue entries and seed writes remain
+records the accepted scope. Commands and seed writes remain
 planned for P02d-2; public reads remain planned for P02d-4.
 The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-is Accepted on 2026-10-02; implementation waits at the maintainer's request. The
-diagrams below describe shipped P02d-1; the access column and handlers do not exist yet.
+is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
+verification queries, explicitly classified Off. Writer handlers follow in Step 3;
+seed execution follows in Step 4. The diagram includes the current access column.
 
 ## Overview
 
@@ -36,6 +37,7 @@ erDiagram
         uuid organization_id
         varchar slug_key
         text status
+        text content_access
         varchar level_taxonomy_key
         int level_taxonomy_schema_version
         varchar level_band_key
@@ -256,6 +258,9 @@ The Domain and Infrastructure projects implement the two roots, their satellites
 and a dedicated migration chain. Both API and Seeder register `EducationDbContext`
 on the ambient unit of work; neither exposes an Education command yet. The dashed
 contract consumers arrive in P02d-2. No public read flow exists until P02d-4.
+Step 1 also registers filtered `GetCourseSeedStateQuery` and
+`GetLessonSeedStateQuery` handlers in both roots, explicitly classified Off. They
+return immutable verification DTOs without a public marker or HTTP endpoint.
 No Education code names a Customization or Tenancy table.
 
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
@@ -280,7 +285,8 @@ permissions exist. No authorization claim is inferred from database privileges.
 ## Audit coverage matrix
 
 [audit.md](audit.md) records the planned publication floor. P02d-2 adds the
-remaining operation rows with its command decisions and catalogue source.
+writer catalogue registrations in Step 3. Step 1 registers the two contextual
+verification queries Off, without a synthetic write operation.
 
 ## Performance budget
 

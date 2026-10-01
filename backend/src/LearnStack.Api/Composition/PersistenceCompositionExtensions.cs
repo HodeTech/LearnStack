@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.Definitions;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
 using LearnStack.Modules.Tenancy.Application.Audit;
@@ -263,6 +266,7 @@ public static class PersistenceCompositionExtensions
         services.TryAddEnumerable([
             ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, EducationAuditCatalogSource>(),
         ]);
 
         services.TryAddSingleton<IAuditCatalog>(provider =>
@@ -293,6 +297,11 @@ public static class PersistenceCompositionExtensions
         // therefore not the write store: a content-type handler holding that store
         // would be a handler the cross-aggregate census counts as writing two roots.
         services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
+        services.TryAddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
+        services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();
 
         return services;
     }

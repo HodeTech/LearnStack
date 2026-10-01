@@ -1,3 +1,4 @@
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Audit;
@@ -35,6 +36,11 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Off<GetTenantSeedStateQuery>();
+        builder.Off<GetOrganizationSeedStateQuery>();
+        builder.Off<GetHostMappingSeedStateQuery>();
+        builder.Off<GetSettingSeedStateQuery>();
 
         builder
             // TWO entries for one command, and the reason is the whole of ADR-0044 § 3:

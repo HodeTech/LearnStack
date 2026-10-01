@@ -1,8 +1,9 @@
 # Education Audit Coverage Matrix
 
 **Status:** Accepted design — 2026-09-14; updated 2026-10-02 with ADR-0050 and the
-[module spec](README.md). No Education request or catalogue source exists yet. Every row below is a forward
-declaration under
+[module spec](README.md). Step 1 supplies an Education catalogue source and two
+contextual verification queries classified Off. Every write row below remains a
+forward declaration under
 [Audit Coverage Standards](../../standards/18-audit-coverage.md).
 
 | Resource | Operation | Class | Why |
@@ -36,5 +37,5 @@ ahead of code, not executable catalogue registrations:
 The two publish operations remain MUST. Under accepted ADR-0050, course publication
 exposes eligible marketing metadata; lesson publication enables content only under
 the parent/access rules. Restriction does not lower the selected MUST classification.
-Contextual seed verification queries are explicitly Off when their request types
-are introduced; they declare no synthetic write operation.
+`GetCourseSeedStateQuery` and `GetLessonSeedStateQuery` are explicitly Off in
+`EducationAuditCatalogSource`; they declare no synthetic write operation.

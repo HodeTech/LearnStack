@@ -585,6 +585,33 @@ partial gate closure and absence of implementation claims.
   unchanged. No backend/frontend implementation or deployment operation is included.
 
 
+### P02d-2 implementation delivery (2026-10-02)
+
+The maintainer resumed implementation after exact approval. The earlier acceptance
+and wait record remains historical; work now follows the four accepted steps on
+**development**. No public endpoint, marketplace commerce or authorization grant
+is introduced by P02d-2.
+
+**Step 1 — policy and contract foundation, review pending.** Course creation takes
+an explicit closed policy. The additive Education migration defaults/backfills
+`enrollment_required`, preserving existing content and scope; technical Down is
+proved only in a disposable database, not approved as a live public-reader rollback.
+Exact revision/locale ports, ordered text-card semantic resolution and contextual
+seed verification queries are registered in both composition roots. Read queries
+are Off; no seed context-setter change or writer completion is claimed yet.
+
+**Step 1 pre-review verification.** Release build completed with zero warnings/errors.
+Docker-free tests: 1,489 unit, 177 architecture, 171 integration and one contract,
+all passing with zero skips. Fifteen focused Docker integration cases passed,
+including both composition roots, exact revision/locale reads, Education persistence
+and migration forward/down/reapply. Full format verification and the TRX execution
+count/zero-skip checks passed. Markdown validation checked 2,137 local references
+and 487 fragments across 34 files against the preparation baseline; P02d-1's frozen
+record and all Accepted ADR bodies remain unchanged. `git diff --check` passed.
+
+Steps 2–4 remain pending. Step 1 is complete only after both fresh review rounds;
+review outcomes and commit references are recorded here at that point.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

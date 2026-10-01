@@ -76,7 +76,8 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
         await using (var creating = await Operation.OpenAsync(provider))
         {
             var course = Course.Create(CourseId, TenantId.From(SchemaFixture.TenantA), organization,
-                "persisted-course", Clock, Actor, "difficulty", 7, "intro");
+                "persisted-course", organizationScoped ? CourseContentAccess.EnrollmentRequired : CourseContentAccess.Public,
+                Clock, Actor, "difficulty", 7, "intro");
             course.AddTranslation("EN-us", "Course 日本語", null, "course-en", Clock, Actor).IsSuccess.Should().BeTrue();
             creating.Context.Courses.Add(course);
             await creating.Context.SaveChangesAsync();
@@ -155,6 +156,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
         storedCourse.LevelBandKey.Should().Be("intro");
         storedCourse.Version.Should().Be(3);
         storedCourse.Status.Should().Be(PublicationStatus.Published);
+        storedCourse.ContentAccess.Should().Be(organizationScoped ? CourseContentAccess.EnrollmentRequired : CourseContentAccess.Public);
         storedCourse.CreatedAt.Should().Be(Clock.UtcNow);
         storedCourse.UpdatedAt.Should().Be(Later.UtcNow);
         storedCourse.Translations.Select(translation => translation.Locale).Should().BeEquivalentTo("en-US", "fr");
@@ -234,7 +236,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
         await using (var creating = await Operation.OpenAsync(provider))
         {
             creating.Context.Courses.Add(Course.Create(CourseId, TenantId.From(SchemaFixture.TenantA), null,
-                "concurrency", Clock, Actor));
+                "concurrency", CourseContentAccess.EnrollmentRequired, Clock, Actor));
             await creating.Context.SaveChangesAsync();
             await creating.Frame.CompleteAsync();
         }

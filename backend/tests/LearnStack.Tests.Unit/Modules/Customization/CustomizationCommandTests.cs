@@ -361,6 +361,30 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
+    public async Task A_recognized_extension_without_a_resolver_is_refused_before_any_write()
+    {
+        var (sender, stores) = Build(gate: Reporting(("/x-future", "x-future", "value")));
+        var result = await sender.Send(RegisterContentType());
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details.Should().ContainKey("/x-future");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Text_card_semantic_failure_happens_after_admission_and_before_persistence()
+    {
+        var (sender, stores) = Build();
+        var command = RegisterContentType() with
+        {
+            JsonSchema = """{"type":"object","properties":{"body":{"type":"string"}},"additionalProperties":false,"x-fields":[{"name":"unknown","label":{"en":"Label"}}]}""",
+        };
+        var result = await sender.Send(command);
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details.Should().ContainKey("/x-fields/0/name");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task An_x_language_is_admitted_because_its_registry_does_not_exist()
     {
         // Deliberate, and recorded rather than silent: the set of languages a

@@ -153,3 +153,10 @@ registered by slug through `DeclareOffPath` because their writer ships —
 `tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry `(planned)` and
 register by slug when Phase 03 and Phase 02c land their writers. Every other slug above is
 joined in both directions the day its command lands.
+
+## P02d-2 contextual verification reads
+
+`GetTenantSeedStateQuery`, `GetOrganizationSeedStateQuery`,
+`GetHostMappingSeedStateQuery`, `GetSettingSeedStateQuery` are explicitly Off in
+`TenancyAuditCatalogSource`. These unrouted queries verify announced
+tenant state through the ambient transaction and declare no write operation.

@@ -130,7 +130,7 @@ internal static class JsonSchemaProfile
     /// spend a level of the depth budget § 8.4 measures on the schema tree.
     /// </para>
     /// </remarks>
-    private static readonly string[] ExtensionKeywords = ["x-renderer", "x-taxonomy", "x-language"];
+    private static readonly string[] ExtensionKeywords = ["x-renderer", "x-taxonomy", "x-language", "x-fields"];
 
     /// <summary>
     /// Keywords that run a tenant-authored regular expression. Refused until the
@@ -368,6 +368,13 @@ internal static class JsonSchemaProfile
                     // its own keys are.
                     if (!namesAreAuthored)
                     {
+                        if (property.Name == "x-fields"
+                            && (pointer.Length != 0 || property.Value.ValueKind != JsonValueKind.Array
+                                || property.Value.GetArrayLength() == 0))
+                        {
+                            failures.Add(child, "lockey_schema_extension_unresolved");
+                        }
+
                         CheckKeyword(property, child, failures, references);
 
                         // The keyword is checked; its VALUE is data, so the walk
