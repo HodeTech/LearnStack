@@ -7,6 +7,9 @@ records all five required checks on the final PR head and merge commit.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
 records the accepted scope. Commands, audit catalogue entries and seed writes remain
 planned for P02d-2; public reads remain planned for P02d-4.
+The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+is prepared on 2026-10-02, with exact approval pending. The diagrams below describe
+shipped P02d-1; they do not claim the proposed access column or handlers exist.
 
 ## Overview
 
@@ -170,6 +173,68 @@ sequenceDiagram
 A command writes one Education root. Cross-module calls are reads through application
 contracts, and audit durability is part of the ambient transaction. The seeder has no
 second write path.
+
+## P02d-2 proposed writer contract
+
+**Prepared, not Accepted or implemented — 2026-10-02.** Approval is coupled with
+[ADR-0050](../../decisions/0050-publication-and-course-content-access.md),
+[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) and the phase package.
+This section owns command detail; the phase owns gate disposition and seed inventory.
+
+| Command | Root / inputs | Validation and outcome |
+|---|---|---|
+| `CreateCourseCommand` | New Course; explicit id, slug key, access policy, optional complete taxonomy revision/band pin | Tenant/organization from context; exact new taxonomy binding must be Active and contain the band; draft creation, no translation or lesson write |
+| `AddCourseTranslationCommand` | Existing Course; id, exact expected version, locale, title, summary, translated slug | Root visible and writable, enabled canonical locale, valid text/slug, draft-only insert; no overwrite |
+| `PublishCourseCommand` | Existing Course; id and exact expected version | Draft → published only; empty/incomplete translations allowed; no child publication or implicit grant |
+| `CreateLessonCommand` | New Lesson; explicit id, parent course id, sort, exact content-type key/version | Parent must be visible and writable in announced scope; derive its tenant/organization; new exact type binding must be Active; draft, no body yet |
+| `AddLessonTranslationCommand` | Existing Lesson; id, exact expected version, locale, title, slug, JSON object body | Enabled canonical locale; validate against its immutable pin, including eligible Deprecated revision; draft-only insert |
+| `PublishLessonCommand` | Existing Lesson; id and exact expected version | Draft → published only; no Course mutation, grant or readiness requirement beyond the selected lifecycle |
+
+Only a trusted contextual caller invokes these unrouted commands. No command is
+`PublicSurface`, grants HTTP access or registers an authoring permission. Exact
+expected versions protect existing-root writes; omission/invalidity is validation
+failure and stale values are concurrency conflicts. Seed queries obtain current
+versions for unfinished acts, not permission to retry failed writes blindly.
+
+Customization is read through its
+[exact value contract](../customization/README.md#p02d-2-proposed-exact-write-contract);
+locale membership through Tenancy's
+[proposed locale contract](../tenancy/README.md#p02d-2-proposed-locale-and-branding-contract).
+Both execute uncached inside the caller's ambient frame and announced context.
+No cross-chain FK, foreign Domain/Infrastructure reference or independent transaction
+is introduced. Revision/locale eligibility is observed at the validation read;
+later deprecation/disable does not rewrite stored bodies and is rechecked by readers.
+
+### Failure and transaction contract
+
+| Condition | Result |
+|---|---|
+| Missing, cross-tenant or hidden sibling parent/root | `not_found`; no name/id disclosure |
+| Visible parent/root incompatible with write scope | `resource_scope_violation` before mutation |
+| Malformed input, disabled/absent locale, invalid pin/band or body | `validation_failed`, field/JSON Pointer details without foreign data |
+| Known root-id/key/locale/slug uniqueness or lifecycle refusal | `business_rule_violation`; insertion reserves the localized slug, not publication |
+| Stale expected version or EF optimistic concurrency | `concurrency_conflict` |
+| Unknown database fault | Existing infrastructure exception handling; never disguise it as a business collision |
+
+Infrastructure maps only named owned constraints; arbitrary unique/trigger exceptions
+are not exposed as caller diagnostics. Root state, scope and validation guards precede
+the first mutation/stamp. A failed nested command cannot leave dirty tracked changes
+for a successful outer command to flush. Mark the ambient frame rollback-only if a
+failed save or already-applied mutation cannot be safely discarded, and prove both
+ordinary failure and an outer handler absorbing that failure.
+
+Each command writes one root and its contained translations. Publishing is MUST
+audited; draft creation and translation insertion are proposed SHOULD operations.
+Pending audit writes and business changes obey the existing ambient durability rules.
+No explicit second transaction or cross-root publication is permitted.
+
+### Seed verification
+
+Contextual module-owned `ISender` read requests return bounded verification DTOs,
+including exact ownership/content/state and current root version where needed.
+They are explicitly audit Off, unrouted, without unresolved/public admission and
+never bypass RLS. The phase's convergence rules govern skip/create/verify behavior;
+they are not a weaker alternate write path.
 
 ## Components and primary read flow
 

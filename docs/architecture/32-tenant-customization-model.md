@@ -45,6 +45,12 @@ organization-scoped where it makes sense.
 
 ## 2. Generic primitive renderers
 
+**P02d-2 presentation proposal — 2026-10-02, approval pending.**
+[ADR-0051](../decisions/0051-ordered-text-card-presentation.md) adds optional root
+ordered `x-fields` metadata and a plain-string `default-card` profile. The two seed
+types opt in; legacy schemas remain valid. The wider renderer set below is a target,
+not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
+
 > **Open in Phase 02d.** The closed set below is ADR-0018's and is not in question, and
 > no component for any of its keys exists yet. Which members Phase 02d implements,
 > whether `markdown` renders, and how a field with no row in the mapping table
@@ -463,6 +469,13 @@ enforced at write time, so a tenant learns about it while authoring rather than 
 discovering it on a page load.
 
 ### 8.1 Validation timing — write time, not read time
+
+ADR-0051's proposed extension preserves the existing four admission gates and adds
+explicit semantic descriptor validation. Instance validation remains on Education's
+exact-pin write path; read eligibility precedes public descriptor resolution. The
+text profile adds no active URL/markup sink. A later schema-valid `uri` is not a
+security authorization to fetch or render it; its first consumer needs the shared
+Security/Media/Content contract named in that ADR.
 
 | Validation | When | Failure mode |
 |---|---|---|

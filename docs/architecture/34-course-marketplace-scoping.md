@@ -7,17 +7,19 @@ checklist. Existing Accepted decisions remain binding. No marketplace module, ph
 table, endpoint, feature key, payment provider or deployment adapter is implemented or
 approved here.
 
-**Review date:** 2026-10-01. The maintainer's target remains institution sites plus a
+**Review date:** 2026-10-02. The maintainer's target remains institution sites plus a
 full marketplace, with Turkey and international sales. Initial seller geography is
-deliberately undecided. Recommendations below need approval; legal and provider
-feasibility are separate checks, not consequences of a maintainer preference.
+deliberately undecided. The maintainer endorsed the recommendations and authorized
+P02d-2 preparation. Exact access, security and commerce contracts still require
+approval; legal/provider feasibility does not follow from a product preference.
 
 ## Proposed delivery ownership
 
-**Recommendation for approval:** a product-side `Marketplace` module inside the
+**Endorsed planning target:** a product-side `Marketplace` module inside the
 existing modular monolith, with catalog/operations and commerce responsibilities.
-Propose a new **P09a — Course Marketplace pilot** milestone; it is not yet registered
-in the roadmap. Phase 09 keeps institution-storefront billing, Phase 09b keeps Hub
+The proposed [Phase 09a](../roadmap/phase-09a-course-marketplace-pilot.md) records the
+pilot packets and gates; it is not an Accepted delivery commitment.
+Phase 09 keeps institution-storefront billing, Phase 09b keeps Hub
 software billing, and Phase 12 keeps the Hub customization-bundle market.
 
 | Owner | Boundary and dependencies |
@@ -49,8 +51,8 @@ adapter regardless of its trigger.
 The proposed exit is an end-to-end purchase of the selected product, verified delivery,
 recoverable payment/refund/payout handling, approved operational/privacy boundaries
 and a recorded pilot stop/go decision. Broad rollout requires positive pilot evidence.
-Approve the final phase name, dependencies, packets and exits before publishing its
-roadmap file. No new service, repository or frontend app follows from this proposal;
+Approve the phase's contracts before moving its draft into the Accepted roadmap.
+No new service, repository or frontend app follows from this proposal;
 [ADR-0009](../decisions/0009-frontend-single-app-first.md) still governs frontend splits.
 
 ## First sale and delivery
@@ -65,9 +67,9 @@ The same version can support several offers, but the first pilot selects **one**
 | Session reservation | A specified live session or time slot | Phase 08b availability, temporary hold/expiry if used, confirmation, cancellation and rescheduling |
 | Consumable session pack | A balance redeemable against future sessions | Separate ledger ADR and named release; no existing phase delivers consumption/refund/expiry accounting |
 
-**Recommendation for a live-focused pilot:** evaluate a dated cohort place first.
-This is not a selected product and not ready to sell until its inventory and delivery
-contract exists. Recorded content is the smaller delivery scope; session packages
+**Endorsed pilot candidate:** a dated cohort place. It is not ready to sell until its
+inventory, delivery and commercial contracts exist. Recorded content is the smaller
+delivery scope; session packages
 must not be selected on the false assumption that Phase 09 supplies their ledger.
 
 For any live offer, decide before checkout: authoritative seat/reservation owner,
@@ -105,8 +107,10 @@ The alternative is an explicitly public-only skeleton. It supplies no private/pa
 authoring promise; a later protected-content owner must land the decision and migration
 before its first writer/reader. No prices, channel IDs, orders or federation identifiers
 are needed in P02d-2 for either alternative. Public-only work is technically independent
-of marketplace commerce, but the maintainer's existing planning hold remains in effect
-until they release or resolve it.
+of marketplace commerce. The maintainer released the preparation hold on
+2026-10-02. The exact
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) access proposal
+and P02d-2 decision package still need approval before protected implementation.
 
 ## Public catalog and search
 
@@ -166,8 +170,9 @@ customization. Public descriptions and tenant presentation can remain data.
 
 Separate plan availability, institution eligibility, listing consent, moderation and
 operational suspension. Being on an eligible plan does not approve a seller or listing.
-Conversely, existing decisions do not require participation to be sold as an additional
-paid tier: it could be included in all eligible SaaS plans or limited to selected ones.
+The endorsed business preference includes participation in all eligible SaaS plans,
+with commission on marketplace sales. Plan availability is not seller admission;
+eligibility, feature enforcement and financial terms still need accepted contracts.
 
 The owning P09a decision uses [ADR-0021](../decisions/0021-feature-based-entitlement.md)
 and [ADR-0045](../decisions/0045-entitlement-and-feature-flag-socket.md) for any feature,
@@ -178,7 +183,7 @@ effects on new sales, existing access and outstanding money; specify them togeth
 
 ## Marketplace operations and support
 
-**Recommended business split, pending approval:** LearnStack handles seller/listing
+**Endorsed business split:** LearnStack handles seller/listing
 admission, marketplace checkout support and payment/refund/dispute coordination.
 Institutions handle teaching, delivery and their own site customers. Record escalation,
 cancellation authority, buyer notification, response targets and financial-loss
@@ -283,6 +288,10 @@ a UI hostname does not select them. Stripe's
 illustrates that charge configuration changes that provider role; it is not a provider
 choice or a legal conclusion for LearnStack.
 
+The endorsed business preference is that institutions sell the education and
+LearnStack operates the marketplace. It does not determine those legal/provider
+roles or approve an unvalidated country/currency arrangement.
+
 Record platform/seller/buyer countries, currencies, institution seller types, KYC,
 tax/invoicing and any applicable payment-intermediation or funds-handling requirements.
 Provider and legal validation are needed before commerce implementation, not just a
@@ -310,7 +319,7 @@ and record duties against the
 [Ministry's distance-contract guidance](https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/mesafeli-sozlesmeler-hakkinda-bilgilendirme);
 a referral pilot is not assumed to remove all intermediary responsibilities.
 
-**Recommendation:** one seller per checkout initially. That reduces splitting but still
+**Endorsed initial target:** one seller per checkout. That reduces splitting but still
 requires central payment, commission, seller liability and payout. Payment collection,
 delivery confirmation and money release are separate transitions: iyzico's
 [approval API](https://docs.iyzico.com/urunler/pazaryeri/pazaryeri-entegrasyonu/onay)

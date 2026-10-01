@@ -181,6 +181,35 @@ once across every pod without enumerating anything —
 the compiled-validator cache that used to sit beside it. It lands with its first
 consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
 
+## P02d-2 proposed exact write contract
+
+**Prepared; approval pending — 2026-10-02.** An application interface in
+`Customization.Application.Contracts` resolves an exact content-type or taxonomy
+revision for the caller's announced tenant. DTOs contain values only: key, version,
+status, JSON Schema/composite and validated presentation, or immutable bands/labels.
+The selected interface is `IExactCustomizationDefinitionReader`; it takes an explicit
+binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
+
+- New Course taxonomy and new Lesson content-type bindings require the exact Active
+  revision; a present band must be declared in that revision.
+- A translation on an existing Lesson can use its exact Active or Deprecated pin.
+  No command rewrites a pin or replaces it with the newest revision.
+- Absent, deleted, Draft or cross-tenant definitions return the same bounded binding
+  `validation_failed`; an error cannot expose another tenant's revision or label.
+- Read uncached in the caller's ambient transaction/context. Eligibility is observed
+  at this read, not promised Active-at-commit; immutable schema/bands protect the pin
+  if it is concurrently deprecated. Strict commit-time eligibility is not selected.
+- Body validation uses `IJsonSchemaValidator` against that returned exact schema.
+  Public response shape, generation-keyed read cache and renderer fallback remain
+  P02d-3/4/6 gates, not features of this write contract.
+- Module-owned contextual verification queries give the seeder exact IDs, revision
+  data, labels/bands and state. They are audit Off and introduce no setter exception.
+
+[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) proposes the optional
+root `x-fields` profile and semantic resolver. It preserves the four gates and legacy
+schemas; no profile code changes until exact approval. Seed definitions opt into the
+profile, whereas built-in `card`/`plain` remain unchanged and Active.
+
 ## Component diagram
 
 ```mermaid

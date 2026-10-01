@@ -142,9 +142,11 @@ translation in the requested locale has no URL in that locale, and a link to it 
 omitted rather than rendered dead.
 
 A slug collision is refused when the translation is inserted; its writing command
-returns `Result.Fail(business_rule_violation, …)`. P02d-2
-[G11](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) remains open;
-the pass that resolves it names the selected command and its concrete error mapping
+returns `Result.Fail(business_rule_violation, …)`. The prepared, approval-pending
+[P02d-2 G11 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-proposed-answers)
+selects `AddCourseTranslationCommand` and `AddLessonTranslationCommand` for Education,
+mapping their named localized-slug uniqueness constraints at insertion. Publication
+does not reserve or newly collide a slug. On approval, record the accepted mapping
 here and in [Phase 04's collision criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria).
 The refusal names the conflicting entity when the caller may read it — tenant-wide rows
 and the caller's own organization's rows both qualify under the canonical policy — and
@@ -223,6 +225,13 @@ var msg = _stringLocalizer["course.publish.success"];
 > `LearnStack.SharedKernel.Locales` namespace or platform registry exists today. These
 > remaining parts are in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
+**Prepared G13 answer — 2026-10-02, approval pending.** The
+[Tenancy contract](../modules/tenancy/README.md#locale-guarantees-and-read-contract)
+selects no platform registry: use LocaleTag's existing grammar, canonicalization and
+35-character bound, then the tenant's enabled membership. No locale rows authorize
+no content locale, rather than an implicit `en`. Request G6(b) and display G24 remain
+their later packet parts.
 
 ## Right-to-Left
 

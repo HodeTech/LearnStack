@@ -18,3 +18,22 @@ publication or cross-root publication is declared.
 
 Public-read classification belongs to P02d-4 G28. No anonymous request is shipped or
 classified by this schema packet. This matrix cannot narrow the baseline MUST floor.
+
+## P02d-2 proposed additions
+
+Prepared on 2026-10-02; approval pending with the
+[writer contract](README.md#p02d-2-proposed-writer-contract). These are classifications
+ahead of code, not executable catalogue registrations:
+
+| Resource | Operation | Class | Why |
+|---|---|---|---|
+| `Course` | `education.course.create` `(planned)` | SHOULD | Draft authoring, before public exposure |
+| `Course` | `education.course.translation_add` `(planned)` | SHOULD | Draft-only contained translation; no independent satellite subject |
+| `Lesson` | `education.lesson.create` `(planned)` | SHOULD | Draft authoring, independently scoped root |
+| `Lesson` | `education.lesson.translation_add` `(planned)` | SHOULD | Draft-only contained translation and validated body |
+
+The two publish operations remain MUST. If ADR-0050 is approved, course publication
+exposes eligible marketing metadata; lesson publication enables content only under
+the parent/access rules. Restriction does not lower the selected MUST classification.
+Contextual seed verification queries are explicitly Off when their request types
+are introduced; they declare no synthetic write operation.

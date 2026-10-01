@@ -47,11 +47,11 @@ CREATE TABLE tenant_locales (
 );
 ```
 
-A tenant with no `tenant_locales` row falls back to the platform default (`en`).
-
-> **Open in Phase 02d.** Nothing implements this fallback yet; what a tenant with no
-> `tenant_locales` row serves is G13 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+No public no-row fallback is implemented. The
+[prepared P02d-2 G13 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-proposed-answers)
+proposes no content locale when rows are absent and refuses disabled membership;
+it awaits approval. This replaces the earlier unimplemented platform-`en` proposal
+on acceptance. Display-label fallback remains separate from URL/body admission.
 
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the

@@ -62,6 +62,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 |------|------------|
 | **Enrollment** | A learner's grant of access to a specific course (and specific course version). |
 | **Course Access** | A *learner's* right to open a specific course, derived from an `Enrollment` (or from a tenant-side purchase, cohort membership, or admin grant). Evaluated inside the Enrollment module against tenant data. **Not an Entitlement** — see *Feature Flags & Entitlements*. The two words were used interchangeably in earlier drafts; they are different subjects (a learner versus a tenant), different owners (LearnStack versus Hub), and different lifecycles. |
+| **Course Content Access Policy** | Proposed creation-time Course classification `public` or `enrollment_required`, inherited by lessons under [ADR-0050](decisions/0050-publication-and-course-content-access.md). Distinct from publication, tenant entitlements and a particular learner's Course Access. Not implemented or Accepted yet. |
 | **Cohort** | A group of learners progressing through the same course version on a shared timeline. Cohorts may have scheduled live sessions. |
 | **Progress** | The learner's recorded advancement against the structure of a course version. |
 
@@ -96,7 +97,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 | Term | Definition |
 |------|------------|
-| **Course Marketplace** | The proposed learner-facing channel for discovering and buying institutions' courses through platform checkout, with commission and seller payouts. [ADR-0049](decisions/0049-institution-sites-and-course-marketplace.md) is Proposed; this is not accepted roadmap scope or the Hub Marketplace. |
+| **Course Marketplace** | The endorsed learner-facing target for discovering and buying institutions' education through platform checkout, commission and seller payouts. [ADR-0049](decisions/0049-institution-sites-and-course-marketplace.md) and [Phase 09a](roadmap/phase-09a-course-marketplace-pilot.md) remain Proposed; initial pilot candidate is a dated cohort, not the Hub Marketplace or a shipped commerce capability. |
 | **Hub Marketplace** | The optional, post-MVP exchange of reusable tenant customization bundles owned by [Phase 12](roadmap/phase-12-hub-marketplace.md). Its initial scope is free-only and its ADR-0034 content-boundary decision remains open; it is distinct from the Course Marketplace. |
 | **Product** | A sellable platform item. |
 | **Plan (tenant storefront)** | A package or subscription definition referencing one or more products. Lives in the LearnStack core `Billing` module — what a tenant sells to its own learners. Distinct from the Hub-side `Plan` (see *Hub & Licensing*) that governs the tenant's own LearnStack subscription. |
@@ -138,6 +139,14 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **`EnterPlatformAdminScope`** | The explicit, scoped entry to cross-tenant access: a connection and transaction opened on a second, separately-credentialed data source that connects as `learnstack_platform` — never `SET ROLE`, which would make the four-role separation a naming convention rather than a boundary. Not one of the `ITenantContextAccessor` writers, and not an out-of-band setter of `app.tenant_id` — a `BYPASSRLS` role has no policy to announce to. **Logged in Packet 7, audited in Packet 9:** Packet 7 records entry through `ILogger` at `Warning`; Packet 9 adds the durable `security-event` row, written through `IAuditStore.WritePlatformScopeAsync` — a fourth *write* method with exactly one caller, and no relaxation of "no update method" — on the scope's own platform-role connection, in a transaction of its own that commits **before** the operation's begins, so an operation that later fails — or is abandoned — is still recorded. That row carries `TenantId.PlatformSentinel` ([ADR-0044 §§ 1, 10](decisions/0044-audit-write-path.md)). The C# member is `IPlatformAdminScope.EnterAsync`; `EnterPlatformAdminScope(reason)` is how the corpus names the path. See [Database Standards § How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`](standards/05-database.md). |
 
 ## Extension Model
+
+Proposed P02d-2 contract terms are not implemented interfaces or Accepted extensions:
+
+| Term | Definition |
+|---|---|
+| **`IExactCustomizationDefinitionReader`** | Proposed contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-proposed-exact-write-contract). |
+| **`ITenantLocaleEligibilityReader`** | Proposed contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-proposed-locale-and-branding-contract). |
+| **`x-fields`** | Proposed optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 
 | Term | Definition |
 |------|------------|
@@ -186,6 +195,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | Term | Definition |
 |------|------------|
 | **TenantBranding** | The tenant's presentation tokens. Not an aggregate of its own: the values are tenant settings held in `tenant_settings` ([Frontend Architecture Standards § Tenant Branding](standards/07-frontend-architecture.md#tenant-branding)). Which keys exist and the value each accepts are G16, and how validated values reach the server-rendered document is G42, in [Phase 02d's decision register](roadmap/phase-02d-walking-skeleton.md#the-decision-register). |
+| **`branding.theme`** | Proposed single tenant-wide TenantSetting document with four validated color fields; one root/version protects contrast during concurrent replacement. The [Tenancy spec](modules/tenancy/README.md#whole-theme-setting-and-public-boundary) owns the command-local registry; other generic setting keys remain legal. |
 | **OrganizationBranding** | An optional override row attached to an `Organization` that supplies a partial design-token set. When the resolved request carries an organization id, the runtime merges `OrganizationBranding` on top of `TenantBranding` before injecting tokens; missing fields fall through to the tenant default. |
 
 ## Module-Loading Contracts

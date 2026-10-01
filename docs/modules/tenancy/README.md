@@ -2,7 +2,8 @@
 
 **Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the
 schema and its schema-level isolation suite; commands, host resolution and the
-request-level isolation suite are Packet 7).
+request-level isolation suite shipped in Packet 7). P02d-2 locale/branding writers
+are prepared for approval, not implemented.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -69,6 +70,93 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   every other vertical concept are tenant customization data
   ([ADR-0018](../../decisions/0018-tenant-driven-customization-model.md)), not
   columns here.
+
+## P02d-2 proposed locale and branding contract
+
+**Prepared, not Accepted or implemented — 2026-10-02.** The
+[phase package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+owns approval and seed inventory. All three commands are unrouted, require resolved
+tenant-wide context and write one aggregate; organization context is refused rather
+than silently promoted to tenant scope. Tenant ids are not caller authority.
+
+| Command | Root and contract |
+|---|---|
+| `AddTenantLocaleCommand` | Tenant; exact expected version, canonicalizable locale, enabled/default flags and nonnegative sort. Duplicate locale is a business-rule refusal; disabled default is refused before mutation |
+| `SetDefaultTenantLocaleCommand` | Tenant; exact expected version and existing enabled locale. Missing locale is a bounded validation failure; disabled target is refused before root stamping |
+| `SetTenantBrandingCommand` | TenantSetting; fixed setting id for creation, complete theme and nullable expected version. Null means create-only; an exact version means replace-only. No blind upsert/retry, wildcard or partial patch |
+
+### Locale guarantees and read contract
+
+Zero locale rows or an all-disabled set is valid. Supported commands leave exactly
+one enabled default whenever any enabled locale exists. Adding the first enabled
+locale promotes it even if disabled rows already exist. Validate pre-existing sets
+before every mutation: multiple defaults, a disabled default or enabled rows without
+a default are refused without choosing a winner or changing root/captured state.
+Move disabled-target validation ahead of `SetDefaultLocale`'s `MarkUpdated`.
+
+Reuse the existing two-pass default switch in `TenancyWriteStores`, within the
+command's ambient transaction. An injected second-save failure must roll back the
+first clear, proven from a fresh scope. A raw store call outside the transaction
+does not acquire that guarantee.
+
+Keep the shipped partial unique index (at most one default), and add
+`CHECK (NOT is_default OR is_enabled)` in a new migration. Existing disabled-default
+rows fail migration preflight/validation for explicit operator remediation; never
+choose a locale automatically. The CHECK cannot detect enabled-without-default;
+reader/writer validation does. Arbitrary raw deletes do not gain an exactly-one
+database guarantee.
+
+`ITenantLocaleEligibilityReader` in Tenancy application contracts returns canonical
+enabled membership in the announced tenant, uncached in the caller's ambient frame.
+It rejects invalid legacy configuration with a bounded configuration failure; it
+does not invent `en`. A missing/disabled requested member gives Education bounded
+`validation_failed`. Content URL/body lookup has no label fallback. Phase 03 owns
+locale removal/disable commands; those retain Education translations and future
+public readers recheck enabled membership rather than cascading across modules.
+
+No platform locale registry is introduced. Admission uses the existing `LocaleTag`
+grammar, canonicalization and 35-character application bound; membership is the
+tenant's own enabled rows, not a speculative platform language allowlist.
+
+### Whole-theme setting and public boundary
+
+The command-local registry admits only tenant-wide `branding.theme`. It does not
+constrain every generic `TenantSetting` key; existing raw `tz` and organization
+`theme` fixtures remain valid. Its descriptor owns the exact object validator,
+tenant-wide scope and public field-to-CSS map:
+
+| JSON field | CSS variable | Value |
+|---|---|---|
+| `primary` | `--ls-primary` | Canonical lowercase `#rrggbb` |
+| `background` | `--ls-bg` | Canonical lowercase `#rrggbb` |
+| `foreground` | `--ls-fg` | Canonical lowercase `#rrggbb` |
+| `muted` | `--ls-muted` | Canonical lowercase `#rrggbb` |
+
+The object has exactly these four string fields, without duplicates or extras.
+No CSS name/function, alpha, font, logo, URL or layout value is admitted. Validate
+the complete candidate before mutation: foreground/background and muted/background
+at least 4.5:1; primary/background at least 3:1 for supported UI usage. Do not use
+primary as normal-sized text or white-on-primary without a separately validated pair.
+A failing pair returns `validation_failed`, not a warning-only save without a Studio.
+
+One setting root and exact version protect the whole contrast unit. Concurrent
+replacement yields a concurrency conflict; competing creates use the existing
+tenant/scope/key uniqueness. No retry merges colors from different candidates.
+Invalid existing override falls back as a whole to safe CSS defaults at the later
+public projection; never emit raw JSON or partial unsafe colors. G16(f/g) and G42
+still own transport, attribution and injection. Authoring this baseline theme is
+not gated by `tenancy.white_label_branding` in P02d-2.
+
+Before the first writer, mark generic `TenantSetting.Value` `[PiiSensitive]`; logs and
+audit redact the whole JSON value under ADR-0044. Public allowlisting is independent
+of this conservative annotation and never permits generic settings disclosure.
+The setting write is MUST; locale writes are SHOULD over their owning Tenant root,
+including contained locale changes. Contextual seed verification queries are Off.
+
+No settings cache in P02d-2/3: no generation migration, TTL or cross-process stale
+entry. P02d-3 implements the typed ambient accessor; it explicitly reads tenant-wide
+rows and exact organization rows, then merges in memory. Performance is measured
+there, not claimed satisfied by this proposal.
 
 ## Entity-relationship diagram
 
@@ -356,7 +444,7 @@ In [audit.md](audit.md), the file
 | Host → tenant resolution (cache miss) | **< 15 ms** p95 | One indexed single-row read in its own short transaction |
 | Entitlement projection read (L1 hit) | **< 1 ms** | Read on every feature check |
 | Tenant provisioning (3 statements) | **< 100 ms** p95 | Interactive but rare |
-| Settings read for a request | **< 5 ms** p95 | Cached; a miss is one indexed read. Whether settings are cached before Phase 02b's `learnstack.tenancy.settings` event exists, and how a cached read keys tenant-wide and organization rows, is G23 in [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register); its pass edits this row |
+| Settings read for a request | **< 5 ms** p95 target, not measured | Proposed P02d-2/3: no settings cache; P02d-3 measures the ambient indexed read/merge. Phase 02b's event does not exist yet |
 
 The two resolution numbers are the load-bearing ones: they sit in front of every
 request and are the only Tenancy work an anonymous visitor pays for.
@@ -390,12 +478,11 @@ request and are the only Tenancy work an anonymous visitor pays for.
   zero rows whether or not a filter exists. The filter is the layer above it, and
   it fails closed the same way — an unresolved context narrows to the all-zero
   tenant, which no row can carry.
-- **Two defaults per tenant are possible.** Nothing stops two `tenant_locales`
-  rows with `is_default = true` for one tenant.
-  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) closes it in both places:
-  a partial unique index `UNIQUE (tenant_id) WHERE is_default`, because an
-  aggregate invariant alone does not hold across concurrent transactions, plus an
-  aggregate-level guard for the error message.
+- **At most one default is already enforced.** The shipped partial unique index
+  `UNIQUE (tenant_id) WHERE is_default` prevents competing defaults. It does not
+  require a default whenever enabled locales exist. P02d-2's proposed command
+  contract below closes that supported-write gap and adds a default-enabled CHECK;
+  arbitrary raw deletes do not gain an exactly-one database guarantee.
 - **Nothing stops a tenant claiming a hostname it does not own.**
   `ux_tenant_domains_host` is globally unique — it has to be, or a host would
   resolve to two tenants — so the *first* tenant to insert a `Requested` row for

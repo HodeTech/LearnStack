@@ -49,6 +49,13 @@ Decisions consumed:
 
 ### What Phase 02d supplies
 
+**Preparation impact — 2026-10-02.**
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) is Proposed;
+ADR-0048 still governs until approval. If accepted, this phase also preserves Course
+content-access policy through version/module migration, decides its versioned owner
+and any policy-edit/reparent/preview behavior before those writers, and never infers
+public access from a new version or listing. This note claims no shipped column.
+
 Phase 05 does not re-create these. Phase 02d's
 [delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
 accepted design from shipped implementation. This phase's decision pass designs the

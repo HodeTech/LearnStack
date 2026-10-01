@@ -232,6 +232,12 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
+**P02d-2 proposal — 2026-10-02, approval pending.** The
+[whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+selects only tenant-wide color values and no remote subresource. Organization merges,
+logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
+G42 still selects safe HTML injection before P02d-6.
+
 A tenant's branding flows from the API as design tokens, and the renderer applies them
 as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` set
 [Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)

@@ -6,6 +6,13 @@ Proposed — 2026-09-15. Product direction for maintainer review; updated 2026-1
 after two external reviews and verification against the Accepted corpus and code.
 This draft accepts no gate, authorizes no implementation and supersedes no ADR.
 
+**Direction endorsement — 2026-10-02.** The maintainer endorsed the recommendations
+and authorized P02d-2 preparation: institution sites plus optional full marketplace,
+a dated-cohort pilot, one SaaS installation/region, single-seller checkout, a proposed
+Marketplace module / Phase 09a, participation in all eligible SaaS plans and the
+platform/institution support split. This releases the planning hold for preparation,
+not approval of unseen access or commerce contracts. This ADR remains Proposed.
+
 **Date:** 2026-09-15
 **Deciders:** Cemil (repository maintainer; approval pending)
 
@@ -66,7 +73,7 @@ On acceptance, the binding product boundaries are exactly these:
 5. Course Marketplace content and learner commerce remain on the LearnStack product
    side, outside Hub's software-subscription and permitted tenant-metadata boundary.
 
-These are recommendations awaiting approval, not shipped capabilities. The
+The direction is endorsed; the architecture remains Proposed, not shipped. The
 [acceptance checklist](#implementation-notes) must close before this ADR is Accepted.
 Its [scoping companion](../architecture/34-course-marketplace-scoping.md) describes
 candidate delivery contracts; it does not accept them by reference.
@@ -75,11 +82,13 @@ candidate delivery contracts; it does not accept them by reference.
 
 ### Product and investment change
 
-The [vision introduction](../architecture/01-platform-vision.md) and `CLAUDE.md`
-describe LearnStack as infrastructure, not an education product of its own. The
+Before this proposal, the [vision](../architecture/01-platform-vision.md) and
+`CLAUDE.md` described LearnStack as infrastructure, not its own education product. The
 [vision Non-goals](../architecture/01-platform-vision.md#non-goals) and
-[MVP Deferred scope](../architecture/05-mvp-scope.md#deferred) exclude marketplace
-features. Institution-only sellers do not avoid this positioning change.
+[MVP Deferred scope](../architecture/05-mvp-scope.md#deferred) excluded marketplace
+features from the roadmap. The 2026-10-02 endorsement records a hybrid
+target in those mutable documents without claiming an Accepted marketplace design.
+Institution-only sellers do not avoid this positioning change.
 
 Hybrid delivery preserves the branded-site use case. Marketplace-only delivery has
 no validated demand advantage. Independent course copies split authorship, withdrawal,
@@ -109,8 +118,11 @@ describes the alternatives; accepting hybrid direction alone chooses neither.
 
 Public-only P02d-2 has no technical dependency on marketplace commerce. The
 [planning hold](../roadmap/phase-02d-walking-skeleton.md#pending-course-marketplace-proposal)
-reflects the maintainer's request to settle direction first. Releasing it is a separate
-maintainer choice, not an action this review takes.
+reflected the maintainer's request to settle direction first. Their 2026-10-02
+endorsement releases it for preparation. The exact
+[access proposal](0050-publication-and-course-content-access.md) and P02d-2 decision
+package require approval before protected implementation; commerce feasibility is
+not a hidden dependency of this packet.
 
 ### Commerce and the Hub boundary
 
@@ -131,7 +143,8 @@ listings or course content through an enlarged entitlement payload. The
 is a relevant precedent, not authorization for this commerce scope.
 
 The proposed [module and milestone allocation](../architecture/34-course-marketplace-scoping.md#proposed-delivery-ownership)
-keeps commerce outside Hub and Education. It does not select a provider, merchant of
+and [Phase 09a draft](../roadmap/phase-09a-course-marketplace-pilot.md) keep commerce
+outside Hub and Education. They do not select a provider, merchant of
 record, legal role or new runtime. Content access alone does not fulfill a live seat.
 
 ### Evidence and decision timing
@@ -167,7 +180,9 @@ prices, marketplace IDs, stock or payout fields into P02d-2.
 
 ## Implementation Notes
 
-**Acceptance blockers — all open.** Before marking this ADR Accepted, record approved
+**Acceptance disposition — 2026-10-02.** Product recommendations are endorsed; the
+remaining architecture and commercial acceptance items are open. Before acceptance,
+record approved
 high-level boundaries below and their named delivery owners. Detailed security, privacy
 and commerce decisions remain mandatory before their first consumers; this direction
 cannot approve an unspecified schema, role or payment arrangement.
@@ -182,7 +197,7 @@ cannot approve an unspecified schema, role or payment arrangement.
 | Operations and support | Backoffice owner and staff population; approval, suspension, refund/dispute and delivery support responsibilities. Assign realm/audience, permission/resource scope, exceptional private review and reasoned audit contracts before the first staff reader or crossing |
 | Privacy and distribution | Purpose-based controller/processor assessment, platform versus institution permissions/consent, DSAR/export/erasure and retention ownership; data residency/transfers and media rights. Include Architecture 23 and Phase 03 in the approval impact set |
 | Public-read and commerce security | Owner of the request/host matrix, table classes, reader/writer roles, audit classification and ordered/recoverable fulfillment/payable/payout contract before their first migrations, readers or producers |
-| P02d-2 access and planning | Retain public-only G3 or approve its explicit reopening and superseding ADR before protected writers; separately resolve the maintainer's planning hold |
+| P02d-2 access and planning | Preparation hold released on 2026-10-02; ADR-0050 proposes protected access and must receive exact approval with the P02d-2 package before protected writers |
 | Pilot evidence | Approve the entry conditions, metric owners and a dated stop/go threshold record before a live pilot; positive evidence is a broad-rollout gate |
 
 Approval of this draft requires the positioning and named roadmap changes together.

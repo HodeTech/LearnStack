@@ -313,6 +313,12 @@ per ADR-0018, not on `Membership` extension tables.
 > owns the migration and its verification. P02d-1 accepts this design before its
 > implementation.
 
+**P02d-2 preparation — 2026-10-02, approval pending.**
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) proposes
+Course-level content-access policy inherited by independent Lessons; it is neither
+a grant nor a price and is not part of the shipped diagram. Phase 05 preserves and
+locates that policy in its versioned model if the proposal is accepted.
+
 ## Assessment
 
 | Entity | Aggregate root? | Notes |

@@ -54,6 +54,12 @@ LearnStack is an education platform; learners with disabilities are a first-clas
   warning, is G16 (d) in
   [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
+  **Prepared G16(d) proposal — 2026-10-02, approval pending:** the first whole-theme
+  command refuses a failing pair before saving. Its
+  [complete palette contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+  defines supported usage and atomic replacement. The future Studio can explain
+  that refusal; a warning does not authorize saving an invalid palette.
+
 ### Images and Media
 
 - `alt` attribute on every `<img>` content image. Decorative images use `alt=""`.

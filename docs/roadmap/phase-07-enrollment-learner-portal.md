@@ -17,6 +17,14 @@ from Phase 03, and the outbox and background-job infrastructure from
 
 ### What Phase 02d did not build
 
+**Preparation impact — 2026-10-02.** Proposed
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) separates
+publication from inherited course policy; it is not Accepted or implemented yet.
+If approved, restricted courses expose marketing metadata but no anonymous lesson
+inventory/body; this phase supplies the first effective learner-access evaluator.
+No credentials or absent evaluator may cause public fallback. Check access before
+payload/`304` and start protected responses private/no-store before any cache decision.
+
 Worth stating plainly, because a walking skeleton is easy to over-read:
 
 [Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. It renders a
@@ -115,6 +123,13 @@ path:
 which the Enrollment module consumes and converts into a `CourseAccess` with
 `source = billing`. Phase 07 ships the consumer contract; Phase 09 ships the producer.
 The hand-off seam is the integration event, not a shared table.
+
+**Endorsed marketplace target, contract still open:** proposed
+[Phase 09a M7](phase-09a-course-marketplace-pilot.md#decision-register) requires
+durable order/fulfillment justification before this phase's first paid-grant consumer,
+with matching Phase 09/09a producers. `source = billing` alone cannot distinguish
+two purchases. Refund/revocation removes only its own justification; independent
+access survives. Course access does not reserve or fulfill a live cohort seat.
 
 **What `CourseAccess` is not.** It is a boolean grant, not a balance. A consumable
 allowance — a ten-session credit pack, "three make-up classes per term" — is *stateful

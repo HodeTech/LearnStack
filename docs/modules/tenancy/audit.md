@@ -3,6 +3,14 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-2 preparation — 2026-10-02.** The
+[proposed writer contract](README.md#p02d-2-proposed-locale-and-branding-contract)
+does not remove `(planned)` markers. Locale commands declare `tenancy.locale.write`
+over the owning Tenant root and captured locale navigation; branding declares
+`tenancy.setting.write` over TenantSetting. Generic setting values are proposed
+whole-value `[PiiSensitive]` redactions before that writer; public branding projection
+is a separate allowlist. Verification request types are explicitly Off when added.
+
 Four writes below exist today, between them raising three of the slugs. `Tenant`
 create and `Organization` create, written together by `ProvisionTenantCommand`
 ([ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md))

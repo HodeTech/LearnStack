@@ -24,6 +24,12 @@ and database schema, while keeping their own content, branding and tenant bounda
 The product design supports a platform subdomain and optional custom domains; a
 business does not need to bring its own domain.
 
+The endorsed direction adds an **optional Course Marketplace** alongside those
+sites: shared discovery, platform checkout, commission and institution payouts.
+Its [pilot plan](docs/roadmap/phase-09a-course-marketplace-pilot.md) and
+[direction ADR](docs/decisions/0049-institution-sites-and-course-marketplace.md) are
+Proposed; payment, seller operations and marketplace delivery are still ahead.
+
 The difference between those businesses lives in
 [tenant customization data](docs/architecture/32-tenant-customization-model.md).
 The [platform vision](docs/architecture/01-platform-vision.md) defines the scope and
@@ -37,16 +43,17 @@ the boundary between customization and capabilities that require platform code.
 ## What it does
 
 The product vision connects discovery, course content and live teaching in one place.
-Three surfaces serve the people on each side of that experience:
+The planned surfaces serve the people on each side of that experience:
 
 | Surface | Who it serves | Intended experience |
 |---|---|---|
 | **Public site** | Visitors and prospective learners | Discover a school, browse its catalog and explore its content. |
 | **Admin Studio** | Institution staff and instructors | Author content, manage people and organize teaching. |
 | **Learner portal** | Enrolled learners | Work through lessons, track progress and join live sessions. |
+| **Optional Course Marketplace** | Learners and participating institutions | Shared discovery and central checkout; endorsed target, architecture approval pending. |
 
 These are planned product capabilities. Today, the frontend contains route scaffolds
-for all three surfaces; the status below separates delivered foundations from the
+for the first three surfaces; the status below separates delivered foundations from the
 remaining product work.
 
 **Built for different ways of teaching.** Content types and level taxonomies already
@@ -60,8 +67,9 @@ items, rules, custom fields and notification templates; their delivery is tracke
 **Phase 01 and Phase 02a are complete. Phase 02d is in progress.**
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
-**Next is P02d-2's decision pass**, followed by course and lesson command handlers and
-seed writes. **P02d-4** owns anonymous public API reads. Browser rendering follows
+**P02d-2's decision package is prepared for approval**, including two Proposed ADRs
+and four implementation steps. Command handlers and seed writes have not started.
+**P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 
 | Area | Delivered now | Next milestone |

@@ -196,6 +196,12 @@ export default async function CourseListPage() {
 
 ## Tenant Branding
 
+**Prepared G16(a–e)/G21 proposal — 2026-10-02, approval pending.** The
+[Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+selects one whole-theme color document, contrast refusal, no organization override
+and no font/logo/URL/layout value. Public transport/attribution and injection remain
+G16(f/g)/G42; this proposal does not claim a themed layout or an anonymous API exists.
+
 > **Open in Phase 02d.** Which branding keys exist and the value each accepts (G16), and
 > how validated values reach the server-rendered document (G42), are open in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).

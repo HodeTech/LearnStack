@@ -199,6 +199,12 @@ one thing a per-table constraint cannot do.
 > [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
 > The pass that closes it names both here and in the completion criterion below.
 
+**Prepared G11 answer — 2026-10-02, approval pending.** The Education reporting
+commands are `AddCourseTranslationCommand` and `AddLessonTranslationCommand`, mapping
+their named localized-slug constraints to `business_rule_violation` at insertion.
+Publication does not reserve a slug. This is the P02d-2 proposal, not a shipped CMS
+writer or an accepted G11 closeout.
+
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
 API-returned messages
@@ -261,6 +267,12 @@ Storage and asset management:
   dimensions, file-type validation, size limits.
 - Public / tenant-scoped / per-user access tiers with signed URL minting, and the public
   asset URL strategy.
+
+  Proposed [ADR-0050](../decisions/0050-publication-and-course-content-access.md)
+  makes protected Education media an explicit first-producer boundary: public DTOs
+  emit no protected bearer URL; issuance and retrieval require effective access.
+  It does not claim an authenticated evaluator exists before Phase 07. The first
+  active URL/markup sink also needs the shared safety contract named in ADR-0051.
 
 **This phase owns the media processing pipeline.** No phase currently does:
 [Media Pipeline](../architecture/16-media-pipeline.md) describes `IVideoTranscoder`,
@@ -407,8 +419,10 @@ describes.
   `Result.Fail(business_rule_violation, …)` with the disclosure rules above. For courses,
   the selected command and its concrete error mapping remain G11 in
   [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register);
-  once G11 is resolved, this criterion must name that command and mapping and verify
-  the command-level refusal.
+  its prepared answer names `AddCourseTranslationCommand` (and
+  `AddLessonTranslationCommand` for lessons), mapping named localized-slug
+  constraints to `business_rule_violation` on insertion. Exact approval remains
+  pending; on acceptance verify those command-level refusals.
 - When the conflicting row belongs to another organization, the failure names the slug and
   the locale but not the row — asserted by a test, because the constraint is enforced with
   Row Level Security bypassed and the handler has to make that choice deliberately.

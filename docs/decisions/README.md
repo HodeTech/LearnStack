@@ -70,18 +70,21 @@ an amendment is not a lifecycle status change.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
-| 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Proposed 2026-09-15: hybrid product direction; accepts no gate and does not supersede ADR-0048 | P02d-2 decision pass, before its first application writers |
+| 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0050 | [Publication and Course Content Access](0050-publication-and-course-content-access.md) | Proposed: course policy, restricted backfill and anonymous denial; supersedes ADR-0048 only on acceptance | P02d-2, before its policy migration and first protected writers |
+| 0051 | [Ordered Text Card Presentation](0051-ordered-text-card-presentation.md) | Proposed: optional root `x-fields`, localized ordered text cards; compatible extension of ADR-0043 | P02d-2, before profile code and tenant-type seed publication |
 
-The target records the maintainer's request to settle product direction before
-P02d-2 implementation planning. This is a planning hold, not a new architecture gate
-or automatic ADR acceptance. Retaining the Accepted scope is one possible outcome;
-this draft cannot reopen G3. The
+The maintainer endorsed the recommended direction and released the preparation hold
+on 2026-10-02. Exact ADR-0050/0051 and packet approval remain the pre-code boundary;
+ADR-0049's future commerce contracts are not hidden packet dependencies. The
 [phase record](../roadmap/phase-02d-walking-skeleton.md#pending-course-marketplace-proposal)
-tracks that pending choice. On acceptance, move the row to Active ADRs instead of
-duplicating it. The draft SLAs below remain unchanged.
+tracks the endorsement and prepared package. On acceptance, move each row to
+Active ADRs instead of duplicating it. The draft SLAs below remain unchanged.
 
 The [scoping companion](../architecture/34-course-marketplace-scoping.md) records the
-reviewed delivery alternatives and proposed ownership; it accepts no module or phase.
+reviewed delivery alternatives and endorsed planning ownership; it accepts no module
+or phase. The Proposed table's decision points are explicit first-consumer gates;
+Open ADR Drafts below retain their existing phase-exit SLAs.
 
 ## Superseded ADRs
 

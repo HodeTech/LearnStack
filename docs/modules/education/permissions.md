@@ -28,3 +28,9 @@ The matrix gains permission keys, scopes and default-role grants with the corres
 command-surface decision, under [Permission Standards](../../standards/19-permissions.md),
 before any permission is registered. The reachability table grants no capability and
 introduces no permission key ahead of its decision.
+
+The [prepared P02d-2 contract](README.md#p02d-2-proposed-writer-contract) names six
+unrouted write commands and contextual verification queries. Approval pending;
+none admits unresolved context or anonymous/public invocation. The proposed access
+policy does not create a permission or a grant evaluator. Authenticated authoring
+and protected learner reads retain their Phase 05 and Phase 07 owners.

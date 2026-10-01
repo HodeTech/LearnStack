@@ -4,8 +4,14 @@ LearnStack is a **white-label platform for multi-branch education businesses tha
 live**. Its customer is an education business — a language school with three branches, a
 yoga studio with four, a coding bootcamp, a music school — that sells courses, teaches
 them partly or wholly in scheduled live sessions, and wants its own brand on its own
-domain rather than a listing inside someone else's marketplace. LearnStack is not itself
-an education product.
+domain or platform subdomain. Independent institution sites remain the foundation.
+
+**Endorsed direction — 2026-10-02.** An optional LearnStack-branded Course Marketplace
+adds shared discovery, platform checkout, commission and institution payouts to that
+foundation. [ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md)
+and the [Phase 09a pilot](../roadmap/phase-09a-course-marketplace-pilot.md) remain
+Proposed: exact commercial/security contracts and pilot evidence precede delivery.
+This changes the product target, not the shipped capabilities or Accepted MVP exit.
 
 Three properties define the fit. A prospect that has none of them is not the target
 customer:
@@ -188,8 +194,9 @@ Two things this boundary does **not** change:
 
 ## Non-goals
 
-- **Building a marketplace of independent instructors.** LearnStack is infrastructure;
-  marketplace is a product on top.
+- **An independent-instructor marketplace in the initial pilot.** The endorsed
+  Course Marketplace target starts with institution sellers; individual sellers
+  and cross-installation participation are outside proposed Phase 09a scope.
 - **Writing per-vertical code (English, Yoga, Coding modules).** ADR-0018 forbids domain-
   specific names in LearnStack modules. The whole point of the PaaS positioning is that
   LearnStack doesn't ship verticals — customers build theirs.
