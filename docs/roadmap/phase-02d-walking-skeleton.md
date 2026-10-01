@@ -514,6 +514,25 @@ counts and results in the delivery record, not a speculative passing total here.
 
 #### Approval boundary and readiness
 
+**Preparation verification — 2026-10-02.** The reviewed documentation commit is
+`7bc8e63`, against `6bbcb1e`; no implementation is included. First-round security
+and governance findings were verified and fixed: post-build extension resolution,
+explicit lesson seed states, no platform locale registry and endorsed participation
+wording. Two fresh second-round agents independently returned Approve, with no
+remaining actionable findings. Reviews used `gpt-6-astra` (high) for security and
+`gpt-6.1-sol` (xhigh) for governance/seed/corpus consistency.
+
+- Architecture: 177 passed, zero failures/skips, Release `--no-build --no-restore`;
+  the TRX execution-count check passed. This verifies existing guards, not future
+  policy migrations, writers or public readers.
+- Documentation: 33 Markdown files, 1,715 local references and 444 fragments checked;
+  added prose wrapping and `git diff --check` passed. External provider/legal evidence
+  was not reassessed in this preparation pass.
+- Accepted ADRs were unchanged. The entire P02d-1 decision/delivery suffix was
+  compared byte-for-byte with the baseline and is unchanged.
+- Commit hooks, including staged Leakwatch and commit-message validation, passed.
+  Work remains on development; no push or PR was performed.
+
 Prepared decisions are reviewable; implementation is not authorized by this draft.
 The only outstanding **P02d-2 decision** is exact approval of this package and
 ADR-0050/0051. After approval, perform the recorded lifecycle/gate/catalogue updates
