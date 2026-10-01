@@ -3,9 +3,9 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-2 preparation — 2026-10-02.** The
-[locale and branding commands](README.md#p02d-2-proposed-locale-and-branding-contract)
-are proposed unrouted tenant-wide seed operations, with no registered permission or
+**P02d-2 accepted design — 2026-10-02.** The
+[locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
+are planned unrouted tenant-wide seed operations, with no registered permission or
 organization override. Their eventual identity-backed permission admission remains
 Phase 03. This note grants no HTTP or Hub-internal reachability for the new commands.
 

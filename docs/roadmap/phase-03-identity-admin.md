@@ -107,12 +107,12 @@ answered in the decision pass of the packet that ships it, per
 [Roadmap § Decision Timing](README.md#decision-timing). If Phase 02d stops shipping the
 command, the decision returns to this phase.
 
-**Preparation update — 2026-10-02.** The
-[P02d-2 G17 proposal](phase-02d-walking-skeleton.md#p02d-2-proposed-answers) selects
+**Decision update — 2026-10-02.** The
+[accepted P02d-2 G17 answer](phase-02d-walking-skeleton.md#p02d-2-accepted-answers) selects
 whole-value `[PiiSensitive]` for generic `TenantSetting.Value` before its first
-writer, with exact approval pending. This phase still owns identity-backed access,
-DSAR and the marketplace purpose/recipient boundary; a public theme allowlist never
-permits exporting arbitrary tenant settings.
+writer; the marker/writer are not implemented yet. This phase still owns identity-backed
+access, DSAR and the marketplace purpose/recipient boundary; a public theme allowlist
+never permits exporting arbitrary tenant settings.
 
 **Attribute ownership.** Each attribute has exactly one owner, and the owner determines
 the table it lives in and who may write it.

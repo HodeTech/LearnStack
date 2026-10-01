@@ -8,8 +8,8 @@ The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-
 records the accepted scope. Commands, audit catalogue entries and seed writes remain
 planned for P02d-2; public reads remain planned for P02d-4.
 The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-is prepared on 2026-10-02, with exact approval pending. The diagrams below describe
-shipped P02d-1; they do not claim the proposed access column or handlers exist.
+is Accepted on 2026-10-02; implementation waits at the maintainer's request. The
+diagrams below describe shipped P02d-1; the access column and handlers do not exist yet.
 
 ## Overview
 
@@ -145,14 +145,15 @@ owns their storage conventions.
 
 ## State diagrams
 
-[ADR-0048](../../decisions/0048-walking-skeleton-publication.md#lifecycle) owns the
-[publication](../../glossary.md#education--learning) diagram and its semantics. The two
-roots use it independently. Neither satellite has a publication state separate from its parent.
+[ADR-0050](../../decisions/0050-publication-and-course-content-access.md#publication-lifecycle)
+retains the independent [publication](../../glossary.md#education--learning) lifecycle
+shipped under ADR-0048. Publication is separate from content-access policy. Neither
+satellite has a publication state separate from its parent.
 
 ## Primary write sequence
 
-No command exists in P02d-1. The following is the planned P02d-2 path; its decision
-pass names the commands and contracts before their implementation.
+No Education command exists yet. The following is P02d-2's accepted write plan;
+the contracts below are decided, with implementation still to follow.
 
 ```mermaid
 sequenceDiagram
@@ -174,10 +175,12 @@ A command writes one Education root. Cross-module calls are reads through applic
 contracts, and audit durability is part of the ambient transaction. The seeder has no
 second write path.
 
-## P02d-2 proposed writer contract
+<a id="p02d-2-proposed-writer-contract"></a>
 
-**Prepared, not Accepted or implemented — 2026-10-02.** Approval is coupled with
-[ADR-0050](../../decisions/0050-publication-and-course-content-access.md),
+## P02d-2 accepted writer contract
+
+**Accepted design, not implemented — 2026-10-02.** The maintainer approved this
+contract with [ADR-0050](../../decisions/0050-publication-and-course-content-access.md),
 [ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) and the phase package.
 This section owns command detail; the phase owns gate disposition and seed inventory.
 
@@ -197,9 +200,9 @@ failure and stale values are concurrency conflicts. Seed queries obtain current
 versions for unfinished acts, not permission to retry failed writes blindly.
 
 Customization is read through its
-[exact value contract](../customization/README.md#p02d-2-proposed-exact-write-contract);
+[exact value contract](../customization/README.md#p02d-2-accepted-exact-write-contract);
 locale membership through Tenancy's
-[proposed locale contract](../tenancy/README.md#p02d-2-proposed-locale-and-branding-contract).
+[accepted locale contract](../tenancy/README.md#p02d-2-accepted-locale-and-branding-contract).
 Both execute uncached inside the caller's ambient frame and announced context.
 No cross-chain FK, foreign Domain/Infrastructure reference or independent transaction
 is introduced. Revision/locale eligibility is observed at the validation read;
@@ -224,7 +227,8 @@ failed save or already-applied mutation cannot be safely discarded, and prove bo
 ordinary failure and an outer handler absorbing that failure.
 
 Each command writes one root and its contained translations. Publishing is MUST
-audited; draft creation and translation insertion are proposed SHOULD operations.
+audited; draft creation and translation insertion are accepted SHOULD classifications,
+not implemented operations.
 Pending audit writes and business changes obey the existing ambient durability rules.
 No explicit second transaction or cross-root publication is permitted.
 

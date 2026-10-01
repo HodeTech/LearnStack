@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed — 2026-10-02. Exact approval is required before P02d-2 presentation code.
-Extends ADR-0043's schema profile; does not amend an Accepted record while Proposed.
+Accepted — 2026-10-02. The maintainer approved the exact presentation contract
+and P02d-2 decision package. Extends ADR-0043's schema profile through its dated
+Amendment 5; profile and renderer implementation have not started.
 
 **Date:** 2026-10-02
-**Deciders:** Cemil (repository maintainer; approval pending)
+**Deciders:** Cemil (repository maintainer)
 
 ## Decision Drivers
 
@@ -22,7 +23,7 @@ Extends ADR-0043's schema profile; does not amend an Accepted record while Propo
 
 ## Considered Options
 
-1. **Root `x-fields` ordered descriptors** (recommended). One array carries order
+1. **Root `x-fields` ordered descriptors** (chosen). One array carries order
    and localized labels; direct correspondence with root properties is validated.
 2. **Per-property `x-order` and `x-label`** (rejected). Requires tie, missing-order
    and fallback rules in addition to label validation.
@@ -36,8 +37,8 @@ Extends ADR-0043's schema profile; does not amend an Accepted record while Propo
 ## Decision
 
 LearnStack represents ordered text-card fields with an optional root-level
-`x-fields` array in a content type's JSON Schema. This is a proposed extension of
-[ADR-0043](0043-customization-payload-validation.md), effective only on exact approval.
+`x-fields` array in a content type's JSON Schema. This extends
+[ADR-0043](0043-customization-payload-validation.md) without changing its four gates.
 It adds no renderer key, presentation column, live-key binding or compiled cache.
 
 ```json
@@ -132,12 +133,13 @@ cross-module locale-membership invariant.
   publishes two explicit text-card types and verifies their order/labels on reruns.
 - P02d-4 resolves public descriptors only after content-access eligibility.
 - P02d-6 implements this subset; G41 still decides component placement and fallbacks.
-- On approval, link the extension from ADR-0043 through a dated amendment that
-  preserves its original decision, and close G18/G19's P02d-2 parts in the register.
+- ADR-0043 Amendment 5 links this extension without rewriting its original decision.
+  The phase register records G18/G19's accepted P02d-2 parts; later sink and renderer
+  decisions remain with their named owners.
 
 ## Architecture Tests
 
-Proposed obligations, not implemented tests:
+Accepted obligations, not implemented tests:
 
 - Reject malformed, nested, duplicate, missing and unknown descriptors with pointers.
 - Reject invalid labels, unsupported shape/annotations and incompatible composites.
@@ -146,7 +148,8 @@ Proposed obligations, not implemented tests:
 - Unsafe-looking strings remain text; unsupported data never reaches an active sink.
 - Changed seed schemas/labels under an existing exact pin fail convergence.
 
-Register test names only when their implementation is present.
+Reserve agreed rule names as Registered before code; mark them Implemented only
+when their tests exist and run.
 
 ## References
 

@@ -17,10 +17,10 @@ from Phase 03, and the outbox and background-job infrastructure from
 
 ### What Phase 02d did not build
 
-**Preparation impact — 2026-10-02.** Proposed
+**Accepted contract impact — 2026-10-02.**
 [ADR-0050](../decisions/0050-publication-and-course-content-access.md) separates
-publication from inherited course policy; it is not Accepted or implemented yet.
-If approved, restricted courses expose marketing metadata but no anonymous lesson
+publication from inherited course policy; implementation has not started yet.
+Restricted courses expose marketing metadata but no anonymous lesson
 inventory/body; this phase supplies the first effective learner-access evaluator.
 No credentials or absent evaluator may cause public fallback. Check access before
 payload/`304` and start protected responses private/no-store before any cache decision.

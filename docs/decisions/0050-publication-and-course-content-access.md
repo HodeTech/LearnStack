@@ -2,13 +2,14 @@
 
 ## Status
 
-Proposed — 2026-10-02. Prepared after the maintainer endorsed protected-content
-preparation before P02d-2. Exact policy and migration approval are still pending.
+Accepted — 2026-10-02. The maintainer approved the exact access policy, migration
+and P02d-2 decision package. Implementation has not started.
 
 **Date:** 2026-10-02
-**Deciders:** Cemil (repository maintainer; approval pending)
-**Relationship:** Supersedes ADR-0048 on acceptance; it does not supersede it while
-this record is Proposed. The existing G3 answer remains binding until that approval.
+**Deciders:** Cemil (repository maintainer)
+**Relationship:** Supersedes ADR-0048. The dated
+[G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+preserves the original answer and delivery history.
 
 ## Decision Drivers
 
@@ -25,7 +26,7 @@ this record is Proposed. The existing G3 answer remains binding until that appro
 
 ## Considered Options
 
-1. **Course-level policy inherited by lessons** (recommended). Adds one explicit
+1. **Course-level policy inherited by lessons** (chosen). Adds one explicit
    creation-time policy; separates publication from access without a grant subsystem.
 2. **Retain published = anonymously readable** (rejected for protected authoring).
    Valid public-only baseline, but cannot safely represent the approved paid direction.
@@ -38,9 +39,9 @@ this record is Proposed. The existing G3 answer remains binding until that appro
 ## Decision
 
 LearnStack separates independent publication from a course's content-access policy.
-The proposed `Course.ContentAccess` is `public` or `enrollment_required`; lessons
+`Course.ContentAccess` is `public` or `enrollment_required`; lessons
 inherit their parent's policy. Publication never creates a learner grant or selects
-a sales channel. This Decision takes effect only after exact maintainer approval.
+a sales channel.
 
 ### Storage and first writers
 
@@ -69,7 +70,7 @@ publication does not claim a lesson mutation or access grant in audit.
 
 ### Anonymous exposure
 
-| Surface | Proposed eligibility and data |
+| Surface | Eligibility and data |
 |---|---|
 | Course catalog / course detail | Published, live course in the admitted tenant/organization and enabled requested locale; declared marketing fields (title, summary, slug, level label) and policy can be public under either policy |
 | Lesson list / detail under `public` | Existing parent/child publication, translation, deletion, organization and course-membership checks all pass; body access additionally requires the parent's policy to be `public` |
@@ -148,11 +149,11 @@ skeleton in P02d-1. Its lifecycle remains useful, but the anonymously readable
 implication changes when protected authoring is selected. This is a new decision,
 not a correction of a false historical statement.
 
-On exact approval, append a dated G3 supersession in
-[Phase 02d](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), update G3's
-current status and affected packet criteria, and mark ADR-0048 superseded according
-to repository governance. Preserve the original accepted answer and delivery history.
-Until that approval, this text is a proposal and P02d-2 code cannot rely on it.
+The maintainer approved this contract on 2026-10-02. The
+[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+records the current policy and packet obligations; ADR-0048 retains its original
+decision as history. Acceptance establishes the contract, not a shipped migration,
+writer or reader.
 
 ## Consequences
 
@@ -176,7 +177,7 @@ Until that approval, this text is a proposal and P02d-2 code cannot rely on it.
 
 ## Architecture Tests
 
-Proposed obligations, not implemented tests:
+Accepted obligations, not implemented tests:
 
 - New policy requires explicit valid input; storage rejects every other value.
 - Migration restricts existing rows and preserves all other data; disposable Down/Up
@@ -187,7 +188,8 @@ Proposed obligations, not implemented tests:
 - Caches, direct lookup, credentials and media projection cannot bypass access.
 - Seed convergence verifies policy exactly; conflicting existing policy fails nonzero.
 
-Register concrete tests only with their implementation. Existing tenant/organization,
+Reserve agreed rule names as Registered in the architecture catalogue before code;
+mark them Implemented only when their tests exist and run. Existing tenant/organization,
 one-root publication, concurrency and audit guards remain required.
 
 ## References

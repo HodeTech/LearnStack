@@ -232,7 +232,7 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-**P02d-2 proposal — 2026-10-02, approval pending.** The
+**P02d-2 accepted design — 2026-10-02, not implemented.** The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
 logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
@@ -242,8 +242,9 @@ A tenant's branding flows from the API as design tokens, and the renderer applie
 as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` set
 [Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)
 names and the shared Tailwind preset reads; this document keeps no second vocabulary.
-Which tokens a tenant may set and the value each accepts are G16 in
-[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+The accepted [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+owns P02d-2's admitted tokens and values. G16(f/g)'s public projection and entitlement/
+attribution remain in the phase register.
 How the tokens reach the document, and how that mechanism stays compatible with the
 nonce-based policy that
 [Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as
@@ -256,10 +257,10 @@ the merged token set is the source of truth for the SSR'd page.
 The first paint is themed; there is no FOUC because tokens are injected into the SSR'd
 HTML.
 
-Logo and font assets are URLs (served from CDN). Custom fonts are validated and
-rate-limited at upload to prevent unbounded font payloads. Whether branding may name a
-logo or font asset at all (G16) and whether a public page may load one from another
-origin (G21) are open in the same register.
+Logo/font assets and uploads are Phase 06 targets, requiring safe media and
+subresource contracts before their writers or consumers. P02d-2's accepted color-only
+theme admits no asset URL, font or cross-origin subresource. It does not authorize
+the future CDN/custom-font behavior.
 
 A `ThemeProvider` is **not** introduced unless dynamic theme switching is needed; the
 CSS-variable approach handles the static-per-request case (one render = one theme = one
@@ -414,8 +415,9 @@ it asserts, is G44 in
 - Color contrast is verified for every branded theme, including the merged tenant and
   organization token set, per
   [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast).
-  Whether a failing token set is refused or saved with a warning is G16 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  P02d-2's accepted G16(d) contract refuses failing palettes before saving; the
+  [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+  owns supported pairs. Phase 06 decides safe override composition before its writer.
 
 ## Splitting into Multiple Apps Later
 
@@ -437,12 +439,10 @@ mechanical.
 
 ## Risks
 
-> **Open in Phase 02d.** Two bullets below state answers Phase 02d has not given.
-> Whether the `(public)` routes it ships are cached at all, and on what key, is G37;
-> whether a brand-token set that fails the contrast check is refused or saved with a
-> warning is G16 (d). Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each gate edits its bullet with the answer.
+> **Remaining Phase 02d decision.** Public route caching and its key remain G37 in
+> [the phase register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> G16(d) now requires contrast refusal, not a warning-only save. Neither decision
+> claims implemented transport or rendering.
 
 - **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
   Cardinality is bounded; budget memory headroom.

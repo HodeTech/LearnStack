@@ -49,9 +49,9 @@ Decisions consumed:
 
 ### What Phase 02d supplies
 
-**Preparation impact — 2026-10-02.**
-[ADR-0050](../decisions/0050-publication-and-course-content-access.md) is Proposed;
-ADR-0048 still governs until approval. If accepted, this phase also preserves Course
+**Accepted contract impact — 2026-10-02.**
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) supersedes
+ADR-0048. This phase also preserves Course
 content-access policy through version/module migration, decides its versioned owner
 and any policy-edit/reparent/preview behavior before those writers, and never infers
 public access from a new version or listing. This note claims no shipped column.

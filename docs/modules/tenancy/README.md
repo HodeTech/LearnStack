@@ -3,7 +3,7 @@
 **Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the
 schema and its schema-level isolation suite; commands, host resolution and the
 request-level isolation suite shipped in Packet 7). P02d-2 locale/branding writers
-are prepared for approval, not implemented.
+have Accepted contracts as of 2026-10-02, not implemented writers.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -71,11 +71,13 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   ([ADR-0018](../../decisions/0018-tenant-driven-customization-model.md)), not
   columns here.
 
-## P02d-2 proposed locale and branding contract
+<a id="p02d-2-proposed-locale-and-branding-contract"></a>
 
-**Prepared, not Accepted or implemented — 2026-10-02.** The
+## P02d-2 accepted locale and branding contract
+
+**Accepted design, not implemented — 2026-10-02.** The
 [phase package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-owns approval and seed inventory. All three commands are unrouted, require resolved
+records approval and seed inventory. All three commands are unrouted, require resolved
 tenant-wide context and write one aggregate; organization context is refused rather
 than silently promoted to tenant scope. Tenant ids are not caller authority.
 
@@ -156,7 +158,7 @@ including contained locale changes. Contextual seed verification queries are Off
 No settings cache in P02d-2/3: no generation migration, TTL or cross-process stale
 entry. P02d-3 implements the typed ambient accessor; it explicitly reads tenant-wide
 rows and exact organization rows, then merges in memory. Performance is measured
-there, not claimed satisfied by this proposal.
+there, not claimed satisfied by this decision.
 
 ## Entity-relationship diagram
 
@@ -178,10 +180,10 @@ requires, and a write to either bumps `Tenant.row_version`.
 [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md) landed the promotion, and none of
 its three commands touches `TenantDomain`, `TenantSetting`, `TenantLocale` or
 `TenantFeatureFlag`. The first commands that do — the locale and setting commands
-raising `tenancy.locale.write` and `tenancy.setting.write` — are Phase 02d's, and
-their shape is G11 in
-[Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-the pass that closes it edits this section with its answer. Provisioning writing
+raising `tenancy.locale.write` and `tenancy.setting.write` — belong to P02d-2.
+The [accepted contract](#p02d-2-accepted-locale-and-branding-contract) names
+`AddTenantLocaleCommand`, `SetDefaultTenantLocaleCommand` and
+`SetTenantBrandingCommand`; their handlers are not implemented yet. Provisioning writing
 `Tenant` and its default `Organization` in one transaction is sanctioned by
 enumeration in
 [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
@@ -444,7 +446,7 @@ In [audit.md](audit.md), the file
 | Host → tenant resolution (cache miss) | **< 15 ms** p95 | One indexed single-row read in its own short transaction |
 | Entitlement projection read (L1 hit) | **< 1 ms** | Read on every feature check |
 | Tenant provisioning (3 statements) | **< 100 ms** p95 | Interactive but rare |
-| Settings read for a request | **< 5 ms** p95 target, not measured | Proposed P02d-2/3: no settings cache; P02d-3 measures the ambient indexed read/merge. Phase 02b's event does not exist yet |
+| Settings read for a request | **< 5 ms** p95 target, not measured | Accepted P02d-2/3: no settings cache; P02d-3 measures the ambient indexed read/merge. Phase 02b's event does not exist yet |
 
 The two resolution numbers are the load-bearing ones: they sit in front of every
 request and are the only Tenancy work an anonymous visitor pays for.
@@ -480,8 +482,9 @@ request and are the only Tenancy work an anonymous visitor pays for.
   tenant, which no row can carry.
 - **At most one default is already enforced.** The shipped partial unique index
   `UNIQUE (tenant_id) WHERE is_default` prevents competing defaults. It does not
-  require a default whenever enabled locales exist. P02d-2's proposed command
-  contract below closes that supported-write gap and adds a default-enabled CHECK;
+  require a default whenever enabled locales exist. P02d-2's accepted command
+  contract above closes that supported-write gap when implemented and adds a
+  default-enabled CHECK;
   arbitrary raw deletes do not gain an exactly-one database guarantee.
 - **Nothing stops a tenant claiming a hostname it does not own.**
   `ux_tenant_domains_host` is globally unique — it has to be, or a host would

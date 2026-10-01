@@ -1,28 +1,29 @@
 # Education Audit Coverage Matrix
 
-**Status:** Accepted design — 2026-09-14, with the [module spec](README.md). No
-Education request or catalogue source exists yet. Every row below is a forward
+**Status:** Accepted design — 2026-09-14; updated 2026-10-02 with ADR-0050 and the
+[module spec](README.md). No Education request or catalogue source exists yet. Every row below is a forward
 declaration under
 [Audit Coverage Standards](../../standards/18-audit-coverage.md).
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
-| `Course` | `education.course.publish` `(planned)` | **MUST** | Makes course content eligible for anonymous reading; the baseline requires course-publication audit |
-| `Lesson` | `education.lesson.publish` `(planned)` | **MUST** | Makes the lesson body eligible when its parent is published, under [ADR-0048](../../decisions/0048-walking-skeleton-publication.md) |
+| `Course` | `education.course.publish` `(planned)` | **MUST** | Makes eligible course marketing metadata publishable under ADR-0050; course publication remains MUST |
+| `Lesson` | `education.lesson.publish` `(planned)` | **MUST** | Adds one publication prerequisite; anonymous body access also requires eligible parent and public policy under [ADR-0050](../../decisions/0050-publication-and-course-content-access.md) |
 
-P02d-2 decides the full command set and adds its create/translation rows before the
-handlers. Each implemented operation then loses `(planned)` and gains its executable
-catalogue entry in the same commit. A translation belongs to its root's captured
-navigation, with the owning course or lesson as audit subject. No standalone satellite
+P02d-2's accepted contract names the full command set; its create/translation rows
+below precede the handlers. Each implemented operation then loses `(planned)` and
+gains its executable catalogue entry in the same commit. A translation belongs to
+its root's captured navigation, with the owning course or lesson as audit subject.
+No standalone satellite
 publication or cross-root publication is declared.
 
 Public-read classification belongs to P02d-4 G28. No anonymous request is shipped or
 classified by this schema packet. This matrix cannot narrow the baseline MUST floor.
 
-## P02d-2 proposed additions
+## P02d-2 accepted additions
 
-Prepared on 2026-10-02; approval pending with the
-[writer contract](README.md#p02d-2-proposed-writer-contract). These are classifications
+Accepted on 2026-10-02 with the
+[writer contract](README.md#p02d-2-accepted-writer-contract). These are classifications
 ahead of code, not executable catalogue registrations:
 
 | Resource | Operation | Class | Why |
@@ -32,7 +33,7 @@ ahead of code, not executable catalogue registrations:
 | `Lesson` | `education.lesson.create` `(planned)` | SHOULD | Draft authoring, independently scoped root |
 | `Lesson` | `education.lesson.translation_add` `(planned)` | SHOULD | Draft-only contained translation and validated body |
 
-The two publish operations remain MUST. If ADR-0050 is approved, course publication
+The two publish operations remain MUST. Under accepted ADR-0050, course publication
 exposes eligible marketing metadata; lesson publication enables content only under
 the parent/access rules. Restriction does not lower the selected MUST classification.
 Contextual seed verification queries are explicitly Off when their request types

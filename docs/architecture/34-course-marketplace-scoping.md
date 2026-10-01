@@ -10,8 +10,9 @@ approved here.
 **Review date:** 2026-10-02. The maintainer's target remains institution sites plus a
 full marketplace, with Turkey and international sales. Initial seller geography is
 deliberately undecided. The maintainer endorsed the recommendations and authorized
-P02d-2 preparation. Exact access, security and commerce contracts still require
-approval; legal/provider feasibility does not follow from a product preference.
+P02d-2 preparation, then approved ADR-0050/0051 and the exact packet package.
+Marketplace security and commerce contracts still require approval; legal/provider
+feasibility does not follow from a product preference.
 
 ## Proposed delivery ownership
 
@@ -95,22 +96,19 @@ Free enrollment, anonymous previews and restricted content are also separate; pr
 zero is not an access policy. Public APIs, renderers, caches and protected media enforce
 the same policy. Failure of a protected-access evaluator denies access.
 
-The current public-only G3 answer and [ADR-0048](../decisions/0048-walking-skeleton-publication.md)
-remain binding. If protected authoring is requested in P02d-2, obtain explicit approval
-to reopen G3 and write a superseding ADR before code. It selects persisted policy,
-defaults, preview behavior, forward migration, command validation and fail-closed reads
-until Phase 07 supplies grants. Append a dated G3 supersession and update affected
-packet criteria while preserving the accepted question, answer and delivery history.
-A hybrid-direction approval alone cannot make that change.
+The maintainer approved [ADR-0050](../decisions/0050-publication-and-course-content-access.md)
+and the P02d-2 package on 2026-10-02. Its
+[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+replaces ADR-0048's public-only implication while preserving the original answer and
+delivery history. Explicit persisted policy, restricted legacy backfill and fail-closed
+anonymous reads are decided; their implementation has not started. Phase 07 supplies
+grants; Phase 05 owns preview/policy evolution.
 
-The alternative is an explicitly public-only skeleton. It supplies no private/paid
-authoring promise; a later protected-content owner must land the decision and migration
-before its first writer/reader. No prices, channel IDs, orders or federation identifiers
-are needed in P02d-2 for either alternative. Public-only work is technically independent
-of marketplace commerce. The maintainer released the preparation hold on
-2026-10-02. The exact
-[ADR-0050](../decisions/0050-publication-and-course-content-access.md) access proposal
-and P02d-2 decision package still need approval before protected implementation.
+The public-only alternative was considered and not selected for the first protected
+writers. No prices, channel IDs, orders or federation identifiers are needed in
+P02d-2. Its access contract is independent of marketplace commerce. The maintainer
+requested documentation updates and a wait, so implementation remains paused by
+instruction rather than by an unresolved marketplace dependency.
 
 ## Public catalog and search
 
@@ -353,7 +351,7 @@ economics stop or re-scope that offer rather than authorize unchecked expansion.
 
 | Boundary | Required before the first affected code |
 |---|---|
-| Protected publication | Approved G3 reopening, superseding ADR and migration before protected P02d-2 writers/readers; otherwise public-only baseline |
+| Protected publication | ADR-0050 and dated G3 supersession Accepted 2026-10-02; migration and access enforcement still required before protected P02d-2 writers/readers |
 | Source identity and organization scope | Keep P02d-1 tenant ownership and parent-derived scope; listings are not tenant authority |
 | Global catalog / commerce | Accept table classes, roles, host/context, audit and export rules before P09a migration or reader/producer; no broader Education filters |
 | Source publication/export | Consent, revisions, withdrawal and durable delivery before the first listing producer; P02d-2 promises tenant-local publication only |

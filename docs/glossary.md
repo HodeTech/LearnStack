@@ -47,7 +47,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 |------|------------|
 | **Program** | A higher-level grouping of related courses or learning paths. |
 | **Course** | A tenant-owned learning product with a stable id. P02d-1 implements its domain, schema and isolation; command and seed writes belong to P02d-2, public reads to P02d-4. [Phase 05](roadmap/phase-05-education-learning-content.md#what-phase-02d-supplies) adds versioning and catalog visibility. |
-| **Publication** | The independent `draft` / `published` lifecycle of a walking-skeleton Course or Lesson. A published state is one condition of anonymous-read eligibility; tenant, organization, translation, deletion and parent eligibility still apply. It does not create a Course Version or grant Course Access. [ADR-0048](decisions/0048-walking-skeleton-publication.md) owns the lifecycle. |
+| **Publication** | The independent `draft` / `published` lifecycle of a walking-skeleton Course or Lesson. A published state is one condition of anonymous-read eligibility; tenant, organization, translation, deletion and parent eligibility still apply. It does not create a Course Version or grant Course Access. [ADR-0050](decisions/0050-publication-and-course-content-access.md) retains the lifecycle and separates content-access policy. |
 | **Revision pin** | A stored binding to a particular customization definition's key and schema version, rather than whichever revision is active when content is read. Education uses pins for lesson content types and optional course taxonomy/band references; a successor does not implicitly rebind existing content. [Education data model](modules/education/README.md#data-model-and-invariants) owns the binding contract. |
 | **Course Version** | A versioned, publishable structure of modules and lessons attached to a Course. Enrollments target a specific version. |
 | **Module (course aggregate)** | An ordered grouping of lessons inside a course version. Distinct from the backend module-loading concept *`IModule`* (see *Module-Loading Contracts* below). When the term "module" appears unqualified in code or docs, prefer this domain meaning unless the surrounding text is clearly about the backend loader. |
@@ -62,7 +62,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 |------|------------|
 | **Enrollment** | A learner's grant of access to a specific course (and specific course version). |
 | **Course Access** | A *learner's* right to open a specific course, derived from an `Enrollment` (or from a tenant-side purchase, cohort membership, or admin grant). Evaluated inside the Enrollment module against tenant data. **Not an Entitlement** — see *Feature Flags & Entitlements*. The two words were used interchangeably in earlier drafts; they are different subjects (a learner versus a tenant), different owners (LearnStack versus Hub), and different lifecycles. |
-| **Course Content Access Policy** | Proposed creation-time Course classification `public` or `enrollment_required`, inherited by lessons under [ADR-0050](decisions/0050-publication-and-course-content-access.md). Distinct from publication, tenant entitlements and a particular learner's Course Access. Not implemented or Accepted yet. |
+| **Course Content Access Policy** | Accepted creation-time Course classification `public` or `enrollment_required`, inherited by lessons under [ADR-0050](decisions/0050-publication-and-course-content-access.md). Distinct from publication, tenant entitlements and a particular learner's Course Access. Accepted 2026-10-02; not implemented yet. |
 | **Cohort** | A group of learners progressing through the same course version on a shared timeline. Cohorts may have scheduled live sessions. |
 | **Progress** | The learner's recorded advancement against the structure of a course version. |
 
@@ -140,13 +140,13 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 ## Extension Model
 
-Proposed P02d-2 contract terms are not implemented interfaces or Accepted extensions:
+Accepted P02d-2 contract terms are not implemented interfaces or extensions:
 
 | Term | Definition |
 |---|---|
-| **`IExactCustomizationDefinitionReader`** | Proposed contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-proposed-exact-write-contract). |
-| **`ITenantLocaleEligibilityReader`** | Proposed contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-proposed-locale-and-branding-contract). |
-| **`x-fields`** | Proposed optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
+| **`IExactCustomizationDefinitionReader`** | Accepted, not implemented, contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-accepted-exact-write-contract). |
+| **`ITenantLocaleEligibilityReader`** | Accepted, not implemented, contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
+| **`x-fields`** | Accepted, not implemented, optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 
 | Term | Definition |
 |------|------------|
@@ -195,7 +195,7 @@ Proposed P02d-2 contract terms are not implemented interfaces or Accepted extens
 | Term | Definition |
 |------|------------|
 | **TenantBranding** | The tenant's presentation tokens. Not an aggregate of its own: the values are tenant settings held in `tenant_settings` ([Frontend Architecture Standards § Tenant Branding](standards/07-frontend-architecture.md#tenant-branding)). Which keys exist and the value each accepts are G16, and how validated values reach the server-rendered document is G42, in [Phase 02d's decision register](roadmap/phase-02d-walking-skeleton.md#the-decision-register). |
-| **`branding.theme`** | Proposed single tenant-wide TenantSetting document with four validated color fields; one root/version protects contrast during concurrent replacement. The [Tenancy spec](modules/tenancy/README.md#whole-theme-setting-and-public-boundary) owns the command-local registry; other generic setting keys remain legal. |
+| **`branding.theme`** | Accepted, not implemented, single tenant-wide TenantSetting document with four validated color fields; one root/version protects contrast during concurrent replacement. The [Tenancy spec](modules/tenancy/README.md#whole-theme-setting-and-public-boundary) owns the command-local registry; other generic setting keys remain legal. |
 | **OrganizationBranding** | An optional override row attached to an `Organization` that supplies a partial design-token set. When the resolved request carries an organization id, the runtime merges `OrganizationBranding` on top of `TenantBranding` before injecting tokens; missing fields fall through to the tenant default. |
 
 ## Module-Loading Contracts

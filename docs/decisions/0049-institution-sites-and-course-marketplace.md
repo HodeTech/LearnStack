@@ -29,8 +29,8 @@ not approval of unseen access or commerce contracts. This ADR remains Proposed.
   place, a session reservation or a consumable pack creates different obligations.
 - [P02d-1](../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
   shipped tenant-owned courses and lessons with isolation. Their first application
-  writers are next; [ADR-0048](0048-walking-skeleton-publication.md) still governs
-  public-only publication.
+  writers are next; [ADR-0050](0050-publication-and-course-content-access.md)
+  separates publication/access under the accepted P02d-2 package, not commerce.
 - Shared discovery must not expose private lessons, learners, finances or operations
   across institutions. Marketplace economics and operational readiness are unproven.
 
@@ -105,24 +105,19 @@ keeps those choices separate.
 ### Publication, discovery and access
 
 [G3's publication answer](../roadmap/phase-02d-walking-skeleton.md#p02d-1-accepted-answers)
-closed on 2026-09-14 through ADR-0048. P02d-2 inherits public-only publication; only
-G3's command names and seeded states remain open. This proposal does not reopen it.
+closed on 2026-09-14 through ADR-0048. Hybrid direction endorsement alone did not
+reopen that public-only implication. The maintainer subsequently approved
+[ADR-0050](0050-publication-and-course-content-access.md) and the exact P02d-2 package
+on 2026-10-02; the
+[dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
+preserves the original question, accepted answer and delivery history. ADR-0050
+owns independent publication, persisted policy, restricted backfill and denial
+before anonymous lesson exposure. This marketplace proposal itself supersedes no ADR.
 
-Protected authoring in P02d-2 requires explicit maintainer approval to reopen that
-part of G3, then an approved **superseding access ADR**, migration/default/denial
-contract and dated G3 supersession before writers. Preserve the original question,
-accepted answer and delivery record. P02d-4 must deny restricted bodies until an
-authenticated access evaluator exists. A free price or a public listing grants no
-protected access. The [access process](../architecture/34-course-marketplace-scoping.md#publication-discovery-and-access)
-describes the alternatives; accepting hybrid direction alone chooses neither.
-
-Public-only P02d-2 has no technical dependency on marketplace commerce. The
-[planning hold](../roadmap/phase-02d-walking-skeleton.md#pending-course-marketplace-proposal)
-reflected the maintainer's request to settle direction first. Their 2026-10-02
-endorsement releases it for preparation. The exact
-[access proposal](0050-publication-and-course-content-access.md) and P02d-2 decision
-package require approval before protected implementation; commerce feasibility is
-not a hidden dependency of this packet.
+P02d-2 has no technical dependency on marketplace commerce. Its decision pass is
+Accepted; implementation waits at the maintainer's explicit request after the
+documentation update. Commerce feasibility does not reopen its access decision or
+silently block the independent packet.
 
 ### Commerce and the Hub boundary
 
@@ -197,7 +192,7 @@ cannot approve an unspecified schema, role or payment arrangement.
 | Operations and support | Backoffice owner and staff population; approval, suspension, refund/dispute and delivery support responsibilities. Assign realm/audience, permission/resource scope, exceptional private review and reasoned audit contracts before the first staff reader or crossing |
 | Privacy and distribution | Purpose-based controller/processor assessment, platform versus institution permissions/consent, DSAR/export/erasure and retention ownership; data residency/transfers and media rights. Include Architecture 23 and Phase 03 in the approval impact set |
 | Public-read and commerce security | Owner of the request/host matrix, table classes, reader/writer roles, audit classification and ordered/recoverable fulfillment/payable/payout contract before their first migrations, readers or producers |
-| P02d-2 access and planning | Preparation hold released on 2026-10-02; ADR-0050 proposes protected access and must receive exact approval with the P02d-2 package before protected writers |
+| P02d-2 access and planning | ADR-0050/0051 and the exact package Accepted 2026-10-02, with dated G3 supersession; implementation waits at maintainer request. This does not accept marketplace commerce |
 | Pilot evidence | Approve the entry conditions, metric owners and a dated stop/go threshold record before a live pilot; positive evidence is a broad-rollout gate |
 
 Approval of this draft requires the positioning and named roadmap changes together.

@@ -17,13 +17,14 @@ description: >
 
 # Seeding a tenant
 
-**Preparation update — 2026-10-02.**
+**Decision acceptance — 2026-10-02.**
 [P02d-2's package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-is Proposed, not seeded implementation. It plans nullable organization contexts,
+is Accepted, not seeded implementation. It plans nullable organization contexts,
 contextual verification through `ISender`, tenant-specific type/taxonomy definitions,
 enabled locales, one whole-theme setting and explicit public/restricted content.
-Exact ADR-0050/0051 and packet approval precede code. Until implementation, the
-current command below still seeds only the shipped provisioning and built-in slice.
+ADR-0050/0051 and the package are approved; implementation waits at the maintainer's
+request. Until implementation, the current command below still seeds only the shipped
+provisioning and built-in slice.
 
 ## Purpose
 

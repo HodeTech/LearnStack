@@ -592,6 +592,23 @@ otherwise).
   being dropped. Mutation-checked: a `CefrLevel` property on `Tenant` fails it.
 - **Phase:** 02a (Packet 10).
 
+#### `Production_Code_Does_Not_Branch_On_Demo_Tenant_Literals`
+
+- **Asserts:** production code does not specialize behavior by demo tenant identity.
+  The guard reads identity literals from the authoritative `SeedData` declaration,
+  not a second hard-coded list. Its source reader must observe the declared values
+  and fail on an incomplete or unreadable declaration rather than report clean.
+- **Source:** [Phase 02d G20](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers).
+- **Scope:** G20(a)'s source is decided in P02d-2. Production subjects, matching,
+  built-in exclusions and permitted exemptions remain G20(b/c)'s later decisions;
+  no exemption or exhaustive consumer scope is accepted by this registration.
+- **Type:** xUnit + source scan, with planted offenders and allowed-data controls.
+  **Kind:** structural.
+- **Status:** **Registered** — P02d-2 establishes and verifies the literal source;
+  P02d-5/6 settle remaining scope before their subjects ship. Implement the complete
+  guard and its planted companion by P02d-7 exit, with no vacuous pass.
+- **Phase:** 02d (P02d-2 source; P02d-5/6 scope; P02d-7 implementation exit).
+
 #### `Frontend_Has_Only_The_Web_App`
 
 - **Asserts:** `frontend/apps` contains exactly one Next.js application (`web`).
@@ -2013,6 +2030,22 @@ because the filters hold, and removing both turns all five red.
 - **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
   `AggregateWriteTests`).
 - **Phase:** 02a (Packet 7).
+
+#### `Seeder_Does_Not_Call_Tenant_Context_Setters`
+
+- **Asserts:** seed orchestration and ownership verification do not directly invoke
+  tenant/session context setters or open their own database announcement transaction.
+  Verification runs through contextual `ISender` requests and the admitted pipeline;
+  the existing trusted seed context construction remains permitted. A source scan
+  covers production seeder callers and cannot pass by collecting no subjects.
+- **Source:** [Phase 02d G15](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+  and [Security Standards § The out-of-band setters](11-security.md#the-out-of-band-setters).
+- **Type:** xUnit + source scan with a companion that plants direct caller violations
+  and verifies permitted request dispatch/context composition. **Kind:** structural.
+- **Status:** **Registered** — implement the guard and planted companion with the
+  contextual verification replacement in P02d-2 Step 4, before packet completion.
+  This adds no ADR-0040 setter exception or new database announcer.
+- **Phase:** 02d (P02d-2).
 
 #### `Out_Of_Band_Setters_Open_Read_Only_Transactions`
 

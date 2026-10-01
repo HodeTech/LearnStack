@@ -48,10 +48,11 @@ CREATE TABLE tenant_locales (
 ```
 
 No public no-row fallback is implemented. The
-[prepared P02d-2 G13 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-proposed-answers)
-proposes no content locale when rows are absent and refuses disabled membership;
-it awaits approval. This replaces the earlier unimplemented platform-`en` proposal
-on acceptance. Display-label fallback remains separate from URL/body admission.
+[accepted P02d-2 G13 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+admits no content locale when rows are absent and refuses disabled membership.
+This replaces the earlier unimplemented platform-`en` proposal. Writer enforcement
+belongs to P02d-2; public reads remain P02d-4. Display-label fallback is separate
+from URL/body admission.
 
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
@@ -74,7 +75,8 @@ the accepted P02d-1 Course shape; the
 [Education module spec](../modules/education/README.md#data-model-and-invariants)
 owns its complete model. `Course` and `Lesson` are independent roots with independent
 `draft` / `published` states under
-[ADR-0048](../decisions/0048-walking-skeleton-publication.md). Catalog visibility,
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md). Its accepted
+access-policy column is not part of this shipped-schema sketch. Catalog visibility,
 SEO and course versions are Phase 05 additions, not columns this sketch implies have
 already shipped.
 
@@ -246,15 +248,16 @@ anyone editing a slug. Preferring the tenant-wide row is worse: it lets an organ
 author create a row no URL can reach. One flat namespace per `(tenant_id, locale)`
 removes the question. An organization that wants its own variant of a shared course gives
 it its own slug. The constraint refuses a collision when the translation is inserted;
-P02d-2's G11 decision names the writing command and its error contract. Rendering never
-chooses between two colliding translations.
+P02d-2's accepted G11 answer names translation-add commands and their error mapping.
+Rendering never chooses between two colliding translations.
 
 For Education, the flat namespace is separate per translation table: all course slugs
 share one namespace and all lesson slugs another. A lesson's parent course does not
 narrow the lesson namespace. A draft translation reserves its slug immediately, and a
 parent's soft deletion does not release it because the satellite has no independent
 `deleted_at`. Parent publication and deletion still gate public read eligibility under
-[ADR-0048](../decisions/0048-walking-skeleton-publication.md); a reserved slug does not
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md), with content
+policy additionally gating lesson exposure; a reserved slug does not
 make draft content public. Future slug release belongs to Phase 05 with Phase 04's
 redirect/slug registry.
 

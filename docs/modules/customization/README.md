@@ -181,9 +181,11 @@ once across every pod without enumerating anything —
 the compiled-validator cache that used to sit beside it. It lands with its first
 consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
 
-## P02d-2 proposed exact write contract
+<a id="p02d-2-proposed-exact-write-contract"></a>
 
-**Prepared; approval pending — 2026-10-02.** An application interface in
+## P02d-2 accepted exact write contract
+
+**Accepted design, not implemented — 2026-10-02.** An application interface in
 `Customization.Application.Contracts` resolves an exact content-type or taxonomy
 revision for the caller's announced tenant. DTOs contain values only: key, version,
 status, JSON Schema/composite and validated presentation, or immutable bands/labels.
@@ -205,10 +207,10 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
 - Module-owned contextual verification queries give the seeder exact IDs, revision
   data, labels/bands and state. They are audit Off and introduce no setter exception.
 
-[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) proposes the optional
+[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) defines the optional
 root `x-fields` profile and semantic resolver. It preserves the four gates and legacy
-schemas; no profile code changes until exact approval. Seed definitions opt into the
-profile, whereas built-in `card`/`plain` remain unchanged and Active.
+schemas; profile implementation belongs to P02d-2 Step 1. Planned seed definitions opt
+into the profile, whereas built-in `card`/`plain` remain unchanged and Active.
 
 ## Component diagram
 

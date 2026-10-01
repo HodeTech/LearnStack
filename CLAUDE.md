@@ -69,11 +69,11 @@ its decision pass. **P02d-1 is complete and merged** through
 [PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
 domain, schema and isolation proofs pass; all three steps completed two independent
 agent review rounds. The [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
-records verification of the final PR head and merge commit. **P02d-2 preparation is
-complete for review**: its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-proposes protected content, exact write contracts and a four-step implementation.
-ADR-0050/0051 and the package require exact approval before code. Implementation
-has not started; public reads belong to P02d-4.
+records verification of the final PR head and merge commit. **P02d-2's decision pass
+is Accepted — 2026-10-02**: its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+and ADR-0050/0051 establish protected content, exact write contracts and four
+implementation steps. Lifecycle/gate/catalogue documentation is updated. Implementation
+has not started and waits at the maintainer's request; public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

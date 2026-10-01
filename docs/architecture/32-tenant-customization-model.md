@@ -45,22 +45,19 @@ organization-scoped where it makes sense.
 
 ## 2. Generic primitive renderers
 
-**P02d-2 presentation proposal — 2026-10-02, approval pending.**
+**P02d-2 accepted presentation — 2026-10-02, not implemented.**
 [ADR-0051](../decisions/0051-ordered-text-card-presentation.md) adds optional root
 ordered `x-fields` metadata and a plain-string `default-card` profile. The two seed
 types opt in; legacy schemas remain valid. The wider renderer set below is a target,
 not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
 
-> **Open in Phase 02d.** The closed set below is ADR-0018's and is not in question, and
-> no component for any of its keys exists yet. Which members Phase 02d implements,
-> whether `markdown` renders, and how a field with no row in the mapping table
-> (`integer`, `number`, `boolean`, an `enum`) maps are G18; how the page draws what that
-> subset does not, and where the primitive and composite components live, are G41. The
-> folder named in the comment below does not exist, and the shipped key registry sits
-> in `frontend/apps/web/src/lib/customization/`; neither answers G41. Both gates are
-> open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each edits this section with its answer.
+> **Accepted subset; renderer placement remains open.** ADR-0051 selects plain-string
+> text cards with authored order and labels; Phase 02d adds no Markdown or active sink.
+> ADR-0018's wider closed set below is unchanged and is not implemented coverage.
+> G41 still decides unsupported-content fallbacks and component placement. The folder
+> in the sketch does not exist; the key registry in
+> `frontend/apps/web/src/lib/customization/` does not settle that gate. See
+> [Phase 02d's register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 The frontend ships a **fixed, closed set** of primitive renderers:
 
@@ -218,12 +215,11 @@ output_format: { type: "string", enum: ["a1","a2","b1","b2","c1","c2"] }
 
 ### Example B — Yoga studio platform
 
-> **Open in Phase 02d.** Phase 02d seeds a yoga tenant whose content type is also keyed
-> `asana-pose`, and this example is not that seed. Which fields the seed declares — this
-> one has an `integer`, an `enum` and a video field — and which composite draws them are
-> G18; the yoga taxonomy's key is G14. Both are open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each edits this example with its answer.
+> **Broader target example, not the P02d-2 seed.** The
+> [accepted inventory](../roadmap/phase-02d-walking-skeleton.md#seed-inventory-and-ownership)
+> selects `asana-pose` with plain-string `pose`/`instruction`, `default-card` and
+> `yoga-difficulty`. The integer, enum and video example below requires later renderer
+> coverage; it does not expand ADR-0051's text-card subset.
 
 `tenant_content_types`:
 
@@ -470,7 +466,7 @@ discovering it on a page load.
 
 ### 8.1 Validation timing — write time, not read time
 
-ADR-0051's proposed extension preserves the existing four admission gates and adds
+ADR-0051's accepted extension preserves the existing four admission gates and adds
 explicit semantic descriptor validation. Instance validation remains on Education's
 exact-pin write path; read eligibility precedes public descriptor resolution. The
 text profile adds no active URL/markup sink. A later schema-valid `uri` is not a
@@ -756,13 +752,12 @@ first; [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) replaces them wi
 visual schema editor and preview pane. The screen tree above is the target; each row
 arrives with the aggregate it edits, per [§ 12](#12-phasing).
 
-> **Open in Phase 02d.** The branding keys Phase 02d's writer admits and its seed
-> writes, which the Branding screen later edits, are G16 (b). Whether
-> `tenancy.white_label_branding` governs applying theme tokens or only removing
-> LearnStack attribution is G16 (g). Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The Branding row's "(plan-gated)" records the plan this tree was written against; the
-> decision pass that closes G16 edits the row with its answer.
+> **Branding values decided; entitlement remains open.** G16(a–e) selects the
+> [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary).
+> Whether `tenancy.white_label_branding` governs applying tokens or only removing
+> LearnStack attribution remains G16(g) in
+> [Phase 02d's register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+> The Branding row's "(plan-gated)" is still a target pending that decision.
 
 ## 11. Hard architectural invariants
 
