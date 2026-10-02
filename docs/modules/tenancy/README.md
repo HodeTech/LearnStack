@@ -3,7 +3,7 @@
 **Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the schema
 and its schema-level isolation suite; commands, host resolution and the request-level
 isolation suite shipped in Packet 7). P02d-2 Step 1 adds contextual verification/locale
-reads; Step 2 implements locale/branding writers, with review pending.
+reads; Step 2 implements locale/branding writers, with both review rounds complete.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -75,7 +75,7 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## P02d-2 accepted locale and branding contract
 
-**Step 2 implemented, review pending — 2026-10-02.** The [phase
+**Step 2 complete after both review rounds — 2026-10-02.** The [phase
 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 records approval and seed inventory. All three commands are unrouted, require resolved
 tenant-wide context and write one aggregate; organization context is refused rather than
@@ -166,7 +166,8 @@ there, not claimed satisfied by this decision.
 
 Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
 `TenantSetting` — the four that implement `IAggregateRoot<TId>`, the last two by the
-promotion below. No command writes `TenantDomain` or `TenantSetting` yet.
+promotion below. `SetTenantBrandingCommand` writes `TenantSetting`; no command
+writes `TenantDomain` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
 aggregates: nothing in this module mutates them through a root.
 
@@ -373,14 +374,14 @@ resolver reads `platform_host_to_tenant` and nothing else.
 ```mermaid
 flowchart LR
     subgraph Tenancy
-        DOM[Domain<br/>Tenant, Organization]
-        CON[Application.Contracts<br/>ProvisionTenant, CreateOrganization,<br/>MapHostToTenant]
-        APP[Application<br/>3 handlers + validators,<br/>ITenantWriteStore, IOrganizationWriteStore,<br/>IPlatformHostMappingStore]
-        INF[Infrastructure<br/>TenancyDbContext,<br/>3 write stores]
+        DOM[Domain<br/>4 aggregate roots]
+        CON[Application.Contracts<br/>6 write commands, 4 seed queries,<br/>locale eligibility contract]
+        APP[Application<br/>Handlers and validators,<br/>write and read ports]
+        INF[Infrastructure<br/>TenancyDbContext,<br/>4 write stores and filtered readers]
     end
     SK[SharedKernel<br/>TenantId, OrganizationId, IUnitOfWork]
     CORE[Core Infrastructure<br/>TenantScopedDbContext]
-    PG[(PostgreSQL<br/>8 tables, RLS)]
+    PG[(PostgreSQL<br/>9 tables, RLS)]
     HUB[Hub adapters<br/>IEntitlementProvider, IHubTenantSync]
     OTHER[Other modules]
 
@@ -396,16 +397,19 @@ flowchart LR
 ```
 
 Text fallback — **components**: Tenancy is four assemblies — `Domain` (the
-`Tenant` and `Organization` aggregates), `Application.Contracts` (three commands —
-`ProvisionTenant`, `CreateOrganization`, `MapHostToTenant`), `Application` (their
-handlers and validators, and the `ITenantWriteStore` / `IOrganizationWriteStore` /
-`IPlatformHostMappingStore` ports) and `Infrastructure` (`TenancyDbContext` and the
-three write stores). `Domain` depends on `SharedKernel` for `TenantId`,
+`Tenant`, `Organization`, `TenantDomain` and `TenantSetting` roots),
+`Application.Contracts` (six write commands, four contextual seed queries and locale
+eligibility), `Application` (handlers, validators and module-owned persistence ports)
+and `Infrastructure` (`TenancyDbContext`, four write stores and filtered readers).
+The stores implement `ITenantWriteStore`, `IOrganizationWriteStore`,
+`ITenantSettingWriteStore` and `IPlatformHostMappingStore`; the context maps nine tables.
+`Domain` depends on `SharedKernel` for `TenantId`,
 `OrganizationId` and `IUnitOfWork`; `Application` on `Domain`; `Infrastructure`
 on `Application`, on core `LearnStack.Infrastructure` — where
 `TenantScopedDbContext`, the base `TenancyDbContext` derives from, applies the
-query filters — and on PostgreSQL. The Hub adapters (`IEntitlementProvider`,
-`IHubTenantSync`) and every other module reach `Application` and nothing deeper.
+query filters — and on PostgreSQL. Other modules reach the exported application
+contracts. Hub adapters retain their named Phase 02c boundaries; this diagram does
+not claim they are implemented.
 
 Other modules reach Tenancy **only** through an application contract in
 `LearnStack.Modules.Tenancy.Application.Contracts` — never a navigation property,

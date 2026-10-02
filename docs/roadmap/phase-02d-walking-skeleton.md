@@ -628,7 +628,7 @@ profile/registration unit cases, six foundation/migration Docker cases and all 1
 architecture cases, with zero skips. Links/anchors and the frozen P02d-1 suffix passed.
 Step 1 is complete after both requested rounds.
 
-**Step 2 — Tenancy writers, implementation verification and review pending.**
+**Step 2 — Tenancy writers, complete after both review rounds.**
 Three unrouted tenant-wide commands implement locale addition/default selection and
 complete branding creation/exact replacement. Existing locale configurations are
 validated before mutation; the first enabled locale is promoted even after disabled
@@ -659,7 +659,16 @@ review (`gpt-6.1-sol`, xhigh) found two Minor documentation gaps; prose wrapping
 public contract XML documentation are corrected. Palette key-order and exact/over-cap
 input proofs also cover its optional test suggestion. After fixes, Release build
 passed with zero warnings/errors; 77 Docker regression cases, 185 focused unit and
-177 architecture cases passed with zero skips. Round 2 remains pending.
+177 architecture cases passed with zero skips. The implementation is `1b98352`;
+first-round fixes are `63ed4bc`.
+
+**Step 2 review round 2.** Fresh security (`gpt-6-astra`, high) and corpus/theme
+(`gpt-6.1-sol`, xhigh) agents independently returned Approve for
+`a8a51ce..63ed4bc`. Each independently passed 160 focused unit and 12 PostgreSQL
+writer/migration cases, with zero failures/skips. The one verified Minor was a stale
+Tenancy component description; its root/writer claim, command/store inventory and
+table count now match code. Links/anchors, wrapping and the frozen P02d-1 record pass.
+Step 2 is complete; Steps 3–4 remain pending.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -75,7 +75,8 @@ and ADR-0050/0051 establish protected content, exact write contracts and four
 implementation steps. Implementation resumed on development: Step 1 supplies the
 access-policy migration, exact-definition/locale contracts, presentation validation
 and contextual seed verification queries; both review rounds passed. Step 2 adds
-locale/branding writers and whole-value setting audit redaction, with review pending.
+locale/branding writers and whole-value setting audit redaction; both review rounds
+passed.
 Education writers and seed execution follow in Steps 3–4; public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
