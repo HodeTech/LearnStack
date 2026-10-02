@@ -37,7 +37,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// tenant would send and reads the columns a reader would read.
 /// </para>
 /// <para>
-/// Same composition root, same role, same cleanup discipline as
+/// Same composition root, same role, same disposable-database discipline as
 /// <see cref="AuditPipelineTests"/>: the seeder's graph is a real one, and the rows are
 /// written by <c>learnstack_app</c> under the policies and read back as
 /// <c>learnstack_platform</c>.
@@ -50,15 +50,17 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     private static readonly Guid Actor = Guid.Parse("dddddddd-0000-7000-8000-00000000a0a0");
     private const string Correlation = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-    private static readonly SeedTenant Tenant = SeedData.English;
+    // Audit workflows need only provisioning and built-ins, not the demo curriculum.
+    private static readonly SeedTenant Tenant = SeedData.English with { Curriculum = null };
 
     private readonly SchemaFixture _schema;
+    private DisposableSchemaDatabase _database = null!; // Initialized by the per-test fixture.
 
     public AuditWorkflowTests(SchemaFixture schema) => _schema = schema;
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync() => _database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
 
-    public Task DisposeAsync() => CleanUpAsync();
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     [Fact]
     public async Task Replacing_a_live_content_type_is_one_row_about_the_successor()
@@ -67,7 +69,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // one transaction — two instances of one aggregate — and the composer refused the
         // pair, which rolled back every replacement publication. The handler now designates
         // the successor, and the retirement travels in `changes` under its own pointer.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var incumbent = Tenant.BuiltInContentTypeId;
@@ -111,7 +113,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     [Fact]
     public async Task Replacing_a_live_taxonomy_is_one_row_about_the_successor()
     {
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var incumbent = Tenant.BuiltInTaxonomyId;
@@ -157,7 +159,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // taxonomy's own type, so the persisted row held the parent's metadata and none of
         // the vocabulary the tenant wrote. Asserted on the persisted JSON, because an
         // interceptor-only case never proved the row kept what was captured.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var taxonomy = Guid.CreateVersion7();
@@ -201,7 +203,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // row goes through the real interceptor, capture, composer and store. What this
         // proves is the removal's path to the column, which is the half the planned command
         // will not be able to change.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var taxonomyId = Guid.CreateVersion7();
@@ -274,7 +276,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // taxonomy with one band — permanently. Membership is now written down only for an
         // owner created in the request, so a loaded owner's collection is left out as
         // unknown, however it was loaded (ADR-0044 Amendment 6 § 4).
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var intentId = AuditEntryId.From(Guid.CreateVersion7());
@@ -341,7 +343,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // request is complete only while the tracker holds what the root was created with;
         // past that the membership is unknown, and the first flush's changes still carry
         // every band (ADR-0044 Amendment 6 § 4).
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var intentId = AuditEntryId.From(Guid.CreateVersion7());
@@ -422,7 +424,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // standalone record of the attempt failed the same way, and the audit health check
         // went unhealthy. 100 is the control that passed before; the key goes on the row
         // whole, because a truncated key names a different subject.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var host = HostOfLength(length);
@@ -449,7 +451,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // The failure path of the same two columns, written by the other writer. Publishing
         // a revision that is already live is refused after the handler designated it, so
         // the reconcile's standalone row names the instance it refused.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         await using (var provider = Compose(dataSource))
@@ -479,7 +481,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // refused command never reaches the step that would classify it — no intent, no row.
         // The valid send afterwards is the control: the same operation through the same graph
         // does write, so an unchanged count is the pipeline's answer and not a blind read.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
         var before = (await RowsAsync()).Count;
@@ -577,7 +579,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     /// <summary>Reads the tenant's rows as <c>learnstack_platform</c> — the read is the only bypass.</summary>
     private async Task<IReadOnlyList<Row>> RowsAsync()
     {
-        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString);
         await using var command = new NpgsqlCommand(
             """
             SELECT id, operation, outcome, entity_id, before_state::text, after_state::text,
@@ -644,7 +646,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     /// <summary>How many mappings the database holds for a host, read as the platform role.</summary>
     private async Task<long> HostMappingCountAsync(string host)
     {
-        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString);
         await using var command = new NpgsqlCommand(
             "SELECT count(*) FROM platform_host_to_tenant WHERE host = @host", (NpgsqlConnection)connection);
         command.Parameters.AddWithValue("host", host);
@@ -655,7 +657,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     /// <summary>The bands the database holds under a taxonomy key, read as the owner under the tenant.</summary>
     private async Task<long> BandCountAsync(string taxonomyKey)
     {
-        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+        await using var owner = await PostgresFixture.OpenAsync(_database.MigrationConnectionString);
         await using var transaction = await owner.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(owner, transaction, Tenant.TenantId.Value);
 
@@ -668,49 +670,4 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         return (long)(await command.ExecuteScalarAsync())!;
     }
 
-    /// <summary>The same cleanup as <see cref="AuditPipelineTests"/>, for the same reasons.</summary>
-    private async Task CleanUpAsync()
-    {
-        var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
-
-        await using (var platform = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString))
-        {
-            foreach (var statement in new[]
-            {
-                "DELETE FROM audit_log WHERE tenant_id = ANY(@ids)",
-                "DELETE FROM platform_host_to_tenant WHERE tenant_id = ANY(@ids)",
-                "UPDATE tenants SET default_organization_id = NULL WHERE id = ANY(@ids)",
-                "DELETE FROM organizations WHERE tenant_id = ANY(@ids)",
-                "DELETE FROM tenants WHERE id = ANY(@ids)",
-            })
-            {
-                await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
-                cleanup.Parameters.AddWithValue("ids", ids);
-                await cleanup.ExecuteNonQueryAsync();
-            }
-        }
-
-        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
-
-        foreach (var tenant in SeedData.All)
-        {
-            await using var transaction = await owner.BeginTransactionAsync();
-            await SchemaQueries.SetTenantAsync(owner, transaction, tenant.TenantId.Value);
-
-            foreach (var statement in new[]
-            {
-                "DELETE FROM tenant_level_taxonomy_items WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_level_taxonomies WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_content_types WHERE tenant_id = @tenant",
-                "DELETE FROM customization_generations WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_domains WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_locales WHERE tenant_id = @tenant",
-            })
-            {
-                await SchemaQueries.ExecuteAsync(owner, transaction, statement, ("tenant", tenant.TenantId.Value));
-            }
-
-            await transaction.CommitAsync();
-        }
-    }
 }

@@ -145,7 +145,7 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
     public Result<None> ValidateInstance(string admittedSchema, string instanceJson)
     {
         // Both caps before either parse, for the reason AdmitSchema states.
-        if (Encoding.UTF8.GetByteCount(instanceJson) > MaxInstanceBytes)
+        if (!JsonInstanceLimits.IsWithinCap(instanceJson))
         {
             return Fail<None>("", "lockey_instance_too_large");
         }
@@ -213,12 +213,6 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
             }
         }
     }
-
-    /// <summary>
-    /// The largest content entry this validator will evaluate, per
-    /// <see href="../../../docs/architecture/32-tenant-customization-model.md">§ 8.4</see>.
-    /// </summary>
-    private const int MaxInstanceBytes = 1024 * 1024;
 
     /// <remarks>
     /// A fresh registry per build. Both arguments are load-bearing; see the

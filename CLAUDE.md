@@ -7,8 +7,12 @@ the conventions you must follow when contributing.
 ## What this is
 
 LearnStack is a **white-label platform for multi-branch education
-businesses that teach live** — not a single LMS, and not an education
-product of its own. One binary, one schema, and one set of container
+businesses that teach live**. Its endorsed product direction adds an optional
+LearnStack-branded Course Marketplace while preserving independent institution
+sites. [ADR-0049](docs/decisions/0049-institution-sites-and-course-marketplace.md)
+and [Phase 09a](docs/roadmap/phase-09a-course-marketplace-pilot.md) remain Proposed;
+marketplace architecture, commerce and delivery are not implemented or Accepted.
+One binary, one schema, and one set of container
 images serve a language school, a yoga studio, a music school, or a
 coding bootcamp. What differs between them is **tenant customization
 data** loaded at provisioning, not code
@@ -22,9 +26,10 @@ capability invocation (running submitted code, scoring speech) are
 platform features gated by plan — they need a release, not a
 customization row. Link to that section; do not restate it.
 
-LearnStack ships in three production deployment modes — SaaS, Dedicated,
-Self-Hosted — backed by the companion **LearnStack Hub** control plane
-(separate repository, see
+LearnStack targets three production deployment modes — SaaS, Dedicated,
+Self-Hosted — with current readiness recorded in
+[Deployment Models](docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam).
+The companion **LearnStack Hub** control plane lives in a separate repository (see
 [ADR-0019](docs/decisions/0019-learnstack-hub.md)). On developer
 workstations the Hub repo is the sibling directory `../LearnStack-Hub`;
 GitHub: https://github.com/HodeTech/LearnStack-Hub. The Hub repository
@@ -60,10 +65,22 @@ reader. The whole .NET suite runs with **zero skips**, which the runner now refu
 let change.
 **[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
 shipped the packet table and the decision register, and every later packet opens with
-its decision pass. **P02d-1 is complete**: Education's domain, schema and isolation
-proofs pass, all three steps completed two independent agent review rounds, and the
-five live required checks pass on [PR #22](https://github.com/HodeTech/LearnStack/pull/22). Education
-commands and seed writes belong to P02d-2; public reads belong to P02d-4.
+its decision pass. **P02d-1 is complete and merged** through
+[PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
+domain, schema and isolation proofs pass; all three steps completed two independent
+agent review rounds. The [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+records verification of the final PR head and merge commit. **P02d-2's decision pass
+is Accepted — 2026-10-02**: its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+and ADR-0050/0051 establish protected content, exact write contracts and four
+implementation steps. Implementation resumed on development: Step 1 supplies the
+access-policy migration, exact-definition/locale contracts, presentation validation
+and contextual seed verification queries; both review rounds passed. Step 2 adds
+locale/branding writers and whole-value setting audit redaction; both review rounds
+passed.
+Step 3 adds Education writers; both review rounds and a fresh focused fix review
+passed. Step 4 completes convergent seed execution after both review rounds.
+P02d-2 implementation and final verification are complete; PR review/merge remains
+pending. P02d-3 read internals are next; public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -242,8 +259,9 @@ and `Organization` aggregates and `TenancyDbContext`; Customization —
 `CustomizationDbContext`; Audit — `AuditEntry`, `AuditConfig` and `AuditDbContext`;
 and Education — separate `Course` and `Lesson` roots, their contained translations
 and `EducationDbContext`. Content, Identity and Media remain scaffolded.
-P02d-1's implementation, agent reviews and required PR checks are complete.
-Command and public-read surfaces belong to the later packets. Other module-level references
+P02d-1 is merged; its implementation, agent reviews and required PR checks are complete.
+P02d-2 supplies unrouted authoring commands and seeded content; public reads belong
+to P02d-4. Other module-level references
 in the docs (e.g. `ILiveClassProvider`, `ITenantSearch`) still describe intended
 shape owned by their named phases.
 
@@ -318,7 +336,13 @@ let the entry point pick it.
   - **No → ship the port now, the adapter on a named trigger.** Dapr pub/sub, Kafka, Valkey-backed cache, Vault, APISIX, the Hub entitlement source, signed licence keys, custom-domain TLS automation, `audit_log` partitioning. Each has a port in `LearnStack.SharedKernel` wherever [ADR-0035 § The gated set](docs/decisions/0035-demand-gated-infrastructure.md#the-gated-set) names one, a working default implementation (`InProcessEventBus`, `InMemoryCacheService`, `ConfigurationSecretProvider`, `NullEntitlementProvider`), an owning phase, and a written trigger condition. A building block missing any of those, other than a port that table records as absent, is not demand-gated — it is missing.
 - **Provider adapters everywhere.** Payments, auth, storage, search, live classroom, notifications, **event bus, cache, secrets, Hub contract, entitlement source, host resolver** — all sit behind interfaces. No SaaS lock-in in `Domain` or `Application`. See [20-infrastructure-stack.md](docs/standards/20-infrastructure-stack.md).
 - **The Hub contract is governed by two invariants, not by a count** ([ADR-0034](docs/decisions/0034-hub-contract-surface-invariant.md)): (1) the Hub stores **no tenant content** — courses, lessons, learners, enrollments, sessions and media live only in LearnStack, and the Hub holds tenant *metadata* only; (2) **every LearnStack↔Hub crossing goes through a named adapter** — `IEntitlementProvider`, `IUsageReporter`, `IHubTenantSync`, and nothing else may hold a Hub client. Adding an endpoint still requires an ADR, because the surface is a cross-repository contract both repositories have to agree on.
-- **One binary, five `DeploymentMode` values, two of them wired.** Selection happens at the composition root; module code never branches on the mode ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md), enforced by `Modules_Do_Not_Reference_DeploymentMode`). `Development` and `SaaS` are wired end to end; `Dedicated`, `SelfHostedOnline` and `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until [Phase 11](docs/roadmap/phase-11-production-hardening.md) builds their adapters and integration suites.
+- **One binary, five `DeploymentMode` values.** Selection happens at the composition
+  root; module code never branches on the mode
+  ([ADR-0020](docs/decisions/0020-triple-deployment-hybrid-license.md), enforced by
+  `Modules_Do_Not_Reference_DeploymentMode`).
+  [Deployment Models § Supported today versus prepared seam](docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns the current foundation wiring, remaining adapters and production-readiness
+  boundary; a selectable enum value is not a supported deployment.
 
 ## Conventions when editing docs
 

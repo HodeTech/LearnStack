@@ -313,6 +313,15 @@ per ADR-0018, not on `Membership` extension tables.
 > owns the migration and its verification. P02d-1 accepts this design before its
 > implementation.
 
+**P02d-2 Step 1 — 2026-10-02.**
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md) defines
+Course-level content-access policy inherited by independent Lessons; it is neither
+a grant nor a price. The additive `courses.content_access` migration applies
+`enrollment_required` to legacy rows and as the storage default. The current
+[Education diagram](../modules/education/README.md#entity-relationship-diagram)
+includes the column; public consumers remain P02d-4 work. Phase 05 preserves and
+locates that policy in its versioned model before its writers.
+
 ## Assessment
 
 | Entity | Aggregate root? | Notes |

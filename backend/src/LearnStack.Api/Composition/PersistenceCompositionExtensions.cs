@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.Definitions;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
 using LearnStack.Modules.Tenancy.Application.Audit;
@@ -85,7 +88,7 @@ public static class PersistenceCompositionExtensions
     private const string DefaultConnectionName = "Default";
 
     /// <summary>The one role a runtime process may connect as.</summary>
-    internal const string RuntimeRole = "learnstack_app";
+    internal const string RuntimeRole = ApplicationDataSource.RuntimeRole;
 
     public static IServiceCollection AddLearnStackPersistence(
         this IServiceCollection services, IConfiguration configuration)
@@ -263,6 +266,7 @@ public static class PersistenceCompositionExtensions
         services.TryAddEnumerable([
             ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, EducationAuditCatalogSource>(),
         ]);
 
         services.TryAddSingleton<IAuditCatalog>(provider =>
@@ -278,6 +282,8 @@ public static class PersistenceCompositionExtensions
         // and the reverse reference is already a cycle — so these ports are how the first
         // production handler reaches persistence at all.
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
+        services.TryAddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
+        services.TryAddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
@@ -293,6 +299,15 @@ public static class PersistenceCompositionExtensions
         // therefore not the write store: a content-type handler holding that store
         // would be a handler the cross-aggregate census counts as writing two roots.
         services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
+        services.TryAddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
+        services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ICourseWriteStore, CourseWriteStore>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ILessonWriteStore, LessonWriteStore>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IParentCourseReader, ParentCourseReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ITranslationCollisionReader, TranslationCollisionReader>();
 
         return services;
     }
@@ -307,22 +322,8 @@ public static class PersistenceCompositionExtensions
     /// runtime credential is read, and an error that echoed it would put it in
     /// every log that captured the startup failure.
     /// </remarks>
-    internal static NpgsqlDataSource BuildApplicationDataSource(string? connectionString)
-    {
-        ValidateApplicationConnectionString(connectionString);
-
-        var builder = new NpgsqlDataSourceBuilder(connectionString);
-
-        // Asked of the server, once per physical connection, because the name is
-        // not the privilege: learnstack_app could have been granted BYPASSRLS, and
-        // a superuser bypasses row security with rolbypassrls = false — which is
-        // why rolsuper is in the predicate.
-        builder.UsePhysicalConnectionInitializer(
-            connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
-            connection => RefuseBypassRole(connection, async: true));
-
-        return builder.Build();
-    }
+    internal static NpgsqlDataSource BuildApplicationDataSource(string? connectionString) =>
+        ApplicationDataSource.Build(connectionString);
 
     /// <summary>The configuration key the platform credential comes from.</summary>
     public const string PlatformConnectionName = "PlatformAdmin";
@@ -409,97 +410,14 @@ public static class PersistenceCompositionExtensions
     /// still deferring the data source itself. The server-side bypass check is not
     /// here — it needs a connection, and it runs per physical connection.
     /// </remarks>
-    internal static void ValidateApplicationConnectionString(string? connectionString)
-    {
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "ConnectionStrings:Default is not configured. It names the learnstack_app "
-                + "role — the NOBYPASSRLS runtime credential — and is in .env.example. Do "
-                + "not point it at ConnectionStrings:Migration: that role owns every table, "
-                + "and a runtime that is the owner is what FORCE ROW LEVEL SECURITY exists "
-                + "to defeat.");
-        }
-
-        NpgsqlConnectionStringBuilder parsed;
-
-        try
-        {
-            parsed = new NpgsqlConnectionStringBuilder(connectionString);
-        }
-        catch (Exception exception) when (exception is ArgumentException or FormatException)
-        {
-            // Npgsql's own message names neither the key nor the file. An
-            // operator who pasted a URI-style DSN — the form DATABASE_URL carries
-            // on several hosts — otherwise gets a bare ArgumentException out of
-            // System.Data.Common.
-            // The value is NOT echoed, redacted or otherwise. It failed to parse, so
-            // there is no field to be confident about: the userinfo pattern could not
-            // cross a '/' or a second '@' inside a password, and either one put the
-            // secret in a startup log. The message's job is to name the key and the
-            // expected form, and it does that without quoting anything.
-            throw new InvalidOperationException(
-                "ConnectionStrings:Default is not a valid connection string. The expected "
-                + "form is a semicolon-separated key/value list — Host, Port, Database, "
-                + "Username, Password — not a URI. The value is not repeated here because "
-                + "an unparseable one cannot be reliably redacted. See .env.example.",
-                exception);
-        }
-
-        if (!string.Equals(parsed.Username, RuntimeRole, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"ConnectionStrings:Default names Username='{parsed.Username}', not {RuntimeRole}: "
-                + $"{Redact(parsed)}. A runtime process connects as the NOBYPASSRLS "
-                + "application role and nothing else. learnstack_migration owns every table, and "
-                + "learnstack_platform and learnstack_outbox_admin hold BYPASSRLS — with any of "
-                + "them here every Row Level Security policy in the database is inert, and the "
-                + "unresolved-tenant state that returns no rows returns every tenant's instead. "
-                + "EnterPlatformAdminScope is the only sanctioned path to a bypass credential.");
-        }
-    }
-
-    private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async)
-    {
-        await using var command = connection.CreateCommand();
-
-        // Reachability, not the role's own two attributes. `GRANT
-        // learnstack_platform TO learnstack_app` leaves `rolbypassrls` and
-        // `rolsuper` false on learnstack_app and still lets it `SET ROLE` into a
-        // BYPASSRLS role — measured, directly and through a bridge role that holds
-        // the membership on its behalf. `pg_has_role(..., 'MEMBER')` follows the
-        // whole chain and includes the role itself, so this subsumes the attribute
-        // check rather than sitting beside it.
-        command.CommandText =
-            """
-            SELECT EXISTS (
-                SELECT 1 FROM pg_roles r
-                WHERE (r.rolbypassrls OR r.rolsuper)
-                  AND pg_has_role(current_user, r.oid, 'MEMBER'))
-            """;
-
-        var bypasses = async
-            ? await command.ExecuteScalarAsync()
-            : command.ExecuteScalar();
-
-        if (bypasses is true)
-        {
-            throw new InvalidOperationException(
-                "The runtime connected as a role that can reach one which bypasses Row Level "
-                + "Security — by holding rolbypassrls or rolsuper itself, or by being a member "
-                + "of a role that does, directly or through another. Every policy in the "
-                + "database is then one SET ROLE away from inert. Check "
-                + "ConnectionStrings:Default and the role memberships granted to the role it "
-                + "names; EnterPlatformAdminScope is the only sanctioned path to a bypass "
-                + "credential.");
-        }
-    }
+    internal static void ValidateApplicationConnectionString(string? connectionString) =>
+        ApplicationDataSource.Validate(connectionString);
 
     /// <summary>
     /// Refuses a platform connection whose role does <b>not</b> bypass row security.
     /// </summary>
     /// <remarks>
-    /// The mirror of <c>RefuseBypassRole</c>, and asked of the server for the same
+    /// The mirror of the shared application-role guard, and asked of the server for the same
     /// reason: the name is not the privilege. A <c>learnstack_platform</c> that lost
     /// <c>BYPASSRLS</c> — a re-created role, a restored dump, an <c>ALTER ROLE</c> — is
     /// the failure that looks like nothing at all, because every cross-tenant query
@@ -539,28 +457,6 @@ public static class PersistenceCompositionExtensions
                 + "no context set, is no rows at all. Grant BYPASSRLS to "
                 + $"{PlatformRole} or correct the credential.");
         }
-    }
-
-    /// <summary>The connection string with its password removed.</summary>
-    /// <remarks>
-    /// From the <b>parsed</b> builder, not by pattern-matching the raw text.
-    /// Npgsql accepts <c>Pwd</c> and <c>PSW</c> as aliases for <c>Password</c> and
-    /// parses all three into the same field, so a keyword regex over the raw value
-    /// that knows only the canonical spelling carries the other two straight into
-    /// the exception message — measured, and it is what shipped first. Setting the
-    /// field is alias-proof by construction. (A regex over
-    /// <c>parsed.ConnectionString</c> would also work, because the round trip
-    /// normalises the aliases away — but it works for a reason a reader would have
-    /// to know, and the raw-string form one edit away from it does not.)
-    /// </remarks>
-    private static string Redact(NpgsqlConnectionStringBuilder parsed)
-    {
-        var redacted = new NpgsqlConnectionStringBuilder(parsed.ConnectionString)
-        {
-            Password = "***",
-        };
-
-        return redacted.ConnectionString;
     }
 
 }

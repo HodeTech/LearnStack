@@ -24,6 +24,12 @@ and database schema, while keeping their own content, branding and tenant bounda
 The product design supports a platform subdomain and optional custom domains; a
 business does not need to bring its own domain.
 
+The endorsed direction adds an **optional Course Marketplace** alongside those
+sites: shared discovery, platform checkout, commission and institution payouts.
+Its [pilot plan](docs/roadmap/phase-09a-course-marketplace-pilot.md) and
+[direction ADR](docs/decisions/0049-institution-sites-and-course-marketplace.md) are
+Proposed; payment, seller operations and marketplace delivery are still ahead.
+
 The difference between those businesses lives in
 [tenant customization data](docs/architecture/32-tenant-customization-model.md).
 The [platform vision](docs/architecture/01-platform-vision.md) defines the scope and
@@ -37,16 +43,17 @@ the boundary between customization and capabilities that require platform code.
 ## What it does
 
 The product vision connects discovery, course content and live teaching in one place.
-Three surfaces serve the people on each side of that experience:
+The planned surfaces serve the people on each side of that experience:
 
 | Surface | Who it serves | Intended experience |
 |---|---|---|
 | **Public site** | Visitors and prospective learners | Discover a school, browse its catalog and explore its content. |
 | **Admin Studio** | Institution staff and instructors | Author content, manage people and organize teaching. |
 | **Learner portal** | Enrolled learners | Work through lessons, track progress and join live sessions. |
+| **Optional Course Marketplace** | Learners and participating institutions | Shared discovery and central checkout; endorsed target, architecture approval pending. |
 
 These are planned product capabilities. Today, the frontend contains route scaffolds
-for all three surfaces; the status below separates delivered foundations from the
+for the first three surfaces; the status below separates delivered foundations from the
 remaining product work.
 
 **Built for different ways of teaching.** Content types and level taxonomies already
@@ -58,17 +65,25 @@ items, rules, custom fields and notification templates; their delivery is tracke
 ## Where it is today
 
 **Phase 01 and Phase 02a are complete. Phase 02d is in progress.**
-[P02d-1](docs/roadmap/phase-02d-walking-skeleton.md) delivers the Education domain,
-schema and isolation proofs. **P02d-2** owns course and lesson command handlers and
-seed writes; **P02d-4** owns anonymous public API reads. Browser rendering follows
-in P02d-5–7.
+[P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
+**complete and merged**: Education domain, schema and isolation proofs.
+**P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
+with four implementation steps. Step 1 implements the access policy, exact
+definition/locale readers, text-card metadata validation and seed verification queries.
+Both Step 1 review rounds passed. Step 2 adds locale/branding writers and JSON audit
+redaction; both review rounds passed. Step 3 adds Education writers; both review
+rounds and the focused fix review passed. Step 4 completes convergent seed
+execution after both review rounds. P02d-2 is verified and ready for PR review;
+merge remains pending. P02d-3 read internals are next.
+**P02d-4** owns anonymous public API reads. Browser rendering follows
+in P02d-5–7; none of these later packets has started.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
-| **Tenancy** | Tenant provisioning, organizations, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, payload validation and built-in seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Tenancy** | Tenant provisioning, organizations, locales, branding, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Customization** | Content types, level taxonomies, exact-definition readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, migrations and isolation tests | Commands, seeded content and public reading in [P02d-2–4](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolation tests | Public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
@@ -106,8 +121,10 @@ make seed      # start infrastructure, apply migrations, seed two demo tenants
 ```
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
-mappings, plus built-in content-type and taxonomy definitions. **It does not yet seed
-courses or lessons**; P02d-2 owns those writes.
+mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
+and eight scoped courses, ten lessons and twenty-seven translations. It uses the
+ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
+[SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 
 ### 3. Start the applications in separate terminals
 

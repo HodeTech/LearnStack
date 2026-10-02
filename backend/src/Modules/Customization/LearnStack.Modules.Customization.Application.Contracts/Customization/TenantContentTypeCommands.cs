@@ -77,8 +77,13 @@ public sealed record RegisterTenantContentTypeCommand(
 /// the retirement is this command's work, and the index is what catches the case
 /// where it did not happen.
 /// </remarks>
+/// <param name="ContentTypeId">The draft revision to publish.</param>
+/// <param name="RequireNoIncumbent">
+/// When true, refuse any other Active revision before mutation. Default false
+/// preserves ordinary revision succession; convergence callers never retire one.
+/// </param>
 public sealed record PublishTenantContentTypeCommand(
-    Guid ContentTypeId) : IRequest<Result<TenantContentTypeDto>>;
+    Guid ContentTypeId, bool RequireNoIncumbent = false) : IRequest<Result<TenantContentTypeDto>>;
 
 /// <summary>What the caller now has.</summary>
 public sealed record TenantContentTypeDto(

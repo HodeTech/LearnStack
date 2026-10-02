@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.SharedKernel.Audit;
@@ -23,6 +24,11 @@ public sealed class CustomizationAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Off<GetContentTypeSeedStateQuery>();
+        builder.Off<GetTaxonomySeedStateQuery>();
+        builder.Off<GetActiveContentTypeSeedRevisionQuery>();
+        builder.Off<GetActiveTaxonomySeedRevisionQuery>();
 
         builder
             .MustAudit<RegisterTenantContentTypeCommand>(

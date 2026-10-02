@@ -255,7 +255,7 @@ complete. Genericity is already proven, and re-proven on every CI run.
 | Native mobile apps | Web-first; mobile considered after Phase 11. | Post-MVP backlog (no phase yet) |
 | Complex reporting dashboards | Read models exist; dashboards beyond the basics are post-MVP. | Phase 11 ships baseline dashboards; advanced reporting is post-MVP backlog |
 | LTI / xAPI implementation | Integrations module is ready; protocol implementations are post-MVP. | Post-MVP backlog (Integrations module structure lands in Phase 09) |
-| Marketplace features | Out of scope. | Not on the roadmap |
+| Course Marketplace | Endorsed hybrid target; still outside the Accepted MVP exit. | [Proposed Phase 09a](../roadmap/phase-09a-course-marketplace-pilot.md), under ADR-0049; no delivery authorization yet |
 | AI features (pronunciation feedback, transcription) | Post-MVP. Hooks in the classroom event stream make later addition straightforward. | Post-MVP backlog (no phase yet) |
 | Whiteboard, breakout rooms | Post-MVP. | Post-MVP backlog (no phase yet) |
 | Self-service tenant signup | Tenants are provisioned by Hub admin (SaaS) or CLI (Self-Hosted) in MVP. | Post-MVP backlog (no phase yet) |

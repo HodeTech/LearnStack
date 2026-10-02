@@ -1,16 +1,24 @@
 # Education Module
 
-**Status:** P02d-1 complete — 2026-09-14. Domain, persistence, isolation proofs,
-both agent review rounds per step and all five required PR checks are complete.
+**Status:** P02d-1 complete and merged — 2026-09-14. Domain, persistence, isolation
+proofs and both agent review rounds per step are complete. The
+[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
+records all five required checks on the final PR head and merge commit.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
-records the accepted scope. Commands, audit catalogue entries and seed writes remain
-planned for P02d-2; public reads remain planned for P02d-4.
+records the accepted scope. P02d-2 implements unrouted writers and adds seed execution;
+public reads remain planned for P02d-4.
+The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
+verification queries, explicitly classified Off. Step 3 implements six writers; both
+review rounds and a focused fix review passed. Step 4 completes the seed after both
+review rounds. P02d-2 is verified and ready for PR review; merge remains pending.
+The diagram includes the access column.
 
 ## Overview
 
 Education owns courses, lessons and their translated content. P02d-1 Step 2
-implements their domain model, database shape and isolation. P02d-2 owns command
-handlers and seed writes;
+implements their domain model, database shape and isolation. P02d-2 implements six
+unrouted command handlers and convergent seed writes;
 P02d-4 owns public reads. [Phase 05](../../roadmap/phase-05-education-learning-content.md)
 owns course versions, modules, lesson items and the authenticated authoring surface.
 
@@ -31,6 +39,7 @@ erDiagram
         uuid organization_id
         varchar slug_key
         text status
+        text content_access
         varchar level_taxonomy_key
         int level_taxonomy_schema_version
         varchar level_band_key
@@ -82,7 +91,7 @@ owns their storage conventions.
   They implement `IOrganizationScoped` and carry both isolation markers. They have
   no surrogate `id`, independent `row_version`, audit timestamps or `deleted_at`.
   Changing a translation changes its owning root's concurrency token and is captured
-  inside that root's audit row when P02d-2 writes it.
+  inside that root's audit row by P02d-2's writers.
 - `courses` and `lessons` retain `UNIQUE (tenant_id, id)` independently of their
   primary keys. Lesson-to-course deletion is `RESTRICT`; satellite-to-parent deletion
   is `CASCADE`. An invoker INSERT/UPDATE trigger independently enforces the parent's
@@ -140,14 +149,15 @@ owns their storage conventions.
 
 ## State diagrams
 
-[ADR-0048](../../decisions/0048-walking-skeleton-publication.md#lifecycle) owns the
-[publication](../../glossary.md#education--learning) diagram and its semantics. The two
-roots use it independently. Neither satellite has a publication state separate from its parent.
+[ADR-0050](../../decisions/0050-publication-and-course-content-access.md#publication-lifecycle)
+retains the independent [publication](../../glossary.md#education--learning) lifecycle
+shipped under ADR-0048. Publication is separate from content-access policy. Neither
+satellite has a publication state separate from its parent.
 
 ## Primary write sequence
 
-No command exists in P02d-1. The following is the planned P02d-2 path; its decision
-pass names the commands and contracts before their implementation.
+Step 3 implements the six unrouted commands below. Each passes through the same
+composed pipeline; no public endpoint or authoring permission is introduced.
 
 ```mermaid
 sequenceDiagram
@@ -169,6 +179,72 @@ A command writes one Education root. Cross-module calls are reads through applic
 contracts, and audit durability is part of the ambient transaction. The seeder has no
 second write path.
 
+## P02d-2 accepted writer contract
+
+**Step 3 complete — 2026-10-02.** The maintainer approved this
+contract with [ADR-0050](../../decisions/0050-publication-and-course-content-access.md),
+[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) and the phase package.
+This section owns command detail; the phase owns gate disposition and seed inventory.
+
+| Command | Root / inputs | Validation and outcome |
+|---|---|---|
+| `CreateCourseCommand` | New Course; explicit id, slug key, access policy, optional complete taxonomy revision/band pin | Tenant/organization from context; exact new taxonomy binding must be Active and contain the band; draft creation, no translation or lesson write |
+| `AddCourseTranslationCommand` | Existing Course; id, exact expected version, locale, title, summary, translated slug | Root visible and writable, enabled canonical locale, valid text/slug, draft-only insert; no overwrite |
+| `PublishCourseCommand` | Existing Course; id and exact expected version | Draft → published only; empty/incomplete translations allowed; no child publication or implicit grant |
+| `CreateLessonCommand` | New Lesson; explicit id, parent course id, sort, exact content-type key/version | Parent must be visible and writable in announced scope; derive its tenant/organization; new exact type binding must be Active; draft, no body yet |
+| `AddLessonTranslationCommand` | Existing Lesson; id, exact expected version, locale, title, slug, JSON object body | Enabled canonical locale; validate against its immutable pin, including eligible Deprecated revision; draft-only insert |
+| `PublishLessonCommand` | Existing Lesson; id and exact expected version | Draft → published only; no Course mutation, grant or readiness requirement beyond the selected lifecycle |
+
+Only a trusted contextual caller invokes these unrouted commands. No command is
+`PublicSurface`, grants HTTP access or registers an authoring permission. Exact
+expected versions protect existing-root writes; omission/invalidity is validation
+failure and stale values are concurrency conflicts. Seed queries obtain current
+versions for unfinished acts, not permission to retry failed writes blindly.
+
+Customization is read through its
+[exact value contract](../customization/README.md#p02d-2-accepted-exact-write-contract);
+locale membership through Tenancy's
+[accepted locale contract](../tenancy/README.md#p02d-2-accepted-locale-and-branding-contract).
+Both execute uncached inside the caller's ambient frame and announced context.
+No cross-chain FK, foreign Domain/Infrastructure reference or independent transaction
+is introduced. Revision/locale eligibility is observed at the validation read;
+later deprecation/disable does not rewrite stored bodies and is rechecked by readers.
+
+### Failure and transaction contract
+
+| Condition | Result |
+|---|---|
+| Missing, cross-tenant or hidden sibling parent/root | `not_found`; no name/id disclosure |
+| Visible parent/root incompatible with write scope | `resource_scope_violation` before mutation |
+| Malformed input, disabled/absent locale, invalid pin/band or body | `validation_failed`, field/JSON Pointer details without foreign data |
+| Known root-id/key/locale/slug uniqueness or lifecycle refusal | `business_rule_violation`; insertion reserves the localized slug, not publication |
+| Stale expected version or EF optimistic concurrency | `concurrency_conflict` |
+| Unknown database fault | Existing infrastructure exception handling; never disguise it as a business collision |
+
+Infrastructure maps only named owned constraints; arbitrary unique/trigger exceptions
+are not exposed as caller diagnostics. Translation collision responses carry canonical
+locale and slug. A filtered live-parent/satellite read adds `entityId` only when that
+root is visible in the caller's read scope; hidden sibling identities remain absent.
+Root state, scope and validation guards precede the first mutation/stamp. A failed
+nested command cannot leave dirty tracked changes
+for a successful outer command to flush. Mark the ambient frame rollback-only if a
+failed save or already-applied mutation cannot be safely discarded, and prove both
+ordinary failure and an outer handler absorbing that failure.
+
+Each command writes one root and its contained translations. Publishing is MUST
+audited; draft creation and translation insertion are SHOULD operations in the
+Education catalogue.
+Pending audit writes and business changes obey the existing ambient durability rules.
+No explicit second transaction or cross-root publication is permitted.
+
+### Seed verification
+
+Contextual module-owned `ISender` read requests return bounded verification DTOs,
+including exact ownership/content/state and current root version where needed.
+They are explicitly audit Off, unrouted, without unresolved/public admission and
+never bypass RLS. The phase's convergence rules govern skip/create/verify behavior;
+they are not a weaker alternate write path.
+
 ## Components and primary read flow
 
 ```mermaid
@@ -176,15 +252,18 @@ flowchart LR
     EA[Education Application] --> EC[Education Domain]
     EI[Education Infrastructure] --> EA
     EI --> DB[(PostgreSQL Education tables)]
-    EA -. P02d-2 .-> TC[Tenancy Application.Contracts]
-    EA -. P02d-2 .-> CC[Customization Application.Contracts]
+    EA --> TC[Tenancy Application.Contracts]
+    EA --> CC[Customization Application.Contracts]
     EI --> SK[Shared persistence and audit infrastructure]
 ```
 
 The Domain and Infrastructure projects implement the two roots, their satellites
 and a dedicated migration chain. Both API and Seeder register `EducationDbContext`
-on the ambient unit of work; neither exposes an Education command yet. The dashed
-contract consumers arrive in P02d-2. No public read flow exists until P02d-4.
+on the ambient unit of work and register the writer ports/handlers. Step 3 consumes
+Tenancy/Customization application contracts. No public read flow exists until P02d-4.
+Step 1 also registers filtered `GetCourseSeedStateQuery` and
+`GetLessonSeedStateQuery` handlers in both roots, explicitly classified Off. They
+return immutable verification DTOs without a public marker or HTTP endpoint.
 No Education code names a Customization or Tenancy table.
 
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
@@ -203,13 +282,14 @@ against the durable event infrastructure Phase 02b supplies.
 
 ## Permission matrix
 
-[permissions.md](permissions.md) records the boundary before commands and
-permissions exist. No authorization claim is inferred from database privileges.
+[permissions.md](permissions.md) records the unrouted writer boundary; no authoring
+permission is registered. No authorization claim is inferred from database privileges.
 
 ## Audit coverage matrix
 
-[audit.md](audit.md) records the planned publication floor. P02d-2 adds the
-remaining operation rows with its command decisions and catalogue source.
+[audit.md](audit.md) records the implemented publication floor. Step 3 supplies the six
+writer catalogue registrations. Step 1 registers the two contextual
+verification queries Off, without a synthetic write operation.
 
 ## Performance budget
 
@@ -231,6 +311,7 @@ provide those ordering suffixes. P02d-4 verifies query shape when it writes the 
   exemption. Parent soft deletion still requires parent-aware public reads in P02d-4.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
-- Writer, seed, read-response and rendering gates remain with their named packets in
+- Writer and seed decisions are implemented in P02d-2. Read-response and rendering
+  gates remain with their named packets in
   the [decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
   No P02d-1 decision is implicitly delegated to those later passes.

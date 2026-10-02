@@ -44,6 +44,7 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
         {
             table.HasCheckConstraint("ck_courses_slug_key_format", EducationMapping.SlugCheck("slug_key"));
             table.HasCheckConstraint("ck_courses_status", "status IN ('draft', 'published')");
+            table.HasCheckConstraint("ck_courses_content_access", "content_access IN ('public', 'enrollment_required')");
             table.HasCheckConstraint("ck_courses_level_reference", """
                 (level_taxonomy_key IS NULL AND level_taxonomy_schema_version IS NULL AND level_band_key IS NULL)
                 OR (level_taxonomy_key IS NOT NULL AND level_taxonomy_schema_version IS NOT NULL
@@ -58,6 +59,13 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
         builder.HasAlternateKey(x => new { x.TenantId, x.Id }).HasName("ux_courses_tenant_id_id");
         builder.Property(x => x.SlugKey).HasMaxLength(EducationSlug.MaxLength).IsRequired();
         builder.Property(x => x.Status).MapStatus();
+        builder.Property(x => x.ContentAccess)
+            .HasConversion(
+                value => value == CourseContentAccess.Public ? "public" : "enrollment_required",
+                value => value == "public" ? CourseContentAccess.Public : CourseContentAccess.EnrollmentRequired)
+            .HasColumnType("text")
+            .HasDefaultValue(CourseContentAccess.EnrollmentRequired)
+            .IsRequired();
         builder.Property(x => x.LevelTaxonomyKey).HasMaxLength(EducationPinKey.MaxLength);
         builder.Property(x => x.LevelTaxonomySchemaVersion);
         builder.Property(x => x.LevelBandKey).HasMaxLength(EducationPinKey.MaxLength);

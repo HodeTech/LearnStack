@@ -692,6 +692,25 @@ parsing. `LocalizedText.From` refuses the same characters for a sharper reason:
 `JsonSerializer` rewrites an unpaired surrogate to `U+FFFD`, so a display name
 containing one was stored **changed**, with nothing raised anywhere.
 
+### Amendment 5 — optional ordered text-card profile (2026-10-02)
+
+The maintainer approved [ADR-0051](0051-ordered-text-card-presentation.md) with the
+P02d-2 decision package. It defines optional root `x-fields` metadata and a bounded
+plain-string text-card profile. This is a compatible extension, not a correction
+or a rewrite of the original Decision. Schemas without the extension, including
+the immutable built-in `card` and `plain`, retain their existing admission rules.
+
+The four admission gates keep their order. Gate 2 recognizes the extension's syntax;
+Gate 4 compiles the schema. Customization resolves descriptor/property/label and
+composite compatibility after Gate 4 and before persistence, without giving the
+generic validator module-registry access. Unknown inert dialect annotations retain
+their original behavior; recognized metadata cannot silently bypass its resolver.
+
+ADR-0051 owns the full profile, compatibility and safe-text contract. Its accepted
+P02d-2 gate parts are recorded in the phase register. The Customization spec, Tenant
+Customization Model, glossary and ADR index link the extension. No profile code or
+renderer is delivered by this amendment; P02d-2 and P02d-6 own implementation.
+
 ## References
 
 - [ADR-0018](0018-tenant-driven-customization-model.md) — the customization model

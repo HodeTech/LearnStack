@@ -1,369 +1,194 @@
 ---
 name: seed-tenant
 description: >
-  Provision a tenant for local development or the request-level isolation suite —
-  the `tenants` row, its organizations, locales, settings, feature flags, domain,
-  and its `platform_host_to_tenant` mapping. USE FOR: bringing up a demo tenant,
-  adding a second tenant for cross-tenant isolation testing, reseeding after a
-  tenancy schema change. Seeding the two shipped customization aggregates is part
-  of it as of Packet 8: `SeedRunner` registers and publishes the built-in
-  `card` content type and `plain` taxonomy through the module's own commands. DO
-  NOT USE FOR: production tenant provisioning (operator action via Hub),
-  Self-Hosted license issuance (Hub-side), the customization aggregates that have
-  no schema yet or course content (later phases own those — see § What a later
-  phase adds), or domain-specific code (forbidden by ADR-0018 — everything is
-  data).
+  Provision and converge LearnStack's local demo tenants through the real request
+  pipeline. USE FOR: first-run seed, reruns after migrations, request-level isolation
+  fixtures and data-only showcases. P02d-2 includes enabled locales, built-in and
+  tenant-specific definitions, complete branding and scoped Course/Lesson content.
+  DO NOT USE FOR: production provisioning, production reseeding, Hub licensing,
+  identity setup or domain-specific application branches.
 ---
 
 # Seeding a tenant
 
-## Purpose
+## Purpose and current scope
 
-Stand up a tenant + its organizations + its host mapping, all as **data**, so:
+The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+records the decisions. Step 4 delivers the complete inventory and contextual
+verification; both implementation review rounds and final verification passed.
+PR review/merge remains pending. Public API reads and browser rendering remain
+P02d-4 and P02d-5–7. Do not claim a rendered demo from seed alone.
 
-- Local dev has two hosts that resolve to two different tenants.
-- The [Packet 7](../../../docs/roadmap/phase-02a-kernel-tenancy.md) request-level
-  isolation suite has a deterministic two-tenant fixture.
-- Two tenants in unrelated domains exist from Packet 7 onward and render side by
-  side from [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), so
-  genericity is proven **continuously**, by construction.
-
-[Phase 10](../../../docs/roadmap/phase-10-english-learning-mvp.md) is **not** the
-genericity proof and disclaims the attribution itself: it is the depth showcase —
-the first place one tenant fills all eight customization aggregates at once.
+[SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns all demo
+identities, schemas, labels, palettes, bodies and computed inventory. The runner
+has no English/Yoga branch. Adding a pure content shape changes data, not a module;
+stateful entitlement and external capabilities remain the
+[genericity boundary](../../../docs/architecture/01-platform-vision.md#genericity-boundary).
 
 ## When to use
 
-- Local-dev first-run seed.
-- Adding a parallel tenant for the cross-tenant isolation tests.
-- Reseeding after a schema change to the tenancy aggregates.
-- Authoring a new "domain showcase" tenant (music school, dance studio).
+- Local development first run or safe repeat.
+- Request-level isolation tests using the shipped data declaration.
+- A new data-only showcase whose required aggregates already exist.
 
-## When not to use
-
-- Production tenant create. That's an operator action from the Hub portal
-  (`operator-portal`) via `POST /api/internal/tenants`.
-- Self-Hosted license issuance. Hub-side (Phase 02c / 09b).
-- Reseeding production data. Never.
+Production provisioning is a Hub operator action; licensing belongs to the Hub.
+This skill never resets or reseeds production, creates a platform administrator,
+or supplies enrollment, learner identity, commerce or live-session data.
 
 ## Inputs
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| Tenant id | Yes | Assigned by the registry that owns the tenant — the Hub in SaaS / Dedicated, configuration in Self-Hosted, the seeder here. `Tenant.Create` never mints one; its policy keys on `id`, so a factory-minted id could not satisfy its own `WITH CHECK`. |
-| Tenant slug | Yes | URL-safe, ≤ 63 chars, unique across `tenants`: `demo-english`, `demo-yoga`. |
-| Tenant name | Yes | Human-readable, ≤ 200 chars: "English Hero", "Anatolia Yoga". |
-| Domain showcase | Yes | The "shape" the tenant demonstrates — drives the customization-data set, once the aggregates that hold it exist. |
-| Organization slugs | Yes | Two per tenant; the first becomes `tenants.default_organization_id`. |
-| Locale set | Yes | At least one, with **exactly one** `is_default`. |
-| Host | Yes | One `platform_host_to_tenant` row per tenant, with or without `organization_id`. |
+The data set is the input; there is no `--tenants` flag. The production entry point
+uses `SeedData.All`. `SeedRunner.RunAsync` accepts alternate declarations for tests.
+Connection configuration arrives in the environment, not command-line arguments.
+Both `scripts/seed.sh` and the direct tool refuse a role other than `learnstack_app`.
+The shared application data-source guard also refuses direct or transitive access
+to a BYPASSRLS/superuser role on every physical connection.
 
 ## Workflow
 
-### Step 1: Pick the showcase
-
-The two seeded showcases:
-
-| Showcase | Slug | Display name | Host |
-|----------|------|--------------|------|
-| Online English school | `demo-english` | English Hero | `demo-english.learnstack.local` |
-| Yoga studio | `demo-yoga` | Anatolia Yoga | `demo-yoga.learnstack.local` |
-
-**A coding bootcamp is not a candidate.** Its defining feature — running a
-learner's submitted code — is external capability invocation, which
-[Platform Vision § Genericity boundary](../../../docs/architecture/01-platform-vision.md)
-puts outside the customization model. Choosing it forces either a domain-specific
-runner module or a showcase that omits the one thing that made the domain
-interesting; [Phase 10](../../../docs/roadmap/phase-10-english-learning-mvp.md)
-records the same rejection. A yoga studio's distinctive content and taxonomy are
-pure shape, so it is honest about what the model can do.
-
-### Step 2: Run the seed
+### 1. Check the environment and migrations
 
 ```bash
 make seed
 ```
 
-The target brings the stack up and runs `scripts/seed.sh`, which verifies compose
-health and the two Keycloak realms, then invokes the seeder:
+This target depends on migration and invokes `scripts/seed.sh`, which checks compose
+health and both Keycloak realms before running the .NET tool. The direct tool runs
+from `backend/`, where `global.json` pins the SDK:
 
 ```bash
-(cd backend && ConnectionStrings__Default="<the learnstack_app string>" \
+(cd backend && ConnectionStrings__Default="<learnstack_app connection string>" \
     dotnet run --project src/LearnStack.Tools.Seeder --nologo)
 ```
 
-It runs **from `backend/`** rather than from the repository root, because that is where the
-SDK pin lives (`backend/global.json`). From the root no `global.json` applies and whichever
-SDK is newest answers — which is not the one CI and `make migrate` use.
+Do not put a real connection string on `argv` or print it. The script reads the
+environment first and falls back to the local `.env`; the agent should not expose
+that file. There is no `make seed-tenant`, `infra/seed/`, or seed-reset command.
 
-**What the tenants are is data, not arguments.** The two live in `SeedData.cs`,
-so there is no `--tenants` flag and nothing to keep in step between a script and
-a source file. The connection string is the only input, and it arrives in the
-environment rather than on `argv` because it carries a password that `ps` would show for
-as long as the process runs. There is no flag for it — a caller running the tool by hand
-exports the variable too.
+### 2. Read the declaration
 
-`scripts/seed.sh` reads it from `ConnectionStrings__Default`, falling back to
-`.env` — the Makefile does not export `.env` into a recipe's environment — and
-**refuses any role but `learnstack_app`**: seeding as the owner would succeed
-with every policy inert and prove nothing.
+The existing fixed tenant, organization, host and built-in IDs are preserved.
+English's host remains tenant-wide; Yoga's host maps to Studio One. The exact
+[accepted inventory](../../../docs/roadmap/phase-02d-walking-skeleton.md#seed-inventory-and-ownership)
+and `SeedData` own the choices; this skill does not keep a second literal list.
 
-There is no platform-admin user to seed. Packet 7 creates no `users` table —
-Phase 03's Identity migration owns it — and `UserId.SystemActor` is a CLR
-constant with no row behind it. There is no `make seed-tenant` and no
-`infra/seed/` tree.
+The inventory includes enabled/default locales, unchanged Active `card`/`plain`,
+each tenant's own Active type/taxonomy, one tenant-wide `branding.theme`, and
+courses/lessons with explicit exact pins, scope, policy, translations and state.
+All body/schema/label data pass the ordinary validators. No remote media, fonts,
+URLs or logo are seeded. Restricted publication grants no anonymous lesson access
+([ADR-0050](../../../docs/decisions/0050-publication-and-course-content-access.md)).
 
-The seed is **idempotent** — running it twice produces the same state.
+### 3. Execute acts through the pipeline
 
-### Step 3: What Packet 7's seed creates
+[SeedRunner](../../../backend/src/LearnStack.Tools.Seeder/SeedRunner.cs) sends:
 
-**The provisioning transaction** — `BEGIN` → `SET LOCAL app.tenant_id` to the
-assigned id → `INSERT tenants` → `INSERT organizations` → `UPDATE tenants SET
-default_organization_id` → `COMMIT`:
+1. Provisioning, followed by default-organization verification, second organization
+   and host mapping. The tenant starts Trial. Provisioning alone writes the
+   sanctioned Tenant/Organization pair ([ADR-0042](../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)).
+2. Enabled locales, with the declared default first.
+3. Built-in and tenant-specific definitions, each registered then published.
+4. Complete branding, in tenant-wide scope.
+5. Draft Course/Lesson creation and each translation, followed by each selected
+   publication. Course and Lesson publication remain independent.
 
-- Row in `tenants` — id, slug, display_name, `status = Trial`. **Not `Active`**:
-  `Tenant.Create` produces `Trial` and `ChangeStatus` is the only way out of it,
-  so a seed that wants `Active` calls the transition rather than writing the
-  column.
-- One row in `organizations` — **the default one only** — and
-  `AssignDefaultOrganization` pointing the tenant at it. Tenant + default
-  organization in one transaction is the single bounded cross-aggregate write
-  ([ADR-0042](../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)),
-  and it is bounded by enumeration — one operation, one allow-list entry. The
-  seeder **invokes** `ProvisionTenantCommand` rather than writing the two roots
-  itself, so the allow-list stays at one entry and the seed exercises the same
-  path production does.
+Every request gets a fresh composed trusted context. Provisioning writes unresolved;
+verification reads resolved. Tenant-wide acts announce null organization. Scoped
+roots, their translations and publication announce the exact root organization.
+The runner never writes `ITenantContextAccessor.Current`, opens a private
+transaction, calls a tenant setter, mutates EF state or executes seed SQL.
 
-**The follow-on writes**, each its own command in its own transaction. Packet 7 ships
-two of them; the rest are what a later packet adds, and this list says which is which.
+### 4. Converge or fail safely
 
-**Shipped:**
+[SeedVerification](../../../backend/src/LearnStack.Tools.Seeder/SeedVerification.cs)
+checks exact identity, ownership, scope, pin, state and content before a skip.
+Contextual module-owned `ISender` queries return immutable value DTOs and are audit
+Off; they have no endpoint or unresolved/public marker. Internal ports retain typed
+IDs; contract-local IDs cross the module boundary as Guid under ADR-0023.
 
-- The second row in `organizations`, through `CreateOrganizationCommand`. It is a third
-  aggregate root, and ADR-0042's exception covers the two written together above and
-  nothing else.
-- One row in `platform_host_to_tenant`, through `MapHostToTenantCommand` — **per tenant,
-  not per organization**. It
-  is a projection rather than an aggregate, outside the rule entirely, and it does
-  not share the provisioning transaction. `demo-english` leaves `organization_id`
-  NULL (a `TenantHost`); `demo-yoga` sets it (an `OrgHost`), so both live
-  classification classes from
-  [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md) are
-  exercised by the seed and not only by a fixture. Neither host belongs in
-  `Tenancy:PlatformHosts`, which lists hosts that map to **no** tenant — and
-`MapHostToTenantCommand` refuses one that does, rather than writing a row the resolver
-would never read.
+- Missing acts write through the ordinary command.
+- Completed acts skip before invoking a writer, so the second completed run changes
+  no root, timestamp, version, generation or audit row.
+- Creation accepts only the declared Draft intermediate or intended final state
+  with matching immutable data. Definition creation accepts Draft/Active, with a
+  separate publication act verifying Active.
+- Existing translations are checked before draft-only insertion. JSON object
+  property order is immaterial; descriptor arrays and authored strings remain exact.
+- Contextual Off queries check the logical key's Active identity before registration.
+  Customization publication sets `RequireNoIncumbent`; a different Active revision
+  is refused before mutation, while ordinary revision succession remains available.
+- A typed uniqueness/concurrency/lifecycle race gets one fresh-scope completed
+  postcondition check. Generic failures are never success and there is no retry loop.
+- A mismatch stops nonzero; the runner does not overwrite, unpublish, rebind,
+  reactivate, choose a newer revision or borrow another tenant's identity.
+- If another run has not completed the exact act yet, this run fails safely. Re-run
+  explicitly after the competitor finishes; a failed command is not convergence.
 
-**Not shipped, and owned by the packet that needs them:**
+The process entry point exits 2 for missing connection configuration, 1 for a
+refused credential or run failure, and 0 for a completed run. Completed acts remain
+durable; a later explicit run resumes the remaining acts. If a different revision
+becomes Active between registration's pre-read and post-read, the newly committed
+Draft, generation increment and audit remain durable; the run refuses and requires
+explicit operator reconciliation. It does not retire either revision or undo an
+already committed act.
 
-- Rows in `tenant_domains` and `tenant_settings`. Under Packet 7's promotion
-  `TenantDomain` and `TenantSetting` are aggregate roots in their own right, so each
-  will be written the way any other root is — but no command writes either yet, and
-  the seeder writes neither.
-- Rows in `tenant_locales` and `tenant_feature_flags`. These are navigations inside
-  `Tenant` rather than roots, and ADR-0042's enumeration names them among the rows it
-  does **not** cover: neither carries an atomicity invariant against the tenant row.
-  `Tenant` exposes mutators for both; nothing calls them outside tests.
+### 5. Verify
 
-A seed that needs any of those today writes them as SQL in a fixture, which is what
-`TenantIsolationHttpTests` does for `tenant_settings` — deliberately, because inventing
-a seeder path to serve a test would put fixture data in front of every developer running
-`make seed`.
+[SeederTests](../../../backend/tests/LearnStack.Tests.Integration/Database/SeederTests.cs)
+uses disposable migrated databases and writes as `learnstack_app`. It proves fresh
+inventory, exact DTO/scope/state, unchanged rerun, interrupted recovery, a coordinated
+provisioning race, semantic JSON equivalence and mismatches without overwrites.
+`TenantIsolationHttpTests` checks both mapped host classes and filtered/raw RLS
+customization reads; expected projections come from `SeedData`.
 
-Two mechanics the seeder cannot skip:
+The [caller fence](../../../docs/standards/21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters)
+and planted companions catch calls, method groups, private transactions, accessor
+assignment, announcing SQL, direct EF mutations and ad hoc database commands.
+A separate guard requires the direct tool to build its pool through the shared
+application-role guard. G20(a)'s literal reader observes the actual declaration
+and fails on unreadable/empty data. The complete demo-literal production-branch guard
+remains Registered for P02d-5/6 scope and P02d-7 exit.
 
-- **`app.tenant_id` is set once per transaction, before that transaction's first
-  insert.** `SET LOCAL` does not survive `COMMIT`, so every one of the writes
-  above sets it again rather than inheriting it. Every table's `WITH CHECK` is
-  live from the moment the migration finishes, and `tenants` keys its policy on
-  `id`, so the provisioning transaction sets the session variable to the assigned
-  id before the `INSERT`.
-- **`platform_host_to_tenant` rows go in as `learnstack_app`.** Its policies are
-  qualified `TO learnstack_app`, so the table owner is denied on it — the one
-  table where the migration role cannot seed.
+### 6. Reach the hosts
 
-Packet 6's `SchemaFixture` keeps its own `alpha` / `beta` tenants. It asserts
-against the applied schema and does not read this seed; changing one does not
-change the other.
+The existing names are under `*.learnstack.local` and need hosts-file aliases for
+local browsing. Development transport/host changes remain G32 in P02d-5. The web
+middleware is still a scaffold; no browser render is supplied by this seed packet.
+Do not add a host alias or change a deployment's reserved-host registry implicitly.
 
-### Step 4: What a later phase adds
+### 7. Reset only an explicitly disposable development environment
 
-The seed above is the whole of the tenancy slice. Everything a "complete" demo
-tenant eventually carries belongs to a phase that has not written its schema yet:
+An exact rerun is the normal recovery. A reset destroys local volumes:
 
-| Aggregate / artefact | Owning phase |
+```bash
+make clean
+make dev
+make seed
+```
+
+Never run the destructive reset without the user's authorization. Tests drop only
+the database they created, preserving append-only audit controls in the shared stack.
+
+## What later phases add
+
+| Data / surface | Owner |
 |---|---|
-| `User`, `Membership`, roles, invitations | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
-| Keycloak OIDC wiring and the realm's `tenant_id` claim mapper | [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) |
-| `TenantContentType`, `TenantLevelTaxonomy` | **Shipped** — [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). `SeedRunner` writes the built-in pair through `RegisterTenantContentTypeCommand` / `PublishTenantContentTypeCommand` and their taxonomy siblings, so a seeded tenant already has something to render |
-| `Course`, `Lesson` and their translation satellites | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
-| Rows in `tenant_locales` — each tenant's enabled locales and its one default — written through the Tenancy command raising `tenancy.locale.write` | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) |
-| Each tenant's **own** content type and level taxonomy, and its branding token **values** written as `TenantSetting` rows — the seed that makes the two tenants differ, not only the built-in pair they share | [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md), through the `tenancy.setting.write` command those rows need |
-| `TenantCustomFieldDef` | [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md) |
-| `TenantPageBlock` | [Phase 04](../../../docs/roadmap/phase-04-cms-media-pages.md) |
-| `TenantLessonItemType`, `TenantScoringRule`, `TenantCompletionRule` | [Phase 05](../../../docs/roadmap/phase-05-education-learning-content.md) |
-| The tenant-admin surface for editing branding tokens — the Studio screens and their write path, not the seeded values above | [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) |
-| `TenantTemplateLibrary` | [Phase 08a](../../../docs/roadmap/phase-08a-assessment-notifications.md) |
-| `InstructorAvailability`, `LiveSession`, `LiveBooking` | [Phase 08b](../../../docs/roadmap/phase-08b-scheduling.md) / [Phase 08c](../../../docs/roadmap/phase-08c-classroom.md) |
-| Hub tenant mirror and the entitlement projection | [Phase 02c](../../../docs/roadmap/phase-02c-hub-foundation.md) / Packet 9 |
+| Keycloak OIDC and realm reconciliation | Phase 02b |
+| Users, memberships, roles, invitations and custom fields | Phase 03 |
+| CMS pages/media, locale lifecycle and customization revision editors | Phases 03–04 |
+| Versions, modules, items, scoring and completion rules | Phase 05 |
+| Studio editors, branding override/merge and rich renderer coverage | Phase 06 |
+| Enrollment, course access evaluation and progress | Phase 07 |
+| Templates | Phase 08a |
+| Availability, scheduling, classroom and reservations | Phases 08b–08c |
+| Billing and commerce | Phase 09; proposed Course Marketplace Phase 09a |
+| Hub entitlement projection | Phase 02c, demand-gated under ADR-0035 |
 
-The entitlement projection is demand-gated infrastructure, so its row owes four
-things and a phase is only one of them: the port is `IEntitlementProvider`, the
-working default is `NullEntitlementProvider`, the owners are the Phase 02c /
-Packet 9 pair above, and the trigger — *a tenant must be billed or plan-gated* —
-is in
-[ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md)'s trigger
-table.
+## Adding a showcase
 
-There is **no `tenant_branding` table** and no `tenant_branding` row to write.
-Branding tokens are read from `TenantSetting`. Phase 02d seeds each tenant's own
-values there so the two render differently; Phase 06 adds the tenant-admin surface
-that lets someone edit them. Seeded data and the configuration surface are separate
-deliverables, and the rows the first writes are the rows the second edits.
-
-Keycloak users are **not** seeded by this skill. `infra/keycloak/realms/learnstack.json`
-imports them at compose boot and `scripts/seed.sh` prints their credentials; there
-is no `SEED_USER_PASSWORD` in `.env.example`, and adding one would put a second
-source of truth beside the realm import.
-
-### Step 5: Hosts file alias
-
-To browse a tenant on a host that matches production-like custom domains:
-
-```
-# /etc/hosts
-127.0.0.1   demo-english.learnstack.local
-127.0.0.1   demo-yoga.learnstack.local
-```
-
-The API resolves the host: `HostClassificationMiddleware` calls
-`IHostToTenantResolver`, which reads `platform_host_to_tenant` and nothing else — never
-the Hub ([ADR-0034](../../../docs/decisions/0034-hub-contract-surface-invariant.md))
-— and the renderer states the visitor's host to the API over the trusted hop
-([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
-The Next.js middleware at `frontend/apps/web/src/middleware.ts` is still a scaffold
-that copies the raw host into `x-tenant-id`, so the web app renders no tenant page on
-either host until [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md).
-
-> **Open in Phase 02d.** Whether the seed hosts stay under `*.learnstack.local` with the
-> alias above, and what step a browser needs to reach them, is G32 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits this step with its answer.
-
-### Step 6: Verify
-
-Connect as `learnstack_app`, inside a transaction, with the tenant context set —
-the same way the application does. Without it every tenant-owned table correctly
-returns zero rows, which reads exactly like "the seed did not run".
-
-`psql` takes its own arguments here. `$ConnectionStrings__Default` is a .NET
-keyword string, which libpq rejects (`invalid connection option "Host"`), and
-`.env` is read by compose rather than sourced into a shell, so the variable is
-usually empty anyway. The password is the `learnstack_app` one in `.env`.
-
-```bash
-psql -h localhost -p 5432 -U learnstack_app -d learnstack <<'SQL'
-BEGIN;
-SELECT set_config('app.tenant_id', '<tenant-id>', true);
-SELECT slug, display_name, status FROM tenants;
-SELECT slug, display_name FROM organizations;
-SELECT locale, is_default FROM tenant_locales;
-COMMIT;
-SQL
-
-# platform_host_to_tenant is read before any tenant context exists, so its read
-# policy admits exactly the host the resolver declares in `app.resolving_host`,
-# or the caller's own tenant via `app.tenant_id`. With neither set,
-# `learnstack_app` sees nothing — that is what stops an anonymous session
-# enumerating the host map, not a failed seed. Check the second row under the
-# other host, or a tenant's own row under `app.tenant_id`.
-psql -h localhost -p 5432 -U learnstack_app -d learnstack <<'SQL'
-BEGIN;
-SELECT set_config('app.resolving_host', 'demo-english.learnstack.local', true);
-SELECT host, organization_id, is_active, is_publicly_live FROM platform_host_to_tenant;
-COMMIT;
-SQL
-```
-
-### Step 7: Reset
-
-There is no `make seed-reset`. The seed is idempotent, so re-running it is the
-normal repair; a genuine reset drops the volumes and starts over:
-
-```bash
-make clean      # stops the stack and drops named volumes — destructive
-make dev        # brings the stack back up
-make seed       # depends on `migrate`, so both chains are applied first
-```
-
-### Step 8: Authoring a new showcase
-
-To add a third domain showcase (e.g. music school):
-
-1. Add its tenant, organizations, locales, settings, feature flags, domain and
-   host row to the seeder's data set.
-2. Register the host in `/etc/hosts` and, from Phase 02d, expect it to render.
-3. Run `make seed`.
-
-> **Open in Phase 02d.** Whether a new host needs that hosts-file entry, and which
-> development domain it sits under, is G32 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits step 2 with its answer.
-
-Its customization data — content types, level taxonomy, blocks, rules, templates —
-is added as each owning phase from § What a later phase adds lands the aggregate
-that holds it.
-
-**No LearnStack code change is required for the domain shape.** That is the
-substrate-genericity claim per
-[ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md); if
-you find yourself touching a module to express a domain, the design is wrong. The
-claim's edge is
-[Platform Vision § Genericity boundary](../../../docs/architecture/01-platform-vision.md):
-stateful entitlement and external capability invocation are platform features
-gated by plan, not customization rows.
-
-## Validation
-
-- `make seed` exits 0, and exits 0 again on a second run.
-- Both tenants are present with `status = Trial`, each with two organizations and
-  a non-null `default_organization_id`.
-- `platform_host_to_tenant` holds one row per tenant — one carrying
-  `organization_id`, one leaving it NULL. Checked **one host at a time**, each under
-  its own `app.resolving_host` (§ Step 6): the read policy admits the declared host or
-  the caller's own tenant, so no single `learnstack_app` query can see both rows, and a
-  count of two is not observable to the role this skill tells you to connect as.
-- Both host rows carry `is_active` **and** `is_publicly_live` true. The resolver
-  requires both terms, so a row that is only `is_active` is a host that 404s under
-  a seed the checks above report as healthy.
-- The Packet 7 request-level isolation suite is green **connected as
-  `learnstack_app`**, against both seeded tenants.
-- From Phase 02d, both hosts render their own catalog page in a browser.
-
-## Common pitfalls
-
-- **Domain-specific code in the seeder.** The seeder reads its data set; it does
-  not contain `if (showcase == "english") ...` business logic. If you feel pulled
-  toward that, the data is missing a field.
-- **Seeding `status = Active` directly.** `Tenant.Create` produces `Trial`. Write
-  the column and the aggregate's state diagram and the seed disagree from the
-  first row.
-- **Minting the tenant id in the seeder's factory.** `Tenant.Create` takes the id;
-  the registry assigns it. A minted id has no `app.tenant_id` to match and the
-  `WITH CHECK` refuses its own insert.
-- **A host row per organization.** One row per tenant. An `OrgHost` is a tenant
-  row that also carries `organization_id`, not a second row.
-- **Seeding `platform_host_to_tenant` as the migration role.** Its policies are
-  qualified `TO learnstack_app`; the owner is denied and the insert fails.
-- **Two locales flagged `is_default`.** The invariant lives in the database as a
-  partial unique index — `UNIQUE (tenant_id) WHERE is_default` — with an
-  aggregate guard for the message. An aggregate check alone does not hold across
-  concurrent transactions.
-- **Non-idempotent seed.** Running twice should produce the same state. Reference
-  rows by stable keys.
-- **Two tenants sharing the same slug.** Slugs are unique across `tenants`; the
-  seed will refuse. Note the consequence the aggregate documents: a duplicate-slug
-  insert reveals that *some* tenant holds the slug, which is accepted only because
-  slugs appear in hostnames and are public by construction.
-- **`/etc/hosts` change for production.** Local-only. Production custom domains
-  resolve through `platform_host_to_tenant` rows the Hub writes.
+Add its explicit records to `SeedData`, keep fixed identities unique, and supply
+localized schemas/bodies/pins supported by shipped contracts. Derive inventory and
+test expectations from the declaration. A new locale must be enabled before its
+translation is written. Domain-specific application behavior requires the owning
+phase's platform-feature decision; it cannot be hidden inside seed orchestration.
+Keycloak users still come from compose realm imports, not this tool.

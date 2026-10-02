@@ -18,7 +18,7 @@ public sealed class EducationAggregateTests
     private static readonly LessonId LessonId = LessonId.From(Guid.Parse("aaaaaaaa-1111-7111-8111-111111111111"));
 
     private static Course NewCourse(OrganizationId? organization = null, string slug = "course") =>
-        Course.Create(CourseId, Tenant, organization, slug, Clock, Actor);
+        Course.Create(CourseId, Tenant, organization, slug, CourseContentAccess.EnrollmentRequired, Clock, Actor);
 
     private static Lesson NewLesson(Course? course = null, int sort = 0, string key = "content", int version = 1) =>
         Lesson.Create(LessonId, course ?? NewCourse(), sort, key, version, Clock, Actor);
@@ -54,6 +54,27 @@ public sealed class EducationAggregateTests
         lesson.CreatedAt.Should().Be(Clock.UtcNow);
         lesson.CreatedBy.Should().Be(Actor);
         lesson.UpdatedAt.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(CourseContentAccess.Public)]
+    [InlineData(CourseContentAccess.EnrollmentRequired)]
+    public void Content_access_is_explicit_and_independent_of_publication(CourseContentAccess policy)
+    {
+        var course = Course.Create(CourseId, Tenant, null, "course", policy, Clock, Actor);
+        course.ContentAccess.Should().Be(policy);
+        course.Publish(Later, Actor).IsSuccess.Should().BeTrue();
+        course.ContentAccess.Should().Be(policy);
+        var lesson = NewLesson(course);
+        lesson.Publish(Later, Actor).IsSuccess.Should().BeTrue();
+        course.ContentAccess.Should().Be(policy);
+    }
+
+    [Fact]
+    public void Undefined_content_access_cannot_create_a_course()
+    {
+        var create = () => Course.Create(CourseId, Tenant, null, "course", (CourseContentAccess)99, Clock, Actor);
+        create.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]
@@ -230,7 +251,7 @@ public sealed class EducationAggregateTests
     [InlineData("taxonomy", 1, "")]
     public void Create_PartialOrInvalidLevelPinRefuses(string? key, int? version, string? band)
     {
-        var create = () => Course.Create(CourseId, Tenant, null, "course", Clock, Actor, key, version, band);
+        var create = () => Course.Create(CourseId, Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor, key, version, band);
         create.Should().Throw<ArgumentException>();
     }
 
@@ -239,7 +260,7 @@ public sealed class EducationAggregateTests
     {
         var key = new string('k', 100);
         var band = new string('b', 100);
-        var course = Course.Create(CourseId, Tenant, null, "course", Clock, Actor, key, 7, band);
+        var course = Course.Create(CourseId, Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor, key, 7, band);
         course.Publish(Later, Actor).IsSuccess.Should().BeTrue();
         course.LevelTaxonomyKey.Should().Be(key);
         course.LevelTaxonomySchemaVersion.Should().Be(7);

@@ -107,6 +107,13 @@ answered in the decision pass of the packet that ships it, per
 [Roadmap § Decision Timing](README.md#decision-timing). If Phase 02d stops shipping the
 command, the decision returns to this phase.
 
+**Decision update — 2026-10-02.** The [accepted P02d-2 G17
+answer](phase-02d-walking-skeleton.md#p02d-2-accepted-answers) selects whole-value
+`[PiiSensitive]` for generic `TenantSetting.Value` before its first writer; P02d-2 Step
+2 implements both the marker and the bounded branding writer. This phase still owns
+identity-backed access, DSAR and the marketplace purpose/recipient boundary; a public
+theme allowlist never permits exporting arbitrary tenant settings.
+
 **Attribute ownership.** Each attribute has exactly one owner, and the owner determines
 the table it lives in and who may write it.
 
@@ -134,6 +141,14 @@ Two rules make the table enforceable:
 
 **DSAR boundary.** A data subject access request is scoped to a tenant unless the
 person themselves asks for the account itself.
+
+**Proposed marketplace impact (2026-10-01).** This institution-service contract does
+not assign central order history or marketplace consent to a tenant membership.
+[ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md) requires a
+separate purpose-based privacy/export/erasure contract, coordinated with
+[Data Protection](../architecture/23-data-protection.md#processor-agreements), before
+marketplace identity/order/support writers. No such scope is approved in Phase 03
+by this note.
 
 | Request | Initiated by | Scope | Effect on other tenants |
 |---|---|---|---|

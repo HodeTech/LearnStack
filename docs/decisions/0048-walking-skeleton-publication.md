@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted — 2026-09-14. Maintainer approval precedes P02d-1 implementation.
+Superseded by [ADR-0050](0050-publication-and-course-content-access.md) — 2026-10-02.
+Originally Accepted on 2026-09-14 before P02d-1 implementation.
+
+ADR-0050 retains independent publication but separates course content-access policy
+from anonymous eligibility. The original decision below remains unchanged as the
+P02d-1 record; the current contract and migration obligations belong to ADR-0050.
 
 ## Decision Drivers
 
@@ -120,6 +125,17 @@ and matrix guards cover the publication commands when P02d-2 introduces them.
 
 Behavioral tests, rather than a source-text scan, prove allowed and refused transitions
 in P02d-1 and combined read eligibility in P02d-4.
+
+## Amendments
+
+### Amendment 1 — supersession for protected authoring (2026-10-02)
+
+The maintainer approved ADR-0050 and the P02d-2 decision package. This lifecycle
+change supersedes the public-only implication; it is not an erratum. Independent
+`draft → published` transitions survive unchanged. The Status banner and ADR index
+now link forward, and the phase register carries a dated G3 supersession. Current
+Education, localization, audit and Phase 05/07 planning references use ADR-0050;
+the original P02d-1 accepted answer and delivery history remain intact.
 
 ## References
 

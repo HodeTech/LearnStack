@@ -444,7 +444,10 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_tenant_locales_tenant_id_is_default")
                         .HasFilter("is_default");
 
-                    b.ToTable("tenant_locales", (string)null);
+                    b.ToTable("tenant_locales", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tenant_locales_default_enabled", "NOT is_default OR is_enabled");
+                        });
                 });
 
             modelBuilder.Entity("LearnStack.Modules.Tenancy.Domain.TenantSetting", b =>

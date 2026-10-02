@@ -4,8 +4,14 @@ LearnStack is a **white-label platform for multi-branch education businesses tha
 live**. Its customer is an education business — a language school with three branches, a
 yoga studio with four, a coding bootcamp, a music school — that sells courses, teaches
 them partly or wholly in scheduled live sessions, and wants its own brand on its own
-domain rather than a listing inside someone else's marketplace. LearnStack is not itself
-an education product.
+domain or platform subdomain. Independent institution sites remain the foundation.
+
+**Endorsed direction — 2026-10-02.** An optional LearnStack-branded Course Marketplace
+adds shared discovery, platform checkout, commission and institution payouts to that
+foundation. [ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md)
+and the [Phase 09a pilot](../roadmap/phase-09a-course-marketplace-pilot.md) remain
+Proposed: exact commercial/security contracts and pilot evidence precede delivery.
+This changes the product target, not the shipped capabilities or Accepted MVP exit.
 
 Three properties define the fit. A prospect that has none of them is not the target
 customer:
@@ -31,8 +37,8 @@ What is **not** fixed is the subject those businesses teach. The same code paths
 - An art workshop with portfolio uploads and peer-review assessments.
 - A certification body, an exam-prep provider, or a domain not anticipated above.
 
-LearnStack ships **one codebase, one set of container images, one Helm chart** that
-serves all of these customers. The differentiator across customers is their **data**
+LearnStack targets **one codebase, one set of container images, one Helm chart** for
+all of these customers. The differentiator across customers is their **data**
 (content, content type definitions, page block schemas, scoring rules, level taxonomies,
 custom fields) — not their code. LearnStack engineers never write per-vertical code.
 That claim holds inside a stated edge — see
@@ -56,8 +62,9 @@ Education businesses need infrastructure that is:
   ([24-learnstack-hub.md](24-learnstack-hub.md)).
 - **Deployment-flexible.** Same codebase deploys as SaaS, Dedicated (LearnStack-managed
   single-tenant), or Self-Hosted ([25-deployment-models.md](25-deployment-models.md)).
-  `Development` and `SaaS` are wired end to end today; the other three `DeploymentMode`
-  values are prepared seams until Phase 11 builds their adapters and integration suites
+  [Deployment Models § Supported today versus prepared seam](25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns current readiness. Foundation wiring does not imply that production adapters
+  or supported Dedicated/Self-Hosted releases have shipped
   ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
 
 ## The three layers
@@ -187,8 +194,9 @@ Two things this boundary does **not** change:
 
 ## Non-goals
 
-- **Building a marketplace of independent instructors.** LearnStack is infrastructure;
-  marketplace is a product on top.
+- **An independent-instructor marketplace in the initial pilot.** The endorsed
+  Course Marketplace target starts with institution sellers; individual sellers
+  and cross-installation participation are outside proposed Phase 09a scope.
 - **Writing per-vertical code (English, Yoga, Coding modules).** ADR-0018 forbids domain-
   specific names in LearnStack modules. The whole point of the PaaS positioning is that
   LearnStack doesn't ship verticals — customers build theirs.

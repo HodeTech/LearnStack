@@ -16,7 +16,7 @@ public sealed class EducationInputTests
     private static readonly LessonId LessonId = LessonId.From(Guid.Parse("aaaaaaaa-1111-7111-8111-111111111111"));
 
     private static Course NewCourse(string slug = "course") =>
-        Course.Create(CourseId, Tenant, null, slug, Clock, Actor);
+        Course.Create(CourseId, Tenant, null, slug, CourseContentAccess.EnrollmentRequired, Clock, Actor);
 
     private static Lesson NewLesson() =>
         Lesson.Create(LessonId, NewCourse(), 0, "content", 1, Clock, Actor);
@@ -82,8 +82,8 @@ public sealed class EducationInputTests
     public void PinKey_InvalidShapeRefusesInEveryPinPosition(string key)
     {
         var content = () => Lesson.Create(LessonId, NewCourse(), 0, key, 1, Clock, Actor);
-        var taxonomy = () => Course.Create(CourseId, Tenant, null, "course", Clock, Actor, key, 1, "band");
-        var band = () => Course.Create(CourseId, Tenant, null, "course", Clock, Actor, "taxonomy", 1, key);
+        var taxonomy = () => Course.Create(CourseId, Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor, key, 1, "band");
+        var band = () => Course.Create(CourseId, Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor, "taxonomy", 1, key);
         content.Should().Throw<ArgumentException>();
         taxonomy.Should().Throw<ArgumentException>();
         band.Should().Throw<ArgumentException>();
@@ -224,12 +224,12 @@ public sealed class EducationInputTests
         var id = (new CourseId[1])[0];
         var tenant = (new TenantId[1])[0];
         var organization = (new OrganizationId[1])[0];
-        var invalidId = () => Course.Create(id, Tenant, null, "course", Clock, Actor);
-        var invalidTenant = () => Course.Create(CourseId, tenant, null, "course", Clock, Actor);
-        var invalidOrganization = () => Course.Create(CourseId, Tenant, organization, "course", Clock, Actor);
-        var sentinel = () => Course.Create(CourseId, TenantId.PlatformSentinel, null, "course", Clock, Actor);
-        var emptyId = () => Course.Create(CourseId.From(Guid.Empty), Tenant, null, "course", Clock, Actor);
-        var emptyOrganization = () => Course.Create(CourseId, Tenant, OrganizationId.From(Guid.Empty), "course", Clock, Actor);
+        var invalidId = () => Course.Create(id, Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
+        var invalidTenant = () => Course.Create(CourseId, tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
+        var invalidOrganization = () => Course.Create(CourseId, Tenant, organization, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
+        var sentinel = () => Course.Create(CourseId, TenantId.PlatformSentinel, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
+        var emptyId = () => Course.Create(CourseId.From(Guid.Empty), Tenant, null, "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
+        var emptyOrganization = () => Course.Create(CourseId, Tenant, OrganizationId.From(Guid.Empty), "course", CourseContentAccess.EnrollmentRequired, Clock, Actor);
         var invalidLessonId = () => Lesson.Create((new LessonId[1])[0], NewCourse(), 0, "content", 1, Clock, Actor);
         invalidId.Should().Throw<ArgumentException>();
         invalidTenant.Should().Throw<ArgumentException>();

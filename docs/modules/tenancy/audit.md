@@ -3,18 +3,25 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-Four writes below exist today, between them raising three of the slugs. `Tenant`
-create and `Organization` create, written together by `ProvisionTenantCommand`
-([ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md))
-; a second `Organization` create, written alone by `CreateOrganizationCommand`;
-and `platform_host_to_tenant` write, by `MapHostToTenantCommand`. Fifteen more rows
-are classification ahead of code and carry `(planned)`; five name operations no
-MediatR request raises and carry `(off-path)`.
+**P02d-2 Step 2 implemented; both review rounds passed — 2026-10-02.**
+The [accepted writer
+contract](README.md#p02d-2-accepted-locale-and-branding-contract) implements the locale
+and setting rows below. Locale commands declare `tenancy.locale.write` over the owning
+Tenant root and captured locale navigation; branding declares `tenancy.setting.write`
+over TenantSetting. Generic setting values require whole-value `[PiiSensitive]`
+redaction, verified at capture and durable audit. Public branding projection is a
+separate allowlist. Verification request types are Off.
 
-All four are **MUST**. The two provisioning writes share one transaction, so
-[ADR-0033](../../decisions/0033-audit-durability-model.md)'s guarantee for them is
-the ordinary one — the rows commit with the aggregates or nothing does. The other
-two are each their own transaction, and the guarantee is the same shape for each.
+Packet 7 ships four audited root writes through three commands: Tenant and default
+Organization provisioning, a separate Organization create, and host mapping creation.
+P02d-2 adds two locale commands (SHOULD over Tenant) and one branding command (MUST over
+TenantSetting). Thirteen rows remain `(planned)`; five operations have no MediatR
+request and carry `(off-path)`.
+
+All four original writes are **MUST**. Their records commit with the business state,
+under [ADR-0033](../../decisions/0033-audit-durability-model.md). The branding writer
+shares that guarantee; a failed MUST audit rolls its setting write back too.
+
 
 **One command, two rows.** An intent is parked per audited `(resource, operation)`
 and not per request ([ADR-0044 § 3](../../decisions/0044-audit-write-path.md)), so
@@ -95,9 +102,9 @@ unmarked row is one a shipped command already raises.
 | `TenantDomain` | `tenancy.domain.verify` `(planned)` | **MUST** | Verification is the gate the custom-domain lifecycle opens before a mapping row exists; a wrongly verified domain serves one tenant's content at another's address |
 | `TenantDomain` | `tenancy.domain.fail` `(planned)` | **MUST** | The negative half of the same lifecycle — the attempt count and the recorded reason are what a support thread reconstructs, and repeated failures against one host are worth seeing |
 | `TenantDomain` | `tenancy.domain.soft_delete` `(planned)` | **MUST** | `ux_tenant_domains_host` is partial on `deleted_at IS NULL`, so retiring the row releases that globally unique host for another tenant to claim |
-| `TenantSetting` | `tenancy.setting.write` `(planned)` | **MUST** | [Audit Coverage](../../standards/18-audit-coverage.md) puts "tenant setting changed" on the Tenancy baseline row; a tenant `AuditConfig` cannot narrow it |
+| `TenantSetting` | `tenancy.setting.write` | **MUST** | [Audit Coverage](../../standards/18-audit-coverage.md) puts "tenant setting changed" on the Tenancy baseline row; a tenant `AuditConfig` cannot narrow it |
 | `TenantSetting` | `tenancy.setting.soft_delete` `(planned)` | **MUST** | Removing a setting is a change to it, so the same baseline row covers it — and `ux_tenant_settings_tenant_id_organization_id_key` is partial on `deleted_at IS NULL`, so the key becomes free for a successor |
-| `TenantLocale` | `tenancy.locale.write` `(planned)` | SHOULD | Configuration |
+| `Tenant` | `tenancy.locale.write` | SHOULD | Configuration; contained TenantLocale changes are captured with their owning Tenant root |
 | `TenantFeatureFlag` | `tenancy.feature_flag.write` `(planned)` | **MUST** | "Feature flag toggled" is on the same baseline row, and [Feature Flags § Audit](../../architecture/21-feature-flags.md) classes both flag surfaces as security events |
 | `platform_killswitches` | `tenancy.killswitch.toggle` `(off-path)` `(planned)` | **MUST** | A platform-wide flip that disables a capability for every tenant at once. It is not a `tenant_feature_flags` row — that table's foreign key to `tenants` is one the platform sentinel cannot satisfy, so killswitches ship as their own platform-scoped table ([ADR-0045 § 5](../../decisions/0045-entitlement-and-feature-flag-socket.md)). Every write goes through `EnterPlatformAdminScope(reason)`, which is what gives the row a real actor ([Feature Flags § Killswitch Pattern](../../architecture/21-feature-flags.md)); the scope is entered by a service method and not by a MediatR request, so there is no request type to key a catalogue entry on. [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md) ships the table, its policies and the read path and **no writer**: nothing can enter that scope while `DenyAllPlatformAdminGate` is the registered gate, so [Phase 03](../../roadmap/phase-03-identity-admin.md) owns the toggle, its permission and its runbook ([ADR-0045 Amendment 1](../../decisions/0045-entitlement-and-feature-flag-socket.md)) |
 | `platform_entitlement_cache` | `tenancy.entitlement.refresh` `(planned)` `(off-path)` | **MUST** | Changes what the tenant may do; written only by `IEntitlementProvider.RefreshAsync`, a port method driven by the Hub over `/api/internal/*` ([ADR-0045 § 1](../../decisions/0045-entitlement-and-feature-flag-socket.md)) and never by a MediatR request, so there is no request type to key a catalogue entry on. **Both markers**, for the reason `tenancy.killswitch.toggle` carries both: Packet 9 ships `NullEntitlementProvider`, which answers from constants and touches no table, and the `HubEntitlementProvider` that performs a real refresh lands in [Phase 02c](../../roadmap/phase-02c-hub-foundation.md) ([ADR-0045 § 6](../../decisions/0045-entitlement-and-feature-flag-socket.md)) — so there is no writer here yet either |
@@ -125,7 +132,7 @@ in both directions ([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
 is total: every entry this module's `IAuditCatalogSource` registers has a row here
 carrying the same slug, and one that does not fails. Matrix → catalogue binds only to a
-slug whose request type **exists**, which is why the fifteen `(planned)` rows are
+slug whose request type **exists**, which is why the thirteen `(planned)` rows are
 classification and not drift — and a `(planned)` row whose command has since shipped
 fails, so the marker is a claim the rule re-checks on every run rather than an
 exemption.
@@ -144,3 +151,10 @@ registered by slug through `DeclareOffPath` because their writer ships —
 `tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry `(planned)` and
 register by slug when Phase 03 and Phase 02c land their writers. Every other slug above is
 joined in both directions the day its command lands.
+
+## P02d-2 contextual verification reads
+
+`GetTenantSeedStateQuery`, `GetOrganizationSeedStateQuery`,
+`GetHostMappingSeedStateQuery`, `GetSettingSeedStateQuery` are explicitly Off in
+`TenancyAuditCatalogSource`. These unrouted queries verify announced
+tenant state through the ambient transaction and declare no write operation.

@@ -50,7 +50,8 @@ internal static class SchemaExtensionResolution
     internal static async Task<IReadOnlyList<SchemaExtensionReference>> UnresolvedAsync(
         IReadOnlyList<SchemaExtensionReference> extensions,
         ITenantLevelTaxonomyCatalog taxonomies,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool textCardResolved = false)
     {
         var missingTaxonomies = await MissingTaxonomiesAsync(extensions, taxonomies, cancellationToken);
         var unresolved = new List<SchemaExtensionReference>();
@@ -61,12 +62,12 @@ internal static class SchemaExtensionResolution
             {
                 RendererKeyword => PrimitiveRendererKey.IsKnown(extension.Value),
                 TaxonomyKeyword => !missingTaxonomies.Contains(extension.Value),
-
-                // x-language, and any extension a later release adds to the
-                // validator's list before this one learns to resolve it. Accepting
-                // is the direction that fails safe: the alternative refuses a
-                // document for a keyword nobody has decided about yet.
-                _ => true,
+                // ADR-0051 is resolved separately after all four schema gates.
+                "x-fields" => textCardResolved,
+                // Existing explicit exception: Phase 04 owns the language registry.
+                "x-language" => true,
+                // A newly recognized extension owes a resolver before it can pass.
+                _ => false,
             };
 
             if (!resolves)

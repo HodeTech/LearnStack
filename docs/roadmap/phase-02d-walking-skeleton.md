@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-09-14).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-02).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -9,13 +9,24 @@
 > | Packet | Title | State |
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
-> | P02d-1 | Education schema and database-level isolation | ✅ complete — 2026-09-14; [delivery record](#delivery-record-p02d-1) |
-> | P02d-2 | Writers and seed | not started |
+> | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
+> | P02d-2 | Writers and seed | ✅ implementation complete — 2026-10-02; all four steps reviewed and verified; PR review/merge pending |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
+
+**Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
+ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
+its four implementation steps. Required decision bookkeeping is complete; this
+update delivers no code. Implementation has not started and waits at the maintainer's
+explicit request. ADR-0049 and Phase 09a remain Proposed.
+
+**Implementation resumed — 2026-10-02.** The maintainer's implementation request
+revokes the acceptance-time wait. [Delivery](#p02d-2-implementation-delivery-2026-10-02)
+records all four completed implementation steps and their two independent review
+rounds. P02d-2 is ready for PR review; merge closeout remains pending. P02d-3 is next.
 
 ## Goal
 
@@ -48,6 +59,9 @@ data being resolvable and isolated
 anonymous, so it needs no identity provider.
 
 ### What this phase inherits
+
+This is the Phase 02a entry baseline. The dated delivery records below own current
+implementation; P02d-2 now supplies the locale, branding and Education writers.
 
 Most of what this phase meets is already shipped or already decided. Each item links its
 owner; where a choice is still open, it names the register row that answers it.
@@ -146,10 +160,10 @@ owner; where a choice is still open, it names the register row that answers it.
   now **G32**; the shared-peer premise of its **G14**, now **G34**; and its criterion
   that both sites still render anonymously with Keycloak stopped.
 
-P02d-1 step 2 implements Education's roots, translations, migration and isolation
-proofs. What remains unimplemented: every Education command and endpoint;
-every renderer component; the server SDK transport; any trusted-hop configuration;
-any Lighthouse tooling; and a `make demo` target.
+P02d-1 implements Education's roots, translations, migration and isolation.
+P02d-2 implements its six commands and seeded data. What remains unimplemented:
+public Education endpoints; every renderer component; the server SDK transport;
+any trusted-hop configuration; any Lighthouse tooling; and a `make demo` target.
 
 ### Explicitly not in this phase
 
@@ -294,27 +308,27 @@ premise a row cites is re-verified at that pass rather than trusted.
 |---|---|---|---|---|---|
 | G1 | How does a row whose vehicle is a phase-doc statement, a standard or a catalogue row show that it is Accepted, so that the exit's "no row open" can be checked — and is the answer this phase's or roadmap-wide? | The row stays and gains a closed date and a link to the statement, and each packet's Status row and delivery record list the rows it closed. Roadmap-wide if Phase 02b's phase-doc rows should close the same way | A sentence in [Roadmap § Decision Timing](README.md#decision-timing) if roadmap-wide, or in this register's framing paragraph if local. No ADR | P02d-1 (the first pass to close such a row; it shapes no code) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G1 |
 | G2 | Which aggregate does `Lesson` belong to, and what is its parent: an entity inside `Course`, its own root referencing `Course`, or a minimal `CourseVersion` and default `Module` now? With it: how the satellites are mapped (base type, markers, `deleted_at`), the `sort` invariant and tie-breaker, and what the shape obliges Phase 05 to preserve — course and lesson ids, published slugs, order, organization scope, the inline body | The reviews split. One brings the version spine forward so Phase 05 enriches rather than re-parents; two keep this phase thin and record the preservation obligations, with Phase 05 designing the move. Between the thin shapes: inside `Course` means `ON DELETE CASCADE` and one audit row, but a lesson edit mutates `Course` structurally, which [Domain Model § Education Catalog](../architecture/02-domain-model.md#education-catalog) says a published course never is; its own root means `RESTRICT`, its own `row_version` and its own audit subject | Contract: a dated phase-doc statement; no Accepted ADR holds the `Course` / `CourseVersion` hierarchy, so a new ADR only if the answer needs a cross-root write ([ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)). Detail: the Education spec's data model; an interim note in [Domain Model § Learning Content](../architecture/02-domain-model.md#learning-content) where the answer departs from it; the class count in [Database Standards § Foreign keys between tenant-owned tables](../standards/05-database.md#foreign-keys-between-tenant-owned-tables) if `Lesson` cascades | P02d-1 (the lessons foreign-key target, `ON DELETE`, `row_version`, the root mapping and satellite `deleted_at`) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G2 |
-| G3 | Which of `courses` and `lessons` carry a publication state, with which values and transitions, and what does "published" mean to an anonymous reader — publicly readable, or only listed? Which command sets it, which states does the seed write, and may a course with no lessons, or untranslated in an enabled locale, be published? And for any transition or deletion this phase does not ship (unpublishing a course or lesson, deleting either), which phase owns it? | `courses` `draft` / `published`, meaning publicly readable (Phase 05 adds catalog visibility as its own concept); lessons carry a state and show only when both are published; draft → published only; an empty course may be published, since publish validation is Phase 05's. One review leaned "listed in the catalog" | Contract: a new ADR, or a dated phase-doc statement recording why a two-value, one-transition column is not the state machine Decision Timing reserves for a decision record; no Accepted ADR decides publication ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md) reserves the lifecycle to LearnStack). Detail: the `CHECK` ([Database Standards § Constraints](../standards/05-database.md#constraints)), the Education spec's state diagram, the publish row [Audit Coverage Standards](../standards/18-audit-coverage.md) makes MUST | P02d-1 (column presence and value set), P02d-2 (publishing commands and seeded states; transition contract closed in P02d-1) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): values and publication/transition contract; P02d-2 commands and seeded states remain open |
+| G3 | Which of `courses` and `lessons` carry a publication state, with which values and transitions, and what does "published" mean to an anonymous reader — publicly readable, or only listed? Which command sets it, which states does the seed write, and may a course with no lessons, or untranslated in an enabled locale, be published? And for any transition or deletion this phase does not ship (unpublishing a course or lesson, deleting either), which phase owns it? | `courses` `draft` / `published`, meaning publicly readable (Phase 05 adds catalog visibility as its own concept); lessons carry a state and show only when both are published; draft → published only; an empty course may be published, since publish validation is Phase 05's. One review leaned "listed in the catalog" | Contract: a new ADR, or a dated phase-doc statement recording why a two-value, one-transition column is not the state machine Decision Timing reserves for a decision record; no Accepted ADR decides publication ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md) reserves the lifecycle to LearnStack). Detail: the `CHECK` ([Database Standards § Constraints](../standards/05-database.md#constraints)), the Education spec's state diagram, the publish row [Audit Coverage Standards](../standards/18-audit-coverage.md) makes MUST | P02d-1 (column presence and value set), P02d-2 (publishing commands and seeded states; transition contract closed in P02d-1) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): commands and seed states; independent lifecycle retained. Anonymous access superseded by [ADR-0050 / dated G3 record](#g3-supersession-2026-10-02); original P02d-1 answer retained as history |
 | G4 | Where does a lesson body's binding to the content-type key and `schema_version` it was validated against live — on `lessons` or on each translation row — and where does the body live: its column, type, per-locale placement, and how non-translatable field values are carried? May a constraint cross into the Customization chain? What becomes of Localization Standards' `isLocalized` marker, which nothing implements? | A value pin `(content_type_key, schema_version)` on `lessons`, as Phase 04 plans for `ContentEntry`, with no foreign key; the field document per locale in `lesson_translations`, every locale validated against the one pin, duplicated non-translatable values accepted until Phase 05's lesson items retire them; the marker removed or given its introducing phase | Detail: this document's § Localization schema, the Education spec, [Localization Standards § Pattern A](../standards/08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities) in the same diff. Contract: a dated ADR-0043 amendment if a localization keyword enters the schema profile; its own ADR or amendment if a cross-chain foreign key is chosen, as ADR-0044 § 9 did, with Phase 04 and [Database Standards § Migrations](../standards/05-database.md#migrations) in the same diff | P02d-1 (the first `lessons` and `lesson_translations` DDL; a pin added later needs a backfill that guesses between two Active content types) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G4 |
-| G5 | Before Phase 05's `Level` exists, how does a course or lesson carry the level band criterion 1 shows? Does the reference pin a taxonomy revision, how is a band validated on write, and what renders when the resolved revision no longer declares the stored band? | The reviews split: (a) a nullable, non-translatable `(taxonomy_key, band_key)` on `courses`, resolved against the live revision, because the criterion names the catalog; (b) a revision-pinned triple; (c) no column, the band shown through a lesson-page `x-taxonomy` field, with the criterion reworded. No shipped path validates a band value under any of them | Detail: a phase-doc statement, the Education spec, and a Phase 05 inherited row if a reference ships. Contract: a dated ADR-0010 amendment or a new ADR if an Education table takes a foreign key into Customization | P02d-1 (whether and where a column exists), P02d-2 (validation, seeded references), P02d-4 and P02d-6 (the unresolved-band state) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): column; validation, seeded references and unresolved-band behavior remain open |
+| G5 | Before Phase 05's `Level` exists, how does a course or lesson carry the level band criterion 1 shows? Does the reference pin a taxonomy revision, how is a band validated on write, and what renders when the resolved revision no longer declares the stored band? | The reviews split: (a) a nullable, non-translatable `(taxonomy_key, band_key)` on `courses`, resolved against the live revision, because the criterion names the catalog; (b) a revision-pinned triple; (c) no column, the band shown through a lesson-page `x-taxonomy` field, with the criterion reworded. No shipped path validates a band value under any of them | Detail: a phase-doc statement, the Education spec, and a Phase 05 inherited row if a reference ships. Contract: a dated ADR-0010 amendment or a new ADR if an Education table takes a foreign key into Customization | P02d-1 (whether and where a column exists), P02d-2 (validation, seeded references), P02d-4 and P02d-6 (the unresolved-band state) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): column; [Accepted — 2026-10-02](#p02d-2-accepted-answers): validation and seeded references. Unresolved public-band behavior remains open for P02d-4/6 |
 | G6 | Locale identity on the content path. (a) What spelling and column type do the satellites' `locale` columns store, and which rule replaces Localization Standards' "Lowercase", which the shipped `LocaleTag` does not follow? (b) Is the `locale` parameter canonicalized before lookup, the membership check and every cache or cursor key, or is a non-canonical spelling refused? (c) What does a non-canonical `/{locale}/` segment get? | (a) `LocaleTag`'s canonical case (`tr-TR`, `zh-Hans`) in `varchar(35)`, as `tenant_locales` stores it — [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)'s 2026-09-04 amendment already makes case variants one locale; (b) well-formedness, then canonicalization, then lookup; (c) a redirect to the canonical segment, decided with G36 | Detail: [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes) and the Database Standards satellite fence in the same diff. No ADR: ADR-0008 states no casing rule | P02d-1 (a: the first stored rows), P02d-4 (b: validators, cursor binding), P02d-5 (c, with G36) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): (a); (b) and (c) remain open |
-| G7 | Organization write scope. (1) Does a lesson carry its course's organization scope? (2) What forces a satellite's — and a lesson's — mirrored `organization_id` to equal its parent's at insert: writer derivation alone, or that plus a database backstop, and which? (3) May an organization-scoped session `INSERT` a tenant-wide row through the `organization_id IS NULL` arm of `WITH CHECK`, which [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)'s Amendment 5 and Database Standards say it cannot and which it can at `HEAD`? | (1) Identical scope for a course, its lessons and every translation. (2) Writers derive the child's organization from the authorised parent; the reviews split on the backstop — a stored generated scope column with an organization-inclusive composite key, which structural sweeps can see, or a `BEFORE INSERT` trigger reading the parent under the caller's policies — and one review requires database enforcement. A nullable three-column key is already excluded, because `MATCH SIMPLE` skips the check. (3) Tighten, after the pass confirms no audit writer composes a null-organization row under an announced organization | Contract: one dated ADR-0003 amendment for (2) and (3), with an ADR-0041 erratum beside any sentence the pass finds false when it entered the record; the template replaced in place in [Database Standards](../standards/05-database.md) with its disclosure; forward migrations for `tenant_settings` and `audit_log` if (3) tightens. Detail: [Database Standards § Translation satellite tables](../standards/05-database.md#translation-satellite-tables); a catalogue row with a planted offender if a database mechanism is chosen | P02d-1 (policy SQL, the generated column or trigger, aggregate factories), P02d-2 (child derivation in the commands) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): database controls and factory derivation; P02d-2 command derivation remains open |
+| G7 | Organization write scope. (1) Does a lesson carry its course's organization scope? (2) What forces a satellite's — and a lesson's — mirrored `organization_id` to equal its parent's at insert: writer derivation alone, or that plus a database backstop, and which? (3) May an organization-scoped session `INSERT` a tenant-wide row through the `organization_id IS NULL` arm of `WITH CHECK`, which [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)'s Amendment 5 and Database Standards say it cannot and which it can at `HEAD`? | (1) Identical scope for a course, its lessons and every translation. (2) Writers derive the child's organization from the authorised parent; the reviews split on the backstop — a stored generated scope column with an organization-inclusive composite key, which structural sweeps can see, or a `BEFORE INSERT` trigger reading the parent under the caller's policies — and one review requires database enforcement. A nullable three-column key is already excluded, because `MATCH SIMPLE` skips the check. (3) Tighten, after the pass confirms no audit writer composes a null-organization row under an announced organization | Contract: one dated ADR-0003 amendment for (2) and (3), with an ADR-0041 erratum beside any sentence the pass finds false when it entered the record; the template replaced in place in [Database Standards](../standards/05-database.md) with its disclosure; forward migrations for `tenant_settings` and `audit_log` if (3) tightens. Detail: [Database Standards § Translation satellite tables](../standards/05-database.md#translation-satellite-tables); a catalogue row with a planted offender if a database mechanism is chosen | P02d-1 (policy SQL, the generated column or trigger, aggregate factories), P02d-2 (child derivation in the commands) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): database controls and factory derivation; [Accepted — 2026-10-02](#p02d-2-accepted-answers): command derivation |
 | G8 | Which structural guards does the Education chain register, so its tables cannot regress with the suite green: every foreign key between two tables carrying `tenant_id` includes it; every table carrying `organization_id` has the immutability trigger (and how `audit_log`'s append-only guard counts); the Pattern A rule, which would make [ADR-0008](../decisions/0008-localization-schema.md)'s "the migration linter rejects ad-hoc per-locale columns" true? And how does `fn_organization_id_immutable` — which reads `OLD.id` and is declared only in the Tenancy chain — serve satellites that have no `id`? | Three rows, each with a planted-offender companion; the function replaced by a Tenancy-chain migration that reports `OLD.organization_id` or reads the row key through `to_jsonb(OLD)`, which (as in the audit append-only guard's row comparison) never names a column the table may lack, with the cross-chain dependency recorded under Database Standards § Migrations | Detail: Standards 21 rows Registered and Implemented in the packet; the Database Standards immutability fence and § Migrations; `MigrationRollbackTests`. Contract, only if ADR-0008's sentence is left untrue: an ADR-0041 erratum if it was false when entered, otherwise a dated amendment | P02d-1 (a guard shipped with its first new subject is the only point its companion is written against real tables) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G8 |
 | G9 | Education schema detail: the content slug's character shape, normalization, width and database backstop — including whether a GUID-shaped slug is refused, which G26's shared-slot path needs; whether an Education table holds a foreign key into `tenants`, `organizations` or `tenant_locales`; and each runtime role's privileges on the four tables | `UrlSlug`'s shape with its own width constant and a `ck_<satellite>_slug_format` backstop, since restrictive now is the reversible choice (ASCII-only slugs exclude native-script URLs, a product choice); no foreign key into Tenancy; `learnstack_app` `SELECT, INSERT` plus exactly what G11's commands need, `learnstack_platform` `SELECT` | Detail: Localization Standards § Pattern A for the shape; the Database Standards satellite fence and [§ GRANT matrix](../standards/05-database.md#grant-matrix); § Migrations only if a cross-chain key is chosen | P02d-1 (the creating migration writes the `CHECK` and the grants; the grants couple with G11) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G9 |
 | G10 | What is the catalog's default order and tie-breaker, and what is the cursor it mints: its payload and version; what it binds (tenant, organization, locale, sort, filters, endpoint); its integrity (none, a MAC with a key version, or server-side state); its direction; what happens when a row changes between pages; which list parameters the endpoint binds; where it is decoded; whether the codec is this endpoint's or the kernel's; and which cursor classes answer `400`? | The reviews split between a keyless versioned payload with a binding fingerprint, decoded at binding so a garbage cursor opens no transaction, and an HMAC-authenticated cursor with key rotation. Both keep tenant and organization out of the cursor, and bind `CursorPaginationRequest` rather than `ListRequest`, whose `q` is Phase 04's search | Contract: a phase-doc statement if the codec is endpoint-local and keyless; a new ADR if it becomes a kernel rule later lists follow, or a MAC adds a secret and a rotation posture. Detail: [API Standards § Pagination](../standards/04-api-design.md#pagination), which drops "Nothing validates its *shape* yet"; Standards 21 rows | P02d-1 (the order part: an ordering column, publication timestamp or collation), P02d-4 (the codec part) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): order; P02d-4 codec remains open |
-| G11 | The write surface the seed needs. Which Education commands write courses, lessons and their translations; is a translation written separately from create; is publishing its own command; which command reports a slug collision as `business_rule_violation` rather than a raw unique violation, and does Localization Standards' "from the publish command" still hold? What shape do the Tenancy commands raising `tenancy.locale.write` and `tenancy.setting.write` take? How are the non-baseline writes classified, and how does a re-run converge? | Create course, write course translation, add lesson, write lesson translation, publish course (MUST); one locale command over `Tenant.AddLocale` and `SetDefaultLocale`; a create-or-update setting command keyed on context scope and key; ordering taxonomy → content type → course → lessons; idempotent by conflict, with an ownership check per act and a second-run test. None has a route | Contract: a phase-doc statement plus the Education spec (README write sequence, `audit.md`, `permissions.md` as a forward declaration on [the Tenancy precedent](../modules/tenancy/permissions.md)). Detail: catalogue sources, the Tenancy `audit.md` and `permissions.md`, Localization Standards § Pattern A if the collision sentence changes. An ADR only if a handler must write two roots | P02d-2 (commands, handlers, catalogue sources, seeder acts) | Open |
-| G12 | Through which `Customization.Application.Contracts` surface does an Education write obtain the schema a body is validated against — exact `(key, schema_version)` including Deprecated revisions, or a key that binds the Active one — and is it an interface or a MediatR query, classified how? Which revisions may a writer bind, and what refusal answers an absent, cross-tenant or ineligible one? On the read side: what the cache keys on, whether the lesson response carries the binding or resolved field descriptors, and what the API and the page show when a binding cannot be resolved | One exact-revision query, Deprecated included, never falling back to Active; only Active revisions bindable for new writes, since a Draft's body can still change; absent and cross-tenant refused indistinguishably as `validation_failed` naming the binding; resolved descriptors in the response; an unresolvable binding shows a bounded placeholder with a warning log, never a `500` and never another revision's fields ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)'s placeholder rule) | Detail: the Customization spec's contract and § Primary read flow, the Education spec's invariants, a phase-doc statement. No ADR: ADR-0010 settles the mechanism. A dated ADR-0013 amendment only if the unresolvable outcome departs from the placeholder rule | P02d-2 (the contract and write eligibility: the lesson writer is its first caller), P02d-3 (the cache key), P02d-4 (descriptors, the unresolvable outcome), P02d-6 (the page state) | Open |
-| G13 | May an Education translation be written for a locale absent from, or disabled in, `tenant_locales`, and how is membership checked across the module boundary? Does a read resolve under a disabled locale? What does a tenant with no locale rows serve — [Localization § Tenant Locale Configuration](../architecture/12-localization.md#tenant-locale-configuration) promises platform `en`, and nothing implements it? Does a platform registry bound the enabled set, as Localization Standards names one in a namespace that does not exist? What happens to translations when `RemoveLocale` runs? | A Tenancy application contract checks membership on write; a read resolves only an enabled locale, checked once per request; no cross-chain foreign key; no platform registry in this phase; a tenant with no locale rows serves nothing until it has one | Contract: a phase-doc statement over ADR-0010's application-contract mechanism. Detail: the Tenancy and Education specs; Localization architecture and Localization Standards § Locale Model reconciled in the same diff; Database Standards § Migrations only if a key is chosen | P02d-2 (the translation command's check and the locale command the seed uses; the read half is written to the same answer in P02d-4) | Open |
-| G14 | Seed inventory. At what scope is each seeded row class written — courses, lessons, translations, branding settings — and from what seeder context, given that `SeedTenantContext` requires an organization? Where do the rows the criteria need live — a sibling-organization course, an organization-scoped course on the tenant host, a `(locale, slug)` held in both tenants, draft and wrong-course rows, more courses than one catalog page, a disabled locale holding translations — `make seed` or test-owned data? Which key the yoga taxonomy uses, which tenant is bilingual, what state do the built-in `card` / `plain` keep, which record holds it all, and how do the Packet 7 fixture's raw settings rows coexist with seeded ones? | English content tenant-wide; the yoga studio gets a tenant-wide, a Studio One and a Studio Two course; a seed context that announces no organization; branding tenant-wide; rows in the seed with `SeedData` as the record; built-ins stay Active and are never selected implicitly; expectations recomputed as enumerated sets. An English organization-scoped row is still needed for the tenant-host criterion, seeded or test-owned — the demo database's contents are the owner's preference | Detail: a phase-doc statement, the `SeedData` remarks, the `seed-tenant` skill, the writers delivery record. No ADR: [Security Standards § Forbidden](../standards/11-security.md#forbidden) already makes scope come from context | P02d-2 (seeder steps, the seed-context constructor, `SeedData`, `SeederTests`; moving placement later rewrites the seed and every request-level case) | Open |
-| G15 | `SeedRunner` calls `IUnitOfWork.SetTenantContextAsync` on its own transaction, and neither [ADR-0040](../decisions/0040-ambient-unit-of-work.md)'s closed setter set nor [Security Standards § The out-of-band setters](../standards/11-security.md#the-out-of-band-setters) lists it. Is that method's caller set mechanically closed, and is the seeder's call reconciled by routing its ownership check through `ISender`, or by admitting the seeder? | Route the ownership check through `ISender`, and add a source scan that admits `TransactionBehavior` (and Phase 02b's transport) with a planted offender | Contract: a dated ADR-0040 amendment plus a setters-table row only if the seeder is admitted. Detail: a Standards 21 source-scan row with its companion | P02d-2 (the Education seed acts reach the ownership check's refusal arm today) | Open |
-| G16 | The branding token contract. (a) Where does the settings key registry live, what does a descriptor carry, and does `tenancy.setting.write` refuse keys outside it? (b) Which branding keys exist — per-token keys or one theme document — and is a layout option among them? (c) What value does each accept, fonts and logos included, and what happens to a stored value that fails it? (d) Does a failed contrast check refuse the write or record a warning — [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast) says a Studio warning? (e) What does an organization-scoped branding row do here — refused, ignored or applied? (f) Which tokens may leave an anonymous response? (g) Does `tenancy.white_label_branding` — which reads true under `NullEntitlementProvider`, whose projection grants every registered feature, falls back to its catalog default `false` from a projection that omits it, and which the Hub's Starter plan sets false — govern applying theme tokens or only removing LearnStack attribution? | (a) a registry beside `FeatureKeys` and `LimitKeys`, as `Tenant.SetFeatureFlag` already refuses unregistered keys; (b) per-token keys, at most one enumerated layout option or none; (c) `#rrggbb` colours, one font key from a closed self-hosted set, no remote logo; (d) refuse; (e) tenant-wide only, keeping Phase 06's override and ADR-0017's `OrganizationBranding` true; (f) a closed projection of publicly readable keys; (g) not gated — tokens are baseline presentation, and the key's meaning is agreed with the Hub. That token values are tenant settings is settled by [Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding) | Contract: a phase-doc statement plus Frontend Architecture Standards § Tenant Branding; a new ADR if the registry becomes an admission rule for every `tenant_settings` key; a dated ADR-0017 amendment if (e) applies overrides; Accessibility Standards if (d) replaces the warning. Detail: the Tenancy spec and permission matrix, [Frontend Architecture § Theming](../architecture/14-frontend-architecture.md#theming), the `FeatureKeys` descriptor with a matching note in the Hub repository for (g) | P02d-2 (a–e: validation and the seeded keys, which Phase 06's editor later edits), P02d-4 (f, g: the anonymous projection the OpenAPI baseline freezes), P02d-6 (g: whether rendering consults the flag) | Open |
-| G17 | Does `TenantSetting.Value` carry `[PiiSensitive]`? [Phase 03](phase-03-identity-admin.md) sequences the decision before the first command writing `tenant_settings`, and this phase ships that command | Not marked, provided `tenancy.setting.write` admits only G16's closed key set, so the answer cannot stretch to keys a tenant invents; modelling a sensitive part as its own property stays open to Phase 03 | Contract: a dated phase-doc statement, reflected in `TenantSetting.cs`, the Tenancy spec and `audit.md`. Whole-value redaction of `jsonb` is settled by [ADR-0044](../decisions/0044-audit-write-path.md) Amendment 4 § 1 | P02d-2 (the first MUST-class settings audit row is written by the seed, and rows cannot be redacted retroactively); closes with G16 (a) | Open |
-| G18 | How is a tenant content type presented? `json_schema` is `jsonb`, which keeps no key order, and the schema profile collects only `x-renderer`, `x-taxonomy` and `x-language`. How are field order, a label per enabled locale and a composite's field roles carried; which registered composite draws a lesson for each seeded type; which primitives does this phase implement, and does `markdown` render; how do types with no primitive row (`integer`, `number`, `boolean`, enums) map; may a rendered type declare a field outside the subset; and is a presentation entry naming a missing property refused at save? | A LearnStack extension — `x-order` and `x-label`, or one ordered `x-fields` list — carrying Pattern B labels, resolved at write like `x-taxonomy`; one composite already in both registries; the reviews split on the subset — `text`, `list` and `link`, with `markdown` without raw HTML, or a placeholder until Phase 05's sanitiser; the seed uses only the subset | Contract: a dated ADR-0043 amendment for a keyword or a save-time refusal; a dated ADR-0018 amendment for a presentation column; a phase-doc statement for `title` plus `required`, which cannot carry two locales. Detail: [Tenant Customization Model § 2](../architecture/32-tenant-customization-model.md) and § 8.1, the Customization spec, the profile's extension and reference-graph skip lists, `composites.ts` | P02d-2 (the seed publishes both content types as `schema_version` 1 with their renderer keys and field kinds; a later answer needs successor revisions) | Open |
-| G19 | URL and markup policy for tenant-authored values on an anonymous page: which schemes (`https` only, or `http` too), credentials and `target`, which media origins, whether the rule is enforced on write — in the Education command, or as a validation gate Phase 04's entries share — whether the public API filters too, and whether URLs inside markdown fall under it. The write-time check constrains structure, not schemes: `format: uri` admits `javascript:` and `data:` | The reviews split on `http`; all refuse `javascript:`, dangerous `data:` and credentials; checked on write by a LearnStack rule and again on render; no third-party media in the seed | Detail: one home for the scheme list — [Security Standards § XSS & Output Encoding](../standards/11-security.md#xss--output-encoding) or [Frontend Architecture Standards § Security](../standards/07-frontend-architecture.md#security), not both; the Education spec's write rules; Tenant Customization Model § 8.1 if checked on write. Contract: a dated ADR-0043 amendment if it becomes a shared validation gate | P02d-2 (the lesson command's validation and the seed values; the render-time check reuses the answer) | Open |
-| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | Open |
-| G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | Open |
+| G11 | The write surface the seed needs. Which Education commands write courses, lessons and their translations; is a translation written separately from create; is publishing its own command; which command reports a slug collision as `business_rule_violation` rather than a raw unique violation, and does Localization Standards' "from the publish command" still hold? What shape do the Tenancy commands raising `tenancy.locale.write` and `tenancy.setting.write` take? How are the non-baseline writes classified, and how does a re-run converge? | Create course, write course translation, add lesson, write lesson translation, publish course (MUST); one locale command over `Tenant.AddLocale` and `SetDefaultLocale`; a create-or-update setting command keyed on context scope and key; ordering taxonomy → content type → course → lessons; idempotent by conflict, with an ownership check per act and a second-run test. None has a route | Contract: a phase-doc statement plus the Education spec (README write sequence, `audit.md`, `permissions.md` as a forward declaration on [the Tenancy precedent](../modules/tenancy/permissions.md)). Detail: catalogue sources, the Tenancy `audit.md` and `permissions.md`, Localization Standards § Pattern A if the collision sentence changes. An ADR only if a handler must write two roots | P02d-2 (commands, handlers, catalogue sources, seeder acts) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): commands, failures, audit classifications and convergence |
+| G12 | Through which `Customization.Application.Contracts` surface does an Education write obtain the schema a body is validated against — exact `(key, schema_version)` including Deprecated revisions, or a key that binds the Active one — and is it an interface or a MediatR query, classified how? Which revisions may a writer bind, and what refusal answers an absent, cross-tenant or ineligible one? On the read side: what the cache keys on, whether the lesson response carries the binding or resolved field descriptors, and what the API and the page show when a binding cannot be resolved | One exact-revision query, Deprecated included, never falling back to Active; only Active revisions bindable for new writes, since a Draft's body can still change; absent and cross-tenant refused indistinguishably as `validation_failed` naming the binding; resolved descriptors in the response; an unresolvable binding shows a bounded placeholder with a warning log, never a `500` and never another revision's fields ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)'s placeholder rule) | Detail: the Customization spec's contract and § Primary read flow, the Education spec's invariants, a phase-doc statement. No ADR: ADR-0010 settles the mechanism. A dated ADR-0013 amendment only if the unresolvable outcome departs from the placeholder rule | P02d-2 (the contract and write eligibility: the lesson writer is its first caller), P02d-3 (the cache key), P02d-4 (descriptors, the unresolvable outcome), P02d-6 (the page state) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): contract and write eligibility. Cache, public response and page behavior remain open for P02d-3/4/6 |
+| G13 | May an Education translation be written for a locale absent from, or disabled in, `tenant_locales`, and how is membership checked across the module boundary? Does a read resolve under a disabled locale? What does a tenant with no locale rows serve — [Localization § Tenant Locale Configuration](../architecture/12-localization.md#tenant-locale-configuration) promises platform `en`, and nothing implements it? Does a platform registry bound the enabled set, as Localization Standards names one in a namespace that does not exist? What happens to translations when `RemoveLocale` runs? | A Tenancy application contract checks membership on write; a read resolves only an enabled locale, checked once per request; no cross-chain foreign key; no platform registry in this phase; a tenant with no locale rows serves nothing until it has one | Contract: a phase-doc statement over ADR-0010's application-contract mechanism. Detail: the Tenancy and Education specs; Localization architecture and Localization Standards § Locale Model reconciled in the same diff; Database Standards § Migrations only if a key is chosen | P02d-2 (the translation command's check and the locale command the seed uses; the read half is written to the same answer in P02d-4) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): write eligibility, no platform registry and no implicit no-row locale; public reader implementation remains P02d-4 |
+| G14 | Seed inventory. At what scope is each seeded row class written — courses, lessons, translations, branding settings — and from what seeder context, given that `SeedTenantContext` requires an organization? Where do the rows the criteria need live — a sibling-organization course, an organization-scoped course on the tenant host, a `(locale, slug)` held in both tenants, draft and wrong-course rows, more courses than one catalog page, a disabled locale holding translations — `make seed` or test-owned data? Which key the yoga taxonomy uses, which tenant is bilingual, what state do the built-in `card` / `plain` keep, which record holds it all, and how do the Packet 7 fixture's raw settings rows coexist with seeded ones? | English content tenant-wide; the yoga studio gets a tenant-wide, a Studio One and a Studio Two course; a seed context that announces no organization; branding tenant-wide; rows in the seed with `SeedData` as the record; built-ins stay Active and are never selected implicitly; expectations recomputed as enumerated sets. An English organization-scoped row is still needed for the tenant-host criterion, seeded or test-owned — the demo database's contents are the owner's preference | Detail: a phase-doc statement, the `SeedData` remarks, the `seed-tenant` skill, the writers delivery record. No ADR: [Security Standards § Forbidden](../standards/11-security.md#forbidden) already makes scope come from context | P02d-2 (seeder steps, the seed-context constructor, `SeedData`, `SeederTests`; moving placement later rewrites the seed and every request-level case) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): inventory, ownership and test-owned controls |
+| G15 | `SeedRunner` calls `IUnitOfWork.SetTenantContextAsync` on its own transaction, and neither [ADR-0040](../decisions/0040-ambient-unit-of-work.md)'s closed setter set nor [Security Standards § The out-of-band setters](../standards/11-security.md#the-out-of-band-setters) lists it. Is that method's caller set mechanically closed, and is the seeder's call reconciled by routing its ownership check through `ISender`, or by admitting the seeder? | Route the ownership check through `ISender`, and add a source scan that admits `TransactionBehavior` (and Phase 02b's transport) with a planted offender | Contract: a dated ADR-0040 amendment plus a setters-table row only if the seeder is admitted. Detail: a Standards 21 source-scan row with its companion | P02d-2 (the Education seed acts reach the ownership check's refusal arm today) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): contextual verification and Registered caller fence |
+| G16 | The branding token contract. (a) Where does the settings key registry live, what does a descriptor carry, and does `tenancy.setting.write` refuse keys outside it? (b) Which branding keys exist — per-token keys or one theme document — and is a layout option among them? (c) What value does each accept, fonts and logos included, and what happens to a stored value that fails it? (d) Does a failed contrast check refuse the write or record a warning — [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast) says a Studio warning? (e) What does an organization-scoped branding row do here — refused, ignored or applied? (f) Which tokens may leave an anonymous response? (g) Does `tenancy.white_label_branding` — which reads true under `NullEntitlementProvider`, whose projection grants every registered feature, falls back to its catalog default `false` from a projection that omits it, and which the Hub's Starter plan sets false — govern applying theme tokens or only removing LearnStack attribution? | (a) a registry beside `FeatureKeys` and `LimitKeys`, as `Tenant.SetFeatureFlag` already refuses unregistered keys; (b) per-token keys, at most one enumerated layout option or none; (c) `#rrggbb` colours, one font key from a closed self-hosted set, no remote logo; (d) refuse; (e) tenant-wide only, keeping Phase 06's override and ADR-0017's `OrganizationBranding` true; (f) a closed projection of publicly readable keys; (g) not gated — tokens are baseline presentation, and the key's meaning is agreed with the Hub. That token values are tenant settings is settled by [Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding) | Contract: a phase-doc statement plus Frontend Architecture Standards § Tenant Branding; a new ADR if the registry becomes an admission rule for every `tenant_settings` key; a dated ADR-0017 amendment if (e) applies overrides; Accessibility Standards if (d) replaces the warning. Detail: the Tenancy spec and permission matrix, [Frontend Architecture § Theming](../architecture/14-frontend-architecture.md#theming), the `FeatureKeys` descriptor with a matching note in the Hub repository for (g) | P02d-2 (a–e: validation and the seeded keys, which Phase 06's editor later edits), P02d-4 (f, g: the anonymous projection the OpenAPI baseline freezes), P02d-6 (g: whether rendering consults the flag) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a–e). Anonymous projection and entitlement/attribution (f/g) remain open for P02d-4/6 |
+| G17 | Does `TenantSetting.Value` carry `[PiiSensitive]`? [Phase 03](phase-03-identity-admin.md) sequences the decision before the first command writing `tenant_settings`, and this phase ships that command | Not marked, provided `tenancy.setting.write` admits only G16's closed key set, so the answer cannot stretch to keys a tenant invents; modelling a sensitive part as its own property stays open to Phase 03 | Contract: a dated phase-doc statement, reflected in `TenantSetting.cs`, the Tenancy spec and `audit.md`. Whole-value redaction of `jsonb` is settled by [ADR-0044](../decisions/0044-audit-write-path.md) Amendment 4 § 1 | P02d-2 (the first MUST-class settings audit row is written by the seed, and rows cannot be redacted retroactively); closes with G16 (a) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): generic whole-value PII redaction before the writer |
+| G18 | How is a tenant content type presented? `json_schema` is `jsonb`, which keeps no key order, and the schema profile collects only `x-renderer`, `x-taxonomy` and `x-language`. How are field order, a label per enabled locale and a composite's field roles carried; which registered composite draws a lesson for each seeded type; which primitives does this phase implement, and does `markdown` render; how do types with no primitive row (`integer`, `number`, `boolean`, enums) map; may a rendered type declare a field outside the subset; and is a presentation entry naming a missing property refused at save? | A LearnStack extension — `x-order` and `x-label`, or one ordered `x-fields` list — carrying Pattern B labels, resolved at write like `x-taxonomy`; one composite already in both registries; the reviews split on the subset — `text`, `list` and `link`, with `markdown` without raw HTML, or a placeholder until Phase 05's sanitiser; the seed uses only the subset | Contract: a dated ADR-0043 amendment for a keyword or a save-time refusal; a dated ADR-0018 amendment for a presentation column; a phase-doc statement for `title` plus `required`, which cannot carry two locales. Detail: [Tenant Customization Model § 2](../architecture/32-tenant-customization-model.md) and § 8.1, the Customization spec, the profile's extension and reference-graph skip lists, `composites.ts` | P02d-2 (the seed publishes both content types as `schema_version` 1 with their renderer keys and field kinds; a later answer needs successor revisions) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): ADR-0051 profile and first-render subset. Component placement/fallback remains G41 |
+| G19 | URL and markup policy for tenant-authored values on an anonymous page: which schemes (`https` only, or `http` too), credentials and `target`, which media origins, whether the rule is enforced on write — in the Education command, or as a validation gate Phase 04's entries share — whether the public API filters too, and whether URLs inside markdown fall under it. The write-time check constrains structure, not schemes: `format: uri` admits `javascript:` and `data:` | The reviews split on `http`; all refuse `javascript:`, dangerous `data:` and credentials; checked on write by a LearnStack rule and again on render; no third-party media in the seed | Detail: one home for the scheme list — [Security Standards § XSS & Output Encoding](../standards/11-security.md#xss--output-encoding) or [Frontend Architecture Standards § Security](../standards/07-frontend-architecture.md#security), not both; the Education spec's write rules; Tenant Customization Model § 8.1 if checked on write. Contract: a dated ADR-0043 amendment if it becomes a shared validation gate | P02d-2 (the lesson command's validation and the seed values; the render-time check reuses the answer) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no active sink in the seeded text profile; future URL/markup contracts precede Phase 04/05 sinks |
+| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. Subjects, exemptions and behavioral proof remain open for P02d-5/6/7 |
+| G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): subresources. Cookies remain open for P02d-5 |
 | G22 | How does the customization definition projection load and stay correct? In the request's ambient transaction, or as a ninth out-of-band tenant-context setter (ADR-0040's set is closed at eight)? In what order are the generation and the rows read; what does an absent generation row mean; how is a cache filled inside a transaction that bumped and rolled back kept unreachable, when the bump is an upsert increment that can reissue a number; what does an absent definition set return; which families are registered, and how does the adapter's exact-tuple `cache.name` mapping match generation-embedded names; what do the TTLs bound; and is the contract batched so a public read issues a bounded number of statements? | Load in the ambient transaction; read the generation first, then the rows; fill only from non-bumping transactions; treat cache faults as misses; restate the module's cache-hit budget; a batched contract, with statement-count assertions cold and warm | Contract: the Customization spec § Primary read flow and a [Tenant Customization Model § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy) statement on how a request learns the generation; a dated ADR-0040 amendment and a setters row only if the loader is out-of-band. Detail: the [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) cache table, the `cache.name` mapping, the Observability Standards metrics family list | P02d-3 | Open |
-| G23 | The typed settings accessor and its freshness. With no `learnstack.tenancy.settings` event until Phase 02b and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound until 02b, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event row and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | Open |
+| G23 | The typed settings accessor and its freshness. With no `learnstack.tenancy.settings` event until Phase 02b and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound until 02b, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event row and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no settings cache in P02d-2/3. Typed ambient accessor/scoped merge remains P02d-3 |
 | G24 | Display fallback. Which document owns the chain — [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules) or [Localization Standards § Locale Model](../standards/08-localization.md#locale-model), which state different chains, while the shipped `LocalizedText.Resolve` narrows one subtag at a time and ends at the first authored value? What is the terminal state of a nullable Pattern A field and of a Pattern B label? Does a response say which locale a fallback value resolved in, so the page can mark its language (WCAG 3.1.2)? | Localization architecture owns the chain and Localization Standards links it, both recording the shipped narrowing and the first-authored terminal for labels; a nullable Pattern A field renders absent; each fallback-capable field reports its resolved locale | Detail: Localization Standards § Locale Model linking its owner, reconciled with `LocalizedText` in the same diff; the Customization contract's signature; the response schema under G26. No ADR | P02d-3 (the first caller that passes a fallback chain), P02d-4 (response fields) | Open |
 | G25 | Site data and the page set. How does the renderer get the per-host data none of the Education reads returns — enabled and default locales, branding tokens, taxonomy display values, content-type field lists: fields embedded in the course reads (which cannot supply a default locale before a locale is known), a separate `[PublicSurface]` read resolved from the effective host, or the edge host lookup [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) and [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution) prescribe today, which must then state the effective host over the hop? Does the frontend ever hold a tenant or organization id? And which `(public)` pages ship — catalog, course with ordered lesson links and lesson, or two pages with bounded lesson links in the catalog response? | One `[PublicSurface]` site-data read with no host parameter, returning a closed projection and no ids, and three pages, which gives the course-detail read a consumer; one review keeps two pages with an explicit catalog outline. The first two options change what two Active standards prescribe | Contract: a phase-doc statement in § Read API and § Public renderer; for the first two options, edits to the two standards named, with an ADR if the pass judges the change non-trivial (no ADR carries the edge-lookup rule). Detail: the API Standards § Public surface rows; the Frontend Architecture sketch, sequence diagram and cache rows; the Localization architecture's edge locale sentence; the glossary; Phase 06 § What Phase 02d already shipped; Phase 05's inherited row if the course-detail read changes | P02d-4 (the endpoint set and DTOs the OpenAPI baseline freezes; a two-page answer changes the catalog response) | Open |
 | G26 | The v1 public read contract. The path shape beside Phase 05's authoring `/courses/{id}` — a shared slot, a distinct public prefix, or `/courses/by-slug/{slug}`; each response as an allow-list and what it never carries; the embedded lesson list's fields, order and bound, and whether an empty list is valid; per-locale alternates; how enums and envelopes stay additive; and which Problem Details responses each operation documents, given that no non-idempotent operation documents any today and a baseline of `200`s cannot see a status change | Fields limited to what the pages render; object envelopes, extensible enums, a deny-list contract test (`tenantId`, `organizationId`, `createdBy`, `updatedBy`, `deletedAt`, `rowVersion`, `slugKey`); the embedded list carries title, slug and order under a cap; `alternates` for enabled, translated locales; one shared transformer declaring each operation's statuses as `application/problem+json`. No review settled the path | Contract: a phase-doc statement recorded before the breaking-change check stores its baseline. Detail: the OpenAPI snapshot; [API Standards § URL Structure](../standards/04-api-design.md#url-structure) for a prefix class, § Pagination for an embedded list, § OpenAPI; the gateway's public-band row. [ADR-0024](../decisions/0024-api-versioning-policy.md) settles that later additions are non-breaking | P02d-1 (whether the slug grammar must refuse GUID shapes, with G9), P02d-4 (route templates, records, snapshot) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): slug grammar only; P02d-4 route and response contracts remain open |
@@ -357,6 +371,680 @@ with or after the earlier one, never contradicting it:
 - G32 through G37 — one hop; G33 and G34 share any ADR-0036 amendment.
 - G39 and G40 — routing and strings.
 - G44 and G45 — one stack entrypoint.
+
+### Pending Course Marketplace proposal
+
+**Pending direction review — 2026-09-17.** At the maintainer's request, P02d-2's
+decision pass first considers institution sites alongside a
+[Course Marketplace](../decisions/0049-institution-sites-and-course-marketplace.md).
+ADR-0049 is Proposed; this note accepts no gate and assigns no marketplace delivery
+scope to P02d-2. Its
+[acceptance checklist](../decisions/0049-institution-sites-and-course-marketplace.md#implementation-notes)
+records the unresolved product, delivery and commercial decisions.
+
+**Review follow-up — 2026-10-01.** The
+[scoping companion](../architecture/34-course-marketplace-scoping.md) separates
+live-product delivery, operations, privacy, regional topology and commerce recovery
+from this packet. Public-only P02d-2 has no technical dependency on those capabilities;
+the maintainer's planning hold remains until they resolve or release it. No review
+recommendation selects protected authoring or accepts marketplace delivery scope.
+
+**Historical boundary before exact acceptance.** G3's publication answer was accepted
+on 2026-09-14 under ADR-0048; direction endorsement alone did not reopen it. The
+maintainer's subsequent exact approval of ADR-0050 supplies the superseding contract
+and [dated G3 supersession](#g3-supersession-2026-10-02) below. The original question,
+accepted answer and delivery record remain intact.
+
+**Maintainer endorsement — 2026-10-02.** The maintainer approved following the
+recommendations and completing preparation. The hybrid direction and proposed
+[Phase 09a](phase-09a-course-marketplace-pilot.md) are planning targets, not accepted
+commerce contracts. The preparation hold is released. Protected authoring is prepared
+in ADR-0050. The subsequent exact approval is recorded below; it does not accept
+marketplace commerce. Future commerce feasibility does not block this packet.
+
+### P02d-2 decision package (2026-10-02)
+
+**Accepted — 2026-10-02.** The maintainer approved ADR-0050, ADR-0051 and the exact
+packet statements, inventory and four-step plan below, then requested documentation
+updates and a wait. Current gate cells and ADR lifecycle/index records are updated;
+new source proofs were Registered at acceptance. The original G3 question,
+P02d-1 accepted answer and delivery record are preserved. At acceptance, implementation
+had not started; the [delivery record](#p02d-2-implementation-delivery-2026-10-02)
+tracks the subsequently resumed work.
+
+#### G3 supersession (2026-10-02)
+
+ADR-0050 supersedes ADR-0048's public-only implication. Independent `draft → published`
+states, one-root publication and no version snapshot remain unchanged. Explicit
+Course content policy is inherited by lessons: `public` or `enrollment_required`.
+Legacy rows backfill restricted; the migration was planned for P02d-2 and is now
+recorded in the Step 1 delivery below.
+
+This dated entry governs the current P02d-2/4/6 criteria wherever the inherited
+packet text below describes publication as sufficient for anonymous body access:
+
+- P02d-2 requires explicit policy, restricted legacy backfill, six separate Education
+  commands and exact seed convergence; publication does not grant access.
+- P02d-4 admits published marketing fields under either policy but exposes no
+  restricted lesson inventory, count, descriptor, body or media URL. Direct hidden
+  lesson lookup remains indistinguishable `not_found`; eligibility precedes public
+  serialization, caching and conditional responses.
+- P02d-5/6 preserve that public DTO boundary and render a bounded locked state with
+  no invented payment or enrollment action. Credentials never unlock anonymous reads.
+- Phases 04/05/07 own protected media, version/policy evolution and grant evaluation;
+  unsafe live rollback is prohibited under ADR-0050's containment contract.
+
+The accepted inventory and text-card subset below govern seed and rendering scope
+where older packet planning differs. Remaining transport/cache/OpenAPI/renderer
+gates stay open for their named packets; acceptance claims no implementation.
+
+<a id="p02d-2-proposed-answers"></a>
+
+#### P02d-2 accepted answers
+
+| Gate part | Accepted answer and detail owner |
+|---|---|
+| G3: access, commands and seed states | [ADR-0050](../decisions/0050-publication-and-course-content-access.md) separates publication/access, backfills restricted policy and denies protected lesson inventory. Lifecycle stays independent draft → published. [Education writer plan](../modules/education/README.md#p02d-2-accepted-writer-contract) names six commands; seed states are explicit below |
+| G5: level validation | New course binding requires the exact Active taxonomy revision and declared band; never resolve a live key. The [Customization contract](../modules/customization/README.md#p02d-2-accepted-exact-write-contract) owns eligible revision rules. Unresolved public labels remain G5's P02d-4/6 decision |
+| G7: child derivation | Scope comes from trusted context and authorized parent; missing/cross/sibling parent is `not_found`, visible but unwritable parent scope is `resource_scope_violation`. No request tenant/organization authority; database guards remain unchanged |
+| G11: writers, failures and convergence | Separate create, translation-add and publish commands per Education root; translation insertion reports known slug uniqueness as `business_rule_violation`. Tenancy locale and whole-theme commands write one root. The specs own matrices; seed never treats a generic lifecycle failure as success |
+| G12: contract | Uncached Customization application interface returns immutable value DTOs for exact revisions; new binds Active, existing-pin writes Active/Deprecated. No foreign Domain/Infrastructure reference, FK, public marker or cache. Snapshot eligibility is at validation read, not a claim of Active-at-commit |
+| G13: locale | Uncached Tenancy application contract requires canonical enabled membership. No platform locale registry; use existing LocaleTag grammar/canonicalization/35-character bound. No rows means no content locale, not implicit `en`; label fallback does not change URL/body eligibility. Removal/disable retains Education data and later reads recheck membership; the lifecycle commands belong to Phase 03 |
+| G14: seed | Inventory and test-owned controls below; all literal identities and expected counts move into `SeedData` with implementation. Tenant-wide branding/content announce null organization. Built-in `card`/`plain` stay unchanged and Active |
+| G15: setter fence | Ownership verification becomes contextual `ISender` queries, explicitly audit Off; no direct seeder transaction/context setter. [Caller fence implemented in Step 4](../standards/21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters) has a planted-caller companion; no new ADR-0040 setter admission |
+| G16(a–e): branding | One tenant-wide `branding.theme` document, four closed color fields, complete replacement and contrast refusal; exact version for replacement. Command-local registry preserves generic settings. Organization overrides refused; no fonts, logo, URL or layout setting in this packet |
+| G17: PII | Mark generic `TenantSetting.Value` `[PiiSensitive]` before its writer, including whole JSON audit redaction. Public branding allowlisting is a separate boundary, not permission to expose generic settings |
+| G18: presentation | [ADR-0051](../decisions/0051-ordered-text-card-presentation.md) extends ADR-0043 with optional strict root `x-fields`; seed opts into ordered localized plain-string cards. Legacy schemas remain valid, unchanged; no renderer-key or presentation-column change |
+| G19: active content | The seeded profile has no active URL/markup sink; output is escaped text, never linkification or Markdown/HTML. ADR-0051 names first-sink owners; generic schema validation is not navigation/media authorization |
+| G20: literal source | `SeedData` owns all demo identities, literals and expected inventory. The [Registered literal guard](../standards/21-architecture-tests-catalogue.md#production_code_does_not_branch_on_demo_tenant_literals) consumes that declaration when implemented; production subjects/exemptions and behavioral genericity proof stay with their later packet parts |
+| G21: subresources | No new remote asset/font/logo or cross-origin subresource from seed/theme/text cards. Cookie behavior remains P02d-5; public output still needs later transport/render gates |
+| G23: freshness bound | No settings cache in P02d-2/3: no seed-process staleness, generation migration or out-of-band loader. P02d-3 owns the ambient typed accessor and scoped merge; latency is a later measurement, not a passed budget |
+
+G18/G19's selected vehicles are accepted ADR-0051 and append-only ADR-0043
+Amendment 5. The original register's Leaning/Vehicle text remains review history;
+this acceptance records the selected vehicle explicitly. Existing ADR decisions
+are preserved; ADR-0048's Status and dated supersession are lifecycle bookkeeping.
+
+#### Seed inventory and ownership
+
+Step 4 delivers this inventory; both review rounds and final verification passed.
+Exact IDs, schema/body literals, slugs, labels, palettes and computed counts live
+in `SeedData`; no
+production branch knows `demo-english`, `demo-yoga`, `grammar-topic` or `asana-pose`.
+The existing fixed tenant, organization, host and built-in customization IDs stay.
+
+| Data | English tenant | Yoga tenant |
+|---|---|---|
+| Host context | Existing tenant host, organization null | Existing Studio One host |
+| Locales | `en`, enabled default | `tr-TR`, enabled default; `en`, enabled |
+| Tenant content type | `grammar-topic`, revision 1 Active, `default-card`; plain-string `concept`/`example` | `asana-pose`, revision 1 Active, `default-card`; plain-string `pose`/`instruction`/`breathing` |
+| Taxonomy | `cefr`, revision 1 Active; six declared bands | `yoga-difficulty`, revision 1 Active; three declared bands |
+| Branding | One tenant-wide `branding.theme`, complete valid palette | One tenant-wide `branding.theme`, distinct complete valid palette |
+| Courses | Four: tenant-wide published public, tenant-wide draft public, tenant-wide published restricted, Kadıköy-scoped published public | Four: tenant-wide published public, Studio One published public, Studio Two published public, Studio One published restricted |
+| Lessons | Five: two under public tenant-wide course (published/draft), one published under draft parent, one published under restricted parent, one published Kadıköy-scoped | Five: one tenant-wide, two Studio One public, one Studio Two, one Studio One restricted; published |
+| Translations | One `en` translation per course/lesson | Both `tr-TR` and `en` per course/lesson; genuinely different translated slugs/labels |
+| Cross-tenant positive control | Published public tenant-wide course uses `en` slug `foundation` | Published public Studio One course also uses `en` slug `foundation`; no uniqueness across tenants |
+
+All eight courses and ten lessons have explicit pins and access/state choices;
+lesson policy is inherited. The declared translations total 27: nine English and
+18 Yoga. No remote media is seeded. Wrong-course proof uses the two visible Yoga
+courses; organization controls are hidden/visible against the appropriate host.
+
+Pagination uses **test-owned** courses and a test-selected bounded page size in
+P02d-4, not arbitrary mass demo data or a premature G10 default. A retained
+disabled-locale translation is also a P02d-4 historical-state fixture, with an
+explicit test setup; `make seed` does not bypass locale admission to fabricate it.
+Schema mismatch, absent presentation, missing labels and unresolved pins are negative
+test fixtures rather than invalid demo rows. Packet 7's raw `tz`/organization `theme`
+fixtures remain legal and are counted separately from the new seed theme.
+
+Every act derives a fresh composed trusted seed scope, with nullable organization.
+Tenant locales, customization definitions, branding and tenant-wide courses run in
+tenant-wide context; organization courses/lessons run in their exact organization.
+Translations and publication use the root's write scope. No admin role, superuser,
+RLS bypass, direct EF mutation or ad hoc seed SQL supplies normal writes.
+
+Seed order is provisioning/organizations/hosts, enabled locales, built-ins and tenant
+types/taxonomies (create then publish), branding, course/lesson drafts and translations,
+then each selected root's publication. Translation precedes publication on a new root.
+Restricted controls depend on accepted ADR-0050 and its applied migration.
+
+Before skipping an existing act, the ownership query verifies exact ID, parent, scope,
+pins, enabled locale, translated slug/text, semantic JSON, policy and state as relevant.
+Absent acts are written; exact completed acts are skipped without mutation/audit.
+Creation verification accepts only the declared draft intermediate state or intended
+final publication state, with identical immutable data; later acts still verify all
+translations and final state. It does not demand draft on a completed published root
+or accept arbitrary states. This rule also covers customization create/publish acts.
+A typed uniqueness, concurrency or lifecycle race triggers one fresh-scope ownership
+check against that act's completed postcondition, never blind retry or
+matching by display name. Mismatch fails nonzero without editing, unpublishing,
+rebinding or selecting another revision. Existing published translations are checked
+and skipped before calling the draft-only translation command. A published mismatch
+is not accepted merely because that command returns `translation_requires_draft`.
+If a competing runner has not completed the exact postcondition, fail safely for a
+later explicit rerun rather than returning false success or spinning indefinitely.
+Interrupted partial seeds converge; a second completed run adds no roots or audit rows.
+
+#### Implementation steps and review loop
+
+All steps run on **development**. No branch switch, push or PR is part of preparation.
+Each implementation step follows the maintainer's requested loop: implement and
+commit; first fresh independent multidisciplinary review; verify/fix valid findings
+and commit; second fresh review agents; verify/fix and commit; continue automatically.
+Agent models/effort follow complexity and available models. Unverified findings are
+rejected with evidence; an unresolved material defect blocks that step's completion.
+
+| Step | Coherent change | Required evidence before step completion |
+|---|---|---|
+| 1 — policy and contract foundation | Education access value/configuration and additive migration; exact Customization/Tenancy read DTO contracts; ADR-0051 profile parser/resolver; module-scoped seed verification queries | Domain/profile positive and negative cases, exact revision and locale isolation, policy/default/legacy preservation, migration forward/down/reapply and pending-model check; unsupported schemas remain valid but not implicitly renderable |
+| 2 — Tenancy writers | Locale commands and pre-mutation guards; default-enabled CHECK migration; whole-theme registry/command, contrast and concurrency; PII capture; matrices/composition | Disabled-first→enabled-second, disabled promotion leaves root/audit unchanged, invalid legacy refusal, injected second-save rollback, scoped writes, palette and concurrent replacement/create conflicts, whole-value audit redaction |
+| 3 — Education writers | Six separate commands, validation against exact schema/taxonomy and enabled locale, parent scope, named-constraint failures, audit and ambient transaction | Body/pin/locale/slug failures, one-root lifecycle, publication audit atomicity, RLS mirrors, uniqueness races, stale versions, and swallowed nested failures cannot later flush dirty state |
+| 4 — convergent seed and packet closeout | Contextual verification replaces direct setter; complete SeedData acts; source guard and planted companion; seed tests and Packet 7 counts recomputed; documents match delivery | Fresh seed, second-run no-change, interrupted recovery, concurrent seed convergence, mismatches fail nonzero without writes, host/scope positive controls, no caller-fence escape, full required verification and two review rounds |
+
+Checks scale to each step's change. Final closeout runs Release build/format and all
+required unit, architecture, contract, Docker-free and Docker integration suites with
+zero skips; applicable EF chains' pending-model/forward/rollback/reapply checks;
+seed convergence; Markdown links/anchors and `git diff --check`. Record actual commands,
+counts and results in the delivery record, not a speculative passing total here.
+
+#### Approval boundary and readiness
+
+**Preparation verification — 2026-10-02.** The reviewed documentation commit is
+`7bc8e63`, against `6bbcb1e`; no implementation is included. First-round security
+and governance findings were verified and fixed: post-build extension resolution,
+explicit lesson seed states, no platform locale registry and endorsed participation
+wording. Two fresh second-round agents independently returned Approve, with no
+remaining actionable findings. Reviews used `gpt-6-astra` (high) for security and
+`gpt-6.1-sol` (xhigh) for governance/seed/corpus consistency.
+
+- Architecture: 177 passed, zero failures/skips, Release `--no-build --no-restore`;
+  the TRX execution-count check passed. This verifies existing guards, not future
+  policy migrations, writers or public readers.
+- Documentation: 33 Markdown files, 1,715 local references and 444 fragments checked;
+  added prose wrapping and `git diff --check` passed. External provider/legal evidence
+  was not reassessed in this preparation pass.
+- Accepted ADRs were unchanged. The entire P02d-1 decision/delivery suffix was
+  compared byte-for-byte with the baseline and is unchanged.
+- Commit hooks, including staged Leakwatch and commit-message validation, passed.
+  Work remains on development; no push or PR was performed.
+
+**Exact acceptance and wait — 2026-10-02.** The maintainer approved ADR-0050/0051
+and this package, with the explicit instruction to complete documentation and wait.
+Lifecycle, dated G3 supersession, current gate statuses, corpus references and new
+Registered source-proof rows are updated. P02d-2's decision pass is complete and
+the document is ready for Step 1 when implementation is resumed. No code, migration,
+handler or new seed data has been delivered; the packet is not marked complete.
+
+The marketplace's company/country, provider, selected region, legal roles, seller
+corridors and detailed Phase 09a contracts remain its own first-consumer gates.
+ADR-0049 and Phase 09a remain Proposed. They neither expand P02d-2 nor hold its
+independent protected-content work. No implementation, push or PR follows this update.
+
+**Acceptance verification — 2026-10-02.** Two independent reviewers returned Approve
+after verified bookkeeping findings were fixed: `gpt-6.1-sol` (xhigh) for governance
+and `gpt-6-astra` (high) for security/corpus consistency. Both checked the final scope,
+partial gate closure and absence of implementation claims.
+
+- Existing Release architecture suite: 177 passed, zero failures/skips; the TRX
+  execution-count guard passed. Future Registered proofs are not included in that count.
+- Documentation: 33 changed Markdown files, 2,117 local links and 486 fragments checked;
+  added prose wrapping and `git diff --check` passed.
+- ADR-0043's pre-existing text and ADR-0048's original decision body are unchanged;
+  additions are dated lifecycle/extension disclosures. The complete P02d-1 suffix
+  remains byte-for-byte unchanged against `3f849d1`.
+- The two new catalogue rows remain Registered; all 144 Implemented entries are
+  unchanged. No backend/frontend implementation or deployment operation is included.
+
+
+### P02d-2 implementation delivery (2026-10-02)
+
+The maintainer resumed implementation after exact approval. The earlier acceptance
+and wait record remains historical; work now follows the four accepted steps on
+**development**. No public endpoint, marketplace commerce or authorization grant
+is introduced by P02d-2.
+
+**Step 1 — policy and contract foundation, complete.** Course creation takes
+an explicit closed policy. The additive Education migration defaults/backfills
+`enrollment_required`, preserving existing content and scope; technical Down is
+proved only in a disposable database, not approved as a live public-reader rollback.
+Exact revision/locale ports, ordered text-card semantic resolution and contextual
+seed verification queries are registered in both composition roots. Read queries
+are Off; no seed context-setter change or writer completion is claimed yet.
+
+**Step 1 pre-review verification.** Release build completed with zero warnings/errors.
+Docker-free tests: 1,489 unit, 177 architecture, 171 integration and one contract,
+all passing with zero skips. Fifteen focused Docker integration cases passed,
+including both composition roots, exact revision/locale reads, Education persistence
+and migration forward/down/reapply. Full format verification and the TRX execution
+count/zero-skip checks passed. Markdown validation checked 2,137 local references
+and 487 fragments across 34 files against the preparation baseline; P02d-1's frozen
+record and all Accepted ADR bodies remain unchanged. `git diff --check` passed.
+
+**Step 1 review round 1.** The policy/contract implementation is `682f858`. Two
+independent agents found no production defect. Verified gaps in positive/sibling/foreign
+setting proofs and disabled/foreign locale proofs were corrected independently of
+invalid-default configuration checks. All five strengthened foundation tests pass,
+including a disposable predecessor-schema proof for a disabled legacy default.
+Current README, glossary and module/standard
+status statements were aligned with the delivered foundation. A broader Docker
+regression run passed all 228 cases, with zero skips. Fixes are `a8a51ce`.
+
+**Step 1 review round 2.** Fresh agents independently returned Approve for
+`45805c8..a8a51ce`, with no actionable findings. Security review used `gpt-6-astra`
+(high); profile/corpus review used `gpt-6.1-sol` (xhigh). Independent runs passed 116
+profile/registration unit cases, six foundation/migration Docker cases and all 177
+architecture cases, with zero skips. Links/anchors and the frozen P02d-1 suffix passed.
+Step 1 is complete after both requested rounds.
+
+**Step 2 — Tenancy writers, complete after both review rounds.**
+Three unrouted tenant-wide commands implement locale addition/default selection and
+complete branding creation/exact replacement. Existing locale configurations are
+validated before mutation; the first enabled locale is promoted even after disabled
+rows. Two-pass default saving also handles newly Added defaults. The additive CHECK
+refuses disabled defaults and never repairs legacy data automatically. Generic setting
+JSON is wholly redacted at capture. Palette fields and CSS mappings share a closed
+registry, with per-pair contrast admission and no entitlement gate. Failed saves after
+mutation mark the ambient unit rollback-only. Steps 3–4 remain pending.
+
+**Step 2 pre-review verification.** Release build passed with zero warnings/errors.
+Docker-free tests passed: 1,538 unit, 177 architecture, 171 integration and one
+contract. The expanded Docker regression group passed all 75 cases, including
+composition, locale/default and branding writers, whole-value audit redaction,
+concurrent creates/replacements, MUST audit failure, injected second-save rollback,
+invalid legacy refusal and migration forward/down/reapply. Execution-count checks
+confirmed zero skips. The broader group also exposed a test-isolation defect in
+Step 1's writing foundation case: its independent audit rows survived the business
+rollback in the shared fixture. That case now owns a disposable database; the full
+75-case group passes without leaking rows into other tests.
+
+**Step 2 review round 1.** Security (`gpt-6-astra`, high) found one verified
+classification defect: the shared EF helper wrapped unknown unique constraints with
+a business error before the handler could distinguish them. New Tenancy writer
+methods now supply owned constraint sets; unowned failures stay database faults.
+Two planted PostgreSQL constraints prove `500 internal_error`, unchanged state and
+no successful audit. Existing helper callers retain their contract. The corpus/theme
+review (`gpt-6.1-sol`, xhigh) found two Minor documentation gaps; prose wrapping and
+public contract XML documentation are corrected. Palette key-order and exact/over-cap
+input proofs also cover its optional test suggestion. After fixes, Release build
+passed with zero warnings/errors; 77 Docker regression cases, 185 focused unit and
+177 architecture cases passed with zero skips. The implementation is `1b98352`;
+first-round fixes are `63ed4bc`.
+
+**Step 2 review round 2.** Fresh security (`gpt-6-astra`, high) and corpus/theme
+(`gpt-6.1-sol`, xhigh) agents independently returned Approve for
+`a8a51ce..63ed4bc`. Each independently passed 160 focused unit and 12 PostgreSQL
+writer/migration cases, with zero failures/skips. The one verified Minor was a stale
+Tenancy component description; its root/writer claim, command/store inventory and
+table count now match code. Links/anchors, wrapping and the frozen P02d-1 record pass.
+Step 2 is complete; Steps 3–4 remain pending.
+
+**Step 3 — Education writers, complete with both review rounds.**
+Six separate commands write one Course or Lesson and its contained translations.
+New binds resolve exact Active revisions; existing lesson pins remain eligible after
+deprecation. Enabled locale admission and schema evaluation precede mutation. Visible
+but incompatible write scope is refused; hidden roots remain indistinguishable misses.
+Translation insertion reserves its tenant-local slug; diagnostics identify only visible
+conflicts. Publication remains independent and MUST-audited. Known post-save failures
+poison the ambient unit, including when an outer handler absorbs the refusal.
+No public endpoint, protected reader or seed execution is claimed by this step.
+
+**Step 3 pre-review verification.** Release build passed with zero warnings/errors.
+The full Docker-free run passed 1,557 unit, 177 architecture, 171 integration and
+one contract case, without failures/skips. The focused database regression run
+passed 249 cases, including all 14 Education writer cases, the existing Education
+isolation suite, Tenancy writers and migration reversal. Both known post-save
+refusal variants were absorbed by an outer handler that saved another root; the
+owning transaction still refused commit and rolled back both writes. Concurrent
+publication and localized-slug insertion produced one durable winner. Unknown
+unique constraints retained `internal_error`; hidden collisions disclosed no root
+identity. Full format verification, Markdown links/anchors and `git diff --check`
+passed. This step changes no EF model or migration. Two fresh review rounds follow.
+
+**Step 3 Round 1.** Fresh GPT-6 Astra (high) security/transaction and Claude Sonnet 5
+(high) contract/validation/corpus reviews both returned Approve. The security reviewer
+independently reran all 14 Education writer database cases. Two verified Minor test
+findings were fixed: validator tests now resolve the registered internal validators
+through DI, and organization-scoped translation/publication attempts against a visible
+tenant-wide Lesson explicitly assert refusal and unchanged state. The optional
+unreachable policy-switch suggestion is not a defect: the composed validator admits
+exactly the two explicit values, and the domain guards its closed enum. No production
+change was justified. Round 2 uses new review sessions after the fixes.
+Release build, all 16 validator cases and all 14 writer database cases passed again,
+without failures/skips. Full format verification exited zero; links/anchors and the
+unchanged P02d-1 suffix check passed.
+
+**Step 3 Round 2.** Two fresh read-only Codex review sessions (high and xhigh)
+reviewed `8b981c7..a4a29d3`. The security reviewer returned Approve; the contract
+reviewer requested changes. All findings were verified against current code.
+Internal parent and collision ports now retain module-local typed IDs; conversion
+occurs at the command boundary and unwraps only for exported diagnostics. The
+aggregate-write census excludes typed keys without exempting the reader by name;
+its planted companion still detects direct, nested generic, array, by-ref and mixed
+object writes. The existing 1 MiB instance cap now has one shared owner, and the
+Education validator checks UTF-8 size before any JSON parse. Inclusive ASCII and
+multibyte boundary tests and a composed writer refusal/unchanged-state proof cover
+it. New null suppression is removed or justified by the exception filter. README,
+Database Standard and the old Backend Coding publication example now name the
+shipped writer contract. Additional focused review follows these production fixes.
+The attempted fresh Claude sessions reached the provider's session limit and
+produced no review; they are not counted as completed rounds.
+
+**Step 3 fix verification and closeout.** Fresh xhigh read-only review of
+`a4a29d3..2e498ce` returned Approve with no blocking findings. Its two low-priority
+suggestions were verified and applied: the oversize proof now counts every audit
+outcome, and a stale XML description no longer attaches the old size limit to
+`BuildOptions`. The fixed census passes all 178 architecture cases; its planted
+controls also cover inherited interface signatures. Release build has zero
+warnings/errors, 1,559 unit cases and the contract case pass, and all 780 integration
+cases pass, including 15 Education writers. No failures/skips remain; format,
+local links/anchors and the frozen P02d-1 suffix check pass. Step 3 is complete;
+Step 4 follows below.
+
+**Step 4 — convergent seed, complete after both review rounds.**
+The fixed identities remain unchanged. SeedData owns every declaration and expected
+count: two tenants, four organizations, two hosts, three locales, four content types,
+four taxonomies with fifteen bands, two distinct whole themes, eight courses, ten
+lessons and twenty-seven translations. Published/draft and public/restricted cases
+include tenant-wide and both organization scopes. English and Yoga have their own
+schemas, labels and bodies; Yoga has complete tr-TR/en translations. No remote media,
+marketplace fields or P02d-4-only historical/negative fixtures are introduced.
+
+Every verification and write goes through contextual ISender requests. Completed acts
+skip before a writer, partial declared acts resume, and a typed race gets exactly one
+fresh postcondition read. Mismatches fail without overwrite; no private transaction,
+setter or direct persistence path remains. Internal reader ports retain typed IDs.
+The caller-fence guard and planted companion are Implemented; G20(a) reads all literal
+sources from SeedData, while the full production branch guard remains P02d-7's owner.
+The seed skill, host/isolation projections, catalogue and current-state documents
+now match implementation. Tests own disposable databases rather than shared cleanup.
+
+**Step 4 verified consumer defects.** Concurrent seed execution exposed a real
+Customization publication race: a competing publish between two READ COMMITTED reads
+caused EF to return the already-tracked Draft as its own Active incumbent. Both
+handlers now return typed concurrency before mutation. A failed publication save now
+marks rollback-only even without an incumbent, so an absorbing outer request cannot
+flush dirty publication state later. Six controlled database cases cover both roots,
+the precise race and post-save conflict/concurrency absorption. An old unit expectation
+that assumed no retirement meant no dirty state was corrected against these proofs.
+No new ADR or schema decision is introduced.
+
+**Step 4 pre-review verification.** The 49 focused database cases pass without
+failures/skips: thirty-five Seeder, eight host/isolation and six Customization race
+cases. These include full inventory/scopes, all-outcome audit neutrality on repeat,
+two real interruption points, coordinated concurrent seed, seventeen mismatch cases,
+semantic JSON equivalence and the executable's actual zero/nonzero exit behavior.
+A fresh complete seed produces ninety successful audit rows; provisioning writes two
+aggregate audit rows, and all counts derive from SeedData. Full verification and
+both fresh review rounds were still required at this pre-review stage.
+
+**Step 4 broader regression corrections.** The complete Docker run exposed two
+inherited audit groups tied to the old seed: fixed counts and direct repeat writers
+had been inferred from a runner that now skips completed acts, and shared cleanup
+could not remove the new restricted dependencies. AuditPipelineTests and
+AuditWorkflowTests now own disposable databases and focus their declaration on
+provisioning/built-ins. Rollback audit proof sends explicit refused commands and
+retains the two provisioning intents plus the standalone organization refusal.
+All eighteen cases pass; the expanded 67-case seed/host/Customization/audit group
+passes without failures/skips. Complete Docker regression then passed 638 cases.
+
+The two seeded schemas now differ in property count, as the inherited phase criterion
+requires: Yoga also declares ordered, bilingual plain-string breathing text. The
+inventory proof checks actual persisted schema shape, beyond changed names/labels.
+A verified publication mismatch could otherwise retire a different Active revision
+under the same key. Seed sets both publish commands' optional `RequireNoIncumbent`
+precondition, which refuses before mutation and retains ordinary succession by default.
+Two additional seed cases prove unchanged definitions/versions/generations and no
+successful audit on that refusal; normal failed-command audit remains legitimate.
+The two new cases and six controlled race/rollback cases pass. Release build has
+zero warnings/errors; all Docker-free suites pass again. At that stage, fresh review
+closure and final complete verification remained pending.
+
+**Step 4 Round 1.** Fresh read-only Codex xhigh security review requested changes;
+Claude Sonnet 5 high contract/corpus review returned Approve with one cosmetic Minor.
+The security finding is verified: publishing the declared revision could retire an
+incompatible Active revision. Contextual Off queries now check the logical key's
+Active identity before registration, and publication checks `RequireNoIncumbent`
+inside its transaction before retirement. Four pre-existing absent/Draft cases and
+two coordinated different-revision winners accompany the same-ID race proofs;
+failed seeds preserve existing content, versions, generations and audit successes.
+The cosmetic extra blank line is removed. The earlier 67-case regression corrections
+and schema-shape proof are included in this fix set; a fresh second round follows.
+
+**Step 4 Round 2 and packet closeout.** Two fresh read-only Codex review sessions
+(high for contracts/corpus; xhigh for security/transactions) reviewed
+`951acd2..fecdc76` and independently returned Approve. No Blocker or Major remained.
+Both found the stale README bootstrap statement; the contract review also found the
+old Step 4 review heading. Both verified Minor findings are fixed, and current-state
+carriers and the seed skill now name completion. No additional production change was
+required. The implementation is `5081724`, with first-round fixes at `fecdc76`.
+
+**Final verification — 2026-10-02.** All required local checks pass:
+
+- Release build: `dotnet build backend/LearnStack.slnx --no-restore -c Release`, zero
+  warnings/errors. Full format verification uses `dotnet format` with
+  `--no-restore --verify-no-changes` and exits zero.
+- Backend: Release `dotnet test --no-build --no-restore` with separate
+  `Requires!=Docker` and `Requires=Docker` runs; 1,559 unit, 181 architecture,
+  one contract, 171 Docker-free integration and 644 Docker integration cases pass.
+  Total: **2,556**, zero failures/skips. TRX counters were inspected for failures;
+  `scripts/assert-tests-ran.py` also proves execution and zero skips per assembly.
+- The focused seed/host/Customization/audit group passes all 73 cases: 39 Seeder,
+  eight host/isolation, eight controlled publication and eighteen audit cases.
+  Actual CLI exits, interrupted/concurrent recovery, exact repeat neutrality,
+  incompatible Active winners and transaction absorption are covered.
+- All five EF chains report no pending model changes using the pinned tool in
+  `backend/`, Release `--no-build` and a design-time-only placeholder connection.
+  The complete Docker run includes every-chain forward/down/reapply, populated
+  access-policy preservation and disabled-default migration refusal. This is
+  disposable-database reversal evidence, not approval to remove live access policy.
+- Frontend: frozen install, typecheck, lint, build and all thirteen Vitest cases pass.
+  Four default/gated dev/e2e compose combinations and actionlint pass. These surfaces
+  did not change after verification; no browser-rendered demo is claimed.
+- The PR documentation sweep checks 45 Markdown files, 2,868 local links and 571
+  fragments. Added prose wrapping and `git diff --check` pass. Analysis-directory
+  hits are the existing prohibition/history wording, not links to scratch material.
+  The complete P02d-1 suffix is byte-identical to the acceptance baseline. Accepted
+  ADR bodies have no implementation-time edits.
+- Commit hooks pass, including staged Leakwatch, formatter and strict message checks.
+  The pre-closeout PR range's seventeen non-merge commits pass the same strict hook.
+  Final closeout is checked with the resulting PR range before publication.
+
+**Disposition.** P02d-2 implementation, both review rounds per step and required
+verification are complete on development. PR review and merge remain the maintainer's
+next step. Phase 02d remains in progress. P02d-3 owns generation-keyed customization
+read internals and the uncached ambient typed settings accessor; its remaining gates
+open before that work. P02d-4 owns public reads and hidden-response/query-plan proofs;
+P02d-5–7 own transport, rendering and the running two-site demo. No marketplace,
+authentication, enrollment, public API or browser-delivery completion is inferred.
+
+#### PR review corrections (2026-10-02)
+
+External PR #23 findings were verified against `6fce655` before changes. Current
+carriers now separate delivered P02d-2 policy, migration, writers, presentation
+resolution and seed from P02d-4 public reads, P02d-6 rendering and Phase 07 grants.
+ADR-0050/0051 retain their acceptance-time Status and Decision text; dated
+implementation disclosures and Amendment 1 record delivery. The indexes, glossary, audit
+review state, implemented setter fence, contrast refusal and unrestricted default
+entitlement provider are aligned. No access, branding, marketplace or governance
+decision changes.
+
+The exact presentation reader now returns `/properties` validation failures for missing
+or non-object members and non-object roots. Eleven regressions preserve its Result
+contract and optional legacy profile behavior. Migration reversal locates the policy
+migration by stable ID; both Up applications prove the restricted backfill. Lesson and
+Course post-save refusal absorption, both Customization MUST-audit replacement rollbacks
+and the incumbent rollback-only branch have direct proofs. A controlled non-provisioning
+translation race witnesses two real save attempts, one successful act and one audited
+refusal, fresh completed-state recovery and an unchanged all-outcome repeat snapshot.
+
+Theme replacement-version requirements do not apply to create-only seed writes.
+Reference admission remains with the authoritative exact-revision writers; no new
+whole-declaration preflight contract is introduced. Existing inventory comparisons
+already prove both tenants' shared English slug and foreign-tenant invisibility.
+Existing repeat snapshots include every audit outcome; the new race additionally retains
+an observed failed audit. These findings require no production expansion.
+
+Release build has zero warnings/errors; 1,570 unit, 181 architecture, 171 Docker-free
+integration, one contract and all 69 affected database cases pass with zero skips.
+Relative links, fragments, added prose wrapping, format and `git diff --check` pass; the
+P02d-1 suffix remains byte-identical.
+
+**Independent review round 1.** The correction commit is `40d207d`. A fresh Codex
+reviewer at xhigh effort traced parser callers, migration targeting, rollback and seed
+race evidence; a fresh Sonnet 5 reviewer at high effort checked corpus/governance and
+source claims. Both returned Approve with no material findings. A separately detected
+89-column prose line is wrapped without changing its meaning.
+
+**Complete backend verification.** After the corrections, all 2,573 cases pass: 1,570
+unit, 181 architecture, one contract, 171 Docker-free integration and 650 Docker
+integration. TRX counters show zero failures/errors/skips; the execution guard passes
+for every assembly. All 69 affected database cases pass within the full run. Release
+build has zero warnings/errors, and full format verification exits zero. The PR
+documentation sweep checks 45 Markdown files, 2,892 local links and 577 fragments. No
+frontend or operational surface changed in this correction. The second independent round
+and its correction are recorded below.
+
+**Independent review round 2.** Fresh Codex (xhigh) and Sonnet 5 (high) sessions
+reviewed `6fce655..a436a51`. Sonnet approved the corpus. Codex found one valid proof
+gap: identical translation contenders did not falsify removal of the loser's required
+post-race recheck. All other code/security, rollback, migration and documentation
+boundaries were clean.
+
+The test now covers identical and divergent payloads for the same course/locale. A
+conflicting loser must refuse its exact state before reporting the act completed; the
+independent later final-state check cannot supply this proof. A controlled mutant that
+skipped only the losing-race recheck passed the identical case and failed the divergent
+case at the completion assertion. `SeedRunner.cs` was restored byte-for-byte; no
+production seed behavior changes. Both positive variants and the complete backend suite
+then passed. The standards index's current-state date now matches the delivered
+2026-10-02 table.
+
+**Targeted follow-up review.** A fresh Codex session at high effort reviewed
+`a436a51..163eb90` and returned Approve: the completion assertion kills the missing
+recheck mutant, winner selection is arrival-order independent, real save/audit witnesses
+and cleanup remain intact, and the revised documentation counts agree. The correction
+and both independent review rounds are complete; the only verified second-round finding
+is fixed and independently rechecked. Final hooks, wrapping, links/fragments and the
+frozen-record check pass. PR #23 carries the updated range and validation; merge remains
+the maintainer's decision.
+
+#### Additional PR review corrections (2026-10-02)
+
+The subsequent review was verified against `eaa72aa`; findings and suggested edits
+were treated as evidence, not instructions. No decision, public route or migration
+changes were needed. The following corrections retain the accepted packet scope:
+
+- The tenant write lookup excludes soft-deleted roots, preserving both navigations,
+  identity matching and cancellation. A real application-role test proves retained
+  locales/flags on a live root and refusal of locale writes after deletion.
+- The aggregate census shares its production predicate with planted fused-port,
+  two-port, notification, non-public-constructor and negative controls. Key-only
+  writes remain visible; read exemptions enumerate methods rather than all typed IDs.
+  Four controlled mutants (first construction only, omitted notifications, blanket
+  key exclusion and public-only constructors) each fail the intended companion.
+  The source is restored byte-for-byte before positive verification.
+- Both runtime hosts build application pools through the shared role guard. Direct
+  seed execution now refuses owner/bypass credentials and transitive bypass access;
+  malformed credential exceptions carry no raw inner parse exception. Unit canaries
+  inspect full exception text; real direct/transitive refusal runs through both callers.
+- The exact presentation resolver converts invalid JSON syntax into a root-located
+  validation failure. The seed fence also checks IL for direct EF mutation and ad hoc
+  commands, while admitting immutable data construction and request dispatch.
+- Additional proofs cover foreign-context Education writes, locale tenant isolation
+  and concurrent exact-version changes, identifier-conflict details, renderer-registry
+  non-emptiness, CHECK removal on Down and refusal of an undeclared persisted locale.
+- Current documentation records accepted/delivered branding and writers, the exact
+  current/planned route boundary, the Tenant locale audit subject and accepted anchors.
+  ADR-0050/0051 show their dated disclosure inside `#status` and preserve the original
+  acceptance text under Amendment 2. The catalogue records delivered presentation
+  proofs separately from Registered public projection/rendering obligations.
+
+**Verified dispositions.** No remaining item is silently assigned to a later packet:
+
+| Finding | Disposition and reason |
+|---|---|
+| Inline tenant lookup / ADR-0049 / permissions | Fixed against the current store, delivery record and Phase 02c route contract. |
+| M1 | Fixed; the same production census now has permanent planted controls and four failing mutants. |
+| m2–m4 | Fixed: current-state references, JSON syntax refusal and the shared seed/runtime role guard. |
+| m5 | Documented per-act durability: a competing Active revision may appear after a registration pre-read, leaving a committed Draft/generation/audit before refusal. Explicit reconciliation is required; seed never rolls back completed acts. |
+| m6 | Added the narrow requested proofs, retaining real application-role transactions. |
+| m7 | Skipped: ADR-0051 requires existing localized messages plus offending JSON Pointers, which the resolver already supplies; distinct cause keys are not required. |
+| m8 | No missing registration found. Both roots are exercised by composed writer/publication tests; a separate parity scanner is optional protection, not a current correction. |
+| m9 | Skipped: ADR-0050 explicitly permits disposable Down/reapply and denies live rollback authorization; the forward-only operational rule already applies. |
+| m10 | Fixed: the existing seed caller fence now includes direct persistence writes, with positive and negative planted controls. |
+| m11 | Refuted: every existing locale must match a declaration under `SeedVerification.Tenant`; the new persisted-extra-locale test proves refusal without a write. |
+| m12–m14 | Fixed: audit subject, unused proposed anchor aliases and Status navigation with dated historical disclosure. |
+| s1–s5 | No defect: supported calls validate the closed policy; repeated subject designation is sanctioned; titles/summaries map to unbounded text; no unchanged-version promise exists for default-setting commands; parent reads already use `AsNoTracking`. |
+| s6 | Skipped: an admitted named race still requires exact fresh-scope postconditions, already mutation-proved; it never accepts a refusal alone. |
+| s7–s8 | Ambient is the sanctioned trusted origin. Exit codes are documented; malformed credential failure text is now proven secret-free. |
+| s9 | No current public oracle: explicit-ID writers are unrouted trusted operations and replacement lookup hides foreign roots. Phase 03 owns authoring authorization before reachability. |
+| s10–s11 | No supported incumbent-deprecation uniqueness collision or registered authoring route found. Unexpected faults already poison the transaction; anonymous admission remains fenced. |
+| s12 | Fixed: delivered profile/exact-order evidence and future renderer/sink obligations are catalogued separately. |
+| s13–s15 | No current defect: no production lock incident/online-migration mandate; seed DTOs are private verification contracts; raw foundation inserts intentionally model isolated/legacy fixture states, not provisioning. |
+| s16 | Historical counts are retained. Supplemental link counts count occurrences outside fenced blocks across PR-changed Markdown and linked ADR/phase carriers; CI's changed-target audit has a different scope and excludes fragments. |
+| Legacy profile boundary | Compatibility applies to schemas without root `x-fields`. Its presence explicitly opts into ADR-0051's profile; a formerly inert annotation at that location is now semantic. |
+| PR-external follow-ups | Unchanged scripts and legacy conflict helpers are outside this correction. G20's remaining branch fence stays P02d-7; public reads/rendering/grants retain their existing named owners. |
+
+The shared [seed workflow](../../.claude/skills/seed-tenant/SKILL.md) records direct
+role enforcement, failure codes and the committed-Draft race boundary.
+
+**Positive verification.** Release build has zero warnings/errors. All 2,590 backend
+cases pass: 1,577 unit, 184 architecture, one contract, 171 Docker-free integration
+and 657 Docker integration. TRX counters show zero failures/errors/skips, and the
+execution guard passes for every assembly. Full format verification exits zero.
+Eight controlled mutants fail the intended guard; both source files are restored
+byte-for-byte and the positive structural suite is re-run before commit.
+The supplemental documentation sweep checks 45 Markdown files, 2,901 local link
+occurrences and 580 fragments; `git diff --check` passes and the frozen P02d-1
+suffix remains byte-identical. Independent reviews follow the correction commit.
+
+**Independent correction review — round 1.** Fresh GPT-6.1-sol (`xhigh`)
+reviewed the backend/security/proof boundary at `05682d8`; fresh GPT-5.5 (`high`)
+reviewed documentation/governance. Neither found a correctness or isolation defect.
+The code reviewer found one unused API redaction helper left by extraction; it is
+removed, leaving the shared implementation as the only caller-backed helper. The
+parent also corrected one added catalogue prose line exceeding 88 columns.
+Release build remains warning/error-free; credential guard tests pass 20/20,
+architecture passes 184/184 and scoped format verification exits zero. Links and
+the frozen suffix remain unchanged. Fresh round 2 reviews the complete correction
+range after this fix commit.
+
+**Independent correction review — round 2 and closeout.** Two new GPT-5.5
+sessions (`xhigh` for backend/security/proofs, `high` for documentation/governance)
+review the full `eaa72aa..15123ca` correction range and both approve without an
+open actionable finding. They independently inspect the positive TRX, mutation
+and restoration evidence; the documentation reviewer also verifies the unchanged
+1,799-line frozen suffix. The reviewed production code is complete. This closeout
+adds only the review record; the PR remains open for maintainer review and merge.
+
+#### Branding tenant-existence correction (2026-10-02)
+
+The outside-diff finding is verified against `3a4bb5d`. Branding now refuses a
+missing or soft-deleted announced tenant with the existing `not_found` result,
+after scope validation and before any setting lookup or write. A scalar, uncached
+Tenancy reader is registered in both runtime composition roots; the handler still
+holds one aggregate write capability. Live Trial tenants remain supported.
+
+Four application-role regression cases cover missing/deleted tenants and
+create/replace intent. A throwing setting store proves refusal precedes any
+setting access; fresh reads prove unchanged values/versions and no additional
+successful setting audit. The existing seeder-root deletion proof also covers both
+branding writes. Unit scope guards prove no existence read before scope admission.
+
+Release build has zero warnings/errors. Final suite runs pass all 2,594 backend
+cases: 1,577 unit, 184 architecture, one contract, 171 Docker-free integration and
+661 Docker integration. TRX counters and execution guards report no failures,
+errors or skips. Full format, local links/fragments and the frozen P02d-1 record
+check pass. Two fresh independent review rounds follow the correction commit.
+
+**Independent reviews and closeout.** Two fresh GPT-5.5 (`high`) read-only
+sessions review the exact `3a4bb5d..50518e7` correction range independently. Both
+approve without an actionable Blocker, Major or Minor finding. They verify scope
+ordering, live Trial support, both DI registrations, refusal before setting access
+and the positive build/TRX evidence. No further production change is required;
+this documentation-only closeout records the completed rounds. PR #23 remains
+open for maintainer review and merge.
 
 ### P02d-1 decision pass (2026-09-14)
 
@@ -2120,3 +2808,40 @@ or skips. The nonempty-run checker verifies every assembly. The earlier 2,366-ca
 and coverage figures above remain dated evidence for their original heads. This
 follow-up changes no production source or migration. [PR #22](https://github.com/HodeTech/LearnStack/pull/22)
 remains the current check-rollup and review surface.
+
+#### Merge and closeout (2026-09-14)
+
+[PR #22](https://github.com/HodeTech/LearnStack/pull/22) merged into `main` at
+**20:22:17 UTC**, with final PR head `bc181702e379fec99da43015b2ee357ad772d6d1`
+and merge commit `1d3a0f717523bebbf8c397ae9facba7c80eafae9`. The merge tree is
+identical to the final PR head. `development` was fast-forwarded to that merge
+commit without switching branches, rewriting history or changing file contents.
+
+- [x] P02d-1's accepted decision parts, all three implementation steps and their
+  two review rounds are complete, as recorded above.
+- [x] The final review's three verified documentation findings are resolved in
+  `bc18170`: README delivery status, the Course/Lesson glossary distinction between
+  Phase 02d and Phase 05, and Phase 02b G19's stale module count.
+- [x] The README refresh and the requested removal of mandatory commit coauthor
+  attribution (`dde8e0b`) are included in the merged head.
+- [x] The final PR-head and merge-commit CI runs both completed successfully.
+
+| Verified revision | CI evidence | Result |
+|---|---|---|
+| Final PR head `bc18170` | [Run 34892449509](https://github.com/HodeTech/LearnStack/actions/runs/34892449509) | All five required jobs succeeded |
+| `main` merge commit `1d3a0f7` | [Run 34892508893](https://github.com/HodeTech/LearnStack/actions/runs/34892508893) | All five required jobs succeeded |
+
+The live required-check list still has the five contexts recorded in Step 3, with
+GitHub Actions `app_id: 15368` and `strict: true`. The merge run verifies **2,381
+backend tests**: 1,456 unit, 177 architecture, 171 Docker-free integration,
+576 Docker integration and one contract, with zero failures or skips. The frontend,
+meta and secret-scan jobs also pass. The OpenAPI and Lighthouse placeholders remain
+outside the required set, with their existing P02d-4 and P02d-7 decision gates.
+Both completed runs were verified at **20:25 UTC**.
+
+**P02d-1 is closed. Phase 02d remains in progress.** P02d-2 through P02d-7 have not
+started. P02d-2 first resolves its writer, customization-contract, locale, branding,
+seed-context and data-safety decisions, then implements the commands, audit wiring
+and repeatable tenant-specific seed. The packet table and decision register above
+own its exact scope and open gate parts. Public reads, rendering and the browser
+demo remain the later packets' work; this merge does not complete those surfaces.

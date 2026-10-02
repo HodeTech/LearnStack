@@ -196,8 +196,14 @@ export default async function CourseListPage() {
 
 ## Tenant Branding
 
-> **Open in Phase 02d.** Which branding keys exist and the value each accepts (G16), and
-> how validated values reach the server-rendered document (G42), are open in
+**G16(a–e)/G21 writer contract delivered in P02d-2 — 2026-10-02.** The
+[Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+selects one whole-theme color document, contrast refusal, no organization override
+and no font/logo/URL/layout value. Public transport/attribution and injection remain
+G16(f/g)/G42; this decision does not claim a themed layout or an anonymous API exists.
+
+> **Remaining Phase 02d decisions.** Anonymous branding projection and entitlement/
+> attribution (G16 f/g), and document injection (G42), remain open in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 > The pass that closes each edits this section with its answer.
 

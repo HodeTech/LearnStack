@@ -2,7 +2,8 @@
 
 **Status:** Design stable, partially implemented (Phase 02a Packet 8 shipped the
 two aggregates, the schema and its isolation, the payload gate, and the write
-path; the read path and its generation-keyed cache land with the first consumer
+path; P02d-2 Step 1 adds contextual exact-definition reads and metadata validation.
+Public projections and their generation-keyed cache follow in P02d-3/4
 in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and the Admin Studio
 editors with the phases that consume them).
 
@@ -162,6 +163,22 @@ ordering PostgreSQL rejects — and it would reject it after the successor's
 `UPDATE` had already been sent. All of it is one transaction, because
 [ADR-0040](../../decisions/0040-ambient-unit-of-work.md) gives the scope one.
 
+P02d-2's concurrent seed proof exposed a same-revision publication race: the active
+read can see a competitor's commit while EF retains the earlier tracked Draft.
+Both publish handlers return typed concurrency refusal when that read identifies
+the successor itself, without retiring it. Any failed publication save marks the
+ambient unit rollback-only, including first publication with no incumbent.
+[CustomizationPublicationConcurrencyTests](../../../backend/tests/LearnStack.Tests.Integration/Database/CustomizationPublicationConcurrencyTests.cs)
+coordinates the intervening commit and proves absorbed post-save failures cannot
+commit either the dirty successor or a later write.
+
+Both publish commands accept an optional `RequireNoIncumbent` precondition.
+Contextual Off queries check the logical key's Active identity before registration.
+Convergent seed also passes true: a different Active revision is refused before mutation
+as `business_rule_violation` / `lockey_customization_key_already_live`. Default false
+retains ordinary revision succession. The same-row race remains typed concurrency;
+an Active winner from another revision is never retired or adopted by seed.
+
 ### Primary integration-event flow: none
 
 There is no integration-event diagram because there is no integration event —
@@ -173,13 +190,42 @@ absence rather than substituting an unrelated diagram for it.
 
 ### Primary read flow: resolving a tenant's shapes
 
-Not implemented. The read path is a projection keyed on
+The public read projection is not implemented. It is keyed on
 `customization_generations.generation`, so every write strands every stale key at
 once across every pod without enumerating anything —
 [§ 8.2](../../architecture/32-tenant-customization-model.md) has the design and
 [ADR-0043 § 6](../../decisions/0043-customization-payload-validation.md) deletes
 the compiled-validator cache that used to sit beside it. It lands with its first
 consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
+
+## P02d-2 accepted exact write contract
+
+**Step 1 implemented, both reviews passed — 2026-10-02.** An application interface in
+`Customization.Application.Contracts` resolves an exact content-type or taxonomy
+revision for the caller's announced tenant. DTOs contain values only: key, version,
+status, JSON Schema/composite and validated presentation, or immutable bands/labels.
+The selected interface is `IExactCustomizationDefinitionReader`; it takes an explicit
+binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
+
+- New Course taxonomy and new Lesson content-type bindings require the exact Active
+  revision; a present band must be declared in that revision.
+- A translation on an existing Lesson can use its exact Active or Deprecated pin.
+  No command rewrites a pin or replaces it with the newest revision.
+- Absent, deleted, Draft or cross-tenant definitions return the same bounded binding
+  `validation_failed`; an error cannot expose another tenant's revision or label.
+- Read uncached in the caller's ambient transaction/context. Eligibility is observed
+  at this read, not promised Active-at-commit; immutable schema/bands protect the pin
+  if it is concurrently deprecated. Strict commit-time eligibility is not selected.
+- Body validation uses `IJsonSchemaValidator` against that returned exact schema.
+  Public response shape, generation-keyed read cache and renderer fallback remain
+  P02d-3/4/6 gates, not features of this write contract.
+- Module-owned contextual verification queries give the seeder exact IDs, revision
+  data, labels/bands and state. They are audit Off and introduce no setter exception.
+
+[ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) defines the optional
+root `x-fields` profile and semantic resolver. It preserves the four gates and legacy
+schemas; P02d-2 Step 1 implements the parser and semantic resolver. Seed definitions opt
+into the profile, whereas built-in `card`/`plain` remain unchanged and Active.
 
 ## Component diagram
 
@@ -213,10 +259,10 @@ keeps the library's types inside it.
 
 ## Integration-event catalogue
 
-**None yet.** Nothing outside this module reacts to a customization change today,
-because nothing outside it reads customizations yet. The first consumer is the
-renderer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and it
-reads through the generation-keyed cache rather than by subscription — a cache
+**None yet.** Nothing outside this module reacts to a customization change
+through events. P02d-2 Step 1 introduces contextual exact reads for write validation;
+The public renderer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md)
+will read through the generation-keyed cache rather than by subscription — a cache
 key that changes is a cheaper invalidation than an event every pod has to
 receive. An event becomes owed when a second module needs to *act* on a change
 rather than merely notice it; [Phase 04](../../roadmap/phase-04-cms-media-pages.md)
@@ -301,3 +347,22 @@ solve none.
   permits it and no command refuses it, because "is this key still needed?" is a
   question only the module that owns the content rows can answer —
   [Phase 04](../../roadmap/phase-04-cms-media-pages.md) again.
+
+## P02d-2 Step 1 delivery
+
+`IExactCustomizationDefinitionReader` now returns immutable exact-revision DTOs
+through the ambient tenant-filtered context, without a cache or live-key
+substitution. New bindings require Active; existing pins admit Active/Deprecated.
+Draft, deleted and invisible definitions share the bounded validation refusal.
+
+ADR-0051's optional root `x-fields` is admitted by the generic schema profile and
+semantically resolved by Customization after all four gates, before persistence.
+Descriptors cover every direct string property once, preserve array order and
+carry validated `LocalizedText` labels; only `default-card` is compatible. Legacy
+schemas without the extension retain their original admission and empty presentation.
+The exact reader returns the same resolved descriptors; a new rendering consumer
+still belongs to P02d-6, rather than being implied by valid schema storage.
+
+The contextual content-type/taxonomy queries supply exact seed verification DTOs
+and are classified Off. Their adapters and the exact reader are registered in both
+API and Seeder composition roots.

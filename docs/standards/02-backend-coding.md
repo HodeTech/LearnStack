@@ -179,28 +179,22 @@ Each use case is a command or query:
 
 ```csharp
 public sealed record PublishCourseCommand(
-    Guid CourseId,  // module-local id: crosses the contract as Guid, per § Types
-    UserId ActorId) // SharedKernel id: typed everywhere
-    : IRequest<Result<Guid>>;
-
-public sealed class PublishCourseHandler : IRequestHandler<PublishCourseCommand, Result<Guid>>
-{
-    public async Task<Result<Guid>> Handle(PublishCourseCommand command, CancellationToken ct)
-    {
-        // ...
-    }
-}
+    Guid CourseId,         // module-local id: contract boundary, per § Types
+    long? ExpectedVersion) // required nonnegative root token; validated in pipeline
+    : IRequest<Result<CourseWriteDto>>;
 ```
 
-> **Open in Phase 02d.** The example's names are illustrative. Phase 02d writes the
-> first Education commands, and whether a course version exists yet, which command sets
-> a publication state and whether publishing is its own command are G2, G3 and G11 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The decision pass that closes them edits this example with its answer.
+This is the shipped [Education command contract](../../backend/src/Modules/Education/LearnStack.Modules.Education.Application.Contracts/Courses/CourseCommands.cs).
+The actor comes from the trusted request context. The
+[handler](../../backend/src/Modules/Education/LearnStack.Modules.Education.Application/Courses/PublishCourseCommandHandler.cs)
+constructs `CourseId`, checks visibility, exact scope and version, and invokes the
+root's publication method. [Education](../modules/education/README.md#p02d-2-accepted-writer-contract)
+owns the complete authoring contracts; public HTTP reads belong to P02d-4.
 
 Rules:
 - Handlers are thin; orchestrate domain methods and persistence.
-- One transaction per handler.
+- Handlers enlist in the pipeline-owned ambient transaction; nested sends join it
+  ([ADR-0040](../decisions/0040-ambient-unit-of-work.md)).
 - Validation lives in FluentValidation validators; pipeline behavior short-circuits invalid commands.
 - Logging, tracing, and metrics live in pipeline behaviors, not in handlers.
 

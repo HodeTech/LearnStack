@@ -44,7 +44,10 @@ not deferred to the showcase phase.
 - [Phase 00: Product Strategy and Architecture Definition](phase-00-product-architecture.md) — **complete**
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped)
-- [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) — **in progress** (see its Status block)
+- [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
+  **in progress**; P02d-1 merged, P02d-2 decision pass Accepted 2026-10-02;
+  all four P02d-2 steps complete after both review rounds and final verification;
+  PR review/merge pending, P02d-3 read internals next
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
@@ -70,6 +73,16 @@ the Hub repository for the rest:
 > across both repositories. `02d` was added after `02b` and `02c` already existed, so it
 > sorts last alphabetically while running **before** them in dependency order. The
 > dependency map below is authoritative for order; filename order is not.
+
+## Proposed additional track
+
+[Phase 09a: Course Marketplace Pilot](phase-09a-course-marketplace-pilot.md) records
+the endorsed hybrid target from 2026-10-02. It remains Proposed under ADR-0049;
+it is not an Accepted extension of the dependency map or MVP exit. It separates
+institution-storefront billing (Phase 09), learner marketplace commerce (proposed
+09a), Hub software billing (09b) and Hub customization bundles (12).
+Its M1–M11 register assigns commercial, capacity, privacy, staff-access and recovery
+decisions to their first consumers. Those contracts do not hold P02d-2 preparation.
 
 ## Phase Dependency Map
 
@@ -249,10 +262,9 @@ At the end of this roadmap, LearnStack can:
   recording consent, and recording metadata.
 - Extend payment, notifications, search, storage, analytics, and live-classroom
   providers through adapters.
-- Run with `NullEntitlementProvider` (no Hub), `HubEntitlementProvider` (SaaS /
-  Dedicated), or `SignedLicenseKeyEntitlementProvider` (Self-Hosted, air-gappable)
-  without code changes — only `DeploymentMode` configuration. `Development` and `SaaS`
-  are wired end to end **today**; `Dedicated`, `SelfHostedOnline` and
-  `SelfHostedAirGapped` are **prepared seams, not supported deployments**, until
-  [Phase 11](phase-11-production-hardening.md) builds their adapters and integration
-  suites ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)).
+- Target interchangeable entitlement providers selected by `DeploymentMode`, without
+  module changes: `NullEntitlementProvider`, a Hub-backed provider and a signed-licence
+  provider. [Deployment Models § Supported today versus prepared seam](../architecture/25-deployment-models.md#supported-today-versus-prepared-seam)
+  owns current wiring and readiness; these target choices do not claim the adapters
+  have shipped. Owners and triggers remain
+  [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s.

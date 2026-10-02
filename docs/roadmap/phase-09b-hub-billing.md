@@ -17,13 +17,21 @@ repository ([ADR-0019](../decisions/0019-learnstack-hub.md),
 
 ## Division of responsibility
 
-Two different billing relationships exist. Conflating them is the most common reading
+The Accepted plan defines two billing relationships. Conflating them is a common reading
 error in this corpus, so it is written out:
 
 | Money flows | Phase | Where the code lives |
 |---|---|---|
 | A learner pays a **tenant** for a course | [Phase 09](phase-09-billing-integrations-analytics.md) — storefront billing | LearnStack core, behind `IPaymentProvider` |
 | A tenant pays the **LearnStack vendor** for the platform | Phase 09b — platform billing | `learnstack-hub`, behind `IHubPaymentProvider` |
+
+**Separate proposal, not a third accepted row:**
+[ADR-0049](../decisions/0049-institution-sites-and-course-marketplace.md#commerce-and-the-hub-boundary)
+proposes learner payment through a Course Marketplace, followed by commission and
+institution payouts. That is a third commercial relationship; it is neither Hub
+subscription billing nor an existing Phase 09 capability. Its ownership and delivery
+phase must be accepted separately. ADR-0019's existing two-port boundary remains
+binding while the proposal is under review.
 
 The two ports share a shape — idempotency key, webhook signature verification, status
 mapping — and never run in the same process. Self-Hosted tenants skip this phase

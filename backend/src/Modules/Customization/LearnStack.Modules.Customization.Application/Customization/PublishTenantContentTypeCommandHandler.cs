@@ -89,15 +89,18 @@ internal sealed class PublishTenantContentTypeCommandHandler(
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
         var incumbent = await contentTypes.FindActiveAsync(successor.Key, cancellationToken);
-        var retired = false;
 
-        // No identity comparison between the two: the guard above has already
-        // established the successor is a Draft and this read returns an Active row,
-        // so they cannot be the same row. A defensive `incumbent.Id != successor.Id`
-        // here would be a branch no test can reach and therefore a comment.
+        // READ COMMITTED can observe a competitor's publication between these two
+        // reads. EF returns the already-tracked Draft instance for that same id;
+        // it is not an incumbent to retire, and this attempt is an ordinary stale write.
+        if (incumbent?.Id == successor.Id)
+            return CustomizationFailures.Stale<TenantContentTypeDto>();
+
+        if (request.RequireNoIncumbent && incumbent is not null)
+            return CustomizationFailures.BusinessRule<TenantContentTypeDto>("Key", "lockey_customization_key_already_live");
+
         if (incumbent is not null)
         {
-            retired = true;
             incumbent.Deprecate(clock, actor);
 
             try
@@ -109,7 +112,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
                 // The loser of two concurrent successions. Its UPDATE matched nothing
                 // because the winner already retired this row — re-read and retry is
                 // the answer, and it is the one the concurrency token exists to give.
-                return CustomizationFailures.Stale<TenantContentTypeDto>();
+                return Undo(CustomizationFailures.Stale<TenantContentTypeDto>());
             }
         }
 
@@ -123,11 +126,11 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         {
             var (field, reason) = CustomizationFailures.Conflict(conflict.ConstraintName);
 
-            return Undo(retired, CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason));
+            return Undo(CustomizationFailures.BusinessRule<TenantContentTypeDto>(field, reason));
         }
         catch (AggregateConcurrencyException)
         {
-            return Undo(retired, CustomizationFailures.Stale<TenantContentTypeDto>());
+            return Undo(CustomizationFailures.Stale<TenantContentTypeDto>());
         }
 
         await generations.BumpAsync(tenantContext.TenantId, cancellationToken);
@@ -140,27 +143,15 @@ internal sealed class PublishTenantContentTypeCommandHandler(
             successor.Status.ToString()));
     }
 
-    /// <summary>
-    /// Escalates a failure that arrives <b>after</b> the incumbent was retired.
-    /// </summary>
+    /// <summary>Refuses later commit after a publication mutation/save has failed.</summary>
     /// <remarks>
-    /// The deprecation is already saved by the time the successor's write can
-    /// fail, and
-    /// <see href="../../../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040
-    /// § Nesting</see> is explicit that an inner <c>Result.Fail</c> an outer
-    /// handler absorbs does not roll the unit back — "only an exception, or an
-    /// explicit <c>MarkRollbackOnly</c>, does". Without it, an outer handler that
-    /// absorbs this and commits leaves the tenant with the incumbent deprecated,
-    /// the successor still a draft, and NO live revision for the key — measured
-    /// against a real database through the real pipeline.
+    /// Both the successor's dirty tracked state and an already-saved retirement
+    /// belong to the ambient transaction. An outer handler may absorb Result.Fail,
+    /// so ADR-0040 requires rollback-only even for a first publication with no incumbent.
     /// </remarks>
-    private Result<TenantContentTypeDto> Undo(bool retired, Result<TenantContentTypeDto> failure)
+    private Result<TenantContentTypeDto> Undo(Result<TenantContentTypeDto> failure)
     {
-        if (retired)
-        {
-            unitOfWork.MarkRollbackOnly();
-        }
-
+        unitOfWork.MarkRollbackOnly();
         return failure;
     }
 }

@@ -49,10 +49,12 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 - Large text ≥ 3:1.
 - UI components and graphical objects ≥ 3:1.
 - Never rely on color alone to convey meaning; pair with text, icon, or shape.
-- Tenant theme tokens are validated for contrast before saving (Admin Studio surfaces a warning).
-  Whether a failing pair refuses a write that has no Studio screen, or records a
-  warning, is G16 (d) in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+- Tenant theme tokens require contrast validation before saving. G16(d), Accepted
+  on 2026-10-02, requires the first whole-theme command to refuse a failing pair
+  before saving. P02d-2 delivers this guard and its regression proofs. Its
+  [complete palette contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
+  defines supported usage and atomic replacement. The future Studio can explain
+  that refusal; a warning does not authorize saving an invalid palette.
 
 ### Images and Media
 

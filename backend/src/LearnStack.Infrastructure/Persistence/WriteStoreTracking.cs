@@ -34,10 +34,14 @@ public static class WriteStoreTracking
     /// 23505 only. Every other SQLSTATE is a fault and stays one; a 42501 in
     /// particular means a policy refused the write, which is never something to
     /// soften.
+    /// Callers supplying <c>ownedConstraints</c> translate only those names. An unknown
+    /// uniqueness stays a database fault, rather than carrying the port exception's
+    /// default business-rule classification to the HTTP boundary. The optional form
+    /// preserves the existing stores' contract; new writers explicitly name their set.
     /// </para>
     /// </remarks>
     public static async Task SaveTranslatingConflictsAsync(
-        DbContext db, CancellationToken cancellationToken)
+        DbContext db, CancellationToken cancellationToken, IReadOnlySet<string>? ownedConstraints = null)
     {
         ArgumentNullException.ThrowIfNull(db);
 
@@ -65,7 +69,8 @@ public static class WriteStoreTracking
                 "The aggregate changed after it was read; re-read it and retry.", stale);
         }
         catch (DbUpdateException failure)
-            when (failure.InnerException is PostgresException { SqlState: "23505" } conflict)
+            when (failure.InnerException is PostgresException { SqlState: "23505" } conflict
+                && (ownedConstraints is null || conflict.ConstraintName is { } constraint && ownedConstraints.Contains(constraint)))
         {
             // Detach what the database refused, before the exception leaves. EF keeps a
             // failed entry in the state it had — an Added row stays Added — so a caller

@@ -26,6 +26,7 @@ public sealed class Course : AuditableEntity<CourseId>, IAggregateRoot<CourseId>
     public int? LevelTaxonomySchemaVersion { get; private set; }
     public string? LevelBandKey { get; private set; }
     public PublicationStatus Status { get; private set; }
+    public CourseContentAccess ContentAccess { get; private set; }
     public IReadOnlyCollection<CourseTranslation> Translations => _translations.AsReadOnly();
 
     /// <summary>Builds a draft from validated application input, with no definition lookup.</summary>
@@ -34,6 +35,7 @@ public sealed class Course : AuditableEntity<CourseId>, IAggregateRoot<CourseId>
         TenantId tenantId,
         OrganizationId? organizationId,
         string slugKey,
+        CourseContentAccess contentAccess,
         IClock clock,
         UserId createdBy,
         string? levelTaxonomyKey = null,
@@ -54,6 +56,11 @@ public sealed class Course : AuditableEntity<CourseId>, IAggregateRoot<CourseId>
         }
 
         EducationSlug.EnsureValid(slugKey, nameof(slugKey));
+        if (!Enum.IsDefined(contentAccess))
+        {
+            throw new ArgumentOutOfRangeException(nameof(contentAccess));
+        }
+
         EnsureLevelPin(levelTaxonomyKey, levelTaxonomySchemaVersion, levelBandKey);
 
         var course = new Course(id, slugKey)
@@ -64,6 +71,7 @@ public sealed class Course : AuditableEntity<CourseId>, IAggregateRoot<CourseId>
             LevelTaxonomySchemaVersion = levelTaxonomySchemaVersion,
             LevelBandKey = levelBandKey,
             Status = PublicationStatus.Draft,
+            ContentAccess = contentAccess,
         };
         course.MarkCreated(clock.UtcNow, createdBy);
         return course;

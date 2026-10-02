@@ -31,10 +31,10 @@ Localization covers:
   across organizations — see [§ Pattern A](#pattern-a--side-translation-table-default-for-content-shaped-entities).
 - Fallback chain: requested → tenant default → field-level fallback (if allowed) → render-safe missing-content state.
 
-> **Open in Phase 02d.** Whether a read resolves under a disabled locale and what a tenant with no locale rows
-> serves (G13), and which document owns the display fallback chain — this list and
+> **Remaining Phase 02d decision.** G13 denies disabled or absent locale membership;
+> enforcement belongs to P02d-2/4. Display fallback remains G24: this list and
 > [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules)
-> state different ones (G24) — are open in
+> still need one reconciled owner in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## URL Strategy
@@ -142,10 +142,14 @@ translation in the requested locale has no URL in that locale, and a link to it 
 omitted rather than rendered dead.
 
 A slug collision is refused when the translation is inserted; its writing command
-returns `Result.Fail(business_rule_violation, …)`. P02d-2
-[G11](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) remains open;
-the pass that resolves it names the selected command and its concrete error mapping
-here and in [Phase 04's collision criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria).
+returns `Result.Fail(business_rule_violation, …)`. The accepted 2026-10-02
+[P02d-2 G11 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+selects `AddCourseTranslationCommand` and `AddLessonTranslationCommand` for Education,
+mapping their named localized-slug uniqueness constraints at insertion. Publication
+does not reserve or newly collide a slug. P02d-2 Step 3 implements the mapping and
+filtered collision-identity disclosure;
+[Phase 04's criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria)
+requires verification of these insertion-time refusals.
 The refusal names the conflicting entity when the caller may read it — tenant-wide rows
 and the caller's own organization's rows both qualify under the canonical policy — and
 otherwise names only the slug and the locale, because naming a row in another
@@ -218,11 +222,18 @@ var msg = _stringLocalizer["course.publish.success"];
 - Tenant locale membership is validated through a Tenancy application contract when
   the P02d-2 writer lands, not through a cross-chain Education foreign key.
 
-> **Open in Phase 02d.** Request-parameter canonicalization remains G6 (b), and
-> whether a platform registry bounds a tenant's enabled set remains G13. No
-> `LearnStack.SharedKernel.Locales` namespace or platform registry exists today. These
-> remaining parts are in
+> **Open in Phase 02d.** Request-parameter canonicalization remains G6 (b).
+> G13 selects no platform registry; no `LearnStack.SharedKernel.Locales` namespace
+> exists today. The remaining request handling is in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
+**G13 reader implemented in P02d-2 Step 1 — 2026-10-02.** The
+[Tenancy contract](../modules/tenancy/README.md#locale-guarantees-and-read-contract)
+selects no platform registry: use LocaleTag's existing grammar, canonicalization and
+35-character bound, then the tenant's enabled membership. No locale rows authorize
+no content locale, rather than an implicit `en`. Request G6(b) and display G24 remain
+their later packet parts. P02d-2 Step 2 implements locale command admission and the
+default-enabled CHECK; request-language negotiation is not part of those writers.
 
 ## Right-to-Left
 

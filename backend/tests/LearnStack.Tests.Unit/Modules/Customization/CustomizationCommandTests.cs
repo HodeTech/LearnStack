@@ -361,6 +361,30 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
+    public async Task A_recognized_extension_without_a_resolver_is_refused_before_any_write()
+    {
+        var (sender, stores) = Build(gate: Reporting(("/x-future", "x-future", "value")));
+        var result = await sender.Send(RegisterContentType());
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details.Should().ContainKey("/x-future");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Text_card_semantic_failure_happens_after_admission_and_before_persistence()
+    {
+        var (sender, stores) = Build();
+        var command = RegisterContentType() with
+        {
+            JsonSchema = """{"type":"object","properties":{"body":{"type":"string"}},"additionalProperties":false,"x-fields":[{"name":"unknown","label":{"en":"Label"}}]}""",
+        };
+        var result = await sender.Send(command);
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details.Should().ContainKey("/x-fields/0/name");
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task An_x_language_is_admitted_because_its_registry_does_not_exist()
     {
         // Deliberate, and recorded rather than silent: the set of languages a
@@ -609,7 +633,7 @@ public sealed class CustomizationCommandTests
         // The answer IOptimisticConcurrency's own remarks promise. Untranslated this
         // is a DbUpdateException, which HttpStatusMap has no arm for — a 500 for the
         // one outcome the concurrency token exists to report.
-        var (sender, stores) = Build();
+        var (sender, stores, unit) = BuildWithUnit();
 
         if (subject == "content-type")
         {
@@ -622,6 +646,7 @@ public sealed class CustomizationCommandTests
 
             var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
             result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+            unit.IsRollbackOnly.Should().BeTrue("a refused incumbent save must poison the shared unit");
             return;
         }
 
@@ -634,6 +659,7 @@ public sealed class CustomizationCommandTests
 
         var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
         taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+        unit.IsRollbackOnly.Should().BeTrue("a refused incumbent save must poison the shared unit");
     }
 
     [Theory]
@@ -889,11 +915,11 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
-    public async Task A_publish_that_never_retired_anything_leaves_the_unit_alone()
+    public async Task A_first_publication_save_failure_poisons_the_unit()
     {
-        // The other edge. A first-ever publish writes only the successor, so a
-        // failure there has nothing committed behind it — marking the unit would
-        // roll back an outer handler's own work for no reason.
+        // A first publication still mutates the tracked successor before saving.
+        // If an outer handler absorbs this failure, a later save could flush it.
+        // The real database absorption tests prove rollback-only is required.
         var (sender, stores, unit) = BuildWithUnit();
 
         await sender.Send(RegisterContentType());
@@ -902,7 +928,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
 
         result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.IsRollbackOnly.Should().BeFalse("nothing was written before the failure");
+        unit.IsRollbackOnly.Should().BeTrue("the failed save must not leave dirty publication state available to an outer handler");
     }
 
     // ── What the validators refuse ────────────────────────────────────────
@@ -969,6 +995,7 @@ public sealed class CustomizationCommandTests
         // The other side of the same rule. Asserted over the set rather than over one
         // member, because a predicate that answered false for everything would pass
         // the refusal case on its own.
+        CompositeRendererKey.All.Should().NotBeEmpty("the admission loop must exercise the closed registry; Fix: restore the renderer set");
         foreach (var key in CompositeRendererKey.All)
         {
             Refuse(new RegisterTenantContentTypeCommand(

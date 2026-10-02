@@ -28,6 +28,13 @@ namespace LearnStack.Modules.Education.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ContentAccess")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("enrollment_required")
+                        .HasColumnName("content_access");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -111,6 +118,8 @@ namespace LearnStack.Modules.Education.Infrastructure.Persistence.Migrations
 
                     b.ToTable("courses", null, t =>
                         {
+                            t.HasCheckConstraint("ck_courses_content_access", "content_access IN ('public', 'enrollment_required')");
+
                             t.HasCheckConstraint("ck_courses_level_reference", "(level_taxonomy_key IS NULL AND level_taxonomy_schema_version IS NULL AND level_band_key IS NULL)\nOR (level_taxonomy_key IS NOT NULL AND level_taxonomy_schema_version IS NOT NULL\n    AND level_taxonomy_schema_version > 0 AND level_band_key IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_courses_slug_key_format", "slug_key ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND slug_key !~ '^[0-9a-f]{32}$' AND slug_key !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'");

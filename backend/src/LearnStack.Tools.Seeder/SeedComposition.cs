@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.Definitions;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
@@ -91,6 +94,8 @@ public static class SeedComposition
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
+        services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
+        services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
@@ -110,6 +115,15 @@ public static class SeedComposition
         services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
+        services.AddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
+        services.AddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
+        services.AddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
+        services.AddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ICourseWriteStore, CourseWriteStore>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ILessonWriteStore, LessonWriteStore>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.IParentCourseReader, ParentCourseReader>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ITranslationCollisionReader, TranslationCollisionReader>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
         // The Audit module's context, on the same helper and for the same reason as the
@@ -196,6 +210,7 @@ public static class SeedComposition
         services.TryAddEnumerable([
             ServiceDescriptor.Singleton<IAuditCatalogSource, TenancyAuditCatalogSource>(),
             ServiceDescriptor.Singleton<IAuditCatalogSource, CustomizationAuditCatalogSource>(),
+            ServiceDescriptor.Singleton<IAuditCatalogSource, EducationAuditCatalogSource>(),
         ]);
 
         services.TryAddSingleton<IAuditCatalog>(provider =>
@@ -218,7 +233,8 @@ public static class SeedComposition
         services.AddSingleton<IHostResolutionInvalidator>(NullHostResolutionInvalidator.Instance);
         services.AddLearnStackMediatRPipeline(
             typeof(ITenantWriteStore).Assembly,
-            typeof(ITenantContentTypeStore).Assembly);
+            typeof(ITenantContentTypeStore).Assembly,
+            typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly);
 
         return services.BuildServiceProvider();
     }

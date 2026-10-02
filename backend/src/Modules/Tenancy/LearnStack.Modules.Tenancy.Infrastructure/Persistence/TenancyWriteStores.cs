@@ -47,6 +47,11 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
 {
+    public Task<Tenant?> FindAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
+        CancellationToken cancellationToken = default) => db.Tenants.AsSingleQuery()
+        .Include(tenant => tenant.Locales).Include(tenant => tenant.FeatureFlags)
+        .SingleOrDefaultAsync(tenant => tenant.Id == id && tenant.DeletedAt == null, cancellationToken);
+
     public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {
         db.Tenants.Add(aggregate);
@@ -57,6 +62,29 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
     {
         EnsureTracked(db, aggregate);
         await SaveDefaultLocaleInTwoPassesAsync(db, cancellationToken);
+    }
+}
+
+/// <summary>One tracked setting root, on the same announced ambient context.</summary>
+public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettingWriteStore
+{
+    private static readonly HashSet<string> OwnedConstraints = new(StringComparer.Ordinal)
+    {
+        "pk_tenant_settings", "ux_tenant_settings_tenant_id_organization_id_key",
+    };
+    public Task<TenantSetting?> FindAsync(TenantSettingId id, CancellationToken cancellationToken = default) =>
+        db.TenantSettings.SingleOrDefaultAsync(setting => setting.Id == id, cancellationToken);
+
+    public Task AddAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
+    {
+        db.TenantSettings.Add(aggregate);
+        return SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints);
+    }
+
+    public Task UpdateAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
+    {
+        EnsureTracked(db, aggregate);
+        return SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints);
     }
 }
 
@@ -108,6 +136,10 @@ public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHos
 /// </remarks>
 internal static class TenancyWriteStoreTracking
 {
+    private static readonly HashSet<string> LocaleConstraints = new(StringComparer.Ordinal)
+    {
+        "pk_tenant_locales", "ux_tenant_locales_tenant_id_is_default",
+    };
     /// <summary>
     /// Saves, clearing an outgoing default locale before setting the incoming one.
     /// </summary>
@@ -133,21 +165,24 @@ internal static class TenancyWriteStoreTracking
     /// promotions are released and saved. A partial unique index permits ZERO defaults —
     /// it forbids two — so the state between the two saves is one the schema allows, and
     /// both saves are inside the caller's transaction, so no one else observes it.
-    /// Domain state is never touched: only which properties EF considers pending.
+    /// The tracker temporarily lowers incoming defaults (Added or Modified), restores
+    /// them before the second save and retains the final aggregate state on success.
+    /// A failed mutation poisons the ambient unit in the locale handler; its rollback
+    /// undoes the first save even if a nested caller absorbs the refusal.
     /// </para>
     /// </remarks>
     internal static async Task SaveDefaultLocaleInTwoPassesAsync(
         TenancyDbContext db, CancellationToken cancellationToken)
     {
         var promotions = db.ChangeTracker.Entries<TenantLocale>()
-            .Where(entry => entry.State == EntityState.Modified
-                && entry.Property(locale => locale.IsDefault).IsModified
+            .Where(entry => (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                && (entry.State == EntityState.Added || entry.Property(locale => locale.IsDefault).IsModified)
                 && entry.Property(locale => locale.IsDefault).CurrentValue)
             .ToList();
 
         if (promotions.Count == 0)
         {
-            await SaveTranslatingConflictsAsync(db, cancellationToken);
+            await SaveTranslatingConflictsAsync(db, cancellationToken, LocaleConstraints);
             return;
         }
 
@@ -162,14 +197,14 @@ internal static class TenancyWriteStoreTracking
             promotion.Property(locale => locale.IsDefault).CurrentValue = false;
         }
 
-        await SaveTranslatingConflictsAsync(db, cancellationToken);
+        await SaveTranslatingConflictsAsync(db, cancellationToken, LocaleConstraints);
 
         foreach (var promotion in promotions)
         {
             promotion.Property(locale => locale.IsDefault).CurrentValue = true;
         }
 
-        await SaveTranslatingConflictsAsync(db, cancellationToken);
+        await SaveTranslatingConflictsAsync(db, cancellationToken, LocaleConstraints);
     }
 
 }

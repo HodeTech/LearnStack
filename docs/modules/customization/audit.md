@@ -124,3 +124,11 @@ its own draft in a loop would be the noisiest writer in the system.
 
 The four unmarked rows are written by the pipeline today; the eight `(planned)` rows
 register with the commands that raise them.
+
+## P02d-2 contextual verification reads
+
+`GetContentTypeSeedStateQuery`, `GetTaxonomySeedStateQuery`,
+`GetActiveContentTypeSeedRevisionQuery` and `GetActiveTaxonomySeedRevisionQuery`
+are explicitly Off in
+`CustomizationAuditCatalogSource`. These unrouted queries verify announced
+tenant state through the ambient transaction and declare no write operation.

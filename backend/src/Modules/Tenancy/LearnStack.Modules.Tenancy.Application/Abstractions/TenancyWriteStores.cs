@@ -10,7 +10,16 @@ namespace LearnStack.Modules.Tenancy.Application.Abstractions;
 /// is a forbidden edge, and the reverse reference already exists, so a handler that named
 /// <c>TenancyDbContext</c> would be a project cycle the compiler refuses.
 /// </remarks>
-public interface ITenantWriteStore : IAggregateWriteStore<Domain.Tenant, TenantId>;
+public interface ITenantWriteStore : IAggregateWriteStore<Domain.Tenant, TenantId>
+{
+    Task<Domain.Tenant?> FindAsync(TenantId id, CancellationToken cancellationToken = default);
+}
+
+/// <summary>The tracked write side of one setting root.</summary>
+public interface ITenantSettingWriteStore : IAggregateWriteStore<TenantSetting, TenantSettingId>
+{
+    Task<TenantSetting?> FindAsync(TenantSettingId id, CancellationToken cancellationToken = default);
+}
 
 /// <summary>The write side of the <c>Organization</c> aggregate.</summary>
 /// <remarks>

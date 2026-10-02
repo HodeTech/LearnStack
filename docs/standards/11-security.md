@@ -315,14 +315,13 @@ yet:
 > the set of setters is closed and a closed set is worth stating whole; it is not evidence
 > that a seventh short transaction runs on any Packet 7 request path.
 
-> **Open in Phase 02d.** One shipped caller this table does not list already announces
-> `app.tenant_id`: `SeedRunner`'s ownership check opens a transaction of its own and
-> calls `IUnitOfWork.SetTenantContextAsync` on it, and nothing mechanical closes that
-> method's caller set. Whether the seeder is admitted here or routed through `ISender`
-> is G15, and whether the customization projection's loader or the settings accessor's
-> becomes an out-of-band setter is G22 and G23, all in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+> **P02d-2 closes G15 without a new setter.** Seed ownership verification now sends
+> module-owned contextual `ISender` queries in fresh trusted scopes; its old private
+> transaction and direct `SetTenantContextAsync` call are removed.
+> [The caller fence](21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters)
+> and planted companion reject direct calls, method groups, private transactions,
+> accessor assignment and announcing SQL. G22/G23's projection loader and settings
+> reader decisions remain owned by P02d-3; this change admits no out-of-band reader.
 
 **Both audit writers announce both variables.** `WriteStandaloneAsync` and
 `WriteBestEffortAsync` issue `app.tenant_id` **and** `app.organization_id` from the
