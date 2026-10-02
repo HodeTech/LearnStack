@@ -80,7 +80,7 @@ records verification. P02d-3 read internals are implemented; the
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
 Step 2 implements batched definition reads; both review rounds passed. Step 3 adds
-generation caching and scope-safe bypass; both reviews are pending.
+generation caching and scope-safe bypass; Round 1 passed; Round 2 is pending.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 

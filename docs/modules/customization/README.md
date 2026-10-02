@@ -190,7 +190,7 @@ absence rather than substituting an unrelated diagram for it.
 
 ### Primary read flow: resolving a tenant's shapes
 
-**P02d-3 Step 3 implemented — 2026-10-02; both review rounds pending.**
+**P02d-3 Step 3 implemented — 2026-10-02; Round 1 passed; Round 2 pending.**
 `ICustomizationDefinitionProjectionReader` resolves batched exact revision pins
 through ADR-0010's application-contract mechanism. Values are immutable; no public
 table, schema validation, HTTP endpoint or write is introduced. Active/Deprecated

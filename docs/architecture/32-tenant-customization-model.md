@@ -530,7 +530,7 @@ per tenant per month. That ratio is the whole design.
 | `TenantPageBlock` set (Phase 04; not implemented) | L1 + L2 target | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 
 **G12 cache/G22 Accepted — 2026-10-02.** P02d-3 Step 3 implements the
-coherent loader, cache and dirty-scope bypass; both review rounds are pending.
+coherent loader, cache and dirty-scope bypass; Round 1 passed; Round 2 is pending.
 The first two keys use `CacheKey.ForTenant(tenantId, "customization", family,
 $"v{generation}")`: generation is a separate component, never a `:` inside one.
 Both cache immutable, untranslated Active and Deprecated nondeleted revisions,

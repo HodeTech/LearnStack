@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; both reviews pending |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; Round 1 passed; Round 2 pending |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -1408,7 +1408,7 @@ those fixtures now supply the new state. A separate Seeder case encountered a
 connection-open timeout before reaching its seeded race. All six focused fixture
 and seed-race cases pass after the fix; the full Docker rerun remains pending. No retry
 or weakened
-assertion was added. Both independent Step 3 review rounds remain pending.
+assertion was added. Round 1 is complete; Round 2 remains pending.
 
 **Local seeded measurement.** The executable
 `Seeded_local_measurement_records_statement_plans_payload_volume_and_end_to_end_timings`
@@ -1434,6 +1434,21 @@ prove the cold `< 20 ms` or settings `< 5 ms` production budgets. Retained revis
 volume, concurrent load and Phase 04's larger authoring workload require renewed
 measurement before extending the families. No latency threshold is hard-coded
 into the test.
+
+
+**Step 3 review round 1.** Two fresh GPT-5.5 xhigh read-only sessions reviewed
+`287318f..7ac197f`, covering transaction/cache safety and contracts/test evidence,
+performance and corpus consistency. Both approved with no verified findings.
+No source fix was necessary. Round 2 remains pending.
+
+**Complete backend verification after fixture repair.** Release build: zero
+warnings/errors; formatting passes. All 2637 cases passed with zero failures/skips:
+1586 unit, 186 architecture, one contract, 171 Docker-free integration and 693
+Docker integration. Positive TRX counters confirm `passed = executed = total` in
+each suite; the full Docker rerun includes the earlier seed timeout case and
+legacy fixture cases. Markdown links/fragments, diff checks and frozen P02d-1
+suffix checks pass. This evidence precedes the second independent review round;
+it does not mark the packet merged.
 
 
 ### P02d-1 decision pass (2026-09-14)

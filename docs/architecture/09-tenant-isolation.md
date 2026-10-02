@@ -264,7 +264,8 @@ organization rows even if a future tenant-scope hatch widens RLS reads. The
 [Tenancy contract](../modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract)
 owns whole-value precedence and tenant-wide branding. Step 1 implements the settings
 reader; Step 2 implements the Customization projection, with both reviews passed.
-Step 3 adds generation caching and scope-safe bypass; both reviews are pending.
+Step 3 adds generation caching and scope-safe bypass; Round 1 passed; Round 2 is
+pending.
 
 ```
 {tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization

@@ -87,7 +87,8 @@ its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decisio
 is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
 both review rounds passed. Step 2 implements batched definition reads; both review
 rounds passed. Step 3
-adds generation caching and scope-safe bypass; both reviews are pending. Public reads
+adds generation caching and scope-safe bypass; Round 1 passed; Round 2 is pending.
+Public reads
 stay with P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

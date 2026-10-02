@@ -3,7 +3,7 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-3 Step 3 implemented — 2026-10-02; both review rounds pending.**
+**P02d-3 Step 3 implemented — 2026-10-02; Round 1 passed; Round 2 pending.**
 `ICustomizationDefinitionProjectionReader` is internal and unrouted, uses trusted
 ambient scope and adds no HTTP endpoint or permission key. Public admission belongs to
 P02d-4. [The module contract](README.md#primary-read-flow-resolving-a-tenants-shapes) owns its scope.
