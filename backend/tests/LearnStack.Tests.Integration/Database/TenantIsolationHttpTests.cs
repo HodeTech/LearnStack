@@ -219,11 +219,11 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         var english = await ReadCustomizationsAsync(SeedData.English.Host);
         var yoga = await ReadCustomizationsAsync(SeedData.Yoga.Host);
 
-        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId),
+        english.Should().BeEquivalentTo(SeedData.CustomizationProjection(SeedData.English),
             "one of each, owned by this tenant — two of each would be both tenants', "
             + "and the other tenant's id would be a substitution");
 
-        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+        yoga.Should().BeEquivalentTo(SeedData.CustomizationProjection(SeedData.Yoga));
 
         english.Should().NotIntersectWith(yoga,
             "the keys are the same for both and the rows are not");
@@ -244,8 +244,8 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         var english = await GetAsync(SeedData.English.Host, "customizations-unfiltered");
         var yoga = await GetAsync(SeedData.Yoga.Host, "customizations-unfiltered");
 
-        english.Should().BeEquivalentTo(BuiltIns(SeedData.English.TenantId));
-        yoga.Should().BeEquivalentTo(BuiltIns(SeedData.Yoga.TenantId));
+        english.Should().BeEquivalentTo(SeedData.CustomizationProjection(SeedData.English));
+        yoga.Should().BeEquivalentTo(SeedData.CustomizationProjection(SeedData.Yoga));
     }
 
     [Fact]
@@ -269,16 +269,6 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         // against a probe that never queried anything.
         (await ReadCustomizationsAsync(SeedData.English.Host)).Should().NotBeEmpty();
     }
-
-    /// <summary>The built-in seed as the probe projects it, for one owner.</summary>
-    private static string[] BuiltIns(TenantId tenantId) =>
-    [
-        $"content-type:card@{tenantId}",
-        $"taxonomy:plain@{tenantId}",
-        $"band:beginner@{tenantId}",
-        $"band:intermediate@{tenantId}",
-        $"band:advanced@{tenantId}",
-    ];
 
     private async Task<IReadOnlyList<string>> ReadCustomizationsAsync(string host) =>
         await GetAsync(host, "customizations");

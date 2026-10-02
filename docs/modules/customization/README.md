@@ -163,6 +163,16 @@ ordering PostgreSQL rejects — and it would reject it after the successor's
 `UPDATE` had already been sent. All of it is one transaction, because
 [ADR-0040](../../decisions/0040-ambient-unit-of-work.md) gives the scope one.
 
+P02d-2's concurrent seed proof exposed a same-revision publication race: the active
+read can see a competitor's commit while EF retains the earlier tracked Draft.
+Both publish handlers return typed concurrency refusal when that read identifies
+the successor itself, without retiring it. Any failed publication save marks the
+ambient unit rollback-only, including first publication with no incumbent.
+[CustomizationPublicationConcurrencyTests](../../../backend/tests/LearnStack.Tests.Integration/Database/CustomizationPublicationConcurrencyTests.cs)
+coordinates the intervening commit and proves absorbed post-save failures cannot
+commit either the dirty successor or a later write.
+
+
 ### Primary integration-event flow: none
 
 There is no integration-event diagram because there is no integration event —

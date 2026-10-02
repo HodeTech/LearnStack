@@ -7,6 +7,7 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using LearnStack.SharedKernel.Time;
@@ -14,6 +15,10 @@ using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
+using System.Text.Json.Nodes;
+using LearnStack.Modules.Education.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using Npgsql;
 using Xunit;
 
@@ -37,8 +42,9 @@ namespace LearnStack.Tests.Integration.Database;
 /// with every policy inert.
 /// </para>
 /// <para>
-/// The container is shared, so each case removes what it wrote. Cleanup runs as
-/// <c>learnstack_platform</c>: the rows belong to tenants with no context to announce.
+/// The container is shared, but each case owns a disposable migrated database.
+/// Append-only audit rows and restrictive Education foreign keys are never erased
+/// to reset a later case; dropping the test-owned database ends the fixture.
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -46,12 +52,13 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class SeederTests : IAsyncLifetime
 {
     private readonly SchemaFixture _schema;
+    private DisposableSchemaDatabase _database = null!; // Initialized by the per-test fixture.
 
     public SeederTests(SchemaFixture schema) => _schema = schema;
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync() => _database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
 
-    public Task DisposeAsync() => CleanUpAsync();
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     [Fact]
     public async Task The_seed_writes_two_tenants_each_with_two_organizations_and_one_host()
@@ -161,14 +168,14 @@ public sealed class SeederTests : IAsyncLifetime
                 """, "tenant", tenant.TenantId.Value))
                 .Should().Be(3L, "a level vocabulary with no bands resolves everything to nothing");
 
-            // The counter every cache key embeds. Four customization writes land four
-            // bumps, so a reader holding a key composed before the seed cannot reach a
+            // The counter every cache key embeds. Both built-in and declared definitions
+            // each register and publish; a reader holding a pre-seed key cannot reach a
             // stale entry — and a generation still at its default would mean the writes
             // happened without invalidating anything.
             (await ScalarAsPlatformAsync("""
                 SELECT generation FROM customization_generations WHERE tenant_id = @tenant
                 """, "tenant", tenant.TenantId.Value))
-                .Should().Be(4L, "one bump per customization write, in that write's transaction");
+                .Should().Be(SeedData.CustomizationGeneration(tenant), "one bump per customization write, in that write's transaction");
         }
     }
 
@@ -202,14 +209,15 @@ public sealed class SeederTests : IAsyncLifetime
     public async Task Running_the_seed_twice_changes_nothing_and_still_succeeds()
     {
         // `make seed` is documented as safe to repeat, and it runs on every `make dev`.
-        // The second run cannot pre-check: under the provisioning announcement a SELECT
-        // over `tenants` returns no rows by policy, so idempotency is a uniqueness
-        // refusal recognised as "already seeded" rather than a query.
+        // Contextual pre-checks skip completed acts before sending any writer. The
+        // full snapshot includes every root, satellite, generation and audit outcome.
         await using var dataSource = DataSource();
 
         (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+        var before = await SnapshotAsync();
         (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0,
             "a second run is the ordinary case, not an error");
+        (await SnapshotAsync()).Should().Be(before, "all rows, timestamps, versions, generations and every audit outcome remain unchanged");
 
         (await ScalarAsPlatformAsync("SELECT count(*) FROM tenants WHERE id = ANY(@ids)", "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
             .Should().Be(2L, "and it did not double anything");
@@ -224,15 +232,15 @@ public sealed class SeederTests : IAsyncLifetime
         (await ScalarAsPlatformAsync(
             "SELECT count(*) FROM tenant_content_types WHERE tenant_id = ANY(@ids)",
             "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
-            .Should().Be(2L, "a second run registers nothing");
+            .Should().Be(SeedData.Inventory.ContentTypes, "a second run registers nothing");
         (await ScalarAsPlatformAsync(
             "SELECT count(*) FROM tenant_level_taxonomy_items WHERE tenant_id = ANY(@ids)",
             "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
-            .Should().Be(6L, "and adds no bands");
+            .Should().Be(SeedData.Inventory.Bands, "and adds no bands");
         (await ScalarAsPlatformAsync(
             "SELECT max(generation) FROM customization_generations WHERE tenant_id = ANY(@ids)",
             "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
-            .Should().Be(4L, "and invalidates nothing, because it changed nothing");
+            .Should().Be(SeedData.All.Max(SeedData.CustomizationGeneration), "and invalidates nothing, because it changed nothing");
     }
 
     [Fact]
@@ -247,11 +255,8 @@ public sealed class SeederTests : IAsyncLifetime
         // every failure swallowed, every run exiting 0 — left all three other cases green.
         // A seeder that silently ignores a 42501 was indistinguishable from a correct one.
         //
-        // Provoked by composing every act unresolved. Provisioning still succeeds, because
-        // it is the one command marked [AllowsUnresolvedTenantContext]; the second
-        // organization is then refused by the pipeline with a code that is NOT
-        // business_rule_violation, which is the only code the runner treats as
-        // "already seeded".
+        // Refusing contextual verification must stop before any writer. Supplying
+        // an unresolved context for every requested scope exercises that boundary.
         await using var dataSource = DataSource();
 
         var alwaysUnresolved = new SeedRunner(
@@ -262,7 +267,7 @@ public sealed class SeederTests : IAsyncLifetime
 
         (await seed.Should().ThrowAsync<InvalidOperationException>(
             "a refusal that is not a conflict means the seed did not do its job"))
-            .WithMessage("*second organization*");
+            .WithMessage("*Reading seed verification*");
 
         // And it stopped where it failed rather than carrying on: the host row for the
         // first tenant was never written.
@@ -357,6 +362,7 @@ public sealed class SeederTests : IAsyncLifetime
         await using var dataSource = DataSource();
 
         (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
+        await ProvisionForeignAsync(dataSource);
 
         var provider = SeedComposition.Build(
             dataSource,
@@ -440,10 +446,11 @@ public sealed class SeederTests : IAsyncLifetime
         // RLS is what makes the discrimination cheap: under demo-english's own
         // announcement the row is visible only if the row is demo-english's.
         await using var dataSource = DataSource();
+        await ProvisionForeignAsync(dataSource);
 
-        // The fixture's tenant A claims the seed host first, on its own announcement.
+        // A foreign tenant claims the seed host first, on its own announcement.
         await using (var connection = await PostgresFixture.OpenAsync(
-            _schema.Postgres.AppConnectionString))
+            _database.AppConnectionString))
         await using (var claim = new NpgsqlCommand(
             $"""
              BEGIN;
@@ -470,13 +477,205 @@ public sealed class SeederTests : IAsyncLifetime
         finally
         {
             await using var platform = await PostgresFixture.OpenAsync(
-                _schema.Postgres.PlatformConnectionString);
+                _database.PlatformConnectionString);
             await using var cleanup = new NpgsqlCommand(
                 "DELETE FROM platform_host_to_tenant WHERE host = @host",
                 (NpgsqlConnection)platform);
             cleanup.Parameters.AddWithValue("host", SeedData.English.Host);
             await cleanup.ExecuteNonQueryAsync();
         }
+    }
+
+    [Fact]
+    public async Task Seeder_process_returns_zero_on_repeat_and_nonzero_on_mismatch()
+    {
+        async Task<int> RunProcess()
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                WorkingDirectory = AppContext.BaseDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            start.ArgumentList.Add("exec");
+            start.ArgumentList.Add("--runtimeconfig");
+            start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "LearnStack.Tests.Integration.runtimeconfig.json"));
+            start.ArgumentList.Add("--depsfile");
+            start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "LearnStack.Tests.Integration.deps.json"));
+            start.ArgumentList.Add(typeof(SeedRunner).Assembly.Location);
+            // The test-owned password stays in the environment, never argv or a failure message.
+            start.Environment["ConnectionStrings__Default"] = _database.AppConnectionString;
+            using var process = new System.Diagnostics.Process { StartInfo = start };
+            process.Start().Should().BeTrue();
+            var output = process.StandardOutput.ReadToEndAsync();
+            var errors = process.StandardError.ReadToEndAsync();
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            try { await process.WaitForExitAsync(deadline.Token); }
+            finally { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            await Task.WhenAll(output, errors);
+            return process.ExitCode;
+        }
+        (await RunProcess()).Should().Be(0);
+        var complete = await SnapshotAsync();
+        (await RunProcess()).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(complete);
+        // A test-owned pre-existing mismatch, not a second normal seed write path.
+        await using (var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString))
+        await using (var change = new NpgsqlCommand("UPDATE tenants SET display_name = 'Different' WHERE id = @id", (NpgsqlConnection)connection))
+        {
+            change.Parameters.AddWithValue("id", SeedData.English.TenantId.Value);
+            (await change.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        var mismatch = await SnapshotAsync();
+        (await RunProcess()).Should().Be(1);
+        (await SnapshotAsync()).Should().Be(mismatch);
+    }
+
+    [Fact]
+    public async Task Complete_inventory_has_exact_states_pins_translations_and_null_or_exact_write_scope()
+    {
+        await using var source = DataSource();
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        await AssertInventoryAsync(source);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log")).Should().Be(SeedData.ExpectedAuditWrites,
+            "verification is Off, and each normal seed write is audited exactly once");
+    }
+
+    [Theory]
+    [InlineData("content type")]
+    [InlineData("lesson translation")]
+    public async Task Interrupted_authoring_resumes_without_rewriting_completed_acts(string interruptedAct)
+    {
+        await using var source = DataSource();
+        var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
+            new InterruptAfter(interruptedAct));
+        var run = () => interrupted.RunAsync(CancellationToken.None);
+        (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("Injected seed interruption");
+        var previousAudits = await AuditRowsAsync();
+        previousAudits.Should().NotBeEmpty("the interruption follows real committed seed writes");
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        await AssertInventoryAsync(source);
+        (await AuditRowsAsync()).Should().Contain(previousAudits, "the completed writes retain their exact durable audit rows");
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log")).Should().Be(SeedData.ExpectedAuditWrites,
+            "resuming creates only the remaining acts, without duplicate success or failure audits");
+        var completed = await SnapshotAsync();
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(completed);
+    }
+
+    [Fact]
+    public async Task Concurrent_seeds_prove_a_real_provisioning_race_and_converge_without_duplicates()
+    {
+        await using var source = DataSource();
+        using var barrier = new Barrier(2);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        ServiceProvider Compose(ITenantContext? context)
+        {
+            if (context is null && !barrier.SignalAndWait(TimeSpan.FromSeconds(30), deadline.Token))
+                throw new InvalidOperationException("Seed race barrier timed out.");
+            return SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        }
+        var first = new SeedRunner(Compose, NullLogger<SeedRunner>.Instance);
+        var second = new SeedRunner(Compose, NullLogger<SeedRunner>.Instance);
+        // Both runners read the absent tenant before either provisioning write can start.
+        // Only the first tenant participates in this barrier; later runs use normal scopes.
+        var outcomes = await Task.WhenAll(Task.Run(() => first.RunAsync(deadline.Token, [SeedData.English])),
+            Task.Run(() => second.RunAsync(deadline.Token, [SeedData.English])));
+        outcomes.Should().OnlyContain(code => code == 0);
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        await AssertInventoryAsync(source);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE outcome = 'success'"))
+            .Should().Be(SeedData.ExpectedAuditWrites, "only one successful writer wins each act");
+        var completed = await SnapshotAsync();
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(completed);
+    }
+
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("default organization")]
+    [InlineData("second organization")]
+    [InlineData("host scope")]
+    [InlineData("locale")]
+    [InlineData("type key")]
+    [InlineData("type revision")]
+    [InlineData("schema")]
+    [InlineData("taxonomy")]
+    [InlineData("theme")]
+    [InlineData("course pin")]
+    [InlineData("course access")]
+    [InlineData("course state")]
+    [InlineData("course translation")]
+    [InlineData("lesson pin")]
+    [InlineData("lesson sort")]
+    [InlineData("lesson body")]
+    public async Task Completed_seed_mismatch_fails_without_mutating_any_existing_row_or_audit(string mismatch)
+    {
+        await using var source = DataSource();
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        var before = await SnapshotAsync();
+        var original = SeedData.English;
+        var content = original.Curriculum ?? throw new InvalidOperationException("Missing fixture curriculum.");
+        var course = content.Courses[0];
+        var lesson = course.Lessons[0];
+        var changed = mismatch switch
+        {
+            "tenant" => original with { DisplayName = "Different" },
+            "default organization" => original with { DefaultOrganization = original.DefaultOrganization with { DisplayName = "Different" } },
+            "second organization" => original with { SecondOrganization = original.SecondOrganization with { DisplayName = "Different" } },
+            "host scope" => original with { MapHostToDefaultOrganization = true },
+            "locale" => original with { Curriculum = content with { Locales = [content.Locales[0] with { Sort = 4 }] } },
+            "type key" => original with { Curriculum = content with { ContentType = content.ContentType with { Key = "different" } } },
+            "type revision" => original with { Curriculum = content with { ContentType = content.ContentType with { SchemaVersion = 2 } } },
+            "schema" => original with { Curriculum = content with { ContentType = content.ContentType with { JsonSchema = "{}" } } },
+            "taxonomy" => original with { Curriculum = content with { Taxonomy = content.Taxonomy with { Bands = content.Taxonomy.Bands.RemoveAt(0) } } },
+            "theme" => original with { Curriculum = content with { Theme = content.Theme with { Value = content.Theme.Value.Replace("#1d4ed8", "#3730a3", StringComparison.Ordinal) } } },
+            "course pin" => CourseChanged(course with { LevelTaxonomySchemaVersion = 2 }),
+            "course access" => CourseChanged(course with { ContentAccess = "enrollment_required" }),
+            "course state" => CourseChanged(course with { Status = "Draft" }),
+            "course translation" => CourseChanged(course with { Translations = [course.Translations[0] with { Title = "Different" }] }),
+            "lesson pin" => LessonChanged(lesson with { ContentTypeSchemaVersion = 2 }),
+            "lesson sort" => LessonChanged(lesson with { Sort = 99 }),
+            "lesson body" => LessonChanged(lesson with { Translations = [lesson.Translations[0] with { Body = "{}" }] }),
+            _ => throw new ArgumentOutOfRangeException(nameof(mismatch)),
+        };
+        var run = () => Runner(source).RunAsync(CancellationToken.None, [changed]);
+        (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
+        (await SnapshotAsync()).Should().Be(before, "a visible mismatch is refused before any writer or overwrite");
+        SeedTenant CourseChanged(SeedCourse value) => original with { Curriculum = content with { Courses = content.Courses.SetItem(0, value) } };
+        SeedTenant LessonChanged(SeedLesson value) => CourseChanged(course with { Lessons = course.Lessons.SetItem(0, value) });
+    }
+
+    [Fact]
+    public async Task Semantic_json_property_order_does_not_turn_a_completed_act_into_a_write()
+    {
+        await using var source = DataSource();
+        (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
+        var before = await SnapshotAsync();
+        var tenant = SeedData.English;
+        var content = tenant.Curriculum ?? throw new InvalidOperationException("Missing fixture curriculum.");
+        var course = content.Courses[0];
+        var lesson = course.Lessons[0];
+        static string Reordered(string value)
+        {
+            var node = JsonNode.Parse(value)?.AsObject() ?? throw new InvalidOperationException("Expected object fixture.");
+            return new JsonObject(node.Reverse().Select(pair => KeyValuePair.Create(pair.Key, pair.Value?.DeepClone()))).ToJsonString();
+        }
+        var expected = tenant with
+        {
+            Curriculum = content with
+            {
+                Theme = content.Theme with { Value = Reordered(content.Theme.Value) },
+                ContentType = content.ContentType with { JsonSchema = Reordered(content.ContentType.JsonSchema) },
+                Courses = content.Courses.SetItem(0, course with
+                {
+                    Lessons = course.Lessons.SetItem(0, lesson with
+                    { Translations = [lesson.Translations[0] with { Body = Reordered(lesson.Translations[0].Body) }] })
+                }),
+            }
+        };
+        (await Runner(source).RunAsync(CancellationToken.None, [expected])).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(before);
     }
 
     // ── Harness ──────────────────────────────────────────────────────────────
@@ -495,73 +694,131 @@ public sealed class SeederTests : IAsyncLifetime
             NullLogger<SeedRunner>.Instance);
 
     private NpgsqlDataSource DataSource() =>
-        NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        NpgsqlDataSource.Create(_database.AppConnectionString);
 
-    /// <summary>
-    /// Removes everything a case seeded, so the next one starts from nothing.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Two roles, because the grant matrix gives them different reach.
-    /// <c>learnstack_platform</c> holds <c>DELETE</c> on the tenancy tables and
-    /// <c>BYPASSRLS</c>, so it removes those without an announcement. It holds
-    /// <b>SELECT only</b> on the four customization tables
-    /// (<see href="../../../../docs/standards/05-database.md">Database Standards
-    /// § GRANT matrix</see>), so those go through the owner instead.
-    /// </para>
-    /// <para>
-    /// <b>And the owner needs the announcement.</b> Those tables are under
-    /// <c>FORCE ROW LEVEL SECURITY</c>, so <c>learnstack_migration</c> is subject
-    /// to its own policy and <c>USING</c> is the only gate a <c>DELETE</c> has —
-    /// measured, without <c>app.tenant_id</c> the statement reports
-    /// <c>DELETE 0</c> and every later case in this shared container runs against
-    /// rows a previous one left.
-    /// </para>
-    /// </remarks>
-    private async Task CleanUpAsync()
+    private async Task AssertInventoryAsync(NpgsqlDataSource source)
     {
-        var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
-
-        await using (var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString))
-        {
-            foreach (var statement in new[]
-            {
-                "DELETE FROM platform_host_to_tenant WHERE tenant_id = ANY(@ids)",
-                "UPDATE tenants SET default_organization_id = NULL WHERE id = ANY(@ids)",
-                "DELETE FROM organizations WHERE tenant_id = ANY(@ids)",
-                "DELETE FROM tenants WHERE id = ANY(@ids)",
-            })
-            {
-                await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
-                cleanup.Parameters.AddWithValue("ids", ids);
-                await cleanup.ExecuteNonQueryAsync();
-            }
-        }
-
-        await using var owner = await PostgresFixture.OpenAsync(
-            _schema.Postgres.MigrationConnectionString);
-
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM courses")).Should().Be(SeedData.Inventory.Courses);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM lessons")).Should().Be(SeedData.Inventory.Lessons);
+        (await ScalarAsPlatformAsync("SELECT (SELECT count(*) FROM course_translations) + (SELECT count(*) FROM lesson_translations)"))
+            .Should().Be(SeedData.Inventory.Translations);
         foreach (var tenant in SeedData.All)
         {
-            await using var transaction = await owner.BeginTransactionAsync();
-            await SchemaQueries.SetTenantAsync(owner, transaction, tenant.TenantId.Value);
-
-            // Items first: their foreign key cascades, but the cascade runs with row
-            // security bypassed and leaving it implicit hides which rows went.
-            foreach (var statement in new[]
+            var curriculum = tenant.Curriculum ?? throw new InvalidOperationException("Missing fixture curriculum.");
+            var wide = new SeedTenantContext(tenant.TenantId, null);
+            var tenantRow = (await ReadAsync(source, wide, new GetTenantSeedStateQuery())).State;
+            tenantRow.Should().NotBeNull();
+            tenantRow!.Locales.Should().BeEquivalentTo(curriculum.Locales);
+            var theme = (await ReadAsync(source, wide, new GetSettingSeedStateQuery(curriculum.Theme.Id))).State;
+            theme.Should().NotBeNull();
+            theme!.OrganizationId.Should().BeNull();
+            JsonNode.DeepEquals(JsonNode.Parse(theme.Value), JsonNode.Parse(curriculum.Theme.Value)).Should().BeTrue();
+            foreach (var course in curriculum.Courses)
             {
-                "DELETE FROM tenant_level_taxonomy_items WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_level_taxonomies WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_content_types WHERE tenant_id = @tenant",
-                "DELETE FROM customization_generations WHERE tenant_id = @tenant",
-            })
-            {
-                await SchemaQueries.ExecuteAsync(owner, transaction, statement,
-                    ("tenant", tenant.TenantId.Value));
+                var context = new SeedTenantContext(tenant.TenantId, course.OrganizationId);
+                var actual = (await ReadAsync(source, context, new GetCourseSeedStateQuery(course.Id))).State;
+                actual.Should().NotBeNull();
+                actual!.TenantId.Should().Be(tenant.TenantId);
+                actual.OrganizationId.Should().Be(course.OrganizationId);
+                actual.Status.Should().Be(course.Status);
+                actual.ContentAccess.Should().Be(course.ContentAccess);
+                actual.LevelTaxonomyKey.Should().Be(course.LevelTaxonomyKey);
+                actual.LevelTaxonomySchemaVersion.Should().Be(course.LevelTaxonomySchemaVersion);
+                actual.LevelBandKey.Should().Be(course.LevelBandKey);
+                actual.Translations.Should().BeEquivalentTo(course.Translations);
+                var foreign = new SeedTenantContext(SeedData.All.Single(other => other.TenantId != tenant.TenantId).TenantId, null);
+                (await ReadAsync(source, foreign, new GetCourseSeedStateQuery(course.Id))).State.Should().BeNull();
+                if (course.OrganizationId is not null)
+                {
+                    var sibling = new SeedTenantContext(tenant.TenantId, course.OrganizationId == tenant.DefaultOrganization.OrganizationId
+                        ? tenant.SecondOrganization.OrganizationId : tenant.DefaultOrganization.OrganizationId);
+                    (await ReadAsync(source, sibling, new GetCourseSeedStateQuery(course.Id))).State.Should().BeNull();
+                    (await ReadAsync(source, wide, new GetCourseSeedStateQuery(course.Id))).State.Should().BeNull();
+                }
+                foreach (var lesson in course.Lessons)
+                {
+                    var member = (await ReadAsync(source, context, new GetLessonSeedStateQuery(lesson.Id))).State;
+                    member.Should().NotBeNull();
+                    member!.CourseId.Should().Be(course.Id);
+                    member.TenantId.Should().Be(tenant.TenantId);
+                    member.OrganizationId.Should().Be(course.OrganizationId);
+                    member.Sort.Should().Be(lesson.Sort);
+                    member.Status.Should().Be(lesson.Status);
+                    member.ContentTypeKey.Should().Be(lesson.ContentTypeKey);
+                    member.ContentTypeSchemaVersion.Should().Be(lesson.ContentTypeSchemaVersion);
+                    member.Translations.Should().HaveCount(lesson.Translations.Length);
+                    foreach (var expected in lesson.Translations)
+                    {
+                        var translation = member.Translations.Single(value => value.Locale == expected.Locale);
+                        translation.Title.Should().Be(expected.Title);
+                        translation.Slug.Should().Be(expected.Slug);
+                        JsonNode.DeepEquals(JsonNode.Parse(translation.Body), JsonNode.Parse(expected.Body)).Should().BeTrue();
+                    }
+                    (await ReadAsync(source, foreign, new GetLessonSeedStateQuery(lesson.Id))).State.Should().BeNull();
+                }
             }
+        }
+    }
 
-            await transaction.CommitAsync();
+    private static async Task<T> ReadAsync<T>(NpgsqlDataSource source, ITenantContext context, IRequest<Result<T>> query)
+    {
+        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(query);
+        result.IsSuccess.Should().BeTrue();
+        return result.Value!; // The successful query contract returns a non-null lookup DTO.
+    }
+
+    private static async Task ProvisionForeignAsync(NpgsqlDataSource source)
+    {
+        await using var provider = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
+            TenantId.From(SchemaFixture.TenantA), "foreign-owner", "Foreign owner", OrganizationId.From(SchemaFixture.OrgA1), "main", "Main"));
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    private async Task<string> SnapshotAsync()
+    {
+        var output = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
+        await using var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString);
+        foreach (var table in new[] { "tenants", "organizations", "tenant_locales", "tenant_settings", "platform_host_to_tenant",
+            "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items", "customization_generations",
+            "courses", "lessons", "course_translations", "lesson_translations", "audit_log" })
+        {
+            var column = table == "tenants" ? "id" : "tenant_id";
+            // Table/column are a closed test-owned list, never external SQL input.
+            await using var query = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text), '[]'::jsonb)::text FROM {table} row WHERE {column} = ANY(@ids)", (NpgsqlConnection)connection);
+            query.Parameters.AddWithValue("ids", ids);
+            output.Add(table, (string)(await query.ExecuteScalarAsync())!);
+        }
+        return System.Text.Json.JsonSerializer.Serialize(output);
+    }
+
+    private async Task<string[]> AuditRowsAsync()
+    {
+        var rows = new List<string>();
+        await using var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString);
+        await using var query = new NpgsqlCommand("SELECT to_jsonb(row)::text FROM audit_log row ORDER BY id", (NpgsqlConnection)connection);
+        await using var reader = await query.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) rows.Add(reader.GetString(0));
+        return [.. rows];
+    }
+
+    private sealed class InterruptAfter(string act) : ILogger<SeedRunner>
+    {
+        private bool _interrupted;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (!_interrupted && eventId.Id == 7002 && state is IEnumerable<KeyValuePair<string, object?>> values
+                && values.Any(value => value.Key == "What" && Equals(value.Value, act)))
+            {
+                _interrupted = true;
+                throw new InvalidOperationException("Injected seed interruption");
+            }
         }
     }
 
@@ -579,7 +836,7 @@ public sealed class SeederTests : IAsyncLifetime
         string sql, string? parameterName, object? value)
     {
         await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _database.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
 
         if (parameterName is not null)
@@ -593,7 +850,7 @@ public sealed class SeederTests : IAsyncLifetime
     private async Task<long> CountAsPlatformAsync(string sql, string host)
     {
         await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _database.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
         query.Parameters.AddWithValue("host", host);
 
@@ -603,7 +860,7 @@ public sealed class SeederTests : IAsyncLifetime
     private async Task<string?> TextAsPlatformAsync(string sql, string host)
     {
         await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _database.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
         query.Parameters.AddWithValue("host", host);
 

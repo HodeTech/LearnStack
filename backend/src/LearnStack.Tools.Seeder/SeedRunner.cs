@@ -1,454 +1,195 @@
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
-using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
+using LearnStack.Modules.Education.Application.Contracts.Courses;
+using LearnStack.Modules.Education.Application.Contracts.Lessons;
+using LearnStack.Modules.Education.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
-using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
-using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
-using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Tools.Seeder;
 
-/// <summary>
-/// Writes the two demo tenants by sending the same commands a request would.
-/// </summary>
+/// <summary>Converges declared seed acts through contextual requests and exact postconditions.</summary>
 /// <remarks>
-/// <para>
-/// <b>It sends commands; it does not write rows.</b>
-/// [ADR-0042](../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
-/// requires it: a seeder that inserted the tenant and its default organization itself
-/// would be a second copy of the one sanctioned cross-aggregate write, and the allow-list
-/// that keeps that exception at one entry would no longer describe the system. Sending the
-/// command also means the seed exercises the pipeline production uses — validation, the
-/// transaction, the announcement — so a seed that succeeds is evidence about the request
-/// path and not only about the schema.
-/// </para>
-/// <para>
-/// <b>Each tenant is seeded in two acts, under two different contexts.</b> Provisioning
-/// runs <i>unresolved</i>, because the tenant it announces does not exist until it
-/// commits. Everything after runs <i>as that tenant</i>: the second organization and the
-/// host row are ordinary tenant-owned writes, and their policies check the row against the
-/// announcement. Setting the accessor is how a non-request execution says which tenant it
-/// is acting for — the same thing a background job does.
-/// </para>
-/// <para>
-/// <b>It never writes <c>ITenantContextAccessor.Current</c>.</b> Writes to that member
-/// are a closed, enumerated set of four
-/// ([ADR-0036 Amendment 2](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md)),
-/// because a writer of it can make work run under a tenant nothing resolved. A seeder
-/// legitimately does that — it is the same shape as the Hangfire job activator — but
-/// widening a security enumeration for a development tool is the wrong trade when the
-/// alternative costs nothing: each act composes a scope around a
-/// <c>StaticTenantContextAccessor</c> holding its context, so the seeder <i>constructs</i>
-/// a context per unit of work instead of <i>mutating</i> an ambient one, and cannot move
-/// the ambient tenant at all.
-/// </para>
-/// <para>
-/// <b>Idempotent by conflict, not by pre-check.</b> Re-running is expected — <c>make seed</c>
-/// is documented as safe to repeat — and a "does it exist already?" query cannot be asked:
-/// under the provisioning announcement a <c>SELECT</c> over <c>tenants</c> returns no rows
-/// by policy. So the seeder writes and treats a uniqueness refusal as "already seeded",
-/// which is the same answer with one fewer round trip and no race.
-/// </para>
-/// <para>
-/// <b>A <i>uniqueness</i> refusal, read from the field-level reason — not from the
-/// top-level code.</b> <c>business_rule_violation</c> was a safe proxy while provisioning
-/// was the only command: every cause of it really was "this row exists". It stopped being
-/// one when <c>MapHostToTenantCommand</c> landed, which returns the same top-level code
-/// for a host already taken, an organization that is not this tenant's, and a host the
-/// deployment reserved. Only the first is "already seeded". Measured: with the proxy in
-/// place, a wrong organization id in <c>SeedData</c> — a plausible copy-paste between two
-/// tenants declared side by side — made the seeder log "already present", exit 0, and
-/// never write the row that decides whose data an anonymous request sees.
-/// </para>
+/// Each request owns a fresh composed scope. Completed acts skip before sending a writer,
+/// including published translations. A typed race gets one fresh completed-state check,
+/// never a blind retry, overwrite, scope setter, database context or private transaction.
 /// </remarks>
-public sealed class SeedRunner(
-    Func<ITenantContext?, ServiceProvider> compose, ILogger<SeedRunner> logger)
+public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, ILogger<SeedRunner> logger)
 {
-    /// <summary>Seeds <paramref name="tenants"/>, defaulting to the two demo tenants.</summary>
-    /// <remarks>
-    /// The list is a parameter rather than a direct read of <see cref="SeedData.All"/> so
-    /// the classification below can be driven with data that fails for a reason other
-    /// than uniqueness. Without it the only way to reach that branch was to edit the
-    /// shipped seed, and the branch went untested — which is how the masking defect it
-    /// now guards against survived a review round.
-    /// </remarks>
-    public async Task<int> RunAsync(
-        CancellationToken cancellationToken, IReadOnlyList<SeedTenant>? tenants = null)
+    public async Task<int> RunAsync(CancellationToken cancellationToken, IReadOnlyList<SeedTenant>? tenants = null)
     {
-        foreach (var tenant in tenants ?? SeedData.All)
-        {
-            await SeedTenantAsync(tenant, cancellationToken);
-        }
-
+        var declared = tenants ?? SeedData.All;
+        foreach (var tenant in declared) SeedVerification.Declaration(tenant);
+        foreach (var tenant in declared) await SeedTenantAsync(tenant, cancellationToken);
         return 0;
     }
 
-    private async Task SeedTenantAsync(SeedTenant tenant, CancellationToken cancellationToken)
+    private async Task SeedTenantAsync(SeedTenant tenant, CancellationToken ct)
     {
-        // Act one, unresolved: the tenant and its default organization, on one
-        // transaction, announced with the id being created.
-        await SendAsync(
-            tenant,
-            context: null,
-            new ProvisionTenantCommand(
-                tenant.TenantId,
-                tenant.Slug,
-                tenant.DisplayName,
-                tenant.DefaultOrganization.OrganizationId,
-                tenant.DefaultOrganization.Slug,
-                tenant.DefaultOrganization.DisplayName),
-            "tenant",
-            cancellationToken);
+        var context = new SeedTenantContext(tenant.TenantId, null);
+        async Task<TenantSeedDto?> ReadTenant() => (await ReadAsync(context, new GetTenantSeedStateQuery(), ct)).State;
+        await ActAsync(tenant, context, "tenant", ReadTenant, row => SeedVerification.Tenant(row, tenant),
+            _ => new ProvisionTenantCommand(tenant.TenantId, tenant.Slug, tenant.DisplayName,
+                tenant.DefaultOrganization.OrganizationId, tenant.DefaultOrganization.Slug, tenant.DefaultOrganization.DisplayName), ct,
+            unresolvedWrite: true);
+        var defaultOrg = (await ReadAsync(context, new GetOrganizationSeedStateQuery(tenant.DefaultOrganization.OrganizationId), ct)).State;
+        SeedVerification.Require(SeedVerification.Organization(defaultOrg, tenant.DefaultOrganization, tenant, "default organization"), tenant, "default organization");
+        await ActAsync(tenant, context, "second organization",
+            async () => (await ReadAsync(context, new GetOrganizationSeedStateQuery(tenant.SecondOrganization.OrganizationId), ct)).State,
+            row => SeedVerification.Organization(row, tenant.SecondOrganization, tenant, "second organization"),
+            _ => new CreateOrganizationCommand(tenant.SecondOrganization.OrganizationId, tenant.SecondOrganization.Slug, tenant.SecondOrganization.DisplayName), ct);
+        await ActAsync(tenant, context, "host mapping",
+            async () => (await ReadAsync(context, new GetHostMappingSeedStateQuery(tenant.Host), ct)).State,
+            row => SeedVerification.Host(row, tenant),
+            _ => new MapHostToTenantCommand(tenant.Host, tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId : null, true, true), ct);
 
-        // Act two, as the tenant: writes the policies check against the announcement.
-        var asTenant = new SeedTenantContext(
-            tenant.TenantId, tenant.DefaultOrganization.OrganizationId);
-
-        await SendAsync(
-            tenant,
-            asTenant,
-            new CreateOrganizationCommand(
-                tenant.SecondOrganization.OrganizationId,
-                tenant.SecondOrganization.Slug,
-                tenant.SecondOrganization.DisplayName),
-            SecondOrganizationAct,
-            cancellationToken);
-
-        await SendAsync(
-            tenant,
-            asTenant,
-            new MapHostToTenantCommand(
-                tenant.Host,
-                tenant.MapHostToDefaultOrganization
-                    ? tenant.DefaultOrganization.OrganizationId
-                    : null,
-                IsActive: true,
-                IsPubliclyLive: true),
-            HostMappingAct,
-            cancellationToken);
-
-        // Act three, still as the tenant: the two built-ins, registered and then
-        // published, so a tenant that has authored nothing still has a live content
-        // type and a live level vocabulary for the runtime to resolve. Both go in
-        // through the same four commands a tenant admin uses — nothing here writes a
-        // row the ordinary path could not.
-        await SeedBuiltInsAsync(tenant, asTenant, cancellationToken);
+        if (tenant.Curriculum is { } curriculum)
+            foreach (var locale in curriculum.Locales.OrderByDescending(locale => locale.IsDefault).ThenBy(locale => locale.Sort))
+                await ActAsync(tenant, context, "locale", ReadTenant, row => SeedVerification.Locale(row, locale, tenant),
+                    row => new AddTenantLocaleCommand(Version(row), locale.Locale, locale.IsEnabled, locale.IsDefault, locale.Sort), ct);
+        foreach (var type in SeedData.ContentTypes(tenant)) await SeedContentTypeAsync(tenant, context, type, ct);
+        foreach (var taxonomy in SeedData.Taxonomies(tenant)) await SeedTaxonomyAsync(tenant, context, taxonomy, ct);
+        if (tenant.Curriculum is not { } content) return;
+        await ActAsync(tenant, context, "branding",
+            async () => (await ReadAsync(context, new GetSettingSeedStateQuery(content.Theme.Id), ct)).State,
+            row => SeedVerification.Theme(row, content.Theme, tenant),
+            _ => new SetTenantBrandingCommand(content.Theme.Id, content.Theme.Value, null), ct);
+        foreach (var course in content.Courses) await SeedCourseAsync(tenant, course, ct);
+        foreach (var course in content.Courses) await PublishCourseAsync(tenant, course, ct);
     }
 
-    private async Task SeedBuiltInsAsync(
-        SeedTenant tenant, ITenantContext asTenant, CancellationToken cancellationToken)
+    private async Task SeedContentTypeAsync(SeedTenant tenant, ITenantContext context, SeedContentType type, CancellationToken ct)
     {
-        await SendAsync(
-            tenant,
-            asTenant,
-            new RegisterTenantContentTypeCommand(
-                tenant.BuiltInContentTypeId,
-                BuiltInCustomizations.Card.Key,
-                BuiltInCustomizations.SchemaVersion,
-                BuiltInCustomizations.Card.DisplayName,
-                BuiltInCustomizations.Card.JsonSchema,
-                BuiltInCustomizations.Card.RendererKey),
-            ContentTypeAct,
-            cancellationToken);
-
-        await SendAsync(
-            tenant,
-            asTenant,
-            new PublishTenantContentTypeCommand(tenant.BuiltInContentTypeId),
-            ContentTypePublishAct,
-            cancellationToken);
-
-        await SendAsync(
-            tenant,
-            asTenant,
-            new RegisterTenantLevelTaxonomyCommand(
-                tenant.BuiltInTaxonomyId,
-                BuiltInCustomizations.Plain.Key,
-                BuiltInCustomizations.SchemaVersion,
-                BuiltInCustomizations.Plain.DisplayName,
-                [.. BuiltInCustomizations.Plain.Bands.Select(band =>
-                    new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]),
-            TaxonomyAct,
-            cancellationToken);
-
-        await SendAsync(
-            tenant,
-            asTenant,
-            new PublishTenantLevelTaxonomyCommand(tenant.BuiltInTaxonomyId),
-            TaxonomyPublishAct,
-            cancellationToken);
+        async Task<ContentTypeSeedDto?> Read() => (await ReadAsync(context, new GetContentTypeSeedStateQuery(type.Id), ct)).State;
+        await ActAsync(tenant, context, "content type", Read, row => SeedVerification.ContentType(row, type, tenant, false),
+            _ => new RegisterTenantContentTypeCommand(type.Id, type.Key, type.SchemaVersion, type.DisplayName, type.JsonSchema, type.RendererKey), ct);
+        await ActAsync(tenant, context, "content type publication", Read, row => SeedVerification.ContentType(row, type, tenant, true),
+            _ => new PublishTenantContentTypeCommand(type.Id), ct);
     }
 
-    /// <summary>
-    /// Sends one command in a scope composed around <paramref name="context"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// One scope per command, because a scope is one connection and one transaction under
-    /// [ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md), and these three
-    /// commands are three units of work with different announcements. Sharing a scope
-    /// would put the second act on the transaction the first already committed.
-    /// </para>
-    /// <para>
-    /// The context is supplied by composition rather than assignment — see the class
-    /// remarks. A null one is an unresolved context, which is what provisioning needs and
-    /// what every other act must not get: an earlier version assigned only when non-null,
-    /// left the previous act's tenant in place, and the SECOND tenant's provisioning ran
-    /// announced as the FIRST. The database refused it 42501, which is the confused-deputy
-    /// guard working on the seeder's own bug; composing the value makes the state
-    /// unreachable rather than caught.
-    /// </para>
-    /// </remarks>
-    private async Task SendAsync<TResponse>(
-        SeedTenant tenant,
-        ITenantContext? context,
-        IRequest<Result<TResponse>> command,
-        string what,
-        CancellationToken cancellationToken)
+    private async Task SeedTaxonomyAsync(SeedTenant tenant, ITenantContext context, SeedTaxonomy taxonomy, CancellationToken ct)
+    {
+        async Task<TaxonomySeedDto?> Read() => (await ReadAsync(context, new GetTaxonomySeedStateQuery(taxonomy.Id), ct)).State;
+        await ActAsync(tenant, context, "level taxonomy", Read, row => SeedVerification.Taxonomy(row, taxonomy, tenant, false),
+            _ => new RegisterTenantLevelTaxonomyCommand(taxonomy.Id, taxonomy.Key, taxonomy.SchemaVersion, taxonomy.DisplayName,
+                [.. taxonomy.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort, band.Metadata))]), ct);
+        await ActAsync(tenant, context, "level taxonomy publication", Read, row => SeedVerification.Taxonomy(row, taxonomy, tenant, true),
+            _ => new PublishTenantLevelTaxonomyCommand(taxonomy.Id), ct);
+    }
+
+    private async Task SeedCourseAsync(SeedTenant tenant, SeedCourse course, CancellationToken ct)
+    {
+        var context = new SeedTenantContext(tenant.TenantId, course.OrganizationId);
+        async Task<CourseSeedDto?> Read() => (await ReadAsync(context, new GetCourseSeedStateQuery(course.Id), ct)).State;
+        await ActAsync(tenant, context, "course", Read, row => SeedVerification.Course(row, course, tenant),
+            _ => new CreateCourseCommand(course.Id, course.SlugKey, course.ContentAccess,
+                course.LevelTaxonomyKey, course.LevelTaxonomySchemaVersion, course.LevelBandKey), ct);
+        foreach (var translation in course.Translations)
+            await ActAsync(tenant, context, "course translation", Read,
+                row => SeedVerification.CourseTranslation(row, course, translation, tenant),
+                row => new AddCourseTranslationCommand(course.Id, Version(row), translation.Locale, translation.Title, translation.Summary, translation.Slug), ct);
+        foreach (var lesson in course.Lessons)
+        {
+            async Task<LessonSeedDto?> ReadLesson() => (await ReadAsync(context, new GetLessonSeedStateQuery(lesson.Id), ct)).State;
+            await ActAsync(tenant, context, "lesson", ReadLesson, row => SeedVerification.Lesson(row, course, lesson, tenant),
+                _ => new CreateLessonCommand(lesson.Id, course.Id, lesson.Sort, lesson.ContentTypeKey, lesson.ContentTypeSchemaVersion), ct);
+            foreach (var translation in lesson.Translations)
+                await ActAsync(tenant, context, "lesson translation", ReadLesson,
+                    row => SeedVerification.LessonTranslation(row, course, lesson, translation, tenant),
+                    row => new AddLessonTranslationCommand(lesson.Id, Version(row), translation.Locale, translation.Title, translation.Slug, translation.Body), ct);
+        }
+    }
+
+    private async Task PublishCourseAsync(SeedTenant tenant, SeedCourse course, CancellationToken ct)
+    {
+        var context = new SeedTenantContext(tenant.TenantId, course.OrganizationId);
+        foreach (var lesson in course.Lessons)
+        {
+            async Task<LessonSeedDto?> ReadLesson() => (await ReadAsync(context, new GetLessonSeedStateQuery(lesson.Id), ct)).State;
+            if (lesson.Status == "Published")
+                await ActAsync(tenant, context, "lesson publication", ReadLesson,
+                    row => SeedVerification.LessonPublication(row, course, lesson, tenant),
+                    row => new PublishLessonCommand(lesson.Id, Version(row)), ct);
+            else SeedVerification.Require(SeedVerification.LessonPublication(await ReadLesson(), course, lesson, tenant), tenant, "lesson final state");
+        }
+        async Task<CourseSeedDto?> ReadCourse() => (await ReadAsync(context, new GetCourseSeedStateQuery(course.Id), ct)).State;
+        if (course.Status == "Published")
+            await ActAsync(tenant, context, "course publication", ReadCourse,
+                row => SeedVerification.CoursePublication(row, course, tenant),
+                row => new PublishCourseCommand(course.Id, Version(row)), ct);
+        else SeedVerification.Require(SeedVerification.CoursePublication(await ReadCourse(), course, tenant), tenant, "course final state");
+    }
+
+    private async Task ActAsync<TState, TResponse>(SeedTenant tenant, ITenantContext context, string act,
+        Func<Task<TState?>> read, Func<TState?, bool> completed, Func<TState?, IRequest<Result<TResponse>>> command,
+        CancellationToken ct, bool unresolvedWrite = false) where TState : class
+    {
+        var before = await read();
+        if (completed(before))
+        {
+            SeedRunnerLog.AlreadyPresent(logger, act, tenant.Slug);
+            return;
+        }
+        var result = await SendAsync(unresolvedWrite ? null : context, command(before), ct);
+        if (!result.IsSuccess && (result.Error is not { } error || !IsRace(error)))
+            throw new InvalidOperationException($"Seeding the {act} for '{tenant.Slug}' failed with '{result.Error?.Code}'. Resolve the cause and re-run.");
+        // The writer has committed or returned a typed race. Neither outcome proves
+        // the declared act completed; read its exact postcondition in a fresh scope.
+        SeedVerification.Require(completed(await read()), tenant, act);
+        if (result.IsSuccess) SeedRunnerLog.Seeded(logger, act, tenant.Slug);
+        else SeedRunnerLog.AlreadyPresent(logger, act, tenant.Slug);
+    }
+
+    private async Task<T> ReadAsync<T>(ITenantContext context, IRequest<Result<T>> query, CancellationToken ct)
+    {
+        var result = await SendAsync(context, query, ct);
+        if (result.IsSuccess && result.Value is { } value) return value;
+        throw new InvalidOperationException($"Reading seed verification failed with '{result.Error?.Code}'.");
+    }
+    private async Task<Result<T>> SendAsync<T>(ITenantContext? context, IRequest<Result<T>> request, CancellationToken ct)
     {
         await using var provider = compose(context);
         await using var scope = provider.CreateAsyncScope();
-
-        var result = await scope.ServiceProvider.GetRequiredService<ISender>()
-            .Send(command, cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            SeedRunnerLog.Seeded(logger, what, tenant.Slug);
-            return;
-        }
-
-        // A uniqueness refusal is what a second run looks like, and it is the expected
-        // outcome of one. Anything else — a validation failure, a policy denial, an
-        // organization that is not this tenant's — is a seed that did not do its job, and
-        // the process exits non-zero on it.
-        //
-        // "Taken" is not the same as "taken by us", and the difference matters most for
-        // the host: `platform_host_to_tenant`'s primary key is the host, globally, so a
-        // conflict is equally consistent with our own prior run and with another tenant
-        // holding the name. Verified rather than assumed — and RLS is what makes the
-        // verification cheap, because under this tenant's own announcement the row is
-        // visible only if the row is this tenant's.
-        if (IsAlreadySeeded(result.Error!))
-        {
-            if (!await OwnsWhatConflictedAsync(tenant, context, what, cancellationToken))
-            {
-                throw new InvalidOperationException(
-                    $"Seeding the {what} for '{tenant.Slug}' hit a uniqueness conflict, and "
-                    + "the row that holds the name is not this tenant's. The seed would "
-                    + "report success while pointing at somebody else's data; fix the "
-                    + "conflict and re-run.");
-            }
-
-            SeedRunnerLog.AlreadyPresent(logger, what, tenant.Slug);
-            return;
-        }
-
-        throw new InvalidOperationException(
-            $"Seeding the {what} for '{tenant.Slug}' failed with '{result.Error.Code}'. "
-            + "The seed is not idempotent past this point; fix the cause and re-run.");
+        return await scope.ServiceProvider.GetRequiredService<ISender>().Send(request, ct);
     }
-
-    /// <summary>The label for the act that adds a tenant's second organization.</summary>
-    private const string SecondOrganizationAct = "second organization";
-
-    /// <summary>The label for the act that points a host at the tenant.</summary>
-    private const string HostMappingAct = "host mapping";
-
-    /// <summary>The labels for the four acts that install the built-in customizations.</summary>
-    private const string ContentTypeAct = "built-in content type";
-
-    private const string ContentTypePublishAct = "built-in content type publication";
-
-    private const string TaxonomyAct = "built-in level taxonomy";
-
-    private const string TaxonomyPublishAct = "built-in level taxonomy publication";
-
-    /// <summary>
-    /// Whether the rows that conflicted belong to <paramref name="tenant"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Read under the tenant's own announcement, which is the whole trick: every table
-    /// this checks is tenant-owned or, for the host index, admits a row on
-    /// <c>tenant_id = app.tenant_id</c>. So "can I see it?" and "is it mine?" are the same
-    /// question, and the policies answer it without the seeder needing a cross-tenant
-    /// credential it should not have.
-    /// </para>
-    /// <para>
-    /// The provisioning act runs unresolved and cannot ask — but it does not need to: it
-    /// conflicts on its own registry-assigned id, which is a fixed literal in
-    /// <see cref="SeedData"/>, so a primary-key conflict there IS the prior run. Only the
-    /// acts that run as the tenant reach this.
-    /// </para>
-    /// </remarks>
-    private async Task<bool> OwnsWhatConflictedAsync(
-        SeedTenant tenant, ITenantContext? context, string what, CancellationToken cancellationToken)
+    private static long Version(TenantSeedDto? row) => row?.Version ?? throw new InvalidOperationException("Seed tenant is absent.");
+    private static long Version(CourseSeedDto? row) => row?.Version ?? throw new InvalidOperationException("Seed course is absent.");
+    private static long Version(LessonSeedDto? row) => row?.Version ?? throw new InvalidOperationException("Seed lesson is absent.");
+    private static bool IsRace(Error error) => error.Code == "concurrency_conflict"
+        || error.Code == "business_rule_violation" && error.Details is { } details
+            && details.Values.SelectMany(reasons => reasons).Any(reason => RaceReasons.Contains(reason.Key));
+    private static readonly HashSet<string> RaceReasons = new(StringComparer.Ordinal)
     {
-        if (context is null)
-        {
-            return true;
-        }
-
-        await using var provider = compose(context);
-        await using var scope = provider.CreateAsyncScope();
-
-        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-        await using var frame = await unitOfWork.BeginTransactionAsync(cancellationToken);
-        await unitOfWork.SetTenantContextAsync(context, cancellationToken);
-
-        // Both through local functions, so an act resolves only the context it reads.
-        // Building a module context is not free — measured at 14-19 ms, the same order
-        // as the transaction it sits beside — and two of the four arms below never
-        // touch the tenancy one.
-        static TenancyDbContext Tenancy(AsyncServiceScope scope) =>
-            scope.ServiceProvider.GetRequiredService<TenancyDbContext>();
-
-        static CustomizationDbContext Customization(AsyncServiceScope scope) =>
-            scope.ServiceProvider.GetRequiredService<CustomizationDbContext>();
-
-        // The act that conflicted, and only that act. An earlier version asked "do we own
-        // either?" and the OR let the organization we had just created vouch for a host
-        // another tenant held — the verification passing on the strength of an unrelated
-        // row is exactly the failure it exists to prevent.
-        var owned = what switch
-        {
-            HostMappingAct => await Tenancy(scope).PlatformHostMappings
-                .AnyAsync(mapping => mapping.Host == tenant.Host, cancellationToken),
-
-            SecondOrganizationAct => await Tenancy(scope).Organizations
-                .AnyAsync(
-                    organization => organization.Slug == tenant.SecondOrganization.Slug,
-                    cancellationToken),
-
-            // The customization keys are per tenant rather than global, so a visible
-            // row under this announcement is this tenant's by construction — the same
-            // trick the two above use, on a narrower key.
-            ContentTypeAct or ContentTypePublishAct => await Customization(scope)
-                .TenantContentTypes.AnyAsync(
-                    contentType => contentType.Key == BuiltInCustomizations.Card.Key,
-                    cancellationToken),
-
-            TaxonomyAct or TaxonomyPublishAct => await Customization(scope)
-                .TenantLevelTaxonomies.AnyAsync(
-                    taxonomy => taxonomy.Key == BuiltInCustomizations.Plain.Key,
-                    cancellationToken),
-
-            // No other act runs with a resolved context, so nothing else reaches here.
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(what), what, "No ownership check is defined for that act."),
-        };
-
-        await frame.FailAsync(CancellationToken.None);
-
-        return owned;
-    }
-
-    /// <summary>
-    /// Whether <paramref name="error"/> says the row this act writes already exists.
-    /// </summary>
-    /// <remarks>
-    /// Read from the field-level reasons rather than the top-level code, because the top
-    /// level says only <c>business_rule_violation</c> and three different conditions
-    /// produce it. These three are the uniqueness ones; a fourth reason under the same
-    /// code — <c>lockey_organization_not_in_tenant</c>, <c>lockey_host_reserved</c> —
-    /// deliberately falls through to the throw.
-    /// </remarks>
-    private static bool IsAlreadySeeded(Error error) =>
-        error.Details is { } details
-        && details.Values.SelectMany(reasons => reasons).Any(reason =>
-            AlreadyExists.Contains(reason.Key));
-
-    private static readonly HashSet<string> AlreadyExists = new(StringComparer.Ordinal)
-    {
-        "lockey_slug_taken",
-        "lockey_identifier_taken",
-        "lockey_host_taken",
-
-        // The customization acts. A second run's PUBLISH refuses because the
-        // definition it names is already Active — that one is reached on every
-        // repeat, and without it `make seed` would throw the second time it ran.
-        //
-        // The two uniqueness reasons are the REGISTER side. The shipped seed carries
-        // a fixed id, so a repeat collides on the primary key and reports
-        // `lockey_identifier_taken` above; these two are what a register hits when
-        // the id differs and the KEY is what is taken — a hand-edited SeedData, or a
-        // tenant that authored its own `card` before the seeder reached it.
-        //
-        // In that second case the seeder STOPS, and the stop is one act later than
-        // it looks: the register is classified "already present", and the publish
-        // then names the fixed id, cannot see a row under it, and answers
-        // `not_found`, which is not in this set. That is the right outcome and not
-        // a gap — the built-in did not get installed, and a seed that exits 0
-        // having installed nothing is the masking defect the ownership check exists
-        // to prevent. Resolving the tenant's own id and publishing that instead
-        // would be a different decision, and no shipped path can reach the case:
-        // the four commands have no HTTP endpoint, so the seeder is the only writer
-        // of a customization row.
-        "lockey_schema_version_taken",
-        "lockey_customization_key_already_live",
-        "lockey_customization_not_a_draft",
+        "lockey_slug_taken", "lockey_identifier_taken", "lockey_host_taken", "lockey_schema_version_taken",
+        "lockey_customization_key_already_live", "lockey_customization_not_a_draft", "lockey_locale_taken", "lockey_setting_taken",
+        "lockey_education_locale_already_exists", "lockey_education_translation_requires_draft", "lockey_education_publish_requires_draft",
     };
 }
 
-/// <summary>Source-generated logging, per the house CA1848 rule.</summary>
 public static partial class SeedRunnerLog
 {
-    [LoggerMessage(EventId = 7002, Level = LogLevel.Information,
-        Message = "Seeded {What} for {Slug}.")]
+    [LoggerMessage(EventId = 7002, Level = LogLevel.Information, Message = "Seeded {What} for {Slug}.")]
     public static partial void Seeded(ILogger logger, string what, string slug);
-
-    [LoggerMessage(EventId = 7003, Level = LogLevel.Information,
-        Message = "{What} for {Slug} already present; leaving it alone.")]
+    [LoggerMessage(EventId = 7003, Level = LogLevel.Information, Message = "{What} for {Slug} already present; leaving it alone.")]
     public static partial void AlreadyPresent(ILogger logger, string what, string slug);
 }
 
-/// <summary>
-/// The tenant the seeder is currently acting for.
-/// </summary>
-/// <remarks>
-/// <c>UserId</c> is null, so every write is attributed to <c>UserId.SystemActor</c> by the
-/// handlers — which is correct and not a shortcut: there is no user in a tenant the seeder
-/// just created, and [Audit Coverage](../../../docs/standards/18-audit-coverage.md) puts
-/// non-request execution under an actor of type <c>system</c>.
-/// </remarks>
-public sealed class SeedTenantContext(TenantId tenantId, OrganizationId organizationId)
-    : ITenantContext
+/// <summary>Trusted non-request execution, with the exact nullable organization of each act.</summary>
+public sealed class SeedTenantContext(TenantId tenantId, OrganizationId? organizationId) : ITenantContext
 {
     public bool IsResolved => true;
-
-    /// <summary>
-    /// <see cref="TenantContextOrigin.Ambient"/> — the origin for execution with no
-    /// request behind it.
-    /// </summary>
-    /// <remarks>
-    /// Not decoration: <c>TenantContextBehavior</c>'s second gate switches over stated
-    /// origins and fails closed on <c>null</c>, so a context that omitted this is refused
-    /// with the same 404 an unresolvable host gets — measured, as the seeder's first run.
-    /// <c>Ambient</c> is the same value <c>EventTenantContext</c> states, and for the same
-    /// reason: an integration-event consumer and a seeder are both LearnStack acting for a
-    /// tenant with no caller to authenticate.
-    /// </remarks>
     public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
-
     public TenantId TenantId => tenantId;
-
     public OrganizationId? OrganizationId => organizationId;
-
     public UserId? UserId => null;
-
     public string? CorrelationId => null;
-
-    /// <remarks>
-    /// <c>null</c>, as the request-path <c>TenantContext</c> also returns. This
-    /// context announces every write the seeder makes, and four of them are
-    /// Customization's — a literal here tagged those spans and any error report
-    /// with the wrong module, which is the one thing this field is read for.
-    /// </remarks>
     public string? ModuleName => null;
 }

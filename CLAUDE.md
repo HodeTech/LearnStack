@@ -78,7 +78,7 @@ and contextual seed verification queries; both review rounds passed. Step 2 adds
 locale/branding writers and whole-value setting audit redaction; both review rounds
 passed.
 Step 3 adds Education writers; both review rounds and a fresh focused fix review
-passed. Step 4 adds seed execution.
+passed. Step 4 implements convergent seed execution, with reviews pending.
 Public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -259,7 +259,8 @@ and `Organization` aggregates and `TenancyDbContext`; Customization —
 and Education — separate `Course` and `Lesson` roots, their contained translations
 and `EducationDbContext`. Content, Identity and Media remain scaffolded.
 P02d-1 is merged; its implementation, agent reviews and required PR checks are complete.
-Command and public-read surfaces belong to the later packets. Other module-level references
+P02d-2 supplies unrouted authoring commands and seeded content; public reads belong
+to P02d-4. Other module-level references
 in the docs (e.g. `ILiveClassProvider`, `ITenantSearch`) still describe intended
 shape owned by their named phases.
 

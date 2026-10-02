@@ -95,7 +95,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**134 test methods run in
+**137 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -124,7 +124,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**144 rules in this catalogue are Implemented, and 99 of them are in that assembly.**
+**145 rules in this catalogue are Implemented, and 100 of them are in that assembly.**
 The other 45 are no less binding, and most could not live there. The table says where and
 why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
 and the first version of this table claimed "three rules" for a suite that holds ten.
@@ -604,7 +604,8 @@ otherwise).
   no exemption or exhaustive consumer scope is accepted by this registration.
 - **Type:** xUnit + source scan, with planted offenders and allowed-data controls.
   **Kind:** structural.
-- **Status:** **Registered** — P02d-2 establishes and verifies the literal source;
+- **Status:** **Registered** — P02d-2 establishes and verifies the literal source
+  (`SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable`);
   P02d-5/6 settle remaining scope before their subjects ship. Implement the complete
   guard and its planted companion by P02d-7 exit, with no vacuous pass.
 - **Phase:** 02d (P02d-2 source; P02d-5/6 scope; P02d-7 implementation exit).
@@ -2045,9 +2046,8 @@ because the filters hold, and removing both turns all five red.
   and [Security Standards § The out-of-band setters](11-security.md#the-out-of-band-setters).
 - **Type:** xUnit + source scan with a companion that plants direct caller violations
   and verifies permitted request dispatch/context composition. **Kind:** structural.
-- **Status:** **Registered** — implement the guard and planted companion with the
-  contextual verification replacement in P02d-2 Step 4, before packet completion.
-  This adds no ADR-0040 setter exception or new database announcer.
+- **Status:** **Implemented** (P02d-2 Step 4, `SeederConventionTests`), including
+  its planted companion; production readers/writers dispatch only contextual requests.
 - **Phase:** 02d (P02d-2).
 
 #### `Out_Of_Band_Setters_Open_Read_Only_Transactions`

@@ -10,14 +10,14 @@ public reads remain planned for P02d-4.
 The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
 verification queries, explicitly classified Off. Step 3 implements six writers; both
-review rounds and a focused fix review passed. Seed execution follows in Step 4. The
-diagram includes the access column.
+review rounds and a focused fix review passed. Step 4 implements the complete seed,
+with reviews pending. The diagram includes the access column.
 
 ## Overview
 
 Education owns courses, lessons and their translated content. P02d-1 Step 2
-implements their domain model, database shape and isolation. P02d-2 owns command
-handlers and seed writes;
+implements their domain model, database shape and isolation. P02d-2 implements six
+unrouted command handlers and convergent seed writes;
 P02d-4 owns public reads. [Phase 05](../../roadmap/phase-05-education-learning-content.md)
 owns course versions, modules, lesson items and the authenticated authoring surface.
 
@@ -312,6 +312,7 @@ provide those ordering suffixes. P02d-4 verifies query shape when it writes the 
   exemption. Parent soft deletion still requires parent-aware public reads in P02d-4.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
-- Writer, seed, read-response and rendering gates remain with their named packets in
+- Writer and seed decisions are implemented in P02d-2. Read-response and rendering
+  gates remain with their named packets in
   the [decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
   No P02d-1 decision is implicitly delegated to those later passes.

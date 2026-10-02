@@ -8,11 +8,10 @@ namespace LearnStack.Modules.Education.Infrastructure.Persistence;
 
 public sealed class EducationSeedStateReader(EducationDbContext context) : ISeedStateReader
 {
-    public async Task<CourseSeedDto?> ReadCourseAsync(Guid courseId, CancellationToken cancellationToken)
+    public async Task<CourseSeedDto?> ReadCourseAsync(CourseId courseId, CancellationToken cancellationToken)
     {
-        var id = CourseId.From(courseId);
         var row = await context.Courses.AsNoTracking().Include(course => course.Translations)
-            .SingleOrDefaultAsync(course => course.Id == id && course.DeletedAt == null, cancellationToken);
+            .SingleOrDefaultAsync(course => course.Id == courseId && course.DeletedAt == null, cancellationToken);
         return row is null ? null : new CourseSeedDto(row.Id.Value, row.TenantId, row.OrganizationId,
             row.SlugKey, row.Status.ToString(), row.ContentAccess == CourseContentAccess.Public ? "public" : "enrollment_required",
             row.LevelTaxonomyKey, row.LevelTaxonomySchemaVersion, row.LevelBandKey, row.Version,
@@ -21,11 +20,10 @@ public sealed class EducationSeedStateReader(EducationDbContext context) : ISeed
                     translation.Summary, translation.Slug)).ToImmutableArray());
     }
 
-    public async Task<LessonSeedDto?> ReadLessonAsync(Guid lessonId, CancellationToken cancellationToken)
+    public async Task<LessonSeedDto?> ReadLessonAsync(LessonId lessonId, CancellationToken cancellationToken)
     {
-        var id = LessonId.From(lessonId);
         var row = await context.Lessons.AsNoTracking().Include(lesson => lesson.Translations)
-            .SingleOrDefaultAsync(lesson => lesson.Id == id && lesson.DeletedAt == null, cancellationToken);
+            .SingleOrDefaultAsync(lesson => lesson.Id == lessonId && lesson.DeletedAt == null, cancellationToken);
         return row is null ? null : new LessonSeedDto(row.Id.Value, row.TenantId, row.OrganizationId,
             row.CourseId.Value, row.Sort, row.Status.ToString(), row.ContentTypeKey, row.ContentTypeSchemaVersion,
             row.Version, row.Translations.OrderBy(translation => translation.Locale, StringComparer.Ordinal)

@@ -913,11 +913,11 @@ public sealed class CustomizationCommandTests
     }
 
     [Fact]
-    public async Task A_publish_that_never_retired_anything_leaves_the_unit_alone()
+    public async Task A_first_publication_save_failure_poisons_the_unit()
     {
-        // The other edge. A first-ever publish writes only the successor, so a
-        // failure there has nothing committed behind it — marking the unit would
-        // roll back an outer handler's own work for no reason.
+        // A first publication still mutates the tracked successor before saving.
+        // If an outer handler absorbs this failure, a later save could flush it.
+        // The real database absorption tests prove rollback-only is required.
         var (sender, stores, unit) = BuildWithUnit();
 
         await sender.Send(RegisterContentType());
@@ -926,7 +926,7 @@ public sealed class CustomizationCommandTests
         var result = await sender.Send(new PublishTenantContentTypeCommand(ContentTypeId));
 
         result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
-        unit.IsRollbackOnly.Should().BeFalse("nothing was written before the failure");
+        unit.IsRollbackOnly.Should().BeTrue("the failed save must not leave dirty publication state available to an outer handler");
     }
 
     // ── What the validators refuse ────────────────────────────────────────

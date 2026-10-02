@@ -40,11 +40,10 @@ public sealed class TenancySeedStateReader(TenancyDbContext context, ITenantCont
             row.IsActive, row.IsPubliclyLive);
     }
 
-    public async Task<SettingSeedDto?> ReadSettingAsync(Guid settingId, CancellationToken cancellationToken)
+    public async Task<SettingSeedDto?> ReadSettingAsync(TenantSettingId settingId, CancellationToken cancellationToken)
     {
-        var id = TenantSettingId.From(settingId);
         var row = await context.TenantSettings.AsNoTracking().SingleOrDefaultAsync(
-            setting => setting.Id == id && setting.DeletedAt == null, cancellationToken);
+            setting => setting.Id == settingId && setting.DeletedAt == null, cancellationToken);
         return row is null ? null : new SettingSeedDto(row.Id.Value, row.TenantId, row.OrganizationId,
             row.Key, row.Value, row.Version);
     }

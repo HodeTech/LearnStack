@@ -1,3 +1,4 @@
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.SharedKernel.Localization;
@@ -71,6 +72,6 @@ internal sealed class GetSettingSeedStateQueryHandler(ISeedStateReader reader, I
         }
 
         return Result.Ok(new SeedLookup<SettingSeedDto>(
-            await reader.ReadSettingAsync(request.SettingId, cancellationToken)));
+            await reader.ReadSettingAsync(TenantSettingId.From(request.SettingId), cancellationToken)));
     }
 }

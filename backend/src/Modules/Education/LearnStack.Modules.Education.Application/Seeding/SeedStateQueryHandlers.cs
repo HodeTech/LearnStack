@@ -1,3 +1,4 @@
+using LearnStack.Modules.Education.Domain;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
 using LearnStack.SharedKernel.Localization;
@@ -20,7 +21,7 @@ internal sealed class GetCourseSeedStateQueryHandler(ISeedStateReader reader, IT
         }
 
         return Result.Ok(new SeedLookup<CourseSeedDto>(
-            await reader.ReadCourseAsync(request.CourseId, cancellationToken)));
+            await reader.ReadCourseAsync(CourseId.From(request.CourseId), cancellationToken)));
     }
 }
 
@@ -37,6 +38,6 @@ internal sealed class GetLessonSeedStateQueryHandler(ISeedStateReader reader, IT
         }
 
         return Result.Ok(new SeedLookup<LessonSeedDto>(
-            await reader.ReadLessonAsync(request.LessonId, cancellationToken)));
+            await reader.ReadLessonAsync(LessonId.From(request.LessonId), cancellationToken)));
     }
 }

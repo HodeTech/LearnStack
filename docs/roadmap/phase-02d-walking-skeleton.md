@@ -10,7 +10,7 @@
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
-> | P02d-2 | Writers and seed | decision pass Accepted — 2026-10-02; implementation not started, waiting at maintainer request |
+> | P02d-2 | Writers and seed | decision pass Accepted — 2026-10-02; Steps 1–3 complete with reviews; Step 4 implemented, reviews pending |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
@@ -22,6 +22,11 @@ ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), inc
 its four implementation steps. Required decision bookkeeping is complete; this
 update delivers no code. Implementation has not started and waits at the maintainer's
 explicit request. ADR-0049 and Phase 09a remain Proposed.
+
+**Implementation resumed — 2026-10-02.** The maintainer's implementation request
+revokes the acceptance-time wait. [Delivery](#p02d-2-implementation-delivery-2026-10-02)
+records the four steps: Steps 1–3 are complete with both review rounds; Step 4
+implements the seed and awaits its reviews. The packet is not yet marked complete.
 
 ## Goal
 
@@ -54,6 +59,9 @@ data being resolvable and isolated
 anonymous, so it needs no identity provider.
 
 ### What this phase inherits
+
+This is the Phase 02a entry baseline. The dated delivery records below own current
+implementation; P02d-2 now supplies the locale, branding and Education writers.
 
 Most of what this phase meets is already shipped or already decided. Each item links its
 owner; where a choice is still open, it names the register row that answers it.
@@ -152,10 +160,10 @@ owner; where a choice is still open, it names the register row that answers it.
   now **G32**; the shared-peer premise of its **G14**, now **G34**; and its criterion
   that both sites still render anonymously with Keycloak stopped.
 
-P02d-1 step 2 implements Education's roots, translations, migration and isolation
-proofs. What remains unimplemented: every Education command and endpoint;
-every renderer component; the server SDK transport; any trusted-hop configuration;
-any Lighthouse tooling; and a `make demo` target.
+P02d-1 implements Education's roots, translations, migration and isolation.
+P02d-2 implements its six commands and seeded data. What remains unimplemented:
+public Education endpoints; every renderer component; the server SDK transport;
+any trusted-hop configuration; any Lighthouse tooling; and a `make demo` target.
 
 ### Explicitly not in this phase
 
@@ -459,8 +467,8 @@ are preserved; ADR-0048's Status and dated supersession are lifecycle bookkeepin
 
 #### Seed inventory and ownership
 
-This is a planned inventory, not currently seeded data. Implementation places exact
-IDs, schema/body literals, slugs, labels, palettes and counts in `SeedData`; no
+Step 4 implements this inventory; its review is pending. Exact IDs, schema/body
+literals, slugs, labels, palettes and computed counts live in `SeedData`; no
 production branch knows `demo-english`, `demo-yoga`, `grammar-topic` or `asana-pose`.
 The existing fixed tenant, organization, host and built-in customization IDs stay.
 
@@ -477,7 +485,7 @@ The existing fixed tenant, organization, host and built-in customization IDs sta
 | Cross-tenant positive control | Published public tenant-wide course uses `en` slug `foundation` | Published public Studio One course also uses `en` slug `foundation`; no uniqueness across tenants |
 
 All eight courses and ten lessons have explicit pins and access/state choices;
-lesson policy is inherited. The planned translations total 27: nine English and
+lesson policy is inherited. The declared translations total 27: nine English and
 18 Yoga. No remote media is seeded. Wrong-course proof uses the two visible Yoga
 courses; organization controls are hidden/visible against the appropriate host.
 
@@ -730,7 +738,44 @@ controls also cover inherited interface signatures. Release build has zero
 warnings/errors, 1,559 unit cases and the contract case pass, and all 780 integration
 cases pass, including 15 Education writers. No failures/skips remain; format,
 local links/anchors and the frozen P02d-1 suffix check pass. Step 3 is complete;
-Step 4 remains to implement.
+Step 4 follows below.
+
+**Step 4 — convergent seed, implementation awaiting both review rounds.**
+The fixed identities remain unchanged. SeedData owns every declaration and expected
+count: two tenants, four organizations, two hosts, three locales, four content types,
+four taxonomies with fifteen bands, two distinct whole themes, eight courses, ten
+lessons and twenty-seven translations. Published/draft and public/restricted cases
+include tenant-wide and both organization scopes. English and Yoga have their own
+schemas, labels and bodies; Yoga has complete tr-TR/en translations. No remote media,
+marketplace fields or P02d-4-only historical/negative fixtures are introduced.
+
+Every verification and write goes through contextual ISender requests. Completed acts
+skip before a writer, partial declared acts resume, and a typed race gets exactly one
+fresh postcondition read. Mismatches fail without overwrite; no private transaction,
+setter or direct persistence path remains. Internal reader ports retain typed IDs.
+The caller-fence guard and planted companion are Implemented; G20(a) reads all literal
+sources from SeedData, while the full production branch guard remains P02d-7's owner.
+The seed skill, host/isolation projections, catalogue and current-state documents
+now match implementation. Tests own disposable databases rather than shared cleanup.
+
+**Step 4 verified consumer defects.** Concurrent seed execution exposed a real
+Customization publication race: a competing publish between two READ COMMITTED reads
+caused EF to return the already-tracked Draft as its own Active incumbent. Both
+handlers now return typed concurrency before mutation. A failed publication save now
+marks rollback-only even without an incumbent, so an absorbing outer request cannot
+flush dirty publication state later. Six controlled database cases cover both roots,
+the precise race and post-save conflict/concurrency absorption. An old unit expectation
+that assumed no retirement meant no dirty state was corrected against these proofs.
+No new ADR or schema decision is introduced.
+
+**Step 4 pre-review verification.** The 49 focused database cases pass without
+failures/skips: thirty-five Seeder, eight host/isolation and six Customization race
+cases. These include full inventory/scopes, all-outcome audit neutrality on repeat,
+two real interruption points, coordinated concurrent seed, seventeen mismatch cases,
+semantic JSON equivalence and the executable's actual zero/nonzero exit behavior.
+A fresh complete seed produces ninety successful audit rows; provisioning writes two
+aggregate audit rows, and all counts derive from SeedData. Full verification and
+both fresh review rounds are still required before packet closeout.
 
 ### P02d-1 decision pass (2026-09-14)
 

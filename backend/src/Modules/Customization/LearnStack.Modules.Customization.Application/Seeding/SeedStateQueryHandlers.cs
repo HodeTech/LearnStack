@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.SharedKernel.Localization;
@@ -20,7 +21,7 @@ internal sealed class GetContentTypeSeedStateQueryHandler(ISeedStateReader reade
         }
 
         return Result.Ok(new SeedLookup<ContentTypeSeedDto>(
-            await reader.ReadContentTypeAsync(request.ContentTypeId, cancellationToken)));
+            await reader.ReadContentTypeAsync(TenantContentTypeId.From(request.ContentTypeId), cancellationToken)));
     }
 }
 
@@ -37,6 +38,6 @@ internal sealed class GetTaxonomySeedStateQueryHandler(ISeedStateReader reader, 
         }
 
         return Result.Ok(new SeedLookup<TaxonomySeedDto>(
-            await reader.ReadTaxonomyAsync(request.TaxonomyId, cancellationToken)));
+            await reader.ReadTaxonomyAsync(TenantLevelTaxonomyId.From(request.TaxonomyId), cancellationToken)));
     }
 }
