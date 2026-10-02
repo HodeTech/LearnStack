@@ -78,7 +78,7 @@ execution after both review rounds. **P02d-2 is complete and merged** through
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
 records verification. P02d-3 read internals are next; the
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
-is Accepted — 2026-10-02, with Step 1 implemented and review pending.
+is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
 Steps 2/3 remain ahead.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.

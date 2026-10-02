@@ -1333,15 +1333,20 @@ protect reads without a cache or raw configuration export.
 Release build: zero warnings/errors. Unit: 1584 passed; architecture: 184 passed;
 integration: 241 passed (Docker/settings, writer/seed and Docker-free cases).
 All three populations have zero failed/skipped; formatting and document checks pass.
-Both independent review rounds remain pending;
-Step 2 has not started. Public consumers/metadata remain P02d-4/6.
+Both independent review rounds passed; Step 2 follows. Public consumers/metadata remain P02d-4/6.
 
 **Step 1 review round 1.** Two fresh GPT-5.5 high sessions reviewed
 `307bbcd..9293202`. No verified Blocker/Major. Two verified Minor findings were
 fixed: the localization illustration used a second stale fallback helper, and
 both composition roots overstated feature flags as the only module-facing read.
 The illustration now calls the shipped resolver; comments describe their own
-read. No behavior changed. Round 2 remains pending.
+read. No behavior changed.
+
+**Step 1 review round 2.** Two fresh GPT-5.5 xhigh sessions reviewed
+`307bbcd..5848066`. Both approved the code; no verified Blocker/Major.
+They independently identified the same stale delivery-status sentence above,
+which is corrected in this closeout. Related current-state carriers now record
+both rounds as passed. Documentation link/fragment and diff checks pass.
 
 
 ### P02d-1 decision pass (2026-09-14)

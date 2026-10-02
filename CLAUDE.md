@@ -85,7 +85,7 @@ passed. Step 4 completes convergent seed execution after both review rounds.
 records the accepted head and merge verification. P02d-3 read internals are next;
 its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
-its review is pending. Steps 2/3 and public reads in P02d-4 remain ahead.
+both review rounds passed. Steps 2/3 and public reads in P02d-4 remain ahead.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
