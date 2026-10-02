@@ -1010,6 +1010,14 @@ architecture passes 184/184 and scoped format verification exits zero. Links and
 the frozen suffix remain unchanged. Fresh round 2 reviews the complete correction
 range after this fix commit.
 
+**Independent correction review — round 2 and closeout.** Two new GPT-5.5
+sessions (`xhigh` for backend/security/proofs, `high` for documentation/governance)
+review the full `eaa72aa..15123ca` correction range and both approve without an
+open actionable finding. They independently inspect the positive TRX, mutation
+and restoration evidence; the documentation reviewer also verifies the unchanged
+1,799-line frozen suffix. The reviewed production code is complete. This closeout
+adds only the review record; the PR remains open for maintainer review and merge.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
