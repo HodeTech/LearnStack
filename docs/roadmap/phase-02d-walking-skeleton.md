@@ -999,6 +999,17 @@ The supplemental documentation sweep checks 45 Markdown files, 2,901 local link
 occurrences and 580 fragments; `git diff --check` passes and the frozen P02d-1
 suffix remains byte-identical. Independent reviews follow the correction commit.
 
+**Independent correction review — round 1.** Fresh GPT-6.1-sol (`xhigh`)
+reviewed the backend/security/proof boundary at `05682d8`; fresh GPT-5.5 (`high`)
+reviewed documentation/governance. Neither found a correctness or isolation defect.
+The code reviewer found one unused API redaction helper left by extraction; it is
+removed, leaving the shared implementation as the only caller-backed helper. The
+parent also corrected one added catalogue prose line exceeding 88 columns.
+Release build remains warning/error-free; credential guard tests pass 20/20,
+architecture passes 184/184 and scoped format verification exits zero. Links and
+the frozen suffix remain unchanged. Fresh round 2 reviews the complete correction
+range after this fix commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

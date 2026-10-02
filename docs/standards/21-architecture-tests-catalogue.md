@@ -127,7 +127,8 @@ out of the subject instead of failing.
 **148 rules in this catalogue are Implemented, and 101 of them are in that assembly.**
 The other 47 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
-recomputes, and the first version of this table claimed "three rules" for a suite that holds ten.
+recomputes, and the first version of this table claimed "three rules" for a suite
+that holds ten.
 
 | Where | Why not the architecture assembly |
 |---|---|

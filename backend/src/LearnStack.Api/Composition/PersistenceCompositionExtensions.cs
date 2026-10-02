@@ -458,26 +458,4 @@ public static class PersistenceCompositionExtensions
         }
     }
 
-    /// <summary>The connection string with its password removed.</summary>
-    /// <remarks>
-    /// From the <b>parsed</b> builder, not by pattern-matching the raw text.
-    /// Npgsql accepts <c>Pwd</c> and <c>PSW</c> as aliases for <c>Password</c> and
-    /// parses all three into the same field, so a keyword regex over the raw value
-    /// that knows only the canonical spelling carries the other two straight into
-    /// the exception message — measured, and it is what shipped first. Setting the
-    /// field is alias-proof by construction. (A regex over
-    /// <c>parsed.ConnectionString</c> would also work, because the round trip
-    /// normalises the aliases away — but it works for a reason a reader would have
-    /// to know, and the raw-string form one edit away from it does not.)
-    /// </remarks>
-    private static string Redact(NpgsqlConnectionStringBuilder parsed)
-    {
-        var redacted = new NpgsqlConnectionStringBuilder(parsed.ConnectionString)
-        {
-            Password = "***",
-        };
-
-        return redacted.ConnectionString;
-    }
-
 }
