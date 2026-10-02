@@ -87,7 +87,8 @@ its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decisio
 is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
 both review rounds passed. Step 2 implements batched definition reads; both review
 rounds passed. Step 3
-adds generation caching and scope-safe bypass; Round 1 passed; Round 2 is pending.
+adds generation caching and scope-safe bypass; both review rounds passed.
+P02d-3 is complete and ready for PR review; it remains unmerged.
 Public reads
 stay with P02d-4.
 

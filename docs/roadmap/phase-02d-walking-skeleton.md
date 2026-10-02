@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; Round 1 passed; Round 2 pending |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; both review rounds passed; ready for PR review, unmerged |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -26,13 +26,23 @@ explicit request. ADR-0049 and Phase 09a remain Proposed.
 **Implementation resumed — 2026-10-02.** The maintainer's implementation request
 revokes the acceptance-time wait. [Delivery](#p02d-2-implementation-delivery-2026-10-02)
 records all four completed implementation steps and their two independent review
-rounds. P02d-2 is ready for PR review; merge closeout remains pending. P02d-3 is next.
+rounds. At that pre-merge milestone, P02d-2 was ready for PR review, its merge
+closeout was pending, and P02d-3 was next.
 
 **Merge complete — 2026-10-02.** The acceptance and implementation notes above
 record the pre-merge milestones. P02d-2 is now closed through
 [PR #23](https://github.com/HodeTech/LearnStack/pull/23); its
 [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) records verification.
-Phase 02d remains in progress. P02d-3 is next, with its decision pass still open.
+At that closeout, Phase 02d remained in progress and P02d-3 was next, with its
+decision pass still open.
+
+
+**P02d-3 complete — 2026-10-02, unmerged.** The preceding notes record earlier
+milestones. The [decision package](#p02d-3-decision-package-2026-10-02) is Accepted;
+all three implementation steps and both fresh review rounds per step are complete.
+The [delivery record](#delivery-record-p02d-3) records code, verified fixes and
+2637 passing tests. The packet is ready for maintainer PR review. P02d-4 is next:
+its public-read decision pass and contracts are not started.
 
 ## Goal
 
@@ -1320,7 +1330,7 @@ implementation, as required by the maintainer and
 
 ### Delivery record: P02d-3
 
-**In progress — 2026-10-02.** The accepted decision commit is `307bbcd`.
+**Complete, unmerged — 2026-10-02.** The accepted decision commit is `307bbcd`.
 
 #### Step 1: typed settings and locale resolution
 
@@ -1406,9 +1416,10 @@ The first full run passed unit, architecture, contract and Docker-free suites.
 It exposed four missing scoped-state registrations in two legacy test fixtures;
 those fixtures now supply the new state. A separate Seeder case encountered a
 connection-open timeout before reaching its seeded race. All six focused fixture
-and seed-race cases pass after the fix; the full Docker rerun remains pending. No retry
+and seed-race cases passed after the fix; the full Docker rerun was pending at
+the implementation commit. No retry
 or weakened
-assertion was added. Round 1 is complete; Round 2 remains pending.
+assertion was added. The review closeout below records completion of both rounds.
 
 **Local seeded measurement.** The executable
 `Seeded_local_measurement_records_statement_plans_payload_volume_and_end_to_end_timings`
@@ -1439,7 +1450,7 @@ into the test.
 **Step 3 review round 1.** Two fresh GPT-5.5 xhigh read-only sessions reviewed
 `287318f..7ac197f`, covering transaction/cache safety and contracts/test evidence,
 performance and corpus consistency. Both approved with no verified findings.
-No source fix was necessary. Round 2 remains pending.
+No source fix was necessary; Round 2 was pending at that milestone.
 
 **Complete backend verification after fixture repair.** Release build: zero
 warnings/errors; formatting passes. All 2637 cases passed with zero failures/skips:
@@ -1449,6 +1460,26 @@ each suite; the full Docker rerun includes the earlier seed timeout case and
 legacy fixture cases. Markdown links/fragments, diff checks and frozen P02d-1
 suffix checks pass. This evidence precedes the second independent review round;
 it does not mark the packet merged.
+
+
+**Step 3 review round 2 and packet closeout.** Two fresh GPT-5.5 xhigh read-only
+sessions independently reviewed `287318f..5b50995`. No verified code, security,
+transaction, cache, performance or test finding. One reviewer identified a Minor
+status ambiguity in the phase's opening P02d-2 milestones, which still described
+P02d-3 as next/open. Those sentences now explicitly describe their historical
+moment; the current completion note and packet table name the accepted, delivered
+P02d-3 state. Current-state carriers record both rounds as passed. The verified
+fix changes documentation only; the complete backend execution evidence above
+still applies to the unchanged source. Final links/fragments, formatting, diff
+and architecture metadata checks pass.
+
+All three implementation steps and both review rounds per step are complete.
+No new ADR, migration, HTTP endpoint, context setter or transaction mode was
+required. P02d-3 is ready for PR review and remains unmerged. Phase 02d remains
+in progress; P02d-4 owns the next decision pass for public eligibility, response
+contracts, locale/cursor/cache rules, Off classification and read-only controls,
+OpenAPI/SDK drift gates and request-level Education isolation. P02d-5/6 provide
+SSR and rendering; P02d-7 provides the full-stack demonstration and exit proof.
 
 
 ### P02d-1 decision pass (2026-09-14)

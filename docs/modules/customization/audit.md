@@ -3,7 +3,7 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-3 Step 3 implemented — 2026-10-02; Round 1 passed; Round 2 pending.**
+**P02d-3 Step 3 implemented — 2026-10-02; both review rounds passed.**
 `ICustomizationDefinitionProjectionReader` is an internal application interface, not a
 MediatR request or audited write. It creates no intent or business-state mutation.
 Any production request introduced for it must be audit Off; test-only requests
