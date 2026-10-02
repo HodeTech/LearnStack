@@ -119,6 +119,10 @@ public static class SeedComposition
         services.AddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
         services.AddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
         services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ICourseWriteStore, CourseWriteStore>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ILessonWriteStore, LessonWriteStore>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.IParentCourseReader, ParentCourseReader>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ITranslationCollisionReader, TranslationCollisionReader>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
 
         // The Audit module's context, on the same helper and for the same reason as the

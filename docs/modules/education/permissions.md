@@ -2,9 +2,9 @@
 
 **Status:** Accepted design — 2026-09-14, with the [module spec](README.md).
 
-No Education command, endpoint or permission registration exists in P02d-1. P02d-2
-introduces unrouted seed commands; their reachability boundary follows the
-[Tenancy precedent](../tenancy/permissions.md), with tenant and organization derived
+P02d-2 Step 3 implements six unrouted commands and contextual verification queries.
+No HTTP endpoint or permission registration exists; their reachability boundary follows
+the [Tenancy precedent](../tenancy/permissions.md), with tenant and organization derived
 from the execution context. Database isolation is already required for every table.
 
 The current resource/action matrix uses the
@@ -15,7 +15,7 @@ The current resource/action matrix uses the
 | `Course` | — | — | — | — | None | None |
 | `Lesson` | — | — | — | — | None | None |
 
-Here **—** means no registered permission exists in P02d-1. This describes the current
+Here **—** means no registered Education permission exists. This describes the current
 surface, not the actions or grants a later authoring decision must choose.
 
 | Surface | Registration and reachability |
@@ -30,7 +30,7 @@ before any permission is registered. The reachability table grants no capability
 introduces no permission key ahead of its decision.
 
 The [accepted P02d-2 contract](README.md#p02d-2-accepted-writer-contract) names six
-unrouted write commands and contextual verification queries, not implemented yet;
+implemented unrouted write commands and contextual verification queries;
 none admits unresolved context or anonymous/public invocation. The accepted access
 policy does not create a permission or a grant evaluator. Authenticated authoring
 and protected learner reads retain their Phase 05 and Phase 07 owners.

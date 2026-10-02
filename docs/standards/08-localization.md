@@ -146,8 +146,9 @@ returns `Result.Fail(business_rule_violation, …)`. The accepted 2026-10-02
 [P02d-2 G11 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
 selects `AddCourseTranslationCommand` and `AddLessonTranslationCommand` for Education,
 mapping their named localized-slug uniqueness constraints at insertion. Publication
-does not reserve or newly collide a slug. The command-level mapping is decided,
-not implemented yet; [Phase 04's criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria)
+does not reserve or newly collide a slug. P02d-2 Step 3 implements the mapping and
+filtered collision-identity disclosure;
+[Phase 04's criterion](../roadmap/phase-04-cms-media-pages.md#completion-criteria)
 requires verification of these insertion-time refusals.
 The refusal names the conflicting entity when the caller may read it — tenant-wide rows
 and the caller's own organization's rows both qualify under the canonical policy — and

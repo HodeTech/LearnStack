@@ -47,7 +47,7 @@ not deferred to the showcase phase.
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
   **in progress**; P02d-1 merged, P02d-2 decision pass Accepted 2026-10-02;
   Steps 1–2 complete after both review rounds;
-  Education writers and seed execution follow in Steps 3–4
+  Step 3 Education writers in review; Step 4 seed execution follows
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

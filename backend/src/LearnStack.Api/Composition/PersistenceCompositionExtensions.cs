@@ -303,6 +303,10 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ICourseWriteStore, CourseWriteStore>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ILessonWriteStore, LessonWriteStore>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IParentCourseReader, ParentCourseReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ITranslationCollisionReader, TranslationCollisionReader>();
 
         return services;
     }

@@ -670,6 +670,28 @@ Tenancy component description; its root/writer claim, command/store inventory an
 table count now match code. Links/anchors, wrapping and the frozen P02d-1 record pass.
 Step 2 is complete; Steps 3–4 remain pending.
 
+**Step 3 — Education writers, implementation verification and review pending.**
+Six separate commands write one Course or Lesson and its contained translations.
+New binds resolve exact Active revisions; existing lesson pins remain eligible after
+deprecation. Enabled locale admission and schema evaluation precede mutation. Visible
+but incompatible write scope is refused; hidden roots remain indistinguishable misses.
+Translation insertion reserves its tenant-local slug; diagnostics identify only visible
+conflicts. Publication remains independent and MUST-audited. Known post-save failures
+poison the ambient unit, including when an outer handler absorbs the refusal.
+No public endpoint, protected reader or seed execution is claimed by this step.
+
+**Step 3 pre-review verification.** Release build passed with zero warnings/errors.
+The full Docker-free run passed 1,557 unit, 177 architecture, 171 integration and
+one contract case, without failures/skips. The focused database regression run
+passed 249 cases, including all 14 Education writer cases, the existing Education
+isolation suite, Tenancy writers and migration reversal. Both known post-save
+refusal variants were absorbed by an outer handler that saved another root; the
+owning transaction still refused commit and rolled back both writes. Concurrent
+publication and localized-slug insertion produced one durable winner. Unknown
+unique constraints retained `internal_error`; hidden collisions disclosed no root
+identity. Full format verification, Markdown links/anchors and `git diff --check`
+passed. This step changes no EF model or migration. Two fresh review rounds follow.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
