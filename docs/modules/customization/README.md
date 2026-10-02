@@ -2,7 +2,8 @@
 
 **Status:** Design stable, partially implemented (Phase 02a Packet 8 shipped the
 two aggregates, the schema and its isolation, the payload gate, and the write
-path; the read path and its generation-keyed cache land with the first consumer
+path; P02d-2 Step 1 adds contextual exact-definition reads and metadata validation.
+Public projections and their generation-keyed cache follow in P02d-3/4
 in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and the Admin Studio
 editors with the phases that consume them).
 
@@ -173,7 +174,7 @@ absence rather than substituting an unrelated diagram for it.
 
 ### Primary read flow: resolving a tenant's shapes
 
-Not implemented. The read path is a projection keyed on
+The public read projection is not implemented. It is keyed on
 `customization_generations.generation`, so every write strands every stale key at
 once across every pod without enumerating anything —
 [§ 8.2](../../architecture/32-tenant-customization-model.md) has the design and
@@ -185,7 +186,7 @@ consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
 
 ## P02d-2 accepted exact write contract
 
-**Accepted design, not implemented — 2026-10-02.** An application interface in
+**Step 1 implemented, review in progress — 2026-10-02.** An application interface in
 `Customization.Application.Contracts` resolves an exact content-type or taxonomy
 revision for the caller's announced tenant. DTOs contain values only: key, version,
 status, JSON Schema/composite and validated presentation, or immutable bands/labels.
@@ -209,7 +210,7 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
 
 [ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) defines the optional
 root `x-fields` profile and semantic resolver. It preserves the four gates and legacy
-schemas; profile implementation belongs to P02d-2 Step 1. Planned seed definitions opt
+schemas; P02d-2 Step 1 implements the parser and semantic resolver. Seed definitions opt
 into the profile, whereas built-in `card`/`plain` remain unchanged and Active.
 
 ## Component diagram
@@ -244,10 +245,10 @@ keeps the library's types inside it.
 
 ## Integration-event catalogue
 
-**None yet.** Nothing outside this module reacts to a customization change today,
-because nothing outside it reads customizations yet. The first consumer is the
-renderer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and it
-reads through the generation-keyed cache rather than by subscription — a cache
+**None yet.** Nothing outside this module reacts to a customization change
+through events. P02d-2 Step 1 introduces contextual exact reads for write validation;
+The public renderer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md)
+will read through the generation-keyed cache rather than by subscription — a cache
 key that changes is a cheaper invalidation than an event every pod has to
 receive. An event becomes owed when a second module needs to *act* on a change
 rather than merely notice it; [Phase 04](../../roadmap/phase-04-cms-media-pages.md)

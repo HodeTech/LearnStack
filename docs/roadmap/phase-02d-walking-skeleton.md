@@ -399,15 +399,18 @@ marketplace commerce. Future commerce feasibility does not block this packet.
 **Accepted — 2026-10-02.** The maintainer approved ADR-0050, ADR-0051 and the exact
 packet statements, inventory and four-step plan below, then requested documentation
 updates and a wait. Current gate cells and ADR lifecycle/index records are updated;
-new source proofs are Registered, not Implemented. The original G3 question,
-P02d-1 accepted answer and delivery record are preserved. No implementation started.
+new source proofs were Registered at acceptance. The original G3 question,
+P02d-1 accepted answer and delivery record are preserved. At acceptance, implementation
+had not started; the [delivery record](#p02d-2-implementation-delivery-2026-10-02)
+tracks the subsequently resumed work.
 
 #### G3 supersession (2026-10-02)
 
 ADR-0050 supersedes ADR-0048's public-only implication. Independent `draft → published`
 states, one-root publication and no version snapshot remain unchanged. Explicit
 Course content policy is inherited by lessons: `public` or `enrollment_required`.
-Legacy rows backfill restricted; migration is still to be implemented in P02d-2.
+Legacy rows backfill restricted; the migration was planned for P02d-2 and is now
+recorded in the Step 1 delivery below.
 
 This dated entry governs the current P02d-2/4/6 criteria wherever the inherited
 packet text below describes publication as sufficient for anonymous body access:
@@ -608,6 +611,15 @@ and migration forward/down/reapply. Full format verification and the TRX executi
 count/zero-skip checks passed. Markdown validation checked 2,137 local references
 and 487 fragments across 34 files against the preparation baseline; P02d-1's frozen
 record and all Accepted ADR bodies remain unchanged. `git diff --check` passed.
+
+**Step 1 review round 1.** The policy/contract implementation is `682f858`. Two
+independent agents found no production defect. Verified gaps in positive/sibling/foreign
+setting proofs and disabled/foreign locale proofs were corrected independently of
+invalid-default configuration checks. All five strengthened foundation tests pass,
+including a disposable predecessor-schema proof for a disabled legacy default.
+Current README, glossary and module/standard
+status statements were aligned with the delivered foundation. A broader Docker
+regression run passed all 228 cases, with zero skips. Round 2 remains pending.
 
 Steps 2–4 remain pending. Step 1 is complete only after both fresh review rounds;
 review outcomes and commit references are recorded here at that point.

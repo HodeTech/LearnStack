@@ -226,12 +226,12 @@ var msg = _stringLocalizer["course.publish.success"];
 > exists today. The remaining request handling is in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
-**Accepted G13 answer — 2026-10-02, not implemented.** The
+**G13 reader implemented in P02d-2 Step 1 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#locale-guarantees-and-read-contract)
 selects no platform registry: use LocaleTag's existing grammar, canonicalization and
 35-character bound, then the tenant's enabled membership. No locale rows authorize
 no content locale, rather than an implicit `en`. Request G6(b) and display G24 remain
-their later packet parts.
+their later packet parts. Locale command admission follows in P02d-2 Step 2.
 
 ## Right-to-Left
 

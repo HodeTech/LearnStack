@@ -45,11 +45,12 @@ organization-scoped where it makes sense.
 
 ## 2. Generic primitive renderers
 
-**P02d-2 accepted presentation — 2026-10-02, not implemented.**
+**P02d-2 presentation foundation — 2026-10-02, Step 1 implemented.**
 [ADR-0051](../decisions/0051-ordered-text-card-presentation.md) adds optional root
 ordered `x-fields` metadata and a plain-string `default-card` profile. The two seed
-types opt in; legacy schemas remain valid. The wider renderer set below is a target,
-not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
+types opt in; the parser and exact reader validate metadata, and legacy schemas remain
+valid. Browser rendering belongs to P02d-6. The wider renderer set below is a
+target, not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
 
 > **Accepted subset; renderer placement remains open.** ADR-0051 selects plain-string
 > text cards with authored order and labels; Phase 02d adds no Markdown or active sink.

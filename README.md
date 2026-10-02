@@ -68,8 +68,9 @@ items, rules, custom fields and notification templates; their delivery is tracke
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
-with four implementation steps. Documentation is updated; command handlers and seed
-writes have not started. Implementation waits at the maintainer's request.
+with four implementation steps. Step 1 implements the access policy, exact
+definition/locale readers, text-card metadata validation and seed verification queries.
+Its review is in progress; command writers and seed execution follow in Steps 2–4.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 

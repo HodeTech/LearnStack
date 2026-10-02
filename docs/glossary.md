@@ -62,7 +62,7 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 |------|------------|
 | **Enrollment** | A learner's grant of access to a specific course (and specific course version). |
 | **Course Access** | A *learner's* right to open a specific course, derived from an `Enrollment` (or from a tenant-side purchase, cohort membership, or admin grant). Evaluated inside the Enrollment module against tenant data. **Not an Entitlement** — see *Feature Flags & Entitlements*. The two words were used interchangeably in earlier drafts; they are different subjects (a learner versus a tenant), different owners (LearnStack versus Hub), and different lifecycles. |
-| **Course Content Access Policy** | Accepted creation-time Course classification `public` or `enrollment_required`, inherited by lessons under [ADR-0050](decisions/0050-publication-and-course-content-access.md). Distinct from publication, tenant entitlements and a particular learner's Course Access. Accepted 2026-10-02; not implemented yet. |
+| **Course Content Access Policy** | Accepted creation-time Course classification `public` or `enrollment_required`, inherited by lessons under [ADR-0050](decisions/0050-publication-and-course-content-access.md). Distinct from publication, tenant entitlements and a particular learner's Course Access. Implemented in P02d-2 Step 1; public-read enforcement belongs to P02d-4. |
 | **Cohort** | A group of learners progressing through the same course version on a shared timeline. Cohorts may have scheduled live sessions. |
 | **Progress** | The learner's recorded advancement against the structure of a course version. |
 
@@ -140,13 +140,13 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 ## Extension Model
 
-Accepted P02d-2 contract terms are not implemented interfaces or extensions:
+P02d-2 Step 1 implements these contextual contracts and metadata validation:
 
 | Term | Definition |
 |---|---|
-| **`IExactCustomizationDefinitionReader`** | Accepted, not implemented, contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-accepted-exact-write-contract). |
-| **`ITenantLocaleEligibilityReader`** | Accepted, not implemented, contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
-| **`x-fields`** | Accepted, not implemented, optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
+| **`IExactCustomizationDefinitionReader`** | Contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-accepted-exact-write-contract). |
+| **`ITenantLocaleEligibilityReader`** | Contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
+| **`x-fields`** | Optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 
 | Term | Definition |
 |------|------------|

@@ -61,10 +61,10 @@ public sealed class TenantContentType
     /// <remarks>
     /// As authored only on the instance a caller built: the column is <c>jsonb</c>, so
     /// an instance materialized from the row carries the same members and values but
-    /// not the author's key order or whitespace. How a content type's field order and
-    /// labels are carried is G18 in
-    /// <see href="../../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">Phase 02d's decision register</see>,
-    /// whose pass edits this remark with its answer.
+    /// not the author's key order or whitespace. Optional root <c>x-fields</c> stores
+    /// field order as an array and labels as Pattern-B values, per
+    /// <see href="../../../../../docs/decisions/0051-ordered-text-card-presentation.md">ADR-0051</see>.
+    /// Its semantic resolver validates the bounded text-card profile before registration.
     /// </remarks>
     public string JsonSchema { get; private set; }
 
