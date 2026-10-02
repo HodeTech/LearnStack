@@ -13,7 +13,8 @@ verification queries, explicitly classified Off. Step 3 implements six writers; 
 review rounds and a focused fix review passed. Step 4 completes the seed after both
 review rounds. P02d-2 is complete and merged — 2026-10-02; its
 [merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
-records final verification. P02d-3 read internals are next.
+records final verification. P02d-3 read internals are complete and unmerged; P02d-4
+public reads are next.
 The diagram includes the access column.
 
 ## Overview

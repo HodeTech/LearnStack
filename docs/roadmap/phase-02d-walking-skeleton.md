@@ -1482,6 +1482,15 @@ OpenAPI/SDK drift gates and request-level Education isolation. P02d-5/6 provide
 SSR and rendering; P02d-7 provides the full-stack demonstration and exit proof.
 
 
+**PR documentation correction — 2026-10-02.** After PR #24 opened, two CodeRabbit
+Minor findings were verified against the current files: the Education spec still
+named P02d-3 as next, and the roadmap index lacked a sentence terminator. Both
+are corrected. Education now records P02d-3 complete/unmerged and P02d-4 next.
+The fix changes no backend source or test; the 2637-case execution evidence
+remains applicable. Final Markdown link/fragment and diff checks pass; required
+CI is rechecked against the final documentation head before handoff.
+
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
