@@ -692,6 +692,19 @@ unique constraints retained `internal_error`; hidden collisions disclosed no roo
 identity. Full format verification, Markdown links/anchors and `git diff --check`
 passed. This step changes no EF model or migration. Two fresh review rounds follow.
 
+**Step 3 Round 1.** Fresh GPT-6 Astra (high) security/transaction and Claude Sonnet 5
+(high) contract/validation/corpus reviews both returned Approve. The security reviewer
+independently reran all 14 Education writer database cases. Two verified Minor test
+findings were fixed: validator tests now resolve the registered internal validators
+through DI, and organization-scoped translation/publication attempts against a visible
+tenant-wide Lesson explicitly assert refusal and unchanged state. The optional
+unreachable policy-switch suggestion is not a defect: the composed validator admits
+exactly the two explicit values, and the domain guards its closed enum. No production
+change was justified. Round 2 uses new review sessions after the fixes.
+Release build, all 16 validator cases and all 14 writer database cases passed again,
+without failures/skips. Full format verification exited zero; links/anchors and the
+unchanged P02d-1 suffix check passed.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

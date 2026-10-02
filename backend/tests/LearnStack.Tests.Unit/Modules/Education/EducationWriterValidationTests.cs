@@ -3,12 +3,17 @@ using FluentValidation;
 using LearnStack.Modules.Education.Application;
 using LearnStack.Modules.Education.Application.Contracts.Courses;
 using LearnStack.Modules.Education.Application.Contracts.Lessons;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Modules.Education;
 
-public sealed class EducationWriterValidationTests
+public sealed class EducationWriterValidationTests : IDisposable
 {
+    private readonly ServiceProvider _provider = Build();
+
+    public void Dispose() => _provider.Dispose();
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -77,6 +82,12 @@ public sealed class EducationWriterValidationTests
         Validator<PublishLessonCommand>().Validate(new(Guid.Empty, 0)).IsValid.Should().BeFalse();
     }
 
-    private static IValidator<T> Validator<T>() => (IValidator<T>)Activator.CreateInstance(
-        typeof(AssemblyMarker).Assembly.GetType("LearnStack.Modules.Education.Application.Writing." + typeof(T).Name + "Validator", true)!)!;
+    private IValidator<T> Validator<T>() => _provider.GetRequiredService<IValidator<T>>();
+
+    private static ServiceProvider Build()
+    {
+        var services = new ServiceCollection();
+        services.AddValidatorsFromAssembly(typeof(AssemblyMarker).Assembly, includeInternalTypes: true);
+        return services.BuildServiceProvider();
+    }
 }

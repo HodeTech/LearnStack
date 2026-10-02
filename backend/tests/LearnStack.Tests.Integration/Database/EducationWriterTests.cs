@@ -126,6 +126,12 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         (await SendAsync(source, orgA, new PublishCourseCommand(wide.Id, wide.Version))).Error!.Code.Should().Be("resource_scope_violation");
         (await SendAsync(source, orgA, new AddCourseTranslationCommand(wide.Id, wide.Version, "en", "Wide", null, "wide")))
             .Error!.Code.Should().Be("resource_scope_violation");
+        var wideLesson = await LessonAsync(source, context, wide.Id);
+        var wideLessonBefore = await LessonStateAsync(source, context, wideLesson.Id);
+        (await SendAsync(source, orgA, new AddLessonTranslationCommand(wideLesson.Id, wideLesson.Version, "en", "Wide", "wide", Body)))
+            .Error!.Code.Should().Be("resource_scope_violation");
+        (await SendAsync(source, orgA, new PublishLessonCommand(wideLesson.Id, wideLesson.Version)))
+            .Error!.Code.Should().Be("resource_scope_violation");
         foreach (var hidden in new[] { scoped.Id, foreignCourse.Id, Guid.CreateVersion7() })
         {
             (await SendAsync(source, orgB, new CreateLessonCommand(Guid.CreateVersion7(), hidden, 0, "shape", 1)))
@@ -146,6 +152,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
             .Error!.Code.Should().Be("not_found");
         (await CourseStateAsync(source, context, wide.Id)).Version.Should().Be(0);
         (await CourseStateAsync(source, orgA, scoped.Id)).Version.Should().Be(0);
+        (await LessonStateAsync(source, context, wideLesson.Id)).Should().BeEquivalentTo(wideLessonBefore);
         (await LessonStateAsync(source, orgA, child.Id)).Should().BeEquivalentTo(state);
     }
 
