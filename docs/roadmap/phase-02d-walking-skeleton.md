@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) implemented, review pending; Step 3 ahead |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; Step 3 ahead |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -1366,8 +1366,8 @@ module helper dependencies and has planted direct/helper and clean controls.
 Release build has zero warnings/errors; 1584 unit, 186 architecture and 21 focused
 Docker integration cases pass with zero failures/skips. The real guard rejects a
 planted validator dependency in the production snapshot helper, then passes after
-restoration. Formatting and documentation checks pass. Round 1 completed; round 2 remains
-pending. No cache implementation is claimed.
+restoration. Formatting and documentation checks pass. Both review rounds passed.
+No cache implementation is claimed.
 
 **Step 2 review round 1.** Two fresh GPT-5.5 high sessions reviewed
 `4829414..77197b9`. No verified code or SQL finding; two Minor document carriers
@@ -1375,7 +1375,12 @@ still treated G23 or Step 1 review as pending. Both are synchronized. The root's
 additional guard check demonstrated a concrete validator adapter escaped the
 interface-only ban; a planted concrete probe failed before the fix and passes
 with the adapter census. The full architecture suite passes after the fix.
-Round 1 is complete; round 2 remains pending.
+Round 1 is complete.
+
+**Step 2 review round 2.** Two fresh GPT-5.5 xhigh sessions reviewed
+`4829414..94a84ab`. Both approved, with no verified findings. Current-state
+carriers record both rounds as passed; link/fragment and wrapping checks pass.
+Step 3 follows. No public consumer or cache implementation is claimed here.
 
 
 ### P02d-1 decision pass (2026-09-14)

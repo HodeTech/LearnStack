@@ -164,7 +164,8 @@ queries are Off.
 
 ### P02d-3 accepted typed settings contract
 
-**Step 1 implemented — 2026-10-02; both review rounds passed.** `ITenantSettingsAccessor`
+**Step 1 implemented — 2026-10-02; both review rounds passed.**
+`ITenantSettingsAccessor`
 exposes registered typed settings under ADR-0010's application-contract mechanism.
 No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
 admitted. The first production registration is tenant-wide `branding.theme`,

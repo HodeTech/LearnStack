@@ -271,7 +271,8 @@ dirty-scope bypass under ADR-0040/0043. Stable metrics omit the generation:
 states the snapshot/fill contract; TTL is reclamation, not its freshness bound. Schema
 validation remains write-only under ADR-0043; the Implemented
 `Customization_Projection_Does_Not_Validate_On_Read` guard enforces that
-boundary in P02d-3, with planted interface/concrete/helper offenders and a clean control.
+boundary in P02d-3, with planted interface/concrete/helper offenders and a clean
+control.
 
 **Settings are uncached in P02d-2/3.** The
 [Accepted G23 freshness answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)

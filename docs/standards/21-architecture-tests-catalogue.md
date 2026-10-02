@@ -1285,8 +1285,9 @@ otherwise).
 - **Source:** ADR-0043 and [Standards 20's projection cache contract](20-infrastructure-stack.md#icacheservice-state).
 - **Type:** xUnit + Mono.Cecil. **Kind:** structural.
 - **Status:** **Implemented** (`CustomizationProjectionTests`). The companion
-  `Projection_validator_guard_detects_direct_and_helper_dependencies` proves interface, concrete-adapter
-  and module-helper dependencies are detected, with a clean negative control.
+  `Projection_validator_guard_detects_direct_and_helper_dependencies` proves
+  interface, concrete-adapter and module-helper dependencies are detected, with
+  a clean negative control.
 - **Phase:** 02d (P02d-3).
 
 ### Persistence: concurrency and the unit of work
