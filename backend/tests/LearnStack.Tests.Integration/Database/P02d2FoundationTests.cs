@@ -37,12 +37,25 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
     [Fact]
     public async Task Exact_reads_distinguish_new_bindings_from_pins_and_preserve_stored_descriptor_order()
     {
-        await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
+        // Audit reconciliation writes independently of a rolled-back business frame.
+        // Isolate this writer proof from the shared fixture's exact audit row counts.
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
         await using var provider = SeedComposition.Build(dataSource, new Context(SchemaFixture.TenantA), NullLoggerFactory.Instance);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
         await unit.SetTenantContextAsync(scope.ServiceProvider.GetRequiredService<ITenantContext>());
+        await using (var setup = new NpgsqlCommand("""
+            INSERT INTO tenants (id, slug, display_name, status, created_at, created_by, row_version)
+            VALUES (@tenant, 'definition-proof', 'Definition', 'Trial', now(), @actor, 0)
+            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!))
+        {
+            setup.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            setup.Parameters.AddWithValue("actor", UserId.SystemActor.Value);
+            await setup.ExecuteNonQueryAsync();
+        }
+
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
         var reader = scope.ServiceProvider.GetRequiredService<IExactCustomizationDefinitionReader>();
         var first = Guid.CreateVersion7();

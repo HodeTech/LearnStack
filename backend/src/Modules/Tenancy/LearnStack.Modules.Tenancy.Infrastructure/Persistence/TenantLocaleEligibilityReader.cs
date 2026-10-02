@@ -28,8 +28,7 @@ public sealed class TenantLocaleEligibilityReader(TenancyDbContext context, ITen
         var tenant = await context.Tenants.AsNoTracking().Include(row => row.Locales)
             .SingleOrDefaultAsync(row => row.Id == tenantContext.TenantId && row.DeletedAt == null,
                 cancellationToken);
-        if (tenant is null || tenant.Locales.Any(row => row.IsDefault && !row.IsEnabled)
-            || (tenant.Locales.Any(row => row.IsEnabled) && tenant.Locales.Count(row => row.IsDefault) != 1))
+        if (tenant is null || !tenant.HasValidLocaleConfiguration())
         {
             return Refused();
         }

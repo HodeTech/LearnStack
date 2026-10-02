@@ -1,9 +1,9 @@
 # Module Spec — Tenancy
 
-**Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the
-schema and its schema-level isolation suite; commands, host resolution and the
-request-level isolation suite shipped in Packet 7). P02d-2 locale/branding writers
-have Accepted contracts as of 2026-10-02, not implemented writers.
+**Status:** Design stable, partially implemented (Phase 02a Packet 6 shipped the schema
+and its schema-level isolation suite; commands, host resolution and the request-level
+isolation suite shipped in Packet 7). P02d-2 Step 1 adds contextual verification/locale
+reads; Step 2 implements locale/branding writers, with review pending.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -75,11 +75,11 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
 
 ## P02d-2 accepted locale and branding contract
 
-**Accepted design, not implemented — 2026-10-02.** The
-[phase package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
+**Step 2 implemented, review pending — 2026-10-02.** The [phase
+package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 records approval and seed inventory. All three commands are unrouted, require resolved
-tenant-wide context and write one aggregate; organization context is refused rather
-than silently promoted to tenant scope. Tenant ids are not caller authority.
+tenant-wide context and write one aggregate; organization context is refused rather than
+silently promoted to tenant scope. Tenant ids are not caller authority.
 
 | Command | Root and contract |
 |---|---|
@@ -89,19 +89,20 @@ than silently promoted to tenant scope. Tenant ids are not caller authority.
 
 ### Locale guarantees and read contract
 
-Zero locale rows or an all-disabled set is valid. Supported commands leave exactly
-one enabled default whenever any enabled locale exists. Adding the first enabled
-locale promotes it even if disabled rows already exist. Validate pre-existing sets
-before every mutation: multiple defaults, a disabled default or enabled rows without
+Zero locale rows or an all-disabled set is valid. Supported commands leave exactly one
+enabled default whenever any enabled locale exists. Adding the first enabled locale
+promotes it even if disabled rows already exist. Validate pre-existing sets before every
+supported locale mutation: multiple defaults, a disabled default or enabled rows without
 a default are refused without choosing a winner or changing root/captured state.
-Move disabled-target validation ahead of `SetDefaultLocale`'s `MarkUpdated`.
+Disabled-target and existing-configuration validation precede `SetDefaultLocale`'s
+`MarkUpdated`.
 
 Reuse the existing two-pass default switch in `TenancyWriteStores`, within the
 command's ambient transaction. An injected second-save failure must roll back the
 first clear, proven from a fresh scope. A raw store call outside the transaction
 does not acquire that guarantee.
 
-Keep the shipped partial unique index (at most one default), and add
+The shipped partial unique index still enforces at most one default; Step 2 adds
 `CHECK (NOT is_default OR is_enabled)` in a new migration. Existing disabled-default
 rows fail migration preflight/validation for explicit operator remediation; never
 choose a locale automatically. The CHECK cannot detect enabled-without-default;
@@ -149,11 +150,12 @@ public projection; never emit raw JSON or partial unsafe colors. G16(f/g) and G4
 still own transport, attribution and injection. Authoring this baseline theme is
 not gated by `tenancy.white_label_branding` in P02d-2.
 
-Before the first writer, mark generic `TenantSetting.Value` `[PiiSensitive]`; logs and
-audit redact the whole JSON value under ADR-0044. Public allowlisting is independent
-of this conservative annotation and never permits generic settings disclosure.
-The setting write is MUST; locale writes are SHOULD over their owning Tenant root,
-including contained locale changes. Contextual seed verification queries are Off.
+Generic `TenantSetting.Value` carries `[PiiSensitive]`; audit capture redacts the whole
+JSON value under ADR-0044. Pipeline logs do not serialize request payloads. Public
+allowlisting is independent of this conservative annotation and never permits generic
+settings disclosure. The setting write is MUST; locale writes are SHOULD over their
+owning Tenant root, including contained locale changes. Contextual seed verification
+queries are Off.
 
 No settings cache in P02d-2/3: no generation migration, TTL or cross-process stale
 entry. P02d-3 implements the typed ambient accessor; it explicitly reads tenant-wide
@@ -183,7 +185,8 @@ its three commands touches `TenantDomain`, `TenantSetting`, `TenantLocale` or
 raising `tenancy.locale.write` and `tenancy.setting.write` — belong to P02d-2.
 The [accepted contract](#p02d-2-accepted-locale-and-branding-contract) names
 `AddTenantLocaleCommand`, `SetDefaultTenantLocaleCommand` and
-`SetTenantBrandingCommand`; their handlers are not implemented yet. Provisioning writing
+`SetTenantBrandingCommand`; Step 2 implements all three as unrouted tenant-wide
+writers. Provisioning writing
 `Tenant` and its default `Organization` in one transaction is sanctioned by
 enumeration in
 [ADR-0042](../../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
@@ -483,7 +486,7 @@ request and are the only Tenancy work an anonymous visitor pays for.
 - **At most one default is already enforced.** The shipped partial unique index
   `UNIQUE (tenant_id) WHERE is_default` prevents competing defaults. It does not
   require a default whenever enabled locales exist. P02d-2's accepted command
-  contract above closes that supported-write gap when implemented and adds a
+  contract above closes that supported-write gap; Step 2 also adds the
   default-enabled CHECK;
   arbitrary raw deletes do not gain an exactly-one database guarantee.
 - **Nothing stops a tenant claiming a hostname it does not own.**

@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -58,6 +59,7 @@ public sealed class TenantSetting
     public string Key { get; private set; }
 
     /// <summary>The value, as JSON. The shape is the caller's to know.</summary>
+    [PiiSensitive]
     public string Value { get; private set; }
 
     public static TenantSetting Create(

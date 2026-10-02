@@ -431,6 +431,9 @@ public sealed class ProvisionTenantCommandTests
 
         public List<TenantAggregate> Updated { get; } = [];
 
+        public Task<TenantAggregate?> FindAsync(TenantId id, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Provisioning does not read a tenant.");
+
         Task IAggregateWriteStore<TenantAggregate, TenantId>.AddAsync(
             TenantAggregate aggregate, CancellationToken cancellationToken)
         {

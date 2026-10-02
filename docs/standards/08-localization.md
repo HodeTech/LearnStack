@@ -231,7 +231,8 @@ var msg = _stringLocalizer["course.publish.success"];
 selects no platform registry: use LocaleTag's existing grammar, canonicalization and
 35-character bound, then the tenant's enabled membership. No locale rows authorize
 no content locale, rather than an implicit `en`. Request G6(b) and display G24 remain
-their later packet parts. Locale command admission follows in P02d-2 Step 2.
+their later packet parts. P02d-2 Step 2 implements locale command admission and the
+default-enabled CHECK; request-language negotiation is not part of those writers.
 
 ## Right-to-Left
 

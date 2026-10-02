@@ -47,6 +47,11 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
 {
+    public Task<Tenant?> FindAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
+        CancellationToken cancellationToken = default) => db.Tenants.AsSingleQuery()
+        .Include(tenant => tenant.Locales).Include(tenant => tenant.FeatureFlags)
+        .SingleOrDefaultAsync(tenant => tenant.Id == id, cancellationToken);
+
     public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {
         db.Tenants.Add(aggregate);
@@ -57,6 +62,25 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
     {
         EnsureTracked(db, aggregate);
         await SaveDefaultLocaleInTwoPassesAsync(db, cancellationToken);
+    }
+}
+
+/// <summary>One tracked setting root, on the same announced ambient context.</summary>
+public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettingWriteStore
+{
+    public Task<TenantSetting?> FindAsync(TenantSettingId id, CancellationToken cancellationToken = default) =>
+        db.TenantSettings.SingleOrDefaultAsync(setting => setting.Id == id, cancellationToken);
+
+    public Task AddAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
+    {
+        db.TenantSettings.Add(aggregate);
+        return SaveTranslatingConflictsAsync(db, cancellationToken);
+    }
+
+    public Task UpdateAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
+    {
+        EnsureTracked(db, aggregate);
+        return SaveTranslatingConflictsAsync(db, cancellationToken);
     }
 }
 
@@ -133,15 +157,18 @@ internal static class TenancyWriteStoreTracking
     /// promotions are released and saved. A partial unique index permits ZERO defaults —
     /// it forbids two — so the state between the two saves is one the schema allows, and
     /// both saves are inside the caller's transaction, so no one else observes it.
-    /// Domain state is never touched: only which properties EF considers pending.
+    /// The tracker temporarily lowers incoming defaults (Added or Modified), restores
+    /// them before the second save and retains the final aggregate state on success.
+    /// A failed mutation poisons the ambient unit in the locale handler; its rollback
+    /// undoes the first save even if a nested caller absorbs the refusal.
     /// </para>
     /// </remarks>
     internal static async Task SaveDefaultLocaleInTwoPassesAsync(
         TenancyDbContext db, CancellationToken cancellationToken)
     {
         var promotions = db.ChangeTracker.Entries<TenantLocale>()
-            .Where(entry => entry.State == EntityState.Modified
-                && entry.Property(locale => locale.IsDefault).IsModified
+            .Where(entry => (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                && (entry.State == EntityState.Added || entry.Property(locale => locale.IsDefault).IsModified)
                 && entry.Property(locale => locale.IsDefault).CurrentValue)
             .ToList();
 

@@ -186,7 +186,7 @@ consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
 
 ## P02d-2 accepted exact write contract
 
-**Step 1 implemented, review in progress — 2026-10-02.** An application interface in
+**Step 1 implemented, both reviews passed — 2026-10-02.** An application interface in
 `Customization.Application.Contracts` resolves an exact content-type or taxonomy
 revision for the caller's announced tenant. DTOs contain values only: key, version,
 status, JSON Schema/composite and validated presentation, or immutable bands/labels.

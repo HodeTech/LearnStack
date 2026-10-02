@@ -595,7 +595,7 @@ and wait record remains historical; work now follows the four accepted steps on
 **development**. No public endpoint, marketplace commerce or authorization grant
 is introduced by P02d-2.
 
-**Step 1 — policy and contract foundation, review pending.** Course creation takes
+**Step 1 — policy and contract foundation, complete.** Course creation takes
 an explicit closed policy. The additive Education migration defaults/backfills
 `enrollment_required`, preserving existing content and scope; technical Down is
 proved only in a disposable database, not approved as a live public-reader rollback.
@@ -619,10 +619,35 @@ invalid-default configuration checks. All five strengthened foundation tests pas
 including a disposable predecessor-schema proof for a disabled legacy default.
 Current README, glossary and module/standard
 status statements were aligned with the delivered foundation. A broader Docker
-regression run passed all 228 cases, with zero skips. Round 2 remains pending.
+regression run passed all 228 cases, with zero skips. Fixes are `a8a51ce`.
 
-Steps 2–4 remain pending. Step 1 is complete only after both fresh review rounds;
-review outcomes and commit references are recorded here at that point.
+**Step 1 review round 2.** Fresh agents independently returned Approve for
+`45805c8..a8a51ce`, with no actionable findings. Security review used `gpt-6-astra`
+(high); profile/corpus review used `gpt-6.1-sol` (xhigh). Independent runs passed 116
+profile/registration unit cases, six foundation/migration Docker cases and all 177
+architecture cases, with zero skips. Links/anchors and the frozen P02d-1 suffix passed.
+Step 1 is complete after both requested rounds.
+
+**Step 2 — Tenancy writers, implementation verification and review pending.**
+Three unrouted tenant-wide commands implement locale addition/default selection and
+complete branding creation/exact replacement. Existing locale configurations are
+validated before mutation; the first enabled locale is promoted even after disabled
+rows. Two-pass default saving also handles newly Added defaults. The additive CHECK
+refuses disabled defaults and never repairs legacy data automatically. Generic setting
+JSON is wholly redacted at capture. Palette fields and CSS mappings share a closed
+registry, with per-pair contrast admission and no entitlement gate. Failed saves after
+mutation mark the ambient unit rollback-only. Steps 3–4 remain pending.
+
+**Step 2 pre-review verification.** Release build passed with zero warnings/errors.
+Docker-free tests passed: 1,538 unit, 177 architecture, 171 integration and one
+contract. The expanded Docker regression group passed all 75 cases, including
+composition, locale/default and branding writers, whole-value audit redaction,
+concurrent creates/replacements, MUST audit failure, injected second-save rollback,
+invalid legacy refusal and migration forward/down/reapply. Execution-count checks
+confirmed zero skips. The broader group also exposed a test-isolation defect in
+Step 1's writing foundation case: its independent audit rows survived the business
+rollback in the shared fixture. That case now owns a disposable database; the full
+75-case group passes without leaking rows into other tests.
 
 ### P02d-1 decision pass (2026-09-14)
 

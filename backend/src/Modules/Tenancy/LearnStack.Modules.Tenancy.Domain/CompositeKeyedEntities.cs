@@ -46,7 +46,7 @@ public sealed class TenantLocale : ITenantOwned
     /// </remarks>
     public string Locale { get; private set; }
 
-    /// <summary>Exactly one locale per tenant carries this.</summary>
+    /// <summary>Exactly one enabled locale carries this when any locale is enabled.</summary>
     public bool IsDefault { get; private set; }
 
     /// <summary>A disabled locale keeps its translations but is not offered.</summary>
@@ -73,6 +73,7 @@ public sealed class TenantLocale : ITenantOwned
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
         MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, nameof(locale));
         LocaleTag.EnsureWellFormed(locale, nameof(locale));
+        ArgumentOutOfRangeException.ThrowIfNegative(sort);
 
         TenantOwnership.EnsureRealTenant(tenantId, "A locale belongs to a tenant.", nameof(tenantId));
 

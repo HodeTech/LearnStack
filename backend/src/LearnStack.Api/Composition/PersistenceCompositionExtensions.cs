@@ -282,6 +282,7 @@ public static class PersistenceCompositionExtensions
         // and the reverse reference is already a cycle — so these ports are how the first
         // production handler reaches persistence at all.
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
+        services.TryAddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 

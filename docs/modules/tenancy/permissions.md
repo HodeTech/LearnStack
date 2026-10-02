@@ -3,9 +3,9 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-2 accepted design — 2026-10-02.** The
+**P02d-2 Step 2 writers — 2026-10-02.** The
 [locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
-are planned unrouted tenant-wide seed operations, with no registered permission or
+are implemented unrouted tenant-wide operations, with no registered permission or
 organization override. Their eventual identity-backed permission admission remains
 Phase 03. This note grants no HTTP or Hub-internal reachability for the new commands.
 
@@ -17,23 +17,24 @@ exists in `backend/src` yet; the catalogue lands with the Identity module in
 [Phase 03](../../roadmap/phase-03-identity-admin.md), together with `Role`,
 `Permission` and the lighting-up of the `AuthorizationBehavior` shell.
 
-**Three handlers exist and all are deliberately unauthorized**, for two different
-reasons.
+**Six write handlers exist without identity-backed authorization**, for two
+different reasons. Four contextual verification queries are explicitly audit Off.
+P02d-2 adds no HTTP or Hub-internal route.
 
 `ProvisionTenantCommand` has nothing for a permission check to read: it runs with
 an **unresolved** tenant context by construction — that is what lets it announce
 the tenant it is creating — and attributes the write to `UserId.SystemActor`,
 because provisioning precedes any membership in the tenant being provisioned.
 
-`CreateOrganizationCommand` and `MapHostToTenantCommand` do run resolved, so the
-first argument does not transfer to them. What stands in for authorization is the
-same thing for all three: reachability. None has an HTTP endpoint, so their only
-callers are the seeder and, from
-[Phase 02c](../../roadmap/phase-02c-hub-foundation.md), the Hub over
-`/api/internal/*` — a surface that takes `learnstack-hub` realm tokens and no
-others. Both take their tenant from the context and never from the request, so a
-caller cannot name another tenant even without a permission check; the database
-refuses the write.
+`CreateOrganizationCommand`, `MapHostToTenantCommand` and the three P02d-2 writers do
+run resolved, so the first argument does not transfer to them. What stands in for
+authorization is the same thing for these writers: reachability. None has an HTTP
+endpoint, so their only trusted production caller is the seeder. Provisioning,
+organization and host mapping may also be invoked, from [Phase
+02c](../../roadmap/phase-02c-hub-foundation.md), the Hub over `/api/internal/*` — a
+surface that takes `learnstack-hub` realm tokens and no others. Resolved writers take
+their tenant from the context and never from the request, so a caller cannot name
+another tenant even without a permission check; the database refuses the write.
 
 **`MapHostToTenantCommand` is the one to gate first.** It writes the row that
 decides whose data an anonymous request sees, which makes it the highest-value

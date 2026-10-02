@@ -1,4 +1,6 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Audit;
@@ -12,7 +14,7 @@ namespace LearnStack.Modules.Tenancy.Application.Audit;
 /// <para>
 /// <b>Only the operations whose command exists.</b>
 /// <see href="../../../../../docs/modules/tenancy/audit.md">The matrix</see> carries
-/// fifteen more rows marked <c>(planned)</c> — classification ahead of code — and
+/// thirteen more rows marked <c>(planned)</c> — classification ahead of code — and
 /// registering one of those would claim a writer that does not exist, which is the half
 /// of the join that has no way to notice.
 /// </para>
@@ -43,6 +45,9 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetSettingSeedStateQuery>();
 
         builder
+            .ShouldAudit<AddTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<SetDefaultTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .MustAudit<SetTenantBrandingCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting))
             // TWO entries for one command, and the reason is the whole of ADR-0044 § 3:
             // ProvisionTenantCommand writes two aggregate roots on one transaction and the
             // matrix classifies both MUST. Under a singular reading the Organization row

@@ -58,6 +58,9 @@ public sealed class TenancyAggregateTests
         tenant.AddLocale("tr-TR", isDefault: false, Clock, Actor);
         tenant.AddLocale("en-US", isDefault: false, Clock, Actor, isEnabled: false);
 
+        var version = tenant.Version;
+        var updatedAt = tenant.UpdatedAt;
+        var updatedBy = tenant.UpdatedBy;
         var promoteDisabled = () => tenant.SetDefaultLocale("en-US", Clock, Actor);
 
         promoteDisabled.Should().Throw<InvalidOperationException>()
@@ -65,6 +68,9 @@ public sealed class TenancyAggregateTests
 
         tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR",
             "the refused promotion left the incumbent in place");
+        tenant.Version.Should().Be(version);
+        tenant.UpdatedAt.Should().Be(updatedAt);
+        tenant.UpdatedBy.Should().Be(updatedBy);
     }
 
     [Fact]
@@ -88,6 +94,29 @@ public sealed class TenancyAggregateTests
         tenant.Locales.Should().HaveCount(2);
         tenant.Locales.Count(locale => locale.IsDefault).Should().Be(1);
         tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("tr-TR");
+    }
+
+    [Fact]
+    public void Disabled_rows_do_not_prevent_the_first_enabled_locale_becoming_default()
+    {
+        var tenant = NewTenant();
+        tenant.AddLocale("fr", false, Clock, Actor, isEnabled: false);
+        tenant.AddLocale("de", false, Clock, Actor, isEnabled: false);
+        tenant.HasValidLocaleConfiguration().Should().BeTrue();
+        tenant.Locales.Should().OnlyContain(locale => !locale.IsDefault);
+        tenant.AddLocale("EN-us", false, Clock, Actor);
+        tenant.Locales.Single(locale => locale.IsDefault).Locale.Should().Be("en-US");
+        tenant.HasValidLocaleConfiguration().Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_negative_locale_sort_is_refused_before_root_or_children_change()
+    {
+        var tenant = NewTenant();
+        var add = () => tenant.AddLocale("en", false, Clock, Actor, sort: -1);
+        add.Should().Throw<ArgumentOutOfRangeException>();
+        tenant.Version.Should().Be(0);
+        tenant.Locales.Should().BeEmpty();
     }
 
     [Theory]

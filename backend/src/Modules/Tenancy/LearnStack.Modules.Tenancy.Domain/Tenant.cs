@@ -188,6 +188,7 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     {
         ArgumentNullException.ThrowIfNull(clock);
 
+        EnsureLocaleConfigurationValid();
         var added = TenantLocale.Create(Id, locale, isDefault: false, isEnabled, sort);
 
         if (_locales.Any(existing => string.Equals(
@@ -214,13 +215,8 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         MarkUpdated(clock.UtcNow, updatedBy);
         _locales.Add(added);
 
-        // The FIRST locale is the default whether the caller asked for it or not. The
-        // partial unique index guarantees at most one default; nothing guarantees at
-        // least one, so a tenant whose only locale arrived with isDefault:false has a
-        // non-empty locale set and no default — a state every reader of "the tenant's
-        // default locale" has to handle and none of them expects. Promoting is the only
-        // answer that leaves the aggregate in a state the schema can also express.
-        if (isDefault || (_locales.Count == 1 && isEnabled))
+        // Disabled rows do not consume the first enabled locale's default promotion.
+        if (isDefault || (isEnabled && _locales.Count(candidate => candidate.IsEnabled) == 1))
         {
             PromoteDefault(added);
         }
@@ -232,14 +228,35 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
 
+        MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, nameof(locale));
+        LocaleTag.EnsureWellFormed(locale, nameof(locale));
+        EnsureLocaleConfigurationValid();
         var canonical = LocaleTag.Canonicalize(locale);
         var target = _locales.FirstOrDefault(existing => string.Equals(
                          existing.Locale, canonical, StringComparison.Ordinal))
             ?? throw new InvalidOperationException(
                 $"This tenant does not publish in '{canonical}', so it cannot be the default.");
 
+        if (!target.IsEnabled)
+        {
+            throw new InvalidOperationException("A disabled locale cannot be the default.");
+        }
+
         MarkUpdated(clock.UtcNow, updatedBy);
         PromoteDefault(target);
+    }
+
+    /// <summary>Zero/all-disabled rows are valid; enabled rows require one enabled default.</summary>
+    public bool HasValidLocaleConfiguration() =>
+        !_locales.Any(locale => locale.IsDefault && !locale.IsEnabled)
+        && (!_locales.Any(locale => locale.IsEnabled) || _locales.Count(locale => locale.IsDefault) == 1);
+
+    private void EnsureLocaleConfigurationValid()
+    {
+        if (!HasValidLocaleConfiguration())
+        {
+            throw new InvalidOperationException("The existing locale configuration is invalid; remediate it explicitly.");
+        }
     }
 
     /// <summary>Removes a locale, which must not be the default.</summary>
@@ -248,6 +265,9 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(locale);
 
+        MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, nameof(locale));
+        LocaleTag.EnsureWellFormed(locale, nameof(locale));
+        EnsureLocaleConfigurationValid();
         var canonical = LocaleTag.Canonicalize(locale);
         var target = _locales.FirstOrDefault(existing => string.Equals(
                          existing.Locale, canonical, StringComparison.Ordinal))

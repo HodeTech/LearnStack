@@ -163,7 +163,8 @@ internal sealed class TenantLocaleConfiguration : IEntityTypeConfiguration<Tenan
 {
     public void Configure(EntityTypeBuilder<TenantLocale> builder)
     {
-        builder.ToTable("tenant_locales");
+        builder.ToTable("tenant_locales", table => table.HasCheckConstraint(
+            "ck_tenant_locales_default_enabled", "NOT is_default OR is_enabled"));
 
         // Composite natural key, no surrogate id: a second row for the same
         // tenant and locale is not a second locale, it is a duplicate.

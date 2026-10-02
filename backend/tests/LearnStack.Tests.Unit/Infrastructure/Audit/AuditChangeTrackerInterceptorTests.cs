@@ -26,12 +26,10 @@ namespace LearnStack.Tests.Unit.Infrastructure.Audit;
 /// measure exactly what a save would have given it.
 /// </para>
 /// <para>
-/// The entities are the suite's own, and that is not laziness: neither redaction gate has
-/// a shipped consumer yet. No property in Tenancy or Customization carries
-/// <see cref="PiiSensitiveAttribute"/> and none is named for a
-/// <see cref="SensitiveTokenCatalog"/> token — the first personal data lands with Identity
-/// in Phase 03. A gate with no test until its first consumer arrives is a gate that ships
-/// wrong and is discovered by the consumer.
+/// Synthetic entities independently constrain both redaction gates. P02d-2 adds the
+/// first production marker on generic TenantSetting.Value; its real composed capture
+/// and durable audit proof lives in the integration TenancyWriterTests. These cases
+/// retain coverage of inheritance, name tokens and whole JSON redaction.
 /// </para>
 /// </remarks>
 public sealed class AuditChangeTrackerInterceptorTests
