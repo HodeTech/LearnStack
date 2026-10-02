@@ -40,8 +40,9 @@ or supplies enrollment, learner identity, commerce or live-session data.
 The data set is the input; there is no `--tenants` flag. The production entry point
 uses `SeedData.All`. `SeedRunner.RunAsync` accepts alternate declarations for tests.
 Connection configuration arrives in the environment, not command-line arguments.
-`scripts/seed.sh` refuses a role other than `learnstack_app`; using an owner or
-BYPASSRLS role would erase the evidence the seed is meant to provide.
+Both `scripts/seed.sh` and the direct tool refuse a role other than `learnstack_app`.
+The shared application data-source guard also refuses direct or transitive access
+to a BYPASSRLS/superuser role on every physical connection.
 
 ## Workflow
 
@@ -123,8 +124,13 @@ IDs; contract-local IDs cross the module boundary as Guid under ADR-0023.
 - If another run has not completed the exact act yet, this run fails safely. Re-run
   explicitly after the competitor finishes; a failed command is not convergence.
 
-The process entry point catches an exception, logs failure and exits 1. Completed
-acts remain durable; a later explicit run resumes the remaining acts.
+The process entry point exits 2 for missing connection configuration, 1 for a
+refused credential or run failure, and 0 for a completed run. Completed acts remain
+durable; a later explicit run resumes the remaining acts. If a different revision
+becomes Active between registration's pre-read and post-read, the newly committed
+Draft, generation increment and audit remain durable; the run refuses and requires
+explicit operator reconciliation. It does not retire either revision or undo an
+already committed act.
 
 ### 5. Verify
 
@@ -136,8 +142,10 @@ provisioning race, semantic JSON equivalence and mismatches without overwrites.
 customization reads; expected projections come from `SeedData`.
 
 The [caller fence](../../../docs/standards/21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters)
-and planted companion catch calls, method groups, private transactions, accessor
-assignment and announcing SQL. G20(a)'s literal reader observes the actual declaration
+and planted companions catch calls, method groups, private transactions, accessor
+assignment, announcing SQL, direct EF mutations and ad hoc database commands.
+A separate guard requires the direct tool to build its pool through the shared
+application-role guard. G20(a)'s literal reader observes the actual declaration
 and fails on unreadable/empty data. The complete demo-literal production-branch guard
 remains Registered for P02d-5/6 scope and P02d-7 exit.
 

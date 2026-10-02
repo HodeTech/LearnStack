@@ -1,7 +1,7 @@
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using Microsoft.Extensions.Logging;
-using Npgsql;
+using LearnStack.Infrastructure.Persistence;
 
 // The seeder is a host without an HTTP surface, and it exists so the two demo tenants are
 // written by the same commands a request writes them with — ADR-0042 requires that: a
@@ -27,15 +27,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 // One data source for the whole run, shared by every per-act provider: a seeder that
 // opened a pool per command would leave an idle connection behind for each one.
-await using var dataSource = NpgsqlDataSource.Create(connectionString);
 using var loggerFactory = LoggerFactory.Create(logging => logging.AddSimpleConsole());
-
-var runner = new SeedRunner(
-    context => SeedComposition.Build(dataSource, context, loggerFactory),
-    loggerFactory.CreateLogger<SeedRunner>());
 
 try
 {
+    await using var dataSource = ApplicationDataSource.Build(connectionString);
+    var runner = new SeedRunner(
+        context => SeedComposition.Build(dataSource, context, loggerFactory),
+        loggerFactory.CreateLogger<SeedRunner>());
     return await runner.RunAsync(CancellationToken.None);
 }
 catch (Exception failure)

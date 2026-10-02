@@ -734,8 +734,10 @@ public sealed class UnitOfWorkTests
             "every isolation assertion in this suite is vacuous against a bypass role");
     }
 
-    [Fact]
-    public async Task The_data_source_refuses_a_runtime_role_that_was_granted_bypass()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_data_source_refuses_a_runtime_role_that_was_granted_bypass(bool seederBuilder)
     {
         // The name check cannot see this one: the connection string still says
         // learnstack_app. Only the server knows the role was granted BYPASSRLS,
@@ -754,8 +756,8 @@ public sealed class UnitOfWorkTests
             // CREATEROLE plus ADMIN OPTION.
             await _schema.Postgres.ExecuteAsSuperuserAsync("ALTER ROLE learnstack_app BYPASSRLS");
 
-            await using var dataSource = PersistenceCompositionExtensions.BuildApplicationDataSource(
-                _schema.Postgres.AppConnectionString);
+            await using var dataSource = (seederBuilder ? ApplicationDataSource.Build(_schema.Postgres.AppConnectionString)
+                : PersistenceCompositionExtensions.BuildApplicationDataSource(_schema.Postgres.AppConnectionString));
 
             var open = async () =>
             {
@@ -772,15 +774,17 @@ public sealed class UnitOfWorkTests
 
         // And the same data source is fine once the grant is gone, so the guard is
         // a guard rather than a permanent refusal.
-        await using var restored = PersistenceCompositionExtensions.BuildApplicationDataSource(
-            _schema.Postgres.AppConnectionString);
+        await using var restored = (seederBuilder ? ApplicationDataSource.Build(_schema.Postgres.AppConnectionString)
+            : PersistenceCompositionExtensions.BuildApplicationDataSource(_schema.Postgres.AppConnectionString));
         await using var healthy = await restored.OpenConnectionAsync();
 
         healthy.State.Should().Be(System.Data.ConnectionState.Open);
     }
 
-    [Fact]
-    public async Task The_data_source_refuses_a_runtime_role_that_can_reach_one()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_data_source_refuses_a_runtime_role_that_can_reach_one(bool seederBuilder)
     {
         // The escalation a check on the role's own attributes cannot see:
         // `GRANT learnstack_platform TO learnstack_app` leaves learnstack_app's
@@ -794,8 +798,8 @@ public sealed class UnitOfWorkTests
                 + "GRANT learnstack_platform TO uow_bridge; "
                 + "GRANT uow_bridge TO learnstack_app");
 
-            await using var dataSource = PersistenceCompositionExtensions.BuildApplicationDataSource(
-                _schema.Postgres.AppConnectionString);
+            await using var dataSource = (seederBuilder ? ApplicationDataSource.Build(_schema.Postgres.AppConnectionString)
+                : PersistenceCompositionExtensions.BuildApplicationDataSource(_schema.Postgres.AppConnectionString));
 
             var open = async () =>
             {

@@ -22,6 +22,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json.Nodes;
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using Npgsql;
 using Xunit;
 
@@ -721,6 +722,7 @@ public sealed class SeederTests : IAsyncLifetime
     [InlineData("second organization")]
     [InlineData("host scope")]
     [InlineData("locale")]
+    [InlineData("undeclared locale")]
     [InlineData("type key")]
     [InlineData("type revision")]
     [InlineData("schema")]
@@ -737,8 +739,16 @@ public sealed class SeederTests : IAsyncLifetime
     {
         await using var source = DataSource();
         (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
-        var before = await SnapshotAsync();
         var original = SeedData.English;
+        if (mismatch == "undeclared locale")
+        {
+            await using var provider = SeedComposition.Build(source, new SeedTenantContext(original.TenantId, null), NullLoggerFactory.Instance);
+            await using var scope = provider.CreateAsyncScope();
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            var state = (await sender.Send(new GetTenantSeedStateQuery())).Value!.State!;
+            (await sender.Send(new AddTenantLocaleCommand(state.Version, "fr", true, false, 3))).IsSuccess.Should().BeTrue();
+        }
+        var before = await SnapshotAsync();
         var content = original.Curriculum ?? throw new InvalidOperationException("Missing fixture curriculum.");
         var course = content.Courses[0];
         var lesson = course.Lessons[0];
@@ -749,6 +759,7 @@ public sealed class SeederTests : IAsyncLifetime
             "second organization" => original with { SecondOrganization = original.SecondOrganization with { DisplayName = "Different" } },
             "host scope" => original with { MapHostToDefaultOrganization = true },
             "locale" => original with { Curriculum = content with { Locales = [content.Locales[0] with { Sort = 4 }] } },
+            "undeclared locale" => original,
             "type key" => original with { Curriculum = content with { ContentType = content.ContentType with { Key = "different" } } },
             "type revision" => original with { Curriculum = content with { ContentType = content.ContentType with { SchemaVersion = 2 } } },
             "schema" => original with { Curriculum = content with { ContentType = content.ContentType with { JsonSchema = "{}" } } },

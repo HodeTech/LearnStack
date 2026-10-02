@@ -179,8 +179,6 @@ A command writes one Education root. Cross-module calls are reads through applic
 contracts, and audit durability is part of the ambient transaction. The seeder has no
 second write path.
 
-<a id="p02d-2-proposed-writer-contract"></a>
-
 ## P02d-2 accepted writer contract
 
 **Step 3 complete — 2026-10-02.** The maintainer approved this

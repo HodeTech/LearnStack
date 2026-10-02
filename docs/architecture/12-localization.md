@@ -86,7 +86,7 @@ CREATE TABLE courses (
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,          -- null = tenant-wide, per ADR-0017
     slug_key        varchar(160) NOT NULL, -- stable authoring handle; NOT routable
-    status          text NOT NULL,        -- draft / published, per ADR-0048
+    status          text NOT NULL,        -- draft / published, per ADR-0050
     -- non-translatable columns only: no title, no description, no slug
     created_at      timestamptz NOT NULL,
     -- ... exact optional taxonomy/band revision pin and remaining aggregate columns ...

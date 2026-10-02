@@ -995,6 +995,7 @@ public sealed class CustomizationCommandTests
         // The other side of the same rule. Asserted over the set rather than over one
         // member, because a predicate that answered false for everything would pass
         // the refusal case on its own.
+        CompositeRendererKey.All.Should().NotBeEmpty("the admission loop must exercise the closed registry; Fix: restore the renderer set");
         foreach (var key in CompositeRendererKey.All)
         {
             Refuse(new RegisterTenantContentTypeCommand(

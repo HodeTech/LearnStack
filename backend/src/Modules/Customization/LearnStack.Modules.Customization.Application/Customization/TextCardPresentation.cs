@@ -14,8 +14,6 @@ public static class TextCardPresentation
     public static Result<ImmutableArray<TextCardFieldDto>> Resolve(string admittedSchema, string rendererKey)
     {
         ArgumentNullException.ThrowIfNull(admittedSchema);
-        using var document = JsonDocument.Parse(admittedSchema);
-        var root = document.RootElement;
         var failures = new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal);
         void Refuse(string location)
         {
@@ -29,6 +27,19 @@ public static class TextCardPresentation
             Result<ImmutableArray<TextCardFieldDto>>.Fail(
                 new Error(new LocalizedMessage("lockey_validation_failed"), failures));
 
+        JsonDocument parsed;
+        try
+        {
+            parsed = JsonDocument.Parse(admittedSchema);
+        }
+        catch (JsonException)
+        {
+            failures.Add("", [new LocalizedMessage("lockey_schema_not_well_formed_json")]);
+            return Failure();
+        }
+
+        using var document = parsed;
+        var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object)
         {
             Refuse("/properties");

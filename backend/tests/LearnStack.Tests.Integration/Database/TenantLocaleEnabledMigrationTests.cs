@@ -64,6 +64,9 @@ public sealed class TenantLocaleEnabledMigrationTests(SchemaFixture schema)
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);
         migration.Database.HasPendingModelChanges().Should().BeFalse();
         await migration.GetService<IMigrator>().MigrateAsync(Predecessor);
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        await using (var check = new NpgsqlCommand("SELECT count(*) FROM pg_constraint WHERE conrelid = 'tenant_locales'::regclass AND conname = 'ck_tenant_locales_default_enabled'", (NpgsqlConnection)owner))
+            (await check.ExecuteScalarAsync()).Should().Be(0L, "Down must actually remove the new CHECK before reapply");
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);
         await migration.Database.MigrateAsync();
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);

@@ -95,7 +95,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**137 test methods run in
+**140 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -124,10 +124,10 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**145 rules in this catalogue are Implemented, and 100 of them are in that assembly.**
-The other 45 are no less binding, and most could not live there. The table says where and
-why, and deliberately carries no per-row count: those are the numbers nothing recomputes,
-and the first version of this table claimed "three rules" for a suite that holds ten.
+**148 rules in this catalogue are Implemented, and 101 of them are in that assembly.**
+The other 47 are no less binding, and most could not live there. The table says where
+and why, and deliberately carries no per-row count: those are the numbers nothing
+recomputes, and the first version of this table claimed "three rules" for a suite that holds ten.
 
 | Where | Why not the architecture assembly |
 |---|---|
@@ -457,6 +457,38 @@ otherwise).
 - **Type:** xUnit + assembly-dependency walk. **Kind:** structural.
 - **Status:** **Implemented** — `CrossCuttingFoundationTests.cs`.
 - **Phase:** 02a (Packet 3).
+
+#### `Descriptors_preserve_array_order_and_canonical_localized_fallback`
+
+- **Asserts:** the ADR-0051 text-card profile preserves descriptor order and canonical
+  localized labels. Companion cases refuse malformed/duplicate/missing descriptors,
+  invalid labels, unsupported shapes/composites and keywords with bounded JSON Pointers;
+  schemas without root `x-fields` retain their original admission.
+- **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
+- **Type:** xUnit, exercising admission and semantic resolution. **Kind:** behavioural.
+- **Status:** **Implemented** (P02d-2 Step 1, `TextCardPresentationTests`).
+- **Phase:** 02d (P02d-2).
+
+#### `Exact_reads_distinguish_new_bindings_from_pins_and_preserve_stored_descriptor_order`
+
+- **Asserts:** exact revision reads preserve authored order through JSONB and use
+  their own stored definition; seed verification rejects changed schemas/labels under
+  an existing pin. New bindings and existing pins have distinct eligible states.
+- **Source:** [ADR-0043](../decisions/0043-customization-payload-validation.md);
+  [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
+- **Type:** xUnit + PostgreSQL exact reads and seed execution. **Kind:** behavioural.
+- **Status:** **Implemented** (P02d-2, `P02d2FoundationTests` and `SeederTests`).
+- **Phase:** 02d (P02d-2).
+
+#### `Text_Card_Rendering_Preserves_Order_And_Uses_Text_Sinks`
+
+- **Asserts:** the P02d-6 renderer preserves authored order/labels, treats
+  unsafe-looking strings as text, and keeps unsupported data out of active sinks.
+  Public descriptors are projected only after P02d-4 content eligibility.
+- **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
+- **Type:** frontend component and public-boundary tests. **Kind:** behavioural.
+- **Status:** **Registered**; the renderer and public projection are not delivered.
+- **Phase:** 02d (P02d-4/P02d-6).
 
 #### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
 
@@ -1231,6 +1263,10 @@ otherwise).
   **`INotificationHandler`** runs inside the ambient transaction and is the same write,
   so it is in the handler set; and `Type.GetConstructors()` is public-only, so the
   scan passes `NonPublic`.
+- **Permanent planted backstop:**
+  `Cross_Aggregate_Census_Catches_Fused_Separate_Notification_And_Internal_Constructors`
+  exercises the same production predicate with fused/two-port request and notification
+  handlers, a non-public constructor, and same-root/non-handler negative controls.
 - **What it does not catch:** a write routed through a helper that itself holds two
   ports, or through a second `DbContext` reached indirectly — the same limit
   [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
@@ -1541,15 +1577,13 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   its own connection. And under `backend/src`, exactly **eight** files may reach for a
   connection at all: the five design-time factories — one per migration chain, where a
   connection string is the point; the shared helper, which passes a *connection*; and the
-  two composition roots — `LearnStack.Api`'s, which builds the one application data
-  source behind its credential guard, and `LearnStack.Tools.Seeder`'s, which is the same
-  act for a host with no HTTP surface. A ninth is a new decision. A context on its own connection never saw the
-  announcement, so every read through it returns zero rows under the corrected policy —
-  silently.
+  API's separately guarded platform-role builder; and the shared application-role
+  builder used by both the API and the one-shot seeder. A ninth is a new decision.
+  A context on its own connection never saw the announcement, so every read through
+  it returns zero rows under the corrected policy — silently.
 
-  The set is keyed on `directory/filename`, not the bare filename: two `Program.cs` now
-  exist under `backend/src`, and a bare-name set would let the API's silently take the
-  seeder's slot.
+  The set is keyed on `directory/filename`, not the bare filename: two files with
+  the same name cannot silently share a sanctioned construction site.
 - **Source:** ADR-0040; [05-database.md § Forbidden](05-database.md).
 - **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
@@ -2010,9 +2044,10 @@ because the filters hold, and removing both turns all five red.
 #### `Every_Write_Port_Is_Countable_Or_Enumerated`
 
 - **Asserts:** every interface in a production assembly whose method takes a type from a
-  module's `Domain` assembly, excluding `IStronglyTypedId<>` keys — **directly, or
-  inside a generic, array or by-ref wrapper** — either derives from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to
-  the cross-aggregate census above, or appears on a literal allow-list. The list holds one
+  module's `Domain` assembly — **directly, or inside a generic, array or by-ref
+  wrapper** — with typed-key-only read methods explicitly enumerated — either derives
+  from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to the
+  cross-aggregate census above, or appears on a literal allow-list. The list holds one
   name: `IPlatformHostMappingStore`.
 - **Wrappers are unwrapped transitively,** because a bulk write port is written with one:
   `IEnumerable<Course>` lives in `System.Private.CoreLib`, so a check on the parameter's
@@ -2024,11 +2059,11 @@ because the filters hold, and removing both turns all five red.
   about it is not, because a second such port would join the first with nothing to notice,
   and the census that keeps ADR-0042's exception at one entry would stop describing the
   system.
-- **Detected by shape, not by name.** "Takes a domain object" rather than "ends in
-  `Store`": a rule keyed on a suffix is satisfied by renaming. A typed identifier
-  names an object without exposing it for mutation; ADR-0023 requires read keys to
-  remain typed. The planted companion proves direct and wrapped domain writes
-  still count, while typed-key readers do not.
+- **Detected by shape, not by port name.** A typed identifier can also reach a
+  key-only delete. Only literal, method-level read exemptions bypass the key scan;
+  adding a write to an approved read interface remains visible. The planted companion
+  proves direct/wrapped domain writes and void/value-returning key-only writes count,
+  while the enumerated typed-key reads remain admitted under ADR-0023.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,
@@ -2041,13 +2076,29 @@ because the filters hold, and removing both turns all five red.
   tenant/session context setters or open their own database announcement transaction.
   Verification runs through contextual `ISender` requests and the admitted pipeline;
   the existing trusted seed context construction remains permitted. A source scan
-  covers production seeder callers and cannot pass by collecting no subjects.
+  covers production seeder callers and cannot pass by collecting no subjects. An IL
+  scan also refuses direct EF mutation/SaveChanges/set-based SQL and ad hoc
+  `NpgsqlCommand` construction; its planted companion distinguishes these from
+  immutable data construction, composition and request dispatch.
 - **Source:** [Phase 02d G15](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
   and [Security Standards § The out-of-band setters](11-security.md#the-out-of-band-setters).
-- **Type:** xUnit + source scan with a companion that plants direct caller violations
-  and verifies permitted request dispatch/context composition. **Kind:** structural.
+- **Type:** xUnit + source/IL scans with companions that plant caller and persistence
+  violations and verify permitted request dispatch/context composition.
+  **Kind:** structural.
 - **Status:** **Implemented** (P02d-2 Step 4, `SeederConventionTests`), including
   its planted companion; production readers/writers dispatch only contextual requests.
+- **Phase:** 02d (P02d-2).
+
+#### `Seeder_Uses_The_Shared_Application_Role_Guard`
+
+- **Asserts:** the one-shot tool builds its application pool through the same named
+  guard as HTTP; direct execution cannot silently use an owner or BYPASSRLS credential.
+- **Source:** [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md);
+  [Database Standards § Database roles](05-database.md#database-roles).
+- **Type:** xUnit + IL call census. **Kind:** structural.
+- **Status:** **Implemented** (P02d-2 PR review, `SeederConventionTests`). The shared
+  credential parser is exercised in `ApplicationDataSourceGuardTests`; real direct and
+  transitive bypass refusal is proved through both builder callers in `UnitOfWorkTests`.
 - **Phase:** 02d (P02d-2).
 
 #### `Out_Of_Band_Setters_Open_Read_Only_Transactions`

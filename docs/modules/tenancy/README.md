@@ -64,14 +64,14 @@ Tenancy owns **who a request belongs to** and nothing about what they do with it
   with them rather than as an unused `jsonb` nobody writes. The tenant's own token
   values are not a separate store: they are `TenantSetting` rows
   ([Frontend Architecture Standards § Tenant Branding](../../standards/07-frontend-architecture.md#tenant-branding)),
-  and their key set and value grammar are G16 in
+  and their key set and value grammar are delivered under the
+  [accepted P02d-2 contract](#p02d-2-accepted-locale-and-branding-contract), closing
+  G16(a–e) in
   [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 - **Any domain-specific shape.** CEFR levels, asana catalogs, kyu/dan ranks and
   every other vertical concept are tenant customization data
   ([ADR-0018](../../decisions/0018-tenant-driven-customization-model.md)), not
   columns here.
-
-<a id="p02d-2-proposed-locale-and-branding-contract"></a>
 
 ## P02d-2 accepted locale and branding contract
 

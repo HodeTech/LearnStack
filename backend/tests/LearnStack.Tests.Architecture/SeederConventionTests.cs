@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Mono.Cecil;
+using LearnStack.Infrastructure.Persistence;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
@@ -21,6 +23,11 @@ public sealed class SeederConventionTests
         files.Select(Path.GetFileName).Should().Contain("SeedRunner.cs").And.Contain("SeedComposition.cs");
         files.SelectMany(path => ForbiddenReferences(File.ReadAllText(path)).Select(reference => $"{Path.GetFileName(path)}: {reference}"))
             .Should().BeEmpty("seed verification must use contextual ISender queries; Fix: remove private announcements/transactions and direct setter references");
+        using var assembly = AssemblyDefinition.ReadAssembly(typeof(SeedRunner).Assembly.Location);
+        var calls = Calls(assembly).ToArray();
+        calls.Should().NotBeEmpty("the seed orchestration must be inspected; Fix: restore the IL census");
+        calls.Where(IsDirectPersistenceWrite).Select(call => call.FullName).Should().BeEmpty(
+            "the seeder writes only through contextual requests; Fix: remove direct EF mutation, SaveChanges and ad hoc SQL");
     }
 
     [Fact]
@@ -48,6 +55,62 @@ public sealed class SeederConventionTests
             }
             """).Should().BeEmpty("comments/plain diagnostics and trusted construction/dispatch do not announce database authority");
     }
+
+    [Fact]
+    public void Seeder_Uses_The_Shared_Application_Role_Guard()
+    {
+        using var assembly = AssemblyDefinition.ReadAssembly(typeof(SeedRunner).Assembly.Location);
+        Calls(assembly).Where(call => call.DeclaringType.FullName == typeof(ApplicationDataSource).FullName
+            && call.Name == nameof(ApplicationDataSource.Build)).Should().ContainSingle(
+                "direct tool execution must enforce the same NOBYPASSRLS role boundary as HTTP; Fix: build the one pool with ApplicationDataSource.Build");
+    }
+
+    [Fact]
+    public void Seeder_Write_Fence_Catches_Ef_Mutations_And_Ad_Hoc_Commands()
+    {
+        using var module = ModuleDefinition.CreateModule("PlantedSeedCalls", ModuleKind.Dll);
+        MethodReference Call(string ns, string type, string name) =>
+            new(name, module.TypeSystem.Void, new TypeReference(ns, type, module, module));
+        foreach (var call in new[]
+        {
+            Call("Microsoft.EntityFrameworkCore", "DbSet`1", "Add"),
+            Call("Microsoft.EntityFrameworkCore", "DbSet`1", "UpdateRange"),
+            Call("Microsoft.EntityFrameworkCore", "DbSet`1", "Remove"),
+            Call("Microsoft.EntityFrameworkCore", "DbContext", "SaveChangesAsync"),
+            Call("Microsoft.EntityFrameworkCore", "RelationalDatabaseFacadeExtensions", "ExecuteSqlRawAsync"),
+            Call("Microsoft.EntityFrameworkCore", "EntityFrameworkQueryableExtensions", "ExecuteUpdateAsync"),
+            Call("Microsoft.EntityFrameworkCore", "EntityFrameworkQueryableExtensions", "ExecuteDeleteAsync"),
+            Call("Npgsql", "NpgsqlCommand", ".ctor"),
+        })
+            IsDirectPersistenceWrite(call).Should().BeTrue($"{call.FullName} must fail the fence; Fix: preserve provider/mutation classification");
+        foreach (var call in new[]
+        {
+            Call("System.Collections.Immutable", "ImmutableDictionary`2", "Add"),
+            Call("MediatR", "ISender", "Send"),
+            Call("Microsoft.Extensions.DependencyInjection", "ServiceCollectionServiceExtensions", "AddScoped"),
+            Call("Microsoft.EntityFrameworkCore", "EntityFrameworkQueryableExtensions", "ToListAsync"),
+        })
+            IsDirectPersistenceWrite(call).Should().BeFalse("data construction, composition and reads are not mutation APIs");
+    }
+
+    private static IEnumerable<MethodReference> Calls(AssemblyDefinition assembly) =>
+        assembly.MainModule.Types.SelectMany(AllTypes).SelectMany(type => type.Methods)
+            .Where(method => method.HasBody).SelectMany(method => method.Body.Instructions)
+            .Select(instruction => instruction.Operand).OfType<MethodReference>();
+
+    private static IEnumerable<TypeDefinition> AllTypes(TypeDefinition type) =>
+        new[] { type }.Concat(type.NestedTypes.SelectMany(AllTypes));
+
+    private static bool IsDirectPersistenceWrite(MethodReference call) =>
+        call.DeclaringType.FullName == "Npgsql.NpgsqlCommand"
+        || (call.DeclaringType.Namespace == "Microsoft.EntityFrameworkCore"
+            && (call.Name.StartsWith("SaveChanges", StringComparison.Ordinal)
+                || call.Name.StartsWith("ExecuteSql", StringComparison.Ordinal)
+                || call.Name.StartsWith("ExecuteUpdate", StringComparison.Ordinal)
+                || call.Name.StartsWith("ExecuteDelete", StringComparison.Ordinal)
+                || (call.DeclaringType.Name is "DbSet`1" or "DbContext"
+                    && call.Name is "Add" or "AddAsync" or "AddRange" or "AddRangeAsync"
+                        or "Update" or "UpdateRange" or "Remove" or "RemoveRange")));
 
     [Fact]
     public void Seed_Literal_Source_Is_Complete_And_Readable()

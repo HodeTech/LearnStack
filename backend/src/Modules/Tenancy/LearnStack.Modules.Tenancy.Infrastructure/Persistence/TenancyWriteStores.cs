@@ -50,7 +50,7 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
     public Task<Tenant?> FindAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
         CancellationToken cancellationToken = default) => db.Tenants.AsSingleQuery()
         .Include(tenant => tenant.Locales).Include(tenant => tenant.FeatureFlags)
-        .SingleOrDefaultAsync(tenant => tenant.Id == id, cancellationToken);
+        .SingleOrDefaultAsync(tenant => tenant.Id == id && tenant.DeletedAt == null, cancellationToken);
 
     public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {

@@ -929,6 +929,76 @@ is fixed and independently rechecked. Final hooks, wrapping, links/fragments and
 frozen-record check pass. PR #23 carries the updated range and validation; merge remains
 the maintainer's decision.
 
+#### Additional PR review corrections (2026-10-02)
+
+The subsequent review was verified against `eaa72aa`; findings and suggested edits
+were treated as evidence, not instructions. No decision, public route or migration
+changes were needed. The following corrections retain the accepted packet scope:
+
+- The tenant write lookup excludes soft-deleted roots, preserving both navigations,
+  identity matching and cancellation. A real application-role test proves retained
+  locales/flags on a live root and refusal of locale writes after deletion.
+- The aggregate census shares its production predicate with planted fused-port,
+  two-port, notification, non-public-constructor and negative controls. Key-only
+  writes remain visible; read exemptions enumerate methods rather than all typed IDs.
+  Four controlled mutants (first construction only, omitted notifications, blanket
+  key exclusion and public-only constructors) each fail the intended companion.
+  The source is restored byte-for-byte before positive verification.
+- Both runtime hosts build application pools through the shared role guard. Direct
+  seed execution now refuses owner/bypass credentials and transitive bypass access;
+  malformed credential exceptions carry no raw inner parse exception. Unit canaries
+  inspect full exception text; real direct/transitive refusal runs through both callers.
+- The exact presentation resolver converts invalid JSON syntax into a root-located
+  validation failure. The seed fence also checks IL for direct EF mutation and ad hoc
+  commands, while admitting immutable data construction and request dispatch.
+- Additional proofs cover foreign-context Education writes, locale tenant isolation
+  and concurrent exact-version changes, identifier-conflict details, renderer-registry
+  non-emptiness, CHECK removal on Down and refusal of an undeclared persisted locale.
+- Current documentation records accepted/delivered branding and writers, the exact
+  current/planned route boundary, the Tenant locale audit subject and accepted anchors.
+  ADR-0050/0051 show their dated disclosure inside `#status` and preserve the original
+  acceptance text under Amendment 2. The catalogue records delivered presentation
+  proofs separately from Registered public projection/rendering obligations.
+
+**Verified dispositions.** No remaining item is silently assigned to a later packet:
+
+| Finding | Disposition and reason |
+|---|---|
+| Inline tenant lookup / ADR-0049 / permissions | Fixed against the current store, delivery record and Phase 02c route contract. |
+| M1 | Fixed; the same production census now has permanent planted controls and four failing mutants. |
+| m2–m4 | Fixed: current-state references, JSON syntax refusal and the shared seed/runtime role guard. |
+| m5 | Documented per-act durability: a competing Active revision may appear after a registration pre-read, leaving a committed Draft/generation/audit before refusal. Explicit reconciliation is required; seed never rolls back completed acts. |
+| m6 | Added the narrow requested proofs, retaining real application-role transactions. |
+| m7 | Skipped: ADR-0051 requires existing localized messages plus offending JSON Pointers, which the resolver already supplies; distinct cause keys are not required. |
+| m8 | No missing registration found. Both roots are exercised by composed writer/publication tests; a separate parity scanner is optional protection, not a current correction. |
+| m9 | Skipped: ADR-0050 explicitly permits disposable Down/reapply and denies live rollback authorization; the forward-only operational rule already applies. |
+| m10 | Fixed: the existing seed caller fence now includes direct persistence writes, with positive and negative planted controls. |
+| m11 | Refuted: every existing locale must match a declaration under `SeedVerification.Tenant`; the new persisted-extra-locale test proves refusal without a write. |
+| m12–m14 | Fixed: audit subject, unused proposed anchor aliases and Status navigation with dated historical disclosure. |
+| s1–s5 | No defect: supported calls validate the closed policy; repeated subject designation is sanctioned; titles/summaries map to unbounded text; no unchanged-version promise exists for default-setting commands; parent reads already use `AsNoTracking`. |
+| s6 | Skipped: an admitted named race still requires exact fresh-scope postconditions, already mutation-proved; it never accepts a refusal alone. |
+| s7–s8 | Ambient is the sanctioned trusted origin. Exit codes are documented; malformed credential failure text is now proven secret-free. |
+| s9 | No current public oracle: explicit-ID writers are unrouted trusted operations and replacement lookup hides foreign roots. Phase 03 owns authoring authorization before reachability. |
+| s10–s11 | No supported incumbent-deprecation uniqueness collision or registered authoring route found. Unexpected faults already poison the transaction; anonymous admission remains fenced. |
+| s12 | Fixed: delivered profile/exact-order evidence and future renderer/sink obligations are catalogued separately. |
+| s13–s15 | No current defect: no production lock incident/online-migration mandate; seed DTOs are private verification contracts; raw foundation inserts intentionally model isolated/legacy fixture states, not provisioning. |
+| s16 | Historical counts are retained. Supplemental link counts count occurrences outside fenced blocks across PR-changed Markdown and linked ADR/phase carriers; CI's changed-target audit has a different scope and excludes fragments. |
+| Legacy profile boundary | Compatibility applies to schemas without root `x-fields`. Its presence explicitly opts into ADR-0051's profile; a formerly inert annotation at that location is now semantic. |
+| PR-external follow-ups | Unchanged scripts and legacy conflict helpers are outside this correction. G20's remaining branch fence stays P02d-7; public reads/rendering/grants retain their existing named owners. |
+
+The shared [seed workflow](../../.claude/skills/seed-tenant/SKILL.md) records direct
+role enforcement, failure codes and the committed-Draft race boundary.
+
+**Positive verification.** Release build has zero warnings/errors. All 2,590 backend
+cases pass: 1,577 unit, 184 architecture, one contract, 171 Docker-free integration
+and 657 Docker integration. TRX counters show zero failures/errors/skips, and the
+execution guard passes for every assembly. Full format verification exits zero.
+Eight controlled mutants fail the intended guard; both source files are restored
+byte-for-byte and the positive structural suite is re-run before commit.
+The supplemental documentation sweep checks 45 Markdown files, 2,901 local link
+occurrences and 580 fragments; `git diff --check` passes and the frozen P02d-1
+suffix remains byte-identical. Independent reviews follow the correction commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

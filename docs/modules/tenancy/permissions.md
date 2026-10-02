@@ -28,11 +28,13 @@ because provisioning precedes any membership in the tenant being provisioned.
 
 `CreateOrganizationCommand`, `MapHostToTenantCommand` and the three P02d-2 writers do
 run resolved, so the first argument does not transfer to them. What stands in for
-authorization is the same thing for these writers: reachability. None has an HTTP
-endpoint, so their only trusted production caller is the seeder. Provisioning,
-organization and host mapping may also be invoked, from [Phase
-02c](../../roadmap/phase-02c-hub-foundation.md), the Hub over `/api/internal/*` — a
-surface that takes `learnstack-hub` realm tokens and no others. Resolved writers take
+authorization is the same thing for these writers: reachability. None of the six
+writers has an HTTP route today; the seeder is their trusted production caller.
+[Phase 02c](../../roadmap/phase-02c-hub-foundation.md) owns the planned Hub-internal
+routes: tenant creation invokes `ProvisionTenantCommand`, which also creates the default
+organization, and host mapping invokes `MapHostToTenantCommand`. It adds no direct
+`CreateOrganizationCommand` endpoint. That surface takes `learnstack-hub` realm tokens
+and no others. Resolved writers take
 their tenant from the context and never from the request, so a caller cannot name
 another tenant even without a permission check; the database refuses the write.
 

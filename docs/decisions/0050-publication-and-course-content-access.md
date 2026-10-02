@@ -1,13 +1,13 @@
 # ADR-0050: Publication and Course Content Access
 
+## Status
+
 > **Implementation update — 2026-10-02.**
 > P02d-2 ships the persisted policy, restricted legacy backfill migration, six
 > Education writers and exact-policy seed verification. P02d-4 anonymous-read
 > enforcement and projections remain pending.
 > The acceptance-time statement below is historical; see
 > [Amendment 1](#amendment-1--p02d-2-implementation-delivery-2026-10-02).
-
-## Status
 
 Accepted — 2026-10-02. The maintainer approved the exact access policy, migration
 and P02d-2 decision package. Implementation has not started.
@@ -233,3 +233,9 @@ Updated carriers: this status disclosure, [the ADR index](README.md),
 [Phase 07](../roadmap/phase-07-enrollment-learner-portal.md). The
 [P02d-2 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-2-implementation-delivery-2026-10-02)
 is the current delivery authority.
+
+#### Amendment 2 — Status navigation (2026-10-02)
+
+The dated implementation disclosure now sits inside the Status section so direct
+`#status` navigation shows current delivery before the unchanged acceptance-time
+statement. Amendment 1 remains the delivery record; no decision changes.

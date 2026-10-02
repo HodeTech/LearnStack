@@ -176,6 +176,13 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         (await SendAsync(source, orgB, new AddLessonTranslationCommand(child.Id, 0, "en", "Hidden", "hidden", Body))).Error!.Code.Should().Be("not_found");
         (await SendAsync(source, context, new AddLessonTranslationCommand(child.Id, 0, "en", "Scoped", "scoped", Body)))
             .Error!.Code.Should().Be("not_found");
+        // Reverse the foreign-root case: every existing-root writer also refuses a
+        // local identity when the trusted current context belongs to the other tenant.
+        (await SendAsync(source, foreign, new CreateLessonCommand(Guid.CreateVersion7(), wide.Id, 0, "shape", 1))).Error!.Code.Should().Be("not_found");
+        (await SendAsync(source, foreign, new PublishCourseCommand(wide.Id, 0))).Error!.Code.Should().Be("not_found");
+        (await SendAsync(source, foreign, new AddCourseTranslationCommand(wide.Id, 0, "en", "Hidden", null, "hidden"))).Error!.Code.Should().Be("not_found");
+        (await SendAsync(source, foreign, new PublishLessonCommand(wideLesson.Id, 0))).Error!.Code.Should().Be("not_found");
+        (await SendAsync(source, foreign, new AddLessonTranslationCommand(wideLesson.Id, 0, "en", "Hidden", "hidden", Body))).Error!.Code.Should().Be("not_found");
         (await CourseStateAsync(source, context, wide.Id)).Version.Should().Be(0);
         (await CourseStateAsync(source, orgA, scoped.Id)).Version.Should().Be(0);
         (await LessonStateAsync(source, context, wideLesson.Id)).Should().BeEquivalentTo(wideLessonBefore);
@@ -388,7 +395,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         await using (var scope = host.Services.CreateAsyncScope())
         {
             scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current = context;
-            var send = async () => await scope.ServiceProvider.GetRequiredService<ISender>().Send(new AbsorbingOuterCommand(failingId, later, lessonPublication));
+            var send = async () => await scope.ServiceProvider.GetRequiredService<ISender>().Send(new AbsorbingOuterCommand(failingId, later, lessonPublication, concurrency));
             await send.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
         }
         var final = await CourseStateAsync(source, context, course.Id);
@@ -571,15 +578,18 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
             }
         }
     }
-    private sealed record AbsorbingOuterCommand(Guid FailingId, Guid LaterId, bool LessonPublication) : IRequest<Result<None>>;
+    private sealed record AbsorbingOuterCommand(Guid FailingId, Guid LaterId, bool LessonPublication, bool Concurrency) : IRequest<Result<None>>;
     private sealed class AbsorbingOuterHandler(ISender sender) : IRequestHandler<AbsorbingOuterCommand, Result<None>>
     {
         public async Task<Result<None>> Handle(AbsorbingOuterCommand request, CancellationToken cancellationToken)
         {
-            var refused = request.LessonPublication
-                ? (await sender.Send(new PublishLessonCommand(request.FailingId, 0), cancellationToken)).IsFailure
-                : (await sender.Send(new PublishCourseCommand(request.FailingId, 0), cancellationToken)).IsFailure;
-            refused.Should().BeTrue("the refusal is absorbed only after its mutation/save executed");
+            var refusal = request.LessonPublication
+                ? (await sender.Send(new PublishLessonCommand(request.FailingId, 0), cancellationToken)).Error
+                : (await sender.Send(new PublishCourseCommand(request.FailingId, 0), cancellationToken)).Error;
+            refusal.Should().NotBeNull("the refusal is absorbed only after its mutation/save executed");
+            refusal!.Code.Should().Be(request.Concurrency ? "concurrency_conflict" : "business_rule_violation");
+            if (!request.Concurrency)
+                refusal.Details!["Id"].Should().ContainSingle().Which.Key.Should().Be("lockey_identifier_taken");
             var later = await sender.Send(new CreateCourseCommand(request.LaterId, "later", "public"), cancellationToken);
             later.IsSuccess.Should().BeTrue("later work really saved on the shared transaction before the owner rejects commit");
             return Result.Ok(None.Value);

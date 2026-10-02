@@ -31,6 +31,18 @@ public sealed class TextCardPresentationTests
     }
 
     [Theory]
+    [InlineData("{")]
+    [InlineData("")]
+    [InlineData("{\"properties\":")]
+    public void Invalid_json_syntax_returns_a_located_validation_failure(string schema)
+    {
+        var result = TextCardPresentation.Resolve(schema, "default-card");
+        result.Error!.Code.Should().Be("validation_failed");
+        result.Error.Details.Should().ContainSingle().Which.Key.Should().Be("");
+        result.Error.Details![""].Should().ContainSingle().Which.Key.Should().Be("lockey_schema_not_well_formed_json");
+    }
+
+    [Theory]
     [InlineData("null")]
     [InlineData("true")]
     [InlineData("42")]

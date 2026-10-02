@@ -389,6 +389,127 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
         await frame.FailAsync();
     }
 
+    [Fact]
+    public async Task Soft_deleted_tenants_are_not_write_targets_and_live_lookup_keeps_locales_and_flags()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        var initial = await ReadTenantAsync(source, context);
+        var added = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
+        added.IsSuccess.Should().BeTrue();
+        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(context);
+            var store = scope.ServiceProvider.GetRequiredService<ITenantWriteStore>();
+            var tenant = (await store.FindAsync(context.TenantId))!;
+            tenant.Locales.Should().ContainSingle().Which.Locale.Should().Be("en");
+            tenant.SetFeatureFlag(LearnStack.SharedKernel.Entitlements.FeatureKeys.LessonPlayerV2, "true", new SystemClock(), UserId.SystemActor);
+            await store.UpdateAsync(tenant);
+            await frame.CompleteAsync();
+        }
+        long version;
+        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(context);
+            var store = scope.ServiceProvider.GetRequiredService<ITenantWriteStore>();
+            var tenant = (await store.FindAsync(context.TenantId))!;
+            tenant.Locales.Should().ContainSingle();
+            tenant.FeatureFlags.Should().ContainSingle().Which.Value.Should().Be("true");
+            tenant.SoftDelete(new SystemClock().UtcNow, UserId.SystemActor);
+            await store.UpdateAsync(tenant);
+            version = tenant.Version;
+            await frame.CompleteAsync();
+        }
+        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(context);
+            (await scope.ServiceProvider.GetRequiredService<ITenantWriteStore>().FindAsync(context.TenantId)).Should().BeNull();
+            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+            (await sender.Send(new AddTenantLocaleCommand(version, "fr", true, false, 1))).Error!.Code.Should().Be("not_found");
+            (await sender.Send(new SetDefaultTenantLocaleCommand(version, "en"))).Error!.Code.Should().Be("not_found");
+            scope.ServiceProvider.GetRequiredService<IAuditStateCapture>().Changes.Should().BeEmpty();
+            await frame.FailAsync();
+        }
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Locale_writers_use_the_current_tenant_and_never_change_foreign_locales()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        var foreign = await ProvisionAsync(source);
+        var a = await ReadTenantAsync(source, context);
+        var b = await ReadTenantAsync(source, foreign);
+        (await SendAsync(source, context, new AddTenantLocaleCommand(a.Version, "en", true, true, 0))).IsSuccess.Should().BeTrue();
+        (await SendAsync(source, foreign, new AddTenantLocaleCommand(b.Version, "en", true, true, 0))).IsSuccess.Should().BeTrue();
+        var foreignBefore = await ReadTenantAsync(source, foreign);
+        var own = await ReadTenantAsync(source, context);
+        var added = await SendAsync(source, context, new AddTenantLocaleCommand(own.Version, "fr", true, false, 1));
+        (await SendAsync(source, context, new SetDefaultTenantLocaleCommand(added.Value!.Version, "fr"))).IsSuccess.Should().BeTrue();
+        (await ReadTenantAsync(source, foreign)).Should().BeEquivalentTo(foreignBefore);
+        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var frame = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(context);
+        (await scope.ServiceProvider.GetRequiredService<ITenantWriteStore>().FindAsync(foreign.TenantId)).Should().BeNull();
+        await frame.FailAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Concurrent_locale_changes_commit_only_one_exact_root_version(bool switchDefault)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        var initial = await ReadTenantAsync(source, context);
+        var first = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
+        if (switchDefault)
+        {
+            var second = await SendAsync(source, context, new AddTenantLocaleCommand(first.Value!.Version, "fr", true, false, 1));
+            (await SendAsync(source, context, new AddTenantLocaleCommand(second.Value!.Version, "de", true, false, 2))).IsSuccess.Should().BeTrue();
+        }
+        var before = await ReadTenantAsync(source, context);
+        var audits = await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write");
+        var barrier = new ReadBarrier();
+        await using var host = factory.WithWebHostBuilder(builder => builder
+            .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services => services.AddScoped<ITenantWriteStore>(provider =>
+                new BarrierTenantStore(new TenantWriteStore(provider.GetRequiredService<TenancyDbContext>()), barrier))));
+        async Task<Result<TenantLocalesDto>> Change(string locale, short sort)
+        {
+            await using var scope = host.Services.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current = context;
+            return switchDefault
+                ? await scope.ServiceProvider.GetRequiredService<ISender>().Send(new SetDefaultTenantLocaleCommand(before.Version, locale))
+                : await scope.ServiceProvider.GetRequiredService<ISender>().Send(new AddTenantLocaleCommand(before.Version, locale, true, false, sort));
+        }
+        var results = await Task.WhenAll(Change("fr", 1), Change("de", 2));
+        results.Should().ContainSingle(result => result.IsSuccess);
+        results.Should().ContainSingle(result => result.IsFailure).Which.Error!.Code.Should().Be("concurrency_conflict");
+        var winner = results.Single(result => result.IsSuccess).Value!;
+        var final = await ReadTenantAsync(source, context);
+        final.Version.Should().Be(before.Version + 1);
+        final.Locales.Should().BeEquivalentTo(winner.Locales);
+        final.Locales.Should().HaveCount(before.Locales.Length + (switchDefault ? 0 : 1));
+        final.Locales.Should().ContainSingle(locale => locale.IsDefault);
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write")).Should().Be(audits + 1);
+    }
+
     private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var id = TenantId.From(Guid.CreateVersion7());
@@ -497,6 +618,18 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
 
             await _both.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
         }
+    }
+
+    private sealed class BarrierTenantStore(ITenantWriteStore inner, ReadBarrier barrier) : ITenantWriteStore
+    {
+        public async Task<Tenant?> FindAsync(TenantId id, CancellationToken cancellationToken = default)
+        {
+            var tenant = await inner.FindAsync(id, cancellationToken);
+            await barrier.WaitAsync(cancellationToken);
+            return tenant;
+        }
+        public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default) => inner.AddAsync(aggregate, cancellationToken);
+        public Task UpdateAsync(Tenant aggregate, CancellationToken cancellationToken = default) => inner.UpdateAsync(aggregate, cancellationToken);
     }
 
     private sealed class BarrierSettingStore(ITenantSettingWriteStore inner, ReadBarrier barrier) : ITenantSettingWriteStore

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Api.Composition;
+using LearnStack.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -33,6 +34,19 @@ public sealed class ApplicationDataSourceGuardTests
     // service has ever had. leakwatch:ignore applies per line.
     private const string Valid =
         "Host=localhost;Port=5432;Database=learnstack;Username=learnstack_app;Password=s3cret"; // leakwatch:ignore
+
+    [Theory]
+    [InlineData("Host=localhost;Username=learnstack_migration;Password=synthetic-canary")] // leakwatch:ignore
+    [InlineData("Host=localhost;Username=learnstack_platform;Pwd=synthetic-canary")] // leakwatch:ignore
+    [InlineData("Host=localhost;Port=nope;Username=learnstack_app;Password=synthetic-canary")] // leakwatch:ignore
+    [InlineData("postgres://learnstack_app:synthetic-canary@localhost/database")] // leakwatch:ignore
+    public void The_shared_seeder_guard_refuses_wrong_or_malformed_credentials_without_secret_echo(string value)
+    {
+        var build = () => ApplicationDataSource.Build(value);
+        var failure = build.Should().Throw<InvalidOperationException>().Which;
+        failure.ToString().Should().NotContain("synthetic-canary");
+        failure.Message.Should().Contain("ConnectionStrings:Default");
+    }
 
     [Fact]
     public void The_application_role_is_accepted()

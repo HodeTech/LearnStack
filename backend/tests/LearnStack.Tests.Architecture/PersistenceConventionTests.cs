@@ -172,10 +172,9 @@ public sealed partial class PersistenceConventionTests
         // Eight files under backend/src may reach for a connection at all: the five
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
-        // helper, which passes a connection rather than a string; and the two
-        // composition roots — the API's, which builds the one application data
-        // source behind its credential guard, and the seeder's, which is the same act
-        // for a host with no HTTP surface. A ninth is a new decision.
+        // module helper, which passes a connection rather than a string; the API's
+        // separately guarded platform-role builder; and the shared application-role
+        // builder used by both runtime hosts. A ninth is a new decision.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -211,12 +210,9 @@ public sealed partial class PersistenceConventionTests
             "Persistence/AuditDbContextFactory.cs",
             "Persistence/EducationDbContextFactory.cs",
 
-            // A deliberate entry rather than a discovered one: the seeder
-            // is a second composition root, and building the one application data source
-            // is the same act PersistenceCompositionExtensions performs for the API. It
-            // is in the set — not exempted from it — so the next tool that reaches for a
-            // connection is still a reviewed diff.
-            "LearnStack.Tools.Seeder/Program.cs",
+            // Both runtime hosts delegate application-role construction to this
+            // shared guard; the API retains its separate platform-role builder.
+            "Persistence/ApplicationDataSource.cs",
         ]);
     }
 

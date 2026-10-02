@@ -36,17 +36,10 @@ public sealed class AggregateWriteTests
         // forbidden, so no handler can name a DbSet at all. A rule at Implemented status
         // that cannot fire is worse than one at Registered, because the catalogue then
         // claims coverage it does not have.
-        var offenders = ProductionAssemblies()
+        var offenders = CrossAggregateWriters(ProductionAssemblies()
             .Select(Assembly.Load)
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type is { IsAbstract: false, IsInterface: false })
-            .Where(IsMessageHandler)
-            .Where(type => type.GetConstructors(
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .Any(constructor => AggregatesWrittenBy(constructor).Count > 1))
-            .Select(type => type.Name)
-            .Distinct()
-            .ToList();
+            .SelectMany(assembly => assembly.GetTypes()))
+            .Select(type => type.Name).Distinct().ToList();
 
         offenders.Should().BeEquivalentTo(
             ["ProvisionTenantCommandHandler"],
@@ -70,9 +63,10 @@ public sealed class AggregateWriteTests
         //
         // Detected by shape, not by name: an interface whose method takes a type from a
         // module's Domain assembly is a port that writes domain objects, whatever it is
-        // called. Typed identifiers are keys, not mutable domain objects: a reader that
-        // takes CourseId cannot write a Course. ADR-0023 requires those keys to stay typed.
-        // A rule keyed on "ends in Store" is satisfied by renaming.
+        // called. A typed identifier can also reach a key-only DeleteAsync write, so
+        // only explicitly enumerated read methods may exclude keys. A rule keyed on
+        // "ends in Store" or "takes a mutable root" is satisfied by renaming or deleting
+        // by id. ADR-0023 still requires the approved readers' keys to stay typed.
         var domainAssemblies = ProductionAssemblies()
             .Select(Assembly.Load)
             .Where(assembly => assembly.GetName().Name?.EndsWith(".Domain", StringComparison.Ordinal)
@@ -104,8 +98,9 @@ public sealed class AggregateWriteTests
         var domains = new HashSet<Assembly> { typeof(Course).Assembly };
         TakesDomainObject(typeof(IParentCourseReader), domains).Should().BeFalse();
         TakesDomainObject(typeof(ITranslationCollisionReader), domains).Should().BeFalse();
-        TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeFalse();
-        foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter) })
+        TakesDomainObject(typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader), domains).Should().BeFalse();
+        TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
+        foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
             TakesDomainObject(writer, domains).Should().BeTrue($"{writer.Name} must remain visible to the census; Fix: inspect domain objects inside every wrapper");
             WriteStoreConstructions(writer).Should().BeEmpty("these planted writes must fail the production guard rather than count as sanctioned stores");
@@ -114,12 +109,75 @@ public sealed class AggregateWriteTests
         WriteStoreConstructions(typeof(ICourseWriteStore)).Should().ContainSingle();
     }
 
+    /// <summary>Exercise the same handler predicate and constructor scan as production.</summary>
+    [Fact]
+    public void Cross_Aggregate_Census_Catches_Fused_Separate_Notification_And_Internal_Constructors()
+    {
+        var forbidden = new[] { typeof(FusedHandler), typeof(TwoPortHandler), typeof(NotificationHandler), typeof(VoidHandler) };
+        CrossAggregateWriters(forbidden.Concat([typeof(SameRootHandler), typeof(NonHandler)]))
+            .Should().BeEquivalentTo(forbidden,
+                "all message shapes and non-public constructors must count every reachable root; Fix: preserve the shared production census");
+    }
+
+    private static IEnumerable<Type> CrossAggregateWriters(IEnumerable<Type> types) => types
+        .Where(type => type is { IsAbstract: false, IsInterface: false })
+        .Where(IsMessageHandler)
+        .Where(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Any(constructor => AggregatesWrittenBy(constructor).Count > 1));
+
     private static bool TakesDomainObject(Type type, HashSet<Assembly> domains) =>
         type.GetInterfaces().Append(type).SelectMany(contract => contract.GetMethods())
             .Any(method => method.GetParameters().Any(parameter =>
-            Unwrap(parameter.ParameterType).Any(inner => !inner.HasElementType && domains.Contains(inner.Assembly)
-                && !inner.GetInterfaces().Any(contract => contract.IsGenericType
-                    && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>)))));
+                Unwrap(parameter.ParameterType).Any(inner => !inner.HasElementType && domains.Contains(inner.Assembly)
+                    && (!IsTypedId(inner) || !ReadMethods.Contains(method)))));
+
+    private static bool IsTypedId(Type type) => type.GetInterfaces().Any(contract =>
+        contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
+
+    // Method-level enumeration: adding DeleteAsync to an approved reader must still
+    // enter the census. A value-returning key-only writer is not a read exemption.
+    private static readonly HashSet<MethodInfo> ReadMethods =
+    [
+        typeof(IParentCourseReader).GetMethod(nameof(IParentCourseReader.ReadAsync))!,
+        typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader).GetMethod("ReadCourseAsync")!,
+        typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader).GetMethod("ReadLessonAsync")!,
+        typeof(LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader).GetMethod("ReadSettingAsync")!,
+        typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadContentTypeAsync")!,
+        typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadTaxonomyAsync")!,
+    ];
+
+    private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }
+    private interface IValueReturningKeyWriter { Task<bool> DeleteAsync(CourseId id); }
+    private interface IFusedWritePort : IAggregateWriteStore<Course, CourseId>, IAggregateWriteStore<Lesson, LessonId>;
+    private sealed record CommandProbe : IRequest;
+    private sealed record ValueProbe : IRequest<bool>;
+    private sealed record NotificationProbe : INotification;
+    private sealed class FusedHandler : IRequestHandler<ValueProbe, bool>
+    {
+        internal FusedHandler(IFusedWritePort store) { }
+        public Task<bool> Handle(ValueProbe request, CancellationToken cancellationToken) => Task.FromResult(false);
+    }
+    private sealed class TwoPortHandler : IRequestHandler<ValueProbe, bool>
+    {
+        public TwoPortHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task<bool> Handle(ValueProbe request, CancellationToken cancellationToken) => Task.FromResult(false);
+    }
+    private sealed class NotificationHandler : INotificationHandler<NotificationProbe>
+    {
+        public NotificationHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task Handle(NotificationProbe notification, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+    private sealed class VoidHandler : IRequestHandler<CommandProbe>
+    {
+        public VoidHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task Handle(CommandProbe request, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+    private sealed class SameRootHandler : IRequestHandler<ValueProbe, bool>
+    {
+        public SameRootHandler(ICourseWriteStore first, ICourseWriteStore second) { }
+        public Task<bool> Handle(ValueProbe request, CancellationToken cancellationToken) => Task.FromResult(false);
+    }
+    private sealed class NonHandler { public NonHandler(IFusedWritePort store) { } }
 
     private interface IWrappedKeyReader { void Read(IEnumerable<CourseId[]> ids); }
     private interface IDirectWriter { void Apply(Course root); }

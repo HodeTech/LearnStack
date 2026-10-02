@@ -29,7 +29,8 @@ not approval of unseen access or commerce contracts. This ADR remains Proposed.
   place, a session reservation or a consumable pack creates different obligations.
 - [P02d-1](../roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14)
   shipped tenant-owned courses and lessons with isolation. Their first application
-  writers are next; [ADR-0050](0050-publication-and-course-content-access.md)
+  writers and seed are delivered in P02d-2;
+  [ADR-0050](0050-publication-and-course-content-access.md)
   separates publication/access under the accepted P02d-2 package, not commerce.
 - Shared discovery must not expose private lessons, learners, finances or operations
   across institutions. Marketplace economics and operational readiness are unproven.

@@ -198,8 +198,6 @@ once across every pod without enumerating anything —
 the compiled-validator cache that used to sit beside it. It lands with its first
 consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
 
-<a id="p02d-2-proposed-exact-write-contract"></a>
-
 ## P02d-2 accepted exact write contract
 
 **Step 1 implemented, both reviews passed — 2026-10-02.** An application interface in
