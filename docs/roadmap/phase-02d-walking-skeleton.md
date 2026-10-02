@@ -864,31 +864,31 @@ External PR #23 findings were verified against `6fce655` before changes. Current
 carriers now separate delivered P02d-2 policy, migration, writers, presentation
 resolution and seed from P02d-4 public reads, P02d-6 rendering and Phase 07 grants.
 ADR-0050/0051 retain their acceptance-time Status and Decision text; dated
-implementation disclosures and Amendment 1 record delivery. The indexes, glossary, audit review state,
-implemented setter fence, contrast refusal and unrestricted default entitlement
-provider are aligned. No access, branding, marketplace or governance decision changes.
+implementation disclosures and Amendment 1 record delivery. The indexes, glossary, audit
+review state, implemented setter fence, contrast refusal and unrestricted default
+entitlement provider are aligned. No access, branding, marketplace or governance
+decision changes.
 
-The exact presentation reader now returns `/properties` validation failures for
-missing or non-object members and non-object roots. Eleven regressions preserve its
-Result contract and optional legacy profile behavior. Migration reversal locates the
-policy migration by stable ID; both Up applications prove the restricted backfill.
-Lesson and Course post-save refusal absorption, both Customization MUST-audit
-replacement rollbacks and the incumbent rollback-only branch have direct proofs.
-A controlled non-provisioning translation race witnesses two real save attempts, one
-successful act and one audited refusal, fresh completed-state recovery and an unchanged
-all-outcome repeat snapshot.
+The exact presentation reader now returns `/properties` validation failures for missing
+or non-object members and non-object roots. Eleven regressions preserve its Result
+contract and optional legacy profile behavior. Migration reversal locates the policy
+migration by stable ID; both Up applications prove the restricted backfill. Lesson and
+Course post-save refusal absorption, both Customization MUST-audit replacement rollbacks
+and the incumbent rollback-only branch have direct proofs. A controlled non-provisioning
+translation race witnesses two real save attempts, one successful act and one audited
+refusal, fresh completed-state recovery and an unchanged all-outcome repeat snapshot.
 
 Theme replacement-version requirements do not apply to create-only seed writes.
 Reference admission remains with the authoritative exact-revision writers; no new
 whole-declaration preflight contract is introduced. Existing inventory comparisons
 already prove both tenants' shared English slug and foreign-tenant invisibility.
-Existing repeat snapshots include every audit outcome; the new race additionally
-retains an observed failed audit. These findings require no production expansion.
+Existing repeat snapshots include every audit outcome; the new race additionally retains
+an observed failed audit. These findings require no production expansion.
 
 Release build has zero warnings/errors; 1,570 unit, 181 architecture, 171 Docker-free
 integration, one contract and all 68 focused database cases pass with zero skips.
-Relative links, fragments, added prose wrapping, format and `git diff --check` pass;
-the P02d-1 suffix remains byte-identical.
+Relative links, fragments, added prose wrapping, format and `git diff --check` pass; the
+P02d-1 suffix remains byte-identical.
 
 **Independent review round 1.** The correction commit is `40d207d`. A fresh Codex
 reviewer at xhigh effort traced parser callers, migration targeting, rollback and seed
@@ -896,8 +896,8 @@ race evidence; a fresh Sonnet 5 reviewer at high effort checked corpus/governanc
 source claims. Both returned Approve with no material findings. A separately detected
 89-column prose line is wrapped without changing its meaning.
 
-**Complete backend verification.** After the corrections, all 2,572 cases pass:
-1,570 unit, 181 architecture, one contract, 171 Docker-free integration and 649 Docker
+**Complete backend verification.** After the corrections, all 2,572 cases pass: 1,570
+unit, 181 architecture, one contract, 171 Docker-free integration and 649 Docker
 integration. TRX counters show zero failures/errors/skips; the execution guard passes
 for every assembly. The 68-case focused database group also passes. Release build has
 zero warnings/errors, and full format verification exits zero. The PR documentation
