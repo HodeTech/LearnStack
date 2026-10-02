@@ -50,7 +50,8 @@ not deferred to the showcase phase.
   records final verification. P02d-3 read internals are next; the
   [decision package](phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
   is Accepted — 2026-10-02; Step 1 is implemented; both review rounds passed.
-  Steps 2/3 remain ahead
+  Step 2 implements uncached batched definition reads; review and Step 3 caching
+  remain ahead
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

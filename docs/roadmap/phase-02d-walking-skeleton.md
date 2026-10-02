@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 implemented, review pending |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) implemented, review pending; Step 3 ahead |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -1333,7 +1333,8 @@ protect reads without a cache or raw configuration export.
 Release build: zero warnings/errors. Unit: 1584 passed; architecture: 184 passed;
 integration: 241 passed (Docker/settings, writer/seed and Docker-free cases).
 All three populations have zero failed/skipped; formatting and document checks pass.
-Both independent review rounds passed; Step 2 follows. Public consumers/metadata remain P02d-4/6.
+Both independent review rounds passed; Step 2 follows. Public consumers/metadata
+remain P02d-4/6.
 
 **Step 1 review round 1.** Two fresh GPT-5.5 high sessions reviewed
 `307bbcd..9293202`. No verified Blocker/Major. Two verified Minor findings were
@@ -1347,6 +1348,26 @@ read. No behavior changed.
 They independently identified the same stale delivery-status sentence above,
 which is corrected in this closeout. Related current-state carriers now record
 both rounds as passed. Documentation link/fragment and diff checks pass.
+
+
+#### Step 2: batched coherent definition reads
+
+Implemented the immutable exact-pin display contract and ambient loader in both
+composition roots. One SQL statement returns the generation, both eligible
+families and taxonomy bands using their composite revision key. Individual
+invalid/ineligible pins remain missing without revision substitution or dropping
+valid neighbors. Actual display locales and authored descriptor order survive;
+raw schemas stay inside the loader. The writer's purpose-aware reader is unchanged.
+
+The reader is deliberately uncached in this step. Every batch probes the durable
+counter and loads the coherent statement snapshot; cache, dirty-scope behavior
+and warm counts remain Step 3. The no-validation-on-read architecture guard walks
+module helper dependencies and has planted direct/helper and clean controls.
+Release build has zero warnings/errors; 1584 unit, 186 architecture and 21 focused
+Docker integration cases pass with zero failures/skips. The real guard rejects a
+planted validator dependency in the production snapshot helper, then passes after
+restoration. Formatting and documentation checks pass. Both fresh review rounds
+remain pending; no cache implementation is claimed.
 
 
 ### P02d-1 decision pass (2026-09-14)

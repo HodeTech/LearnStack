@@ -95,7 +95,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**140 test methods run in
+**142 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -124,7 +124,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**148 rules in this catalogue are Implemented, and 101 of them are in that assembly.**
+**149 rules in this catalogue are Implemented, and 102 of them are in that assembly.**
 The other 47 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -1284,7 +1284,9 @@ otherwise).
   not treated as evidence.
 - **Source:** ADR-0043 and [Standards 20's projection cache contract](20-infrastructure-stack.md#icacheservice-state).
 - **Type:** xUnit + Mono.Cecil. **Kind:** structural.
-- **Status:** **Registered** (implementation and planted proof in P02d-3).
+- **Status:** **Implemented** (`CustomizationProjectionTests`). The companion
+  `Projection_validator_guard_detects_direct_and_helper_dependencies` proves direct
+  and module-helper dependencies are detected, with a clean negative control.
 - **Phase:** 02d (P02d-3).
 
 ### Persistence: concurrency and the unit of work

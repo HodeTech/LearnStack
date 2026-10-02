@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
@@ -112,6 +113,7 @@ public static class SeedComposition
         services.AddSingleton<IJsonSchemaValidator, JsonSchemaNetValidator>();
 
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddCustomizationProjectionReads();
         services.AddModuleDbContext<EducationDbContext>();
         services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();

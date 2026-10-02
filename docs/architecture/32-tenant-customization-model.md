@@ -529,7 +529,8 @@ per tenant per month. That ratio is the whole design.
 | `TenantLevelTaxonomy` eligible revision set, including bands | same | `{tenant_id}:customization:taxonomies:v{generation}` | same | Fresh generation probe |
 | `TenantPageBlock` set (Phase 04; not implemented) | L1 + L2 target | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 
-**G12 cache/G22 Accepted — 2026-10-02; implementation pending P02d-3.**
+**G12 cache/G22 Accepted — 2026-10-02.** P02d-3 Step 2 implements the
+uncached coherent loader; its review and Step 3 caching remain pending.
 The first two keys use `CacheKey.ForTenant(tenantId, "customization", family,
 $"v{generation}")`: generation is a separate component, never a `:` inside one.
 Both cache immutable, untranslated Active and Deprecated nondeleted revisions,

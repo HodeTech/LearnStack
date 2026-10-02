@@ -20,6 +20,10 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 internal static class Il
 {
+    /// <summary>Names reachable from signatures, bodies and generated state machines.</summary>
+    internal static IEnumerable<string> ReferencedTypeNames(TypeDefinition type) =>
+        WithGenerated(type).SelectMany(ReferencedTypes).SelectMany(NamesOf).Distinct(StringComparer.Ordinal);
+
     /// <summary>
     /// Whether a type names a namespace anywhere the IL can carry it: its base type and
     /// interfaces, its attributes, its members' signatures, and its method bodies.

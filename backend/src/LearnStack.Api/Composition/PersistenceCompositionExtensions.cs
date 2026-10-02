@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
@@ -167,6 +168,7 @@ public static class PersistenceCompositionExtensions
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddTenantSettingsReads();
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddCustomizationProjectionReads();
         services.AddModuleDbContext<EducationDbContext>();
 
         // Audit's context is registered for the model, not for a writer. Rows reach

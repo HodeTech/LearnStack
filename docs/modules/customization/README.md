@@ -190,14 +190,15 @@ absence rather than substituting an unrelated diagram for it.
 
 ### Primary read flow: resolving a tenant's shapes
 
-**P02d-3 contract Accepted — 2026-10-02; implementation pending.**
+**P02d-3 Step 2 implemented — 2026-10-02; review pending.**
 `ICustomizationDefinitionProjectionReader` resolves batched exact revision pins
 through ADR-0010's application-contract mechanism. Values are immutable; no public
 table, schema validation, HTTP endpoint or write is introduced. Active/Deprecated
 nondeleted definitions are eligible; missing individual pins remain distinguishable
 without failing unrelated members or substituting another revision. Labels resolve
 per call with actual locale metadata from the caller's display-locale context.
-The public response/refusal and page state remain P02d-4/6.
+The public response/refusal and page state remain P02d-4/6. The coherent loader
+currently runs uncached; generation-keyed cache behavior is Step 3.
 
 [Cache strategy § 8.2](../../architecture/32-tenant-customization-model.md#82-cache-strategy)
 owns family keys, ambient snapshot loading, dirty-scope bypass, fault/cancellation
