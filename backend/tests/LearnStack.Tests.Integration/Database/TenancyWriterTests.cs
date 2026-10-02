@@ -168,6 +168,61 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
         await frame.FailAsync();
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Branding_refuses_missing_or_deleted_tenants_before_setting_access(bool missingTenant, bool replacement)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        (await ReadTenantAsync(source, context)).Status.Should().Be(nameof(TenantStatus.Trial));
+        var id = Guid.CreateVersion7();
+        if (replacement)
+        {
+            (await SendAsync(source, context, new SetTenantBrandingCommand(id, Theme, null))).IsSuccess.Should().BeTrue();
+        }
+        var before = (await SendAsync(source, context, new GetSettingSeedStateQuery(id))).Value!.State;
+        var auditsBefore = await CountSuccessfulWritesAsync(source, context, "tenancy.setting.write");
+        if (!missingTenant)
+        {
+            await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            await using var scope = provider.CreateAsyncScope();
+            var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(context);
+            var store = scope.ServiceProvider.GetRequiredService<ITenantWriteStore>();
+            var tenant = (await store.FindAsync(context.TenantId))!;
+            tenant.SoftDelete(new SystemClock().UtcNow, UserId.SystemActor);
+            await store.UpdateAsync(tenant);
+            await frame.CompleteAsync();
+        }
+
+        var refusedContext = missingTenant ? context with { TenantId = TenantId.From(Guid.CreateVersion7()) } : context;
+        await using var host = factory.WithWebHostBuilder(builder => builder
+            .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services => services.AddScoped<ITenantSettingWriteStore, UnexpectedSettingAccess>()));
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current = refusedContext;
+            var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(refusedContext);
+            var result = await scope.ServiceProvider.GetRequiredService<ISender>()
+                .Send(new SetTenantBrandingCommand(id, OtherTheme, replacement ? 0 : null));
+            result.IsFailure.Should().BeTrue();
+            result.Error!.Code.Should().Be("not_found");
+            scope.ServiceProvider.GetRequiredService<TenancyDbContext>().ChangeTracker.Entries().Should().BeEmpty();
+            scope.ServiceProvider.GetRequiredService<IAuditStateCapture>().Changes.Should().BeEmpty();
+            await frame.FailAsync();
+        }
+        var after = (await SendAsync(source, context, new GetSettingSeedStateQuery(id))).Value!.State;
+        after.Should().BeEquivalentTo(before);
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.setting.write")).Should().Be(auditsBefore);
+    }
+
     [Fact]
     public async Task Whole_json_value_is_redacted_in_the_capture_and_durable_setting_audit()
     {
@@ -398,6 +453,9 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
         var initial = await ReadTenantAsync(source, context);
         var added = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
         added.IsSuccess.Should().BeTrue();
+        var settingId = Guid.CreateVersion7();
+        (await SendAsync(source, context, new SetTenantBrandingCommand(settingId, Theme, null))).IsSuccess.Should().BeTrue();
+        var brandingBefore = (await SendAsync(source, context, new GetSettingSeedStateQuery(settingId))).Value!.State;
         await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
         await using (var scope = provider.CreateAsyncScope())
         {
@@ -437,10 +495,14 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
             (await sender.Send(new AddTenantLocaleCommand(version, "fr", true, false, 1))).Error!.Code.Should().Be("not_found");
             (await sender.Send(new SetDefaultTenantLocaleCommand(version, "en"))).Error!.Code.Should().Be("not_found");
+            (await sender.Send(new SetTenantBrandingCommand(Guid.CreateVersion7(), OtherTheme, null))).Error!.Code.Should().Be("not_found");
+            (await sender.Send(new SetTenantBrandingCommand(settingId, OtherTheme, 0))).Error!.Code.Should().Be("not_found");
             scope.ServiceProvider.GetRequiredService<IAuditStateCapture>().Changes.Should().BeEmpty();
             await frame.FailAsync();
         }
         (await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write")).Should().Be(1);
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.setting.write")).Should().Be(1);
+        (await SendAsync(source, context, new GetSettingSeedStateQuery(settingId))).Value!.State.Should().BeEquivalentTo(brandingBefore);
     }
 
     [Fact]
@@ -630,6 +692,16 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
         }
         public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default) => inner.AddAsync(aggregate, cancellationToken);
         public Task UpdateAsync(Tenant aggregate, CancellationToken cancellationToken = default) => inner.UpdateAsync(aggregate, cancellationToken);
+    }
+
+    private sealed class UnexpectedSettingAccess : ITenantSettingWriteStore
+    {
+        public Task<TenantSetting?> FindAsync(TenantSettingId id, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A refused tenant must not load a setting.");
+        public Task AddAsync(TenantSetting aggregate, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A refused tenant must not create a setting.");
+        public Task UpdateAsync(TenantSetting aggregate, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A refused tenant must not replace a setting.");
     }
 
     private sealed class BarrierSettingStore(ITenantSettingWriteStore inner, ReadBarrier barrier) : ITenantSettingWriteStore

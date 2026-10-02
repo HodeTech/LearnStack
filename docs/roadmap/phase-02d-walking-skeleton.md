@@ -1018,6 +1018,26 @@ and restoration evidence; the documentation reviewer also verifies the unchanged
 1,799-line frozen suffix. The reviewed production code is complete. This closeout
 adds only the review record; the PR remains open for maintainer review and merge.
 
+#### Branding tenant-existence correction (2026-10-02)
+
+The outside-diff finding is verified against `3a4bb5d`. Branding now refuses a
+missing or soft-deleted announced tenant with the existing `not_found` result,
+after scope validation and before any setting lookup or write. A scalar, uncached
+Tenancy reader is registered in both runtime composition roots; the handler still
+holds one aggregate write capability. Live Trial tenants remain supported.
+
+Four application-role regression cases cover missing/deleted tenants and
+create/replace intent. A throwing setting store proves refusal precedes any
+setting access; fresh reads prove unchanged values/versions and no additional
+successful setting audit. The existing seeder-root deletion proof also covers both
+branding writes. Unit scope guards prove no existence read before scope admission.
+
+Release build has zero warnings/errors. Final suite runs pass all 2,594 backend
+cases: 1,577 unit, 184 architecture, one contract, 171 Docker-free integration and
+661 Docker integration. TRX counters and execution guards report no failures,
+errors or skips. Full format, local links/fragments and the frozen P02d-1 record
+check pass. Two fresh independent review rounds follow the correction commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

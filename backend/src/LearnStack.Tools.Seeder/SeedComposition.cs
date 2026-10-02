@@ -95,6 +95,7 @@ public static class SeedComposition
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
         services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
+        services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 

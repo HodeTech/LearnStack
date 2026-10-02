@@ -12,7 +12,7 @@ using MediatR;
 
 namespace LearnStack.Modules.Tenancy.Application.Branding;
 
-internal sealed class SetTenantBrandingCommandHandler(ITenantSettingWriteStore settings, ITenantContext tenantContext,
+internal sealed class SetTenantBrandingCommandHandler(ITenantSettingWriteStore settings, ITenantExistenceReader tenants, ITenantContext tenantContext,
     IUnitOfWork unitOfWork, IAuditSubject auditSubject, IClock clock)
     : IRequestHandler<SetTenantBrandingCommand, Result<TenantBrandingDto>>
 {
@@ -22,6 +22,11 @@ internal sealed class SetTenantBrandingCommandHandler(ITenantSettingWriteStore s
         if (TenantWriteFailures.Scope<TenantBrandingDto>(tenantContext) is { } scopeFailure)
         {
             return scopeFailure;
+        }
+
+        if (!await tenants.ExistsAsync(cancellationToken))
+        {
+            return TenantWriteFailures.Code<TenantBrandingDto>("lockey_not_found");
         }
 
         var theme = BrandingThemeRegistry.ValidateAndCanonicalize(request.Theme);

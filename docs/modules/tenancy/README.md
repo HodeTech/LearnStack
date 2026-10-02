@@ -81,6 +81,11 @@ records approval and seed inventory. All three commands are unrouted, require re
 tenant-wide context and write one aggregate; organization context is refused rather than
 silently promoted to tenant scope. Tenant ids are not caller authority.
 
+All three writers refuse missing or soft-deleted tenants with `not_found`.
+Branding checks tenant existence before loading a setting, for both creation and
+replacement. Its scalar reader tracks no tenant root and grants no tenant write
+capability; live Trial tenants remain supported.
+
 | Command | Root and contract |
 |---|---|
 | `AddTenantLocaleCommand` | Tenant; exact expected version, canonicalizable locale, enabled/default flags and nonnegative sort. Duplicate locale is a business-rule refusal; disabled default is refused before mutation |

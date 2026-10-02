@@ -38,6 +38,7 @@ public sealed class TenantWriterTests
         var result = await HandleAsync(provider, operation, 0);
         result.Error!.Code.Should().Be(code);
         await provider.GetRequiredService<ITenantWriteStore>().DidNotReceiveWithAnyArgs().FindAsync(TenantId);
+        await provider.GetRequiredService<ITenantExistenceReader>().DidNotReceiveWithAnyArgs().ExistsAsync(default);
         await provider.GetRequiredService<ITenantSettingWriteStore>().DidNotReceiveWithAnyArgs().FindAsync(TenantSettingId.From(Guid.CreateVersion7()));
     }
 
@@ -175,6 +176,9 @@ public sealed class TenantWriterTests
         services.AddValidatorsFromAssembly(typeof(ITenantWriteStore).Assembly, includeInternalTypes: true);
         services.AddSingleton(Substitute.For<ITenantWriteStore>());
         services.AddSingleton(Substitute.For<ITenantSettingWriteStore>());
+        var tenants = Substitute.For<ITenantExistenceReader>();
+        tenants.ExistsAsync(Arg.Any<CancellationToken>()).Returns(true);
+        services.AddSingleton(tenants);
         services.AddSingleton(Substitute.For<IUnitOfWork>());
         services.AddSingleton(Substitute.For<IAuditSubject>());
         services.AddSingleton<IClock>(Clock);

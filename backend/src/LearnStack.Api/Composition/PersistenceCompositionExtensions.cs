@@ -283,6 +283,7 @@ public static class PersistenceCompositionExtensions
         // production handler reaches persistence at all.
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
         services.TryAddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
+        services.TryAddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
 
