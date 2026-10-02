@@ -11,7 +11,9 @@ The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision
 is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
 verification queries, explicitly classified Off. Step 3 implements six writers; both
 review rounds and a focused fix review passed. Step 4 completes the seed after both
-review rounds. P02d-2 is verified and ready for PR review; merge remains pending.
+review rounds. P02d-2 is complete and merged — 2026-10-02; its
+[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+records final verification. P02d-3 read internals are next.
 The diagram includes the access column.
 
 ## Overview

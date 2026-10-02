@@ -73,8 +73,10 @@ definition/locale readers, text-card metadata validation and seed verification q
 Both Step 1 review rounds passed. Step 2 adds locale/branding writers and JSON audit
 redaction; both review rounds passed. Step 3 adds Education writers; both review
 rounds and the focused fix review passed. Step 4 completes convergent seed
-execution after both review rounds. P02d-2 is verified and ready for PR review;
-merge remains pending. P02d-3 read internals are next.
+execution after both review rounds. **P02d-2 is complete and merged** through
+[PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; the
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+records verification. P02d-3 read internals and their decision pass are next.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 

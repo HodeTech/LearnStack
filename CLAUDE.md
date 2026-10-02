@@ -79,8 +79,11 @@ locale/branding writers and whole-value setting audit redaction; both review rou
 passed.
 Step 3 adds Education writers; both review rounds and a fresh focused fix review
 passed. Step 4 completes convergent seed execution after both review rounds.
-P02d-2 implementation and final verification are complete; PR review/merge remains
-pending. P02d-3 read internals are next; public reads belong to P02d-4.
+**P02d-2 is complete and merged** through
+[PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+records the accepted head and merge verification. P02d-3 read internals are next;
+its decision pass has not started. Public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

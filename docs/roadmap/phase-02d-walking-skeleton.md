@@ -10,7 +10,7 @@
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
-> | P02d-2 | Writers and seed | ✅ implementation complete — 2026-10-02; all four steps reviewed and verified; PR review/merge pending |
+> | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
@@ -27,6 +27,12 @@ explicit request. ADR-0049 and Phase 09a remain Proposed.
 revokes the acceptance-time wait. [Delivery](#p02d-2-implementation-delivery-2026-10-02)
 records all four completed implementation steps and their two independent review
 rounds. P02d-2 is ready for PR review; merge closeout remains pending. P02d-3 is next.
+
+**Merge complete — 2026-10-02.** The acceptance and implementation notes above
+record the pre-merge milestones. P02d-2 is now closed through
+[PR #23](https://github.com/HodeTech/LearnStack/pull/23); its
+[merge closeout](#p02d-2-merge-and-closeout-2026-10-02) records verification.
+Phase 02d remains in progress. P02d-3 is next, with its decision pass still open.
 
 ## Goal
 
@@ -1045,6 +1051,60 @@ ordering, live Trial support, both DI registrations, refusal before setting acce
 and the positive build/TRX evidence. No further production change is required;
 this documentation-only closeout records the completed rounds. PR #23 remains
 open for maintainer review and merge.
+
+### P02d-2 merge and closeout (2026-10-02)
+
+[PR #23](https://github.com/HodeTech/LearnStack/pull/23) merged into `main` at
+**11:41:47 UTC**, with final PR head `161314313eeb0d87758fb38c20af5e4c4c1b5766`
+and merge commit `8edbb032b81313aae7e635b2782af511a9fe02cc`. Their trees are
+identical. `development` was fast-forwarded to the merge commit without switching
+branches or rewriting history. This closeout changes documentation only.
+
+- [x] Accepted P02d-2 gate parts and all four implementation steps are complete;
+  each step and the subsequent verified PR corrections completed both review rounds.
+- [x] ADR-0050's policy, restricted backfill and Education writers are delivered;
+  ADR-0051's profile parsing and resolution are delivered. Public-read enforcement
+  remains P02d-4, rendering P02d-6 and course access grants Phase 07.
+- [x] Three Tenancy and six Education writers, exact-definition/locale validation
+  and convergent two-tenant seed execution are delivered and registered.
+- [x] The final tenant-existence correction refuses both branding write intents
+  before setting access; live Trial tenants remain supported.
+- [x] The final PR head passed all five required checks; CodeRabbit also succeeded.
+- [x] The merge commit passed the same five required checks.
+
+| Verified revision | CI evidence | Result |
+|---|---|---|
+| Final PR head `1613143` | [Run 36986675925](https://github.com/HodeTech/LearnStack/actions/runs/36986675925) | All five required jobs succeeded |
+| `main` merge commit `8edbb03` | [Run 37002423112](https://github.com/HodeTech/LearnStack/actions/runs/37002423112) | All five required jobs succeeded |
+
+Final implementation verification records **2,594 passing backend cases**: 1,577
+unit, 184 architecture, one contract, 171 Docker-free integration and 661 Docker
+integration, with zero failures or skips. Release build has zero warnings/errors;
+format and link/fragment checks pass. The historical P02d-1 record remains unchanged.
+
+The live required-check list still contains the five recorded contexts with
+`strict: true`. The documentation closeout also passes 184 architecture cases,
+execution/zero-skip guards, added-prose wrapping and relative-link/anchor checks.
+
+**P02d-2 is closed. Phase 02d remains in progress.** P02d-3 through P02d-7 have
+not started. No public business endpoint or browser demo is delivered by this merge.
+ADR-0049 and the Course Marketplace pilot, Phase 09a, remain Proposed.
+
+#### P02d-3 entry readiness
+
+P02d-2's merged definitions, settings and seed satisfy the implementation dependency.
+The next action is P02d-3's decision pass, followed by read internals with no HTTP:
+generation-keyed Customization projections/cache families and a typed Tenancy
+settings accessor. The packet table and decision register remain authoritative:
+
+- G12's cache-key part, G22's ambient loader/generation/rollback/cache contract and
+  G24's display fallback remain to be accepted.
+- G23's no-settings-cache bound is already Accepted. The accessor's name, ambient
+  loading and tenant/organization scope contract remain P02d-3's decision work;
+  organization branding overrides and their token merge remain Phase 06.
+- Cold/warm statement-count, cache-fault and rollback safety proofs belong with
+  these readers. Public contracts/eligibility remain P02d-4; transport, rendering
+  and the final browser/CI demo remain P02d-5, P02d-6 and P02d-7 respectively.
 
 ### P02d-1 decision pass (2026-09-14)
 
