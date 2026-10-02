@@ -886,7 +886,7 @@ Existing repeat snapshots include every audit outcome; the new race additionally
 an observed failed audit. These findings require no production expansion.
 
 Release build has zero warnings/errors; 1,570 unit, 181 architecture, 171 Docker-free
-integration, one contract and all 68 focused database cases pass with zero skips.
+integration, one contract and all 69 affected database cases pass with zero skips.
 Relative links, fragments, added prose wrapping, format and `git diff --check` pass; the
 P02d-1 suffix remains byte-identical.
 
@@ -896,14 +896,29 @@ race evidence; a fresh Sonnet 5 reviewer at high effort checked corpus/governanc
 source claims. Both returned Approve with no material findings. A separately detected
 89-column prose line is wrapped without changing its meaning.
 
-**Complete backend verification.** After the corrections, all 2,572 cases pass: 1,570
-unit, 181 architecture, one contract, 171 Docker-free integration and 649 Docker
+**Complete backend verification.** After the corrections, all 2,573 cases pass: 1,570
+unit, 181 architecture, one contract, 171 Docker-free integration and 650 Docker
 integration. TRX counters show zero failures/errors/skips; the execution guard passes
-for every assembly. The 68-case focused database group also passes. Release build has
-zero warnings/errors, and full format verification exits zero. The PR documentation
-sweep checks 45 Markdown files, 2,892 local links and 577 fragments. No frontend or
-operational surface changed in this correction. The second independent round follows
-this documentation closeout.
+for every assembly. All 69 affected database cases pass within the full run. Release
+build has zero warnings/errors, and full format verification exits zero. The PR
+documentation sweep checks 45 Markdown files, 2,892 local links and 577 fragments. No
+frontend or operational surface changed in this correction. The second independent round
+and its correction are recorded below.
+
+**Independent review round 2.** Fresh Codex (xhigh) and Sonnet 5 (high) sessions
+reviewed `6fce655..a436a51`. Sonnet approved the corpus. Codex found one valid proof
+gap: identical translation contenders did not falsify removal of the loser's required
+post-race recheck. All other code/security, rollback, migration and documentation
+boundaries were clean.
+
+The test now covers identical and divergent payloads for the same course/locale. A
+conflicting loser must refuse its exact state before reporting the act completed; the
+independent later final-state check cannot supply this proof. A controlled mutant that
+skipped only the losing-race recheck passed the identical case and failed the divergent
+case at the completion assertion. `SeedRunner.cs` was restored byte-for-byte; no
+production seed behavior changes. Both positive variants and the complete backend suite
+then passed. The standards index's current-state date now matches the delivered
+2026-10-02 table. The targeted follow-up review is recorded after this fix commit.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -67,7 +67,7 @@ bookkeeping pass.
 
 ### Honest status today
 
-The table below describes the implementation as of 2026-09-14:
+The table below describes the implementation as of 2026-10-02:
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) Packets 0–3, 3b and 4–10
 shipped; P02d-1's Education domain, schema and live required-check repairs are
 implemented and verified. Both agent review rounds per step and all five required PR

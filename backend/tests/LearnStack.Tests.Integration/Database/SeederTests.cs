@@ -606,13 +606,20 @@ public sealed class SeederTests : IAsyncLifetime
         (await SnapshotAsync()).Should().Be(completed);
     }
 
-    [Fact]
-    public async Task Concurrent_translation_writers_recheck_the_completed_act_after_a_real_non_provisioning_race()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Concurrent_translation_writers_recheck_the_completed_act_after_a_real_non_provisioning_race(bool divergent)
     {
         await using var source = DataSource();
         var original = SeedData.English.Curriculum!.Courses[0];
         var course = original with { Status = "Draft", Lessons = [], Translations = [original.Translations[0]] };
         var tenant = SeedData.English with { Curriculum = SeedData.English.Curriculum with { Courses = [course] } };
+        var competingTranslation = course.Translations[0] with { Title = course.Translations[0].Title + " competing" };
+        var competingCourse = course with { Translations = [competingTranslation] };
+        var competing = divergent
+            ? tenant with { Curriculum = tenant.Curriculum! with { Courses = [competingCourse] } }
+            : tenant;
         var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
             new InterruptAfter("course"));
         var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
@@ -639,8 +646,20 @@ public sealed class SeederTests : IAsyncLifetime
 
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         await using var observer = await source.OpenConnectionAsync(deadline.Token);
-        var first = Runner(source).RunAsync(deadline.Token, [tenant]);
-        var second = Runner(source).RunAsync(deadline.Token, [tenant]);
+        var firstLog = new SeedActRecorder("course translation");
+        var secondLog = new SeedActRecorder("course translation");
+        async Task<InvalidOperationException?> Attempt(SeedTenant declared, SeedActRecorder log)
+        {
+            try
+            {
+                var runner = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance), log);
+                (await runner.RunAsync(deadline.Token, [declared])).Should().Be(0);
+                return null;
+            }
+            catch (InvalidOperationException refused) { return refused; }
+        }
+        var first = Attempt(tenant, firstLog);
+        var second = Attempt(competing, secondLog);
         try
         {
             var bothWaiting = false;
@@ -667,8 +686,22 @@ public sealed class SeederTests : IAsyncLifetime
             await release.ExecuteScalarAsync();
             await Task.WhenAll(first, second);
         }
-        (await first).Should().Be(0);
-        (await second).Should().Be(0);
+        var outcomes = await Task.WhenAll(first, second);
+        SeedTenant winner;
+        if (divergent)
+        {
+            outcomes.Should().ContainSingle(outcome => outcome == null);
+            outcomes.Should().ContainSingle(outcome => outcome != null).Which!.Message.Should().StartWith("Seed mismatch in course");
+            var loserLog = outcomes[0] is not null ? firstLog : secondLog;
+            loserLog.Completed.Should().BeFalse("the typed race must fail its exact postcondition before reporting the act complete; a later final-state check is insufficient");
+            winner = outcomes[0] is null ? tenant : competing;
+        }
+        else
+        {
+            outcomes.Should().OnlyContain(outcome => outcome == null);
+            new[] { firstLog.AlreadyPresent, secondLog.AlreadyPresent }.Should().ContainSingle(present => present);
+            winner = tenant;
+        }
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome = 'success'"))
             .Should().Be(1);
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome <> 'success'"))
@@ -676,8 +709,9 @@ public sealed class SeederTests : IAsyncLifetime
         var state = (await ReadAsync(source, new SeedTenantContext(tenant.TenantId, course.OrganizationId), new GetCourseSeedStateQuery(course.Id))).State!;
         state.Version.Should().Be(1);
         state.Translations.Should().ContainSingle().Which.Slug.Should().Be(course.Translations[0].Slug);
+        state.Translations[0].Title.Should().Be(winner.Curriculum!.Courses[0].Translations[0].Title);
         var completed = await SnapshotAsync();
-        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        (await Runner(source).RunAsync(CancellationToken.None, [winner])).Should().Be(0);
         (await SnapshotAsync()).Should().Be(completed, "the rerun retains the failed race audit and adds no outcome");
     }
 
@@ -942,6 +976,23 @@ public sealed class SeederTests : IAsyncLifetime
         await using var reader = await query.ExecuteReaderAsync();
         while (await reader.ReadAsync()) rows.Add(reader.GetString(0));
         return [.. rows];
+    }
+
+    private sealed class SeedActRecorder(string act) : ILogger<SeedRunner>
+    {
+        public bool Completed { get; private set; }
+        public bool AlreadyPresent { get; private set; }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (eventId.Id is 7002 or 7003 && state is IEnumerable<KeyValuePair<string, object?>> values
+                && values.Any(value => value.Key == "What" && Equals(value.Value, act)))
+            {
+                Completed = true;
+                AlreadyPresent = eventId.Id == 7003;
+            }
+        }
     }
 
     private sealed class InterruptAfter(string act) : ILogger<SeedRunner>
