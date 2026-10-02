@@ -670,7 +670,7 @@ Tenancy component description; its root/writer claim, command/store inventory an
 table count now match code. Links/anchors, wrapping and the frozen P02d-1 record pass.
 Step 2 is complete; Steps 3–4 remain pending.
 
-**Step 3 — Education writers, implementation verification and review pending.**
+**Step 3 — Education writers, complete with both review rounds.**
 Six separate commands write one Course or Lesson and its contained translations.
 New binds resolve exact Active revisions; existing lesson pins remain eligible after
 deprecation. Enabled locale admission and schema evaluation precede mutation. Visible
@@ -720,6 +720,17 @@ Database Standard and the old Backend Coding publication example now name the
 shipped writer contract. Additional focused review follows these production fixes.
 The attempted fresh Claude sessions reached the provider's session limit and
 produced no review; they are not counted as completed rounds.
+
+**Step 3 fix verification and closeout.** Fresh xhigh read-only review of
+`a4a29d3..2e498ce` returned Approve with no blocking findings. Its two low-priority
+suggestions were verified and applied: the oversize proof now counts every audit
+outcome, and a stale XML description no longer attaches the old size limit to
+`BuildOptions`. The fixed census passes all 178 architecture cases; its planted
+controls also cover inherited interface signatures. Release build has zero
+warnings/errors, 1,559 unit cases and the contract case pass, and all 780 integration
+cases pass, including 15 Education writers. No failures/skips remain; format,
+local links/anchors and the frozen P02d-1 suffix check pass. Step 3 is complete;
+Step 4 remains to implement.
 
 ### P02d-1 decision pass (2026-09-14)
 

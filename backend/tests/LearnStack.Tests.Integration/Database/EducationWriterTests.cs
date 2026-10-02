@@ -48,7 +48,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         var course = await CourseAsync(source, context, "bounded");
         var lesson = await LessonAsync(source, context, course.Id);
         var before = await LessonStateAsync(source, context, lesson.Id);
-        var auditCount = await SuccessfulAuditsAsync(source, context, "education.lesson.translation_add");
+        var auditCount = await CountAuditsAsync(source, context, "education.lesson.translation_add", onlySuccessful: false);
         var body = "{\"text\":\"" + new string('a', JsonInstanceLimits.MaxBytes - 11) + "\"}";
         System.Text.Encoding.UTF8.GetByteCount(body).Should().Be(JsonInstanceLimits.MaxBytes);
         var command = new AddLessonTranslationCommand(lesson.Id, lesson.Version, "en", "Bounded", "bounded", body);
@@ -59,7 +59,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
             refused.Error.Details.Should().ContainKey("Body", "size admission runs before even a missing-root lookup");
         }
         (await LessonStateAsync(source, context, lesson.Id)).Should().BeEquivalentTo(before);
-        (await SuccessfulAuditsAsync(source, context, "education.lesson.translation_add")).Should().Be(auditCount);
+        (await CountAuditsAsync(source, context, "education.lesson.translation_add", onlySuccessful: false)).Should().Be(auditCount);
         (await SendAsync(source, context, command)).IsSuccess.Should().BeTrue("the inclusive instance boundary must still pass the composed schema writer");
     }
 
@@ -214,7 +214,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         var foreignRoot = await CourseAsync(source, foreign, "first");
         (await SendAsync(source, foreign, new AddCourseTranslationCommand(foreignRoot.Id, 0, "en", "Foreign", null, "reserved")))
             .IsSuccess.Should().BeTrue("slug uniqueness is tenant-local");
-        (await SuccessfulAuditsAsync(source, context, "education.course.translation_add")).Should().Be(1);
+        (await CountAuditsAsync(source, context, "education.course.translation_add")).Should().Be(1);
     }
 
     [Theory]
@@ -237,7 +237,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         (await CourseStateAsync(source, context, course.Id)).Version.Should().Be(0);
         (await LessonStateAsync(source, context, lesson.Id)).Status.Should().Be("Draft");
         (await LessonStateAsync(source, context, lesson.Id)).Version.Should().Be(0);
-        (await SuccessfulAuditsAsync(source, context, lessonPublication ? "education.lesson.publish" : "education.course.publish")).Should().Be(0);
+        (await CountAuditsAsync(source, context, lessonPublication ? "education.lesson.publish" : "education.course.publish")).Should().Be(0);
     }
 
     [Theory]
@@ -328,7 +328,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         var state = await CourseStateAsync(source, context, course.Id);
         state.Status.Should().Be("Published");
         state.Version.Should().Be(1);
-        (await SuccessfulAuditsAsync(source, context, "education.course.publish")).Should().Be(1);
+        (await CountAuditsAsync(source, context, "education.course.publish")).Should().Be(1);
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         var states = new[] { await CourseStateAsync(source, context, first.Id), await CourseStateAsync(source, context, second.Id) };
         states.Should().ContainSingle(state => state.Version == 1 && state.Translations.Length == 1);
         states.Should().ContainSingle(state => state.Version == 0 && state.Translations.Length == 0);
-        (await SuccessfulAuditsAsync(source, context, "education.course.translation_add")).Should().Be(1);
+        (await CountAuditsAsync(source, context, "education.course.translation_add")).Should().Be(1);
     }
 
     [Theory]
@@ -388,8 +388,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
         final.Version.Should().Be(0);
         final.Status.Should().Be("Draft");
         (await SendAsync(source, context, new GetCourseSeedStateQuery(later))).Value!.State.Should().BeNull();
-        (await SuccessfulAuditsAsync(source, context, "education.course.publish")).Should().Be(0);
-        (await SuccessfulAuditsAsync(source, context, "education.course.create")).Should().Be(1);
+        (await CountAuditsAsync(source, context, "education.course.publish")).Should().Be(0);
+        (await CountAuditsAsync(source, context, "education.course.create")).Should().Be(1);
     }
 
     private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
@@ -439,15 +439,16 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
     private static async Task<LessonSeedDto> LessonStateAsync(NpgsqlDataSource source, Context context, Guid id) =>
         (await SendAsync(source, context, new GetLessonSeedStateQuery(id))).Value!.State!;
 
-    private static async Task<long> SuccessfulAuditsAsync(NpgsqlDataSource source, Context context, string operation)
+    private static async Task<long> CountAuditsAsync(NpgsqlDataSource source, Context context, string operation, bool onlySuccessful = true)
     {
         await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
         await unit.SetTenantContextAsync(context);
-        await using var command = new NpgsqlCommand("SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome = 'success'", (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!);
+        await using var command = new NpgsqlCommand("SELECT count(*) FROM audit_log WHERE operation = @operation AND (NOT @onlySuccessful OR outcome = 'success')", (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!);
         command.Parameters.AddWithValue("operation", operation);
+        command.Parameters.AddWithValue("onlySuccessful", onlySuccessful);
         var count = (long)(await command.ExecuteScalarAsync())!;
         await frame.FailAsync();
         return count;

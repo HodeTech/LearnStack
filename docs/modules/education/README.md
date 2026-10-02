@@ -9,9 +9,9 @@ records the accepted scope. P02d-2 implements unrouted writers and adds seed exe
 public reads remain planned for P02d-4.
 The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
-verification queries, explicitly classified Off. Step 3 implements six writers, with
-review pending; seed execution follows in Step 4. The diagram includes the access
-column.
+verification queries, explicitly classified Off. Step 3 implements six writers; both
+review rounds and a focused fix review passed. Seed execution follows in Step 4. The
+diagram includes the access column.
 
 ## Overview
 
@@ -182,7 +182,7 @@ second write path.
 
 ## P02d-2 accepted writer contract
 
-**Step 3 implemented, review pending — 2026-10-02.** The maintainer approved this
+**Step 3 complete — 2026-10-02.** The maintainer approved this
 contract with [ADR-0050](../../decisions/0050-publication-and-course-content-access.md),
 [ADR-0051](../../decisions/0051-ordered-text-card-presentation.md) and the phase package.
 This section owns command detail; the phase owns gate disposition and seed inventory.

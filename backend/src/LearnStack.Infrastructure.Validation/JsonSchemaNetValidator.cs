@@ -214,11 +214,6 @@ public sealed class JsonSchemaNetValidator : IJsonSchemaValidator
         }
     }
 
-    /// <summary>
-    /// The largest content entry this validator will evaluate, per
-    /// <see href="../../../docs/architecture/32-tenant-customization-model.md">§ 8.4</see>.
-    /// </summary>
-
     /// <remarks>
     /// A fresh registry per build. Both arguments are load-bearing; see the
     /// remarks on the class.

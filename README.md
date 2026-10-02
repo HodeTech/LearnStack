@@ -71,8 +71,8 @@ items, rules, custom fields and notification templates; their delivery is tracke
 with four implementation steps. Step 1 implements the access policy, exact
 definition/locale readers, text-card metadata validation and seed verification queries.
 Both Step 1 review rounds passed. Step 2 adds locale/branding writers and JSON audit
-redaction; both review rounds passed. Step 3 adds Education writers, with review
-pending; Step 4 adds seed execution.
+redaction; both review rounds passed. Step 3 adds Education writers; both review
+rounds and the focused fix review passed. Step 4 adds seed execution.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 

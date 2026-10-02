@@ -77,7 +77,8 @@ access-policy migration, exact-definition/locale contracts, presentation validat
 and contextual seed verification queries; both review rounds passed. Step 2 adds
 locale/branding writers and whole-value setting audit redaction; both review rounds
 passed.
-Step 3 adds Education writers, with review pending; Step 4 adds seed execution.
+Step 3 adds Education writers; both review rounds and a fresh focused fix review
+passed. Step 4 adds seed execution.
 Public reads belong to P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
