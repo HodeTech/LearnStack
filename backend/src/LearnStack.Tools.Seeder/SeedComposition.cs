@@ -93,6 +93,7 @@ public static class SeedComposition
 
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
+        services.AddTenantSettingsReads();
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
         services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();

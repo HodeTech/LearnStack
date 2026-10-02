@@ -245,12 +245,17 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
     /// <remarks>
     /// The chain is
     /// <see href="../../../../docs/architecture/12-localization.md">§ Fallback Rules</see>:
-    /// the requested tag, its language subtag, the tenant's default, the platform
+    /// the requested tag, progressive narrowing, the tenant's exact default, the platform
     /// default. <paramref name="fallbackChain"/> carries the third and fourth,
     /// because this type knows neither — the tenant's default lives in
     /// <c>tenant_locales</c> and is resolved once per request, not once per label.
     /// </remarks>
-    public string Resolve(string requestedLocale, IReadOnlyList<string>? fallbackChain = null)
+    public string Resolve(string requestedLocale, IReadOnlyList<string>? fallbackChain = null) =>
+        ResolveWithLocale(requestedLocale, fallbackChain).Value;
+
+    /// <summary>The same fallback lookup, retaining the actual canonical locale.</summary>
+    public ResolvedLocalizedText ResolveWithLocale(
+        string requestedLocale, IReadOnlyList<string>? fallbackChain = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestedLocale);
 
@@ -258,7 +263,7 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
 
         if (_values.TryGetValue(requested, out var direct))
         {
-            return direct;
+            return new ResolvedLocalizedText(direct, requested);
         }
 
         // Narrow one subtag at a time, never widen: `zh-Hant-TW` asks `zh-Hant`
@@ -272,7 +277,7 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
         {
             if (_values.TryGetValue(requested[..cut], out var narrower))
             {
-                return narrower;
+                return new ResolvedLocalizedText(narrower, requested[..cut]);
             }
         }
 
@@ -287,13 +292,14 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
 
                 if (_values.TryGetValue(LocaleTag.Canonicalize(candidate), out var fallback))
                 {
-                    return fallback;
+                    return new ResolvedLocalizedText(fallback, LocaleTag.Canonicalize(candidate));
                 }
             }
         }
 
         // Ordinal-first rather than empty: see the remarks on the type.
-        return _values.Values.First();
+        var first = _values.First();
+        return new ResolvedLocalizedText(first.Value, first.Key);
     }
 
     /// <summary>Whether <paramref name="locale"/> was authored, exactly.</summary>

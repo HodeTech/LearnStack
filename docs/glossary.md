@@ -140,14 +140,14 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 ## Extension Model
 
-These entries distinguish delivered P02d-2 contracts from P02d-3 accepted
-contracts awaiting implementation:
+These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 
 | Term | Definition |
 |---|---|
 | **`IExactCustomizationDefinitionReader`** | Contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-accepted-exact-write-contract). |
 | **`ICustomizationDefinitionProjectionReader`** | Accepted P02d-3 internal batched display reader for exact tenant-owned revision pins, with immutable generation-keyed definition families. Not implemented or a public API; the [decision package](roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02) records acceptance on 2026-10-02. |
-| **`ITenantSettingsAccessor`** | Accepted P02d-3 typed, uncached ambient settings reader with registered scope/grammar and explicit organization precedence. Not implemented; the [decision package](roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02) preserves tenant-wide branding and records acceptance on 2026-10-02. |
+| **`ResolvedLocalizedText`** | An immutable display label paired with its actual authored canonical locale, following [Localization § Fallback Rules](architecture/12-localization.md#fallback-rules). P02d-3 adds this internal metadata; public response fields and page language attributes remain P02d-4/6. |
+| **`ITenantSettingsAccessor`** | Accepted P02d-3 typed, uncached ambient settings reader with registered scope/grammar and explicit organization precedence. Step 1 implements the reader; the [Tenancy contract](modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract) owns its scope. Review is pending. |
 | **`ITenantLocaleEligibilityReader`** | Contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
 | **`x-fields`** | Optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 

@@ -206,7 +206,7 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 **G24 Accepted — 2026-10-02.** This section owns display fallback under
 [ADR-0008](../decisions/0008-localization-schema.md); the standard links here.
 [P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
-records acceptance. Locale-carrying resolution is not implemented yet.
+records acceptance. Step 1 implements locale-carrying resolution; review is pending.
 
 When the requested locale is unavailable:
 

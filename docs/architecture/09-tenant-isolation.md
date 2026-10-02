@@ -262,8 +262,8 @@ its generation and ambient fill rules live in
 The typed settings accessor is uncached and explicitly selects tenant-wide/current
 organization rows even if a future tenant-scope hatch widens RLS reads. The
 [Tenancy contract](../modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract)
-owns whole-value precedence and tenant-wide branding. These are accepted contracts,
-not delivered readers yet.
+owns whole-value precedence and tenant-wide branding. Step 1 implements the settings
+reader; the Customization reader remains pending.
 
 ```
 {tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization

@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted — 2026-10-02; implementation next |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 implemented, review pending |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -1317,6 +1317,24 @@ The maintainer approved the package together:
 The three-step plan is part of the accepted package. This decision commit precedes
 implementation, as required by the maintainer and
 [implement-task Step 1](../../.claude/skills/implement-task/SKILL.md#step-1--scope-and-alignment).
+
+### Delivery record: P02d-3
+
+**In progress — 2026-10-02.** The accepted decision commit is `307bbcd`.
+
+#### Step 1: typed settings and locale resolution
+
+Implemented `ResolvedLocalizedText` and the compatible string wrapper, plus the
+registered typed settings accessor in both composition roots. The sole production
+registration is tenant-wide branding; synthetic tests prove generic whole-value
+organization precedence. Explicit predicates, soft deletion and ambient admission
+protect reads without a cache or raw configuration export.
+
+Release build: zero warnings/errors. Unit: 1584 passed; architecture: 184 passed;
+integration: 241 passed (Docker/settings, writer/seed and Docker-free cases).
+All three populations have zero failed/skipped; formatting and document checks pass.
+Both independent review rounds remain pending;
+Step 2 has not started. Public consumers/metadata remain P02d-4/6.
 
 ### P02d-1 decision pass (2026-09-14)
 

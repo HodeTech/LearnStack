@@ -164,7 +164,7 @@ queries are Off.
 
 ### P02d-3 accepted typed settings contract
 
-**Accepted — 2026-10-02; implementation pending.** `ITenantSettingsAccessor`
+**Step 1 implemented — 2026-10-02; review pending.** `ITenantSettingsAccessor`
 exposes registered typed settings under ADR-0010's application-contract mechanism.
 No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
 admitted. The first production registration is tenant-wide `branding.theme`,
@@ -402,7 +402,7 @@ resolver reads `platform_host_to_tenant` and nothing else.
 flowchart LR
     subgraph Tenancy
         DOM[Domain<br/>4 aggregate roots]
-        CON[Application.Contracts<br/>6 write commands, 4 seed queries,<br/>locale eligibility contract]
+        CON[Application.Contracts<br/>6 write commands, 4 seed queries,<br/>locale eligibility and typed settings]
         APP[Application<br/>Handlers and validators,<br/>write and read ports]
         INF[Infrastructure<br/>TenancyDbContext,<br/>4 write stores and filtered readers]
     end
@@ -426,7 +426,8 @@ flowchart LR
 Text fallback — **components**: Tenancy is four assemblies — `Domain` (the
 `Tenant`, `Organization`, `TenantDomain` and `TenantSetting` roots),
 `Application.Contracts` (six write commands, four contextual seed queries and locale
-eligibility), `Application` (handlers, validators and module-owned persistence ports)
+eligibility and typed settings), `Application` (handlers, validators and module-owned
+persistence ports)
 and `Infrastructure` (`TenancyDbContext`, four write stores and filtered readers).
 The stores implement `ITenantWriteStore`, `IOrganizationWriteStore`,
 `ITenantSettingWriteStore` and `IPlatformHostMappingStore`; the context maps nine tables.

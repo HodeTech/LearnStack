@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using LearnStack.Modules.Tenancy.Application.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Results;
 
@@ -75,6 +76,22 @@ public static class BrandingThemeRegistry
         {
             return Invalid("lockey_branding_invalid");
         }
+    }
+
+    /// <summary>Uses the authoring grammar and contrast policy for a complete typed read.</summary>
+    public static Result<BrandingTheme> Read(string theme)
+    {
+        var validated = ValidateAndCanonicalize(theme);
+        if (validated.IsFailure)
+        {
+            return Result<BrandingTheme>.Fail(validated.Error);
+        }
+
+        using var document = JsonDocument.Parse(validated.Value);
+        var root = document.RootElement;
+        return Result.Ok(new BrandingTheme(root.GetProperty("primary").GetString()!,
+            root.GetProperty("background").GetString()!, root.GetProperty("foreground").GetString()!,
+            root.GetProperty("muted").GetString()!));
     }
 
     private static Result<string> Invalid(string reason) =>

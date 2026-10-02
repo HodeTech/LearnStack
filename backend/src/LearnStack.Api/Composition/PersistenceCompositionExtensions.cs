@@ -165,6 +165,7 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+        services.AddTenantSettingsReads();
         services.AddModuleDbContext<CustomizationDbContext>();
         services.AddModuleDbContext<EducationDbContext>();
 
