@@ -235,7 +235,7 @@ inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
 `tenancy:feature-flags`, `tenancy:settings`, `audit:config`, or
 `tenancy:killswitch`, `customization:content-types`, or `customization:taxonomies`).
 The Customization families are Accepted by P02d-3's G22 pass under ADR-0040/0043;
-their adapter mapping is not implemented yet. An unregistered family is
+their adapter mapping is implemented in Step 3. An unregistered family is
 reported as `other`; adapters never derive a label from a full cache key, tenant or
 organization id, host, session id, or entity id. `reason` is one of `explicit`, `expired`,
 or `capacity`; `outcome` is one of `success`, `faulted`, or `cancelled`.

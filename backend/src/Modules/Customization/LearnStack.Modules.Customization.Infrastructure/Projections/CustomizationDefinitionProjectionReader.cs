@@ -12,7 +12,7 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Modules.Customization.Infrastructure.Projections;
 
 public sealed class CustomizationDefinitionProjectionReader(
-    DefinitionSnapshotStore store, ITenantContext context, IUnitOfWork unit)
+    DefinitionSnapshotStore store, ITenantContext context, IUnitOfWork unit, DefinitionFamilyCache cache)
     : ICustomizationDefinitionProjectionReader
 {
     public async Task<Result<DefinitionProjection>> ReadAsync(
@@ -32,15 +32,25 @@ public sealed class CustomizationDefinitionProjectionReader(
             return Refused();
         }
 
-        // Step 2 deliberately probes and then always loads; Step 3 adds clean-scope caching.
-        await store.ProbeAsync(context.TenantId, cancellationToken);
-        var snapshot = await store.LoadAsync(context.TenantId, cancellationToken);
-        if ((snapshot.Generation is null && snapshot.HasDefinitionRows) || snapshot.Generation is <= 0)
+        // Every batch probes afresh. A miss loads BOTH families and their generation
+        // together; earlier partial hits are discarded even if a writer intervened.
+        var generation = await store.ProbeAsync(context.TenantId, cancellationToken);
+        var snapshot = generation is > 0
+            ? await cache.ReadAsync(context.TenantId, generation.Value, cancellationToken) : null;
+        if (snapshot is null)
         {
-            return Refused();
-        }
+            snapshot = await store.LoadAsync(context.TenantId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if ((snapshot.Generation is null && snapshot.HasDefinitionRows) || snapshot.Generation is <= 0)
+            {
+                return Refused();
+            }
 
-        return Result.Ok(Resolve(snapshot, request));
+            await cache.WriteAsync(context.TenantId, snapshot, cancellationToken);
+        }
+        var projection = Resolve(snapshot, request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Result.Ok(projection);
     }
 
     private static DefinitionProjection Resolve(DefinitionSnapshot snapshot, DefinitionProjectionRequest request)

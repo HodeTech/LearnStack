@@ -263,7 +263,7 @@ interpolation. The mapping is written down because it is the part that drifts:
 | `{tenant_id}:customization:content-types:v{generation}` | `CacheKey.ForTenant(tenantId, "customization", "content-types", $"v{generation}")` |
 | `{tenant_id}:customization:taxonomies:v{generation}` | `CacheKey.ForTenant(tenantId, "customization", "taxonomies", $"v{generation}")` |
 
-The Customization rows are Accepted, not implemented yet: P02d-3's G12/G22 pass
+The Customization rows are implemented in P02d-3 Step 3. The Accepted G12/G22 pass
 selects generation-keyed untranslated families, ambient coherent loading and
 dirty-scope bypass under ADR-0040/0043. Stable metrics omit the generation:
 `customization:content-types`, `customization:taxonomies`. The

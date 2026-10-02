@@ -6,6 +6,7 @@ using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Projections;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -13,18 +14,21 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using MediatR;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class CustomizationProjectionTests(SchemaFixture schema)
+public sealed partial class CustomizationProjectionTests(SchemaFixture schema, WebApplicationFactory<Program> factory, ITestOutputHelper output)
+    : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly Dictionary<string, string> Label = new() { ["en"] = "Label", ["tr"] = "Etiket" };
     private const string Profile = """
@@ -111,7 +115,8 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
         var context = await ProvisionAsync(source);
-        await using var read = await ReadSession.OpenAsync(source, context);
+        await using var cache = new CacheProbe();
+        await using var read = await ReadSession.OpenAsync(source, context, cache: cache);
         var empty = (await read.Reader.ReadAsync(Request([], []))).Value!;
         empty.Generation.Should().BeNull();
         empty.ContentTypes.Should().BeEmpty();
@@ -125,6 +130,8 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
         var refusal = await read.Reader.ReadAsync(Request([new("orphan", 1)], []));
         refusal.Error!.Code.Should().Be("validation_failed");
         refusal.Error.Details!["Definition"].Single().Key.Should().Be("lockey_schema_extension_unresolved");
+        cache.GetCalls.Should().Be(0);
+        cache.SetCalls.Should().Be(0);
         await ExecuteAsync(read.Unit, """
             INSERT INTO customization_generations (tenant_id,generation)
             VALUES (NULLIF(current_setting('app.tenant_id',true),'')::uuid,1)
@@ -133,18 +140,23 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
         present.Generation.Should().Be(1);
         present.ContentTypes.Should().BeEmpty();
         present.MissingContentTypes.Should().ContainSingle();
+        cache.SetCalls.Should().Be(2, "a present counter with empty eligible families is cacheable");
     }
 
     [Fact]
-    public async Task Publish_between_probe_and_load_returns_the_loaded_generation_and_both_new_families()
+    public async Task Publish_after_probe_with_a_partial_warm_hit_returns_the_loaded_generation_and_both_new_families()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
         var context = await ProvisionAsync(source);
         await CreateRevisionAsync(source, context, 1);
         await CreateRevisionAsync(source, context, 2, publish: false);
-        await using var read = await ReadSession.OpenAsync(source, context);
-        var probeGeneration = await GenerationAsync(read.Unit);
+        await using var cache = new CacheProbe();
+        await using var read = await ReadSession.OpenAsync(source, context, cache: cache);
+        var request = Request([new("profile", 1), new("profile", 2)], [new("levels", 1), new("levels", 2)]);
+        var probeGeneration = (await read.Reader.ReadAsync(request)).Value!.Generation!.Value;
+        await cache.RemoveAsync(FamilyKey(context.TenantId, "taxonomies", probeGeneration));
+        read.Observer.Reset();
         read.Observer.AfterProbe = async () =>
         {
             await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
@@ -157,10 +169,10 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
                 .IsSuccess.Should().BeTrue();
             (await sender.Send(new PublishTenantLevelTaxonomyCommand(await IdAsync(unit, "tenant_level_taxonomies", "levels", 2))))
                 .IsSuccess.Should().BeTrue();
+            await scope.ServiceProvider.GetRequiredService<IAuditStore>().WritePendingAsync(unit);
             await frame.CompleteAsync();
         };
-        var projection = (await read.Reader.ReadAsync(Request([new("profile", 1), new("profile", 2)],
-            [new("levels", 1), new("levels", 2)]))).Value!;
+        var projection = (await read.Reader.ReadAsync(request)).Value!;
         read.Observer.Intervened.Should().BeTrue();
         projection.Generation.Should().Be(probeGeneration + 2);
         projection.ContentTypes[new("profile", 1)].Status.Should().Be(DefinitionStatus.Deprecated);
@@ -250,15 +262,24 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
         reader.GetBoolean(1).Should().BeFalse();
     }
 
+    internal sealed record CommandSample(string Sql, (string Name, object Value)[] Parameters);
+
     internal sealed class CommandObserver : DbCommandInterceptor
     {
         public int Selects { get; private set; }
         public bool Intervened { get; private set; }
         public Func<Task>? AfterProbe { get; set; }
+        public CommandSample? Probe { get; private set; }
+        public CommandSample? Snapshot { get; private set; }
+        private static CommandSample Sample(DbCommand command) => new(command.CommandText,
+            command.Parameters.Cast<DbParameter>().Select(parameter => (parameter.ParameterName, parameter.Value!)).ToArray());
+        public void Reset() => Selects = 0;
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
             DbDataReader result, CancellationToken cancellationToken = default)
         {
             Selects++;
+            if (command.CommandText.Contains("P02d-3 generation probe", StringComparison.Ordinal)) Probe = Sample(command);
+            if (command.CommandText.Contains("P02d-3 definition snapshot", StringComparison.Ordinal)) Snapshot = Sample(command);
             if (AfterProbe is { } action && command.CommandText.Contains("P02d-3 generation probe", StringComparison.Ordinal))
             {
                 AfterProbe = null;
@@ -274,17 +295,21 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
         private readonly ServiceProvider _provider;
         private readonly AsyncServiceScope _scope;
         private ReadSession(ServiceProvider provider, AsyncServiceScope scope, IUnitOfWork unit,
-            IUnitOfWorkScope frame, CustomizationDbContext db, CommandObserver observer, ITenantContext context)
+            IUnitOfWorkScope frame, CustomizationDbContext db, CommandObserver observer, ITenantContext context, CacheProbe? cache)
         {
             _provider = provider; _scope = scope; Unit = unit; Frame = frame; Db = db; Observer = observer;
-            Reader = new CustomizationDefinitionProjectionReader(new DefinitionSnapshotStore(db), context, unit);
+            Reader = new CustomizationDefinitionProjectionReader(new DefinitionSnapshotStore(db), context, unit,
+                cache is null ? scope.ServiceProvider.GetRequiredService<DefinitionFamilyCache>()
+                    : new DefinitionFamilyCache(cache, State, unit, cache.Logger));
         }
+        public IServiceProvider Services => _scope.ServiceProvider;
+        public CustomizationReadState State => Services.GetRequiredService<CustomizationReadState>();
         public IUnitOfWork Unit { get; }
         public IUnitOfWorkScope Frame { get; }
         public CustomizationDbContext Db { get; }
         public CommandObserver Observer { get; }
         public ICustomizationDefinitionProjectionReader Reader { get; }
-        public static async Task<ReadSession> OpenAsync(NpgsqlDataSource source, ITenantContext context, bool announce = true)
+        public static async Task<ReadSession> OpenAsync(NpgsqlDataSource source, ITenantContext context, bool announce = true, CacheProbe? cache = null)
         {
             var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
             var scope = provider.CreateAsyncScope();
@@ -296,7 +321,7 @@ public sealed class CustomizationProjectionTests(SchemaFixture schema)
                 .UseNpgsql(unit.Connection).AddInterceptors(new TenantContextGuardInterceptor(unit), observer).Options,
                 scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>());
             await db.Database.UseTransactionAsync(unit.Transaction);
-            return new(provider, scope, unit, frame, db, observer, context);
+            return new(provider, scope, unit, frame, db, observer, context, cache);
         }
         public async ValueTask DisposeAsync()
         {

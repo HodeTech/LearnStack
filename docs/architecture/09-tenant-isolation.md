@@ -263,8 +263,8 @@ The typed settings accessor is uncached and explicitly selects tenant-wide/curre
 organization rows even if a future tenant-scope hatch widens RLS reads. The
 [Tenancy contract](../modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract)
 owns whole-value precedence and tenant-wide branding. Step 1 implements the settings
-reader; Step 2 implements the uncached Customization projection, with both reviews
-passed. Step 3 cache implementation remains pending.
+reader; Step 2 implements the Customization projection, with both reviews passed.
+Step 3 adds generation caching and scope-safe bypass; both reviews are pending.
 
 ```
 {tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization

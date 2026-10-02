@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; Step 3 ahead |
+> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; both reviews pending |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -1381,6 +1381,59 @@ Round 1 is complete.
 `4829414..94a84ab`. Both approved, with no verified findings. Current-state
 carriers record both rounds as passed; link/fragment and wrapping checks pass.
 Step 3 follows. No public consumer or cache implementation is claimed here.
+
+
+#### Step 3: generation cache and read safety
+
+Implemented the two untranslated immutable definition families, awaited cache
+get/load/set and stable metric names. Every read probes the durable generation;
+a miss loads both families and generation from the same statement snapshot.
+Supported stores and generation bumps mark a sticky scoped dirty flag before
+mutation. Dirty and rollback-only reads bypass cache get/set entirely. Cache
+fault diagnostics omit private exception/key payloads; cancellation and database
+failures propagate with their own meaning. L1 is 60 seconds; L2 remains Phase 11.
+
+Release build: zero warnings/errors. Unit: 1586 passed; architecture: 186 passed;
+focused Docker integration: 33 passed, including 23 projection/cache/composition
+cases and ten publication-failure/concurrency cases. All have zero failures/skips.
+The tests prove cold/warm statement counts, partial-hit publication coherence,
+locale-neutral families, tenant alternation, independent L1 freshness, nested
+write/read, store-save-before-bump, absorbed post-save refusal, rollback/reissued
+keys, faults/cancellation, missing-counter admission and API/Seeder root parity.
+An attempted test-only transaction reopen after rollback was correctly refused;
+the proof uses a fresh scope, preserving ADR-0040's irreversible rollback-only rule.
+The first full run passed unit, architecture, contract and Docker-free suites.
+It exposed four missing scoped-state registrations in two legacy test fixtures;
+those fixtures now supply the new state. A separate Seeder case encountered a
+connection-open timeout before reaching its seeded race. All six focused fixture
+and seed-race cases pass after the fix; the full Docker rerun remains pending. No retry
+or weakened
+assertion was added. Both independent Step 3 review rounds remain pending.
+
+**Local seeded measurement.** The executable
+`Seeded_local_measurement_records_statement_plans_payload_volume_and_end_to_end_timings`
+case uses a disposable PostgreSQL database through `learnstack_app`, the full
+P02d-2 seed and 20 observations after warmup. Tenant `demo-english`, generation 8:
+two content types, two taxonomies and nine bands. UTF-8 JSON payload from the
+coherent statement is 1984 bytes; this measures wire JSON, not managed heap size.
+
+| End-to-end path | Minimum / median / maximum, ms | SELECT statements |
+|---|---|---|
+| Cold | 0.736 / 0.781 / 0.975 | 2 |
+| Warm | 0.235 / 0.259 / 0.304 | 1 |
+| Typed branding setting | 0.259 / 0.300 / 0.352 | 1; uncached |
+
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the actual parameterized statements
+uses `pk_customization_generations` for the probe and composite tenant/key/version
+indexes for both families; bands use `ux_tenant_level_taxonomy_items_taxonomy_sort`.
+Probe execution: 0.007 ms, two shared-buffer hits. Snapshot execution: 0.117 ms,
+12 shared-buffer hits; both have zero shared-buffer reads. The snapshot's nested
+band aggregate remains one SQL statement. These small local observations are not
+production p95 evidence, do not isolate the in-memory `< 1 ms` target and do not
+prove the cold `< 20 ms` or settings `< 5 ms` production budgets. Retained revision
+volume, concurrent load and Phase 04's larger authoring workload require renewed
+measurement before extending the families. No latency threshold is hard-coded
+into the test.
 
 
 ### P02d-1 decision pass (2026-09-14)

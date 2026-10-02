@@ -47,11 +47,11 @@ not deferred to the showcase phase.
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
   **in progress**; P02d-1 and P02d-2 complete and merged; the
   [P02d-2 closeout](phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
-  records final verification. P02d-3 read internals are next; the
+  records final verification. P02d-3 read internals are implemented; the
   [decision package](phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
   is Accepted — 2026-10-02; Step 1 is implemented; both review rounds passed.
-  Step 2 implements uncached batched definition reads; both review rounds passed.
-  Step 3 caching remains ahead
+  Step 2 implements batched definition reads; both review rounds passed.
+  Step 3 adds generation caching and scope-safe bypass; both reviews are pending
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

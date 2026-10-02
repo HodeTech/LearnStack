@@ -9,6 +9,8 @@ public static class CustomizationReadRegistration
 {
     public static IServiceCollection AddCustomizationProjectionReads(this IServiceCollection services)
     {
+        services.TryAddScoped<CustomizationReadState>();
+        services.TryAddScoped<DefinitionFamilyCache>();
         services.TryAddScoped<DefinitionSnapshotStore>();
         services.TryAddScoped<ICustomizationDefinitionProjectionReader, CustomizationDefinitionProjectionReader>();
         return services;

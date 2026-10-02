@@ -82,11 +82,13 @@ passed. Step 4 completes convergent seed execution after both review rounds.
 **P02d-2 is complete and merged** through
 [PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
-records the accepted head and merge verification. P02d-3 read internals are next;
+records the accepted head and merge verification. P02d-3 read internals are implemented;
 its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 is Accepted — 2026-10-02. Step 1 implements typed settings and locale resolution;
-both review rounds passed. Step 2 implements uncached batched definition reads;
-both review rounds passed. Step 3 caching remains ahead. Public reads stay with P02d-4.
+both review rounds passed. Step 2 implements batched definition reads; both review
+rounds passed. Step 3
+adds generation caching and scope-safe bypass; both reviews are pending. Public reads
+stay with P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

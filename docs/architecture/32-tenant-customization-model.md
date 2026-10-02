@@ -529,8 +529,8 @@ per tenant per month. That ratio is the whole design.
 | `TenantLevelTaxonomy` eligible revision set, including bands | same | `{tenant_id}:customization:taxonomies:v{generation}` | same | Fresh generation probe |
 | `TenantPageBlock` set (Phase 04; not implemented) | L1 + L2 target | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 
-**G12 cache/G22 Accepted — 2026-10-02.** P02d-3 Step 2 implements the
-uncached coherent loader; both review rounds passed. Step 3 caching remains pending.
+**G12 cache/G22 Accepted — 2026-10-02.** P02d-3 Step 3 implements the
+coherent loader, cache and dirty-scope bypass; both review rounds are pending.
 The first two keys use `CacheKey.ForTenant(tenantId, "customization", family,
 $"v{generation}")`: generation is a separate component, never a `:` inside one.
 Both cache immutable, untranslated Active and Deprecated nondeleted revisions,
@@ -591,7 +591,9 @@ provide invalidation across independent L1 instances without events or L2.
 The module spec owns result/missing-member semantics and measured read budgets.
 [P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 records proof obligations. Family-wide volume includes retained revisions; measure
-rows/bytes and query plans now, and reassess before Phase 04's larger workload.
+rows/bytes and query plans as recorded in the
+[delivery measurements](../roadmap/phase-02d-walking-skeleton.md#step-3-generation-cache-and-read-safety),
+and reassess before Phase 04's larger workload.
 The `TenantPageBlock` family remains
 [Phase 04](../roadmap/phase-04-cms-media-pages.md) work.
 
