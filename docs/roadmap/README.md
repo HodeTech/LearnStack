@@ -46,8 +46,8 @@ not deferred to the showcase phase.
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped)
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
   **in progress**; P02d-1 merged, P02d-2 decision pass Accepted 2026-10-02;
-  Steps 1–3 complete after both review rounds;
-  Step 4 seed execution implemented, reviews pending
+  all four P02d-2 steps complete after both review rounds and final verification;
+  PR review/merge pending, P02d-3 read internals next
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

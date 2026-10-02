@@ -14,9 +14,10 @@ description: >
 ## Purpose and current scope
 
 The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
-records the decisions. Step 4 implements the complete inventory and contextual
-verification; implementation review is pending. Public API reads and browser
-rendering remain P02d-4 and P02d-5–7. Do not claim a rendered demo from seed alone.
+records the decisions. Step 4 delivers the complete inventory and contextual
+verification; both implementation review rounds and final verification passed.
+PR review/merge remains pending. Public API reads and browser rendering remain
+P02d-4 and P02d-5–7. Do not claim a rendered demo from seed alone.
 
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns all demo
 identities, schemas, labels, palettes, bodies and computed inventory. The runner

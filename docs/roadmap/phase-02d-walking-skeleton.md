@@ -10,7 +10,7 @@
 > |---|---|---|
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
-> | P02d-2 | Writers and seed | decision pass Accepted — 2026-10-02; Steps 1–3 complete with reviews; Step 4 implemented, reviews pending |
+> | P02d-2 | Writers and seed | ✅ implementation complete — 2026-10-02; all four steps reviewed and verified; PR review/merge pending |
 > | P02d-3 | Read internals | not started |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
@@ -25,8 +25,8 @@ explicit request. ADR-0049 and Phase 09a remain Proposed.
 
 **Implementation resumed — 2026-10-02.** The maintainer's implementation request
 revokes the acceptance-time wait. [Delivery](#p02d-2-implementation-delivery-2026-10-02)
-records the four steps: Steps 1–3 are complete with both review rounds; Step 4
-implements the seed and awaits its reviews. The packet is not yet marked complete.
+records all four completed implementation steps and their two independent review
+rounds. P02d-2 is ready for PR review; merge closeout remains pending. P02d-3 is next.
 
 ## Goal
 
@@ -467,8 +467,9 @@ are preserved; ADR-0048's Status and dated supersession are lifecycle bookkeepin
 
 #### Seed inventory and ownership
 
-Step 4 implements this inventory; its review is pending. Exact IDs, schema/body
-literals, slugs, labels, palettes and computed counts live in `SeedData`; no
+Step 4 delivers this inventory; both review rounds and final verification passed.
+Exact IDs, schema/body literals, slugs, labels, palettes and computed counts live
+in `SeedData`; no
 production branch knows `demo-english`, `demo-yoga`, `grammar-topic` or `asana-pose`.
 The existing fixed tenant, organization, host and built-in customization IDs stay.
 
@@ -740,7 +741,7 @@ cases pass, including 15 Education writers. No failures/skips remain; format,
 local links/anchors and the frozen P02d-1 suffix check pass. Step 3 is complete;
 Step 4 follows below.
 
-**Step 4 — convergent seed, implementation awaiting both review rounds.**
+**Step 4 — convergent seed, complete after both review rounds.**
 The fixed identities remain unchanged. SeedData owns every declaration and expected
 count: two tenants, four organizations, two hosts, three locales, four content types,
 four taxonomies with fifteen bands, two distinct whole themes, eight courses, ten
@@ -775,7 +776,7 @@ two real interruption points, coordinated concurrent seed, seventeen mismatch ca
 semantic JSON equivalence and the executable's actual zero/nonzero exit behavior.
 A fresh complete seed produces ninety successful audit rows; provisioning writes two
 aggregate audit rows, and all counts derive from SeedData. Full verification and
-both fresh review rounds are still required before packet closeout.
+both fresh review rounds were still required at this pre-review stage.
 
 **Step 4 broader regression corrections.** The complete Docker run exposed two
 inherited audit groups tied to the old seed: fixed counts and direct repeat writers
@@ -796,8 +797,8 @@ precondition, which refuses before mutation and retains ordinary succession by d
 Two additional seed cases prove unchanged definitions/versions/generations and no
 successful audit on that refusal; normal failed-command audit remains legitimate.
 The two new cases and six controlled race/rollback cases pass. Release build has
-zero warnings/errors; all Docker-free suites pass again. Fresh review closure and
-final complete verification remain pending.
+zero warnings/errors; all Docker-free suites pass again. At that stage, fresh review
+closure and final complete verification remained pending.
 
 **Step 4 Round 1.** Fresh read-only Codex xhigh security review requested changes;
 Claude Sonnet 5 high contract/corpus review returned Approve with one cosmetic Minor.
@@ -809,6 +810,53 @@ two coordinated different-revision winners accompany the same-ID race proofs;
 failed seeds preserve existing content, versions, generations and audit successes.
 The cosmetic extra blank line is removed. The earlier 67-case regression corrections
 and schema-shape proof are included in this fix set; a fresh second round follows.
+
+**Step 4 Round 2 and packet closeout.** Two fresh read-only Codex review sessions
+(high for contracts/corpus; xhigh for security/transactions) reviewed
+`951acd2..fecdc76` and independently returned Approve. No Blocker or Major remained.
+Both found the stale README bootstrap statement; the contract review also found the
+old Step 4 review heading. Both verified Minor findings are fixed, and current-state
+carriers and the seed skill now name completion. No additional production change was
+required. The implementation is `5081724`, with first-round fixes at `fecdc76`.
+
+**Final verification — 2026-10-02.** All required local checks pass:
+
+- Release build: `dotnet build backend/LearnStack.slnx --no-restore -c Release`, zero
+  warnings/errors. Full format verification uses `dotnet format` with
+  `--no-restore --verify-no-changes` and exits zero.
+- Backend: Release `dotnet test --no-build --no-restore` with separate
+  `Requires!=Docker` and `Requires=Docker` runs; 1,559 unit, 181 architecture,
+  one contract, 171 Docker-free integration and 644 Docker integration cases pass.
+  Total: **2,556**, zero failures/skips. TRX counters were inspected for failures;
+  `scripts/assert-tests-ran.py` also proves execution and zero skips per assembly.
+- The focused seed/host/Customization/audit group passes all 73 cases: 39 Seeder,
+  eight host/isolation, eight controlled publication and eighteen audit cases.
+  Actual CLI exits, interrupted/concurrent recovery, exact repeat neutrality,
+  incompatible Active winners and transaction absorption are covered.
+- All five EF chains report no pending model changes using the pinned tool in
+  `backend/`, Release `--no-build` and a design-time-only placeholder connection.
+  The complete Docker run includes every-chain forward/down/reapply, populated
+  access-policy preservation and disabled-default migration refusal. This is
+  disposable-database reversal evidence, not approval to remove live access policy.
+- Frontend: frozen install, typecheck, lint, build and all thirteen Vitest cases pass.
+  Four default/gated dev/e2e compose combinations and actionlint pass. These surfaces
+  did not change after verification; no browser-rendered demo is claimed.
+- The PR documentation sweep checks 45 Markdown files, 2,868 local links and 571
+  fragments. Added prose wrapping and `git diff --check` pass. Analysis-directory
+  hits are the existing prohibition/history wording, not links to scratch material.
+  The complete P02d-1 suffix is byte-identical to the acceptance baseline. Accepted
+  ADR bodies have no implementation-time edits.
+- Commit hooks pass, including staged Leakwatch, formatter and strict message checks.
+  The pre-closeout PR range's seventeen non-merge commits pass the same strict hook.
+  Final closeout is checked with the resulting PR range before publication.
+
+**Disposition.** P02d-2 implementation, both review rounds per step and required
+verification are complete on development. PR review and merge remain the maintainer's
+next step. Phase 02d remains in progress. P02d-3 owns generation-keyed customization
+read internals and the uncached ambient typed settings accessor; its remaining gates
+open before that work. P02d-4 owns public reads and hidden-response/query-plan proofs;
+P02d-5–7 own transport, rendering and the running two-site demo. No marketplace,
+authentication, enrollment, public API or browser-delivery completion is inferred.
 
 ### P02d-1 decision pass (2026-09-14)
 

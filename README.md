@@ -72,17 +72,18 @@ with four implementation steps. Step 1 implements the access policy, exact
 definition/locale readers, text-card metadata validation and seed verification queries.
 Both Step 1 review rounds passed. Step 2 adds locale/branding writers and JSON audit
 redaction; both review rounds passed. Step 3 adds Education writers; both review
-rounds and the focused fix review passed. Step 4 implements convergent seed
-execution, with reviews pending.
+rounds and the focused fix review passed. Step 4 completes convergent seed
+execution after both review rounds. P02d-2 is verified and ready for PR review;
+merge remains pending. P02d-3 read internals are next.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
-| **Tenancy** | Tenant provisioning, organizations, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, payload validation and built-in seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Tenancy** | Tenant provisioning, organizations, locales, branding, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Customization** | Content types, level taxonomies, exact-definition readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolation tests | Step 4 reviews; public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolation tests | Public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
@@ -120,8 +121,10 @@ make seed      # start infrastructure, apply migrations, seed two demo tenants
 ```
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
-mappings, plus built-in content-type and taxonomy definitions. **It does not yet seed
-courses or lessons**; P02d-2 owns those writes.
+mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
+and eight scoped courses, ten lessons and twenty-seven translations. It uses the
+ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
+[SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 
 ### 3. Start the applications in separate terminals
 
