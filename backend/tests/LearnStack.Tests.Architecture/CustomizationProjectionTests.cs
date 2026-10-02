@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.Infrastructure.Validation;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Customization.Infrastructure.Projections;
 using LearnStack.SharedKernel.Validation;
@@ -9,6 +10,10 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed class CustomizationProjectionTests
 {
+    private static readonly HashSet<string> ValidatorTypes = typeof(JsonSchemaNetValidator).Assembly.GetTypes()
+        .Where(type => typeof(IJsonSchemaValidator).IsAssignableFrom(type)).Select(type => type.FullName!)
+        .Append(typeof(IJsonSchemaValidator).FullName!).ToHashSet(StringComparer.Ordinal);
+
     /// <summary>
     /// <see href="../../../docs/decisions/0043-customization-payload-validation.md">ADR-0043</see>
     /// and <see href="../../../docs/standards/20-infrastructure-stack.md#icacheservice-state">Standards 20</see>.
@@ -35,9 +40,11 @@ public sealed class CustomizationProjectionTests
         var types = module.GetTypes().ToDictionary(type => type.FullName);
         var direct = module.GetType(typeof(ValidatorProbe).FullName!.Replace('+', '/'));
         var indirect = module.GetType(typeof(HelperProbe).FullName!.Replace('+', '/'));
+        var concrete = module.GetType(typeof(ConcreteProbe).FullName!.Replace('+', '/'));
         var clean = module.GetType(typeof(CleanProbe).FullName!.Replace('+', '/'));
         Offenders([direct], types).Should().ContainSingle().Which.Should().Be(direct.FullName);
         Offenders([indirect], types).Should().ContainSingle().Which.Should().Be(direct.FullName);
+        Offenders([concrete], types).Should().ContainSingle().Which.Should().Be(concrete.FullName);
         Offenders([clean], types).Should().BeEmpty();
     }
 
@@ -51,7 +58,7 @@ public sealed class CustomizationProjectionTests
             if (!visited.Add(type.FullName)) continue;
             foreach (var name in Il.ReferencedTypeNames(type))
             {
-                if (name == typeof(IJsonSchemaValidator).FullName || name.StartsWith("Json.Schema.", StringComparison.Ordinal))
+                if (ValidatorTypes.Contains(name) || name.StartsWith("Json.Schema.", StringComparison.Ordinal))
                     offenders.Add(type.FullName);
                 if (types.TryGetValue(name, out var helper)) queue.Enqueue(helper);
             }
@@ -66,6 +73,10 @@ public sealed class CustomizationProjectionTests
     private sealed class HelperProbe
     {
         public static ValidatorProbe? Value => null;
+    }
+    private sealed class ConcreteProbe
+    {
+        public static JsonSchemaNetValidator? Value => null;
     }
     private sealed class CleanProbe
     {

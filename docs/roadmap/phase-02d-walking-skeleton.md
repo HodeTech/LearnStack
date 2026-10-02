@@ -1366,8 +1366,16 @@ module helper dependencies and has planted direct/helper and clean controls.
 Release build has zero warnings/errors; 1584 unit, 186 architecture and 21 focused
 Docker integration cases pass with zero failures/skips. The real guard rejects a
 planted validator dependency in the production snapshot helper, then passes after
-restoration. Formatting and documentation checks pass. Both fresh review rounds
-remain pending; no cache implementation is claimed.
+restoration. Formatting and documentation checks pass. Round 1 completed; round 2 remains
+pending. No cache implementation is claimed.
+
+**Step 2 review round 1.** Two fresh GPT-5.5 high sessions reviewed
+`4829414..77197b9`. No verified code or SQL finding; two Minor document carriers
+still treated G23 or Step 1 review as pending. Both are synchronized. The root's
+additional guard check demonstrated a concrete validator adapter escaped the
+interface-only ban; a planted concrete probe failed before the fix and passes
+with the adapter census. The full architecture suite passes after the fix.
+Round 1 is complete; round 2 remains pending.
 
 
 ### P02d-1 decision pass (2026-09-14)

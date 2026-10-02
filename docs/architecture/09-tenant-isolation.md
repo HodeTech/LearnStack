@@ -37,7 +37,7 @@ two scopes (tenant + organization):
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
 | PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
 | Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
-| Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. How the settings accessor keys a read whose rows depend on the session's organization is G23 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register); the decision pass that closes it edits this row if its answer changes it |
+| Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. Settings reads are uncached in P02d-2/3 under [Accepted G23](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02); no settings cache key is active |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |
 | Jobs (Hangfire) | `JobParams.TenantId` mandatory | `JobParams.OrganizationId` nullable |
@@ -263,7 +263,8 @@ The typed settings accessor is uncached and explicitly selects tenant-wide/curre
 organization rows even if a future tenant-scope hatch widens RLS reads. The
 [Tenancy contract](../modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract)
 owns whole-value precedence and tenant-wide branding. Step 1 implements the settings
-reader; the Customization reader remains pending.
+reader; Step 2 implements the uncached Customization projection. Its review and
+Step 3 cache implementation remain pending.
 
 ```
 {tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization
