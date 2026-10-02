@@ -16,3 +16,7 @@ public sealed record TaxonomySeedDto(Guid Id, TenantId TenantId, string Key, int
 
 public sealed record GetContentTypeSeedStateQuery(Guid ContentTypeId) : IRequest<Result<SeedLookup<ContentTypeSeedDto>>>;
 public sealed record GetTaxonomySeedStateQuery(Guid TaxonomyId) : IRequest<Result<SeedLookup<TaxonomySeedDto>>>;
+
+public sealed record ActiveSeedRevision(Guid Id);
+public sealed record GetActiveContentTypeSeedRevisionQuery(string Key) : IRequest<Result<SeedLookup<ActiveSeedRevision>>>;
+public sealed record GetActiveTaxonomySeedRevisionQuery(string Key) : IRequest<Result<SeedLookup<ActiveSeedRevision>>>;

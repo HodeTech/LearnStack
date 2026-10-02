@@ -476,7 +476,7 @@ The existing fixed tenant, organization, host and built-in customization IDs sta
 |---|---|---|
 | Host context | Existing tenant host, organization null | Existing Studio One host |
 | Locales | `en`, enabled default | `tr-TR`, enabled default; `en`, enabled |
-| Tenant content type | `grammar-topic`, revision 1 Active, `default-card`; plain-string `concept`/`example` | `asana-pose`, revision 1 Active, `default-card`; plain-string `pose`/`instruction` |
+| Tenant content type | `grammar-topic`, revision 1 Active, `default-card`; plain-string `concept`/`example` | `asana-pose`, revision 1 Active, `default-card`; plain-string `pose`/`instruction`/`breathing` |
 | Taxonomy | `cefr`, revision 1 Active; six declared bands | `yoga-difficulty`, revision 1 Active; three declared bands |
 | Branding | One tenant-wide `branding.theme`, complete valid palette | One tenant-wide `branding.theme`, distinct complete valid palette |
 | Courses | Four: tenant-wide published public, tenant-wide draft public, tenant-wide published restricted, Kadıköy-scoped published public | Four: tenant-wide published public, Studio One published public, Studio Two published public, Studio One published restricted |
@@ -776,6 +776,39 @@ semantic JSON equivalence and the executable's actual zero/nonzero exit behavior
 A fresh complete seed produces ninety successful audit rows; provisioning writes two
 aggregate audit rows, and all counts derive from SeedData. Full verification and
 both fresh review rounds are still required before packet closeout.
+
+**Step 4 broader regression corrections.** The complete Docker run exposed two
+inherited audit groups tied to the old seed: fixed counts and direct repeat writers
+had been inferred from a runner that now skips completed acts, and shared cleanup
+could not remove the new restricted dependencies. AuditPipelineTests and
+AuditWorkflowTests now own disposable databases and focus their declaration on
+provisioning/built-ins. Rollback audit proof sends explicit refused commands and
+retains the two provisioning intents plus the standalone organization refusal.
+All eighteen cases pass; the expanded 67-case seed/host/Customization/audit group
+passes without failures/skips. Complete Docker regression then passed 638 cases.
+
+The two seeded schemas now differ in property count, as the inherited phase criterion
+requires: Yoga also declares ordered, bilingual plain-string breathing text. The
+inventory proof checks actual persisted schema shape, beyond changed names/labels.
+A verified publication mismatch could otherwise retire a different Active revision
+under the same key. Seed sets both publish commands' optional `RequireNoIncumbent`
+precondition, which refuses before mutation and retains ordinary succession by default.
+Two additional seed cases prove unchanged definitions/versions/generations and no
+successful audit on that refusal; normal failed-command audit remains legitimate.
+The two new cases and six controlled race/rollback cases pass. Release build has
+zero warnings/errors; all Docker-free suites pass again. Fresh review closure and
+final complete verification remain pending.
+
+**Step 4 Round 1.** Fresh read-only Codex xhigh security review requested changes;
+Claude Sonnet 5 high contract/corpus review returned Approve with one cosmetic Minor.
+The security finding is verified: publishing the declared revision could retire an
+incompatible Active revision. Contextual Off queries now check the logical key's
+Active identity before registration, and publication checks `RequireNoIncumbent`
+inside its transaction before retirement. Four pre-existing absent/Draft cases and
+two coordinated different-revision winners accompany the same-ID race proofs;
+failed seeds preserve existing content, versions, generations and audit successes.
+The cosmetic extra blank line is removed. The earlier 67-case regression corrections
+and schema-shape proof are included in this fix set; a fresh second round follows.
 
 ### P02d-1 decision pass (2026-09-14)
 

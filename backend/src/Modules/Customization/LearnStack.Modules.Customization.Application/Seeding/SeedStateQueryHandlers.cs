@@ -41,3 +41,29 @@ internal sealed class GetTaxonomySeedStateQueryHandler(ISeedStateReader reader, 
             await reader.ReadTaxonomyAsync(TenantLevelTaxonomyId.From(request.TaxonomyId), cancellationToken)));
     }
 }
+
+internal sealed class GetActiveContentTypeSeedRevisionQueryHandler(ISeedStateReader reader, ITenantContext context)
+    : IRequestHandler<GetActiveContentTypeSeedRevisionQuery, Result<SeedLookup<ActiveSeedRevision>>>
+{
+    public async Task<Result<SeedLookup<ActiveSeedRevision>>> Handle(
+        GetActiveContentTypeSeedRevisionQuery request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!context.IsResolved)
+            return Result<SeedLookup<ActiveSeedRevision>>.Fail(new Error(new LocalizedMessage("lockey_tenant_mismatch")));
+        return Result.Ok(new SeedLookup<ActiveSeedRevision>(await reader.ReadActiveContentTypeAsync(request.Key, cancellationToken)));
+    }
+}
+
+internal sealed class GetActiveTaxonomySeedRevisionQueryHandler(ISeedStateReader reader, ITenantContext context)
+    : IRequestHandler<GetActiveTaxonomySeedRevisionQuery, Result<SeedLookup<ActiveSeedRevision>>>
+{
+    public async Task<Result<SeedLookup<ActiveSeedRevision>>> Handle(
+        GetActiveTaxonomySeedRevisionQuery request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!context.IsResolved)
+            return Result<SeedLookup<ActiveSeedRevision>>.Fail(new Error(new LocalizedMessage("lockey_tenant_mismatch")));
+        return Result.Ok(new SeedLookup<ActiveSeedRevision>(await reader.ReadActiveTaxonomyAsync(request.Key, cancellationToken)));
+    }
+}

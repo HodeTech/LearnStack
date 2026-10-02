@@ -68,21 +68,31 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
 
     private async Task SeedContentTypeAsync(SeedTenant tenant, ITenantContext context, SeedContentType type, CancellationToken ct)
     {
-        async Task<ContentTypeSeedDto?> Read() => (await ReadAsync(context, new GetContentTypeSeedStateQuery(type.Id), ct)).State;
+        async Task<ContentTypeSeedDto?> Read()
+        {
+            var active = (await ReadAsync(context, new GetActiveContentTypeSeedRevisionQuery(type.Key), ct)).State;
+            SeedVerification.Require(active is null || active.Id == type.Id, tenant, "content type active revision");
+            return (await ReadAsync(context, new GetContentTypeSeedStateQuery(type.Id), ct)).State;
+        }
         await ActAsync(tenant, context, "content type", Read, row => SeedVerification.ContentType(row, type, tenant, false),
             _ => new RegisterTenantContentTypeCommand(type.Id, type.Key, type.SchemaVersion, type.DisplayName, type.JsonSchema, type.RendererKey), ct);
         await ActAsync(tenant, context, "content type publication", Read, row => SeedVerification.ContentType(row, type, tenant, true),
-            _ => new PublishTenantContentTypeCommand(type.Id), ct);
+            _ => new PublishTenantContentTypeCommand(type.Id, RequireNoIncumbent: true), ct);
     }
 
     private async Task SeedTaxonomyAsync(SeedTenant tenant, ITenantContext context, SeedTaxonomy taxonomy, CancellationToken ct)
     {
-        async Task<TaxonomySeedDto?> Read() => (await ReadAsync(context, new GetTaxonomySeedStateQuery(taxonomy.Id), ct)).State;
+        async Task<TaxonomySeedDto?> Read()
+        {
+            var active = (await ReadAsync(context, new GetActiveTaxonomySeedRevisionQuery(taxonomy.Key), ct)).State;
+            SeedVerification.Require(active is null || active.Id == taxonomy.Id, tenant, "level taxonomy active revision");
+            return (await ReadAsync(context, new GetTaxonomySeedStateQuery(taxonomy.Id), ct)).State;
+        }
         await ActAsync(tenant, context, "level taxonomy", Read, row => SeedVerification.Taxonomy(row, taxonomy, tenant, false),
             _ => new RegisterTenantLevelTaxonomyCommand(taxonomy.Id, taxonomy.Key, taxonomy.SchemaVersion, taxonomy.DisplayName,
                 [.. taxonomy.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort, band.Metadata))]), ct);
         await ActAsync(tenant, context, "level taxonomy publication", Read, row => SeedVerification.Taxonomy(row, taxonomy, tenant, true),
-            _ => new PublishTenantLevelTaxonomyCommand(taxonomy.Id), ct);
+            _ => new PublishTenantLevelTaxonomyCommand(taxonomy.Id, RequireNoIncumbent: true), ct);
     }
 
     private async Task SeedCourseAsync(SeedTenant tenant, SeedCourse course, CancellationToken ct)

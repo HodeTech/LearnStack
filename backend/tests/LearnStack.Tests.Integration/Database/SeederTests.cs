@@ -1,3 +1,6 @@
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using System.Text.Json;
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
@@ -537,6 +540,18 @@ public sealed class SeederTests : IAsyncLifetime
         await using var source = DataSource();
         (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
         await AssertInventoryAsync(source);
+        var propertyCounts = new List<int>();
+        foreach (var tenant in SeedData.All)
+        {
+            var type = tenant.Curriculum?.ContentType ?? throw new InvalidOperationException("Missing curriculum.");
+            await using var provider = SeedComposition.Build(source, new SeedTenantContext(tenant.TenantId, null), NullLoggerFactory.Instance);
+            var result = await provider.GetRequiredService<ISender>().Send(new GetContentTypeSeedStateQuery(type.Id));
+            result.IsSuccess.Should().BeTrue();
+            using var schema = JsonDocument.Parse(result.Value!.State!.JsonSchema);
+            propertyCounts.Add(schema.RootElement.GetProperty("properties").EnumerateObject().Count());
+        }
+        propertyCounts.Distinct().Count().Should().Be(SeedData.All.Count,
+            "the two seeded schemas must differ in shape, not only property names or text");
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log")).Should().Be(SeedData.ExpectedAuditWrites,
             "verification is Off, and each normal seed write is audited exactly once");
     }
@@ -676,6 +691,54 @@ public sealed class SeederTests : IAsyncLifetime
         };
         (await Runner(source).RunAsync(CancellationToken.None, [expected])).Should().Be(0);
         (await SnapshotAsync()).Should().Be(before);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Seed_publication_refuses_a_different_active_revision_without_retiring_or_rebinding_it(bool taxonomy, bool expectedDraftExists)
+    {
+        await using var source = DataSource();
+        var tenant = SeedData.English with { Curriculum = null };
+        var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
+            new InterruptAfter(taxonomy ? (expectedDraftExists ? "level taxonomy" : "content type publication")
+                : (expectedDraftExists ? "content type" : "host mapping")));
+        var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
+        await initial.Should().ThrowAsync<InvalidOperationException>();
+        var incumbent = Guid.CreateVersion7();
+        var context = new SeedTenantContext(tenant.TenantId, null);
+        if (taxonomy)
+        {
+            var definition = SeedData.Taxonomies(tenant).First();
+            await Write(new RegisterTenantLevelTaxonomyCommand(incumbent, definition.Key, definition.SchemaVersion + 1,
+                definition.DisplayName, [.. definition.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort, band.Metadata))]));
+            await Write(new PublishTenantLevelTaxonomyCommand(incumbent));
+        }
+        else
+        {
+            var definition = SeedData.ContentTypes(tenant).First();
+            await Write(new RegisterTenantContentTypeCommand(incumbent, definition.Key, definition.SchemaVersion + 1,
+                definition.DisplayName, definition.JsonSchema, definition.RendererKey));
+            await Write(new PublishTenantContentTypeCommand(incumbent));
+        }
+        var before = await SnapshotAsync();
+        var audits = await AuditRowsAsync();
+        var successes = await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE outcome = 'success'");
+        var rerun = () => Runner(source).RunAsync(CancellationToken.None, [tenant]);
+        (await rerun.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
+        (await SnapshotAsync()).Should().Be(before,
+            "absent/Draft expected state, the other Active revision, versions, generations and all audit rows must remain unchanged");
+        (await AuditRowsAsync()).Should().Contain(audits);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE outcome = 'success'")).Should().Be(successes);
+
+        async Task Write<T>(IRequest<Result<T>> request)
+        {
+            await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            await using var scope = provider.CreateAsyncScope();
+            (await scope.ServiceProvider.GetRequiredService<ISender>().Send(request)).IsSuccess.Should().BeTrue();
+        }
     }
 
     // ── Harness ──────────────────────────────────────────────────────────────

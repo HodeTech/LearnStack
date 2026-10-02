@@ -27,6 +27,8 @@ public sealed class CustomizationAuditCatalogSource : IAuditCatalogSource
 
         builder.Off<GetContentTypeSeedStateQuery>();
         builder.Off<GetTaxonomySeedStateQuery>();
+        builder.Off<GetActiveContentTypeSeedRevisionQuery>();
+        builder.Off<GetActiveTaxonomySeedRevisionQuery>();
 
         builder
             .MustAudit<RegisterTenantContentTypeCommand>(

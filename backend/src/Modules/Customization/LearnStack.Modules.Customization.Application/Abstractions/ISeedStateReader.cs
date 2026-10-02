@@ -9,4 +9,6 @@ public interface ISeedStateReader
 {
     Task<ContentTypeSeedDto?> ReadContentTypeAsync(TenantContentTypeId contentTypeId, CancellationToken cancellationToken);
     Task<TaxonomySeedDto?> ReadTaxonomyAsync(TenantLevelTaxonomyId taxonomyId, CancellationToken cancellationToken);
+    Task<ActiveSeedRevision?> ReadActiveContentTypeAsync(string key, CancellationToken cancellationToken);
+    Task<ActiveSeedRevision?> ReadActiveTaxonomyAsync(string key, CancellationToken cancellationToken);
 }

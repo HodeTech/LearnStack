@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Customization;
 using FluentValidation;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.SharedKernel.Tenancy;
@@ -17,5 +18,21 @@ internal sealed class GetTaxonomySeedStateQueryValidator : AbstractValidator<Get
     public GetTaxonomySeedStateQueryValidator()
     {
         RuleFor(request => request.TaxonomyId).NotEmpty().WithErrorCode("lockey_identifier_required");
+    }
+}
+
+internal sealed class GetActiveContentTypeSeedRevisionQueryValidator : AbstractValidator<GetActiveContentTypeSeedRevisionQuery>
+{
+    public GetActiveContentTypeSeedRevisionQueryValidator()
+    {
+        RuleFor(request => request.Key).MustBeACustomizationKey();
+    }
+}
+
+internal sealed class GetActiveTaxonomySeedRevisionQueryValidator : AbstractValidator<GetActiveTaxonomySeedRevisionQuery>
+{
+    public GetActiveTaxonomySeedRevisionQueryValidator()
+    {
+        RuleFor(request => request.Key).MustBeACustomizationKey();
     }
 }

@@ -112,6 +112,9 @@ IDs; contract-local IDs cross the module boundary as Guid under ADR-0023.
   separate publication act verifying Active.
 - Existing translations are checked before draft-only insertion. JSON object
   property order is immaterial; descriptor arrays and authored strings remain exact.
+- Contextual Off queries check the logical key's Active identity before registration.
+  Customization publication sets `RequireNoIncumbent`; a different Active revision
+  is refused before mutation, while ordinary revision succession remains available.
 - A typed uniqueness/concurrency/lifecycle race gets one fresh-scope completed
   postcondition check. Generic failures are never success and there is no retry loop.
 - A mismatch stops nonzero; the runner does not overwrite, unpublish, rebind,

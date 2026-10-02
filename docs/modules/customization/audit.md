@@ -127,6 +127,8 @@ register with the commands that raise them.
 
 ## P02d-2 contextual verification reads
 
-`GetContentTypeSeedStateQuery`, `GetTaxonomySeedStateQuery` are explicitly Off in
+`GetContentTypeSeedStateQuery`, `GetTaxonomySeedStateQuery`,
+`GetActiveContentTypeSeedRevisionQuery` and `GetActiveTaxonomySeedRevisionQuery`
+are explicitly Off in
 `CustomizationAuditCatalogSource`. These unrouted queries verify announced
 tenant state through the ambient transaction and declare no write operation.

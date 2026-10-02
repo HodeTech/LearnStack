@@ -42,13 +42,17 @@ namespace LearnStack.Tests.Integration.Database;
 [Collection(SharedSchema.Name)]
 public sealed class AuditPipelineTests : IAsyncLifetime
 {
+    // Keep the audit subject focused on provisioning and unchanged built-ins.
+    private static readonly SeedTenant Tenant = SeedData.English with { Curriculum = null };
+
     private readonly SchemaFixture _schema;
+    private DisposableSchemaDatabase _database = null!; // Initialized by the per-test fixture.
 
     public AuditPipelineTests(SchemaFixture schema) => _schema = schema;
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync() => _database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
 
-    public Task DisposeAsync() => CleanUpAsync();
+    public Task DisposeAsync() => _database.DisposeAsync().AsTask();
 
     /// <summary>
     /// Provisioning a tenant writes the two rows its matrix promises, on the business
@@ -67,15 +71,15 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // ProvisionTenantCommand writes two aggregate roots on one transaction and the
         // Tenancy matrix classifies both MUST, so a singular reading of "one row per
         // request" would silently never write the Organization row the matrix promises.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English]);
+        var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant]);
 
         exitCode.Should().Be(0);
 
-        var rows = await RowsAsync(SeedData.English.TenantId.Value);
+        var rows = await RowsAsync(Tenant.TenantId.Value);
 
-        // The whole seed for one tenant, every operation its module's matrix classifies
+        // The focused provisioning/built-in declaration, every operation its matrix classifies
         // MUST. The pair is the point — ProvisionTenantCommand alone accounts for the
         // first two — and the rest are here because a case asserting only the pair would
         // pass while every other command audited nothing.
@@ -109,8 +113,8 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // SaveChanges inside an open transaction in a savepoint, so the business rows carry
         // subtransaction ids while the audit row, raw SQL at the top level, carries the
         // parent's. Rows on one transaction show different `xmin`s.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
 
         const string Host = "unauditable.example";
 
@@ -132,7 +136,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         {
             await using var provider = SeedComposition.Build(
                 dataSource,
-                new SeedTenantContext(SeedData.English.TenantId, SeedData.English.DefaultOrganization.OrganizationId),
+                new SeedTenantContext(Tenant.TenantId, Tenant.DefaultOrganization.OrganizationId),
                 NullLoggerFactory.Instance);
 
             var act = async () =>
@@ -177,15 +181,15 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
         try
         {
-            await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+            await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-            var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English]);
+            var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant]);
 
             exitCode.Should().Be(0,
                 "classification reads the in-process catalogue, and the tenant override read is "
                 + "the one failure ADR-0033 does not reject the operation for");
 
-            var rows = await RowsAsync(SeedData.English.TenantId.Value);
+            var rows = await RowsAsync(Tenant.TenantId.Value);
 
             rows.Where(row => MustOperations.Contains(row.Operation))
                 .Should().NotBeEmpty("the MUST rows are written at the classification the catalogue carries")
@@ -239,14 +243,14 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // reading the context would give the all-zero tenant and the policy would refuse
         // the insert. Measured: it did, with 42501, before the behaviour read
         // IProvisionsTenant.ProvisioningTenantId instead (ADR-0044 § 2).
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
 
-        var rows = await RowsAsync(SeedData.English.TenantId.Value);
+        var rows = await RowsAsync(Tenant.TenantId.Value);
 
         rows.Should().NotBeEmpty();
-        rows.Should().OnlyContain(row => row.TenantId == SeedData.English.TenantId.Value);
+        rows.Should().OnlyContain(row => row.TenantId == Tenant.TenantId.Value);
         rows.Should().OnlyContain(row => row.Outcome == "success",
             "a clean seed refuses nothing");
     }
@@ -259,15 +263,15 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // row from it on the business transaction. A snapshot that arrived empty here
         // would mean the interceptor never attached — which is exactly the failure that
         // reports success everywhere else.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
 
-        var tenantRow = (await RowsAsync(SeedData.English.TenantId.Value))
+        var tenantRow = (await RowsAsync(Tenant.TenantId.Value))
             .Single(row => row.Operation == "tenancy.tenant.create");
 
         tenantRow.EntityType.Should().Be("Tenant");
-        tenantRow.EntityId.Should().Be(SeedData.English.TenantId.Value.ToString());
+        tenantRow.EntityId.Should().Be(Tenant.TenantId.Value.ToString());
 
         // The EARLIEST capture's before state, and the tenant is created in this request —
         // so there is no prior state, and a non-null one would mean the merge walked past
@@ -275,7 +279,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         tenantRow.BeforeState.Should().BeNull();
 
         tenantRow.AfterState.Should().NotBeNull();
-        tenantRow.AfterState.Should().Contain(SeedData.English.Slug);
+        tenantRow.AfterState.Should().Contain(Tenant.Slug);
 
         // The LATEST capture's after state. ProvisionTenantCommand saves three times and
         // assigns the default organization on the third, so a merge that kept the first
@@ -290,18 +294,18 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // keyless projection row rather than an aggregate root, and a capture that only walked
         // roots wrote `tenancy.hostmapping.write` with no before, no after and no changes — a
         // row that records that something happened and not what.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
 
-        var mapping = (await RowsAsync(SeedData.English.TenantId.Value))
+        var mapping = (await RowsAsync(Tenant.TenantId.Value))
             .Single(row => row.Operation == "tenancy.hostmapping.write");
 
         mapping.EntityType.Should().Be("PlatformHostMapping");
-        mapping.EntityId.Should().Be(SeedData.English.Host);
+        mapping.EntityId.Should().Be(Tenant.Host);
 
         mapping.BeforeState.Should().BeNull("the host is mapped for the first time here");
-        mapping.AfterState.Should().NotBeNull().And.Contain(SeedData.English.Host,
+        mapping.AfterState.Should().NotBeNull().And.Contain(Tenant.Host,
             "the row says which host now points where");
         mapping.AfterState.Should().Contain("IsPubliclyLive",
             "and the flags that decide whether the host serves anything");
@@ -309,7 +313,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // The tenant is the row's own column rather than a snapshot field: every row in
         // audit_log carries one, and repeating it inside the state would be a second place for
         // it to be wrong.
-        mapping.TenantId.Should().Be(SeedData.English.TenantId.Value);
+        mapping.TenantId.Should().Be(Tenant.TenantId.Value);
     }
 
     /// <summary>
@@ -326,23 +330,35 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     [Fact]
     public async Task Audit_Survives_Transaction_Rollback()
     {
-        // The seed is idempotent, so the second run refuses before it writes — and a
-        // refusal that produced a success row would be worse than no row at all.
-        await using var dataSource = NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString);
+        // Completed seed acts skip writers. Explicitly repeat the commands to prove
+        // real refusals retain audit intents after their business transaction rolls back.
+        await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await using (var unresolved = SeedComposition.Build(dataSource, null, NullLoggerFactory.Instance))
+        {
+            (await unresolved.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
+                Tenant.TenantId, Tenant.Slug, Tenant.DisplayName, Tenant.DefaultOrganization.OrganizationId,
+                Tenant.DefaultOrganization.Slug, Tenant.DefaultOrganization.DisplayName))).IsFailure.Should().BeTrue();
+        }
+        await using (var resolved = SeedComposition.Build(dataSource,
+            new SeedTenantContext(Tenant.TenantId, null), NullLoggerFactory.Instance))
+        {
+            (await resolved.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                Tenant.SecondOrganization.OrganizationId, Tenant.SecondOrganization.Slug,
+                Tenant.SecondOrganization.DisplayName))).IsFailure.Should().BeTrue();
+        }
 
-        var rows = await RowsAsync(SeedData.English.TenantId.Value);
+        var rows = await RowsAsync(Tenant.TenantId.Value);
 
-        // The second run REFUSES, and every refusal is recorded. That is the point rather
+        // The repeated commands REFUSE, and every refusal is recorded. That is the point rather
         // than an inconvenience: a repeated provisioning attempt is exactly the shape a
         // probe takes, and Audit Coverage justifies the whole `denied` class with it.
         rows.Count(row => row.Outcome == "success").Should().Be(8,
             "the first run's rows are untouched");
 
         rows.Where(row => row.Outcome != "success").Should().NotBeEmpty(
-            "the refused second run is on the record too");
+            "the explicit refused commands are on the record too");
 
         rows.Where(row => row.Outcome != "success")
             .Should().OnlyContain(row => row.Outcome == "failed" || row.Outcome == "denied");
@@ -358,9 +374,9 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
         refused.Should().Contain(
             row => row.Operation == "tenancy.tenant.create"
-                && row.EntityId == SeedData.English.TenantId.Value.ToString(),
+                && row.EntityId == Tenant.TenantId.Value.ToString(),
             "the refused provisioning records its first intent");
-        // The seed refuses two organization creations, and they are not the same one. The
+        // The repeated commands refuse two organization creations, which are distinct. The
         // standalone CreateOrganizationCommand names the organization it was asked for; the
         // provisioning's SECOND INTENT names none, because it was refused before the aggregate
         // existed to be designated. Distinguishing them is the point: an assertion on the slug
@@ -371,7 +387,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
             .ToList();
 
         organizations.Should().Contain(
-            row => row.EntityId == SeedData.English.SecondOrganization.OrganizationId.Value.ToString(),
+            row => row.EntityId == Tenant.SecondOrganization.OrganizationId.Value.ToString(),
             "the standalone command's refusal names the organization it was asked for");
         organizations.Should().Contain(
             row => row.EntityId == null,
@@ -380,10 +396,10 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
         // And the refused run wrote no business row: the counts are the first run's, exactly.
         (await ScalarAsync("SELECT count(*) FROM tenants WHERE id = @tenant",
-            SeedData.English.TenantId.Value)).Should().Be(1L,
+            Tenant.TenantId.Value)).Should().Be(1L,
             "a refused run leaves the row the first run committed and adds none");
         (await ScalarAsync("SELECT count(*) FROM organizations WHERE tenant_id = @tenant",
-            SeedData.English.TenantId.Value)).Should().Be(2L,
+            Tenant.TenantId.Value)).Should().Be(2L,
             "the seed's two organizations, and the refused run added neither");
     }
 
@@ -391,7 +407,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     private async Task<long> ScalarAsync(string sql, Guid tenant)
     {
         await using var connection = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _database.PlatformConnectionString);
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
         command.Parameters.AddWithValue("tenant", tenant);
 
@@ -422,7 +438,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
     private async Task<IReadOnlyList<Row>> RowsAsync(Guid tenantId)
     {
         await using var connection = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            _database.PlatformConnectionString);
 
         await using var command = new NpgsqlCommand(
             """
@@ -455,7 +471,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
     private async Task<long> CountAsync(string sql, object key)
     {
-        await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.PlatformConnectionString);
+        await using var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString);
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection);
         command.Parameters.AddWithValue("key", key);
 
@@ -504,65 +520,9 @@ public sealed class AuditPipelineTests : IAsyncLifetime
 
     private async Task ExecuteAsOwnerAsync(string sql)
     {
-        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+        await using var owner = await PostgresFixture.OpenAsync(_database.MigrationConnectionString);
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)owner);
         await command.ExecuteNonQueryAsync();
     }
 
-    /// <summary>Removes what a case seeded, so the shared fixture's counts do not move.</summary>
-    /// <remarks>
-    /// Three roles, and each is the only one that can do its part. <c>audit_log</c> and the
-    /// tenancy tables go as <c>learnstack_platform</c> — the audit rows because it is the
-    /// only role holding <c>DELETE</c> on that table, the tenancy rows because they belong
-    /// to tenants with no context left to announce. The customization tables go as the
-    /// OWNER with the tenant announced, because <c>learnstack_platform</c> holds only
-    /// <c>SELECT</c> on them.
-    /// </remarks>
-    private async Task CleanUpAsync()
-    {
-        var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
-
-        await using (var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString))
-        {
-            foreach (var statement in new[]
-            {
-                "DELETE FROM audit_log WHERE tenant_id = ANY(@ids)",
-                "DELETE FROM platform_host_to_tenant WHERE tenant_id = ANY(@ids)",
-                "UPDATE tenants SET default_organization_id = NULL WHERE id = ANY(@ids)",
-                "DELETE FROM organizations WHERE tenant_id = ANY(@ids)",
-                "DELETE FROM tenants WHERE id = ANY(@ids)",
-            })
-            {
-                await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
-                cleanup.Parameters.AddWithValue("ids", ids);
-                await cleanup.ExecuteNonQueryAsync();
-            }
-        }
-
-        await using var owner = await PostgresFixture.OpenAsync(
-            _schema.Postgres.MigrationConnectionString);
-
-        foreach (var tenant in SeedData.All)
-        {
-            await using var transaction = await owner.BeginTransactionAsync();
-            await SchemaQueries.SetTenantAsync(owner, transaction, tenant.TenantId.Value);
-
-            foreach (var statement in new[]
-            {
-                "DELETE FROM tenant_level_taxonomy_items WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_level_taxonomies WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_content_types WHERE tenant_id = @tenant",
-                "DELETE FROM customization_generations WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_domains WHERE tenant_id = @tenant",
-                "DELETE FROM tenant_locales WHERE tenant_id = @tenant",
-            })
-            {
-                await SchemaQueries.ExecuteAsync(owner, transaction, statement,
-                    ("tenant", tenant.TenantId.Value));
-            }
-
-            await transaction.CommitAsync();
-        }
-    }
 }

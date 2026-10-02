@@ -25,4 +25,14 @@ public sealed class CustomizationSeedStateReader(CustomizationDbContext context)
                 .Select(item => new TaxonomySeedItemDto(item.Key, item.DisplayName.ToJson(), item.Sort, item.Metadata))
                 .ToImmutableArray());
     }
+
+    public Task<ActiveSeedRevision?> ReadActiveContentTypeAsync(string key, CancellationToken cancellationToken) =>
+        context.TenantContentTypes.AsNoTracking()
+            .Where(row => row.Key == key && row.Status == CustomizationStatus.Active && row.DeletedAt == null)
+            .Select(row => new ActiveSeedRevision(row.Id.Value)).SingleOrDefaultAsync(cancellationToken);
+
+    public Task<ActiveSeedRevision?> ReadActiveTaxonomyAsync(string key, CancellationToken cancellationToken) =>
+        context.TenantLevelTaxonomies.AsNoTracking()
+            .Where(row => row.Key == key && row.Status == CustomizationStatus.Active && row.DeletedAt == null)
+            .Select(row => new ActiveSeedRevision(row.Id.Value)).SingleOrDefaultAsync(cancellationToken);
 }

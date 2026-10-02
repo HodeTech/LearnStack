@@ -62,8 +62,13 @@ public sealed record TaxonomyItemInput(
 /// <see cref="PublishTenantContentTypeCommand"/>: one live revision per key, the
 /// incumbent retired in this transaction, and the partial index as the guarantee.
 /// </remarks>
+/// <param name="TaxonomyId">The draft revision to publish.</param>
+/// <param name="RequireNoIncumbent">
+/// When true, refuse any other Active revision before mutation. Default false
+/// preserves ordinary revision succession; convergence callers never retire one.
+/// </param>
 public sealed record PublishTenantLevelTaxonomyCommand(
-    Guid TaxonomyId) : IRequest<Result<TenantLevelTaxonomyDto>>;
+    Guid TaxonomyId, bool RequireNoIncumbent = false) : IRequest<Result<TenantLevelTaxonomyDto>>;
 
 /// <summary>What the caller now has.</summary>
 public sealed record TenantLevelTaxonomyDto(

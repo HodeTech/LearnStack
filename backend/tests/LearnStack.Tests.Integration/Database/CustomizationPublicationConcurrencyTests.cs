@@ -27,9 +27,11 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
     : IClassFixture<WebApplicationFactory<Program>>
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task A_competitor_publishing_between_draft_and_active_reads_is_typed_stale_not_self_retirement(bool taxonomy)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task A_competitor_publishing_between_reads_is_refused_without_self_or_other_retirement(bool taxonomy, bool differentRevision)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
@@ -52,20 +54,36 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
             await using var scope = host.Services.CreateAsyncScope();
             scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current = context;
             var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            return taxonomy ? (await sender.Send(new PublishTenantLevelTaxonomyCommand(id))).Error
-                : (await sender.Send(new PublishTenantContentTypeCommand(id))).Error;
+            return taxonomy ? (await sender.Send(new PublishTenantLevelTaxonomyCommand(id, RequireNoIncumbent: true))).Error
+                : (await sender.Send(new PublishTenantContentTypeCommand(id, RequireNoIncumbent: true))).Error;
         }
         var loser = LosingAttempt();
         await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var winnerId = differentRevision ? Guid.CreateVersion7() : id;
+        var winnerVersion = initialVersion;
         try
         {
-            if (taxonomy) (await SendAsync(source, context, new PublishTenantLevelTaxonomyCommand(id))).IsSuccess.Should().BeTrue();
-            else (await SendAsync(source, context, new PublishTenantContentTypeCommand(id))).IsSuccess.Should().BeTrue();
+            if (differentRevision)
+            {
+                await RegisterAsync(source, context, winnerId, taxonomy, "race-definition", version: 2);
+                winnerVersion = await VersionAsync(source, context, winnerId, taxonomy);
+            }
+            if (taxonomy) (await SendAsync(source, context, new PublishTenantLevelTaxonomyCommand(winnerId))).IsSuccess.Should().BeTrue();
+            else (await SendAsync(source, context, new PublishTenantContentTypeCommand(winnerId))).IsSuccess.Should().BeTrue();
         }
         finally { gate.Release.TrySetResult(); }
-        (await loser).Should().NotBeNull().And.Match<Error>(error => error.Code == "concurrency_conflict");
-        await AssertStateAsync(source, context, id, taxonomy, "Active", initialVersion + 1);
-        (await GenerationAsync(database, context.TenantId)).Should().Be(2, "register plus exactly one successful publication");
+        var error = await loser;
+        error.Should().NotBeNull();
+        error!.Code.Should().Be(differentRevision ? "business_rule_violation" : "concurrency_conflict");
+        if (differentRevision) error.Details!["Key"].Should().ContainSingle(reason => reason.Key == "lockey_customization_key_already_live");
+        await AssertStateAsync(source, context, id, taxonomy, differentRevision ? "Draft" : "Active", initialVersion + (differentRevision ? 0 : 1));
+        if (differentRevision) await AssertStateAsync(source, context, winnerId, taxonomy, "Active", winnerVersion + 1);
+        (await GenerationAsync(database, context.TenantId)).Should().Be(differentRevision ? 3 : 2,
+            "only real registration and winner publication bump generation; the loser never retires an Active row");
+        await using var connection = await PostgresFixture.OpenAsync(database.PlatformConnectionString);
+        await using var audits = new NpgsqlCommand("SELECT count(*) FROM audit_log WHERE entity_id = @id AND operation IN ('customization.content_type.publish', 'customization.level_taxonomy.publish') AND outcome = 'success'", (NpgsqlConnection)connection);
+        audits.Parameters.AddWithValue("id", id.ToString());
+        ((long)(await audits.ExecuteScalarAsync())!).Should().Be(differentRevision ? 0 : 1);
     }
 
     [Theory]
@@ -119,14 +137,14 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         await using var scope = provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command);
     }
-    private static async Task RegisterAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string key)
+    private static async Task RegisterAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string key, int version = 1)
     {
-        if (taxonomy) (await SendAsync(source, context, Taxonomy(id, key))).IsSuccess.Should().BeTrue();
-        else (await SendAsync(source, context, ContentType(id, key))).IsSuccess.Should().BeTrue();
+        if (taxonomy) (await SendAsync(source, context, Taxonomy(id, key, version))).IsSuccess.Should().BeTrue();
+        else (await SendAsync(source, context, ContentType(id, key, version))).IsSuccess.Should().BeTrue();
     }
-    private static RegisterTenantContentTypeCommand ContentType(Guid id, string key) => new(id, key, 1,
+    private static RegisterTenantContentTypeCommand ContentType(Guid id, string key, int version = 1) => new(id, key, version,
         new Dictionary<string, string> { ["en"] = "Definition" }, BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey);
-    private static RegisterTenantLevelTaxonomyCommand Taxonomy(Guid id, string key) => new(id, key, 1,
+    private static RegisterTenantLevelTaxonomyCommand Taxonomy(Guid id, string key, int version = 1) => new(id, key, version,
         new Dictionary<string, string> { ["en"] = "Definition" }, [new("basic", new Dictionary<string, string> { ["en"] = "Basic" }, 0)]);
     private static async Task AssertStateAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string status, long version)
     {
@@ -165,10 +183,10 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
             await Release.Task.WaitAsync(ct);
         }
     }
-    private static void Fail(bool concurrency)
+    private static void Fail(bool concurrency, bool taxonomy)
     {
         if (concurrency) throw new AggregateConcurrencyException("Injected after real save.");
-        throw new AggregateConflictException("Injected after real save.", "ux_tenant_content_types_tenant_id_key_active");
+        throw new AggregateConflictException("Injected after real save.", taxonomy ? "ux_tenant_level_taxonomies_tenant_id_key_active" : "ux_tenant_content_types_tenant_id_key_active");
     }
     private sealed class ControlledContentStore(ITenantContentTypeStore inner, ActiveReadGate? gate = null, bool? failure = null) : ITenantContentTypeStore
     {
@@ -182,7 +200,7 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         public async Task UpdateAsync(TenantContentType root, CancellationToken ct = default)
         {
             await inner.UpdateAsync(root, ct);
-            if (failure is { } concurrency) Fail(concurrency);
+            if (failure is { } concurrency) Fail(concurrency, taxonomy: false);
         }
     }
     private sealed class ControlledTaxonomyStore(ITenantLevelTaxonomyStore inner, ActiveReadGate? gate = null, bool? failure = null) : ITenantLevelTaxonomyStore
@@ -197,7 +215,7 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         public async Task UpdateAsync(TenantLevelTaxonomy root, CancellationToken ct = default)
         {
             await inner.UpdateAsync(root, ct);
-            if (failure is { } concurrency) Fail(concurrency);
+            if (failure is { } concurrency) Fail(concurrency, taxonomy: true);
         }
     }
     public sealed record AbsorbingPublicationCommand(Guid Id, Guid LaterId, bool Taxonomy) : IRequest<Result<None>>;

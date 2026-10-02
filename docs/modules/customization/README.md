@@ -172,6 +172,12 @@ ambient unit rollback-only, including first publication with no incumbent.
 coordinates the intervening commit and proves absorbed post-save failures cannot
 commit either the dirty successor or a later write.
 
+Both publish commands accept an optional `RequireNoIncumbent` precondition.
+Contextual Off queries check the logical key's Active identity before registration.
+Convergent seed also passes true: a different Active revision is refused before mutation
+as `business_rule_violation` / `lockey_customization_key_already_live`. Default false
+retains ordinary revision succession. The same-row race remains typed concurrency;
+an Active winner from another revision is never retired or adopted by seed.
 
 ### Primary integration-event flow: none
 

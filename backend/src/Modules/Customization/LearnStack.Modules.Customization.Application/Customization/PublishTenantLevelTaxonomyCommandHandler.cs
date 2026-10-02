@@ -81,6 +81,9 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         if (incumbent?.Id == successor.Id)
             return CustomizationFailures.Stale<TenantLevelTaxonomyDto>();
 
+        if (request.RequireNoIncumbent && incumbent is not null)
+            return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>("Key", "lockey_customization_key_already_live");
+
         if (incumbent is not null)
         {
             incumbent.Deprecate(clock, actor);
