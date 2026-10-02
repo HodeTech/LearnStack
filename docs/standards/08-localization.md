@@ -29,12 +29,14 @@ Localization covers:
   ([Education data model](../modules/education/README.md#data-model-and-invariants)).
 - Slug is unique per `(tenant_id, locale)`, enforced on the translation table and flat
   across organizations — see [§ Pattern A](#pattern-a--side-translation-table-default-for-content-shaped-entities).
-- Fallback chain: requested → tenant default → field-level fallback (if allowed) → render-safe missing-content state.
+- Display fallback follows the single owner,
+  [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules),
+  under ADR-0008 and P02d-3's Accepted G24 answer. It never authorizes URL/body
+  fallback or enabled-locale membership. Resolved values carry their actual locale.
 
 > **Remaining Phase 02d decision.** G13 denies disabled or absent locale membership;
-> enforcement belongs to P02d-2/4. Display fallback remains G24: this list and
-> [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules)
-> still need one reconciled owner in
+> writers ship in P02d-2 and public enforcement belongs to P02d-4. G24's internal
+> display fallback is Accepted; public response fields remain P02d-4 in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## URL Strategy

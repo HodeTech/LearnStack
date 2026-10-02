@@ -43,6 +43,13 @@ Budgets are reviewed quarterly against measured production metrics.
 - TTL chosen per content type; default 5 minutes for catalog, 1 minute for course detail.
 - Cache hit ratio per cache name surfaced as a metric.
 
+Customization's internal untranslated definition cache is a generation-driven
+exception to event/locale invalidation under ADR-0043 and P02d-3's Accepted G22
+answer. Its [architecture owner](../architecture/32-tenant-customization-model.md#82-cache-strategy)
+requires a fresh SQL generation probe; `< 1 ms` measures in-memory resolution
+only, not end-to-end latency. Cold/partial/fault reads use at most two SELECTs.
+Seeded timings and plans do not establish a production p95.
+
 > **Open in Phase 02d.** That phase ships the first course-catalog reads and the first
 > pages rendered from them, and no Education publish event to invalidate a cache with.
 > Whether those reads are cached at all, with what directive and what freshness, is G27;

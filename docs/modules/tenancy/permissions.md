@@ -3,6 +3,11 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-3 read contract Accepted — 2026-10-02; implementation pending.**
+`ITenantSettingsAccessor` is internal and unrouted, uses trusted ambient
+scope and adds no HTTP endpoint or permission key. Public admission belongs to
+P02d-4. [The module contract](README.md#p02d-3-accepted-typed-settings-contract) owns its scope.
+
 **P02d-2 Step 2 writers — 2026-10-02.** The
 [locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
 are implemented unrouted tenant-wide operations, with no registered permission or

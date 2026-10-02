@@ -1276,6 +1276,17 @@ otherwise).
 - **Mutation-checked.** A second handler taking two write ports, the sanctioned handler
   renamed, and the two ports fused into one — each turns the rule red.
 
+#### `Customization_Projection_Does_Not_Validate_On_Read`
+
+- **Asserts:** the internal display projection never depends on
+  `IJsonSchemaValidator`; schema admission/body validation stay on the write path.
+  The scanner has a planted validator-dependent offender so an empty match is
+  not treated as evidence.
+- **Source:** ADR-0043 and [Standards 20's projection cache contract](20-infrastructure-stack.md#icacheservice-state).
+- **Type:** xUnit + Mono.Cecil. **Kind:** structural.
+- **Status:** **Registered** (implementation and planted proof in P02d-3).
+- **Phase:** 02d (P02d-3).
+
 ### Persistence: concurrency and the unit of work
 
 Source: [ADR-0039](../decisions/0039-optimistic-concurrency-token.md),

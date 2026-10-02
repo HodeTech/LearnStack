@@ -47,7 +47,9 @@ not deferred to the showcase phase.
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
   **in progress**; P02d-1 and P02d-2 complete and merged; the
   [P02d-2 closeout](phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
-  records final verification. P02d-3 read internals and their decision pass are next
+  records final verification. P02d-3 read internals are next; the
+  [decision package](phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+  is Accepted — 2026-10-02; implementation follows in three steps
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

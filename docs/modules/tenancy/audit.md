@@ -3,6 +3,12 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-3 read contract Accepted — 2026-10-02; implementation pending.**
+`ITenantSettingsAccessor` is an internal application interface, not a
+MediatR request or audited write. It creates no intent or business-state mutation.
+Any production request introduced for it must be audit Off; test-only requests
+stay test-only. [The module contract](README.md#p02d-3-accepted-typed-settings-contract) owns the read.
+
 **P02d-2 Step 2 implemented; both review rounds passed — 2026-10-02.**
 The [accepted writer
 contract](README.md#p02d-2-accepted-locale-and-branding-contract) implements the locale

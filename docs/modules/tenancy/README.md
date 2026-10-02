@@ -162,10 +162,32 @@ settings disclosure. The setting write is MUST; locale writes are SHOULD over th
 owning Tenant root, including contained locale changes. Contextual seed verification
 queries are Off.
 
+### P02d-3 accepted typed settings contract
+
+**Accepted — 2026-10-02; implementation pending.** `ITenantSettingsAccessor`
+exposes registered typed settings under ADR-0010's application-contract mechanism.
+No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
+admitted. The first production registration is tenant-wide `branding.theme`,
+reusing its four-color grammar and contrast validator above. It returns a complete
+typed palette or bounded absent/invalid outcome; public defaults and allowlisting
+remain P02d-4, CSS injection P02d-6.
+
+For a registration permitting organization scope, explicitly select the current
+tenant and `(organization_id IS NULL OR organization_id = current organization)`,
+excluding soft-deleted rows. No organization selects tenant-wide only. Organization
+values replace the whole tenant value, not individual JSON fields; an invalid
+selected override returns a configuration refusal. The explicit predicate excludes
+siblings even under the future tenant-scope RLS hatch. Synthetic test registrations
+prove this generic behavior; `branding.theme` stays tenant-wide in every context.
+Organization branding and token merging remain Phase 06.
+
 No settings cache in P02d-2/3: no generation migration, TTL or cross-process stale
-entry. P02d-3 implements the typed ambient accessor; it explicitly reads tenant-wide
-rows and exact organization rows, then merges in memory. Performance is measured
-there, not claimed satisfied by this decision.
+entry. The accessor uses the existing announced ambient transaction, without
+opening/announcing a new one or retaining a per-scope value snapshot. A subsequent
+read observes supported writes under the ambient isolation. Measure the indexed
+read/selection budget in P02d-3. The
+[accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+records the tests and step plan.
 
 ## Entity-relationship diagram
 

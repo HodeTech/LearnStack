@@ -243,12 +243,13 @@ different decisions:
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | none yet — see the note below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
-| `{tenant_id}:tenancy:settings` (low-churn) | 5 min | 1 h | `learnstack.tenancy.settings` |
+| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No settings cache | No settings cache | Phase 02b owns the declared settings event; it is not implemented |
 | `{tenant_id}:audit:config` (per-tenant audit overrides) | 5 min | 1 h | none yet — see the note below |
+| `{tenant_id}:customization:content-types:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
+| `{tenant_id}:customization:taxonomies:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
 
-Each of these is produced by a `CacheKey` factory, never by string
-interpolation, and the mapping is written down because it is the part that
-drifts:
+When a family is used, its key is produced by a `CacheKey` factory, never by string
+interpolation. The mapping is written down because it is the part that drifts:
 
 | Family | Composed by |
 |---|---|
@@ -257,16 +258,29 @@ drifts:
 | `{tenant_id}:hub:entitlement` | `CacheKey.ForTenant(tenantId, "hub", "entitlement")` |
 | `{tenant_id}:tenancy:feature-flags` | `CacheKey.ForTenant(tenantId, "tenancy", "feature-flags")` |
 | `{tenant_id}:identity:permissions:{session_id}` | `CacheKey.ForTenant(tenantId, "identity", "permissions", sessionId)` |
-| `{tenant_id}:tenancy:settings` | `CacheKey.ForTenant(tenantId, "tenancy", "settings")` |
+| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No accessor uses this key; the existing adapter metric spelling remains reserved |
 | `{tenant_id}:audit:config` | `CacheKey.ForTenant(tenantId, "audit", "config")` |
+| `{tenant_id}:customization:content-types:v{generation}` | `CacheKey.ForTenant(tenantId, "customization", "content-types", $"v{generation}")` |
+| `{tenant_id}:customization:taxonomies:v{generation}` | `CacheKey.ForTenant(tenantId, "customization", "taxonomies", $"v{generation}")` |
 
-**`{tenant_id}:tenancy:settings` has a key and no reader yet.** The family and its
-`cache.name` mapping are shipped; nothing caches a settings read. Whether settings are
-cached at all, how a cached read keeps one organization's overrides from reaching
-another, and what bounds staleness before the `learnstack.tenancy.settings` event
-exists, are G23 in
-[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-The pass that closes it edits both `tenancy:settings` rows above with its answer.
+The Customization rows are Accepted, not implemented yet: P02d-3's G12/G22 pass
+selects generation-keyed untranslated families, ambient coherent loading and
+dirty-scope bypass under ADR-0040/0043. Stable metrics omit the generation:
+`customization:content-types`, `customization:taxonomies`. The
+[architecture owner](../architecture/32-tenant-customization-model.md#82-cache-strategy)
+states the snapshot/fill contract; TTL is reclamation, not its freshness bound. Schema
+validation remains write-only under ADR-0043; the Registered
+`Customization_Projection_Does_Not_Validate_On_Read` guard will enforce that
+boundary in P02d-3, with a planted offender.
+
+**Settings are uncached in P02d-2/3.** The
+[Accepted G23 freshness answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
+selects no settings cache. The adapter's existing `tenancy:settings` metric spelling
+is reserved, not an active reader or a TTL promise. P02d-3 owns the typed ambient
+accessor and explicit tenant/organization scope; it adds no settings generation
+counter or out-of-band loader. Phase 02b owns the declared
+`learnstack.tenancy.settings` event. Adding a cached settings consumer requires a
+new scope/key/freshness decision before that consumer ships.
 
 **`{tenant_id}:audit:config` has no eager invalidation, and that is a stated gap rather
 than an omission.** The projection is read by `IAuditConfigService` on the classification

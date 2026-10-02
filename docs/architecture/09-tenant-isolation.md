@@ -256,6 +256,15 @@ tenants/{tenant_id}/brand/...                                        ← tenant-
 
 ### Cache (Dapr State Store / Valkey)
 
+P02d-3's Accepted internal Customization cache is tenant-wide and untranslated;
+its generation and ambient fill rules live in
+[Cache strategy](32-tenant-customization-model.md#82-cache-strategy).
+The typed settings accessor is uncached and explicitly selects tenant-wide/current
+organization rows even if a future tenant-scope hatch widens RLS reads. The
+[Tenancy contract](../modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract)
+owns whole-value precedence and tenant-wide branding. These are accepted contracts,
+not delivered readers yet.
+
 ```
 {tenant_id}:{org_id}:{module}:{logical-name}    ← a value scoped to one organization
 {tenant_id}:{module}:{logical-name}             ← a tenant-wide value
