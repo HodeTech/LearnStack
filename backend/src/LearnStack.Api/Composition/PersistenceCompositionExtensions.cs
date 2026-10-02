@@ -220,7 +220,7 @@ public static class PersistenceCompositionExtensions
         // lets the seeder build the same graph.
         services.AddMetrics();
 
-        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // The feature/entitlement read. SCOPED, because it reads the tenant context
         // and answers for one tenant, which is one request. It does NOT take a module
         // DbContext: both halves it reads are policy-guarded tables it reaches on
         // connections of its own, so resolving it does not require an open unit-of-work

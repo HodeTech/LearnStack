@@ -176,19 +176,15 @@ CREATE TABLE levels (
 );
 ```
 
-The application reads with a helper that performs fallback:
+Stored JSON materializes as `LocalizedText`; use its locale-carrying resolver,
+not a second fallback implementation:
 
 ```csharp
-public static string Resolve(JsonElement localizedField, string requestedLocale, IReadOnlyList<string> fallbackChain)
-{
-    if (localizedField.TryGetProperty(requestedLocale, out var direct) && direct.ValueKind == JsonValueKind.String)
-        return direct.GetString()!;
-    foreach (var fb in fallbackChain)
-        if (localizedField.TryGetProperty(fb, out var fbVal) && fbVal.ValueKind == JsonValueKind.String)
-            return fbVal.GetString()!;
-    return string.Empty;
-}
+ResolvedLocalizedText resolved = label.ResolveWithLocale(
+    requestedLocale, [tenantDefaultLocale, "en"]);
 ```
+
+[Fallback Rules](#fallback-rules) owns the chain and terminal behavior.
 
 Pattern B is cheaper for short fields where joining a translation table is overkill, and avoids N+1 issues when listing many rows. Use it for short, atomic, mostly-required strings.
 

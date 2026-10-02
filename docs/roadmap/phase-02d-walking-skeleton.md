@@ -1336,6 +1336,14 @@ All three populations have zero failed/skipped; formatting and document checks p
 Both independent review rounds remain pending;
 Step 2 has not started. Public consumers/metadata remain P02d-4/6.
 
+**Step 1 review round 1.** Two fresh GPT-5.5 high sessions reviewed
+`307bbcd..9293202`. No verified Blocker/Major. Two verified Minor findings were
+fixed: the localization illustration used a second stale fallback helper, and
+both composition roots overstated feature flags as the only module-facing read.
+The illustration now calls the shipped resolver; comments describe their own
+read. No behavior changed. Round 2 remains pending.
+
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
