@@ -5,6 +5,7 @@ using LearnStack.Modules.Education.Application.Contracts.Lessons;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Validation;
 
 namespace LearnStack.Modules.Education.Application.Writing;
 
@@ -18,8 +19,8 @@ internal sealed class CreateCourseCommandValidator : AbstractValidator<CreateCou
             .WithErrorCode("lockey_education_content_access_invalid");
         RuleFor(request => request).Must(request =>
                 request.LevelTaxonomyKey is null && request.LevelTaxonomySchemaVersion is null && request.LevelBandKey is null
-                || EducationPinKey.IsValid(request.LevelTaxonomyKey!) && request.LevelTaxonomySchemaVersion is > 0
-                    && EducationPinKey.IsValid(request.LevelBandKey!))
+                || request is { LevelTaxonomyKey: { } key, LevelTaxonomySchemaVersion: > 0, LevelBandKey: { } band }
+                    && EducationPinKey.IsValid(key) && EducationPinKey.IsValid(band))
             .OverridePropertyName(nameof(CreateCourseCommand.LevelTaxonomyKey)).WithErrorCode("lockey_education_level_pin_invalid");
     }
 }
@@ -85,7 +86,7 @@ internal static class EducationInput
     internal static bool Title(string value) => !string.IsNullOrWhiteSpace(value) && JsonValue.IsStorableText(value);
     internal static bool Body(string value)
     {
-        if (!JsonValue.IsWellFormed(value)) return false;
+        if (!JsonInstanceLimits.IsWithinCap(value) || !JsonValue.IsWellFormed(value)) return false;
         using var document = JsonDocument.Parse(value);
         return document.RootElement.ValueKind == JsonValueKind.Object;
     }

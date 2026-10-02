@@ -3,6 +3,7 @@ using FluentValidation;
 using LearnStack.Modules.Education.Application;
 using LearnStack.Modules.Education.Application.Contracts.Courses;
 using LearnStack.Modules.Education.Application.Contracts.Lessons;
+using LearnStack.SharedKernel.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -83,6 +84,24 @@ public sealed class EducationWriterValidationTests : IDisposable
     }
 
     private IValidator<T> Validator<T>() => _provider.GetRequiredService<IValidator<T>>();
+
+    [Theory]
+    [InlineData('a', 1)]
+    [InlineData('ç', 2)]
+    public void Instance_admission_caps_utf8_bytes_before_parsing(char character, int bytesPerCharacter)
+    {
+        const string prefix = "{\"text\":\"";
+        const string suffix = "\"}";
+        var padding = (JsonInstanceLimits.MaxBytes - prefix.Length - suffix.Length) % bytesPerCharacter;
+        var body = prefix + new string(character, (JsonInstanceLimits.MaxBytes - prefix.Length - suffix.Length) / bytesPerCharacter)
+            + new string('a', padding) + suffix;
+        System.Text.Encoding.UTF8.GetByteCount(body).Should().Be(JsonInstanceLimits.MaxBytes);
+        var validator = Validator<AddLessonTranslationCommand>();
+        var command = new AddLessonTranslationCommand(Guid.CreateVersion7(), 0, "en", "Title", "lesson", body);
+        validator.Validate(command).IsValid.Should().BeTrue();
+        validator.Validate(command with { Body = body + " " }).Errors.Should()
+            .ContainSingle(error => error.PropertyName == nameof(command.Body));
+    }
 
     private static ServiceProvider Build()
     {

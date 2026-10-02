@@ -38,7 +38,7 @@ internal sealed class AddCourseTranslationCommandHandler(ICourseWriteStore roots
             {
                 if (constraint != "ux_course_translations_tenant_id_locale_slug") return null;
                 var visible = await collisions.ReadCourseAsync(locale.Value, request.Slug, cancellationToken);
-                return EducationWriteSupport.SlugConflict(locale.Value, request.Slug, visible);
+                return EducationWriteSupport.SlugConflict(locale.Value, request.Slug, visible?.Value);
             });
     }
 }

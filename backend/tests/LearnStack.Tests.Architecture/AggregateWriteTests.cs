@@ -1,6 +1,9 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.Modules.Education.Application.Abstractions;
+using LearnStack.Modules.Education.Domain;
 using MediatR;
 using Xunit;
 
@@ -67,7 +70,9 @@ public sealed class AggregateWriteTests
         //
         // Detected by shape, not by name: an interface whose method takes a type from a
         // module's Domain assembly is a port that writes domain objects, whatever it is
-        // called. A rule keyed on "ends in Store" is satisfied by renaming.
+        // called. Typed identifiers are keys, not mutable domain objects: a reader that
+        // takes CourseId cannot write a Course. ADR-0023 requires those keys to stay typed.
+        // A rule keyed on "ends in Store" is satisfied by renaming.
         var domainAssemblies = ProductionAssemblies()
             .Select(Assembly.Load)
             .Where(assembly => assembly.GetName().Name?.EndsWith(".Domain", StringComparison.Ordinal)
@@ -78,10 +83,7 @@ public sealed class AggregateWriteTests
             .Select(Assembly.Load)
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type.IsInterface)
-            .Where(type => type.GetMethods().Any(method =>
-                method.GetParameters().Any(parameter =>
-                    Unwrap(parameter.ParameterType).Any(inner =>
-                        domainAssemblies.Contains(inner.Assembly)))))
+            .Where(type => TakesDomainObject(type, domainAssemblies))
             .Where(type => !WriteStoreConstructions(type).Any())
             .Select(type => type.Name)
             .Distinct()
@@ -95,6 +97,37 @@ public sealed class AggregateWriteTests
             + "PlatformHostMapping is a projection with a string key and is the one "
             + "sanctioned case, and a second name here needs its own decision");
     }
+
+    [Fact]
+    public void Write_Port_Census_Distinguishes_Typed_Read_Keys_From_Wrapped_Domain_Writes()
+    {
+        var domains = new HashSet<Assembly> { typeof(Course).Assembly };
+        TakesDomainObject(typeof(IParentCourseReader), domains).Should().BeFalse();
+        TakesDomainObject(typeof(ITranslationCollisionReader), domains).Should().BeFalse();
+        TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeFalse();
+        foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter) })
+        {
+            TakesDomainObject(writer, domains).Should().BeTrue($"{writer.Name} must remain visible to the census; Fix: inspect domain objects inside every wrapper");
+            WriteStoreConstructions(writer).Should().BeEmpty("these planted writes must fail the production guard rather than count as sanctioned stores");
+        }
+        TakesDomainObject(typeof(ICourseWriteStore), domains).Should().BeTrue();
+        WriteStoreConstructions(typeof(ICourseWriteStore)).Should().ContainSingle();
+    }
+
+    private static bool TakesDomainObject(Type type, HashSet<Assembly> domains) =>
+        type.GetInterfaces().Append(type).SelectMany(contract => contract.GetMethods())
+            .Any(method => method.GetParameters().Any(parameter =>
+            Unwrap(parameter.ParameterType).Any(inner => !inner.HasElementType && domains.Contains(inner.Assembly)
+                && !inner.GetInterfaces().Any(contract => contract.IsGenericType
+                    && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>)))));
+
+    private interface IWrappedKeyReader { void Read(IEnumerable<CourseId[]> ids); }
+    private interface IDirectWriter { void Apply(Course root); }
+    private interface IBulkWriter { void Apply(IEnumerable<Course[]> roots); }
+    private interface IArrayWriter { void Apply(Course[] roots); }
+    private interface IByRefWriter { void Apply(in Course root); }
+    private interface IMixedWriter { void Apply(CourseId id, Course root); }
+    private interface IInheritedWriter : IDirectWriter { }
 
     /// <summary>
     /// The distinct aggregate roots a constructor's write ports reach.

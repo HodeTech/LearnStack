@@ -52,6 +52,7 @@ internal static class EducationWriteSupport
             unit.MarkRollbackOnly();
             if (explainConflict is not null && await explainConflict(conflict.ConstraintName) is { } explanation)
                 return Result<T>.Fail(explanation);
+            // The exception filter admitted only a constraint with a known mapping.
             var (field, reason) = KnownConflict(conflict.ConstraintName)!.Value;
             return Result<T>.Fail(FieldError("lockey_business_rule_violation", field, reason));
         }

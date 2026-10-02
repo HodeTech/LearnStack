@@ -19,12 +19,12 @@ public interface ILessonWriteStore : IAggregateWriteStore<Lesson, LessonId>
 /// <remarks>No parent write port or tracked parent is exposed to the lesson handler.</remarks>
 public interface IParentCourseReader
 {
-    Task<Course?> ReadAsync(Guid courseId, CancellationToken cancellationToken);
+    Task<Course?> ReadAsync(CourseId courseId, CancellationToken cancellationToken);
 }
 
 /// <summary>Resolves only visible live root identities for bounded slug-collision diagnostics.</summary>
 public interface ITranslationCollisionReader
 {
-    Task<Guid?> ReadCourseAsync(string locale, string slug, CancellationToken cancellationToken);
-    Task<Guid?> ReadLessonAsync(string locale, string slug, CancellationToken cancellationToken);
+    Task<CourseId?> ReadCourseAsync(string locale, string slug, CancellationToken cancellationToken);
+    Task<LessonId?> ReadLessonAsync(string locale, string slug, CancellationToken cancellationToken);
 }

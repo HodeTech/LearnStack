@@ -95,7 +95,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**133 test methods run in
+**134 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2009,8 +2009,8 @@ because the filters hold, and removing both turns all five red.
 #### `Every_Write_Port_Is_Countable_Or_Enumerated`
 
 - **Asserts:** every interface in a production assembly whose method takes a type from a
-  module's `Domain` assembly — **directly, or inside a generic, array or by-ref wrapper**
-  — either derives from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to
+  module's `Domain` assembly, excluding `IStronglyTypedId<>` keys — **directly, or
+  inside a generic, array or by-ref wrapper** — either derives from `IAggregateWriteStore<TRoot, TId>`, and is therefore visible to
   the cross-aggregate census above, or appears on a literal allow-list. The list holds one
   name: `IPlatformHostMappingStore`.
 - **Wrappers are unwrapped transitively,** because a bulk write port is written with one:
@@ -2023,8 +2023,11 @@ because the filters hold, and removing both turns all five red.
   about it is not, because a second such port would join the first with nothing to notice,
   and the census that keeps ADR-0042's exception at one entry would stop describing the
   system.
-- **Detected by shape, not by name.** "Takes a domain type" rather than "ends in `Store`":
-  a rule keyed on a suffix is satisfied by renaming.
+- **Detected by shape, not by name.** "Takes a domain object" rather than "ends in
+  `Store`": a rule keyed on a suffix is satisfied by renaming. A typed identifier
+  names an object without exposing it for mutation; ADR-0023 requires read keys to
+  remain typed. The planted companion proves direct and wrapped domain writes
+  still count, while typed-key readers do not.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
 - **Status:** **Implemented** (Packet 7 review, `LearnStack.Tests.Architecture`,

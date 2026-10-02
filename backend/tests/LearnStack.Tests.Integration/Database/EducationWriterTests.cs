@@ -15,6 +15,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Validation;
 using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +37,31 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
     private const string NumberSchema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"number"}},"required":["text"],"additionalProperties":false}""";
     private static readonly string[] ExpectedOperations = ["education.course.create", "education.course.translation_add", "education.course.publish", "education.lesson.create", "education.lesson.translation_add", "education.lesson.publish"];
     private const string Body = """{"text":"A lesson"}""";
+
+    [Fact]
+    public async Task Composed_writer_bounds_instances_before_lookup_and_preserves_state_on_oversize()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        await TypeAsync(source, context, 1, StringSchema);
+        var course = await CourseAsync(source, context, "bounded");
+        var lesson = await LessonAsync(source, context, course.Id);
+        var before = await LessonStateAsync(source, context, lesson.Id);
+        var auditCount = await SuccessfulAuditsAsync(source, context, "education.lesson.translation_add");
+        var body = "{\"text\":\"" + new string('a', JsonInstanceLimits.MaxBytes - 11) + "\"}";
+        System.Text.Encoding.UTF8.GetByteCount(body).Should().Be(JsonInstanceLimits.MaxBytes);
+        var command = new AddLessonTranslationCommand(lesson.Id, lesson.Version, "en", "Bounded", "bounded", body);
+        foreach (var target in new[] { lesson.Id, Guid.CreateVersion7() })
+        {
+            var refused = await SendAsync(source, context, command with { LessonId = target, Body = body + " " });
+            refused.Error!.Code.Should().Be("validation_failed");
+            refused.Error.Details.Should().ContainKey("Body", "size admission runs before even a missing-root lookup");
+        }
+        (await LessonStateAsync(source, context, lesson.Id)).Should().BeEquivalentTo(before);
+        (await SuccessfulAuditsAsync(source, context, "education.lesson.translation_add")).Should().Be(auditCount);
+        (await SendAsync(source, context, command)).IsSuccess.Should().BeTrue("the inclusive instance boundary must still pass the composed schema writer");
+    }
 
     [Fact]
     public async Task Six_commands_preserve_independent_roots_explicit_policy_and_contained_audit_subjects()

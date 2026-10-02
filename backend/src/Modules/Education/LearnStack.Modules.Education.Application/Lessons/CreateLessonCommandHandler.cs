@@ -23,7 +23,7 @@ internal sealed class CreateLessonCommandHandler(ILessonWriteStore lessons, IPar
     {
         ArgumentNullException.ThrowIfNull(request);
         if (EducationWriteSupport.Context<LessonWriteDto>(tenantContext) is { } unresolved) return unresolved;
-        var parent = await parents.ReadAsync(request.CourseId, cancellationToken);
+        var parent = await parents.ReadAsync(CourseId.From(request.CourseId), cancellationToken);
         if (parent is null) return EducationWriteSupport.Code<LessonWriteDto>("lockey_not_found");
         if (EducationWriteSupport.Scope<LessonWriteDto>(parent, tenantContext) is { } scopeFailure) return scopeFailure;
         var definition = await definitions.ReadContentTypeAsync(request.ContentTypeKey, request.ContentTypeSchemaVersion,

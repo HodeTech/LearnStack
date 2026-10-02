@@ -23,12 +23,12 @@ internal sealed class CreateCourseCommandHandler(ICourseWriteStore courses,
     {
         ArgumentNullException.ThrowIfNull(request);
         if (EducationWriteSupport.Context<CourseWriteDto>(tenantContext) is { } unresolved) return unresolved;
-        if (request.LevelTaxonomyKey is { } key)
+        if (request is { LevelTaxonomyKey: { } key, LevelTaxonomySchemaVersion: { } version, LevelBandKey: { } bandKey })
         {
-            var taxonomy = await definitions.ReadTaxonomyAsync(key, request.LevelTaxonomySchemaVersion!.Value,
+            var taxonomy = await definitions.ReadTaxonomyAsync(key, version,
                 DefinitionReadPurpose.NewBinding, cancellationToken);
             if (taxonomy.IsFailure) return Result<CourseWriteDto>.Fail(taxonomy.Error);
-            if (!taxonomy.Value.Bands.Any(band => band.Key == request.LevelBandKey))
+            if (!taxonomy.Value.Bands.Any(band => band.Key == bandKey))
                 return EducationWriteSupport.Field<CourseWriteDto>("LevelBandKey", "lockey_education_band_invalid");
         }
         var access = request.ContentAccess == "public" ? CourseContentAccess.Public : CourseContentAccess.EnrollmentRequired;

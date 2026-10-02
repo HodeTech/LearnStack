@@ -81,7 +81,7 @@ in P02d-5–7; none of these later packets has started.
 | **Tenancy** | Tenant provisioning, organizations, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, payload validation and built-in seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, migrations and isolation tests | Commands, seeded content and public reading in [P02d-2–4](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands and isolation tests | Seed execution in P02d-2 Step 4; public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 

@@ -705,6 +705,22 @@ Release build, all 16 validator cases and all 14 writer database cases passed ag
 without failures/skips. Full format verification exited zero; links/anchors and the
 unchanged P02d-1 suffix check passed.
 
+**Step 3 Round 2.** Two fresh read-only Codex review sessions (high and xhigh)
+reviewed `8b981c7..a4a29d3`. The security reviewer returned Approve; the contract
+reviewer requested changes. All findings were verified against current code.
+Internal parent and collision ports now retain module-local typed IDs; conversion
+occurs at the command boundary and unwraps only for exported diagnostics. The
+aggregate-write census excludes typed keys without exempting the reader by name;
+its planted companion still detects direct, nested generic, array, by-ref and mixed
+object writes. The existing 1 MiB instance cap now has one shared owner, and the
+Education validator checks UTF-8 size before any JSON parse. Inclusive ASCII and
+multibyte boundary tests and a composed writer refusal/unchanged-state proof cover
+it. New null suppression is removed or justified by the exception filter. README,
+Database Standard and the old Backend Coding publication example now name the
+shipped writer contract. Additional focused review follows these production fixes.
+The attempted fresh Claude sessions reached the provider's session limit and
+produced no review; they are not counted as completed rounds.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

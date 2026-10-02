@@ -1205,8 +1205,9 @@ advances the owning `Course` or `Lesson` token in the same save as the new membe
 [EducationPersistenceTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
 loads competing copies of each root, adds different locales, and proves that the
 losing concurrency write leaves no satellite row. Its capture assertions keep the
-satellite change inside that root's audit subject. Education's command catalogue
-remains planned for P02d-2.
+satellite change inside that root's audit subject. P02d-2 Step 3 supplies the six
+Education commands; [EducationWriterTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationWriterTests.cs)
+proves exact versions, concurrent winners and atomic audit on the composed path.
 
 **`xmin` is not used as a concurrency token anywhere**, and is no longer an
 alternative. [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)

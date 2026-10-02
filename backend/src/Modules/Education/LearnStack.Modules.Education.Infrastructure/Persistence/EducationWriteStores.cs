@@ -51,28 +51,21 @@ public sealed class LessonWriteStore(EducationDbContext db) : ILessonWriteStore
 /// <summary>Filtered detached parent read on the same connection as the child's write.</summary>
 public sealed class ParentCourseReader(EducationDbContext db) : IParentCourseReader
 {
-    public Task<Course?> ReadAsync(Guid courseId, CancellationToken cancellationToken)
+    public Task<Course?> ReadAsync(CourseId courseId, CancellationToken cancellationToken)
     {
-        var id = CourseId.From(courseId);
-        return db.Courses.AsNoTracking().SingleOrDefaultAsync(root => root.Id == id && root.DeletedAt == null, cancellationToken);
+        return db.Courses.AsNoTracking().SingleOrDefaultAsync(root => root.Id == courseId && root.DeletedAt == null, cancellationToken);
     }
 }
 
 /// <summary>Own-module collision reads retain both parent and satellite scope filters.</summary>
 public sealed class TranslationCollisionReader(EducationDbContext db) : ITranslationCollisionReader
 {
-    public async Task<Guid?> ReadCourseAsync(string locale, string slug, CancellationToken cancellationToken)
-    {
-        var id = await db.Courses.AsNoTracking().Where(root => root.DeletedAt == null
+    public Task<CourseId?> ReadCourseAsync(string locale, string slug, CancellationToken cancellationToken) =>
+        db.Courses.AsNoTracking().Where(root => root.DeletedAt == null
                 && root.Translations.Any(translation => translation.Locale == locale && translation.Slug == slug))
             .Select(root => (CourseId?)root.Id).SingleOrDefaultAsync(cancellationToken);
-        return id?.Value;
-    }
-    public async Task<Guid?> ReadLessonAsync(string locale, string slug, CancellationToken cancellationToken)
-    {
-        var id = await db.Lessons.AsNoTracking().Where(root => root.DeletedAt == null
+    public Task<LessonId?> ReadLessonAsync(string locale, string slug, CancellationToken cancellationToken) =>
+        db.Lessons.AsNoTracking().Where(root => root.DeletedAt == null
                 && root.Translations.Any(translation => translation.Locale == locale && translation.Slug == slug))
             .Select(root => (LessonId?)root.Id).SingleOrDefaultAsync(cancellationToken);
-        return id?.Value;
-    }
 }
