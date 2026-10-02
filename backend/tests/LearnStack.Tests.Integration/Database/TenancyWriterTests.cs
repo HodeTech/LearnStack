@@ -38,6 +38,49 @@ public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFacto
     private const string Theme = """{"primary":"#2345aa","background":"#ffffff","foreground":"#111111","muted":"#555555"}""";
     private const string OtherTheme = """{"primary":"#663399","background":"#ffffff","foreground":"#000000","muted":"#444444"}""";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Unknown_unique_constraints_remain_database_faults_and_roll_back(bool branding)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        var foreign = await ProvisionAsync(source);
+        var initial = await ReadTenantAsync(source, context);
+        (await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0))).IsSuccess.Should().BeTrue();
+        if (branding)
+        {
+            (await SendAsync(source, foreign, new SetTenantBrandingCommand(Guid.CreateVersion7(), Theme, null)))
+                .IsSuccess.Should().BeTrue();
+        }
+
+        await using (var owner = new NpgsqlConnection(database.MigrationConnectionString))
+        await using (var index = new NpgsqlCommand(branding
+            ? "CREATE UNIQUE INDEX ux_test_unowned ON tenant_settings (value)"
+            : "CREATE UNIQUE INDEX ux_test_unowned ON tenant_locales (sort)", owner))
+        {
+            await owner.OpenAsync();
+            await index.ExecuteNonQueryAsync();
+        }
+
+        var before = await ReadTenantAsync(source, context);
+        var settingId = Guid.CreateVersion7();
+        Func<Task> send = branding
+            ? async () => { await SendAsync(source, context, new SetTenantBrandingCommand(settingId, Theme, null)); }
+        : async () => { await SendAsync(source, context, new AddTenantLocaleCommand(before.Version, "fr", true, false, 0)); };
+        var fault = (await send.Should().ThrowAsync<DbUpdateException>()).Which;
+        fault.InnerException.Should().BeOfType<PostgresException>().Which.ConstraintName.Should().Be("ux_test_unowned");
+        var problem = LearnStack.Api.Common.ProblemDetailsFactory.For(fault);
+        problem.Status.Should().Be(500);
+        problem.Extensions["code"].Should().Be("internal_error");
+        problem.Extensions.Should().NotContainKey("errors");
+        (await ReadTenantAsync(source, context)).Should().BeEquivalentTo(before);
+        (await SendAsync(source, context, new GetSettingSeedStateQuery(settingId))).Value!.State.Should().BeNull();
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write")).Should().Be(1);
+        (await CountSuccessfulWritesAsync(source, context, "tenancy.setting.write")).Should().Be(0);
+    }
+
     [Fact]
     public async Task Locale_commands_promote_first_enabled_then_switch_existing_and_new_defaults_atomically()
     {

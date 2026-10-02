@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Modules.Tenancy.Application.Branding;
+using LearnStack.SharedKernel.Domain;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Modules.Tenancy;
@@ -19,6 +20,29 @@ public sealed class BrandingThemeTests
         BrandingThemeRegistry.Colors.Select(color => (color.JsonName, color.CssVariable)).Should().Equal(
             ("primary", "--ls-primary"), ("background", "--ls-bg"), ("foreground", "--ls-fg"), ("muted", "--ls-muted"));
         BrandingThemeRegistry.SettingKey.Should().Be("branding.theme");
+    }
+
+    [Fact]
+    public void Input_property_order_does_not_change_the_canonical_palette()
+    {
+        var reordered = """{"muted":"#555555","foreground":"#111111","background":"#FFFFFF","primary":"#2345AA"}""";
+        BrandingThemeRegistry.ValidateAndCanonicalize(reordered).Value.Should().Be(
+            """{"primary":"#2345aa","background":"#ffffff","foreground":"#111111","muted":"#555555"}""");
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void Complete_valid_json_respects_the_input_byte_cap(int excess, bool accepted)
+    {
+        var padded = Valid.PadRight(JsonValue.MaxRowBytes + excess);
+        var result = BrandingThemeRegistry.ValidateAndCanonicalize(padded);
+        result.IsSuccess.Should().Be(accepted);
+        if (!accepted)
+        {
+            result.Error!.Code.Should().Be("validation_failed");
+            result.Error.Details.Should().ContainSingle().Which.Key.Should().Be("Theme");
+        }
     }
 
     [Theory]

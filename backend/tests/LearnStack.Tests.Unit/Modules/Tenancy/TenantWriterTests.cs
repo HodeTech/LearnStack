@@ -80,17 +80,17 @@ public sealed class TenantWriterTests
     }
 
     [Fact]
-    public async Task Unknown_constraint_is_propagated_instead_of_becoming_a_known_business_refusal()
+    public async Task Unexpected_store_fault_is_propagated_instead_of_becoming_a_business_refusal()
     {
         using var provider = Build();
         var tenant = Root();
         var store = provider.GetRequiredService<ITenantWriteStore>();
         store.FindAsync(TenantId).Returns(tenant);
-        var error = new AggregateConflictException("unexpected", "unrecognized_constraint");
+        var error = new Microsoft.EntityFrameworkCore.DbUpdateException("unexpected constraint");
         store.UpdateAsync(tenant).Returns(Task.FromException(error));
         var send = async () => await provider.GetRequiredService<IRequestHandler<AddTenantLocaleCommand, Result<TenantLocalesDto>>>()
             .Handle(new(tenant.Version, "en", true, false, 1), default);
-        (await send.Should().ThrowAsync<AggregateConflictException>()).Which.Should().BeSameAs(error);
+        (await send.Should().ThrowAsync<Microsoft.EntityFrameworkCore.DbUpdateException>()).Which.Should().BeSameAs(error);
     }
 
     [Fact]

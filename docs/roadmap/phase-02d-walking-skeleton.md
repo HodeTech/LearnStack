@@ -649,6 +649,18 @@ Step 1's writing foundation case: its independent audit rows survived the busine
 rollback in the shared fixture. That case now owns a disposable database; the full
 75-case group passes without leaking rows into other tests.
 
+**Step 2 review round 1.** Security (`gpt-6-astra`, high) found one verified
+classification defect: the shared EF helper wrapped unknown unique constraints with
+a business error before the handler could distinguish them. New Tenancy writer
+methods now supply owned constraint sets; unowned failures stay database faults.
+Two planted PostgreSQL constraints prove `500 internal_error`, unchanged state and
+no successful audit. Existing helper callers retain their contract. The corpus/theme
+review (`gpt-6.1-sol`, xhigh) found two Minor documentation gaps; prose wrapping and
+public contract XML documentation are corrected. Palette key-order and exact/over-cap
+input proofs also cover its optional test suggestion. After fixes, Release build
+passed with zero warnings/errors; 77 Docker regression cases, 185 focused unit and
+177 architecture cases passed with zero skips. Round 2 remains pending.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
