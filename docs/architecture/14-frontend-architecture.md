@@ -450,9 +450,9 @@ mechanical.
   SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
   Domain registration and TLS flow:
   [27-custom-domain-tls.md](27-custom-domain-tls.md).
-- **Brand-token contrast failures** — surface a warning at save time, not a render-time
-  surprise. The contrast check also runs against the merged tenant+org token set, not
-  only the tenant defaults.
+- **Brand-token contrast failures** — refuse saving a failing palette and explain
+  the refusal before rendering. The contrast check also runs against the merged
+  tenant+org token set, not only the tenant defaults.
 - **Block schema drift** — tenants editing their `TenantPageBlock` schema while pages
   have stored content against the older shape. The renderer's placeholder path keeps
   this safe; the customization editor surfaces the drift at save time and offers a

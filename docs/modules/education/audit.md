@@ -1,6 +1,6 @@
 # Education Audit Coverage Matrix
 
-**Status:** P02d-2 Step 3 implemented, review pending — 2026-10-02. The six
+**Status:** P02d-2 Step 3 implemented; both review rounds passed — 2026-10-02. The six
 writer registrations below and the two contextual verification queries (Off) are
 executable in both composition roots under the [module spec](README.md) and
 [Audit Coverage Standards](../../standards/18-audit-coverage.md).

@@ -451,7 +451,7 @@ gates stay open for their named packets; acceptance claims no implementation.
 | G12: contract | Uncached Customization application interface returns immutable value DTOs for exact revisions; new binds Active, existing-pin writes Active/Deprecated. No foreign Domain/Infrastructure reference, FK, public marker or cache. Snapshot eligibility is at validation read, not a claim of Active-at-commit |
 | G13: locale | Uncached Tenancy application contract requires canonical enabled membership. No platform locale registry; use existing LocaleTag grammar/canonicalization/35-character bound. No rows means no content locale, not implicit `en`; label fallback does not change URL/body eligibility. Removal/disable retains Education data and later reads recheck membership; the lifecycle commands belong to Phase 03 |
 | G14: seed | Inventory and test-owned controls below; all literal identities and expected counts move into `SeedData` with implementation. Tenant-wide branding/content announce null organization. Built-in `card`/`plain` stay unchanged and Active |
-| G15: setter fence | Ownership verification becomes contextual `ISender` queries, explicitly audit Off; no direct seeder transaction/context setter. [Registered caller fence](../standards/21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters) has a planted-caller companion; no new ADR-0040 setter admission |
+| G15: setter fence | Ownership verification becomes contextual `ISender` queries, explicitly audit Off; no direct seeder transaction/context setter. [Caller fence implemented in Step 4](../standards/21-architecture-tests-catalogue.md#seeder_does_not_call_tenant_context_setters) has a planted-caller companion; no new ADR-0040 setter admission |
 | G16(a–e): branding | One tenant-wide `branding.theme` document, four closed color fields, complete replacement and contrast refusal; exact version for replacement. Command-local registry preserves generic settings. Organization overrides refused; no fonts, logo, URL or layout setting in this packet |
 | G17: PII | Mark generic `TenantSetting.Value` `[PiiSensitive]` before its writer, including whole JSON audit redaction. Public branding allowlisting is a separate boundary, not permission to expose generic settings |
 | G18: presentation | [ADR-0051](../decisions/0051-ordered-text-card-presentation.md) extends ADR-0043 with optional strict root `x-fields`; seed opts into ordered localized plain-string cards. Legacy schemas remain valid, unchanged; no renderer-key or presentation-column change |
@@ -857,6 +857,39 @@ read internals and the uncached ambient typed settings accessor; its remaining g
 open before that work. P02d-4 owns public reads and hidden-response/query-plan proofs;
 P02d-5–7 own transport, rendering and the running two-site demo. No marketplace,
 authentication, enrollment, public API or browser-delivery completion is inferred.
+
+#### PR review corrections (2026-10-02)
+
+External PR #23 findings were verified against `6fce655` before changes. Current
+carriers now separate delivered P02d-2 policy, migration, writers, presentation
+resolution and seed from P02d-4 public reads, P02d-6 rendering and Phase 07 grants.
+ADR-0050/0051 retain their acceptance-time Status and Decision text; dated implementation
+disclosures and Amendment 1 record delivery. The indexes, glossary, audit review state,
+implemented setter fence, contrast refusal and unrestricted default entitlement
+provider are aligned. No access, branding, marketplace or governance decision changes.
+
+The exact presentation reader now returns `/properties` validation failures for
+missing or non-object members and non-object roots. Eleven regressions preserve its
+Result contract and optional legacy profile behavior. Migration reversal locates the
+policy migration by stable ID; both Up applications prove the restricted backfill.
+Lesson and Course post-save refusal absorption, both Customization MUST-audit
+replacement rollbacks and the incumbent rollback-only branch have direct proofs.
+A controlled non-provisioning translation race witnesses two real save attempts, one
+successful act and one audited refusal, fresh completed-state recovery and an unchanged
+all-outcome repeat snapshot.
+
+Theme replacement-version requirements do not apply to create-only seed writes.
+Reference admission remains with the authoritative exact-revision writers; no new
+whole-declaration preflight contract is introduced. Existing inventory comparisons
+already prove both tenants' shared English slug and foreign-tenant invisibility.
+Existing repeat snapshots include every audit outcome; the new race additionally
+retains an observed failed audit. These findings require no production expansion.
+
+Release build has zero warnings/errors; 1,570 unit, 181 architecture, 171 Docker-free
+integration, one contract and all 68 focused database cases pass with zero skips.
+Relative links, fragments, added prose wrapping, format and `git diff --check` pass;
+the P02d-1 suffix remains byte-identical. Independent reviews and complete-suite
+verification are recorded after this correction commit.
 
 ### P02d-1 decision pass (2026-09-14)
 

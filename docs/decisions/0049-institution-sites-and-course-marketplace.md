@@ -115,8 +115,9 @@ owns independent publication, persisted policy, restricted backfill and denial
 before anonymous lesson exposure. This marketplace proposal itself supersedes no ADR.
 
 P02d-2 has no technical dependency on marketplace commerce. Its decision pass is
-Accepted; implementation waits at the maintainer's explicit request after the
-documentation update. Commerce feasibility does not reopen its access decision or
+Accepted; P02d-2 policy, migration, writers and seed are delivered following
+maintainer resumption. Public-read enforcement remains P02d-4, rendering P02d-6.
+Commerce feasibility does not reopen its access decision or
 silently block the independent packet.
 
 ### Commerce and the Hub boundary
@@ -192,7 +193,7 @@ cannot approve an unspecified schema, role or payment arrangement.
 | Operations and support | Backoffice owner and staff population; approval, suspension, refund/dispute and delivery support responsibilities. Assign realm/audience, permission/resource scope, exceptional private review and reasoned audit contracts before the first staff reader or crossing |
 | Privacy and distribution | Purpose-based controller/processor assessment, platform versus institution permissions/consent, DSAR/export/erasure and retention ownership; data residency/transfers and media rights. Include Architecture 23 and Phase 03 in the approval impact set |
 | Public-read and commerce security | Owner of the request/host matrix, table classes, reader/writer roles, audit classification and ordered/recoverable fulfillment/payable/payout contract before their first migrations, readers or producers |
-| P02d-2 access and planning | ADR-0050/0051 and the exact package Accepted 2026-10-02, with dated G3 supersession; implementation waits at maintainer request. This does not accept marketplace commerce |
+| P02d-2 access and planning | ADR-0050/0051 and the exact package Accepted 2026-10-02, with dated G3 supersession; P02d-2 implementation delivered after maintainer resumption. This does not accept marketplace commerce |
 | Pilot evidence | Approve the entry conditions, metric owners and a dated stop/go threshold record before a live pilot; positive evidence is a broad-rollout gate |
 
 Approval of this draft requires the positioning and named roadmap changes together.

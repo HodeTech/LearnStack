@@ -16,11 +16,6 @@ public static class TextCardPresentation
         ArgumentNullException.ThrowIfNull(admittedSchema);
         using var document = JsonDocument.Parse(admittedSchema);
         var root = document.RootElement;
-        if (!root.TryGetProperty("x-fields", out var descriptors))
-        {
-            return Result.Ok(ImmutableArray<TextCardFieldDto>.Empty);
-        }
-
         var failures = new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal);
         void Refuse(string location)
         {
@@ -28,6 +23,28 @@ public static class TextCardPresentation
             {
                 failures.TryAdd(location, [new LocalizedMessage("lockey_schema_extension_unresolved")]);
             }
+        }
+
+        Result<ImmutableArray<TextCardFieldDto>> Failure() =>
+            Result<ImmutableArray<TextCardFieldDto>>.Fail(
+                new Error(new LocalizedMessage("lockey_validation_failed"), failures));
+
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            Refuse("/properties");
+            return Failure();
+        }
+
+        if (!root.TryGetProperty("x-fields", out var descriptors))
+        {
+            return Result.Ok(ImmutableArray<TextCardFieldDto>.Empty);
+        }
+
+        if (!root.TryGetProperty("properties", out var properties)
+            || properties.ValueKind != JsonValueKind.Object)
+        {
+            Refuse("/properties");
+            return Failure();
         }
 
         if (rendererKey != "default-card")
@@ -43,7 +60,7 @@ public static class TextCardPresentation
         }
 
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var property in root.GetProperty("properties").EnumerateObject())
+        foreach (var property in properties.EnumerateObject())
         {
             if (!names.Add(property.Name))
             {
@@ -117,8 +134,7 @@ public static class TextCardPresentation
 
         return failures.Count == 0
             ? Result.Ok(fields.ToImmutable())
-            : Result<ImmutableArray<TextCardFieldDto>>.Fail(
-                new Error(new LocalizedMessage("lockey_validation_failed"), failures));
+            : Failure();
     }
 
     private static void CheckShape(JsonElement schema, string location, string expectedType, Action<string> refuse)

@@ -1,5 +1,12 @@
 # ADR-0050: Publication and Course Content Access
 
+> **Implementation update — 2026-10-02.**
+> P02d-2 ships the persisted policy, restricted legacy backfill migration, six
+> Education writers and exact-policy seed verification. P02d-4 anonymous-read
+> enforcement and projections remain pending.
+> The acceptance-time statement below is historical; see
+> [Amendment 1](#amendment-1--p02d-2-implementation-delivery-2026-10-02).
+
 ## Status
 
 Accepted — 2026-10-02. The maintainer approved the exact access policy, migration
@@ -200,3 +207,29 @@ one-root publication, concurrency and audit guards remain required.
 - [Phase 05](../roadmap/phase-05-education-learning-content.md)
 - [Phase 07](../roadmap/phase-07-enrollment-learner-portal.md)
 - [ADR-0049](0049-institution-sites-and-course-marketplace.md)
+
+## Amendments
+
+### Amendment 1 — P02d-2 implementation delivery (2026-10-02)
+
+P02d-2 delivered the explicit Course policy and CHECK/default, restricted legacy
+backfill with forward/Down/reapply proofs, all six Education writers and exact-policy
+seed convergence. `CourseContentAccessMigrationTests`, `EducationWriterTests` and
+`SeederTests` provide the corresponding implementation evidence. Public eligibility,
+restricted marketing projections, denial equivalence and cache/transport proofs
+remain P02d-4 and its later consumers; authenticated grants remain Phase 07.
+
+The not-started status and test-obligation wording were true at acceptance and are
+preserved as history. This dated disclosure and the operational carriers now describe
+the delivered scope. The Decision is unchanged.
+
+Updated carriers: this status disclosure, [the ADR index](README.md),
+[the glossary](../glossary.md), [the standards index](../standards/README.md),
+[Frontend Architecture Standards](../standards/07-frontend-architecture.md),
+[Accessibility Standards](../standards/16-accessibility.md),
+[marketplace scoping](../architecture/34-course-marketplace-scoping.md),
+[Proposed ADR-0049](0049-institution-sites-and-course-marketplace.md),
+[Phase 04](../roadmap/phase-04-cms-media-pages.md) and
+[Phase 07](../roadmap/phase-07-enrollment-learner-portal.md). The
+[P02d-2 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-2-implementation-delivery-2026-10-02)
+is the current delivery authority.

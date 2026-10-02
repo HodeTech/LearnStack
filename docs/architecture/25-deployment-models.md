@@ -241,10 +241,11 @@ public enum DeploymentMode
 ```
 
 The composition root uses this value for mode-specific wiring. Entitlements currently
-use `NullEntitlementProvider` in every mode; the provider choices shown above are
-ADR-0020's target. Modules never read the enum —
-`Modules_Do_Not_Reference_DeploymentMode` enforces that the composition root owns the
-selection.
+use `NullEntitlementProvider` in every mode: it enables every feature and leaves
+every limit unlimited. Supported foundation paths therefore do not enforce Hub plan
+restrictions; the provider choices shown above are ADR-0020's target. Modules never read
+the enum — `Modules_Do_Not_Reference_DeploymentMode` enforces that the composition root
+owns the selection.
 
 ### Supported today versus prepared seam
 

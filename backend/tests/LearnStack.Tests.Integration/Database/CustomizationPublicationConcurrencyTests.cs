@@ -124,6 +124,44 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         (await GenerationAsync(database, context.TenantId)).Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Replacement_publication_rolls_back_both_revisions_and_generation_when_must_audit_fails(bool taxonomy)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        var context = await ProvisionAsync(source);
+        var incumbent = Guid.CreateVersion7();
+        var successor = Guid.CreateVersion7();
+        await RegisterAsync(source, context, incumbent, taxonomy, "audit-replacement");
+        if (taxonomy) (await SendAsync(source, context, new PublishTenantLevelTaxonomyCommand(incumbent))).IsSuccess.Should().BeTrue();
+        else (await SendAsync(source, context, new PublishTenantContentTypeCommand(incumbent))).IsSuccess.Should().BeTrue();
+        await RegisterAsync(source, context, successor, taxonomy, "audit-replacement", version: 2);
+        var incumbentVersion = await VersionAsync(source, context, incumbent, taxonomy);
+        var successorVersion = await VersionAsync(source, context, successor, taxonomy);
+        var generation = await GenerationAsync(database, context.TenantId);
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            await using var revoke = new NpgsqlCommand("REVOKE INSERT ON audit_log FROM learnstack_app", (NpgsqlConnection)owner);
+            await revoke.ExecuteNonQueryAsync();
+        }
+
+        async Task Publish()
+        {
+            if (taxonomy) await SendAsync(source, context, new PublishTenantLevelTaxonomyCommand(successor));
+            else await SendAsync(source, context, new PublishTenantContentTypeCommand(successor));
+        }
+        (await ((Func<Task>)Publish).Should().ThrowAsync<AuditWriteFailedException>()).Which.Error.Code.Should().Be("audit_unavailable");
+        await AssertStateAsync(source, context, incumbent, taxonomy, "Active", incumbentVersion);
+        await AssertStateAsync(source, context, successor, taxonomy, "Draft", successorVersion);
+        (await GenerationAsync(database, context.TenantId)).Should().Be(generation);
+        await using var platform = await PostgresFixture.OpenAsync(database.PlatformConnectionString);
+        await using var audit = new NpgsqlCommand("SELECT count(*) FROM audit_log WHERE entity_id = @id AND outcome = 'success'", (NpgsqlConnection)platform);
+        audit.Parameters.AddWithValue("id", successor.ToString());
+        ((long)(await audit.ExecuteScalarAsync())!).Should().Be(1, "only the earlier registration committed, not publication");
+    }
+
     private static async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());

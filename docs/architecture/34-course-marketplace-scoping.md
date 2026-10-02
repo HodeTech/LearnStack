@@ -101,14 +101,15 @@ and the P02d-2 package on 2026-10-02. Its
 [dated G3 supersession](../roadmap/phase-02d-walking-skeleton.md#g3-supersession-2026-10-02)
 replaces ADR-0048's public-only implication while preserving the original answer and
 delivery history. Explicit persisted policy, restricted legacy backfill and fail-closed
-anonymous reads are decided; their implementation has not started. Phase 07 supplies
-grants; Phase 05 owns preview/policy evolution.
+anonymous reads are decided. P02d-2 delivers the policy, migration and writers;
+P02d-4 anonymous-read enforcement remains pending. Phase 07 supplies grants; Phase 05
+owns preview/policy evolution.
 
 The public-only alternative was considered and not selected for the first protected
 writers. No prices, channel IDs, orders or federation identifiers are needed in
 P02d-2. Its access contract is independent of marketplace commerce. The maintainer
-requested documentation updates and a wait, so implementation remains paused by
-instruction rather than by an unresolved marketplace dependency.
+subsequently resumed implementation: P02d-2 writers and seed are delivered.
+Marketplace commerce remains independent and Proposed.
 
 ## Public catalog and search
 
@@ -351,7 +352,7 @@ economics stop or re-scope that offer rather than authorize unchecked expansion.
 
 | Boundary | Required before the first affected code |
 |---|---|
-| Protected publication | ADR-0050 and dated G3 supersession Accepted 2026-10-02; migration and access enforcement still required before protected P02d-2 writers/readers |
+| Protected publication | ADR-0050 and dated G3 supersession Accepted 2026-10-02; P02d-2 policy, migration, writers and seed delivered; anonymous-read enforcement remains P02d-4 |
 | Source identity and organization scope | Keep P02d-1 tenant ownership and parent-derived scope; listings are not tenant authority |
 | Global catalog / commerce | Accept table classes, roles, host/context, audit and export rules before P09a migration or reader/producer; no broader Education filters |
 | Source publication/export | Consent, revisions, withdrawal and durable delivery before the first listing producer; P02d-2 promises tenant-local publication only |

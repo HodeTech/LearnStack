@@ -3,7 +3,8 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-2 Step 2 implemented, review pending — 2026-10-02.** The [accepted writer
+**P02d-2 Step 2 implemented; both review rounds passed — 2026-10-02.**
+The [accepted writer
 contract](README.md#p02d-2-accepted-locale-and-branding-contract) implements the locale
 and setting rows below. Locale commands declare `tenancy.locale.write` over the owning
 Tenant root and captured locale navigation; branding declares `tenancy.setting.write`

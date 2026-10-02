@@ -51,7 +51,7 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 - Never rely on color alone to convey meaning; pair with text, icon, or shape.
 - Tenant theme tokens require contrast validation before saving. G16(d), Accepted
   on 2026-10-02, requires the first whole-theme command to refuse a failing pair
-  before saving; implementation belongs to P02d-2. Its
+  before saving. P02d-2 delivers this guard and its regression proofs. Its
   [complete palette contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
   defines supported usage and atomic replacement. The future Studio can explain
   that refusal; a warning does not authorize saving an invalid palette.

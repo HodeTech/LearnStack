@@ -360,14 +360,19 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task An_outer_handler_absorbing_a_post_save_refusal_cannot_commit_the_dirty_or_later_root(bool concurrency)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task An_outer_handler_absorbing_a_post_save_refusal_cannot_commit_the_dirty_or_later_root(bool concurrency, bool lessonPublication)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
         var context = await ProvisionAsync(source);
         var course = await CourseAsync(source, context, "course");
+        await TypeAsync(source, context, 1, StringSchema);
+        var lesson = await LessonAsync(source, context, course.Id);
+        var failingId = lessonPublication ? lesson.Id : course.Id;
         var later = Guid.CreateVersion7();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
@@ -375,20 +380,26 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
             {
                 services.AddScoped<ICourseWriteStore>(provider => new FailAfterSaveCourseStore(
                     new CourseWriteStore(provider.GetRequiredService<EducationDbContext>()), course.Id, concurrency));
+                services.AddScoped<ILessonWriteStore>(provider => new FailAfterSaveLessonStore(
+                    new LessonWriteStore(provider.GetRequiredService<EducationDbContext>()), lesson.Id, concurrency));
                 services.AddTransient<IRequestHandler<AbsorbingOuterCommand, Result<None>>, AbsorbingOuterHandler>();
                 services.AddSingleton<IAuditCatalogSource, TestAuditSource>();
             }));
         await using (var scope = host.Services.CreateAsyncScope())
         {
             scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current = context;
-            var send = async () => await scope.ServiceProvider.GetRequiredService<ISender>().Send(new AbsorbingOuterCommand(course.Id, later));
+            var send = async () => await scope.ServiceProvider.GetRequiredService<ISender>().Send(new AbsorbingOuterCommand(failingId, later, lessonPublication));
             await send.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
         }
         var final = await CourseStateAsync(source, context, course.Id);
         final.Version.Should().Be(0);
         final.Status.Should().Be("Draft");
+        var finalLesson = await LessonStateAsync(source, context, lesson.Id);
+        finalLesson.Version.Should().Be(0);
+        finalLesson.Status.Should().Be("Draft");
         (await SendAsync(source, context, new GetCourseSeedStateQuery(later))).Value!.State.Should().BeNull();
         (await CountAuditsAsync(source, context, "education.course.publish")).Should().Be(0);
+        (await CountAuditsAsync(source, context, "education.lesson.publish")).Should().Be(0);
         (await CountAuditsAsync(source, context, "education.course.create")).Should().Be(1);
     }
 
@@ -546,13 +557,29 @@ public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFac
             }
         }
     }
-    private sealed record AbsorbingOuterCommand(Guid FailingId, Guid LaterId) : IRequest<Result<None>>;
+    private sealed class FailAfterSaveLessonStore(ILessonWriteStore inner, Guid failingId, bool concurrency) : ILessonWriteStore
+    {
+        public Task<Lesson?> FindAsync(LessonId id, CancellationToken cancellationToken) => inner.FindAsync(id, cancellationToken);
+        public Task AddAsync(Lesson aggregate, CancellationToken cancellationToken = default) => inner.AddAsync(aggregate, cancellationToken);
+        public async Task UpdateAsync(Lesson aggregate, CancellationToken cancellationToken = default)
+        {
+            await inner.UpdateAsync(aggregate, cancellationToken);
+            if (aggregate.Id.Value == failingId)
+            {
+                if (concurrency) throw new AggregateConcurrencyException("injected post-save refusal");
+                throw new AggregateConflictException("injected post-save refusal", "pk_lessons");
+            }
+        }
+    }
+    private sealed record AbsorbingOuterCommand(Guid FailingId, Guid LaterId, bool LessonPublication) : IRequest<Result<None>>;
     private sealed class AbsorbingOuterHandler(ISender sender) : IRequestHandler<AbsorbingOuterCommand, Result<None>>
     {
         public async Task<Result<None>> Handle(AbsorbingOuterCommand request, CancellationToken cancellationToken)
         {
-            var refused = await sender.Send(new PublishCourseCommand(request.FailingId, 0), cancellationToken);
-            refused.IsFailure.Should().BeTrue("the refusal is absorbed only after its mutation/save executed");
+            var refused = request.LessonPublication
+                ? (await sender.Send(new PublishLessonCommand(request.FailingId, 0), cancellationToken)).IsFailure
+                : (await sender.Send(new PublishCourseCommand(request.FailingId, 0), cancellationToken)).IsFailure;
+            refused.Should().BeTrue("the refusal is absorbed only after its mutation/save executed");
             var later = await sender.Send(new CreateCourseCommand(request.LaterId, "later", "public"), cancellationToken);
             later.IsSuccess.Should().BeTrue("later work really saved on the shared transaction before the owner rejects commit");
             return Result.Ok(None.Value);

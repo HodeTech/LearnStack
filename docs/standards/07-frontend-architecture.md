@@ -196,7 +196,7 @@ export default async function CourseListPage() {
 
 ## Tenant Branding
 
-**Accepted G16(a–e)/G21 contract — 2026-10-02, not implemented.** The
+**G16(a–e)/G21 writer contract delivered in P02d-2 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects one whole-theme color document, contrast refusal, no organization override
 and no font/logo/URL/layout value. Public transport/attribution and injection remain

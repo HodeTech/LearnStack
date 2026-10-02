@@ -606,6 +606,81 @@ public sealed class SeederTests : IAsyncLifetime
         (await SnapshotAsync()).Should().Be(completed);
     }
 
+    [Fact]
+    public async Task Concurrent_translation_writers_recheck_the_completed_act_after_a_real_non_provisioning_race()
+    {
+        await using var source = DataSource();
+        var original = SeedData.English.Curriculum!.Courses[0];
+        var course = original with { Status = "Draft", Lessons = [], Translations = [original.Translations[0]] };
+        var tenant = SeedData.English with { Curriculum = SeedData.English.Curriculum with { Courses = [course] } };
+        var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
+            new InterruptAfter("course"));
+        var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
+        (await initial.Should().ThrowAsync<InvalidOperationException>()).WithMessage("Injected seed interruption");
+
+        // Hold the first UPDATE after the incomplete-state reads. The competing
+        // translation batch waits on the root or translation's unique key. Both
+        // have chosen a writer, so one real refusal must reach ActAsync's recheck.
+        var lockKey = Random.Shared.NextInt64(1, long.MaxValue);
+        await using var owner = await PostgresFixture.OpenAsync(_database.MigrationConnectionString);
+        await using (var setup = new NpgsqlCommand($"""
+            CREATE FUNCTION seed_translation_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF NEW.id = '{course.Id}'::uuid THEN
+                    PERFORM pg_advisory_xact_lock({lockKey});
+                END IF;
+                RETURN NEW;
+            END $$;
+            CREATE TRIGGER seed_translation_gate BEFORE UPDATE ON courses
+            FOR EACH ROW EXECUTE FUNCTION seed_translation_gate();
+            SELECT pg_advisory_lock({lockKey});
+            """, (NpgsqlConnection)owner))
+            await setup.ExecuteNonQueryAsync();
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        await using var observer = await source.OpenConnectionAsync(deadline.Token);
+        var first = Runner(source).RunAsync(deadline.Token, [tenant]);
+        var second = Runner(source).RunAsync(deadline.Token, [tenant]);
+        try
+        {
+            var bothWaiting = false;
+            while (!deadline.IsCancellationRequested)
+            {
+                await using var waiting = new NpgsqlCommand("""
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE datname = current_database() AND usename = 'learnstack_app'
+                      AND wait_event_type = 'Lock'
+                      AND (query LIKE '%courses%' OR query LIKE '%course_translations%')
+                    """, observer);
+                if ((long)(await waiting.ExecuteScalarAsync(deadline.Token))! == 2)
+                {
+                    bothWaiting = true;
+                    break;
+                }
+                await Task.Delay(25, deadline.Token);
+            }
+            bothWaiting.Should().BeTrue("both real translation writers must reach their locked save before release");
+        }
+        finally
+        {
+            await using var release = new NpgsqlCommand($"SELECT pg_advisory_unlock({lockKey})", (NpgsqlConnection)owner);
+            await release.ExecuteScalarAsync();
+            await Task.WhenAll(first, second);
+        }
+        (await first).Should().Be(0);
+        (await second).Should().Be(0);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome = 'success'"))
+            .Should().Be(1);
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome <> 'success'"))
+            .Should().Be(1, "the loser is a witnessed real refusal, not an incidental completed-act skip");
+        var state = (await ReadAsync(source, new SeedTenantContext(tenant.TenantId, course.OrganizationId), new GetCourseSeedStateQuery(course.Id))).State!;
+        state.Version.Should().Be(1);
+        state.Translations.Should().ContainSingle().Which.Slug.Should().Be(course.Translations[0].Slug);
+        var completed = await SnapshotAsync();
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(completed, "the rerun retains the failed race audit and adds no outcome");
+    }
+
     [Theory]
     [InlineData("tenant")]
     [InlineData("default organization")]

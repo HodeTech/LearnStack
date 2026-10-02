@@ -1,5 +1,12 @@
 # ADR-0051: Ordered Text Card Presentation
 
+> **Implementation update — 2026-10-02.**
+> P02d-2 ships profile admission, ordered descriptor resolution, exact-definition
+> DTOs and seeded presentation verification. P02d-4 public descriptor projection and
+> P02d-6 rendering remain pending.
+> The acceptance-time statement below is historical; see
+> [Amendment 1](#amendment-1--p02d-2-implementation-delivery-2026-10-02).
+
 ## Status
 
 Accepted — 2026-10-02. The maintainer approved the exact presentation contract
@@ -159,3 +166,28 @@ when their tests exist and run.
 - [Localization](../standards/08-localization.md)
 - [Security](../standards/11-security.md#xss--output-encoding)
 - [ADR-0018](0018-tenant-driven-customization-model.md)
+
+## Amendments
+
+### Amendment 1 — P02d-2 implementation delivery (2026-10-02)
+
+P02d-2 delivered optional `x-fields` profile admission, `TextCardPresentation`
+resolution, exact-definition DTOs and seeded order/label verification.
+`TextCardPresentationTests`, the schema-profile tests and `SeederTests` provide the
+corresponding evidence. P02d-4 public descriptor projection and P02d-6 rendering,
+fallbacks and active-sink proofs remain pending.
+
+The not-started status and test-obligation wording were true at acceptance and are
+preserved as history. This dated disclosure and the operational carriers now describe
+the delivered scope. The Decision is unchanged.
+
+Updated carriers: this status disclosure, [the ADR index](README.md),
+[the glossary](../glossary.md), [the standards index](../standards/README.md),
+[Frontend Architecture Standards](../standards/07-frontend-architecture.md),
+[Accessibility Standards](../standards/16-accessibility.md),
+[marketplace scoping](../architecture/34-course-marketplace-scoping.md),
+[Proposed ADR-0049](0049-institution-sites-and-course-marketplace.md),
+[Phase 04](../roadmap/phase-04-cms-media-pages.md) and
+[Phase 07](../roadmap/phase-07-enrollment-learner-portal.md). The
+[P02d-2 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-2-implementation-delivery-2026-10-02)
+is the current delivery authority.

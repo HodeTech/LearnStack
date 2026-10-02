@@ -633,7 +633,7 @@ public sealed class CustomizationCommandTests
         // The answer IOptimisticConcurrency's own remarks promise. Untranslated this
         // is a DbUpdateException, which HttpStatusMap has no arm for — a 500 for the
         // one outcome the concurrency token exists to report.
-        var (sender, stores) = Build();
+        var (sender, stores, unit) = BuildWithUnit();
 
         if (subject == "content-type")
         {
@@ -646,6 +646,7 @@ public sealed class CustomizationCommandTests
 
             var result = await sender.Send(new PublishTenantContentTypeCommand(successorId));
             result.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+            unit.IsRollbackOnly.Should().BeTrue("a refused incumbent save must poison the shared unit");
             return;
         }
 
@@ -658,6 +659,7 @@ public sealed class CustomizationCommandTests
 
         var taxonomyResult = await sender.Send(new PublishTenantLevelTaxonomyCommand(successor));
         taxonomyResult.Error!.Message.Key.Should().Be("lockey_concurrency_conflict");
+        unit.IsRollbackOnly.Should().BeTrue("a refused incumbent save must poison the shared unit");
     }
 
     [Theory]

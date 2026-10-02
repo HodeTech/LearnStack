@@ -31,6 +31,26 @@ public sealed class TextCardPresentationTests
     }
 
     [Theory]
+    [InlineData("null")]
+    [InlineData("true")]
+    [InlineData("42")]
+    [InlineData("\"schema\"")]
+    [InlineData("[]")]
+    [InlineData("{\"x-fields\":[]}")]
+    [InlineData("{\"x-fields\":[],\"properties\":null}")]
+    [InlineData("{\"x-fields\":[],\"properties\":[]}")]
+    [InlineData("{\"x-fields\":[],\"properties\":true}")]
+    [InlineData("{\"x-fields\":[],\"properties\":42}")]
+    [InlineData("{\"x-fields\":[],\"properties\":\"fields\"}")]
+    public void Malformed_root_or_properties_refuses_the_location_instead_of_throwing(string schema)
+    {
+        var result = TextCardPresentation.Resolve(schema, "default-card");
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("validation_failed");
+        result.Error.Details.Should().ContainSingle().Which.Key.Should().Be("/properties");
+    }
+
+    [Theory]
     [InlineData("[]", "/x-fields")]
     [InlineData("{}", "/x-fields")]
     [InlineData("[42]", "/x-fields/0")]

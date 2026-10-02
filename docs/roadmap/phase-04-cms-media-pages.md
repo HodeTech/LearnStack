@@ -198,12 +198,12 @@ one thing a per-table constraint cannot do.
 > names the reporting commands and error mapping below; this phase names its CMS
 > writer before implementation.
 
-**Accepted G11 answer — 2026-10-02, not implemented.** The Education reporting
-commands are `AddCourseTranslationCommand` and `AddLessonTranslationCommand`, mapping
-their named localized-slug constraints to `business_rule_violation` at insertion.
-Publication does not reserve a slug. G11's Education mapping is decided; this
-does not claim a shipped Education or CMS writer. CMS still names its own writer
-before implementation.
+**G11 Education mapping delivered in P02d-2 — 2026-10-02.**
+`AddCourseTranslationCommand` maps the named course localized-slug constraint to
+`business_rule_violation` at insertion. `AddLessonTranslationCommand` maps its named
+tenant-local lesson slug constraint to the same result code. Publication does not
+reserve a slug. The CMS writer remains future Phase 04 work and must be named before
+implementation.
 
 Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing shape,
 per-locale publish readiness, and locale negotiation from `Accept-Language` for

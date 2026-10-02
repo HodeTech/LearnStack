@@ -23,7 +23,10 @@ public sealed class CourseContentAccessMigrationTests(SchemaFixture schema)
                 provider => provider.MigrationsHistoryTable(EducationDbContextFactory.HistoryTable)).Options,
             StaticTenantContextAccessor.Unresolved);
         context.Database.HasPendingModelChanges().Should().BeFalse();
-        var previous = context.Database.GetMigrations().Reverse().Skip(1).First();
+        var migrations = context.Database.GetMigrations().ToArray();
+        var policyIndex = Array.IndexOf(migrations, "20261001233219_add_course_content_access");
+        policyIndex.Should().BeGreaterThan(0, "the policy migration must exist and have a predecessor");
+        var previous = migrations[policyIndex - 1];
         // Technical reversal is confined to this disposable database. ADR-0050
         // forbids using it as a live rollback with old anonymous public readers.
         await context.GetService<IMigrator>().MigrateAsync(previous);
@@ -36,7 +39,20 @@ public sealed class CourseContentAccessMigrationTests(SchemaFixture schema)
         var before = await SnapshotAsync(database.AppConnectionString);
         await context.Database.MigrateAsync();
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(before);
-        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await AssertLegacyPoliciesAsync(database.AppConnectionString);
+
+        await context.GetService<IMigrator>().MigrateAsync(previous);
+        (await SnapshotAsync(database.AppConnectionString)).Should().Be(before);
+        await context.Database.MigrateAsync();
+        (await SnapshotAsync(database.AppConnectionString)).Should().Be(before);
+        await AssertLegacyPoliciesAsync(database.AppConnectionString);
+        context.Database.HasPendingModelChanges().Should().BeFalse();
+        await AssertDefaultAndCheckAsync(database.AppConnectionString);
+    }
+
+    private static async Task AssertLegacyPoliciesAsync(string connectionString)
+    {
+        await using (var app = await PostgresFixture.OpenAsync(connectionString))
         {
             await using var transaction = await app.BeginTransactionAsync();
             await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
@@ -46,13 +62,6 @@ public sealed class CourseContentAccessMigrationTests(SchemaFixture schema)
             (await read.ExecuteScalarAsync()).Should().Be(2L);
             await transaction.CommitAsync();
         }
-
-        await context.GetService<IMigrator>().MigrateAsync(previous);
-        (await SnapshotAsync(database.AppConnectionString)).Should().Be(before);
-        await context.Database.MigrateAsync();
-        (await SnapshotAsync(database.AppConnectionString)).Should().Be(before);
-        context.Database.HasPendingModelChanges().Should().BeFalse();
-        await AssertDefaultAndCheckAsync(database.AppConnectionString);
     }
 
     private static async Task AssertDefaultAndCheckAsync(string connectionString)
