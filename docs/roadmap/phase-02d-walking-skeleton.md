@@ -918,7 +918,16 @@ skipped only the losing-race recheck passed the identical case and failed the di
 case at the completion assertion. `SeedRunner.cs` was restored byte-for-byte; no
 production seed behavior changes. Both positive variants and the complete backend suite
 then passed. The standards index's current-state date now matches the delivered
-2026-10-02 table. The targeted follow-up review is recorded after this fix commit.
+2026-10-02 table.
+
+**Targeted follow-up review.** A fresh Codex session at high effort reviewed
+`a436a51..163eb90` and returned Approve: the completion assertion kills the missing
+recheck mutant, winner selection is arrival-order independent, real save/audit witnesses
+and cleanup remain intact, and the revised documentation counts agree. The correction
+and both independent review rounds are complete; the only verified second-round finding
+is fixed and independently rechecked. Final hooks, wrapping, links/fragments and the
+frozen-record check pass. PR #23 carries the updated range and validation; merge remains
+the maintainer's decision.
 
 ### P02d-1 decision pass (2026-09-14)
 
