@@ -2285,7 +2285,18 @@ After strengthening token/case/action-suffix route discovery and its controls, t
 clean build and all 195 architecture cases pass again; all 29 focused site HTTP
 cases pass. Formatting, diff hygiene and 1540 local links/400 fragments across the
 15 affected Markdown files pass. Existing ADR-0052 text and frozen P02d-1–3 records
-remain intact. Both implementation review rounds are pending.
+remain intact. At this implementation boundary both review rounds were pending.
+
+**Review round 1.** Independent GPT-6-astra and GPT-6.1-sol xhigh reviewers
+confirm the production site behavior and identify two structural guard gaps.
+The dispatch check independently found a marked construction and a Send call;
+it now verifies the actual directly constructed argument, permits exactly one
+Send and refuses unverifiable origins. Discarded marked, mixed-send and variable
+controls fail. The persistence walk now follows production implementations of
+reachable interfaces and abstract helpers; planted independent-connection
+helpers fail through both shapes. The testing standard's endpoint status is
+aligned. The clean Release build has zero warnings/errors; all six focused
+public guard cases pass. A fresh second round follows the correction commit.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -4043,7 +4043,9 @@ of structural detection.
 #### `PublicSurface_Endpoints_Dispatch_Through_The_Pipeline`
 
 - **Asserts:** the exact public endpoint set dispatches marked requests through
-  ISender; direct handler, helper and minimal-API bypass probes are detected.
+  ISender once per action with a directly constructed marked argument; direct
+  handler, helper, unused marked construction, mixed/unverifiable sends and
+  minimal-API bypass probes are detected.
 - **Source:** ADR-0052; Backend Coding Standards § Pipeline Behaviors.
 - **Type:** xUnit + endpoint metadata + IL/source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and
@@ -4053,7 +4055,8 @@ of structural detection.
 #### `PublicSurface_Controllers_Do_Not_Access_Persistence`
 
 - **Asserts:** public controllers and reachable helpers neither acquire persistence
-  nor open independent connections, including concrete and service-locator paths.
+  nor open independent connections, including concrete, interface/abstract
+  implementation and service-locator paths.
 - **Source:** ADR-0052; Security Standards § Tenant Context.
 - **Type:** xUnit + IL/source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and

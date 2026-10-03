@@ -116,8 +116,8 @@ and were read as running.
 - Validate every endpoint against the published OpenAPI.
 - Breaking changes require a version bump.
 - **What runs today:** `LearnStack.Tests.Contract` asserts the document is served, and
-  nothing more — there is no business endpoint to hold to it yet. The OpenAPI
-  breaking-change check in CI activates with the first one, in
+  nothing more. P02d-4 Step 2 serves the site endpoint; Step 4 adds its full
+  contract checks and activates the OpenAPI breaking-change check in CI, in
   [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), which is also where a committed
   snapshot first has something to pin. P02d-4's Accepted G31 adds production
   served/snapshot equality, non-empty eight-operation and recursive allowlist

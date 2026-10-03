@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -64,6 +65,9 @@ public sealed class PublicSurfaceTests
         Dispatches(Definition<DirectHandlerController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<HelperController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<UnmarkedController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<DiscardedMarkedController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<MixedController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<VariableController>(module), "Get").Should().BeFalse("unverifiable request provenance must fail closed");
         MinimalBypasses(module).Should().Contain(typeof(MinimalProbe).FullName!);
         var program = new TypeDefinition("", "Program", Mono.Cecil.TypeAttributes.Class);
         module.Types.Add(program);
@@ -102,7 +106,7 @@ public sealed class PublicSurfaceTests
         using var module = ModuleDefinition.ReadModule(typeof(PublicSurfaceTests).Assembly.Location);
         var map = Types([module]).ToDictionary(Key, StringComparer.Ordinal);
         PersistenceOffenders([Definition<CleanController>(module)], map).Should().BeEmpty();
-        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe) })
+        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController) })
             PersistenceOffenders([module.GetType(type.FullName!.Replace('+', '/'))], map).Should().NotBeEmpty(type.Name);
     }
 
@@ -128,11 +132,54 @@ public sealed class PublicSurfaceTests
     // Merely finding Send somewhere else in the same controller is insufficient.
     private static bool Dispatches(TypeDefinition type, string action)
     {
-        var calls = Il.Methods(type).Where(method => method.DeclaredAs == action)
-            .SelectMany(method => method.Definition.HasBody ? method.Definition.Body.Instructions : [])
-            .Select(instruction => instruction.Operand).OfType<MethodReference>().ToArray();
-        return calls.Any(call => call.DeclaringType.FullName == typeof(ISender).FullName && call.Name == "Send")
-            && calls.Any(call => call.Name == ".ctor" && MarkedNames.Contains(call.DeclaringType.FullName.Replace('/', '+')));
+        var sends = Il.Methods(type).Where(method => method.DeclaredAs == action && method.Definition.HasBody)
+            .SelectMany(method => method.Definition.Body.Instructions.Select((instruction, index) => (method.Definition, instruction, index)))
+            .Where(item => item.instruction.Operand is MethodReference call
+                && call.DeclaringType.FullName == typeof(ISender).FullName && call.Name == "Send").ToArray();
+        // Approved actions dispatch once, constructing the request at that call.
+        // Locals, branches and helper-produced requests are deliberately unverifiable.
+        if (sends.Length != 1) return false;
+        var (definition, instruction, index) = sends[0];
+        var send = (MethodReference)instruction.Operand;
+        if (!send.HasThis || send.Parameters.Count != 2
+            || send.Parameters[1].ParameterType.FullName != typeof(CancellationToken).FullName) return false;
+        var position = index - 1;
+        if (!SkipValue(definition.Body.Instructions, ref position)) return false;
+        while (position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Nop) position--;
+        return position >= 0 && definition.Body.Instructions[position].OpCode == OpCodes.Newobj
+            && definition.Body.Instructions[position].Operand is MethodReference constructor
+            && MarkedNames.Contains(constructor.DeclaringType.FullName.Replace('/', '+'));
+    }
+
+    // Walk the cancellation-token expression backwards. Stop at control flow and
+    // unsupported stack shapes rather than guessing the request argument's origin.
+    private static bool SkipValue(Mono.Collections.Generic.Collection<Instruction> instructions, ref int position)
+    {
+        var needed = 1;
+        while (position >= 0 && needed > 0)
+        {
+            var instruction = instructions[position--];
+            if (instruction.OpCode == OpCodes.Nop) continue;
+            if (instruction.OpCode.FlowControl is FlowControl.Branch or FlowControl.Cond_Branch or FlowControl.Return or FlowControl.Throw) return false;
+            var push = instruction.OpCode.StackBehaviourPush switch
+            {
+                StackBehaviour.Push1 or StackBehaviour.Pushi or StackBehaviour.Pushi8 or StackBehaviour.Pushr4 or StackBehaviour.Pushr8 or StackBehaviour.Pushref => 1,
+                StackBehaviour.Varpush when instruction.Operand is MethodReference call =>
+                    instruction.OpCode == OpCodes.Newobj || call.ReturnType.FullName != "System.Void" ? 1 : 0,
+                _ => 0
+            };
+            var pop = instruction.OpCode.StackBehaviourPop switch
+            {
+                StackBehaviour.Pop0 => 0,
+                StackBehaviour.Pop1 or StackBehaviour.Popi or StackBehaviour.Popref => 1,
+                StackBehaviour.Varpop when instruction.Operand is MethodReference call =>
+                    call.Parameters.Count + (call.HasThis && instruction.OpCode != OpCodes.Newobj ? 1 : 0),
+                _ => -1
+            };
+            if (push != 1 || pop < 0) return false;
+            needed = needed - push + pop;
+        }
+        return needed == 0;
     }
 
     private static readonly HashSet<string> MarkedNames = ProductionAssemblies.All()
@@ -157,6 +204,9 @@ public sealed class PublicSurfaceTests
         while (queue.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
+            if (type.IsInterface || type.IsAbstract)
+                foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, Key(type), map, [])))
+                    queue.Enqueue(implementation);
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
                 || Il.Methods(type).Any(method => method.Definition.HasBody && method.Definition.Body.Instructions.Any(instruction =>
@@ -165,6 +215,14 @@ public sealed class PublicSurfaceTests
             foreach (var reference in references)
                 if (map.TryGetValue(Key(reference), out var helper)) queue.Enqueue(helper);
         }
+    }
+
+    private static bool Implements(TypeDefinition type, string contract, Dictionary<string, TypeDefinition> map, HashSet<string> visited)
+    {
+        if (!visited.Add(Key(type))) return false;
+        return type.Interfaces.Select(item => item.InterfaceType).Concat(type.BaseType is { } parent ? [parent] : [])
+            .Any(reference => Key(reference) == contract
+                || (map.TryGetValue(Key(reference), out var definition) && Implements(definition, contract, map, visited)));
     }
 
     private static bool Forbidden(string name) => name.StartsWith("Npgsql", StringComparison.Ordinal)
@@ -215,7 +273,52 @@ public sealed class PublicSurfaceTests
     {
         public Task<Result<string>> Get(CancellationToken cancellationToken) => sender.Send(new UnmarkedProbe(), cancellationToken);
     }
-    private sealed class ConnectionProbe(Npgsql.NpgsqlDataSource source)
+    private sealed class DiscardedMarkedController(ISender sender)
+    {
+        public Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            _ = new OffProbe();
+            return sender.Send(new UnmarkedProbe(), cancellationToken);
+        }
+    }
+    private sealed class MixedController(ISender sender)
+    {
+        public async Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(new OffProbe(), cancellationToken);
+            await sender.Send(new UnmarkedProbe(), cancellationToken);
+            return result;
+        }
+    }
+    private sealed class VariableController(ISender sender, IRequest<Result<string>> request)
+    {
+        public Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            _ = new OffProbe();
+            return sender.Send(request, cancellationToken);
+        }
+    }
+    private interface IConnectionProbe
+    {
+        Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken);
+    }
+    private sealed class InterfaceHelperController(IConnectionProbe helper)
+    {
+        public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+    }
+    private abstract class AbstractConnectionProbe
+    {
+        public abstract Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken);
+    }
+    private sealed class AbstractHelperController(AbstractConnectionProbe helper)
+    {
+        public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+    }
+    private sealed class ConcreteConnectionProbe(Npgsql.NpgsqlDataSource source) : AbstractConnectionProbe
+    {
+        public override Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => source.OpenConnectionAsync(cancellationToken).AsTask();
+    }
+    private sealed class ConnectionProbe(Npgsql.NpgsqlDataSource source) : IConnectionProbe
     {
         public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => source.OpenConnectionAsync(cancellationToken).AsTask();
     }
