@@ -4056,7 +4056,8 @@ of structural detection.
 
 - **Asserts:** public controllers and reachable helpers neither acquire persistence
   nor open independent connections, including concrete, interface/abstract
-  implementation and service-locator paths.
+  implementation and service-locator paths. Helpers cannot acquire ISender or
+  IMediator to dispatch a second request after the public action completes.
 - **Source:** ADR-0052; Security Standards § Tenant Context.
 - **Type:** xUnit + IL/source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and

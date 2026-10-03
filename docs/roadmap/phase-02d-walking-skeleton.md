@@ -2298,6 +2298,15 @@ helpers fail through both shapes. The testing standard's endpoint status is
 aligned. The clean Release build has zero warnings/errors; all six focused
 public guard cases pass. A fresh second round follows the correction commit.
 
+**Review round 2.** Fresh GPT-6-astra and GPT-6.1-sol xhigh reviewers find no
+production site defect. Their probes expose generic helper references that
+compare closed instances against open definition keys, and a clean direct Send
+followed by an unmarked helper Send. The walk normalizes generic definitions and
+refuses sender acquisition in reachable non-controller helpers. Safe-return
+interface and abstract probes now isolate implementation traversal, including
+closed generic and clean controls. The helper-Send regression fails before the
+fix and passes afterward. A fresh focused review checks these final corrections.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

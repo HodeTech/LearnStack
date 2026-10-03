@@ -106,7 +106,10 @@ public sealed class PublicSurfaceTests
         using var module = ModuleDefinition.ReadModule(typeof(PublicSurfaceTests).Assembly.Location);
         var map = Types([module]).ToDictionary(Key, StringComparer.Ordinal);
         PersistenceOffenders([Definition<CleanController>(module)], map).Should().BeEmpty();
-        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController) })
+        PersistenceOffenders([Definition<CleanGenericHelperController>(module)], map).Should().BeEmpty();
+        Dispatches(Definition<PostDispatchHelperController>(module), "Get").Should().BeTrue(
+            "the transitive persistence guard must independently refuse helper dispatch after a clean direct Send");
+        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController) })
             PersistenceOffenders([module.GetType(type.FullName!.Replace('+', '/'))], map).Should().NotBeEmpty(type.Name);
     }
 
@@ -199,7 +202,9 @@ public sealed class PublicSurfaceTests
 
     private static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
     {
-        var queue = new Queue<TypeDefinition>(roots);
+        var controllers = roots.ToArray();
+        var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
+        var queue = new Queue<TypeDefinition>(controllers);
         var visited = new HashSet<string>(StringComparer.Ordinal);
         while (queue.TryDequeue(out var type))
         {
@@ -209,6 +214,8 @@ public sealed class PublicSurfaceTests
                     queue.Enqueue(implementation);
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
+                || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
+                    reference.FullName == typeof(ISender).FullName || reference.FullName == typeof(IMediator).FullName))
                 || Il.Methods(type).Any(method => method.Definition.HasBody && method.Definition.Body.Instructions.Any(instruction =>
                     instruction.Operand is MethodReference call && call.Name == "get_RequestServices")))
                 yield return type.FullName;
@@ -238,7 +245,11 @@ public sealed class PublicSurfaceTests
         || name.EndsWith("IPublicTenantConfigurationReader", StringComparison.Ordinal)
         || name.EndsWith("ITenantSettingsAccessor", StringComparison.Ordinal);
 
-    private static string Key(TypeReference type) => $"{type.Scope?.Name?.Replace(".dll", "", StringComparison.Ordinal)}:{type.FullName}";
+    private static string Key(TypeReference type)
+    {
+        var definition = type.GetElementType();
+        return $"{definition.Scope?.Name?.Replace(".dll", "", StringComparison.Ordinal)}:{definition.FullName}";
+    }
     private static IEnumerable<TypeDefinition> Types(IEnumerable<ModuleDefinition> modules) => modules.SelectMany(module => module.Types.SelectMany(Flatten));
     private static IEnumerable<TypeDefinition> Flatten(TypeDefinition type) => new[] { type }.Concat(type.NestedTypes.SelectMany(Flatten));
     private static TypeDefinition Definition<T>(ModuleDefinition module) => module.GetType(typeof(T).FullName!.Replace('+', '/'));
@@ -300,27 +311,85 @@ public sealed class PublicSurfaceTests
     }
     private interface IConnectionProbe
     {
-        Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken);
+        Task<string> Get(CancellationToken cancellationToken);
     }
     private sealed class InterfaceHelperController(IConnectionProbe helper)
     {
-        public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+        public Task<string> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
     }
     private abstract class AbstractConnectionProbe
     {
-        public abstract Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken);
+        public abstract Task<string> Get(CancellationToken cancellationToken);
     }
     private sealed class AbstractHelperController(AbstractConnectionProbe helper)
     {
-        public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+        public Task<string> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
     }
     private sealed class ConcreteConnectionProbe(Npgsql.NpgsqlDataSource source) : AbstractConnectionProbe
     {
-        public override Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => source.OpenConnectionAsync(cancellationToken).AsTask();
+        public override async Task<string> Get(CancellationToken cancellationToken)
+        {
+            await using var connection = await source.OpenConnectionAsync(cancellationToken);
+            return connection.State.ToString();
+        }
     }
     private sealed class ConnectionProbe(Npgsql.NpgsqlDataSource source) : IConnectionProbe
     {
-        public Task<Npgsql.NpgsqlConnection> Get(CancellationToken cancellationToken) => source.OpenConnectionAsync(cancellationToken).AsTask();
+        public async Task<string> Get(CancellationToken cancellationToken)
+        {
+            await using var connection = await source.OpenConnectionAsync(cancellationToken);
+            return connection.State.ToString();
+        }
+    }
+    private interface IGenericConnectionProbe<T>
+    {
+        Task<string> Get(CancellationToken cancellationToken);
+    }
+    private abstract class GenericAbstractConnectionProbe<T>
+    {
+        public abstract Task<string> Get(CancellationToken cancellationToken);
+    }
+    private sealed class GenericConnectionProbe<T>(Npgsql.NpgsqlDataSource source)
+        : GenericAbstractConnectionProbe<T>, IGenericConnectionProbe<T>
+    {
+        public override async Task<string> Get(CancellationToken cancellationToken)
+        {
+            await using var connection = await source.OpenConnectionAsync(cancellationToken);
+            return connection.State.ToString();
+        }
+    }
+    private sealed class GenericInterfaceHelperController(IGenericConnectionProbe<string> helper)
+    {
+        public Task<string> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+    }
+    private sealed class GenericAbstractHelperController(GenericAbstractConnectionProbe<string> helper)
+    {
+        public Task<string> Get(CancellationToken cancellationToken) => helper.Get(cancellationToken);
+    }
+    private interface ICleanGenericHelper<T>
+    {
+        T Get();
+    }
+    private sealed class CleanGenericHelper<T> : ICleanGenericHelper<T>
+    {
+        public T Get() => default!; // Never executed; clean generic implementation traversal control.
+    }
+    private sealed class CleanGenericHelperController(ICleanGenericHelper<string> helper)
+    {
+        public string Get() => helper.Get();
+    }
+    private sealed class HiddenSendHelper(ISender sender)
+    {
+        public Task<Result<string>> Get(CancellationToken cancellationToken) => sender.Send(new UnmarkedProbe(), cancellationToken);
+    }
+    private sealed class PostDispatchHelperController(ISender sender, HiddenSendHelper helper)
+    {
+        public async Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(new OffProbe(), cancellationToken);
+            await helper.Get(cancellationToken);
+            return result;
+        }
     }
     private sealed class ServiceLocatorProbe(IServiceProvider services)
     {
