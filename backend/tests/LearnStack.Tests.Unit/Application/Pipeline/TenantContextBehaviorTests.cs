@@ -39,6 +39,10 @@ public sealed class TenantContextBehaviorTests
     [PublicSurface]
     public sealed record AnonymousReadShapedQuery : IRequest<Result<string>>;
 
+    [AllowsUnresolvedTenantContext]
+    [PublicSurface]
+    public sealed record DoubleMarkedQuery : IRequest<Result<string>>;
+
     // ---- gate 1: is there a context at all -----------------------------------
 
     [Fact]
@@ -70,6 +74,16 @@ public sealed class TenantContextBehaviorTests
         // [PublicSurface] says which origins may reach a type; it says nothing about
         // running with no tenant at all.
         var (result, called) = await RunAsync<AnonymousReadShapedQuery>(
+            UnresolvedTenantContext.Instance);
+
+        called.Should().BeFalse();
+        result.Error!.Code.Should().Be("tenant_mismatch");
+    }
+
+    [Fact]
+    public async Task Unresolved_Marker_Does_Not_Bypass_Public_Host_Admission()
+    {
+        var (result, called) = await RunAsync<DoubleMarkedQuery>(
             UnresolvedTenantContext.Instance);
 
         called.Should().BeFalse();

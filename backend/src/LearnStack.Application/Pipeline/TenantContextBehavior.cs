@@ -81,11 +81,11 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         ArgumentNullException.ThrowIfNull(next);
 
         // Gate 1 — the assertion. Returns either way: an unresolved context states no
-        // origin, so there is no ceiling to apply, and falling through to one would
-        // refuse the very requests the marker admits.
+        // origin, so there is no ceiling to apply. Public reads still require real
+        // host provenance, even when a type also carries the unresolved marker.
         if (!tenantContext.IsResolved)
         {
-            return AllowsUnresolved
+            return AllowsUnresolved && !IsPublicSurface
                 ? next()
                 : Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
         }

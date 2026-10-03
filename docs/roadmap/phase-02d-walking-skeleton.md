@@ -2242,6 +2242,19 @@ exposed CA1852 on the deliberately unsealed planted offender. Its narrow, explai
 test-only suppression preserves that offender; the clean Release rebuild then
 passes with zero warnings/errors. Production code is unchanged by these fixes.
 
+**Review round 2.** Fresh GPT-6-astra and GPT-6.1-sol xhigh reviewers
+examined `f79e4a4..1020611`. No Blocker/Major was found. A double-marked request
+could pass unresolved admission without HostScope; no production request uses
+that combination. PublicSurface now refuses that combination under unresolved
+context, with a planted unit control, preserving ordinary provisioning and the
+existing tenant_mismatch refusal. The HTTP isolation class summary now separates
+its read-only refusal from the writable WITH CHECK controls. All 21 focused
+admission unit cases pass with zero failures/skips. The contracts reviewer also
+independently ran a clean Release build (zero warnings/errors), 189 architecture,
+63 focused units, nine mode cases and the changed HTTP control on `1020611`, all
+passing with zero failures/skips. A fresh focused review checks the admission fix
+before Step 2 starts.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

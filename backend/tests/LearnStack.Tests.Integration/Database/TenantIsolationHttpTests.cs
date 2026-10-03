@@ -68,10 +68,10 @@ namespace LearnStack.Tests.Integration.Database;
 /// <c>TenancySchemaTests</c>.
 /// </para>
 /// <para>
-/// <b>The write case is the exception, and deliberately so.</b> It issues raw SQL on the
-/// ambient connection, so no filter is in front of it and only <c>WITH CHECK</c> can
-/// refuse it — disabling RLS turns it red on its own. It is the one case here that
-/// observes a policy directly.
+/// <b>The write case distinguishes two independent barriers.</b> Its public HTTP
+/// leg refuses raw SQL through the physical read-only transaction. Separate writable
+/// frames remove that barrier: foreign-tenant SQL is refused by <c>WITH CHECK</c>,
+/// while identical own-tenant SQL succeeds. Neither writable control has an EF filter.
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
