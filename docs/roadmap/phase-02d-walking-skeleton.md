@@ -2198,6 +2198,32 @@ locale/branding and contract/corpus checks found no decision change needed;
 verified wording/table findings were corrected. This is acceptance validation,
 not implementation delivery or either review round of an implementation step.
 
+#### P02d-4 Step 1: authority and read-only foundation
+
+**Implementation — 2026-10-03.** Factory-only immutable HostScope retains the
+host tenant/organization independently of claim-selected scope. Public admission
+requires matching real provenance; existing unmarked origins and resolution
+inputs retain their contract. An explicit transaction mode defaults existing
+callers to ReadWrite. PublicSurface selects ReadOnly before dispatch; mode setup
+completes before Begin returns. Same-mode joins preserve ownership; mixed-mode
+attempts poison the outer unit before handler invocation. Partial setup failure
+or cancellation cleans up immediately. Physical completion resets mode, while
+rollback-only remains sticky and successful read-only completion permits reuse.
+
+The HostScope construction guard has mutable/public/second-site planted controls.
+Real app-role PostgreSQL cases exercise EF/raw SQL refusal, identical writable
+controls, same/mixed-mode nesting, setup faults/cancellation and successful/fresh
+scope reuse. The existing HTTP isolation probe now proves the read-only barrier;
+a separate writable frame retains WITH CHECK refusal and an own-tenant positive
+control. No production endpoint, eligibility reader or public response is shipped
+in this step; Steps 2–4 retain those obligations.
+
+**Pre-review verification.** Release build has zero warnings/errors. All 2672
+.NET tests pass with zero failures/skips: 1598 unit, 189 architecture, one contract,
+171 Docker-free integration and 713 Docker integration. Format and changed-document
+link/anchor checks pass. The two implementation review rounds are pending; Step 1
+is not yet declared complete.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
@@ -3450,8 +3476,9 @@ otherwise
   the query's own filters. `Handlers_Return_Result` sees neither, because it inspects a
   handler's response type and neither has a handler. The mechanical control is
   accepted in **G28**: mandatory marked dispatch and structural guards complement
-  the physical read-only barrier. These controls remain unimplemented until P02d-4
-  supplies their proofs; the barrier covers only enlisted transactions.
+  the physical read-only barrier. P02d-4 Step 1 delivers the physical read-only barrier and host admission.
+  Endpoint dispatch/dependency guards remain with Step 2; the barrier covers only
+  enlisted transactions.
 - **A missing marker looks like a resolver bug.** A host-only request to a type without
   `[PublicSurface]` answers the unknown-host `404` by design, so a public read shipped
   without its marker reads as a resolution or Row Level Security defect. The tempting

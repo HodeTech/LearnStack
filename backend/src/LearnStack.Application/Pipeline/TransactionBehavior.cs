@@ -10,7 +10,8 @@ namespace LearnStack.Application.Pipeline;
 /// <summary>
 /// MediatR pipeline behavior — step 6 of the canonical 8-step order
 /// (ADR-0032 § Sub-decision 2). Opens the ambient transaction, issues the Row
-/// Level Security session variables as its first statement, then commits on a
+/// Level Security session variables after the bounded public read-mode setup,
+/// then commits on a
 /// success-<c>Result</c> and rolls back on a fail-<c>Result</c> or any exception
 /// that bubbles through.
 /// </summary>
@@ -71,6 +72,11 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
     where TRequest : notnull
     where TResponse : IResultBase
 {
+    private static readonly TransactionMode Mode = typeof(TRequest)
+        .IsDefined(typeof(PublicSurfaceAttribute), inherit: false)
+            ? TransactionMode.ReadOnly
+            : TransactionMode.ReadWrite;
+
     public async Task<TResponse> Handle(
         TRequest request,
         RequestHandlerDelegate<TResponse> next,
@@ -82,13 +88,14 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
         // its own depth, so a nested frame nobody resolved is an exception here
         // rather than a commit that quietly resolves the wrong frame, writes
         // nothing, and returns success.
-        await using var scope = await unitOfWork.BeginTransactionAsync(cancellationToken);
+        await using var scope = await unitOfWork.BeginTransactionAsync(Mode, cancellationToken);
 
         var committing = false;
 
         try
         {
-            // First statement inside the transaction, per ADR-0003 Amendment 3, and
+            // Before data SQL; ReadOnly setup is the one bounded predecessor under
+            // ADR-0052. Default writable announcement remains first, and
             // inside the try so a failure to issue it fails the frame rather than
             // leaving it open for the scope to clean up later. For an unresolved
             // context this writes the empty string, and that is correct: the policies

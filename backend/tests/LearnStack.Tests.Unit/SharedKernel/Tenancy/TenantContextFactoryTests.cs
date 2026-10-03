@@ -47,6 +47,8 @@ public sealed class TenantContextFactoryTests
         result.Value!.Origin.Should().Be(TenantContextOrigin.HostOnly,
             "an anonymous page load reaches [PublicSurface] request types and nothing else");
         result.Value!.UserId.Should().BeNull();
+        result.Value.HostScope!.TenantId.Should().Be(TenantA);
+        result.Value.HostScope.OrganizationId.Should().BeNull();
     }
 
     [Fact]
@@ -65,6 +67,42 @@ public sealed class TenantContextFactoryTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.OrganizationId.Should().Be(OrgOne);
         result.Value!.Origin.Should().Be(TenantContextOrigin.HostOnly);
+        result.Value.HostScope!.OrganizationId.Should().Be(OrgOne);
+    }
+
+    [Fact]
+    public void Claim_narrowing_preserves_the_tenant_hosts_independent_public_ceiling()
+    {
+        var result = TenantContextFactory.Create(Authenticated() with
+        {
+            HostTenantId = TenantA,
+            ClaimTenantId = TenantA,
+            ClaimOrganizationId = OrgOne,
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.OrganizationId.Should().Be(OrgOne);
+        result.Value.HostScope!.TenantId.Should().Be(TenantA);
+        result.Value.HostScope.OrganizationId.Should().BeNull(
+            "row 7's organization claim cannot enlarge the tenant host's public content scope");
+    }
+
+    [Fact]
+    public void Claim_only_and_unresolved_contexts_carry_no_institution_host_scope()
+    {
+        var result = TenantContextFactory.Create(Authenticated() with
+        {
+            ClaimTenantId = TenantA,
+            ClaimOrganizationId = OrgOne,
+            MembershipCovers = true,
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Origin.Should().Be(TenantContextOrigin.ClaimAndMembership);
+        result.Value.HostScope.Should().BeNull();
+        ((ITenantContext)UnresolvedTenantContext.Instance).HostScope.Should().BeNull();
     }
 
     [Fact]

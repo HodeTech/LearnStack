@@ -71,6 +71,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// <summary>True once a transaction has been opened and not yet resolved.</summary>
     bool HasActiveTransaction { get; }
 
+    /// <summary>The active physical transaction's mode; null outside a transaction.</summary>
+    TransactionMode? Mode { get; }
+
     /// <summary>
     /// Joins the ambient transaction if one is active; otherwise opens it.
     /// </summary>
@@ -82,11 +85,22 @@ public interface IUnitOfWork : IAsyncDisposable
     /// back, because a frame that ended without a terminal call has failed and
     /// committing it would commit work nobody claimed was finished.
     /// </returns>
+    /// <remarks>
+    /// Existing callers default to ReadWrite. A ReadOnly owner establishes READ
+    /// COMMITTED and awaits SET TRANSACTION READ ONLY before returning its frame.
+    /// Only same-mode nesting joins; a mixed-mode attempt poisons the unit before
+    /// throwing. Partial setup failure/cancellation cleans up and poisons it too.
+    /// Mode resets on physical completion, never clearing rollback-only state.
+    /// </remarks>
+    Task<IUnitOfWorkScope> BeginTransactionAsync(
+        TransactionMode mode, CancellationToken cancellationToken = default);
+
+    /// <summary>Opens or joins a writable frame for existing callers.</summary>
     Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Issues the Row Level Security session variables as the first statement
-    /// inside the transaction.
+    /// Issues the Row Level Security session variables before any data statement:
+    /// first in ReadWrite, after ReadOnly's bounded mode setup (ADR-0052).
     /// </summary>
     /// <remarks>
     /// It lives here, not in <c>TransactionBehavior</c>, because the statement is

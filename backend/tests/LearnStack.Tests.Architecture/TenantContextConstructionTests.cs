@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.SharedKernel.Tenancy;
+using Mono.Cecil.Cil;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -13,6 +14,84 @@ namespace LearnStack.Tests.Architecture;
 public sealed class TenantContextConstructionTests
 {
     private static readonly Assembly Kernel = typeof(TenantContext).Assembly;
+
+    /// <summary>ADR-0036 Amendment 8 and ADR-0052: host provenance is factory-only.</summary>
+    [Fact]
+    public void HostScope_Is_Constructed_Only_By_The_Factory()
+    {
+        HostScopeShapeViolations(typeof(HostScope)).Should().BeEmpty(
+            "Fix: keep HostScope sealed, getter-only and inaccessible to callers");
+        typeof(HostScope).GetProperties().Select(property => property.Name).Should().BeEquivalentTo(
+            [nameof(HostScope.TenantId), nameof(HostScope.OrganizationId)]);
+        using var module = Mono.Cecil.ModuleDefinition.ReadModule(Kernel.Location);
+        HostScopeConstructors(module).Should().Equal(
+            [$"{typeof(TenantContextFactory).FullName}.{nameof(TenantContextFactory.Create)}"],
+            "Fix: only the reconciliation factory may create host provenance; scan must see its real call");
+    }
+
+    [Fact]
+    public void Host_scope_guard_detects_mutable_public_shape_and_a_second_construction_site()
+    {
+        HostScopeShapeViolations(typeof(UnsealedHostScopeProbe)).Should().Equal("not sealed");
+        HostScopeShapeViolations(typeof(PublicHostScopeProbe)).Should().Equal("public constructor");
+        HostScopeShapeViolations(typeof(MutableHostScopeProbe)).Should().Contain("setter");
+        HostScopeShapeViolations(typeof(FieldOnlyHostScopeProbe)).Should().Equal("mutable field");
+        HostScopeShapeViolations(typeof(HostScope)).Should().BeEmpty();
+        using var module = Mono.Cecil.ModuleDefinition.ReadModule(Kernel.Location);
+        var constructor = typeof(HostScope).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).Single();
+        var probe = new Mono.Cecil.TypeDefinition("ReviewProbe", "SecondProducer", Mono.Cecil.TypeAttributes.Class);
+        var method = new Mono.Cecil.MethodDefinition("Build", Mono.Cecil.MethodAttributes.Static, module.TypeSystem.Void);
+        method.Body.Instructions.Add(Instruction.Create(OpCodes.Newobj, module.ImportReference(constructor)));
+        probe.Methods.Add(method);
+        module.Types.Add(probe);
+        HostScopeConstructors(module).Should().Contain("ReviewProbe.SecondProducer.Build");
+        module.Types.Remove(probe);
+        HostScopeConstructors(module).Should().ContainSingle();
+    }
+
+    private static IEnumerable<string> HostScopeShapeViolations(Type type)
+    {
+        if (!type.IsSealed) yield return "not sealed";
+        if (type.GetConstructors(BindingFlags.Public | BindingFlags.Instance).Length != 0) yield return "public constructor";
+        if (type.GetProperties().Any(property => property.SetMethod is not null)) yield return "setter";
+        if (type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Any(field => !field.IsInitOnly)) yield return "mutable field";
+    }
+
+    private static IEnumerable<string> HostScopeConstructors(Mono.Cecil.ModuleDefinition module) =>
+        AllTypes(module.Types).SelectMany(type => Il.Methods(type).Select(method => (Type: type, Method: method)))
+            .Where(item => item.Method.Definition.HasBody && item.Method.Definition.Body.Instructions.Any(instruction =>
+                instruction.Operand is Mono.Cecil.MethodReference reference
+                && reference.Name == ".ctor" && reference.DeclaringType.FullName == typeof(HostScope).FullName))
+            .Select(item => $"{item.Type.FullName}.{item.Method.DeclaredAs}")
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+
+    private static IEnumerable<Mono.Cecil.TypeDefinition> AllTypes(IEnumerable<Mono.Cecil.TypeDefinition> types) =>
+        types.SelectMany(type => new[] { type }.Concat(AllTypes(type.NestedTypes)));
+
+    private class UnsealedHostScopeProbe
+    {
+        private UnsealedHostScopeProbe() { }
+    }
+
+    private sealed class PublicHostScopeProbe
+    {
+        public PublicHostScopeProbe() { }
+    }
+
+    private sealed class MutableHostScopeProbe
+    {
+        private MutableHostScopeProbe() { }
+        public string? Value { get; set; }
+    }
+
+    private sealed class FieldOnlyHostScopeProbe
+    {
+        private string? _value;
+        private FieldOnlyHostScopeProbe() { }
+        public string? Value => _value;
+        public void Rewrite(string value) => _value = value;
+    }
 
     [Fact]
     public void TenantContext_Is_Constructed_Only_By_The_Factory()

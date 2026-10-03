@@ -415,8 +415,9 @@ public sealed partial class TenancyConventionTests
 
         typeof(ITenantContext).GetMembers()
             .Where(member => member.Name.Contains("Scope", StringComparison.OrdinalIgnoreCase))
+            .Where(member => member.Name is not (nameof(ITenantContext.HostScope) or "get_HostScope"))
             .Should().BeEmpty(
-                "the tenant context carries no scope, so no request input can reach one through it");
+                "Fix: no app.scope authority carrier is permitted; ADR-0052's immutable HostScope only narrows reads");
 
         Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))

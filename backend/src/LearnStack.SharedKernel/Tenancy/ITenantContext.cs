@@ -88,6 +88,12 @@ public interface ITenantContext
     TenantContextOrigin? Origin => null;
 
     /// <summary>
+    /// Factory-preserved institution host scope, independent of claim-selected
+    /// organization scope. Null for ambient, unresolved and claim-only contexts.
+    /// </summary>
+    HostScope? HostScope => null;
+
+    /// <summary>
     /// W3C <c>traceparent</c> string ("00-&lt;trace&gt;-&lt;span&gt;-&lt;flags&gt;")
     /// that threads through HTTP / outbox / Hangfire / Hub envelopes. The
     /// observability stack reads this from the singleton accessor; modules

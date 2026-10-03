@@ -6,6 +6,7 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -175,11 +176,9 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
         // POST failed, and passed against a DELETED endpoint and against a database with
         // every policy dropped.
         //
-        // The request arrives on demo-english's host, so the transaction is announced with
-        // demo-english; the row names demo-yoga. WITH CHECK compares the two and raises
-        // 42501. No layer above the database is involved — the statement is raw SQL on the
-        // connection the unit of work owns, so a query filter cannot account for the
-        // refusal.
+        // The public probe now has ADR-0052's physical read-only barrier, which refuses
+        // before WITH CHECK. Keep that HTTP proof and exercise the identical statement
+        // in writable frames as a separate policy proof, with an own-tenant control.
         using var client = _fixture.ClientFor(SeedData.English.Host);
 
         var response = await client.PostAsJsonAsync(
@@ -187,8 +186,29 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
             new { tenantId = SeedData.Yoga.TenantId.Value });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Trim('"').Should().Be("42501",
-            "the policy's WITH CHECK rejects a row whose tenant is not the announced one");
+        (await response.Content.ReadAsStringAsync()).Trim('"').Should().Be(
+            PostgresErrorCodes.ReadOnlySqlTransaction);
+
+        var dataSource = _fixture.Services.GetRequiredService<NpgsqlDataSource>();
+        var context = TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = SeedData.English.TenantId,
+        }).Value!;
+        foreach (var foreignTenant in new[] { true, false })
+        {
+            await using var unit = new NpgsqlUnitOfWork(
+                dataSource, NullLogger<NpgsqlUnitOfWork>.Instance);
+            await using var frame = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(context);
+            var result = await new ForeignWriteHandler(unit).Handle(
+                new ForeignWriteCommand(foreignTenant
+                    ? SeedData.Yoga.TenantId.Value : SeedData.English.TenantId.Value), default);
+
+            result.Value.Should().Be(foreignTenant
+                ? PostgresErrorCodes.InsufficientPrivilege : "committed",
+                "WITH CHECK refuses the foreign tenant while the identical own-tenant INSERT succeeds");
+            await frame.FailAsync();
+        }
 
         // And nothing landed, under either tenant.
         (await ReadSettingsAsync(SeedData.Yoga.Host)).Should().NotContain(

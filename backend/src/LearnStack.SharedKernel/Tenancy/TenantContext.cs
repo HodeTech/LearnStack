@@ -37,13 +37,15 @@ public sealed class TenantContext : ITenantContext
         OrganizationId? organizationId,
         UserId? userId,
         TenantContextOrigin origin,
-        string? correlationId)
+        string? correlationId,
+        HostScope? hostScope)
     {
         TenantId = tenantId;
         OrganizationId = organizationId;
         UserId = userId;
         Origin = origin;
         CorrelationId = correlationId;
+        HostScope = hostScope;
     }
 
     /// <inheritdoc />
@@ -60,6 +62,9 @@ public sealed class TenantContext : ITenantContext
 
     /// <inheritdoc />
     public TenantContextOrigin? Origin { get; }
+
+    /// <inheritdoc />
+    public HostScope? HostScope { get; }
 
     /// <inheritdoc />
     public string? CorrelationId { get; }

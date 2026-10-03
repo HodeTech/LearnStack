@@ -295,7 +295,8 @@ consequences follow, and both are load-bearing:
 
 **`app.scope` has no carrier.** No application path sets it, and
 [Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
-`ITenantContext` carries no scope member
+`ITenantContext` carries no `app.scope` authority member; ADR-0052's immutable
+HostScope is an independent narrowing ceiling, never a scope-widening carrier
 ([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
 derives from the actor's role plus a declared tenant-wide operation, and **the role is
 the part that does not exist yet**. [Phase 02b](../roadmap/phase-02b-events-auth.md)

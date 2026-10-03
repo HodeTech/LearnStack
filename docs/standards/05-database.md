@@ -1593,7 +1593,7 @@ likely accident, and they bypass the capture the same way
 
 ## Connection Management
 
-**P02d-4 Accepted read mode — implementation pending.**
+**P02d-4 Step 1 delivers the Accepted read mode.**
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) adds transaction-local
 ReadOnly intent on the existing ambient connection; default writers remain
 ReadWrite. Follow [Security's sequencing rule](11-security.md#the-rule): setup is

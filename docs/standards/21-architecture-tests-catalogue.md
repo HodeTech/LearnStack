@@ -95,11 +95,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**143 test methods run in
+**145 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2 and P02d-3. Methods are not rows:
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Step 1. Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
@@ -125,8 +125,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**149 rules in this catalogue are Implemented, and 102 of them are in that assembly.**
-The other 47 are no less binding, and most could not live there. The table says where
+**151 rules in this catalogue are Implemented, and 103 of them are in that assembly.**
+The other 48 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3942,7 +3942,7 @@ structural test proves — and what it does not.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
-- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`. Until Phase 03 derives it from a role, that holds as its strongest form: no production code sets the variable — no `set_config('app.scope'`, no `SET [LOCAL|SESSION] app.scope` — outside an exact-path list, empty until the Phase 03 setter adds its own path, and `ITenantContext` has no scope member for request input to reach.
+- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`. Until Phase 03 derives it from a role, that holds as its strongest form: no production code sets the variable — no `set_config('app.scope'`, no `SET [LOCAL|SESSION] app.scope` — outside an exact-path list, empty until the Phase 03 setter adds its own path, and `ITenantContext` has no app.scope authority member for request input to reach. ADR-0052's immutable HostScope only narrows public reads.
 - **Source:** ADR-0036 § The reconciliation matrix.
 - **Type:** xUnit + source scan + reflection. **Kind:** structural.
 - **Status:** **Implemented** — `TenancyConventionTests.cs`, Packet 10. It asserts its
@@ -4013,11 +4013,11 @@ structural test proves — and what it does not.
 
 ## P02d-4 public-read obligations
 
-These names are Registered against
+These names are registered against
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and the
 [accepted P02d-4 package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-accepted-answers).
 Every structural mechanism requires a clean control and planted offenders for its
-claimed paths; registration records no passing test. Runtime proofs are independent
+claimed paths. Individual Status rows distinguish registration from passing tests. Runtime proofs are independent
 of structural detection.
 
 #### `HostScope_Is_Constructed_Only_By_The_Factory`
@@ -4027,7 +4027,7 @@ of structural detection.
   claim-only contexts carry none.
 - **Source:** ADR-0036 Amendment 8; ADR-0052.
 - **Type:** xUnit + reflection + IL. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`TenantContextConstructionTests`, P02d-4 Step 1); shape and second-call-site planted controls accompany it.
 - **Phase:** 02d (P02d-4 Step 1).
 
 #### `PublicSurface_Requests_Are_Registered_Off`
@@ -4083,7 +4083,7 @@ of structural detection.
   poison. A successful read-only frame permits a later writable frame.
 - **Source:** ADR-0040 Amendment 8; ADR-0052.
 - **Type:** xUnit + PostgreSQL as learnstack_app. **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PublicReadTransactionTests`, P02d-4 Step 1); real app-role EF/SQL refusal, writable controls, same/mixed-mode joins, partial-setup faults/cancellation and reuse/reset cases.
 - **Phase:** 02d (P02d-4 Step 1).
 
 #### `PublicSurface_Contract_Matches_Served_OpenApi`

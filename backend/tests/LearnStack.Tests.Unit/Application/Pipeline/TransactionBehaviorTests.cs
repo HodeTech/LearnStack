@@ -37,6 +37,28 @@ public sealed class TransactionBehaviorTests
 {
     public sealed record DummyCommand : IRequest<Result<string>>;
 
+    [PublicSurface]
+    public sealed record PublicQuery : IRequest<Result<string>>;
+
+    [Fact]
+    public async Task Public_surface_selects_read_only_before_announcement_and_dispatch()
+    {
+        var unitOfWork = new RecordingUnitOfWork();
+        var behavior = new TransactionBehavior<PublicQuery, Result<string>>(
+            unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+            new AuditStateCapture(), NullLogger<TransactionBehavior<PublicQuery, Result<string>>>.Instance);
+
+        var result = await behavior.Handle(new PublicQuery(), () =>
+        {
+            unitOfWork.Mode.Should().Be(TransactionMode.ReadOnly);
+            unitOfWork.Calls.Add("handler");
+            return Task.FromResult(Result.Ok("ok"));
+        }, default);
+
+        result.IsSuccess.Should().BeTrue();
+        unitOfWork.Calls.Should().Equal("begin", "set-tenant", "handler", "commit");
+    }
+
     [Fact]
     public async Task Opens_The_Transaction_Then_Sets_The_Session_Variables_Then_Runs_The_Handler()
     {
@@ -51,6 +73,7 @@ public sealed class TransactionBehaviorTests
 
         result.IsSuccess.Should().BeTrue();
         unitOfWork.Calls.Should().Equal("begin", "set-tenant", "handler", "commit");
+        unitOfWork.Mode.Should().Be(TransactionMode.ReadWrite);
     }
 
     [Fact]
@@ -477,11 +500,18 @@ public sealed class TransactionBehaviorTests
             return Task.CompletedTask;
         }
 
+        public TransactionMode? Mode { get; private set; }
+
         public bool HasActiveTransaction => _depth > 0;
 
-        public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+            BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
+
+        public Task<IUnitOfWorkScope> BeginTransactionAsync(
+            TransactionMode mode, CancellationToken cancellationToken = default)
         {
             Calls.Add("begin");
+            Mode = mode;
             return Task.FromResult<IUnitOfWorkScope>(new Frame(this, ++_depth));
         }
 

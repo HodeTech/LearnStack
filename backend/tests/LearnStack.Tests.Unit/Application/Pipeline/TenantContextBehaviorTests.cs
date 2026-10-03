@@ -178,7 +178,95 @@ public sealed class TenantContextBehaviorTests
         return (result, called);
     }
 
-    private static StatedOriginContext Resolved(TenantContextOrigin origin) => new(origin);
+    [Theory]
+    [InlineData(TenantContextOrigin.HostOnly)]
+    [InlineData(TenantContextOrigin.HostAndClaim)]
+    [InlineData(TenantContextOrigin.ClaimAndMembership)]
+    [InlineData(TenantContextOrigin.Ambient)]
+    public async Task Public_admission_requires_host_provenance_even_with_a_stated_origin(
+        TenantContextOrigin origin)
+    {
+        var (result, called) = await RunAsync<AnonymousReadShapedQuery>(new StatedOriginContext(origin));
+
+        called.Should().BeFalse();
+        result.Error.Should().BeSameAs(TenantContextFactory.Refused);
+    }
+
+    [Fact]
+    public async Task A_tenant_hosts_claim_selected_organization_retains_public_admission()
+    {
+        var context = TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = TenantId.From(Guid.CreateVersion7()),
+        }).Value!;
+        var claimed = TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = context.TenantId,
+            ClaimTenantId = context.TenantId,
+            ClaimOrganizationId = OrganizationId.From(Guid.CreateVersion7()),
+            HasValidatedPrincipal = true,
+            UserId = UserId.SystemActor,
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        });
+        claimed.IsSuccess.Should().BeTrue();
+
+        var (result, called) = await RunAsync<AnonymousReadShapedQuery>(claimed.Value!);
+
+        called.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
+        claimed.Value!.HostScope!.OrganizationId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("foreign-tenant")]
+    [InlineData("foreign-organization")]
+    [InlineData("missing-organization")]
+    [InlineData("ambient")]
+    public async Task Public_admission_refuses_a_borrowed_host_scope_that_does_not_match(
+        string mismatch)
+    {
+        var tenant = TenantId.From(Guid.CreateVersion7());
+        var organization = OrganizationId.From(Guid.CreateVersion7());
+        var host = TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HostTenantId = tenant,
+            HostOrganizationId = organization,
+        }).Value!;
+        var context = new BorrowedHostContext(
+            mismatch == "foreign-tenant" ? TenantId.From(Guid.CreateVersion7()) : tenant,
+            mismatch switch
+            {
+                "foreign-organization" => OrganizationId.From(Guid.CreateVersion7()),
+                "missing-organization" => null,
+                _ => organization,
+            },
+            mismatch == "ambient" ? TenantContextOrigin.Ambient : TenantContextOrigin.HostAndClaim,
+            host.HostScope!);
+
+        var (result, called) = await RunAsync<AnonymousReadShapedQuery>(context);
+
+        called.Should().BeFalse();
+        result.Error.Should().BeSameAs(TenantContextFactory.Refused);
+    }
+
+    private sealed record BorrowedHostContext(
+        TenantId TenantId, OrganizationId? OrganizationId,
+        TenantContextOrigin? Origin, HostScope HostScope) : ITenantContext
+    {
+        public bool IsResolved => true;
+        public UserId? UserId => null;
+        public string? CorrelationId => null;
+        public string? ModuleName => null;
+    }
+
+    private static ITenantContext Resolved(TenantContextOrigin origin) =>
+        origin == TenantContextOrigin.HostOnly
+            ? TenantContextFactory.Create(new TenantResolutionAttempt
+            {
+                HostTenantId = TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-00000000a001")),
+            }).Value!
+            : new StatedOriginContext(origin);
 
     private sealed class StatedOriginContext(TenantContextOrigin origin) : ITenantContext
     {

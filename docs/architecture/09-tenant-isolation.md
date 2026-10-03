@@ -35,9 +35,10 @@ P02d-4's accepted public boundary adds immutable factory-preserved HostScope,
 intersected with normal context, filters and RLS. Tenant hosts expose tenant-wide
 rows only; organization hosts add only their own organization's rows. Claim-only,
 ambient and unresolved origins have no public host scope. Publication/access and
-lifecycle remain explicit read predicates. New host/mode proofs are Registered,
-not delivered by acceptance; [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md)
-owns the boundary.
+lifecycle remain explicit read predicates. P02d-4 Step 1 delivers host provenance,
+public admission and physical transaction-mode proofs. Endpoint and eligibility
+proofs remain with Steps 2–4;
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the boundary.
 
 | Layer | Tenant mechanism | Organization mechanism |
 |-------|------------------|------------------------|

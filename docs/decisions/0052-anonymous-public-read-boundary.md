@@ -213,3 +213,19 @@ normal public audits. These are obligations, not current runtime test results.
 - [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md#host--tenant-resolution)
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)
 - [Frontend Architecture](../architecture/14-frontend-architecture.md)
+
+
+## Amendment 1 — P02d-4 foundation delivery (2026-10-03)
+
+This delivery note updates the implementation status recorded at acceptance; it
+changes no decision. P02d-4 Step 1 implements factory-only immutable HostScope,
+matching public admission, ReadOnly/ReadWrite ambient frames and pipeline mode
+selection. Same-mode joining, mixed-mode poison, partial setup cleanup and mode
+reset are exercised against PostgreSQL as the application role. EF and SQL write
+refusals have independent writable controls.
+
+Institution public endpoints, lifecycle/eligibility readers, HTTP controls and
+OpenAPI/SDK/CI proofs remain with Steps 2–4. The original Status and Architecture
+Tests sections record the acceptance baseline; the catalogue and
+[P02d-4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+own current implementation and review evidence.

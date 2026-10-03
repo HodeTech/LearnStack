@@ -1537,9 +1537,15 @@ public sealed class CustomizationCommandTests
 
         public System.Data.Common.DbTransaction? Transaction => throw new NotSupportedException();
 
+        public TransactionMode? Mode { get; private set; }
+
         public bool HasActiveTransaction => throw new NotSupportedException();
 
         public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+            BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
+
+        public Task<IUnitOfWorkScope> BeginTransactionAsync(
+            TransactionMode mode, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task SetTenantContextAsync(
