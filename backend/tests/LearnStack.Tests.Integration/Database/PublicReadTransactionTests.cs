@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
@@ -173,7 +174,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
             .AddProvider(new SetupFailureLogger(() =>
             {
                 observed = true;
-                unit!.HasActiveTransaction.Should().BeTrue("inject after physical BEGIN, before a frame exists");
+                unit!.HasActiveTransaction.Should().BeTrue("inject after driver transaction allocation, before a frame exists");
                 if (cancel)
                 {
                     cancellation.Cancel();
@@ -224,6 +225,67 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         (await ScalarAsync(writable, "SHOW transaction_read_only")).Should().Be("off");
         await WriteAsync(fresh.ServiceProvider, writable, TenantDomainId.From(Guid.CreateVersion7()), useEf: true);
         await frame.FailAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Setup_failure_after_server_mode_activation_cleans_up_before_begin_returns(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        IUnitOfWork? unit = null;
+        var observed = false;
+        var injected = new InvalidOperationException("injected after server mode activation");
+        using var logs = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace)
+            .AddProvider(new SetupFailureLogger(() =>
+            {
+                // Pinned Npgsql 10.0.0 logs completion before EndUserAction. Its
+                // public ReaderClosed event runs after EndUserAction, but before
+                // ExecuteNonQueryAsync (and therefore Begin) returns. Use the
+                // cached reader only here; production gains no injection seam.
+                var reader = SetupReader((NpgsqlConnection)unit!.Connection);
+                EventHandler? afterClose = null;
+                afterClose = (_, _) =>
+                {
+                    // Npgsql reuses this reader; detach before the observer query.
+                    reader.ReaderClosed -= afterClose;
+                    using var show = new NpgsqlCommand("SHOW transaction_read_only",
+                        (NpgsqlConnection)unit.Connection, (NpgsqlTransaction?)unit.Transaction);
+                    show.ExecuteScalar().Should().Be("on", "PostgreSQL has executed the mode statement");
+                    observed = true;
+                    if (cancel)
+                    {
+                        cancellation.Cancel();
+                        cancellation.Token.ThrowIfCancellationRequested();
+                    }
+                    throw injected;
+                };
+                reader.ReaderClosed += afterClose;
+            }, afterExecution: true)));
+        await using var provider = BuildProvider(logs);
+        await using var scope = provider.CreateAsyncScope();
+        unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var begin = async () => await unit.BeginTransactionAsync(TransactionMode.ReadOnly, cancellation.Token);
+        if (cancel) await begin.Should().ThrowAsync<OperationCanceledException>();
+        else (await begin.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(injected);
+        observed.Should().BeTrue();
+        unit.Transaction.Should().BeNull();
+        unit.Mode.Should().BeNull();
+        unit.IsRollbackOnly.Should().BeTrue();
+        (await ScalarAsync(unit, "SHOW transaction_read_only")).Should().Be("off",
+            "cleanup must reset the server before the still-live DI scope is disposed");
+        var reuse = async () => await unit.BeginTransactionAsync();
+        await reuse.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
+    }
+
+    private static NpgsqlDataReader SetupReader(NpgsqlConnection connection)
+    {
+        const BindingFlags InternalInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var connector = typeof(NpgsqlConnection).GetProperty("Connector", InternalInstance)?.GetValue(connection);
+        connector.Should().NotBeNull("the pinned driver must expose its active connector to this test");
+        var reader = connector!.GetType().GetProperty("DataReader", InternalInstance)?.GetValue(connector);
+        reader.Should().BeOfType<NpgsqlDataReader>("driver changes must fail the injection, not silently skip it");
+        return (NpgsqlDataReader)reader!;
     }
 
     private ServiceProvider BuildProvider(ILoggerFactory? injectedLogs = null)
@@ -296,7 +358,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
     }
 
     /// <summary>Fault injection at the actual driver control statement, without a production seam.</summary>
-    private sealed class SetupFailureLogger(Action onSetup) : ILoggerProvider, ILogger
+    private sealed class SetupFailureLogger(Action onSetup, bool afterExecution = false) : ILoggerProvider, ILogger
     {
         private bool _fired;
         public ILogger CreateLogger(string categoryName) => this;
@@ -306,7 +368,12 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            if (!_fired && formatter(state, exception).StartsWith("Executing command: SET TRANSACTION READ ONLY", StringComparison.Ordinal))
+            var message = formatter(state, exception);
+            var setupReached = afterExecution
+                ? message.StartsWith("Command execution completed", StringComparison.Ordinal)
+                    && message.Contains("SET TRANSACTION READ ONLY", StringComparison.Ordinal)
+                : message.StartsWith("Executing command: SET TRANSACTION READ ONLY", StringComparison.Ordinal);
+            if (!_fired && setupReached)
             {
                 _fired = true;
                 onSetup();

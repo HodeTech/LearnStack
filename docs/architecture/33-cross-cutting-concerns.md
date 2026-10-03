@@ -84,9 +84,11 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 ## 2. MediatR Pipeline Order
 
 P02d-4's [accepted boundary](../decisions/0052-anonymous-public-read-boundary.md)
-adds factory host-ceiling admission and read-only transaction intent, with pending
-runtime/structural proofs. It keeps the eight-stage order, normal writer ownership
-and independent rejected-assertion audits unchanged.
+adds factory host-ceiling admission and read-only transaction intent.
+[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+delivers these foundations and app-role write-refusal proofs; endpoint and
+contract controls remain with Steps 2–4. The eight-stage order, normal writer
+ownership and independent rejected-assertion audits are unchanged.
 
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the order. Reading bottom-most as innermost:
@@ -528,7 +530,7 @@ Two integration points
 | `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
-| Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; implementation and app-role write-refusal proofs pending |
+| Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; endpoint/contract controls remain Steps 2–4 |
 | Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

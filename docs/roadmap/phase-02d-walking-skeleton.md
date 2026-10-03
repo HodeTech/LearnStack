@@ -2224,6 +2224,17 @@ in this step; Steps 2–4 retain those obligations.
 link/anchor checks pass. The two implementation review rounds are pending; Step 1
 is not yet declared complete.
 
+**Review round 1.** Independent GPT-6-astra and GPT-6.1-sol xhigh reviewers
+examined `f79e4a4..77b13f5`. Neither found a production defect or Blocker/Major.
+Verified Minor findings: two editable current-state carriers still described
+Step 1 as pending, and the driver-log fault injection ran before Npgsql sent BEGIN.
+Carrier wording now separates delivered foundations from Steps 2–4. The original
+pre-send cases remain, with corrected wording; two additional cases observe server
+read-only mode and inject fault/cancellation from the driver's safe ReaderClosed
+callback before Begin returns. They assert cleanup before DI-scope disposal and
+sticky poisoned-unit refusal. The pinned-driver reflection seam exists only in
+tests and fails loudly if its members change. No production test hook is added.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
