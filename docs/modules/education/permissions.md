@@ -21,7 +21,7 @@ surface, not the actions or grants a later authoring decision must choose.
 | Surface | Registration and reachability |
 |---|---|
 | Course and lesson seed writes | P02d-2; no HTTP route and no registered permission yet |
-| Anonymous content reads | P02d-4; explicit public surface, no authoring access |
+| Anonymous content reads | P02d-4 Accepted GET/HEAD marked reads, implementation pending; matching host ceiling intersected with normal filters/RLS, no permission key or grant; credentials never widen visibility |
 | Authenticated authoring | Phase 05; uses the permission infrastructure from Phase 03 |
 
 The matrix gains permission keys, scopes and default-role grants with the corresponding

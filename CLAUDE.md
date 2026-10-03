@@ -92,6 +92,9 @@ adds generation caching and scope-safe bypass; both review rounds passed.
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification. Public reads stay with P02d-4.
+Its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+and ADR-0052 are Accepted — 2026-10-03. The approved four-step implementation and
+two-round review loop run on development; delivery evidence is recorded per step.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

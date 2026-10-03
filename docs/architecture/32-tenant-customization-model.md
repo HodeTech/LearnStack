@@ -514,9 +514,12 @@ migration, a future bulk importer — breaks that trust for every subsequent rea
 import therefore goes through the same validator, at
 [Phase 04](../roadmap/phase-04-cms-media-pages.md).
 
-The one read-time check is **structural, not semantic**: the renderer walks the entry's
-JSON against the schema's field list and skips unknown fields. That is an O(fields) pass,
-not a validation.
+P02d-4's accepted Education read check is **structural, not semantic**: it walks
+ordered descriptors with internal requiredness metadata and omits unknown fields.
+A non-object body, non-string selected value or missing required field makes the
+whole content state unavailable; the legacy empty descriptor list is unavailable
+too. This bounded pass performs no JSON Schema evaluation. Implementation is pending;
+P02d-6 owns rendering the returned state.
 
 ### 8.2 Cache strategy
 
@@ -753,7 +756,7 @@ Admin Studio
 ├── Notifications
 │   └── Templates            ← Liquid / Handlebars editor
 └── Settings
-    ├── Branding             ← logo, colours, typography, custom CSS (plan-gated)
+    ├── Branding             ← logo, colours, typography, custom CSS (Phase 06 target)
     ├── Custom Domain        ← submit, verify, list, revoke (plan-gated, ADR-0022)
     └── Compliance           ← view-only summary of operator-set caps (ADR-0019)
 ```
@@ -764,12 +767,12 @@ first; [Phase 06](../roadmap/phase-06-renderer-admin-studio.md) replaces them wi
 visual schema editor and preview pane. The screen tree above is the target; each row
 arrives with the aggregate it edits, per [§ 12](#12-phasing).
 
-> **Branding values decided; entitlement remains open.** G16(a–e) selects the
+> **Branding values and public attribution decided.** G16(a–e) selects the
 > [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary).
-> Whether `tenancy.white_label_branding` governs applying tokens or only removing
-> LearnStack attribution remains G16(g) in
-> [Phase 02d's register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The Branding row's "(plan-gated)" is still a target pending that decision.
+> P02d-4's accepted G16(f/g) contract applies baseline colors independently of plan;
+> effective `tenancy.white_label_branding` removes LearnStack attribution only.
+> Public projection implementation is pending. Advanced Studio branding remains
+> Phase 06 scope, separate from the four-color contract.
 
 ## 11. Hard architectural invariants
 

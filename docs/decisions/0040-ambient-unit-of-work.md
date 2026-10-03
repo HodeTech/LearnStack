@@ -618,6 +618,41 @@ the [Tenancy module spec](../modules/tenancy/README.md).
 setter, like the five short-transaction setters before it, runs where that connection is
 not the one to use.
 
+### Amendment 8 — read-only public frames (2026-10-03)
+
+**Status: Accepted.** Approved with [ADR-0052](0052-anonymous-public-read-boundary.md)
+and the P02d-4 decision package on 2026-10-03. Implementation is pending.
+
+Connection/transaction ownership, shared module contexts, the tenant setter set
+and default writable behavior are unchanged. ADR-0052 authorizes a bounded
+public-only exception to the Decision sketch's first-statement ordering; this
+amendment does not authorize it independently. ADR-0052 adds
+explicit ReadOnly/ReadWrite intent to `BeginTransactionAsync`; existing callers
+remain ReadWrite by default. TransactionBehavior chooses ReadOnly for PublicSurface
+requests before dispatch. A physical ReadOnly owner opens READ COMMITTED, executes
+and awaits `SET TRANSACTION READ ONLY`, then returns its owner frame. The existing
+tenant/organization announcement follows before any data SQL or handler dispatch;
+that mode-control statement is its only permitted predecessor. Default writers
+retain first-statement tenant announcement. Begin cleans up its partial transaction
+on setup failure/cancellation, marks rollback-only and rethrows before returning a
+frame; it cannot rely on TransactionBehavior's later cleanup try block.
+A same-mode join uses existing frame ownership. A
+mixed-mode join is refused before invoking the inner handler and marks the unit
+rollback-only even if an outer caller absorbs it. It never promotes/demotes the
+existing transaction or opens a second connection. Direct application-contract
+reads inherit the ambient mode. READ COMMITTED stays unchanged. Mode belongs to
+one physical transaction and resets on completion/rollback/disposal; no pooled
+session state leaks. This never clears sticky rollback-only poisoning: successful
+read-only commit permits a later writer on the same reusable unit; owner rollback,
+cancellation or mixed-mode failure requires a fresh unit/scope. Verify pooled
+connection mode reset separately. Normal Off reads write no audit row; independent
+rejection audits retain their sanctioned path. PostgreSQL app-role proofs and
+planted guards cover EF/SQL write attempts, both nesting directions, cancellation,
+rollback and a later writable transaction on a valid unit, with poisoned-unit
+refusal controls.
+Carrier updates: backend/database/security standards, request-pipeline/isolation
+architecture, module specs and catalogue.
+
 ## References
 
 - [ADR-0002 — Initial Architecture](0002-initial-architecture.md)

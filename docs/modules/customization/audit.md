@@ -3,6 +3,11 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-4 accepted consumer — implementation pending.** Education consumes this
+internal projection under its [public boundary](../education/README.md#primary-read-flow).
+Customization adds no HTTP route, permission key or audit intent; field requiredness
+is internal metadata, and schema validation remains write-only.
+
 **P02d-3 Step 3 implemented — 2026-10-02; both review rounds passed.**
 `ICustomizationDefinitionProjectionReader` is an internal application interface, not a
 MediatR request or audited write. It creates no intent or business-state mutation.

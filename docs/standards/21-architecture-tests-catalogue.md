@@ -3896,12 +3896,11 @@ structural test proves — and what it does not.
   leg and the tenant-owned-write leg are Registered.
 - **Phase:** 02a (Packet 7) for the enumeration legs. The permitted-methods and
   tenant-owned-write legs arrive with the first `[PublicSurface]` request type, in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Which methods that phase's rows
-  permit, `GET` alone or the `GET` / `HEAD` default, what the methods leg compares a row
-  against, and whether the write leg is a structural scan, a `READ ONLY` unit of work or
-  both are G28 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it edits this entry with its answer.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Accepted P02d-4 G28 compares
+  the non-empty endpoint/request/table sets and their exact `GET`/`HEAD` methods.
+  Structural dispatch/persistence controls complement physical `READ ONLY` proofs;
+  neither new leg is implemented yet. See
+  [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 - **Note:** the two directions are not equally vacuous, and the existing note above covers
   only one of them. **Marked set → table** is vacuous while no type carries the marker.
   **Table → marked set** is live from the day it ships: the table may not name a type that
@@ -4011,6 +4010,93 @@ structural test proves — and what it does not.
   handler carries both `[AllowsUnresolvedTenantContext]` and a platform-scope entry.
   `ProvisionTenantCommand` now carries the first, and nothing carries the second, so the
   conjunction is empty because one half of it is — not because both are.
+
+## P02d-4 public-read obligations
+
+These names are Registered against
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and the
+[accepted P02d-4 package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-accepted-answers).
+Every structural mechanism requires a clean control and planted offenders for its
+claimed paths; registration records no passing test. Runtime proofs are independent
+of structural detection.
+
+#### `HostScope_Is_Constructed_Only_By_The_Factory`
+
+- **Asserts:** immutable host provenance has no public constructor or mutation path;
+  its only construction site is TenantContextFactory. Ambient, unresolved and
+  claim-only contexts carry none.
+- **Source:** ADR-0036 Amendment 8; ADR-0052.
+- **Type:** xUnit + reflection + IL. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Step 1).
+
+#### `PublicSurface_Requests_Are_Registered_Off`
+
+- **Asserts:** every marked public request is explicitly Off in the merged audit
+  catalogue, with a non-empty request set and a planted non-Off classification.
+- **Source:** ADR-0052; API Standards § Public surface.
+- **Type:** xUnit + reflection + audit catalogue. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Steps 2–3).
+
+#### `PublicSurface_Endpoints_Dispatch_Through_The_Pipeline`
+
+- **Asserts:** the exact public endpoint set dispatches marked requests through
+  ISender; direct handler, helper and minimal-API bypass probes are detected.
+- **Source:** ADR-0052; Backend Coding Standards § Pipeline Behaviors.
+- **Type:** xUnit + endpoint metadata + IL/source scan. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Steps 2–3).
+
+#### `PublicSurface_Controllers_Do_Not_Access_Persistence`
+
+- **Asserts:** public controllers and reachable helpers neither acquire persistence
+  nor open independent connections, including concrete and service-locator paths.
+- **Source:** ADR-0052; Security Standards § Tenant Context.
+- **Type:** xUnit + IL/source scan. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Steps 2–3).
+
+#### `PublicSurface_Response_Schemas_Exclude_Internal_Fields`
+
+- **Asserts:** DTO and served/snapshot OpenAPI response trees obey the closed public
+  allowlist and recursive private-field denylist, with nested offending controls.
+- **Source:** ADR-0052; accepted P02d-4 G26/G31.
+- **Type:** xUnit + reflection + served OpenAPI. **Kind:** structural + behavioural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Steps 3–4).
+
+#### `PublicSurface_Reads_Do_Not_Invoke_JsonSchema_Validation`
+
+- **Asserts:** public reads never acquire or invoke the write-time schema validator,
+  including transitive helper paths; bounded structural projection remains legal.
+- **Source:** ADR-0043; ADR-0052.
+- **Type:** xUnit + IL. **Kind:** structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Step 3).
+
+#### `PublicSurface_Transactions_Refuse_Writes`
+
+- **Asserts:** real app-role public frames reject EF and raw SQL writes; a writable
+  control succeeds. Mixed-mode nesting and partial setup failures poison the unit
+  despite absorption; rollback/cancellation reset physical mode without clearing
+  poison. A successful read-only frame permits a later writable frame.
+- **Source:** ADR-0040 Amendment 8; ADR-0052.
+- **Type:** xUnit + PostgreSQL as learnstack_app. **Kind:** behavioural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Step 1).
+
+#### `PublicSurface_Contract_Matches_Served_OpenApi`
+
+- **Asserts:** production composition and committed snapshot have the same document
+  after object-key normalization, preserving array order; exactly eight public
+  operations and four generated GET wrappers exist. Drift and policy-breaking
+  fixtures fail the pinned diff/generation checks.
+- **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
+- **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
+  structural.
+- **Status:** **Registered.**
+- **Phase:** 02d (P02d-4 Step 4).
 
 ## References
 

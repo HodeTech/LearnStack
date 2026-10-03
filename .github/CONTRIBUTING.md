@@ -54,14 +54,12 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
       `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
       behind a green check.
-  - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
-    unset by default — a constant `if: false` is rejected by actionlint).
-    Activating one is **four edits, in the same pull request wherever possible**:
-    set the variable in **Settings → Secrets and variables → Actions → Variables**,
-    replace the placeholder step with the real one, **rename the job** to drop the
-    `(deferred …)` suffix, and add the new name both to this list and to the live
-    branch-protection setting. Setting the variable alone leaves a job that runs
-    but gates nothing.
+  - Deferred checks currently have unset `vars.ENABLE_*` conditions. **P02d-4's
+    accepted activation for OpenAPI removes the condition**, replaces the placeholder,
+    renames the job to `openapi diff`, proves its planted failures and adds that exact
+    sixth context after a real run. Preserve the existing five contexts, strictness
+    and every other live setting; record API read-back. No variable-setting step
+    applies to OpenAPI. Until execution, the verified live list above stays five.
     - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
       `/api/v1/*` read endpoints.
     - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
@@ -71,12 +69,10 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     half: a renamed check that nobody re-required is a check that no longer blocks
     anything, and the PR still shows green.
 
-    > **Open in Phase 02d.** Whether the Lighthouse job activates in Phase 02d, and on
-    > what harness, is G44; whether an activated job keeps its `vars.ENABLE_*`
-    > condition — GitHub treats a skipped required job as passing — is G31.
-    > [Phase 02d's decision register](../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-    > holds both. The pass that closes each gate edits the activation steps and the
-    > Lighthouse entry above with its answer.
+    > **Lighthouse remains open.** Activation/harness is G44. G31 is Accepted:
+    > `openapi diff` must always run and has an approved sixth-check rollout in the
+    > [packet plan](../docs/roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan).
+    > No OpenAPI activation or protection mutation is claimed by this decision commit.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

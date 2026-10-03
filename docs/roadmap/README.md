@@ -55,7 +55,9 @@ not deferred to the showcase phase.
   P02d-3 is complete and merged through
   [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
   [merge closeout](phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
-  records final verification. P02d-4's public-read decision pass is next.
+  records final verification. P02d-4's
+  [public-read decision package](phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+  is Accepted — 2026-10-03; implementation follows its four-step review plan.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

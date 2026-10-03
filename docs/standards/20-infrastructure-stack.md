@@ -13,6 +13,8 @@
 [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md),
 [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -569,10 +571,12 @@ are the Hub's public API, governed by the Hub repository.
   on the hot path of every anonymous public page load; a resolver that calls a control
   plane converts a Hub outage into a tenant-marketing-site outage.
 - A cache miss re-reads the table. An unknown host is a 404, not a Hub lookup.
-- The frontend edge calls the resolver via a thin API endpoint; the backend uses it
-  directly for inbound request resolution. Whether Phase 02d's renderer calls that
-  endpoint, or gets its per-host data another way, is G25 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+- P02d-4 accepts host-resolved `/api/v1/public/site` bootstrap under
+  [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md), without public
+  tenancy IDs or a caller route/query/body host selector. The API continues to use
+  the resolver directly; no public resolver endpoint or edge registry is added.
+  P02d-5 owns the authenticated server hop and renderer consumer. Implementation
+  of bootstrap is pending; resolver authority and its cache remain unchanged.
 - Custom-domain activations on Hub push a new host-mapping set; LearnStack updates
   `platform_host_to_tenant` and invalidates the resolver cache. Once the event-bus
   adapter lands, the same update also arrives as

@@ -16,7 +16,10 @@ review rounds. P02d-2 is complete and merged — 2026-10-02; its
 records final verification. P02d-3 read internals are complete and merged through
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
 [merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
-records final verification. P02d-4 public reads are next.
+records final verification. P02d-4's
+[public-read package](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accepted —
+2026-10-03; implementation and its runtime proof are pending.
 The diagram includes the access column.
 
 ## Overview
@@ -271,6 +274,45 @@ Step 1 also registers filtered `GetCourseSeedStateQuery` and
 return immutable verification DTOs without a public marker or HTTP endpoint.
 No Education code names a Customization or Tenancy table.
 
+### Primary read flow
+
+**P02d-4 Accepted contract — 2026-10-03; implementation pending.** Three institution
+Education requests dispatch through ISender under `[PublicSurface]`, audit Off and
+GET/HEAD. Site bootstrap is owned by Tenancy. The
+[public DTO/route contract](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
+and [cursor codec](../../roadmap/phase-02d-walking-skeleton.md#catalog-and-outline-continuation)
+fix the allowlist and protocol before v1 freezes; no internal/seed DTO is exported.
+
+- Require resolved matching factory HostScope. Tenant host: tenant-wide rows only;
+  organization host: tenant-wide plus its own organization. Intersect these explicit
+  predicates with normal context filters/RLS, even if a claim or scope hatch widens
+  another layer. Claims cannot enlarge the public host ceiling.
+- Tenancy's separate public configuration application contract owns nondeleted
+  Trial/Active tenant and active mapped organization checks, enabled/default locale
+  validation and canonical membership. No cross-module table join is introduced.
+- Published nondeleted Course plus exact enabled translation is catalog/detail
+  eligible. Enrollment-required courses expose eligible marketing metadata only;
+  their outline is null, without lesson inventory/count. No-price/grant inference.
+- A Lesson requires eligible public-policy parent, published/nondeleted child,
+  exact enabled translation and URL parent membership in the same body SQL.
+  Check eligibility before inventory/body/descriptor loading. All hidden Education
+  causes produce the same masked not_found body.
+- Catalog orders `(created_at,id)`; outline orders `(sort,id)`. Both are forward
+  keyset pages with fixed tie-breakers. Course outline carries no bodies. Alternates
+  contain only other enabled exact translations, with matching course/lesson slugs.
+- Pattern A title/summary/slug/body is exact; nullable summary stays null. Pattern B
+  level/descriptor labels carry `{value,locale}` from the accepted display context.
+- Batch exact Active/Deprecated pins through the Customization projection; never
+  substitute current revisions. Missing/unsupported pins, empty legacy fields,
+  non-object/non-string bodies or missing required fields produce whole bounded
+  unavailable content. Ordered string fields alone enter the ready allowlist;
+  unknown properties are omitted. No read-time JSON Schema evaluation.
+- All public-prefix successes/errors are no-store, without response validators or
+  representation caches. Internal generation-keyed definitions remain independent.
+
+New structural and app-role HTTP/database proofs are Registered before code; actual
+execution and query-plan measurements belong to the implementation delivery record.
+
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
 exercises persisted graphs, exact pin and locale round trips, independent root
 concurrency and natural-key satellite capture inside the owning root's audit subject.
@@ -316,7 +358,7 @@ provide those ordering suffixes. P02d-4 verifies query shape when it writes the 
   exemption. Parent soft deletion still requires parent-aware public reads in P02d-4.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
-- Writer and seed decisions are implemented in P02d-2. Read-response and rendering
-  gates remain with their named packets in
+- Writer and seed decisions are implemented in P02d-2. P02d-4 read-response
+  decisions are Accepted with implementation pending; renderer gates remain in
   the [decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
   No P02d-1 decision is implicitly delegated to those later passes.

@@ -24,6 +24,8 @@ write path, not on the `tenants` CHECK**),
 [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
 (§ 5: `platform_killswitches` is the second platform-scoped table; **Amendment 1: it
 ships unwritten**).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -653,7 +655,8 @@ for Customization.
 non-null while `app.organization_id` is unset fails `WITH CHECK` — the unset GUC reads as
 the empty string, `NULLIF` makes it `NULL`, and the comparison is `NULL`, which is false.
 The two standalone writers therefore announce **both** session variables from the draft
-as their first statements, exactly as the ambient transaction announces the pair. Every
+as their first statements. The ambient transaction uses the bounded read-mode
+sequence in [Security Standards § Tenant Context](11-security.md#tenant-context). Every
 `denied` row for an org-scoped resource travels that path.
 
 Two departures from what the rest of this document assumes, each for its own reason:
@@ -1589,6 +1592,17 @@ likely accident, and they bypass the capture the same way
 ([`No_Set_Based_Write_Bypasses_The_Audit_Capture`](21-architecture-tests-catalogue.md#no_set_based_write_bypasses_the_audit_capture)).
 
 ## Connection Management
+
+**P02d-4 Accepted read mode — implementation pending.**
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) adds transaction-local
+ReadOnly intent on the existing ambient connection; default writers remain
+ReadWrite. Follow [Security's sequencing rule](11-security.md#the-rule): setup is
+complete before Begin returns, and tenant announcement precedes data/dispatch.
+Mode setup alone is not tenant announcement. Same-mode nesting joins; mixed modes
+refuse and poison. Failed/cancelled setup cleans up immediately. Successful mode
+reset never clears sticky rollback-only state. Prove app-role EF/SQL refusal,
+writable controls, successful reuse and pooled-connection reset; a poisoned unit
+requires a fresh scope. No fifth role or independent public-read connection is added.
 
 - Npgsql connection multiplexing where appropriate.
 - **PgBouncer in transaction-pooling mode** for production — this is a hard

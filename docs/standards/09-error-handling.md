@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (implementation patterns), [04-api-design.md](04-api-design.md) § Error Responses.
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -108,11 +110,11 @@ matching localization key adds the `lockey_` prefix.
 | `business_rule_violation` | Domain invariant violation | 409 |
 | `resource_scope_violation` | Resource-level authorization failure | 403 |
 | `rate_limited` | Too many requests | 429 |
-| `dependency_unavailable` | Upstream provider down | 503 |
+| `dependency_unavailable` | Required dependency unavailable, including invalid stored public configuration | 503 |
 | `audit_unavailable` | A MUST-class audit row could not be written durably | 503 |
 | `audit_unclassified_operation` | Operation absent from the audit catalogue | 500 |
 | `recording_consent_required` | Live session requires consent | 409 |
-| `unsupported_locale` | Locale not enabled for tenant. Whether Phase 02d's public reads answer a not-enabled locale with this code or with `not_found` is G30 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row with its answer | 400 |
+| `unsupported_locale` | Well-formed public query locale absent or disabled for the tenant; P02d-4 Accepted contract, implementation pending | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |

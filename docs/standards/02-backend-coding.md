@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -193,8 +195,12 @@ owns the complete authoring contracts; public HTTP reads belong to P02d-4.
 
 Rules:
 - Handlers are thin; orchestrate domain methods and persistence.
-- Handlers enlist in the pipeline-owned ambient transaction; nested sends join it
-  ([ADR-0040](../decisions/0040-ambient-unit-of-work.md)).
+- Handlers enlist in the pipeline-owned ambient transaction. Same-mode nested
+  sends join it; mixed ReadOnly/ReadWrite joins fail and poison the unit under
+  [ADR-0040 Amendment 8](../decisions/0040-ambient-unit-of-work.md#amendment-8--read-only-public-frames-2026-10-03).
+- Institution public reads are marked `[PublicSurface]`, audit Off, and dispatched
+  only through ISender under [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+  Controllers/helpers do not access persistence or open independent connections.
 - Validation lives in FluentValidation validators; pipeline behavior short-circuits invalid commands.
 - Logging, tracing, and metrics live in pipeline behaviors, not in handlers.
 
@@ -333,6 +339,8 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    context reaches only `[PublicSurface]` request types, enumerated in
    [04-api-design.md § Public surface](04-api-design.md) and bounded by
    [ADR-0036 § The reconciliation matrix](../decisions/0036-tenant-resolution-trusted-inputs.md).
+   Public reads additionally require matching factory-preserved HostScope; its
+   host ceiling intersects the normal reconciled context, filters and RLS.
 
    This behavior does **not** set the PostgreSQL session variables. It runs
    at step 4; the transaction opens at step 6; and
@@ -349,11 +357,15 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    against the command's resource. Denial returns
    `Result.Fail(forbidden)`; no exception.
 6. **`TransactionBehavior`** — Opens the ambient transaction through
-   `IUnitOfWork` and, as its **first statement inside that transaction**,
-   issues `SET LOCAL app.tenant_id` / `app.organization_id` from the
-   `ITenantContext` step 4 asserted, so Row Level Security evaluates every
-   subsequent statement — including the MUST-class audit insert — against
-   the right values. Commits on a success-`Result`; rolls back on a
+   `IUnitOfWork`, choosing ReadOnly for PublicSurface and default ReadWrite for
+   existing callers. Mode setup and tenant announcement follow
+   [Security's sequencing rule](11-security.md#the-rule): writable announcement
+   stays first; a physical read-only owner completes its single mode-control
+   statement before announcement. Data/dispatch follows announcement in both.
+   This is ADR-0052's bounded ordering exception; same-mode joins retain ownership,
+   mixed-mode joins refuse and poison. Off public reads have no normal audit intent;
+   independent rejected-assertion audit retains its sanctioned path. Commits on a
+   success-`Result`; rolls back on a
    fail-`Result` or any exception that bubbles through. No transaction for
    forbidden or validation-failed requests because those short-circuit
    upstream.

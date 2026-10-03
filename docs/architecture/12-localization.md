@@ -28,10 +28,12 @@ Out of scope for the initial implementation:
   P02d-1 accepts the same canonical spelling in Education's `varchar(35)` translation
   keys, closing G6 (a); see
   [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes).
-  Request-parameter canonicalization remains G6 (b) in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  P02d-4's accepted request contract canonicalizes a required query locale without
+  trimming before admission; implementation remains pending. See
+  [Localization Standards](../standards/08-localization.md#locale-codes).
 - A tenant declares its **available locales** and one **default locale**.
-- A user can have a **preferred locale**; if absent, the tenant default is used; if the requested resource doesn't have content in that locale, fallback rules apply (see below).
+- Future authenticated display preferences may use the tenant default and display
+  fallback. Public Education content uses its exact admitted query locale.
 
 ## Tenant Locale Configuration
 
@@ -51,8 +53,10 @@ No public no-row fallback is implemented. The
 [accepted P02d-2 G13 answer](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers)
 admits no content locale when rows are absent and refuses disabled membership.
 This replaces the earlier unimplemented platform-`en` proposal. Writer enforcement
-belongs to P02d-2; public reads remain P02d-4. Display-label fallback is separate
-from URL/body admission.
+is delivered in P02d-2. P02d-4's accepted public contract returns site `404` for an
+empty enabled set and refuses malformed configuration with `503`; it synthesizes
+no locale. Public implementation remains pending. Display-label fallback is
+separate from URL/body admission.
 
 The shipped table is the Tenancy module's migration, which adds the audit-free
 composite primary key shown above plus `ENABLE`/`FORCE ROW LEVEL SECURITY` and the
@@ -219,7 +223,9 @@ When the requested locale is unavailable:
 Supply the tenant default once per batch/request. The string-returning
 `LocalizedText.Resolve` remains a compatible wrapper. This chain never locates a
 different URL, slug or lesson body; content-locale admission is independent.
-P02d-4 owns field-level public response applicability and locale metadata;
+P02d-4's accepted response contract preserves exact Pattern A titles, slugs,
+summaries and bodies; an authored null summary stays null. Pattern B display labels
+carry their actual authored `{value, locale}` pair. Implementation remains pending;
 P02d-6 owns language attributes and page states.
 
 ## Slugs and URLs
@@ -229,11 +235,11 @@ Slugs are **per locale**. Two patterns:
 - **Locale-prefixed paths**: `/tr/kurslar/baslangic`, `/en/courses/beginner`. Default.
 - **Locale-by-host**: `english.learnstack.io` always English, `ingilizce.learnstack.io` always Turkish. Available as a tenant-level configuration.
 
-The Next.js renderer reads tenant locale config at the edge and produces locale-aware routes.
-
-> **Open in Phase 02d.** Whether the edge reads it, and how the renderer gets a tenant's
-> locales, are G25 and G36 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+The accepted P02d-4 bootstrap supplies host-resolved public locale configuration
+without exposing tenant or organization ids. P02d-5 selects the Next.js placement,
+transport and locale redirect (G36); P02d-6 implements the pages. No frontend host
+registry lookup is prescribed. See
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Slug uniqueness is `UNIQUE (tenant_id, locale, slug)`, declared on the translation table,
 and **flat across organizations**. The same entity can have completely different slugs

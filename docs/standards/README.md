@@ -105,6 +105,11 @@ included.
 | 20 | [Infrastructure Stack](20-infrastructure-stack.md) | **Active** | `ISecretProvider` shipped in Packet 3, the foundation ports and their defaults in Packet 5, and the entitlement socket in Packet 9; `DeploymentMode` branching happens once, at the composition root. Packet 10 made the bans this document states mechanical: no module reaches a cache client, a Hub namespace, `audit_log` or `platform_entitlement_cache`, and every entitlement key a call site names is a registry member. The adapters themselves — Dapr, Kafka, Valkey, Vault, APISIX — arrive on [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s triggers, which is the model rather than a gap in it. |
 | 21 | [Architecture Tests Catalogue](21-architecture-tests-catalogue.md) | **Active** | The catalogue's own § Implemented today carries the counts, and `The_Catalogue_Counts_Its_Own_Rules` recomputes them, so this row does not keep a third copy. Rules run in the architecture assembly and beside it in the unit, integration and frontend suites — each where it can actually fail, against an applied schema, a real host or a real ESLint configuration. `Every_Implemented_Rule_Names_A_Test_That_Exists` holds each Implemented entry to a method of that name, and `No_Architecture_Test_Is_Skippable` to the policy that none of them can be turned off — in the backend suites today; the frontend Vitest run is outside that check until it is closed, which is G38 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register). |
 
+P02d-4's [accepted decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-accepted-answers)
+adds bootstrap, exact locale/public response, read-only mode, SDK and OpenAPI proof
+obligations to the relevant Active standards. Their implementation remains pending;
+the shipped enforcement described above is unchanged.
+
 Nineteen `Active`, three `Adopted`. Packet 10 moved five: the frontend rules, the one-app
 rule, the locale invariants, the out-of-band setters and the port bans are all mechanical
 now, and a standard whose rules a test enforces is `Active` by this document's own

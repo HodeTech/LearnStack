@@ -197,7 +197,8 @@ table, schema validation, HTTP endpoint or write is introduced. Active/Deprecate
 nondeleted definitions are eligible; missing individual pins remain distinguishable
 without failing unrelated members or substituting another revision. Labels resolve
 per call with actual locale metadata from the caller's display-locale context.
-The public response/refusal and page state remain P02d-4/6. The coherent loader supplies
+P02d-4 accepts the public response/refusal contract with implementation pending;
+page rendering remains P02d-6. The coherent loader supplies
 generation-keyed families; dirty or rollback-only
 scopes bypass their cache. The writer reader remains uncached.
 
@@ -206,7 +207,13 @@ owns family keys, ambient snapshot loading, dirty-scope bypass, fault/cancellati
 behavior and freshness. The two families include eligible retained revisions and
 immutable bands; the writer's exact-purpose reader below stays uncached.
 [P02d-3's accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
-owns implementation steps and proof obligations. Public consumers arrive P02d-4.
+owns implementation steps and proof obligations. P02d-4's accepted Education
+consumer uses exact pins and ordered allowlisted string fields, with whole-content
+unavailable outcomes. Planned internal field requiredness comes from schema.required;
+no public required flag or JSON Schema evaluation is added. Unknown fields are omitted;
+Missing required/non-object/non-string body data makes that lesson's whole content
+unavailable in the Education consumer. Customization supplies internal metadata;
+unrelated members of its batched definition projection remain usable.
 
 ## P02d-2 accepted exact write contract
 
@@ -227,8 +234,9 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
   at this read, not promised Active-at-commit; immutable schema/bands protect the pin
   if it is concurrently deprecated. Strict commit-time eligibility is not selected.
 - Body validation uses `IJsonSchemaValidator` against that returned exact schema.
-  Public response shape, generation-keyed read cache and renderer fallback remain
-  P02d-3/4/6 gates, not features of this write contract.
+  Generation-keyed read caching is delivered in P02d-3; P02d-4 public shape is
+  Accepted but pending implementation. Renderer fallback remains P02d-6. These are
+  separate from the exact write contract.
 - Module-owned contextual verification queries give the seeder exact IDs, revision
   data, labels/bands and state. They are audit Off and introduce no setter exception.
 

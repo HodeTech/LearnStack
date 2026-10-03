@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -117,7 +119,12 @@ and were read as running.
   nothing more — there is no business endpoint to hold to it yet. The OpenAPI
   breaking-change check in CI activates with the first one, in
   [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), which is also where a committed
-  snapshot first has something to pin.
+  snapshot first has something to pin. P02d-4's Accepted G31 adds production
+  served/snapshot equality, non-empty eight-operation and recursive allowlist
+  controls, planted extra/removed operations, pinned breaking-policy fixtures and
+  snapshot-derived SDK/drift. These are pending implementation; the
+  [accepted plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+  owns exact activation and tool limitations.
 
 ### End-to-End Tests
 
