@@ -81,7 +81,10 @@ records verification. P02d-3 read internals are implemented; the
 is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
 Step 2 implements batched definition reads; both review rounds passed. Step 3 adds
 generation caching and scope-safe bypass; both review rounds passed.
-P02d-3 is complete and ready for PR review; it remains unmerged.
+**P02d-3 is complete and merged** through
+[PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+records final verification.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 

@@ -88,9 +88,10 @@ is Accepted — 2026-10-02. Step 1 implements typed settings and locale resoluti
 both review rounds passed. Step 2 implements batched definition reads; both review
 rounds passed. Step 3
 adds generation caching and scope-safe bypass; both review rounds passed.
-P02d-3 is complete and ready for PR review; it remains unmerged.
-Public reads
-stay with P02d-4.
+**P02d-3 is complete and merged** through
+[PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+records final verification. Public reads stay with P02d-4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

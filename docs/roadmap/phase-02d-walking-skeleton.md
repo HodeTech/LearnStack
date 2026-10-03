@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-02).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-03).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -11,7 +11,7 @@
 > | P02d-0 | Kickoff | ✅ this plan |
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
-> | P02d-3 | Read internals | [decision package](#p02d-3-decision-package-2026-10-02) Accepted; Step 1 reviews passed; [Step 2](#step-2-batched-coherent-definition-reads) reviews passed; [Step 3](#step-3-generation-cache-and-read-safety) implemented; both review rounds passed; ready for PR review, unmerged |
+> | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | not started |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
@@ -43,6 +43,13 @@ all three implementation steps and both fresh review rounds per step are complet
 The [delivery record](#delivery-record-p02d-3) records code, verified fixes and
 2637 passing tests. The packet is ready for maintainer PR review. P02d-4 is next:
 its public-read decision pass and contracts are not started.
+
+**Merge complete — 2026-10-03.** The preceding P02d-3 note is its pre-merge
+milestone. P02d-3 is now closed through
+[PR #24](https://github.com/HodeTech/LearnStack/pull/24); its
+[merge closeout](#p02d-3-merge-and-closeout-2026-10-03) records the final correction,
+verification and merge. P02d-4's public-read decision pass is next; no public
+endpoint or browser implementation is claimed by this closeout.
 
 ## Goal
 
@@ -1603,6 +1610,49 @@ architecture 187, contract 1, Docker-free integration 171 and Docker integration
 and all nine new regression outcomes are verified. Full format, Markdown
 links/fragments and diff checks pass. Two fresh independent review rounds follow
 the correction commit. PR #24 remains unmerged.
+
+### P02d-3 merge and closeout (2026-10-03)
+
+The maintainer merged [PR #24](https://github.com/HodeTech/LearnStack/pull/24).
+GitHub records final PR head `79d1539c681e5188ae57fb3af47bdf6f5049990a` and merge
+commit `d1a47369d82f8b6d91cb325f56d4c42382ec77b6`. The merge contains that head and
+has the identical tree; the JSON-depth/settings correction above is included.
+
+- All five required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/37111808188).
+  CodeRabbit's check succeeds and no review thread remains unresolved. The
+  [merge-commit CI run](https://github.com/HodeTech/LearnStack/actions/runs/37120044890)
+  also succeeds. Deferred OpenAPI/Lighthouse jobs are not executed proof.
+- Local Release build, format and **2651 tests** pass with zero failures/skips:
+  1586 unit, 187 architecture, 1 contract, 171 Docker-free integration and 706
+  PostgreSQL integration. TRX verifies positive execution, including all nine new
+  boundary/parser cases. The historical delivery totals above remain unchanged.
+- The packet delivers internal exact-pin display reads, coherent snapshots,
+  generation-keyed caching, typed tenant settings and locale-carrying fallback.
+  Its source dependencies and approved G12/G22/G23/internal-G24 parts are complete.
+  No public endpoint, authentication, browser renderer or marketplace ships here.
+
+**Next: P02d-4 — Public read API and contract checks.** Its implementation has not
+started. The [packet gate table](#packets-and-decision-gates) owns the complete
+prerequisite list. Its open decisions cover unresolved bands, public response and
+branding projections, entitlement/attribution, canonical locale handling, the cursor,
+site data/route set, HTTP cache policy, public-surface/read-only/audit fences,
+eligible-row refusals and the OpenAPI/SDK drift checks.
+Publication and content access remain governed by
+[ADR-0050](../decisions/0050-publication-and-course-content-access.md); protected
+content cannot become anonymous merely because a row is published.
+
+P02d-5 owns server rendering and the trusted transport; P02d-6 owns the public
+renderer; P02d-7 owns the two-host demo, full-stack CI and phase exit. Phase 02d
+therefore remains in progress. No new decision is accepted by this merge closeout.
+
+**Correction/closeout review round 1 — 2026-10-03.** Fresh read-only reviewers,
+GPT-6-astra and GPT-6.1-sol at xhigh effort, reviewed the source correction
+`825e4f57..79d1539`, its evidence and the closeout documents. Source review has no
+findings. One Minor incomplete P02d-4 gate summary was verified and fixed by linking
+the canonical packet prerequisites; both reviewers approve. They inspected the
+stored execution evidence and ran no builds/tests. A second fresh round follows
+the closeout commit.
 
 ### P02d-1 decision pass (2026-09-14)
 
