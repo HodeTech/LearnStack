@@ -349,7 +349,7 @@ Rules:
   abandoned keys addressable again.
 - L1 protects the per-pod hot path. P02d-3's definition families use a fresh
   durable generation probe for cross-pod consistency, without L2 or events.
-  Other families' target consistency policy uses L2 and eager invalidation.
+  Other families follow the per-family consistency policy in the table above.
 - The 15-min L2 figure is an **upper bound**, not the typical refresh window —
   eager invalidation via Dapr is the typical path; the TTL is the safety net.
 - A "60s cache" reference in any other document refers to L1; a "15-min TTL"

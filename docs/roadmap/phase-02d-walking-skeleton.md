@@ -1557,6 +1557,23 @@ Fresh correction review rounds follow the implementation commit; PR #24 remains
 unmerged.
 
 
+**Correction review round 1 — 2026-10-03.** Two fresh read-only reviewers,
+GPT-6-astra and GPT-6.1-sol at xhigh effort, reviewed `a317d38..ab2a8b3` across
+architecture/test proof and runtime/documentation. Both approved with no verified
+findings. They ran no builds or tests; the primary executed the checks above.
+
+**Correction review round 2 — 2026-10-03.** Two new read-only reviewers using
+the same models/effort independently reviewed that range with the lenses
+exchanged. One Minor was identified and confirmed by both: Standards 20's new
+“other families” sentence still generalized L2 to no-L2/uncached families. The verified
+fix now links the
+canonical per-family policy instead. No further finding or backend change.
+Required CI and CodeRabbit passed on reviewed code head `ab2a8b3`; there are no
+unresolved review threads. Links/fragments, metadata and diff checks pass after
+the wording fix. Final documentation-head CI is rechecked before handoff.
+PR #24 remains unmerged.
+
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
