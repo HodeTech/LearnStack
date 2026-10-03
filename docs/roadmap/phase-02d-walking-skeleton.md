@@ -1654,6 +1654,16 @@ the canonical packet prerequisites; both reviewers approve. They inspected the
 stored execution evidence and ran no builds/tests. A second fresh round follows
 the closeout commit.
 
+**Correction/closeout review round 2 — 2026-10-03.** Two fresh read-only
+reviewers, GPT-6-astra and GPT-6.1-sol at xhigh effort, reviewed
+`825e4f57..2276edf` across runtime correctness, isolation, parser boundaries,
+regression evidence and document consistency. Both return Standards Pass and Code
+Review Approve, with no actionable findings. They independently inspect the
+stored TRX and live merge/check metadata; neither reruns builds/tests. The final
+closeout documentation passes the corpus metadata, relative-link/fragment and
+diff checks. Development remains the working branch; P02d-4 awaits its own
+accepted decision package.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
