@@ -69,10 +69,12 @@ public sealed class TenantContextConstructionTests
     private static IEnumerable<Mono.Cecil.TypeDefinition> AllTypes(IEnumerable<Mono.Cecil.TypeDefinition> types) =>
         types.SelectMany(type => new[] { type }.Concat(AllTypes(type.NestedTypes)));
 
+#pragma warning disable CA1852 // Intentionally unsealed planted offender, not production shape.
     private class UnsealedHostScopeProbe
     {
         private UnsealedHostScopeProbe() { }
     }
+#pragma warning restore CA1852
 
     private sealed class PublicHostScopeProbe
     {

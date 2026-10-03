@@ -2235,6 +2235,13 @@ callback before Begin returns. They assert cleanup before DI-scope disposal and
 sticky poisoned-unit refusal. The pinned-driver reflection seam exists only in
 tests and fails loudly if its members change. No production test hook is added.
 
+**Round 1 fix verification.** All nine transaction-mode cases pass with zero
+failures/skips, including both post-server setup failures. Five corpus consistency
+cases pass. A clean CI=true rebuild (rather than an incremental cached build)
+exposed CA1852 on the deliberately unsealed planted offender. Its narrow, explained
+test-only suppression preserves that offender; the clean Release rebuild then
+passes with zero warnings/errors. Production code is unchanged by these fixes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
