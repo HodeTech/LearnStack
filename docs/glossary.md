@@ -140,11 +140,14 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 
 ## Extension Model
 
-P02d-2 Step 1 implements these contextual contracts and metadata validation:
+These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 
 | Term | Definition |
 |---|---|
 | **`IExactCustomizationDefinitionReader`** | Contextual uncached application reader for exact content-type/taxonomy revision values, with NewBinding versus ExistingPin eligibility; [Customization spec](modules/customization/README.md#p02d-2-accepted-exact-write-contract). |
+| **`ICustomizationDefinitionProjectionReader`** | Accepted P02d-3 internal batched display reader for exact tenant-owned revision pins, with immutable generation-keyed definition families. Step 3 implements coherent loading, generation caching and scope-safe bypass; both review rounds passed. Not a public API; the [decision package](roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02) records acceptance on 2026-10-02. |
+| **`ResolvedLocalizedText`** | An immutable display label paired with its actual authored canonical locale, following [Localization § Fallback Rules](architecture/12-localization.md#fallback-rules). P02d-3 adds this internal metadata; public response fields and page language attributes remain P02d-4/6. |
+| **`ITenantSettingsAccessor`** | Accepted P02d-3 typed, uncached ambient settings reader with registered scope/grammar and explicit organization precedence. Step 1 implements the reader; the [Tenancy contract](modules/tenancy/README.md#p02d-3-accepted-typed-settings-contract) owns its scope. Both review rounds passed. |
 | **`ITenantLocaleEligibilityReader`** | Contextual uncached Tenancy contract for canonical enabled locale membership and valid locale configuration; [Tenancy spec](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract). |
 | **`x-fields`** | Optional root JSON Schema array of ordered property names and Pattern-B labels for the bounded text-card profile; [ADR-0051](decisions/0051-ordered-text-card-presentation.md). It is metadata, not a schema or a new renderer primitive. |
 
@@ -196,7 +199,7 @@ P02d-2 Step 1 implements these contextual contracts and metadata validation:
 |------|------------|
 | **TenantBranding** | The tenant's presentation tokens. Not an aggregate of its own: the values are tenant settings held in `tenant_settings` ([Frontend Architecture Standards § Tenant Branding](standards/07-frontend-architecture.md#tenant-branding)). G16(a–e) is Accepted and delivered in P02d-2; the [Tenancy contract](modules/tenancy/README.md#p02d-2-accepted-locale-and-branding-contract) owns the keys and value grammar. Anonymous projection and entitlement/attribution remain G16(f/g), and server-rendered injection remains G42, in [Phase 02d's decision register](roadmap/phase-02d-walking-skeleton.md#the-decision-register). |
 | **`branding.theme`** | P02d-2 delivers the writer for a single tenant-wide TenantSetting document with four validated color fields; one root/version protects contrast during concurrent replacement. The [Tenancy spec](modules/tenancy/README.md#whole-theme-setting-and-public-boundary) owns the command-local registry; other generic setting keys remain legal. Anonymous projection and rendering remain P02d-4 and P02d-6. |
-| **OrganizationBranding** | An optional override row attached to an `Organization` that supplies a partial design-token set. When the resolved request carries an organization id, the runtime merges `OrganizationBranding` on top of `TenantBranding` before injecting tokens; missing fields fall through to the tenant default. |
+| **OrganizationBranding** | A planned per-organization design-token override owned by [Phase 06](roadmap/phase-06-renderer-admin-studio.md). Its partial token merge is not implemented by P02d-2/3; the generic settings scope model does not authorize an organization override of `branding.theme`. |
 
 ## Module-Loading Contracts
 

@@ -95,11 +95,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**140 test methods run in
+**143 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10 and P02d-1. Methods are not rows: a `[Theory]` is one row and many cases,
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2 and P02d-3. Methods are not rows:
+a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
 **Every number in this section is recomputed by `The_Catalogue_Counts_Its_Own_Rules`.** They
@@ -124,7 +125,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**148 rules in this catalogue are Implemented, and 101 of them are in that assembly.**
+**149 rules in this catalogue are Implemented, and 102 of them are in that assembly.**
 The other 47 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -1275,6 +1276,25 @@ otherwise).
   entry and growing it is a reviewed diff.
 - **Mutation-checked.** A second handler taking two write ports, the sanctioned handler
   renamed, and the two ports fused into one — each turns the rule red.
+
+#### `Customization_Projection_Does_Not_Validate_On_Read`
+
+- **Asserts:** the internal display projection never depends on
+  `IJsonSchemaValidator`; schema admission/body validation stay on the write path.
+  The scanner follows helpers across all production assemblies, including all
+  four Customization layers. Its module census and planted validator-dependent
+  offenders prevent an empty or narrowed scan from passing silently.
+- **Source:** ADR-0043 and [Standards 20's projection cache contract](20-infrastructure-stack.md#icacheservice-state).
+- **Type:** xUnit + Mono.Cecil. **Kind:** structural.
+- **Status:** **Implemented** (`CustomizationProjectionTests`). The companion
+  `Projection_validator_guard_detects_direct_and_helper_dependencies` proves
+  interface, concrete-adapter, constraint, catch, attribute, wrapped generic,
+  lambda and state-machine dependencies are detected, with a clean negative
+  control.
+`Projection_validator_guard_follows_domain_contracts_and_external_production_helpers`
+  plants dependencies in the production Cecil models and uses the real root
+  predicate and helper census to prove Domain, Contracts and core helper coverage.
+- **Phase:** 02d (P02d-3).
 
 ### Persistence: concurrency and the unit of work
 

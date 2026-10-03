@@ -294,7 +294,9 @@ public sealed class InMemoryCacheServiceTests
     [Theory]
     [InlineData("platform:hub:host-map:school.example.com", "hub:host-map")]
     [InlineData("platform:tenancy:killswitch", "tenancy:killswitch")]
-    public async Task The_Two_Platform_Families_Report_As_Themselves(string key, string expected)
+    [InlineData("11111111-1111-7111-8111-111111111111:customization:content-types:v123", "customization:content-types")]
+    [InlineData("11111111-1111-7111-8111-111111111111:customization:taxonomies:v456", "customization:taxonomies")]
+    public async Task Platform_And_Customization_Families_Report_As_Themselves(string key, string expected)
     {
         // This returned "hub:host-map" for ANY key under the sentinel, without looking at
         // segments 1 and 2 — right while the host map was the only platform family, and

@@ -17,6 +17,30 @@ namespace LearnStack.Tests.Unit.SharedKernel.Localization;
 /// </remarks>
 public sealed class LocalizedTextTests
 {
+    [Theory]
+    [InlineData("TR-tr", "tr-TR", "regional")]
+    [InlineData("zh-Hant-TW", "zh-Hant", "script")]
+    [InlineData("zh-Hans-CN", "zh", "language")]
+    [InlineData("de", "fr", "default")]
+    public void Locale_carrying_resolution_preserves_exact_narrowing_and_default_order(
+        string requested, string locale, string value)
+    {
+        var text = LocalizedText.From(("tr-TR", "regional"), ("zh-Hant", "script"),
+            ("zh", "language"), ("fr", "default"), ("en", "platform"));
+        text.ResolveWithLocale(requested, ["fr", "en"]).Should().Be(new ResolvedLocalizedText(value, locale));
+        text.Resolve(requested, ["fr", "en"]).Should().Be(value);
+    }
+
+    [Fact]
+    public void Display_fallback_keeps_default_candidates_exact_and_terminal_order_ordinal()
+    {
+        var text = LocalizedText.From(("tr-TR", "regional"), ("fr", "French"), ("de", "German"));
+        // Neither the requested language nor the exact regional default widens/narrows.
+        text.ResolveWithLocale("tr", ["fr-FR", "en"]).Should().Be(new ResolvedLocalizedText("German", "de"));
+        var platform = LocalizedText.From(("fr", "French"), ("en", "English"));
+        platform.ResolveWithLocale("de", ["tr-TR", "EN"]).Should().Be(new ResolvedLocalizedText("English", "en"));
+    }
+
     [Fact]
     public void Locales_are_canonicalized_so_two_spellings_cannot_be_two_entries()
     {

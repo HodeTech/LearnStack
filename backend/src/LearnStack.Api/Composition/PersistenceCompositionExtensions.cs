@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
@@ -165,7 +166,9 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+        services.AddTenantSettingsReads();
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddCustomizationProjectionReads();
         services.AddModuleDbContext<EducationDbContext>();
 
         // Audit's context is registered for the model, not for a writer. Rows reach
@@ -219,7 +222,7 @@ public static class PersistenceCompositionExtensions
         // lets the seeder build the same graph.
         services.AddMetrics();
 
-        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // The feature/entitlement read. SCOPED, because it reads the tenant context
         // and answers for one tenant, which is one request. It does NOT take a module
         // DbContext: both halves it reads are policy-guarded tables it reaches on
         // connections of its own, so resolving it does not require an open unit-of-work

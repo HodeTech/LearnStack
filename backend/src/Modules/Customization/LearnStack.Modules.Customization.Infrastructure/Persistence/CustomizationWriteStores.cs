@@ -1,6 +1,7 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Customization.Infrastructure.Projections;
 using Microsoft.EntityFrameworkCore;
 using static LearnStack.Infrastructure.Persistence.WriteStoreTracking;
 
@@ -38,11 +39,12 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// depend on.
 /// </para>
 /// </remarks>
-public sealed class TenantContentTypeStore(CustomizationDbContext db) : ITenantContentTypeStore
+public sealed class TenantContentTypeStore(CustomizationDbContext db, CustomizationReadState reads) : ITenantContentTypeStore
 {
     public Task AddAsync(
         TenantContentType aggregate, CancellationToken cancellationToken = default)
     {
+        reads.MarkDirty();
         db.TenantContentTypes.Add(aggregate);
         return SaveTranslatingConflictsAsync(db, cancellationToken);
     }
@@ -50,6 +52,7 @@ public sealed class TenantContentTypeStore(CustomizationDbContext db) : ITenantC
     public Task UpdateAsync(
         TenantContentType aggregate, CancellationToken cancellationToken = default)
     {
+        reads.MarkDirty();
         EnsureTracked(db, aggregate);
         return SaveTranslatingConflictsAsync(db, cancellationToken);
     }
@@ -76,11 +79,12 @@ public sealed class TenantContentTypeStore(CustomizationDbContext db) : ITenantC
 /// and a publish asks whether it has any — a question a lazy-loading-free context
 /// answers with zero for every taxonomy unless the collection is loaded.
 /// </remarks>
-public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db) : ITenantLevelTaxonomyStore
+public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db, CustomizationReadState reads) : ITenantLevelTaxonomyStore
 {
     public Task AddAsync(
         TenantLevelTaxonomy aggregate, CancellationToken cancellationToken = default)
     {
+        reads.MarkDirty();
         db.TenantLevelTaxonomies.Add(aggregate);
         return SaveTranslatingConflictsAsync(db, cancellationToken);
     }
@@ -88,6 +92,7 @@ public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db) : ITenan
     public Task UpdateAsync(
         TenantLevelTaxonomy aggregate, CancellationToken cancellationToken = default)
     {
+        reads.MarkDirty();
         EnsureTracked(db, aggregate);
         return SaveTranslatingConflictsAsync(db, cancellationToken);
     }

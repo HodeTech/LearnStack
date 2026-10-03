@@ -3,7 +3,7 @@
 **Status:** Design stable, partially implemented (Phase 02a Packet 8 shipped the
 two aggregates, the schema and its isolation, the payload gate, and the write
 path; P02d-2 Step 1 adds contextual exact-definition reads and metadata validation.
-Public projections and their generation-keyed cache follow in P02d-3/4
+P02d-3 adds internal generation-cached display reads; public consumers follow in P02d-4
 in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and the Admin Studio
 editors with the phases that consume them).
 
@@ -190,13 +190,23 @@ absence rather than substituting an unrelated diagram for it.
 
 ### Primary read flow: resolving a tenant's shapes
 
-The public read projection is not implemented. It is keyed on
-`customization_generations.generation`, so every write strands every stale key at
-once across every pod without enumerating anything —
-[§ 8.2](../../architecture/32-tenant-customization-model.md) has the design and
-[ADR-0043 § 6](../../decisions/0043-customization-payload-validation.md) deletes
-the compiled-validator cache that used to sit beside it. It lands with its first
-consumer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md).
+**P02d-3 Step 3 implemented — 2026-10-02; both review rounds passed.**
+`ICustomizationDefinitionProjectionReader` resolves batched exact revision pins
+through ADR-0010's application-contract mechanism. Values are immutable; no public
+table, schema validation, HTTP endpoint or write is introduced. Active/Deprecated
+nondeleted definitions are eligible; missing individual pins remain distinguishable
+without failing unrelated members or substituting another revision. Labels resolve
+per call with actual locale metadata from the caller's display-locale context.
+The public response/refusal and page state remain P02d-4/6. The coherent loader supplies
+generation-keyed families; dirty or rollback-only
+scopes bypass their cache. The writer reader remains uncached.
+
+[Cache strategy § 8.2](../../architecture/32-tenant-customization-model.md#82-cache-strategy)
+owns family keys, ambient snapshot loading, dirty-scope bypass, fault/cancellation
+behavior and freshness. The two families include eligible retained revisions and
+immutable bands; the writer's exact-purpose reader below stays uncached.
+[P02d-3's accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+owns implementation steps and proof obligations. Public consumers arrive P02d-4.
 
 ## P02d-2 accepted exact write contract
 
@@ -283,8 +293,8 @@ In [audit.md](audit.md), the file
 
 | Path | Budget | Why this number |
 |---|---|---|
-| Resolve a tenant's live definitions (cache hit) | **< 1 ms** | On every render of every page |
-| Resolve a tenant's live definitions (cache miss) | **< 20 ms** p95 | Two indexed reads on partial unique indexes. How a request learns the generation, in what order the loader reads it and the rows, and how many statements a read issues are G22 in [Phase 02d's decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register); the pass that closes it edits this row and the cache-hit row with its answer |
+| Resolve batched definitions (warm) | **< 1 ms** for in-memory resolution, excluding SQL probe | One fresh generation SELECT; no definition query. End-to-end timing measured separately in P02d-3 |
+| Resolve batched definitions (cold/partial/fault) | **< 20 ms** production p95 target, not proven by the local sample | At most two SELECTs: probe plus coherent generation/rows snapshot; [seeded measurements](../../roadmap/phase-02d-walking-skeleton.md#step-3-generation-cache-and-read-safety) report rows/bytes and query plans, not production p95 |
 | Admit a tenant-authored schema (four gates) | **< 50 ms** p95 | Interactive, on save, and rare |
 | Validate one instance at the § 8.4 caps | **742 ms, 1.6 GB** | Measured worst case, not a budget — see below |
 | Publish a successor (2 reads, 2 updates, 1 upsert) | **< 100 ms** p95 | Interactive but rare |

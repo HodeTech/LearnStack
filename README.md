@@ -73,15 +73,22 @@ definition/locale readers, text-card metadata validation and seed verification q
 Both Step 1 review rounds passed. Step 2 adds locale/branding writers and JSON audit
 redaction; both review rounds passed. Step 3 adds Education writers; both review
 rounds and the focused fix review passed. Step 4 completes convergent seed
-execution after both review rounds. P02d-2 is verified and ready for PR review;
-merge remains pending. P02d-3 read internals are next.
+execution after both review rounds. **P02d-2 is complete and merged** through
+[PR #23](https://github.com/HodeTech/LearnStack/pull/23) on 2026-10-02; the
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
+records verification. P02d-3 read internals are implemented; the
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
+Step 2 implements batched definition reads; both review rounds passed. Step 3 adds
+generation caching and scope-safe bypass; both review rounds passed.
+P02d-3 is complete and ready for PR review; it remains unmerged.
 **P02d-4** owns anonymous public API reads. Browser rendering follows
 in P02d-5–7; none of these later packets has started.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
-| **Tenancy** | Tenant provisioning, organizations, locales, branding, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, exact-definition readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolation tests | Public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |

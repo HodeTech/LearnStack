@@ -11,9 +11,10 @@ namespace LearnStack.Infrastructure.Caching;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A second process has its own map, so cross-instance freshness requires the
-/// Valkey-backed adapter gated by ADR-0035. Correctness remains in the source of
-/// truth: this cache may evict at any time and a miss is never an error.
+/// A second process has its own map. A family following a freshly read durable
+/// generation, such as Customization, retains cross-instance freshness with L1
+/// alone. Other families' shared invalidation needs the Valkey-backed adapter on
+/// ADR-0035's trigger. This cache may evict at any time; a miss is never an error.
 /// </para>
 /// <para>
 /// Concurrent misses for one key and requested type share one factory flight.
@@ -634,6 +635,8 @@ public sealed class InMemoryCacheService : ICacheService
             ("tenancy", "feature-flags") => "tenancy:feature-flags",
             ("tenancy", "settings") => "tenancy:settings",
             ("audit", "config") => "audit:config",
+            ("customization", "content-types") => "customization:content-types",
+            ("customization", "taxonomies") => "customization:taxonomies",
             _ => "other",
         };
     }

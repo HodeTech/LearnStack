@@ -1,9 +1,12 @@
 using FluentAssertions;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Application.Contracts.Definitions;
+using LearnStack.SharedKernel.Caching;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Projections;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -45,9 +48,9 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
             .ConfigureServices(services =>
             {
                 services.AddScoped<ITenantContentTypeStore>(provider => new ControlledContentStore(
-                    new TenantContentTypeStore(provider.GetRequiredService<CustomizationDbContext>()), gate));
+                    new TenantContentTypeStore(provider.GetRequiredService<CustomizationDbContext>(), provider.GetRequiredService<CustomizationReadState>()), gate));
                 services.AddScoped<ITenantLevelTaxonomyStore>(provider => new ControlledTaxonomyStore(
-                    new TenantLevelTaxonomyStore(provider.GetRequiredService<CustomizationDbContext>()), gate));
+                    new TenantLevelTaxonomyStore(provider.GetRequiredService<CustomizationDbContext>(), provider.GetRequiredService<CustomizationReadState>()), gate));
             }));
         async Task<Error?> LosingAttempt()
         {
@@ -100,14 +103,16 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         var later = Guid.CreateVersion7();
         await RegisterAsync(source, context, id, taxonomy, "first-definition");
         var initialVersion = await VersionAsync(source, context, id, taxonomy);
+        await using var cache = new CustomizationProjectionTests.CacheProbe();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
             .ConfigureServices(services =>
             {
                 services.AddScoped<ITenantContentTypeStore>(provider => new ControlledContentStore(
-                    new TenantContentTypeStore(provider.GetRequiredService<CustomizationDbContext>()), failure: concurrency));
+                    new TenantContentTypeStore(provider.GetRequiredService<CustomizationDbContext>(), provider.GetRequiredService<CustomizationReadState>()), failure: concurrency));
                 services.AddScoped<ITenantLevelTaxonomyStore>(provider => new ControlledTaxonomyStore(
-                    new TenantLevelTaxonomyStore(provider.GetRequiredService<CustomizationDbContext>()), failure: concurrency));
+                    new TenantLevelTaxonomyStore(provider.GetRequiredService<CustomizationDbContext>(), provider.GetRequiredService<CustomizationReadState>()), failure: concurrency));
+                services.AddSingleton<ICacheService>(cache);
                 services.AddTransient<IRequestHandler<AbsorbingPublicationCommand, Result<None>>, AbsorbingPublicationHandler>();
                 services.AddSingleton<IAuditCatalogSource, OuterAuditSource>();
             }));
@@ -122,6 +127,9 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         if (taxonomy) (await SendAsync(source, context, new GetTaxonomySeedStateQuery(later))).Value!.State.Should().BeNull();
         else (await SendAsync(source, context, new GetContentTypeSeedStateQuery(later))).Value!.State.Should().BeNull();
         (await GenerationAsync(database, context.TenantId)).Should().Be(1);
+        cache.GetCalls.Should().Be(2);
+        cache.SetCalls.Should().Be(2, "only the clean pre-write snapshot may fill; absorbed post-save refusal poisons the scope");
+        cache.FactoryCalls.Should().Be(0);
     }
 
     [Theory]
@@ -257,10 +265,14 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         }
     }
     public sealed record AbsorbingPublicationCommand(Guid Id, Guid LaterId, bool Taxonomy) : IRequest<Result<None>>;
-    private sealed class AbsorbingPublicationHandler(ISender sender) : IRequestHandler<AbsorbingPublicationCommand, Result<None>>
+    private sealed class AbsorbingPublicationHandler(ISender sender, ICustomizationDefinitionProjectionReader reader,
+        CustomizationReadState state, IUnitOfWork unit) : IRequestHandler<AbsorbingPublicationCommand, Result<None>>
     {
         public async Task<Result<None>> Handle(AbsorbingPublicationCommand request, CancellationToken ct)
         {
+            var projection = new DefinitionProjectionRequest([new("first-definition", 1)], [new("first-definition", 1)], "en", "en");
+            (await reader.ReadAsync(projection, ct)).IsSuccess.Should().BeTrue();
+            state.IsDirty.Should().BeFalse();
             if (request.Taxonomy)
             {
                 (await sender.Send(new PublishTenantLevelTaxonomyCommand(request.Id), ct)).IsFailure.Should().BeTrue();
@@ -271,6 +283,11 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
                 (await sender.Send(new PublishTenantContentTypeCommand(request.Id), ct)).IsFailure.Should().BeTrue();
                 (await sender.Send(ContentType(request.LaterId, "later-definition"), ct)).IsSuccess.Should().BeTrue();
             }
+            unit.IsRollbackOnly.Should().BeTrue();
+            state.IsDirty.Should().BeTrue();
+            var saved = (await reader.ReadAsync(projection, ct)).Value!;
+            if (request.Taxonomy) saved.Taxonomies[new("first-definition", 1)].Status.Should().Be(DefinitionStatus.Active);
+            else saved.ContentTypes[new("first-definition", 1)].Status.Should().Be(DefinitionStatus.Active);
             return Result.Ok(None.Value);
         }
     }

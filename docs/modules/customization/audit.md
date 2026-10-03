@@ -3,6 +3,12 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-3 Step 3 implemented — 2026-10-02; both review rounds passed.**
+`ICustomizationDefinitionProjectionReader` is an internal application interface, not a
+MediatR request or audited write. It creates no intent or business-state mutation.
+Any production request introduced for it must be audit Off; test-only requests
+stay test-only. [The module contract](README.md#primary-read-flow-resolving-a-tenants-shapes) owns the read.
+
 Four of the operations below now exist, all written by Phase 02a Packet 8's
 handlers: `ContentType` register and publish, and `LevelTaxonomy` register and
 publish. Eight more rows are classification ahead of code and carry `(planned)` in the

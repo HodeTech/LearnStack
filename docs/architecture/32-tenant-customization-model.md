@@ -525,21 +525,18 @@ per tenant per month. That ratio is the whole design.
 
 | What | Layer | Key | TTL | Invalidated by |
 |---|---|---|---|---|
-| `TenantContentType` set for a tenant | L1 + L2 | `{tenant_id}:customization:content-types-v{generation}` | L1 60s, L2 15 min | Generation bump |
-| `TenantLevelTaxonomy` by key | L1 + L2 | `{tenant_id}:customization:taxonomy-{key}-v{generation}` | same | Generation bump |
-| `TenantPageBlock` set | L1 + L2 | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
+| `TenantContentType` eligible revision set | L1; L2 on Phase 11's trigger | `{tenant_id}:customization:content-types:v{generation}` | L1 60s, future L2 15 min | Fresh generation probe |
+| `TenantLevelTaxonomy` eligible revision set, including bands | same | `{tenant_id}:customization:taxonomies:v{generation}` | same | Fresh generation probe |
+| `TenantPageBlock` set (Phase 04; not implemented) | L1 + L2 target | `{tenant_id}:customization:blocks-v{generation}` | same | Generation bump |
 
-These are composed with `CacheKey.ForTenant(tenantId, "customization", logicalName)`, and the
-shape is not cosmetic: the tenant segment comes **first**, per
-[Standards 20 § `ICacheService`](../standards/20-infrastructure-stack.md), and
-`CacheKey.EnsureValid` throws on anything else. An earlier version of this table led
-each key with `cust:` — module first — which would have thrown at the first call.
-
-The generation is folded into the *logical-name* segment rather than added as a fourth
-one, because `CacheKey` forbids a `:` inside any single component: a separator that can
-appear inside a component makes two different key tuples collide. The same rule applies
-to `{key}`, which is tenant-supplied — the caller validates or encodes it before
-composing, and a `:` in it is rejected rather than silently widening the key space.
+**G12 cache/G22 Accepted — 2026-10-02.** P02d-3 Step 3 implements the
+coherent loader, cache and dirty-scope bypass; both review rounds passed.
+The first two keys use `CacheKey.ForTenant(tenantId, "customization", family,
+$"v{generation}")`: generation is a separate component, never a `:` inside one.
+Both cache immutable, untranslated Active and Deprecated nondeleted revisions,
+indexed by exact `(key, schema_version)`. Drafts are excluded; missing pins never
+adopt Active. Stable metric families are `customization:content-types` and
+`customization:taxonomies`. The writer reader remains uncached and purpose-aware.
 
 Two rules make this safe:
 
@@ -569,22 +566,36 @@ Two rules make this safe:
   [ADR-0043 § 6](../decisions/0043-customization-payload-validation.md) records the
   measurements and deletes it. The adapter compiles per call.
 
-Cache misses cost one indexed query per tenant per definition set. A cold pod serving its
-first request for a tenant performs at most three such queries, not one per entry.
+The internal batched projection runs on the caller's announced ambient transaction,
+without a new setter or transaction mode. Probe the durable generation on every
+batch: a fully warm read issues one SELECT. A cold/partial/fault read issues at
+most two SELECTs: the probe and one statement loading generation plus both sets
+from the same PostgreSQL snapshot. Use the latter generation for the entire
+result/fill; discard earlier hits if it changed. Explicit tenant predicates and
+RLS both apply. No generation memo or out-of-band loader is permitted.
 
-> **Open in Phase 02d.** This section owns the families, their keys and the generation
-> rule, and Phase 02d builds the first loader against them. What a key carries for a
-> lesson's bound revision is G12. The rest is G22: whether the loader runs in the
-> request's transaction; how a request learns the generation, and in what order it reads
-> it and the rows; what an absent row means, since a tenant that has never had a
-> customization has none; what keeps an entry filled inside a transaction that bumped
-> and rolled back unreachable; what the TTLs bound; how the adapter's `cache.name`
-> mapping matches a generation-embedded name; and how many statements a public read
-> issues, which the count above states without a generation read. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each edits this section with its answer. The
-> `TenantPageBlock` family is [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s, with
-> its aggregate.
+An absent counter and empty definitions return an uncached empty projection.
+Definitions without a counter are a configuration refusal, never a cache fill.
+Present-counter empty sets are valid. A scoped dirty flag is set before every
+supported store mutation/generation bump. Dirty or rollback-only scopes bypass
+both cache reads and fills; the flag stays set for the DI scope. Reads do not
+flush pending tracked mutations. This prevents speculative values becoming
+reachable when a rolled-back generation is reissued.
+
+Await cache get/load/set in the caller's lifetime; never capture the ambient loader
+in the shared `GetOrSetAsync` factory. Cold callers may load independently. Cache
+faults fall back to the bounded database load, cancellation propagates, and DB
+failures are not cache misses. TTLs reclaim stranded keys; fresh generation probes
+provide invalidation across independent L1 instances without events or L2.
+
+The module spec owns result/missing-member semantics and measured read budgets.
+[P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+records proof obligations. Family-wide volume includes retained revisions; measure
+rows/bytes and query plans as recorded in the
+[delivery measurements](../roadmap/phase-02d-walking-skeleton.md#step-3-generation-cache-and-read-safety),
+and reassess before Phase 04's larger workload.
+The `TenantPageBlock` family remains
+[Phase 04](../roadmap/phase-04-cms-media-pages.md) work.
 
 ### 8.3 The N+1 problem, and the limits that bound it
 

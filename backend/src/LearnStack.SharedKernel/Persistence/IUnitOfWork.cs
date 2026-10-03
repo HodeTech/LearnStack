@@ -216,8 +216,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The read half of the flag, and it exists for one caller: the audit write path has
-    /// to tell a <b>refused</b> commit from a <b>faulted</b> one, and only the unit knows
+    /// The audit write path uses this flag to tell a <b>refused</b> commit from a
+    /// <b>faulted</b> one; Customization also uses it to refuse cache access/fills in
+    /// a poisoned scope. Only the unit knows
     /// which happened. <c>CompleteAsync</c> throws the same way in both cases — but a
     /// refusal issues a real <c>ROLLBACK</c> first, so the server-side outcome is known
     /// with certainty, while a fault leaves it genuinely unknown.

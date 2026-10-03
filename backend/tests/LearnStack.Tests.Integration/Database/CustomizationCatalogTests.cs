@@ -3,6 +3,7 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Infrastructure.Projections;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
@@ -221,6 +222,7 @@ public sealed class CustomizationCatalogTests
             ?? UnresolvedTenantContext.Instance);
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddScoped<CustomizationReadState>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.AddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();

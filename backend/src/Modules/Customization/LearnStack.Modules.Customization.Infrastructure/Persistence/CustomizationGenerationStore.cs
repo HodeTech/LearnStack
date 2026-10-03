@@ -1,5 +1,6 @@
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.Modules.Customization.Infrastructure.Projections;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -37,7 +38,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// to avoid, spelled differently.
 /// </para>
 /// </remarks>
-public sealed class CustomizationGenerationStore(CustomizationDbContext db)
+public sealed class CustomizationGenerationStore(CustomizationDbContext db, CustomizationReadState reads)
     : ICustomizationGenerationStore
 {
     private const string BumpSql =
@@ -52,6 +53,7 @@ public sealed class CustomizationGenerationStore(CustomizationDbContext db)
     public async Task<long> BumpAsync(
         TenantId tenantId, CancellationToken cancellationToken = default)
     {
+        reads.MarkDirty();
         var connection = (NpgsqlConnection)db.Database.GetDbConnection();
 
         await using var command = new NpgsqlCommand(BumpSql, connection)

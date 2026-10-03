@@ -176,19 +176,15 @@ CREATE TABLE levels (
 );
 ```
 
-The application reads with a helper that performs fallback:
+Stored JSON materializes as `LocalizedText`; use its locale-carrying resolver,
+not a second fallback implementation:
 
 ```csharp
-public static string Resolve(JsonElement localizedField, string requestedLocale, IReadOnlyList<string> fallbackChain)
-{
-    if (localizedField.TryGetProperty(requestedLocale, out var direct) && direct.ValueKind == JsonValueKind.String)
-        return direct.GetString()!;
-    foreach (var fb in fallbackChain)
-        if (localizedField.TryGetProperty(fb, out var fbVal) && fbVal.ValueKind == JsonValueKind.String)
-            return fbVal.GetString()!;
-    return string.Empty;
-}
+ResolvedLocalizedText resolved = label.ResolveWithLocale(
+    requestedLocale, [tenantDefaultLocale, "en"]);
 ```
+
+[Fallback Rules](#fallback-rules) owns the chain and terminal behavior.
 
 Pattern B is cheaper for short fields where joining a translation table is overkill, and avoids N+1 issues when listing many rows. Use it for short, atomic, mostly-required strings.
 
@@ -203,21 +199,28 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 
 ## Fallback Rules
 
-> **Open in Phase 02d.** This chain and the one in
-> [Localization Standards § Locale Model](../standards/08-localization.md#locale-model)
-> differ. Which is canonical, and the terminal state of a missing field or label, are
-> G24 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+**G24 Accepted — 2026-10-02.** This section owns display fallback under
+[ADR-0008](../decisions/0008-localization-schema.md); the standard links here.
+[P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
+records acceptance. Step 1 implements locale-carrying resolution; both review
+rounds passed. Public response fields and language attributes remain P02d-4/6.
 
 When the requested locale is unavailable:
 
 1. Try the requested locale (e.g. `tr-TR`).
-2. Try the language part of the requested locale (`tr`).
-3. Try the tenant's default locale.
-4. Try the platform default (`en`).
-5. Return an empty string or a marked placeholder (e.g. `[Untranslated]` in development, empty in production).
+2. Narrow one subtag at a time (`zh-Hant-TW` → `zh-Hant` → `zh`). Never widen.
+3. Try the exact tenant default; do not implicitly narrow that candidate.
+4. Try the exact platform default (`en`).
+5. Pattern B labels end at the first authored canonical locale key in ordinal
+   order, matching `LocalizedText`. Return the actual resolved locale with its value.
+   Nullable Pattern A display fields end absent instead; required fields retain
+   their exact authored translation.
 
-The fallback chain is computed once per request and reused.
+Supply the tenant default once per batch/request. The string-returning
+`LocalizedText.Resolve` remains a compatible wrapper. This chain never locates a
+different URL, slug or lesson body; content-locale admission is independent.
+P02d-4 owns field-level public response applicability and locale metadata;
+P02d-6 owns language attributes and page states.
 
 ## Slugs and URLs
 

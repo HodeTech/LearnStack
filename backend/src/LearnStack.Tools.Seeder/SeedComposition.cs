@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
@@ -93,6 +94,7 @@ public static class SeedComposition
 
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
         services.AddModuleDbContext<TenancyDbContext>();
+        services.AddTenantSettingsReads();
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
         services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();
@@ -111,6 +113,7 @@ public static class SeedComposition
         services.AddSingleton<IJsonSchemaValidator, JsonSchemaNetValidator>();
 
         services.AddModuleDbContext<CustomizationDbContext>();
+        services.AddCustomizationProjectionReads();
         services.AddModuleDbContext<EducationDbContext>();
         services.AddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.AddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
@@ -169,7 +172,7 @@ public static class SeedComposition
             provider.GetRequiredService<IClock>(),
             provider.GetRequiredService<IMeterFactory>()));
 
-        // The only module-facing read. SCOPED, because it reads the scoped ITenantContext
+        // The feature/entitlement read. SCOPED, because it reads the tenant context
         // and answers for one tenant, which is one request. It does NOT take a module
         // DbContext: both halves it reads are policy-guarded tables it reaches on
         // connections of its own, so resolving it does not require an open unit-of-work
