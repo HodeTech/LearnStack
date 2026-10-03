@@ -1574,6 +1574,36 @@ the wording fix. Final documentation-head CI is rechecked before handoff.
 PR #24 remains unmerged.
 
 
+#### PR #24 depth and settings correction (2026-10-03)
+
+The maintainer's review of `8edbb032..825e4f57` identified two valid reader
+defects. Both were verified against current source and reproduced through real
+PostgreSQL as `learnstack_app` before the production correction.
+
+- **Snapshot depth:** the accepted raw JSON limit remains 64. The SQL snapshot
+  adds two containers around content-type schemas and four around taxonomy band
+  metadata. Explicit, bounded reader limits of 66 and 68 preserve that source
+  contract. No schema admission, publication, tenant predicate or cache policy
+  changes.
+- **Settings parsing:** `JsonException` and `InvalidOperationException` from the
+  selected registration's parser return the existing bounded `validation_failed`
+  outcome. An invalid organization override never falls back to the tenant value.
+  Existing unsuccessful results remain refusals; cancellation and unrelated I/O
+  failures still propagate.
+
+Nine new database cases cover the two reported inputs, both raw-64 boundaries,
+raw-65 write refusal, unrelated cold pins, warm reads, either partial-cache
+direction, malformed setting roots/fields and non-shape parser failures. Before
+the correction, the four depth and three shape cases fail at the expected parser;
+the two non-shape controls pass. No Accepted ADR, migration or public API changes.
+
+**Local validation:** Release build has zero warnings/errors. Unit 1586,
+architecture 187, contract 1, Docker-free integration 171 and Docker integration
+706 pass: **2651 cases, zero failed or skipped**. Positive TRX execution counters
+and all nine new regression outcomes are verified. Full format, Markdown
+links/fragments and diff checks pass. Two fresh independent review rounds follow
+the correction commit. PR #24 remains unmerged.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

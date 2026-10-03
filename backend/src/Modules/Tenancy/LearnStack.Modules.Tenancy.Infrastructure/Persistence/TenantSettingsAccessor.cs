@@ -1,3 +1,4 @@
+using System.Text.Json;
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Settings;
 using LearnStack.SharedKernel.Errors;
@@ -48,7 +49,15 @@ public sealed class TenantSettingsAccessor(
             return Result.Ok(new TenantSettingRead<T>(null));
         }
 
-        var parsed = registration.Parse(selected.Value);
+        Result<T> parsed;
+        try
+        {
+            parsed = registration.Parse(selected.Value);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return Invalid<T>();
+        }
         return parsed.IsSuccess ? Result.Ok(new TenantSettingRead<T>(parsed.Value)) : Invalid<T>();
     }
 

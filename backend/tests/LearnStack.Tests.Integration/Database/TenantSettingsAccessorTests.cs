@@ -27,6 +27,7 @@ public sealed class TenantSettingsAccessorTests(SchemaFixture schema)
 {
     private const string Theme = """{"primary":"#2345aa","background":"#ffffff","foreground":"#111111","muted":"#555555"}""";
     private static readonly TenantSettingKey<Pair> PairKey = new("test.read-pair");
+    private static readonly JsonSerializerOptions PairOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Theory]
     [InlineData(false, "Europe/Istanbul")]
@@ -98,6 +99,62 @@ public sealed class TenantSettingsAccessorTests(SchemaFixture schema)
             invalid.Error!.Code.Should().Be("validation_failed");
             invalid.Error.Details!["Setting"].Single().Key.Should().Be("lockey_invalid_value");
             tenant.Value.Should().Contain("base");
+        });
+    }
+
+    [Theory]
+    [InlineData(false, "[]")]
+    [InlineData(false, "{\"left\":42,\"right\":\"invalid\"}")]
+    [InlineData(true, "[]")]
+    public async Task Shape_exceptions_refuse_the_selected_override_without_tenant_fallback(
+        bool deserialize, string invalidValue)
+    {
+        var context = new Context(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
+        await ReadInScopeAsync(context, async (db, unit, services) =>
+        {
+            await AssertAppRoleAsync(unit);
+            await SchemaQueries.SetSettingAsync(unit.Connection, unit.Transaction!, "app.organization_id", "");
+            Add(db, context, PairKey.Value, """{"left":"tenant","right":"base"}""", null);
+            await db.SaveChangesAsync();
+            await SchemaQueries.SetSettingAsync(unit.Connection, unit.Transaction!, "app.organization_id", context.OrganizationId!.Value.Value.ToString());
+            var organization = Add(db, context, PairKey.Value, invalidValue, context.OrganizationId);
+            await db.SaveChangesAsync();
+            Func<string, Result<Pair>> parse = deserialize
+                ? value => Result.Ok(JsonSerializer.Deserialize<Pair>(value, PairOptions)!) : ReadPair;
+            var reader = new TenantSettingsAccessor(db, context, unit, new TenantSettingRegistry(
+                [new TenantSettingRegistration<Pair>(PairKey, true, parse)]));
+
+            var invalid = await reader.ReadAsync(PairKey);
+            invalid.Error!.Code.Should().Be("validation_failed");
+            invalid.Error.Details!["Setting"].Single().Key.Should().Be("lockey_invalid_value");
+            organization.SetValue("""{"left":"organization","right":"own"}""", new SystemClock(), UserId.SystemActor);
+            await db.SaveChangesAsync();
+            (await reader.ReadAsync(PairKey)).Value!.Value.Should().Be(new Pair("organization", "own"));
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Non_shape_parser_failures_remain_loud(bool canceled)
+    {
+        var context = new Context(TenantId.From(SchemaFixture.TenantA));
+        await ReadInScopeAsync(context, async (db, unit, services) =>
+        {
+            Add(db, context, PairKey.Value, "{}", null);
+            await db.SaveChangesAsync();
+            var reader = new TenantSettingsAccessor(db, context, unit, new TenantSettingRegistry(
+                [new TenantSettingRegistration<Pair>(PairKey, true,
+                    _ => throw (canceled ? new OperationCanceledException() : new IOException()))]));
+            Func<Task> invoke = () => reader.ReadAsync(PairKey);
+            if (canceled)
+            {
+                await invoke.Should().ThrowAsync<OperationCanceledException>();
+            }
+            else
+            {
+                await invoke.Should().ThrowAsync<IOException>();
+            }
         });
     }
 

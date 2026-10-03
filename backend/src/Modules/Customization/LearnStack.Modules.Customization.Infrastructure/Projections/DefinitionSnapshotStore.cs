@@ -13,6 +13,12 @@ namespace LearnStack.Modules.Customization.Infrastructure.Projections;
 /// <summary>Generation and both families share one READ COMMITTED statement snapshot.</summary>
 public sealed class DefinitionSnapshotStore(CustomizationDbContext db)
 {
+    // Source writers use JsonDocument's default 64-level limit. SnapshotSql adds
+    // array + row containers; taxonomy metadata also sits inside bands + band.
+    private const int AcceptedSourceJsonMaxDepth = 64;
+    private static readonly JsonDocumentOptions ContentTypeSnapshotOptions = new() { MaxDepth = AcceptedSourceJsonMaxDepth + 2 };
+    private static readonly JsonDocumentOptions TaxonomySnapshotOptions = new() { MaxDepth = AcceptedSourceJsonMaxDepth + 4 };
+
     // Explicit tenant predicates are required for this unmapped, read-only projection;
     // execution still passes the ambient EF command guard and PostgreSQL RLS.
     private const string SnapshotSql = """
@@ -60,7 +66,7 @@ public sealed class DefinitionSnapshotStore(CustomizationDbContext db)
 
     private static ContentTypeFamily ReadContentTypes(string json)
     {
-        using var document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json, ContentTypeSnapshotOptions);
         var definitions = ImmutableDictionary.CreateBuilder<DefinitionRevision, UntranslatedContentType>();
         foreach (var row in document.RootElement.EnumerateArray())
         {
@@ -88,7 +94,7 @@ public sealed class DefinitionSnapshotStore(CustomizationDbContext db)
 
     private static TaxonomyFamily ReadTaxonomies(string json)
     {
-        using var document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json, TaxonomySnapshotOptions);
         var definitions = ImmutableDictionary.CreateBuilder<DefinitionRevision, UntranslatedTaxonomy>();
         foreach (var row in document.RootElement.EnumerateArray())
         {
