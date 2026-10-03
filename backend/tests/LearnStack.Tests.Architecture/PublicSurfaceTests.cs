@@ -67,6 +67,7 @@ public sealed class PublicSurfaceTests
         Dispatches(Definition<UnmarkedController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<DiscardedMarkedController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<MixedController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<LambdaSendController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<VariableController>(module), "Get").Should().BeFalse("unverifiable request provenance must fail closed");
         MinimalBypasses(module).Should().Contain(typeof(MinimalProbe).FullName!);
         var program = new TypeDefinition("", "Program", Mono.Cecil.TypeAttributes.Class);
@@ -135,7 +136,7 @@ public sealed class PublicSurfaceTests
     // Merely finding Send somewhere else in the same controller is insufficient.
     private static bool Dispatches(TypeDefinition type, string action)
     {
-        var sends = Il.Methods(type).Where(method => method.DeclaredAs == action && method.Definition.HasBody)
+        var sends = Il.Methods(type).Where(method => (method.DeclaredAs == action || method.Definition.Name.StartsWith("<" + action + ">", StringComparison.Ordinal)) && method.Definition.HasBody)
             .SelectMany(method => method.Definition.Body.Instructions.Select((instruction, index) => (method.Definition, instruction, index)))
             .Where(item => item.instruction.Operand is MethodReference call
                 && call.DeclaringType.FullName == typeof(ISender).FullName && call.Name == "Send").ToArray();
@@ -220,7 +221,13 @@ public sealed class PublicSurfaceTests
                     instruction.Operand is MethodReference call && call.Name == "get_RequestServices")))
                 yield return type.FullName;
             foreach (var reference in references)
-                if (map.TryGetValue(Key(reference), out var helper)) queue.Enqueue(helper);
+                if (map.TryGetValue(Key(reference), out var helper)
+                    // Il already scans generated members as part of their owner.
+                    // Re-enqueuing an action's state machine would misclassify its
+                    // sanctioned sender as a separate helper dependency.
+                    && !(helper.IsNested && visited.Contains(Key(helper.DeclaringType))
+                        && helper.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute")))
+                    queue.Enqueue(helper);
         }
     }
 
@@ -298,6 +305,16 @@ public sealed class PublicSurfaceTests
         {
             var result = await sender.Send(new OffProbe(), cancellationToken);
             await sender.Send(new UnmarkedProbe(), cancellationToken);
+            return result;
+        }
+    }
+    private sealed class LambdaSendController(ISender sender)
+    {
+        public async Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(new OffProbe(), cancellationToken);
+            Func<Task<Result<string>>> extra = () => sender.Send(new UnmarkedProbe(), cancellationToken);
+            await extra();
             return result;
         }
     }

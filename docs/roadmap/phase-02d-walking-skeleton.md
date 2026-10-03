@@ -2305,7 +2305,12 @@ followed by an unmarked helper Send. The walk normalizes generic definitions and
 refuses sender acquisition in reachable non-controller helpers. Safe-return
 interface and abstract probes now isolate implementation traversal, including
 closed generic and clean controls. The helper-Send regression fails before the
-fix and passes afterward. A fresh focused review checks these final corrections.
+fix and passes afterward. Generated action state machines remain part of their
+owner instead of separate sender-acquiring helpers; an initial full-suite run
+caught that false positive and the subsequent correction restores the clean
+production control. Lambda extra-Send controls also fail. Current theme and
+performance carriers record Step 2 delivery. A fresh focused review checks these
+final corrections.
 
 ### P02d-1 decision pass (2026-09-14)
 

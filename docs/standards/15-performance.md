@@ -53,7 +53,8 @@ requires a fresh SQL generation probe; `< 1 ms` measures in-memory resolution
 only, not end-to-end latency. Cold/partial/fault reads use at most two SELECTs.
 Seeded timings and plans do not establish a production p95.
 
-**P02d-4 Accepted exception — 2026-10-03; implementation pending.** Every
+**P02d-4 Accepted exception — 2026-10-03.** Step 2 delivers the early
+public-prefix response policy; Education reads/query-plan evidence remain Step 3. Every
 `/api/v1/public` response, including middleware/errors, uses `Cache-Control: no-store`.
 No site/Education representation cache, ETag, Last-Modified or 304 is introduced;
 internal generation-keyed definitions remain independent. Record actual app-role
