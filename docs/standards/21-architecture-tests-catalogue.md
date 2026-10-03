@@ -4045,7 +4045,8 @@ of structural detection.
 - **Asserts:** the exact public endpoint set dispatches marked requests through
   ISender once per action with a directly constructed marked argument; direct
   handler, helper, unused marked construction, mixed/unverifiable sends and
-  minimal-API bypass probes are detected.
+  minimal-API bypass probes are detected. The controller-wide/generated Send
+  census excludes extra sends in private controller helpers.
 - **Source:** ADR-0052; Backend Coding Standards § Pipeline Behaviors.
 - **Type:** xUnit + endpoint metadata + IL/source scan. **Kind:** structural.
 - **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and

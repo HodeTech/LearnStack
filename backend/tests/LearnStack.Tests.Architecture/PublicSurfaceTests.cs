@@ -68,6 +68,7 @@ public sealed class PublicSurfaceTests
         Dispatches(Definition<DiscardedMarkedController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<MixedController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<LambdaSendController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<PrivateSendController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<VariableController>(module), "Get").Should().BeFalse("unverifiable request provenance must fail closed");
         MinimalBypasses(module).Should().Contain(typeof(MinimalProbe).FullName!);
         var program = new TypeDefinition("", "Program", Mono.Cecil.TypeAttributes.Class);
@@ -110,7 +111,7 @@ public sealed class PublicSurfaceTests
         PersistenceOffenders([Definition<CleanGenericHelperController>(module)], map).Should().BeEmpty();
         Dispatches(Definition<PostDispatchHelperController>(module), "Get").Should().BeTrue(
             "the transitive persistence guard must independently refuse helper dispatch after a clean direct Send");
-        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController) })
+        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController), typeof(ConcreteMediatorProbe), typeof(PublisherProbe) })
             PersistenceOffenders([module.GetType(type.FullName!.Replace('+', '/'))], map).Should().NotBeEmpty(type.Name);
     }
 
@@ -136,6 +137,15 @@ public sealed class PublicSurfaceTests
     // Merely finding Send somewhere else in the same controller is insufficient.
     private static bool Dispatches(TypeDefinition type, string action)
     {
+        var actionNames = type.Methods.Where(method => method.CustomAttributes.Any(attribute =>
+                attribute.AttributeType.FullName == typeof(HttpGetAttribute).FullName
+                || attribute.AttributeType.FullName == typeof(HttpHeadAttribute).FullName))
+            .Select(method => method.Name).Append(action).ToHashSet(StringComparer.Ordinal);
+        var allSends = Il.Methods(type).Where(method => method.Definition.HasBody)
+            .SelectMany(method => method.Definition.Body.Instructions)
+            .Count(instruction => instruction.Operand is MethodReference call
+                && call.DeclaringType.FullName == typeof(ISender).FullName && call.Name == "Send");
+        if (allSends != actionNames.Count) return false;
         var sends = Il.Methods(type).Where(method => (method.DeclaredAs == action || method.Definition.Name.StartsWith("<" + action + ">", StringComparison.Ordinal)) && method.Definition.HasBody)
             .SelectMany(method => method.Definition.Body.Instructions.Select((instruction, index) => (method.Definition, instruction, index)))
             .Where(item => item.instruction.Operand is MethodReference call
@@ -243,6 +253,8 @@ public sealed class PublicSurfaceTests
         || name.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
         || name.StartsWith("System.Data.", StringComparison.Ordinal)
         || name.StartsWith("MediatR.IRequestHandler", StringComparison.Ordinal)
+        || name.StartsWith("MediatR.INotificationHandler", StringComparison.Ordinal)
+        || name == typeof(IMediator).FullName || name == typeof(Mediator).FullName || name == typeof(IPublisher).FullName
         || name.StartsWith("Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions", StringComparison.Ordinal)
         || name == typeof(IServiceProvider).FullName
         || name.StartsWith("LearnStack.SharedKernel.Persistence.IUnitOfWork", StringComparison.Ordinal)
@@ -317,6 +329,16 @@ public sealed class PublicSurfaceTests
             await extra();
             return result;
         }
+    }
+    private sealed class PrivateSendController(ISender sender)
+    {
+        public async Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(new OffProbe(), cancellationToken);
+            await HiddenSend(cancellationToken);
+            return result;
+        }
+        private Task<Result<string>> HiddenSend(CancellationToken cancellationToken) => sender.Send(new UnmarkedProbe(), cancellationToken);
     }
     private sealed class VariableController(ISender sender, IRequest<Result<string>> request)
     {
@@ -407,6 +429,14 @@ public sealed class PublicSurfaceTests
             await helper.Get(cancellationToken);
             return result;
         }
+    }
+    private sealed class ConcreteMediatorProbe(Mediator mediator)
+    {
+        public Task<Result<string>> Get(CancellationToken cancellationToken) => mediator.Send(new UnmarkedProbe(), cancellationToken);
+    }
+    private sealed class PublisherProbe(IPublisher publisher)
+    {
+        public Task Get(CancellationToken cancellationToken) => publisher.Publish(new object(), cancellationToken);
     }
     private sealed class ServiceLocatorProbe(IServiceProvider services)
     {

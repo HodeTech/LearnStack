@@ -2312,6 +2312,11 @@ production control. Lambda extra-Send controls also fail. Current theme and
 performance carriers record Step 2 delivery. A fresh focused review checks these
 final corrections.
 
+**Focused fix verification.** The fresh review identifies an additional private
+controller method that sends after the clean marked action. A controller-wide
+Send census now equals the approved HTTP action count, while each action still
+proves its actual marked argument. A planted private helper fails the control.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
