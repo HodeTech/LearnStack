@@ -2316,6 +2316,9 @@ final corrections.
 controller method that sends after the clean marked action. A controller-wide
 Send census now equals the approved HTTP action count, while each action still
 proves its actual marked argument. A planted private helper fails the control.
+The follow-up control also gives the private helper a GET attribute: private
+methods are not MVC actions and cannot offset an extra Send. This regression
+fails before the public-method filter and passes afterward.
 
 ### P02d-1 decision pass (2026-09-14)
 

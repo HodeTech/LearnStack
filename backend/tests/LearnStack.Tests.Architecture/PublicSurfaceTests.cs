@@ -69,6 +69,7 @@ public sealed class PublicSurfaceTests
         Dispatches(Definition<MixedController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<LambdaSendController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<PrivateSendController>(module), "Get").Should().BeFalse();
+        Dispatches(Definition<DecoratedPrivateSendController>(module), "Get").Should().BeFalse();
         Dispatches(Definition<VariableController>(module), "Get").Should().BeFalse("unverifiable request provenance must fail closed");
         MinimalBypasses(module).Should().Contain(typeof(MinimalProbe).FullName!);
         var program = new TypeDefinition("", "Program", Mono.Cecil.TypeAttributes.Class);
@@ -137,7 +138,7 @@ public sealed class PublicSurfaceTests
     // Merely finding Send somewhere else in the same controller is insufficient.
     private static bool Dispatches(TypeDefinition type, string action)
     {
-        var actionNames = type.Methods.Where(method => method.CustomAttributes.Any(attribute =>
+        var actionNames = type.Methods.Where(method => method.IsPublic && method.CustomAttributes.Any(attribute =>
                 attribute.AttributeType.FullName == typeof(HttpGetAttribute).FullName
                 || attribute.AttributeType.FullName == typeof(HttpHeadAttribute).FullName))
             .Select(method => method.Name).Append(action).ToHashSet(StringComparer.Ordinal);
@@ -338,6 +339,17 @@ public sealed class PublicSurfaceTests
             await HiddenSend(cancellationToken);
             return result;
         }
+        private Task<Result<string>> HiddenSend(CancellationToken cancellationToken) => sender.Send(new UnmarkedProbe(), cancellationToken);
+    }
+    private sealed class DecoratedPrivateSendController(ISender sender)
+    {
+        public async Task<Result<string>> Get(CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(new OffProbe(), cancellationToken);
+            await HiddenSend(cancellationToken);
+            return result;
+        }
+        [HttpGet]
         private Task<Result<string>> HiddenSend(CancellationToken cancellationToken) => sender.Send(new UnmarkedProbe(), cancellationToken);
     }
     private sealed class VariableController(ISender sender, IRequest<Result<string>> request)
