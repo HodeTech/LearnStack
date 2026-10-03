@@ -24,6 +24,10 @@ public sealed class TenantSettingsTests
         registry.Find(TenantSettingKeys.BrandingTheme)!.AllowsOrganizationScope.Should().BeFalse();
         registry.Find(new TenantSettingKey<string>(TenantSettingKeys.BrandingTheme.Value)).Should().BeNull();
         registry.Find(new TenantSettingKey<BrandingTheme>("private.unknown")).Should().BeNull();
+        registry.Find(new TenantSettingKey<BrandingTheme>(null!)).Should().BeNull();
+        registry.Find(new TenantSettingKey<BrandingTheme>("")).Should().BeNull();
+        ((Action)(() => registry.Find<BrandingTheme>(null!))).Should().Throw<ArgumentNullException>();
+        BrandingThemeRegistry.SettingKey.Should().Be(TenantSettingKeys.BrandingTheme.Value);
         new TenantSettingRead<BrandingTheme>(null).IsPresent.Should().BeFalse();
     }
 }

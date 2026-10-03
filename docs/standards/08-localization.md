@@ -233,8 +233,9 @@ var msg = _stringLocalizer["course.publish.success"];
 [Tenancy contract](../modules/tenancy/README.md#locale-guarantees-and-read-contract)
 selects no platform registry: use LocaleTag's existing grammar, canonicalization and
 35-character bound, then the tenant's enabled membership. No locale rows authorize
-no content locale, rather than an implicit `en`. Request G6(b) and display G24 remain
-their later packet parts. P02d-2 Step 2 implements locale command admission and the
+no content locale, rather than an implicit `en`. Request G6(b) and G24's public
+response fields remain P02d-4; P02d-3 implements the internal display fallback.
+P02d-2 Step 2 implements locale command admission and the
 default-enabled CHECK; request-language negotiation is not part of those writers.
 
 ## Right-to-Left

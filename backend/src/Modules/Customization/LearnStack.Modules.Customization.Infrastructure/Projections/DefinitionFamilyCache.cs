@@ -13,6 +13,9 @@ public sealed class DefinitionFamilyCache(
     private static readonly CacheOptions Options = new(TimeSpan.FromSeconds(60), TimeSpan.FromMinutes(15));
     private bool CanUse => !state.IsDirty && !unit.IsRollbackOnly;
 
+    // The cache port has no provider exception taxonomy. Recover from cache
+    // faults, but never treat a fatal process failure as an ordinary miss.
+
     internal async Task<DefinitionSnapshot?> ReadAsync(TenantId tenant, long generation, CancellationToken cancellationToken)
     {
         if (!CanUse) return null;
@@ -27,7 +30,7 @@ public sealed class DefinitionFamilyCache(
                 ? new DefinitionSnapshot(generation, types.Definitions.Count > 0 || taxonomies.Definitions.Count > 0, types, taxonomies)
                 : null;
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or AccessViolationException))
         {
             cancellationToken.ThrowIfCancellationRequested();
             ProjectionCacheLog.ReadFailed(logger);
@@ -47,7 +50,7 @@ public sealed class DefinitionFamilyCache(
             await cache.SetAsync(Key(tenant, "taxonomies", generation), snapshot.Taxonomies, Options, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or AccessViolationException))
         {
             cancellationToken.ThrowIfCancellationRequested();
             ProjectionCacheLog.WriteFailed(logger);

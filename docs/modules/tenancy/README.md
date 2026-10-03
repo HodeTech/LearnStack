@@ -173,6 +173,11 @@ reusing its four-color grammar and contrast validator above. It returns a comple
 typed palette or bounded absent/invalid outcome; public defaults and allowlisting
 remain P02d-4, CSS injection P02d-6.
 
+Registrations are values in an explicit server-owned `TenantSettingRegistry`.
+The composition extension installs its default only when no registry was already
+registered; a complete replacement registry must be registered before that call.
+Individual `ITenantSettingRegistration` DI services are not collected implicitly.
+
 For a registration permitting organization scope, explicitly select the current
 tenant and `(organization_id IS NULL OR organization_id = current organization)`,
 excluding soft-deleted rows. No organization selects tenant-wide only. Organization

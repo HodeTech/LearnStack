@@ -60,8 +60,10 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, W
         await frame.FailAsync();
     }
 
-    [Fact]
-    public async Task Exact_batches_keep_deprecated_pins_and_distinguish_draft_deleted_absent_and_malformed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Exact_batches_keep_deprecated_pins_and_distinguish_draft_deleted_absent_and_malformed(bool malformedBand)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
@@ -96,9 +98,14 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, W
             UPDATE tenant_content_types SET deleted_at = now() WHERE key = 'profile' AND schema_version = 1;
             UPDATE tenant_level_taxonomies SET deleted_at = now() WHERE key = 'levels' AND schema_version = 1;
             UPDATE tenant_content_types SET json_schema = '{"x-fields":42}'::jsonb WHERE key = 'profile' AND schema_version = 2;
+            UPDATE customization_generations SET generation = generation + 1;
+            """);
+        await ExecuteAsync(read.Unit, malformedBand ? """
+            UPDATE tenant_level_taxonomy_items SET display_name = '{"en":42}'::jsonb
+              WHERE taxonomy_key = 'levels' AND schema_version = 2 AND key = 'first';
+            """ : """
             UPDATE tenant_level_taxonomies SET display_name = '{"en":42}'::jsonb
               WHERE key = 'levels' AND schema_version = 2;
-            UPDATE customization_generations SET generation = generation + 1;
             """);
         var malformed = (await read.Reader.ReadAsync(request)).Value!;
         malformed.ContentTypes.Should().ContainSingle().Which.Key.Should().Be(new DefinitionRevision("intact", 1));
@@ -129,7 +136,7 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, W
             """);
         var refusal = await read.Reader.ReadAsync(Request([new("orphan", 1)], []));
         refusal.Error!.Code.Should().Be("validation_failed");
-        refusal.Error.Details!["Definition"].Single().Key.Should().Be("lockey_schema_extension_unresolved");
+        refusal.Error.Details!["Definition"].Single().Key.Should().Be("lockey_invalid_value");
         cache.GetCalls.Should().Be(0);
         cache.SetCalls.Should().Be(0);
         await ExecuteAsync(read.Unit, """
@@ -269,6 +276,7 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, W
         public int Selects { get; private set; }
         public bool Intervened { get; private set; }
         public Func<Task>? AfterProbe { get; set; }
+        public Func<Task>? AfterSnapshot { get; set; }
         public CommandSample? Probe { get; private set; }
         public CommandSample? Snapshot { get; private set; }
         private static CommandSample Sample(DbCommand command) => new(command.CommandText,
@@ -284,6 +292,12 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, W
             {
                 AfterProbe = null;
                 await action();
+                Intervened = true;
+            }
+            if (AfterSnapshot is { } snapshotAction && command.CommandText.Contains("P02d-3 definition snapshot", StringComparison.Ordinal))
+            {
+                AfterSnapshot = null;
+                await snapshotAction();
                 Intervened = true;
             }
             return result;

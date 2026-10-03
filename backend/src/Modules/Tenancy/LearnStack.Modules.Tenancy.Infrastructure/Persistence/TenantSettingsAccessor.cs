@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
@@ -20,9 +21,11 @@ public sealed class TenantSettingsAccessor(
         ArgumentNullException.ThrowIfNull(key);
         cancellationToken.ThrowIfCancellationRequested();
         if (!tenantContext.IsResolved || tenantContext.TenantId == TenantId.PlatformSentinel
-            || !unit.HasActiveTransaction || !unit.IsTenantContextIssuedOn(unit.Transaction))
+            || !unit.HasActiveTransaction || !unit.IsTenantContextIssuedOn(unit.Transaction)
+            || context.Database.CurrentTransaction is not { } transaction
+            || !ReferenceEquals(transaction.GetDbTransaction(), unit.Transaction))
         {
-            throw new TenantContextMissingException("Settings reads require a resolved, announced ambient tenant transaction.");
+            throw new TenantContextMissingException("Settings reads require a resolved, announced and enlisted ambient tenant transaction.");
         }
 
         var registration = registry.Find(key);

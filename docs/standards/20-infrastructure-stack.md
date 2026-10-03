@@ -347,8 +347,9 @@ Rules:
   a write makes every stale key unreachable at once without deleting any of them.
   The counter is domain state, never a cache entry — an evicted counter would make
   abandoned keys addressable again.
-- L1 protects per-pod hot path; cross-pod consistency relies on L2 + eager
-  invalidation.
+- L1 protects the per-pod hot path. P02d-3's definition families use a fresh
+  durable generation probe for cross-pod consistency, without L2 or events.
+  Other families' target consistency policy uses L2 and eager invalidation.
 - The 15-min L2 figure is an **upper bound**, not the typical refresh window —
   eager invalidation via Dapr is the typical path; the TTL is the safety net.
 - A "60s cache" reference in any other document refers to L1; a "15-min TTL"

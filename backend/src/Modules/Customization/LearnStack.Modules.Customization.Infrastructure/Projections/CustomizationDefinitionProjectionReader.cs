@@ -105,6 +105,6 @@ public sealed class CustomizationDefinitionProjectionReader(
         new LocalizedMessage("lockey_validation_failed"),
         new Dictionary<string, IReadOnlyList<LocalizedMessage>>(StringComparer.Ordinal)
         {
-            ["Definition"] = [new LocalizedMessage("lockey_schema_extension_unresolved")],
+            ["Definition"] = [new LocalizedMessage("lockey_invalid_value")],
         }));
 }

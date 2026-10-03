@@ -1434,6 +1434,11 @@ coherent statement is 1984 bytes; this measures wire JSON, not managed heap size
 | Warm | 0.235 / 0.259 / 0.304 | 1 |
 | Typed branding setting | 0.259 / 0.300 / 0.352 | 1; uncached |
 
+**Measurement erratum — 2026-10-03.** The historical “median” column above
+reported upper medians, not the average of both middle observations. The routine
+is corrected; the new sample and its limits are recorded in
+[PR #24 review remediation](#pr-24-review-remediation-2026-10-03).
+
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the actual parameterized statements
 uses `pk_customization_generations` for the probe and composite tenant/key/version
 indexes for both families; bands use `ux_tenant_level_taxonomy_items_taxonomy_sort`.
@@ -1489,6 +1494,67 @@ are corrected. Education now records P02d-3 complete/unmerged and P02d-4 next.
 The fix changes no backend source or test; the 2637-case execution evidence
 remains applicable. Final Markdown link/fragment and diff checks pass; required
 CI is rechecked against the final documentation head before handoff.
+
+
+#### PR #24 review remediation (2026-10-03)
+
+The maintainer supplied two independent reviews of `8edbb032..a317d389`.
+Findings were verified against current source before changes; two additional
+read-only agents checked documentation scope and runtime contract claims.
+No new ADR, endpoint, migration or accepted decision is introduced.
+
+- **B1/M1/M14:** the validator guard now follows assembly-scoped references across
+  every production project, including Customization Domain/Contracts and core
+  helpers. Planted controls cover parameter/return/generic/event attributes,
+  wrapped generics, constraints, catches, lambdas and state machines. A narrowed
+  production census mutant fails on the planted Domain helper; the wrapped
+  generic control failed before the IL correction. Restored source passes.
+- **M2:** the old probe barrier legitimately allowed a caller to warm the other.
+  The test now parks both independent snapshot loaders before either fills,
+  proving exactly two SELECTs and complete values per caller without flakiness.
+- **M3–M8:** recoverable cache faults still fall back with bounded diagnostics;
+  fatal process exceptions propagate. Invalid setting-token values return a
+  bounded failure, settings admission checks its context's enlistment, branding
+  uses one canonical key, redundant cached revision fields are removed and
+  malformed-pin comments describe the actual per-revision behavior. Internal
+  definition refusals use neutral `lockey_invalid_value`, not a schema-extension
+  message. Malformed band labels omit their entire pin and preserve neighbors.
+- **D1/D2/M10–M12:** editable Scope and current-state carriers now identify the
+  delivered locale/accessor/fallback work, planned organization branding and
+  generation-driven L1 consistency. Frozen P02d-1 accepted answers and delivery
+  record, and dated P02d-2 closeout/readiness, remain unchanged.
+
+**Disposition of remaining suggestions.** The accepted registry is an explicit
+server-owned value, not an additive DI-registration API; its replacement rule is
+now documented rather than inventing a new extension mechanism. The Phase 04
+`blocks-v{generation}` example is a legal, explicitly unimplemented target.
+Public surface enforcement remains P02d-4's G30, not a delivered P02d-3 gate.
+L2/serialization, cache-fault metrics and cold-load coalescing are not claimed by
+this packet. Missing-counter detection intentionally includes Draft/deleted roots;
+nonpositive generations remain invalid. Test-only non-null assertions fail loudly
+if required measurement commands are absent; they do not hide a skipped proof.
+
+**Measurement correction.** The earlier table's historical “median” values were
+upper medians (the eleventh of twenty observations). The routine now averages
+both middle observations. A new twenty-observation sample after warmup, from
+`learnstack_app` and the same 1984-byte fixture, records:
+
+| End-to-end path | Minimum / median / maximum, ms | SELECT statements |
+|---|---|---|
+| Cold | 0.598 / 0.738 / 0.973 | 2 |
+| Warm | 0.184 / 0.209 / 0.275 | 1 |
+| Typed branding setting | 0.190 / 0.235 / 0.292 | 1; uncached |
+
+Probe/snapshot execution is 0.008/0.146 ms with 2/12 shared-buffer hits and zero
+reads. These observations still prove no production percentile or latency budget.
+The measurement case asserts statement/data invariants, not unstable timings.
+
+**Local validation:** Release build has zero warnings/errors. Unit 1586,
+architecture 187, contract 1, Docker-free integration 171 and Docker integration
+697 pass: **2642 cases, zero failed or skipped**, with positive TRX execution
+counters checked. Full format, Markdown links/fragments and diff checks pass.
+Fresh correction review rounds follow the implementation commit; PR #24 remains
+unmerged.
 
 
 ### P02d-1 decision pass (2026-09-14)
@@ -1774,12 +1840,13 @@ the moment it is inserted, published or not; which command reports the collision
 `tenant_locales` already exists —
 [Phase 02a Packet 6](phase-02a-kernel-tenancy.md#delivery-record-packet-6) ships it and
 already states it is required before any tenant-owned content table ships. The table
-ships; the configuration does not. Neither seed tenant holds a row, and no command
-writes one — `Tenant.AddLocale` and `SetDefaultLocale` have no caller outside tests.
+shipped before this phase. At phase entry, neither seed tenant held a locale row
+and `Tenant.AddLocale` and `SetDefaultLocale` had no caller outside tests.
 [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)
 requires locale rows to be written by their own command in their own transaction: the
-one raising `tenancy.locale.write`, `(planned)` in
-[the Tenancy audit matrix](../modules/tenancy/audit.md). This phase ships it (**G11**).
+one raising `tenancy.locale.write` in
+[the Tenancy audit matrix](../modules/tenancy/audit.md). P02d-2 delivered those
+commands and seeded locale configuration; see its [delivery record](#p02d-2-implementation-delivery-2026-10-02).
 Case variants of one tag are one locale
 ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)'s 2026-09-04
 amendment), and how the shipped table spells a locale is in
@@ -1884,20 +1951,23 @@ Obligations already imposed:
 - The read path does not validate
   ([Tenant Customization Model § 8.1](../architecture/32-tenant-customization-model.md)).
 
-Open: the contract (**G12**), how the projection loads and stays correct (**G22**), and
-the display fallback it applies (**G24**).
+P02d-3 delivered **G12**'s cache contract, the loader/correctness contract (**G22**)
+and internal display fallback (**G24**) under the
+[accepted gate answers](#accepted-gate-answers). Public response and page-state
+parts remain P02d-4/6.
 
 **The typed settings accessor** over `tenant_settings`, which Phase 02a left to its
-first reader, lands here too. Under Row Level Security a `tenant_settings` read returns
-tenant-wide rows plus the caller's organization's rows, so its result depends on
-`app.organization_id`, and the policy's tenant-scope read has no carrier until
+first reader, is delivered in P02d-3. Under Row Level Security a `tenant_settings`
+read admits tenant-wide rows plus the caller's organization's rows, so its result
+depends on `app.organization_id`, and the policy's tenant-scope read has no carrier
+until
 [Phase 03](phase-03-identity-admin.md)
 ([Security Standards § Tenant Context](../standards/11-security.md#tenant-context));
-resolution follows the organization-over-tenant fallback. The declared eager
-invalidation, `learnstack.tenancy.settings`, is booked to Phase 02b in the Tenancy spec,
-and this phase's settings writes come from the seed, which runs as its own process, so
-nothing it writes reaches a cache inside the API process. The accessor's name, keys,
-loader and staleness bound, if any, are **G23**.
+the accessor selects organization-over-tenant whole-value precedence only for
+registrations that permit it; `branding.theme` stays tenant-wide. Seed writes run
+in their own process, so **G23** selects the uncached, ambient `ITenantSettingsAccessor`
+under the
+[accepted typed settings contract](#typed-settings-and-display-fallback-contract).
 
 ### Read API
 
@@ -1958,11 +2028,10 @@ The display fallback chain, computed once per request
 the entity is resolved and **never** to the slug lookup: a course with no `en`
 translation has no `en` URL, and requesting one is a `404`. For the same reason a lesson
 with no translation in the requested locale is omitted from the course's lesson list
-rather than rendered as a link that cannot resolve. Localization Standards § Locale
-Model and Localization § Fallback Rules state different chains, and the shipped
-`LocalizedText.Resolve` narrows one subtag at a time and ends at the first authored
-value; which chain is the record is **G24**, and a per-tenant fallback configuration is
-Phase 04's.
+rather than rendered as a link that cannot resolve. P02d-3 reconciled the internal
+fallback under **G24**: [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules)
+owns the chain and actual resolved locale. Public response locale fields remain
+P02d-4; per-tenant fallback configuration remains Phase 04's.
 
 **Publication is not a Row Level Security term.** The canonical policy filters on tenant
 and organization only, so the database does not keep an unpublished course or lesson off

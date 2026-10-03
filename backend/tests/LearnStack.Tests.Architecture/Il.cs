@@ -24,6 +24,10 @@ internal static class Il
     internal static IEnumerable<string> ReferencedTypeNames(TypeDefinition type) =>
         WithGenerated(type).SelectMany(ReferencedTypes).SelectMany(NamesOf).Distinct(StringComparer.Ordinal);
 
+    /// <summary>Expanded references retain their assembly scope for transitive helper walks.</summary>
+    internal static IEnumerable<TypeReference> ReferencedTypeReferences(TypeDefinition type) =>
+        WithGenerated(type).SelectMany(ReferencedTypes).SelectMany(ReferencesOf);
+
     /// <summary>
     /// Whether a type names a namespace anywhere the IL can carry it: its base type and
     /// interfaces, its attributes, its members' signatures, and its method bodies.
@@ -114,6 +118,11 @@ internal static class Il
     {
         yield return method.ReturnType;
 
+        foreach (var reference in AttributeReferences(MethodAttributes(method)))
+        {
+            yield return reference;
+        }
+
         foreach (var parameter in method.Parameters)
         {
             yield return parameter.ParameterType;
@@ -157,6 +166,10 @@ internal static class Il
                     }
 
                     yield return generic.ReturnType;
+                    foreach (var parameter in generic.Parameters)
+                    {
+                        yield return parameter.ParameterType;
+                    }
 
                     if (generic.DeclaringType is { } genericOwner)
                     {
@@ -177,6 +190,10 @@ internal static class Il
                     }
 
                     break;
+                case FieldReference field:
+                    yield return field.FieldType;
+                    yield return field.DeclaringType;
+                    break;
                 case MemberReference member when member.DeclaringType is { } owner:
                     yield return owner;
                     break;
@@ -192,21 +209,40 @@ internal static class Il
     /// The constructed type's own name is included too, so a member typed
     /// <c>Guarded&lt;T&gt;</c> is found by its element name.
     /// </remarks>
-    private static IEnumerable<string> NamesOf(TypeReference reference)
+    private static IEnumerable<string> NamesOf(TypeReference reference) => ReferencesOf(reference).Select(type => type.FullName);
+
+    private static IEnumerable<TypeReference> ReferencesOf(TypeReference reference)
     {
+        // Function pointers are specifications with no element type; their
+        // return/parameter signatures carry the references instead.
+        if (reference is FunctionPointerType function)
+        {
+            foreach (var type in ReferencesOf(function.ReturnType)) yield return type;
+            foreach (var type in function.Parameters.SelectMany(parameter => ReferencesOf(parameter.ParameterType))) yield return type;
+            yield break;
+        }
+
         if (reference is GenericInstanceType generic)
         {
-            yield return generic.ElementType.GetElementType().FullName;
+            yield return generic.ElementType;
 
-            foreach (var name in generic.GenericArguments.SelectMany(NamesOf))
+            foreach (var argument in generic.GenericArguments.SelectMany(ReferencesOf))
             {
-                yield return name;
+                yield return argument;
             }
 
             yield break;
         }
 
-        yield return reference.GetElementType().FullName;
+        // Arrays, byrefs and pointers may wrap a constructed generic. Removing
+        // all specifications at once loses the wrapped generic's arguments.
+        if (reference is TypeSpecification specification)
+        {
+            foreach (var element in ReferencesOf(specification.ElementType)) yield return element;
+            yield break;
+        }
+
+        yield return reference;
     }
 
     /// <summary>Every type reference one type carries.</summary>
@@ -242,6 +278,11 @@ internal static class Il
             yield return property.PropertyType;
         }
 
+        foreach (var @event in type.Events)
+        {
+            yield return @event.EventType;
+        }
+
         // One walker, not two: this loop used to carry its own copy, and the copy saw less —
         // a called method's return and parameter types were invisible to it, so a namespace
         // named only there was never reported.
@@ -259,11 +300,25 @@ internal static class Il
     /// Arrays are walked, because an attribute argument can be one.
     /// </remarks>
     private static IEnumerable<TypeReference> Attributes(TypeDefinition type) =>
-        type.CustomAttributes
+        AttributeReferences(type.CustomAttributes
+            .Concat(type.GenericParameters.SelectMany(GenericAttributes))
+            .Concat(type.Interfaces.SelectMany(contract => contract.CustomAttributes))
             .Concat(type.Fields.SelectMany(field => field.CustomAttributes))
             .Concat(type.Properties.SelectMany(property => property.CustomAttributes))
-            .Concat(type.Methods.SelectMany(method => method.CustomAttributes))
-            .SelectMany(attribute => new[] { attribute.AttributeType }.Concat(Named(attribute)));
+            .Concat(type.Properties.SelectMany(property => property.Parameters).SelectMany(parameter => parameter.CustomAttributes))
+            .Concat(type.Events.SelectMany(@event => @event.CustomAttributes))
+            .Concat(type.Methods.SelectMany(MethodAttributes)));
+
+    private static IEnumerable<CustomAttribute> GenericAttributes(GenericParameter parameter) =>
+        parameter.CustomAttributes.Concat(parameter.Constraints.SelectMany(constraint => constraint.CustomAttributes));
+
+    private static IEnumerable<CustomAttribute> MethodAttributes(MethodDefinition method) =>
+        method.CustomAttributes.Concat(method.MethodReturnType.CustomAttributes)
+            .Concat(method.Parameters.SelectMany(parameter => parameter.CustomAttributes))
+            .Concat(method.GenericParameters.SelectMany(GenericAttributes));
+
+    private static IEnumerable<TypeReference> AttributeReferences(IEnumerable<CustomAttribute> attributes) =>
+        attributes.SelectMany(attribute => new[] { attribute.AttributeType }.Concat(Named(attribute)));
 
     /// <summary>The types one attribute's arguments name.</summary>
     private static IEnumerable<TypeReference> Named(CustomAttribute attribute) =>
@@ -301,10 +356,20 @@ internal static class Il
     /// </summary>
     private static bool InNamespace(TypeReference reference, string namespacePrefix)
     {
+        if (reference is FunctionPointerType function)
+        {
+            return ReferencesOf(function).Any(type => InNamespace(type, namespacePrefix));
+        }
+
         if (reference is GenericInstanceType generic
             && generic.GenericArguments.Any(argument => InNamespace(argument, namespacePrefix)))
         {
             return true;
+        }
+
+        if (reference is TypeSpecification specification)
+        {
+            return InNamespace(specification.ElementType, namespacePrefix);
         }
 
         if (reference.IsNested && reference.DeclaringType is { } declaring)

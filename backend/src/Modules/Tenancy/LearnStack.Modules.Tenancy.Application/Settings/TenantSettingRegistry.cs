@@ -37,7 +37,10 @@ public sealed class TenantSettingRegistry
             BrandingThemeRegistry.Read),
     ]);
 
-    public TenantSettingRegistration<T>? Find<T>(TenantSettingKey<T> key) where T : class =>
-        _registrations.TryGetValue(key.Value, out var registration)
+    public TenantSettingRegistration<T>? Find<T>(TenantSettingKey<T> key) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return !string.IsNullOrEmpty(key.Value) && _registrations.TryGetValue(key.Value, out var registration)
             ? registration as TenantSettingRegistration<T> : null;
+    }
 }

@@ -22,5 +22,6 @@ public sealed record BrandingTheme(string Primary, string Background, string For
 
 public static class TenantSettingKeys
 {
-    public static TenantSettingKey<BrandingTheme> BrandingTheme { get; } = new("branding.theme");
+    public const string BrandingThemeName = "branding.theme";
+    public static TenantSettingKey<BrandingTheme> BrandingTheme { get; } = new(BrandingThemeName);
 }

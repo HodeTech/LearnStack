@@ -49,6 +49,22 @@ public sealed partial class CustomizationProjectionTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fatal_cache_failures_propagate_instead_of_attempting_recovery(bool duringSet)
+    {
+        await using var source = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
+        // Throw a synthetic exception; this test does not exhaust process memory.
+        await using var cache = new CacheProbe { Fault = duringSet ? "set-oom" : "get-oom" };
+        var context = new SeedTenantContext(TenantId.From(SchemaFixture.TenantA), null);
+        await using var read = await ReadSession.OpenAsync(source, context, cache: cache);
+        var invoke = () => read.Reader.ReadAsync(Request([new("announcement", 1)], []));
+        await invoke.Should().ThrowAsync<OutOfMemoryException>();
+        cache.Logger.Messages.Should().BeEmpty();
+        read.Observer.Selects.Should().Be(duringSet ? 2 : 1);
+    }
+
+    [Theory]
     [InlineData("get")]
     [InlineData("set")]
     [InlineData("timeout")]
@@ -293,6 +309,7 @@ public sealed partial class CustomizationProjectionTests
             Interlocked.Increment(ref _gets); Tokens.Add(cancellationToken);
             if (!CancelDuringSet) Cancel?.Cancel();
             if (Fault == "get") throw new IOException("private-cache-data");
+            if (Fault == "get-oom") ThrowSyntheticMemoryFailure();
             if (Fault == "timeout") throw new OperationCanceledException("private-cache-data");
             return await _inner.GetAsync<T>(key, cancellationToken);
         }
@@ -307,11 +324,16 @@ public sealed partial class CustomizationProjectionTests
             Interlocked.Increment(ref _sets); Tokens.Add(cancellationToken); Options.Add(options);
             if (CancelDuringSet) Cancel?.Cancel();
             if (Fault == "set") throw new IOException("private-cache-data");
+            if (Fault == "set-oom") ThrowSyntheticMemoryFailure();
             await _inner.SetAsync(key, value, options, cancellationToken);
             if (!Keys.Contains(key)) Keys.Add(key);
         }
         public Task RemoveAsync(string key, CancellationToken cancellationToken = default) => _inner.RemoveAsync(key, cancellationToken);
         public ValueTask DisposeAsync() => _owner.DisposeAsync();
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2201:Do not raise reserved exception types",
+            Justification = "A test double simulates a fatal cache fault without exhausting process memory.")]
+        private static void ThrowSyntheticMemoryFailure() => throw new OutOfMemoryException();
     }
 
     internal sealed class CacheLogger : ILogger<DefinitionFamilyCache>

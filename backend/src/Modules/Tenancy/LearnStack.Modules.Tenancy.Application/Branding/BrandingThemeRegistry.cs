@@ -15,7 +15,7 @@ public sealed record BrandingColorDescriptor(string JsonName, string CssVariable
 public static class BrandingThemeRegistry
 {
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
-    public const string SettingKey = "branding.theme";
+    public const string SettingKey = TenantSettingKeys.BrandingThemeName;
     public static ImmutableArray<BrandingColorDescriptor> Colors { get; } =
     [
         new("primary", "--ls-primary", 3),

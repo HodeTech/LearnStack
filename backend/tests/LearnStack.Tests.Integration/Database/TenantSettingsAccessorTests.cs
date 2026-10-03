@@ -147,6 +147,29 @@ public sealed class TenantSettingsAccessorTests(SchemaFixture schema)
     }
 
     [Fact]
+    public async Task Malformed_key_values_are_refused_and_a_detached_context_is_not_admitted()
+    {
+        var context = new Context(TenantId.From(SchemaFixture.TenantA));
+        await ReadInScopeAsync(context, async (db, unit, services) =>
+        {
+            var reader = services.GetRequiredService<ITenantSettingsAccessor>();
+            foreach (var value in new[] { null, "" })
+            {
+                var refused = await reader.ReadAsync(new TenantSettingKey<BrandingTheme>(value!));
+                refused.Error!.Code.Should().Be("validation_failed");
+                refused.Error.Details!["Setting"].Single().Key.Should().Be("lockey_invalid_value");
+            }
+            await using var detached = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
+                .UseNpgsql(unit.Connection).Options, new StaticTenantContextAccessor(context));
+            var detachedReader = new TenantSettingsAccessor(detached, context, unit, TenantSettingRegistry.Default);
+            Func<Task> read = () => detachedReader.ReadAsync(TenantSettingKeys.BrandingTheme);
+            await read.Should().ThrowAsync<TenantContextMissingException>();
+            // Positive control: the same announced unit admits its enlisted context.
+            (await reader.ReadAsync(TenantSettingKeys.BrandingTheme)).IsSuccess.Should().BeTrue();
+        });
+    }
+
+    [Fact]
     public async Task Missing_announcement_and_cancellation_are_loud_before_a_settings_query()
     {
         await using var source = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);

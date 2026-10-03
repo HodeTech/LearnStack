@@ -74,12 +74,12 @@ public sealed class DefinitionSnapshotStore(CustomizationDbContext db)
                 }
 
                 var revision = Revision(row);
-                definitions.Add(revision, new UntranslatedContentType(row.GetProperty("id").GetGuid(), revision,
+                definitions.Add(revision, new UntranslatedContentType(row.GetProperty("id").GetGuid(),
                     Status(row), Label(row), renderer, presentation.Value));
             }
             catch (ArgumentException)
             {
-                // Invalid stored label/profile makes this pin missing, not its neighbors.
+                // An invalid stored label makes this pin missing, not its neighbors.
             }
         }
 
@@ -99,12 +99,13 @@ public sealed class DefinitionSnapshotStore(CustomizationDbContext db)
                     band.GetProperty("key").GetString()!, Label(band), band.GetProperty("sort").GetInt16(),
                     band.GetProperty("metadata").ValueKind == JsonValueKind.Null
                         ? null : band.GetProperty("metadata").GetRawText())).ToImmutableArray();
-                definitions.Add(revision, new UntranslatedTaxonomy(row.GetProperty("id").GetGuid(), revision,
+                definitions.Add(revision, new UntranslatedTaxonomy(row.GetProperty("id").GetGuid(),
                     Status(row), Label(row), bands));
             }
             catch (ArgumentException)
             {
-                // Refuse the whole vocabulary if one of its stored labels is malformed.
+                // Omit this taxonomy revision if its own or a band's label is
+                // malformed; unrelated revisions remain available.
             }
         }
 

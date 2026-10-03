@@ -101,14 +101,23 @@ public sealed partial class CustomizationProjectionTests
             if (Interlocked.Increment(ref arrived) == 2) barrier.TrySetResult();
             await barrier.Task.WaitAsync(TimeSpan.FromSeconds(30));
         }
-        first.Observer.AfterProbe = Pause;
-        second.Observer.AfterProbe = Pause;
+        // Neither loader may return/fill until both have executed their own
+        // snapshot. A probe-only barrier still permits one caller to warm the other.
+        first.Observer.AfterSnapshot = Pause;
+        second.Observer.AfterSnapshot = Pause;
         var request = Request([new("announcement", 1)], [new("proficiency", 1)]);
         var results = await Task.WhenAll(first.Reader.ReadAsync(request), second.Reader.ReadAsync(request));
         results.Should().OnlyContain(result => result.IsSuccess);
+        foreach (var result in results)
+        {
+            result.Value!.ContentTypes.Should().ContainSingle().Which.Key.Should().Be(new DefinitionRevision("announcement", 1));
+            result.Value.Taxonomies[new("proficiency", 1)].Bands.Should().ContainSingle().Which.Key.Should().Be("beginner");
+        }
         first.Unit.Connection.Should().NotBeSameAs(second.Unit.Connection);
-        first.Observer.Selects.Should().BeInRange(1, 2);
-        second.Observer.Selects.Should().BeInRange(1, 2);
+        first.Observer.Selects.Should().Be(2);
+        second.Observer.Selects.Should().Be(2);
+        first.Observer.Snapshot.Should().NotBeNull();
+        second.Observer.Snapshot.Should().NotBeNull();
         cache.FactoryCalls.Should().Be(0);
         await first.Frame.FailAsync();
         (await second.Reader.ReadAsync(request)).IsSuccess.Should().BeTrue();
@@ -177,12 +186,16 @@ public sealed partial class CustomizationProjectionTests
         cache.FactoryCalls.Should().Be(0);
     }
 
-    private static object Summary(List<double> samples) => new
+    private static object Summary(List<double> samples)
     {
-        Minimum = samples.Min(),
-        Median = samples.Order().ElementAt(samples.Count / 2),
-        Maximum = samples.Max()
-    };
+        var ordered = samples.Order().ToArray();
+        return new
+        {
+            Minimum = ordered[0],
+            Median = (ordered[(ordered.Length - 1) / 2] + ordered[ordered.Length / 2]) / 2,
+            Maximum = ordered[^1]
+        };
+    }
     private static NpgsqlCommand SampleCommand(IUnitOfWork unit, CommandSample sample)
     {
         var command = new NpgsqlCommand(sample.Sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!);
