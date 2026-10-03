@@ -3,7 +3,7 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-4 Accepted public site boundary — implementation pending.** Site bootstrap
+**P02d-4 Step 2 implemented — 2026-10-03; reviews pending.** Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It
 uses matching host scope and READ ONLY; normal reads add no audit row. Public
 configuration/settings ports remain internal and unrouted. Independent rejected-
@@ -171,3 +171,12 @@ joined in both directions the day its command lands.
 `GetHostMappingSeedStateQuery`, `GetSettingSeedStateQuery` are explicitly Off in
 `TenancyAuditCatalogSource`. These unrouted queries verify announced
 tenant state through the ambient transaction and declare no write operation.
+
+## P02d-4 public site read
+
+`GetPublicSiteQuery` is explicitly Off in `TenancyAuditCatalogSource`. Its GET/HEAD
+endpoint returns only the public configuration allowlist through the marked
+read-only pipeline. No operation slug or resource audit row is registered. Normal
+successes and refusals add no intent; independent rejected-assertion auditing is
+unchanged. `IPublicTenantConfigurationReader` and `ITenantSettingsAccessor` are
+internal ports, not separately dispatched or directly routed endpoints.

@@ -124,7 +124,8 @@ readers recheck enabled membership rather than cascading across modules.
 
 ### P02d-4 public configuration contract
 
-**Accepted — 2026-10-03; implementation pending.** A separate application contract
+**Step 2 implemented — 2026-10-03; reviews pending.**
+`IPublicTenantConfigurationReader`
 reads live scope and locale configuration on the announced/enlisted ambient
 connection. The existing authoring reader above keeps its bounded failure behavior.
 No caller tenant/org IDs or cross-module table join is introduced.
@@ -178,9 +179,10 @@ A failing pair returns `validation_failed`, not a warning-only save without a St
 One setting root and exact version protect the whole contrast unit. Concurrent
 replacement yields a concurrency conflict; competing creates use the existing
 tenant/scope/key uniqueness. No retry merges colors from different candidates.
-Invalid existing override falls back as a whole to safe CSS defaults at the later
-public projection; never emit raw JSON or partial unsafe colors. P02d-4 accepts
-whole-theme/null and attribution-only semantics; G42 still owns injection. Authoring
+Invalid existing override projects as a whole null in P02d-4 Step 2; safe CSS
+defaults remain the renderer's responsibility. Never emit raw JSON or partial unsafe
+colors. Whole-theme/null and attribution-only semantics are delivered; G42 still
+owns injection. Authoring
 this baseline theme is
 not gated by `tenancy.white_label_branding` in P02d-2.
 
@@ -200,7 +202,7 @@ No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
 admitted. The first production registration is tenant-wide `branding.theme`,
 reusing its four-color grammar and contrast validator above. It returns a complete
 typed palette or bounded absent/invalid outcome. P02d-4 public allowlisting is
-Accepted with implementation pending; CSS injection remains P02d-6.
+delivered by Step 2; CSS injection remains P02d-6.
 
 Registrations are values in an explicit server-owned `TenantSettingRegistry`.
 The composition extension installs its default only when no registry was already

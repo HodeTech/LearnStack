@@ -95,11 +95,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**145 test methods run in
+**151 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Step 1. Methods are not rows:
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Steps 1–2. Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
@@ -125,7 +125,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**151 rules in this catalogue are Implemented, and 103 of them are in that assembly.**
+**154 rules in this catalogue are Implemented, and 106 of them are in that assembly.**
 The other 48 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -4036,7 +4036,8 @@ of structural detection.
   catalogue, with a non-empty request set and a planted non-Off classification.
 - **Source:** ADR-0052; API Standards § Public surface.
 - **Type:** xUnit + reflection + audit catalogue. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and
+  clean controls accompany the production census.
 - **Phase:** 02d (P02d-4 Steps 2–3).
 
 #### `PublicSurface_Endpoints_Dispatch_Through_The_Pipeline`
@@ -4045,7 +4046,8 @@ of structural detection.
   ISender; direct handler, helper and minimal-API bypass probes are detected.
 - **Source:** ADR-0052; Backend Coding Standards § Pipeline Behaviors.
 - **Type:** xUnit + endpoint metadata + IL/source scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and
+  clean controls accompany the production census.
 - **Phase:** 02d (P02d-4 Steps 2–3).
 
 #### `PublicSurface_Controllers_Do_Not_Access_Persistence`
@@ -4054,7 +4056,8 @@ of structural detection.
   nor open independent connections, including concrete and service-locator paths.
 - **Source:** ADR-0052; Security Standards § Tenant Context.
 - **Type:** xUnit + IL/source scan. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 2); planted bypass and
+  clean controls accompany the production census.
 - **Phase:** 02d (P02d-4 Steps 2–3).
 
 #### `PublicSurface_Response_Schemas_Exclude_Internal_Fields`

@@ -229,3 +229,17 @@ OpenAPI/SDK/CI proofs remain with Steps 2–4. The original Status and Architect
 Tests sections record the acceptance baseline; the catalogue and
 [P02d-4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
 own current implementation and review evidence.
+
+## Amendment 2 — P02d-4 site bootstrap delivery (2026-10-03)
+
+This delivery note changes no decision. Step 2 implements the live Tenancy
+configuration port and site GET/HEAD through the marked Off read-only pipeline.
+The early public response policy covers successes and errors, including bodyless
+HEAD, no-store and absence of response validators. Explicit Off registration,
+controller/helper persistence exclusion and endpoint dispatch/method controls
+have planted positive and negative cases. PostgreSQL-backed HTTP cases exercise
+lifecycle withdrawal, locale emptiness/invalidity, whole-theme/null and effective
+attribution. Education reads and full OpenAPI/SDK/CI proof remain Steps 3–4.
+
+The [packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-2-public-site-bootstrap)
+owns validation and both review rounds; it does not mark the whole packet complete.

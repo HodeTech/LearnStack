@@ -1,6 +1,7 @@
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
@@ -304,6 +305,7 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantLevelTaxonomyCatalog, TenantLevelTaxonomyCatalog>();
         services.TryAddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
+        services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
         services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();

@@ -95,6 +95,10 @@ records final verification. Public reads stay with P02d-4.
 Its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 and ADR-0052 are Accepted — 2026-10-03. The approved four-step implementation and
 two-round review loop run on development; delivery evidence is recorded per step.
+Step 1 implements immutable host provenance and physical read-only transactions;
+both review rounds and the focused fix review pass. Step 2 implements live site
+configuration and GET/HEAD with no-store; its review rounds are pending. Education
+reads and OpenAPI/SDK/CI proof remain Steps 3–4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

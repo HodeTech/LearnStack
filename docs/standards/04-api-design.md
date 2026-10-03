@@ -32,7 +32,8 @@ Examples:
 
 Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
-**P02d-4 Accepted contract — 2026-10-03; implementation pending.** Institution
+**P02d-4 Accepted contract — 2026-10-03.** Step 2 delivers site GET/HEAD;
+Education reads and contract/SDK verification remain Steps 3–4. Institution
 reads use `/api/v1/public`, separate from future authoring ID routes: `/site`,
 `/courses`, `/courses/{slug}` and `/courses/{slug}/lessons/{lessonSlug}`. Each has
 explicit GET and HEAD; Education routes require query locale. Response/continuation
@@ -202,7 +203,9 @@ reconciliation matrix are the separate case — no tenant context resolves at al
 is the authority for why the ceiling holds and what a forged host reaches under it. The
 matrix is not restated here.
 
-**P02d-4 Accepted boundary — implementation pending.** All institution public reads
+**P02d-4 foundations and site delivered — 2026-10-03.** Steps 1–2 implement
+host admission, read-only execution and the site request/endpoint guards. All
+institution public reads
 are marked requests dispatched through ISender, GET/HEAD only and audit Off. A
 matching factory HostScope independently narrows normal context/filter/RLS reads;
 credentials never widen it. Physical ambient reads are READ ONLY under ADR-0052
@@ -211,30 +214,30 @@ Structural bypass detection complements real HTTP/app-role database proofs; the
 runtime barrier protects only the enlisted transaction. Rejected-assertion audit
 retains its independent sanctioned path.
 
-The catalogue registers Off, host-provenance, dispatch, controller and read-only
-obligations before implementation. Existing guards retain their actual implemented
-coverage; this acceptance does not add a production request type.
+The catalogue records implemented Off, host-provenance, dispatch, controller and
+read-only guards with planted controls. Education eligibility and complete
+response/OpenAPI/SDK proof retain their Step 3–4 obligations.
 
 The set is this table and nothing else:
 
 | Request type | Permitted methods | Why | Owning phase |
 |--------------|-------------------|-----|--------------|
+| `GetPublicSiteQuery` | GET, HEAD | Anonymous host-resolved institution bootstrap, audit Off and READ ONLY | P02d-4 Step 2 |
 
-Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s
-anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
+The first production row is P02d-4's site bootstrap.
+`PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
-([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) pass over an
-empty set — the honest state of a marker no request type carries yet.
+([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) now guard
+a non-empty set. The separate `PublicSurface_Requests_Are_Registered_Off` refuses
+every non-Off or unclassified public request.
 
 **Adding a row here is half of an edit.** The rule reads this table in both directions,
 so a row naming a request type that does not carry `[PublicSurface]` fails the build:
 an entry here reads as a reviewed decision, and one with no attribute behind it is a
 decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSensitive`
-is the one to watch when the first row lands: its cross-check against the audit
-catalogue, `IAuditCatalog`, is written (Packet 9) and fails any marked request the
-catalogue registers as MUST-class `read-sensitive` — its companion proves it on a probe, because the
-production set is empty until Phase 02d. The first row is where it starts guarding a real
-endpoint.
+cross-checks the merged `IAuditCatalog` and fails any marked request registered as
+MUST-class `read-sensitive`. Its companion proves the forbidden classification is
+detected even when all shipped requests are correctly Off.
 
 ## Pagination
 
@@ -390,7 +393,7 @@ statuses it can answer before the action runs.
 
 Mutable resources expose `ETag` (or `version` field).
 
-**P02d-4 Accepted public exception — implementation pending.** The public prefix
+**P02d-4 public exception delivered — Step 2.** The public prefix
 uses no-store on successes and errors; it emits no ETag or Last-Modified and does
 not honor If-None-Match/304. Mutable authoring resources retain ADR-0039's
 concurrency contract below. Internal definition caching is separate.

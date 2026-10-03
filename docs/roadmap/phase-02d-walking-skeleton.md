@@ -2221,8 +2221,8 @@ in this step; Steps 2–4 retain those obligations.
 **Pre-review verification.** Release build has zero warnings/errors. All 2672
 .NET tests pass with zero failures/skips: 1598 unit, 189 architecture, one contract,
 171 Docker-free integration and 713 Docker integration. Format and changed-document
-link/anchor checks pass. The two implementation review rounds are pending; Step 1
-is not yet declared complete.
+link/anchor checks pass. At this pre-review boundary both review rounds were
+pending; completion is recorded below.
 
 **Review round 1.** Independent GPT-6-astra and GPT-6.1-sol xhigh reviewers
 examined `f79e4a4..77b13f5`. Neither found a production defect or Blocker/Major.
@@ -2252,8 +2252,40 @@ its read-only refusal from the writable WITH CHECK controls. All 21 focused
 admission unit cases pass with zero failures/skips. The contracts reviewer also
 independently ran a clean Release build (zero warnings/errors), 189 architecture,
 63 focused units, nine mode cases and the changed HTTP control on `1020611`, all
-passing with zero failures/skips. A fresh focused review checks the admission fix
-before Step 2 starts.
+passing with zero failures/skips. A fresh GPT-6-astra xhigh focused review of
+`1020611..248b5e3` found
+no remaining actionable issue. Step 1 and both review rounds are complete.
+
+#### P02d-4 Step 2: public site bootstrap
+
+**Implementation — 2026-10-03.** The internal typed Tenancy configuration port
+checks live tenant/mapped-organization lifecycle on the announced/enlisted
+read-only transaction. Valid locale emptiness stays distinct from invalid stored
+configuration. Site GET/HEAD dispatch a marked Off query through ISender; they
+project only the approved display name, sorted enabled locales, default locale,
+whole validated theme or null and effective attribution. No caller scope selector,
+new permission, generic settings route or palette is added.
+
+An early public-prefix response policy covers successes and all errors, including
+routing, rate limiting and exception handling: no-store, no validators and no HEAD
+body. Structural Off, independent action dispatch/method and transitive controller
+persistence guards include offending and clean controls. A production-composition
+HTTP fixture uses real writer seeds and the application database role; it observes
+server read-only mode and non-bypass role before each configuration read. Cases
+cover lifecycle withdrawal after warm host resolution, locale order/emptiness,
+invalid configuration, uncached whole-theme/null, attribution provider outcomes,
+query refusal before data, no normal audit rows, exact endpoint inventory and
+GET/HEAD error/no-store behavior. Education and contract/SDK/CI remain Steps 3–4.
+
+**Pre-review verification.** A clean CI=true Release build with --no-incremental
+passes with zero warnings/errors. All 2710 .NET cases pass with zero failures/skips:
+1599 unit, 195 architecture, one contract, 171 Docker-free integration and 744 Docker
+integration. TRX counters retain each suite separately and agree with the runner.
+After strengthening token/case/action-suffix route discovery and its controls, the
+clean build and all 195 architecture cases pass again; all 29 focused site HTTP
+cases pass. Formatting, diff hygiene and 1540 local links/400 fragments across the
+15 affected Markdown files pass. Existing ADR-0052 text and frozen P02d-1–3 records
+remain intact. Both implementation review rounds are pending.
 
 ### P02d-1 decision pass (2026-09-14)
 

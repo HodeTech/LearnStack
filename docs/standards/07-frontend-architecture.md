@@ -67,7 +67,8 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 
 ## Tenant Resolution
 
-**P02d-4 Accepted design — 2026-10-03; implementation pending.**
+**P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
+Education/SDK and server transport retain Steps 3–4 and P02d-5.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) replaces public edge
 ID lookup with host-resolved `/api/v1/public/site` bootstrap. The API owns effective
 host resolution under ADR-0036; bootstrap exposes rendering configuration without
@@ -179,7 +180,7 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 selects one whole-theme color document, contrast refusal, no organization override
 and no font/logo/URL/layout value. Document injection remains G42.
 P02d-4 accepts complete typed theme or null and attribution-only entitlement;
-implementation of that public projection is pending.
+Step 2 delivers that public projection.
 
 P02d-4's public theme is exactly four validated colors or null; frontend safe
 CSS defaults remain the fallback, with no backend palette copy. Baseline colors

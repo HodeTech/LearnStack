@@ -189,15 +189,11 @@ public interface IAuditCatalogBuilder
     /// Declares that this request is known and audits nothing.
     /// </summary>
     /// <remarks>
-    /// No production request type registers here yet. Test-only types do: the
-    /// integration suite's, in <c>TestAuditCatalogSource</c>, and probe types in the
-    /// unit and architecture suites. Registered and silent is not the same as
-    /// unregistered — the first is a decision, the second is an omission, and only the
-    /// second is refused. Which class a <c>[PublicSurface]</c> request registers, and
-    /// whether a rule makes <c>Off</c> the only one permitted, is G28 (a) in
-    /// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">
-    /// Phase 02d's decision register</see>; the pass that closes it edits this remark
-    /// with its answer.
+    /// Contextual seed verification and public reads explicitly register here.
+    /// Registered and silent differs from unregistered: only the latter is refused.
+    /// ADR-0052 requires every public request to be Off, mechanically checked by
+    /// PublicSurface_Requests_Are_Registered_Off. Independent rejection auditing is
+    /// unaffected by a business request's classification.
     /// </remarks>
     IAuditCatalogBuilder Off<TRequest>()
         where TRequest : notnull;

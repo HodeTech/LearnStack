@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -43,6 +44,7 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetOrganizationSeedStateQuery>();
         builder.Off<GetHostMappingSeedStateQuery>();
         builder.Off<GetSettingSeedStateQuery>();
+        builder.Off<GetPublicSiteQuery>();
 
         builder
             .ShouldAudit<AddTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))

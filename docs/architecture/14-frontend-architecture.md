@@ -20,7 +20,8 @@ optional per-organization override, rendering strategies, data fetching, the ten
 block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
 independent apps when warranted.
 
-> **P02d-4 Accepted design — 2026-10-03; implementation pending.**
+> **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
+> Education, contract/SDK and server consumer remain Steps 3–4 and P02d-5.
 > [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
 > site bootstrap in place of public edge ID lookup. Its
 > [approval package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
@@ -87,7 +88,8 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 
 ## Tenant + Organization Resolution at the Edge
 
-**Accepted public boundary — 2026-10-03; implementation pending.** The frontend
+**Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
+server transport and consumers remain P02d-5/6. The frontend
 uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
 [Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)
@@ -148,7 +150,7 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-**P02d-4 Accepted public projection — implementation pending.** Bootstrap returns
+**P02d-4 Step 2 public projection delivered.** Bootstrap returns
 only the whole typed four-color theme or null; frontend safe CSS defaults remain
 owned here, without backend duplication. Baseline colors apply independently of
 plan. Effective WhiteLabelBranding removes LearnStack attribution only. Public
@@ -156,7 +158,7 @@ responses expose no setting keys, raw/partial JSON or organization merge. G42
 still owns document injection in P02d-6.
 
 **P02d-2/3 delivered foundation — 2026-10-03.** The theme writer and typed settings
-accessor are implemented. The anonymous projection remains P02d-4; renderer
+accessor are implemented. Step 2 delivers the anonymous projection; renderer
 injection remains P02d-6. The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
@@ -169,7 +171,7 @@ as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` 
 names and the shared Tailwind preset reads; this document keeps no second vocabulary.
 The accepted [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 owns P02d-2's admitted tokens and values. P02d-4 accepts their public projection and
-attribution rule; implementation remains pending.
+attribution rule; Step 2 delivers this API projection.
 How the tokens reach the document, and how that mechanism stays compatible with the
 nonce-based policy that
 [Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as

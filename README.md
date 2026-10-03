@@ -85,7 +85,9 @@ generation caching and scope-safe bypass; both review rounds passed.
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification.
-**P02d-4** owns anonymous public API reads. Browser rendering follows
+**P02d-4 is in progress:** Steps 1–2 deliver the read-only host boundary and
+anonymous site bootstrap. Education reads and OpenAPI/SDK verification remain
+Steps 3–4. Browser rendering follows
 in P02d-5–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. Public API implementation follows its four-step review
