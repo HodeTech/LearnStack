@@ -232,7 +232,9 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-**P02d-2 accepted design — 2026-10-02, not implemented.** The
+**P02d-2/3 delivered foundation — 2026-10-03.** The theme writer and typed settings
+accessor are implemented. The anonymous projection remains P02d-4; renderer
+injection remains P02d-6. The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
 logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
