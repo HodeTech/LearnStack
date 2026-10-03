@@ -2318,7 +2318,13 @@ Send census now equals the approved HTTP action count, while each action still
 proves its actual marked argument. A planted private helper fails the control.
 The follow-up control also gives the private helper a GET attribute: private
 methods are not MVC actions and cannot offset an extra Send. This regression
-fails before the public-method filter and passes afterward.
+fails before the public-method filter and passes afterward. A fresh GPT-6.1-sol
+xhigh reviewer approves `6b8e743`: clean production GET/HEAD pass, ordinary and
+decorated private sends fail, and removing only IsPublic in a temporary assembly
+restores the decorated bypass. No actionable correction remains. The final clean
+Release build has zero warnings/errors and all 195 architecture cases pass with
+zero failures/skips. Step 2 and both independent review rounds are complete;
+Education implementation proceeds in Step 3.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -3,7 +3,8 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-4 Step 2 implemented — 2026-10-03; reviews pending.** Site bootstrap
+**P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
+and focused fix verification pass. Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It
 uses matching host scope and READ ONLY; normal reads add no audit row. Public
 configuration/settings ports remain internal and unrouted. Independent rejected-

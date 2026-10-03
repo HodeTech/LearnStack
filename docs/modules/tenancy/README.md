@@ -124,7 +124,8 @@ readers recheck enabled membership rather than cascading across modules.
 
 ### P02d-4 public configuration contract
 
-**Step 2 implemented — 2026-10-03; reviews pending.**
+**Step 2 implemented — 2026-10-03.** Both review rounds
+and focused fix verification pass.
 `IPublicTenantConfigurationReader`
 reads live scope and locale configuration on the announced/enlisted ambient
 connection. The existing authoring reader above keeps its bounded failure behavior.
