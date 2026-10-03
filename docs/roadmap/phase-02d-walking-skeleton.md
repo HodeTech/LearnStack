@@ -2106,8 +2106,8 @@ malformed JSON, transport failures and caller cancellation stay distinct from a
 valid API error. Tests cover exact URL/query construction and generated typing.
 P4 proves SDK operation coverage and drift; P5 supplies the first server consumer;
 P6 proves every logical GET has a public-page consumer. HEAD is the HTTP companion,
-not an invented browser JSON consumer. Reconcile the phase's current criterion
-that prematurely demands all `apps/web` consumers in P4.
+not an invented browser JSON consumer. The phase's consumer criterion follows
+this split.
 
 Replace the deferred CI placeholder with always-running **`openapi diff`**, removing
 ENABLE_OPENAPI_DIFF and its deferred suffix. Add snapshot-based SDK regeneration/
