@@ -86,7 +86,7 @@ generation caching and scope-safe bypass; both review rounds passed.
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification.
 **P02d-4 is in progress:** Steps 1–3 implement the read-only host boundary,
-anonymous site bootstrap and Education reads. Step 3 review rounds are pending;
+anonymous site bootstrap and Education reads. Both Step 3 review rounds pass;
 OpenAPI/SDK/CI verification remains Step 4. Browser rendering follows
 in P02d-5–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)

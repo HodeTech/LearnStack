@@ -260,3 +260,11 @@ EXPLAIN plans are recorded in the
 [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
 Both independent review rounds are pending at this implementation boundary.
 Full served/snapshot OpenAPI, SDK and required CI proof remain Step 4.
+
+## Amendment 4 — Education read review closeout (2026-10-04)
+
+This delivery note changes no decision. Both independent Step 3 review rounds
+are complete. The verified Unicode cursor defect is fixed with bounded refusal
+and real HTTP controls; no verified finding remains after fresh Round 2 review.
+The [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+owns review and verification evidence. Contract/SDK/CI delivery remains Step 4.

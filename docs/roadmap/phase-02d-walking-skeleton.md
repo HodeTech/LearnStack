@@ -2328,7 +2328,7 @@ Education implementation proceeds in Step 3.
 
 ### P02d-4 Step 3: public Education reads
 
-**Implementation — 2026-10-04; review rounds pending.** Education serves all three
+**Implementation — 2026-10-04; both review rounds complete.** Education serves all three
 GET/HEAD pairs through marked audit-Off queries and the read-only pipeline. The
 source store intersects immutable host scope with normal EF filters and RLS.
 Published/nondeleted exact-locale marketing is separate from public-parent
@@ -2406,6 +2406,14 @@ full, and real database cases prove deleted-anchor continuation and current-row
 restart for both catalog and outline. The clean Release build and 33 protocol,
 198 architecture and 81 Education database/HTTP cases pass with zero skips.
 Formatting and diff hygiene pass; a fresh second review follows the fix commit.
+
+**Round 2 and step closeout.** Fresh GPT-6-astra and GPT-6.1-sol xhigh reviewers
+independently approve `b1bff6f..6c09888`, including the Unicode refusal fix and
+stronger HTTP/pagination proofs. Both run the 45 protocol/display unit cases;
+the protocol reviewer also runs 13 public-surface/aggregate-write architecture
+cases. All pass with zero failures/skips; neither reviewer mutates files. No
+verified finding remains. Step 3 is complete after both review rounds; Step 4
+continues with the approved OpenAPI, SDK and CI contract.
 
 ### P02d-1 decision pass (2026-09-14)
 

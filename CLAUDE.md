@@ -99,8 +99,8 @@ Step 1 implements immutable host provenance and physical read-only transactions;
 both review rounds and the focused fix review pass. Step 2 implements live site
 configuration and GET/HEAD with no-store; both review rounds and focused fix
 verification pass. Step 3 implements Education GET/HEAD reads, exact-locale
-marketing/content projections and scoped seek cursors; its two review rounds are
-pending. OpenAPI/SDK/CI proof remains Step 4.
+marketing/content projections and scoped seek cursors; both independent review
+rounds pass. OpenAPI/SDK/CI proof remains Step 4.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

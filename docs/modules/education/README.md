@@ -280,7 +280,7 @@ No Education code names a Customization or Tenancy table.
 
 ### Primary read flow
 
-**P02d-4 Step 3 implemented — 2026-10-04; review rounds pending.** Three institution
+**P02d-4 Step 3 implemented — 2026-10-04; both review rounds complete.** Three institution
 Education requests dispatch through ISender under `[PublicSurface]`, audit Off and
 GET/HEAD. Site bootstrap is owned by Tenancy. The
 [public DTO/route contract](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
@@ -369,7 +369,7 @@ forcing an index or claiming a production cardinality.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
 - Writer and seed decisions are implemented in P02d-2. P02d-4 read-response
-  decisions are implemented by Step 3, with review rounds pending; renderer gates
+  decisions are implemented by Step 3, after both review rounds; renderer gates
   remain in
   the [decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
   No P02d-1 decision is implicitly delegated to those later passes.
