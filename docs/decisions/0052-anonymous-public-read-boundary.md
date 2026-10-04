@@ -337,3 +337,16 @@ the final compatibility fixes approves, with no verified finding remaining. The
 owns the complete regression and final control counts. Actual PR CI and live
 sixth required-check registration remain the final rollout proof; this note does
 not claim merge or browser delivery. P02d-5/6 remain the server/page owners.
+
+## Amendment 11 — live CI and required-check delivery (2026-10-04)
+
+This delivery note changes no decision. All six real PR CI jobs pass. After the
+successful `openapi diff` job, its approved sixth required GitHub Actions context
+is activated; full API read-back proves strict checking and every other live
+protection setting preserved. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns the exact head, run, artifacts and activation proof. P02d-4 implementation,
+review loops and rollout are complete in
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting maintainer
+review and merge. The original acceptance Status remains historical; P02d-5/6
+remain the server consumer/browser owners.

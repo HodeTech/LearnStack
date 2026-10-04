@@ -102,7 +102,10 @@ verification pass. Step 3 implements Education GET/HEAD reads, exact-locale
 marketing/content projections and scoped seek cursors; both independent review
 rounds pass. Step 4 implements served/snapshot contract controls, the injected typed
 SDK and always-running OpenAPI compatibility CI. Both independent review rounds
-and fresh fix verification pass; live required-check rollout follows real CI.
+and fresh fix verification pass. All six real CI jobs pass; the approved sixth
+required check is active with all other live settings preserved. P02d-4 is
+implementation-complete in [PR #25](https://github.com/HodeTech/LearnStack/pull/25),
+awaiting maintainer review and merge. P02d-5 is next; its decision pass is not started.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -12,7 +12,7 @@
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
-> | P02d-4 | Public read API and contract checks | decision pass Accepted — 2026-10-03; all four implementation steps and review loops complete; live required-check rollout pending — [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
+> | P02d-4 | Public read API and contract checks | ✅ implementation, review loops and live check rollout complete — 2026-10-04; [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review and merge; [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
@@ -62,6 +62,13 @@ been written. The maintainer reviews one concrete package before implementation.
 host provenance, public contracts and the sixth required OpenAPI check. Decision
 records and carrier updates precede implementation; the delivery record will own
 actual code, reviews and checks. Development remains the working branch.
+
+**P02d-4 implementation complete — 2026-10-04, unmerged.** All four steps and
+their two independent review rounds are complete. The
+[delivery record](#p02d-4-step-4-contract-sdk-and-ci) records passing real CI and
+verified activation of the sixth required check.
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review
+and merge. P02d-5 is next; its decision pass has not started.
 
 ## Goal
 
@@ -2418,7 +2425,7 @@ continues with the approved OpenAPI, SDK and CI contract.
 
 ### P02d-4 Step 4: contract, SDK and CI
 
-**Implementation and review loops complete — 2026-10-04; live rollout pending.**
+**Complete — 2026-10-04; PR #25 awaits maintainer review and merge.**
 The production
 OpenAPI transformer documents manually parsed locale/cursor/page parameters,
 shared Problem Details, closed enums and bodyless HEAD. The sole committed v1
@@ -2554,6 +2561,33 @@ compatibility fixes change scripts/fixtures only, and the final operation mutant
 pass all four contract cases. Formatting, actionlint, link/anchor and frozen-record
 checks pass. Live CI and sixth required-check API read-back follow PR creation;
 packet exit is not yet claimed. P02d-5 is next, with its decision pass not started.
+
+**Live CI and approved check rollout — 2026-10-04.**
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) opens from development to
+main. At head `0a14c7474f7cb383a789adf1966d28e67dbc3954`, all six jobs pass in
+[the real PR run](https://github.com/HodeTech/LearnStack/actions/runs/37188555958):
+backend, Docker integration, frontend, meta, secret scan and `openapi diff`.
+Lighthouse is the sole deferred job, owned by P02d-6/G44. Backend TRX artifacts
+confirm 2017 Docker-free cases and 826 Docker cases, with zero failures/skips.
+The Linux OpenAPI artifact confirms pinned oasdiff 1.33.0, all 60 controls
+(39 breaking, 21 compatible), verified base
+`d1a47369d82f8b6d91cb325f56d4c42382ec77b6` and actual operation-free baseline
+composition; the comparison passes.
+
+After that successful `openapi diff` job, the approved PATCH adds only its GitHub
+Actions context (`app_id=15368`). Fresh full protection read-back proves the five
+existing contexts remain, all six have Actions attribution, strict up-to-date
+checking remains true, and every other protection field is identical. This includes
+zero required approvals and admin enforcement off under the existing maintainer
+deferral; no unrelated protection is changed.
+[CONTRIBUTING](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main) owns
+the current list. All six live contexts match the successful PR check rollup.
+
+P02d-4 implementation and rollout are complete; maintainer review/merge remains.
+The final documentation commit reruns the same six jobs before handoff. P02d-5
+owns the next decision pass, trusted server transport and first consumer. P02d-6
+owns pages/rendering; P02d-7 owns the two-host demonstration and full-stack exit.
+No browser delivery, marketplace commerce or production p95 is claimed.
 
 ### P02d-1 decision pass (2026-09-14)
 

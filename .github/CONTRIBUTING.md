@@ -54,12 +54,13 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
       `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
       behind a green check.
-  - **P02d-4 implements always-running `openapi diff`.** Its placeholder,
-    variable condition and deferred suffix are removed. Pinned policy fixtures,
-    verified base/head snapshots and first-baseline proof run in the real job.
-    The approved live sixth-check registration follows a successful real run;
-    until that API read-back, the verified live list above remains five.
-    Preserve every existing context, strictness and other live setting.
+    - `openapi diff` — **required since P02d-4, 2026-10-04.** The always-running
+      job uses pinned policy fixtures, verified base/head snapshots and actual
+      first-baseline proof. Its real PR run passed before activation. API read-back
+      verifies all six GitHub Actions contexts, strict up-to-date checking and
+      every other protection setting unchanged. The
+      [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+      records the successful job and activation proof.
   - `lighthouse budget (deferred to Phase 02d)` remains behind its unset
     `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. P02d-6/G44 owns activation,
     pages, harness and assertions; its rename also needs live registration.

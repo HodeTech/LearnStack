@@ -23,8 +23,9 @@ and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accep
 HTTP/database proofs; both independent review rounds passed. Step 4 adds
 OpenAPI/SDK/CI controls; both review rounds and fresh fix verification pass. The
 [delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
-records live rollout separately.
-The diagram includes the access column.
+records verified live rollout and all six successful required jobs.
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review
+and merge. The diagram includes the access column.
 
 ## Overview
 
