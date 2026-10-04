@@ -33,8 +33,7 @@ Examples:
 Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
 **P02d-4 Accepted contract — 2026-10-03.** Steps 2–3 deliver all four GET/HEAD
-read pairs;
-contract/SDK verification remains Step 4. Institution
+read pairs; Step 4 delivers the contract/SDK controls. Institution
 reads use `/api/v1/public`, separate from future authoring ID routes: `/site`,
 `/courses`, `/courses/{slug}` and `/courses/{slug}/lessons/{lessonSlug}`. Each has
 explicit GET and HEAD; Education routes require query locale. Response/continuation
@@ -217,7 +216,7 @@ retains its independent sanctioned path.
 
 The catalogue records implemented Off, host-provenance, dispatch, controller and
 read-only and no-schema-evaluation guards with planted controls. Education
-eligibility has HTTP/database proof; complete OpenAPI/SDK proof remains Step 4.
+eligibility has HTTP/database proof; Step 4 adds complete OpenAPI/SDK controls.
 
 The set is this table and nothing else:
 
@@ -459,22 +458,20 @@ SDK has no branch for.
   the serializer omits defaults.
 - TypeScript SDK `@learnstack/sdk` is generated from this spec;
   [Standards 07 § SDK](07-frontend-architecture.md) owns how and when.
-- Breaking OpenAPI changes fail CI unless the version bumps — once the `openapi diff`
-  job is active. Today that job is a placeholder behind the unset
-  `vars.ENABLE_OPENAPI_DIFF` and reports as skipped, so no breaking change fails CI yet.
+- Breaking OpenAPI changes fail the always-running `openapi diff` job under
+  ADR-0024. Required-check registration is recorded only after a real run and
+  API read-back, in [the packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci).
 
-**G31 Accepted — 2026-10-03; Step 4 activation pending.** Commit only
-`backend/openapi/v1.json`, with production served/snapshot equality and eight
-non-empty GET/HEAD operation controls. Regenerate the SDK from it in required
-frontend CI. Pin oasdiff and policy overrides; planted fixtures prove every
-representable ADR-0024 breaking row. Unrepresentable validator/status behavior
-requires runtime controls. Remove the deferred job condition/suffix; activate
-always-running `openapi diff` and then add its approved sixth required context,
-preserving the five existing contexts, strictness and other settings. A dated
-read-back proves live activation. The first-snapshot exception requires a verified
-base with no v1 operation or snapshot; fetch/read/deletion failures fail closed.
+**G31 delivered by Step 4.** `backend/openapi/v1.json` is the sole v1 snapshot,
+compared against the production served document. Non-empty eight-operation and
+recursive public DTO controls accompany it. Required frontend CI regenerates the
+SDK and refuses scoped drift. Pinned CLI fixtures and an explicit extensible-enum
+companion implement representable ADR-0024 rules; runtime tests own validator and
+status meaning absent from the document. Bootstrap builds and serves the verified
+base composition; only a base without a snapshot and without v1 operations
+qualifies. Verification/read failures and deleted head snapshots fail closed.
 [The accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
-owns the exact pins, policy checks, evidence and rollout.
+owns pins, overrides and the six-check rollout; the delivery record owns execution.
 
 ## Request and Response Limits
 

@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-03).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-04).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -12,7 +12,7 @@
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
-> | P02d-4 | Public read API and contract checks | decision pass Accepted — 2026-10-03; implementation starting — [package](#p02d-4-decision-package-2026-10-03) |
+> | P02d-4 | Public read API and contract checks | decision pass Accepted — 2026-10-03; Steps 1–3 and their review loops complete; Step 4 implementation/reviews in progress — [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
@@ -196,8 +196,9 @@ owner; where a choice is still open, it names the register row that answers it.
   that both sites still render anonymously with Keycloak stopped.
 
 P02d-1 implements Education's roots, translations, migration and isolation.
-P02d-2 implements its six commands and seeded data. What remains unimplemented:
-public Education endpoints; every renderer component; the server SDK transport;
+P02d-2 implements its six commands and seeded data. P02d-3 supplies internal reads;
+P02d-4 supplies public endpoints and contract/SDK controls. What remains unimplemented:
+every renderer component; the configured trusted server SDK transport;
 any trusted-hop configuration; any Lighthouse tooling; and a `make demo` target.
 
 ### Explicitly not in this phase
@@ -2414,6 +2415,64 @@ the protocol reviewer also runs 13 public-surface/aggregate-write architecture
 cases. All pass with zero failures/skips; neither reviewer mutates files. No
 verified finding remains. Step 3 is complete after both review rounds; Step 4
 continues with the approved OpenAPI, SDK and CI contract.
+
+### P02d-4 Step 4: contract, SDK and CI
+
+**Implementation — 2026-10-04; reviews and live rollout pending.** The production
+OpenAPI transformer documents manually parsed locale/cursor/page parameters,
+shared Problem Details, closed enums and bodyless HEAD. The sole committed v1
+snapshot matches the actual production composition. Contract controls assert all
+four paths/eight operations, exact status/query inventories, required public fields,
+recursive schema/CLR leaves and complete error shape. Planted missing operations,
+parameters/statuses, reordered arrays and nested private/raw fields fail.
+
+The SDK root exports generated types only; `/server` implements four generated
+GET contracts through an injected transport. Encoded paths/queries, no authority
+options, allowlisted success shapes and validated Problem Details have fake
+transport controls. API errors project into Standards 09's closed AppError union;
+unknown extensions are ignored. Malformed JSON, invalid response shape, transport
+failure and caller cancellation remain separate. The unused client export is gone.
+P02d-5 still owns the configured trusted server adapter and first consumer.
+
+The always-running `openapi diff` workflow installs checksum-verified oasdiff and
+uses the explicit severity policy. Twenty-three mutation/control fixtures cover
+representable ADR-0024 rows. The tool misclassifies open-enum additions and misses
+open-to-closed changes; a deterministic response-schema companion checks closure
+and removal, normalizing only enum lists that remain explicitly open. A combined
+open addition plus another breaking change still fails. Current public enums stay
+closed; this does not claim an open-enum generator/consumer has shipped.
+
+PR base SHA, push-before SHA and explicit manual base ref select verified git
+snapshots. Missing/deleted heads or failed ref/read/proof fail. Only an actual
+operation-free base production composition with no snapshot permits bootstrap;
+the verified phase-entry base was built and served with zero v1 operations. Eight
+snapshot-admission controls accompany this proof. Artifacts retain original and
+normalized specs, refs/hashes, pinned tool/policy and readable/machine reports.
+Required frontend CI regenerates the committed SDK and refuses scoped drift.
+The approved live sixth check is applied only after the real job runs; no settings
+mutation is claimed by this implementation note.
+
+**Full-suite fixture correction.** The first complete Docker run exposes test
+host lifetime leakage: disposed clients retain child hosts and their independent
+Npgsql pools until collection teardown. PostgreSQL reports SQLSTATE 53300, and a
+new three-client control observes connections rising from one to four. Client
+ownership now disposes the private child host and pool too. This changes the test
+harness, not the production read contract; targeted and complete regression
+results are recorded after execution.
+
+
+**Pre-review verification.** Clean CI=true Release build: zero warnings/errors.
+All 2843 .NET cases pass with zero failures/skips: 1644 unit, 198 architecture,
+four contract, 171 Docker-free integration and 826 Docker integration. The new
+client-lifetime control fails against the original fixture (four connections
+instead of one), and passes after host ownership; the combined 102 public HTTP
+cases and full Docker run pass. Frontend typecheck/lint/build and all 66 Vitest
+cases pass (53 SDK, 13 web). Twenty-three real pinned-tool policy controls and
+eight snapshot-admission controls pass. The actual base Program bootstrap has
+zero v1 operations. Formatting, actionlint, diff hygiene and changed-document
+links/anchors pass. Served snapshot and generated SDK are refreshed from the
+current production composition. Both independent review rounds follow this
+implementation commit; live check registration follows the real CI job.
 
 ### P02d-1 decision pass (2026-09-14)
 

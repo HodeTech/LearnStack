@@ -54,25 +54,20 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
       `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
       behind a green check.
-  - Deferred checks currently have unset `vars.ENABLE_*` conditions. **P02d-4's
-    accepted activation for OpenAPI removes the condition**, replaces the placeholder,
-    renames the job to `openapi diff`, proves its planted failures and adds that exact
-    sixth context after a real run. Preserve the existing five contexts, strictness
-    and every other live setting; record API read-back. No variable-setting step
-    applies to OpenAPI. Until execution, the verified live list above stays five.
-    - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
-      `/api/v1/*` read endpoints.
-    - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
-      content-bearing public pages.
+  - **P02d-4 implements always-running `openapi diff`.** Its placeholder,
+    variable condition and deferred suffix are removed. Pinned policy fixtures,
+    verified base/head snapshots and first-baseline proof run in the real job.
+    The approved live sixth-check registration follows a successful real run;
+    until that API read-back, the verified live list above remains five.
+    Preserve every existing context, strictness and other live setting.
+  - `lighthouse budget (deferred to Phase 02d)` remains behind its unset
+    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. P02d-6/G44 owns activation,
+    pages, harness and assertions; its rename also needs live registration.
 
-    GitHub matches required checks **by name**, so the rename is the dangerous
-    half: a renamed check that nobody re-required is a check that no longer blocks
-    anything, and the PR still shows green.
-
-    > **Lighthouse remains open.** Activation/harness is G44. G31 is Accepted:
-    > `openapi diff` must always run and has an approved sixth-check rollout in the
-    > [packet plan](../docs/roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan).
-    > No OpenAPI activation or protection mutation is claimed by this decision commit.
+    GitHub matches required checks **by name**. The
+    [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+    owns execution and dated API read-back; a workflow edit alone is not a
+    protection-setting change.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

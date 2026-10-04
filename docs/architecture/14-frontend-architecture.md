@@ -21,7 +21,7 @@ block resolver, entitlement-aware UI, custom-domain handling, and the path to ex
 independent apps when warranted.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
-> Education, contract/SDK and server consumer remain Steps 3–4 and P02d-5.
+> Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
 > [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
 > site bootstrap in place of public edge ID lookup. Its
 > [approval package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)

@@ -49,9 +49,20 @@ public sealed class PublicReadFixture : WebApplicationFactory<Program>, IAsyncLi
         // Each client gets its own limiter/cache host; the database alone is shared.
         // A budget exhausted by one scenario cannot turn another scenario into a 429.
         var factory = WithWebHostBuilder(builder => builder.ConfigureTestServices(services => configure?.Invoke(services)));
-        var client = factory.CreateClient();
+        // Client disposal also owns the child host. Keeping every child alive until
+        // collection teardown exhausts PostgreSQL's connections in the complete run.
+        var client = new OwnedFactoryClient(factory);
         client.BaseAddress = new Uri($"http://{host}/");
         return client;
+    }
+
+    private sealed class OwnedFactoryClient(WebApplicationFactory<Program> factory) : HttpClient(factory.Server.CreateHandler())
+    {
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing) factory.Dispose();
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

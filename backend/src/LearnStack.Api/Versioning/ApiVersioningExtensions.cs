@@ -125,6 +125,7 @@ public static class ApiVersioningExtensions
             // published as an object with a `value` property, while the wire
             // carries the bare GUID.
             options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
+            options.AddDocumentTransformer(new PublicReads.PublicReadDocumentTransformer());
 
             options.AddDocumentTransformer((document, _, _) =>
             {

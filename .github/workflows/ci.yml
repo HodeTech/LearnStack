@@ -24,24 +24,9 @@
 #     REQUIRED check is a repository setting — see .github/CONTRIBUTING.md
 #     § Branch protection.
 #
-# Still deferred to later phases. Each is scaffolded behind a repository variable
-# (`vars.ENABLE_*`), unset by default. A constant `if: false` would be simpler but
-# actionlint rejects it ([if-cond] constant expression). Activation is never *only*
-# the variable — .github/CONTRIBUTING.md § Branch protection lists every edit it
-# takes, including the rename and the live required-check registration:
-#   - openapi-diff        : oasdiff against the prior `main` spec. Activates
-#     in Phase 02d, which ships the first real `/api/v1/*` read endpoints and
-#     retires `/healthz` as the only documented surface.
-#   - lighthouse-budget   : LHCI against the built Next.js app. Activates
-#     in Phase 02d, which ships the first content-bearing public pages (the
-#     two tenant catalog / lesson pages a visitor actually loads).
-#
-# Open in Phase 02d: whether lighthouse-budget activates there, on what harness,
-# over which pages and with which assertions is G44, and whether an activated job
-# keeps its `if: vars.ENABLE_*` condition is G31, both in
-# docs/roadmap/phase-02d-walking-skeleton.md § The decision register. The pass that
-# closes each gate edits this block, the deferred jobs and
-# .github/CONTRIBUTING.md § Branch protection with its answer.
+# P02d-4 activates the always-running `openapi diff` check: pinned oasdiff,
+# ADR-0024 policy controls and verified base/head snapshots. Lighthouse remains
+# deferred under P02d-6's G44; a public-page harness has not shipped yet.
 
 name: ci
 
@@ -51,6 +36,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      openapi_base_ref:
+        description: "Explicit verified base commit/ref for the OpenAPI comparison"
+        required: true
+        type: string
 
 # Cancel in-progress runs on the same ref so PR force-pushes don't queue.
 concurrency:
@@ -271,6 +261,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Regenerate SDK from the committed contract and refuse drift
+        env:
+          LEARNSTACK_OPENAPI: ../../../backend/openapi/v1.json
+        run: |
+          git ls-files --error-unmatch packages/sdk/src/generated/schema.d.ts
+          pnpm --filter @learnstack/sdk generate
+          git diff --exit-code -- packages/sdk/src/generated/schema.d.ts
+
       - name: Typecheck
         run: pnpm -r typecheck
 
@@ -283,13 +281,61 @@ jobs:
       - name: Test (Vitest)
         run: pnpm -r test
 
-  # ─── OpenAPI breaking-change check (deferred — Phase 02d) ─────────────
+  # ─── OpenAPI breaking-change check (active — P02d-4) ─────────────────
   openapi-diff:
-    name: openapi diff (deferred to Phase 02d)
+    name: openapi diff
     runs-on: ubuntu-latest
-    if: vars.ENABLE_OPENAPI_DIFF == 'true'
+    timeout-minutes: 15
     steps:
-      - run: echo "Placeholder — Phase 02d wires oasdiff against the prior main spec."
+      - name: Checkout verified history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET SDK for the first-baseline proof
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Install pinned, checksum-verified oasdiff
+        run: python3 scripts/install-oasdiff.py artifacts/openapi/tool
+
+      - name: Prove snapshot admission and fail-closed controls
+        run: python3 scripts/test-openapi-ci.py
+
+      - name: Prove breaking-policy controls
+        run: |
+          python3 scripts/openapi-policy.py \
+            --tool artifacts/openapi/tool/oasdiff \
+            --fixtures --output artifacts/openapi/fixtures
+
+      - name: Compare the event's verified base and head
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          MANUAL_BASE_REF: ${{ inputs.openapi_base_ref }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request) openapi_base="$PR_BASE_SHA"; openapi_head="$PR_HEAD_SHA" ;;
+            push) openapi_base="$PUSH_BEFORE_SHA"; openapi_head="$HEAD_SHA" ;;
+            workflow_dispatch) openapi_base="$MANUAL_BASE_REF"; openapi_head="$HEAD_SHA" ;;
+            *) echo "Unsupported OpenAPI event" >&2; exit 1 ;;
+          esac
+          python3 scripts/openapi-ci.py --base "$openapi_base" --head "$openapi_head" \
+            --tool artifacts/openapi/tool/oasdiff --output artifacts/openapi/diff
+
+      - name: Upload specs, SHAs, policy, tool version and comparison reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-comparison
+          path: artifacts/openapi
+          if-no-files-found: error
 
   # ─── Lighthouse budget (deferred — Phase 02d) ─────────────────────────
   lighthouse-budget:

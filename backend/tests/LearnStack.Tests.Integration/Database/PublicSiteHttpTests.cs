@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -21,6 +22,28 @@ public sealed class PublicSiteHttpTests(PublicReadFixture fixture)
     private static SeedTenant English => SeedData.English;
     private static SeedTenant Yoga => SeedData.Yoga;
     private const string Path = "/api/v1/public/site";
+
+    [Fact]
+    public async Task Disposed_public_test_clients_release_their_database_pools()
+    {
+        var before = await AppConnections();
+        for (var index = 0; index < 3; index++)
+        {
+            using var client = fixture.ClientFor(English.Host);
+            using var response = await client.GetAsync(Path);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        (await AppConnections()).Should().BeLessThanOrEqualTo(before,
+            "disposing each client must release its private application host and data-source pool");
+    }
+
+    private async Task<long> AppConnections()
+    {
+        await using var connection = new NpgsqlConnection(fixture.AppConnectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND usename='learnstack_app'", connection);
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
 
     [Fact]
     public async Task Site_is_allowlisted_host_resolved_and_read_only_without_audit_rows()

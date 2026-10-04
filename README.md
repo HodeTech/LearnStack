@@ -87,7 +87,8 @@ generation caching and scope-safe bypass; both review rounds passed.
 records final verification.
 **P02d-4 is in progress:** Steps 1–3 implement the read-only host boundary,
 anonymous site bootstrap and Education reads. Both Step 3 review rounds pass;
-OpenAPI/SDK/CI verification remains Step 4. Browser rendering follows
+Step 4 implements OpenAPI/SDK/CI controls; its review and live rollout are in progress.
+Browser rendering follows
 in P02d-5–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. Public API implementation follows its four-step review
@@ -98,7 +99,7 @@ plan; server rendering and browser delivery remain P02d-5/6.
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | OpenAPI/SDK/CI proof in [P02d-4 Step 4](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Trusted server consumer in [P02d-5](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 

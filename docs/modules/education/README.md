@@ -20,8 +20,8 @@ records final verification. P02d-4's
 [public-read package](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accepted —
 2026-10-03. Step 3 implements all three Education GET/HEAD pairs with app-role
-HTTP/database proofs; both independent review rounds are pending. Step 4 owns
-the complete OpenAPI/SDK/CI proof.
+HTTP/database proofs; both independent review rounds passed. Step 4 adds
+OpenAPI/SDK/CI controls; its review and live rollout evidence are recorded separately.
 The diagram includes the access column.
 
 ## Overview
@@ -318,7 +318,7 @@ The public no-schema-evaluation guard is Implemented with direct, concrete and
 transitive/interface controls. App-role HTTP/database cases exercise the source
 queries and wire contracts; measurements and review evidence belong to the
 [Step 3 delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
-The recursive OpenAPI response guard remains Step 4.
+Step 4 implements the recursive OpenAPI response guard with nested leak controls.
 
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
 exercises persisted graphs, exact pin and locale round trips, independent root

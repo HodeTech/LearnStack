@@ -115,16 +115,16 @@ and were read as running.
 
 - Validate every endpoint against the published OpenAPI.
 - Breaking changes require a version bump.
-- **What runs today:** `LearnStack.Tests.Contract` asserts the document is served, and
-  nothing more. P02d-4 Steps 2–3 serve the site and Education reads; Step 4 adds full
-  contract checks and activates the OpenAPI breaking-change check in CI, in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), which is also where a committed
-  snapshot first has something to pin. P02d-4's Accepted G31 adds production
-  served/snapshot equality, non-empty eight-operation and recursive allowlist
-  controls, planted extra/removed operations, pinned breaking-policy fixtures and
-  snapshot-derived SDK/drift. These are pending implementation; the
-  [accepted plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
-  owns exact activation and tool limitations.
+- **P02d-4 Step 4 delivered:** the contract suite compares the production
+  composition's served document with `backend/openapi/v1.json`, preserving array
+  order. Eight GET/HEAD operations, exact parameters/statuses and recursive DTO
+  allowlists have clean and planted offending controls. The required frontend job
+  regenerates the locked SDK and refuses drift; fake transports exercise all four
+  generated GET wrappers. Pinned CLI fixtures cover ADR-0024 compatibility, with
+  explicit companions for the tool's open-enum gaps. Snapshot admission controls
+  fail closed on missing/deleted snapshots and failed base verification.
+  [The packet record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+  records executed counts, reviews and the live required-check rollout.
 
 ### End-to-End Tests
 

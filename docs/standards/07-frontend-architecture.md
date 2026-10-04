@@ -68,7 +68,8 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 ## Tenant Resolution
 
 **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
-Education/SDK and server transport retain Steps 3–4 and P02d-5.
+Steps 3–4 deliver Education reads and the typed SDK; P02d-5 owns the trusted server
+transport.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) replaces public edge
 ID lookup with host-resolved `/api/v1/public/site` bootstrap. The API owns effective
 host resolution under ADR-0036; bootstrap exposes rendering configuration without
@@ -106,8 +107,9 @@ public-site URL canonicalization and header transport remain P02d-5.
 
 ## SDK
 
-The SDK is the frontend API boundary. **P02d-4's accepted target is pending
-implementation**; current factories and generated empty paths remain scaffolds.
+The SDK is the frontend API boundary. **P02d-4 Step 4 delivers** generated
+types and an injected public GET transport; the configured server caller remains
+P02d-5.
 
 - Generate from committed `backend/openapi/v1.json` through `LEARNSTACK_OPENAPI`
   using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
@@ -116,7 +118,7 @@ implementation**; current factories and generated empty paths remain scaffolds.
 - The root exports generated types only. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
-- Remove the unused client factory/export. No tenant-ID option, authority-header
+- The unused client factory/export is removed. No tenant-ID option, authority-header
   option, hop secret or request-header lookup enters this package contract.
 - Parse Problem Details as unknown, validate it and map to the existing closed
   AppError union, including unknown codes. Transport failure, malformed JSON and

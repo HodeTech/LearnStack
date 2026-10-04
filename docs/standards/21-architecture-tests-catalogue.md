@@ -126,8 +126,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**155 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 48 are no less binding, and most could not live there. The table says where
+**157 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 50 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -4072,7 +4072,7 @@ of structural detection.
   allowlist and recursive private-field denylist, with nested offending controls.
 - **Source:** ADR-0052; accepted P02d-4 G26/G31.
 - **Type:** xUnit + reflection + served OpenAPI. **Kind:** structural + behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Response_Schemas_Exclude_Internal_Fields`, P02d-4 Step 4); nested field/raw-shape controls and a literal DTO census accompany it.
 - **Phase:** 02d (P02d-4 Steps 3–4).
 
 #### `PublicSurface_Reads_Do_Not_Invoke_JsonSchema_Validation`
@@ -4108,7 +4108,7 @@ of structural detection.
 - **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); eight-operation, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Phase:** 02d (P02d-4 Step 4).
 
 ## References

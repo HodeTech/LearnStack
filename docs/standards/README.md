@@ -112,7 +112,8 @@ obligations to the relevant Active standards.
 delivers host provenance/admission and read-only transaction proofs. Step 2 adds
 site bootstrap, all-status no-store/HEAD behavior and Off/dispatch/controller guards.
 Step 3 adds Education eligibility, scoped seek pages and bounded content/label
-projections with HTTP/database proof. Contract/SDK/CI proofs remain Step 4.
+projections with HTTP/database proof. Step 4 adds served/snapshot equality,
+recursive DTO guards, generated SDK/drift and breaking-policy CI controls.
 
 Nineteen `Active`, three `Adopted`. Packet 10 moved five: the frontend rules, the one-app
 rule, the locale invariants, the out-of-band setters and the port bans are all mechanical

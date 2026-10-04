@@ -100,7 +100,9 @@ both review rounds and the focused fix review pass. Step 2 implements live site
 configuration and GET/HEAD with no-store; both review rounds and focused fix
 verification pass. Step 3 implements Education GET/HEAD reads, exact-locale
 marketing/content projections and scoped seek cursors; both independent review
-rounds pass. OpenAPI/SDK/CI proof remains Step 4.
+rounds pass. Step 4 implements served/snapshot contract controls, the injected typed
+SDK and always-running OpenAPI compatibility CI; reviews and live check rollout
+remain in progress.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

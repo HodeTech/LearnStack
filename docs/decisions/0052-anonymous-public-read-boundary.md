@@ -268,3 +268,18 @@ are complete. The verified Unicode cursor defect is fixed with bounded refusal
 and real HTTP controls; no verified finding remains after fresh Round 2 review.
 The [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
 owns review and verification evidence. Contract/SDK/CI delivery remains Step 4.
+
+## Amendment 5 — contract, SDK and CI implementation (2026-10-04)
+
+This delivery note changes no decision. Step 4 implements the sole committed v1
+snapshot and production served equality, eight-operation and recursive public DTO
+controls. The SDK supplies generated types and four injected GET wrappers with
+bounded success/Problem Details parsing. Required frontend regeneration refuses
+drift. Always-running OpenAPI CI uses the pinned compatibility policy, mutation
+fixtures and explicit companions for open-enum tool gaps; current response enums
+remain closed. Verified operation-free base composition is the only bootstrap.
+
+The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns actual verification, the two independent review rounds and the approved live
+sixth-check rollout. Reviews and settings activation remain pending at this
+implementation boundary. P02d-5/6 remain the server consumer/browser owners.
