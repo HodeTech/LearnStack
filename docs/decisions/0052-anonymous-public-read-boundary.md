@@ -308,3 +308,13 @@ extra-operation contract mutants supply the promised regression proof. The
 [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
 owns the verified findings and fix evidence. Fresh focused review and live sixth
 required-check activation remain pending at this fix boundary.
+
+## Amendment 8 — recursive compatibility verification (2026-10-04)
+
+This delivery note changes no decision. Fresh focused review verifies the prior
+fixes and identifies an incompatible refusal of a recursive open-enum addition.
+Private effective recursive schema copies now keep cycle edges inside the
+normalized policy graph, preserving closed consumers and stable identity across
+documentation changes. Six added CLI controls complement the earlier matrix.
+The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns proof and final review evidence. Live sixth-check activation is still pending.

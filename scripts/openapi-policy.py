@@ -41,6 +41,12 @@ FIXTURE_NAMES = {
     'content-header-open-enum-closed',
     'content-parameter-validator-loosened',
     'content-header-field-added',
+    'recursive-open-enum-value-added',
+    'recursive-schema-unchanged',
+    'recursive-reference-description-updated',
+    'recursive-mixed-openfirst',
+    'recursive-mixed-closedfirst',
+    'recursive-open-addition-closed-removal',
 }
 
 
@@ -50,69 +56,123 @@ def write(path, value):
 
 def materialized_document(document):
     """Resolve each reachable local reference into its own occurrence; keep cycles bounded."""
-    result = copy.deepcopy(document)
+    origins = {}
+
+    def remember(value, location):
+        if isinstance(value, dict):
+            origins[id(value)] = (value, location)
+            for key, child in value.items():
+                remember(child, location + (key,))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                remember(child, location + (index,))
+
+    remember(document, ())
+
+    def clone(value):
+        memo = {}
+        copied = copy.deepcopy(value, memo)
+        for source_id, child in memo.items():
+            if source_id in origins and isinstance(child, dict):
+                origins[id(child)] = (child, origins[source_id][1])
+        return copied
+
+    result = clone(document)
+    recursive = {}
 
     def resolve(value, trail=()):
         if not isinstance(value, dict) or '$ref' not in value:
-            return copy.deepcopy(value), trail
+            return clone(value), trail
         ref = value['$ref']
         if not isinstance(ref, str) or not ref.startswith('#/'):
             raise ValueError('External or invalid reference refused')
         if ref in trail:
-            return copy.deepcopy(value), trail
+            return clone(value), trail
         target = document
         for part in (part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/')):
             target = target[part]
         target, trail = resolve(target, trail + (ref,))
         if not isinstance(target, dict):
             raise ValueError('Reference does not identify an object')
-        return {**target, **copy.deepcopy({key: child for key, child in value.items() if key != '$ref'})}, trail
+        overrides = clone(value)
+        effective = {**target, **{key: child for key, child in overrides.items() if key != '$ref'}}
+        origins[id(effective)] = (effective, origins.get(id(value), (None, ()))[1])
+        return effective, trail
 
-    def schema(value, trail=()):
+    def schema(value, trail=(), location=()):
+        if isinstance(value, dict) and value.get('$ref') in trail:
+            # Each recursive edge stays in a private copy of its effective schema.
+            # Sibling overrides distinguish open and closed consumers of one target.
+            origin = origins.get(id(value), (None, ()))[1]
+            source = origin if origin[:2] == ('components', 'schemas') else location
+            identity = json.dumps([value['$ref'], source], separators=(',', ':'))
+            name = '__learnstack_policy_recursive_' + hashlib.sha256(identity.encode()).hexdigest()
+            if name not in recursive:
+                recursive[name] = {}  # Register before following its own cycle.
+                recursive[name] = schema(value, location=location)
+            return {'$ref': '#/components/schemas/' + name}
         value, trail = resolve(value, trail)
         if not isinstance(value, dict) or '$ref' in value:
             return value
         if 'properties' in value:
-            value['properties'] = {name: schema(child, trail) for name, child in value['properties'].items()}
+            value['properties'] = {
+                name: schema(child, trail, location + ('properties', name))
+                for name, child in value['properties'].items()
+            }
         for keyword in ('items', 'additionalProperties', 'not'):
             if keyword in value:
-                value[keyword] = schema(value[keyword], trail)
+                value[keyword] = schema(value[keyword], trail, location + (keyword,))
         for keyword in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
             if keyword in value:
-                value[keyword] = [schema(child, trail) for child in value[keyword]]
+                value[keyword] = [
+                    schema(child, trail, location + (keyword, index))
+                    for index, child in enumerate(value[keyword])
+                ]
         return value
 
-    def content_object(value):
+    def content_object(value, location):
         value, trail = resolve(value)
         if not isinstance(value, dict):
             return value
         if 'schema' in value:
-            value['schema'] = schema(value['schema'], trail)
-        for entry in value.get('content', {}).values():
+            value['schema'] = schema(value['schema'], trail, location + ('schema',))
+        for media, entry in value.get('content', {}).items():
             if 'schema' in entry:
-                entry['schema'] = schema(entry['schema'], trail)
+                entry['schema'] = schema(entry['schema'], trail, location + ('content', media, 'schema'))
         return value
 
     for path, original in document.get('paths', {}).items():
         item, _ = resolve(original)
-        inherited = [content_object(parameter) for parameter in item.pop('parameters', [])]
+        inherited = [resolve(parameter)[0] for parameter in item.pop('parameters', [])]
         for method, operation in item.items():
             if method not in HTTP_METHODS:
                 continue
             effective = {(parameter['in'], parameter['name']): parameter for parameter in inherited}
             for parameter in operation.get('parameters', []):
-                parameter = content_object(parameter)
+                parameter, _ = resolve(parameter)
                 effective[(parameter['in'], parameter['name'])] = parameter
             if effective or 'parameters' in operation:
-                operation['parameters'] = copy.deepcopy(list(effective.values()))
+                operation['parameters'] = [
+                    content_object(parameter, ('paths', path, method, 'parameters', parameter['in'], parameter['name']))
+                    for parameter in effective.values()
+                ]
             if 'requestBody' in operation:
-                operation['requestBody'] = content_object(operation['requestBody'])
+                operation['requestBody'] = content_object(operation['requestBody'], ('paths', path, method, 'requestBody'))
             for status, response in operation.get('responses', {}).items():
-                response = content_object(response)
+                position = ('paths', path, method, 'responses', status)
+                response = content_object(response, position)
                 if 'headers' in response:
-                    response['headers'] = {name: content_object(header) for name, header in response['headers'].items()}
+                    response['headers'] = {
+                        name: content_object(header, position + ('headers', name))
+                        for name, header in response['headers'].items()
+                    }
                 operation['responses'][status] = response
         result['paths'][path] = item
+    if recursive:
+        schemas = result.setdefault('components', {}).setdefault('schemas', {})
+        if schemas.keys() & recursive.keys():
+            raise ValueError('Private recursive schema collides with the source document')
+        schemas.update(recursive)
     return result
 
 
@@ -159,17 +219,26 @@ def reachable_schemas(document):
     """Index materialized request/response schemas by effective operation position."""
     found = {}
 
-    def visit(value, location, direction):
+    def visit(value, location, direction, trail=()):
         if not isinstance(value, dict):
             return
         found[(direction, location)] = value
+        ref = value.get('$ref')
+        if ref is not None and ref not in trail:
+            if not isinstance(ref, str) or not ref.startswith('#/components/schemas/'):
+                raise ValueError('Unexpected materialized schema reference')
+            target = document
+            parts = tuple(part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/'))
+            for part in parts:
+                target = target[part]
+            visit(target, parts, direction, trail + (ref,))
         for name, child in value.get('properties', {}).items():
-            visit(child, location + ('properties', name), direction)
+            visit(child, location + ('properties', name), direction, trail)
         for keyword in ('items', 'additionalProperties', 'not'):
-            visit(value.get(keyword), location + (keyword,), direction)
+            visit(value.get(keyword), location + (keyword,), direction, trail)
         for keyword in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
             for index, child in enumerate(value.get(keyword, [])):
-                visit(child, location + (keyword, index), direction)
+                visit(child, location + (keyword, index), direction, trail)
 
     def content(value, location, direction):
         if not isinstance(value, dict):

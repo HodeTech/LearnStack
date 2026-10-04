@@ -2435,7 +2435,7 @@ failure and caller cancellation remain separate. The unused client export is gon
 P02d-5 still owns the configured trusted server adapter and first consumer.
 
 The always-running `openapi diff` workflow installs checksum-verified oasdiff and
-uses the explicit severity policy. Fifty mutation/control fixtures cover
+uses the explicit severity policy. Fifty-six mutation/control fixtures cover
 representable ADR-0024 rows and verified placement/type-direction tool gaps.
 A deterministic companion traverses reachable request/response schemas and local
 object/schema references. It enforces type changes, closed enum additions and
@@ -2522,6 +2522,17 @@ with eight snapshot controls. The SDK refuses exact dot segments before dispatch
 all 60 SDK cases/typecheck/lint pass. Added method and path mutants fail the
 eight-operation contract control; all four contract cases pass with zero skips.
 A fresh focused review verifies these final policy/SDK corrections before closeout.
+
+**Focused verification and recursive fix.** A fresh GPT-6-astra xhigh reviewer
+independently verifies all 50 controls, eight snapshot cases, 60 SDK cases and
+four contract cases. It confirms the earlier bypasses are closed, then reproduces
+a recursive open-enum addition wrongly refused at an untouched component cycle
+edge. Recursive edges now point to private effective schema copies, identified by
+stable declaration locations so documentation changes do not alter identity.
+Analysis/normalization reach these cycle copies while preserving closed consumers.
+Six added controls cover open addition, unchanged recursion, documentation edits
+and mixed open/closed schemas in both orders. All 56 real CLI controls pass
+(39 breaking, seventeen compatible), with all eight snapshot controls.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -1457,5 +1457,169 @@
         }
       }
     ]
+  },
+  {
+    "name": "recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveOpen",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "recursive-reference-description-updated",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveOpen",
+          "properties",
+          "children",
+          "items",
+          "description"
+        ],
+        "value": "Updated documentation"
+      }
+    ]
+  },
+  {
+    "name": "recursive-mixed-openfirst",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-mixed-closedfirst",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedClosedFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedClosedFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-open-addition-closed-removal",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a"
+        ]
+      }
+    ]
   }
 ]
