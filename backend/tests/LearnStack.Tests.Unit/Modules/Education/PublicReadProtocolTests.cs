@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using LearnStack.Modules.Education.Application.Abstractions;
@@ -114,6 +115,34 @@ public sealed class PublicReadProtocolTests
                      Encode("[]"), Encode("{\"v\":[[[[[1]]]]]}"), Encode(json.Insert(1, "\"v\":1,")), Encode(json + new string(' ', 769)),
                      Convert.ToBase64String(new byte[] { 0xff }).TrimEnd('=').Replace('+', '-').Replace('/', '_') })
             PublicCursorCodec.TryCatalog(invalid, Scope, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Both_cursors_refuse_invalid_utf8_and_unpaired_surrogates_in_names_and_values()
+    {
+        var outline = PublicCursorCodec.EncodeOutline(Scope, new OutlineContinuation(Course, 0, Lesson));
+        foreach (var (raw, isOutline) in new[] { (PublicCursorCodec.EncodeCatalog(Scope, Anchor), false), (outline, true) })
+        {
+            var payload = Decode(raw);
+            var json = payload.ToJsonString();
+            var invalidUtf8 = Encoding.UTF8.GetBytes(json);
+            invalidUtf8[json.IndexOf(Scope, StringComparison.Ordinal)] = 0xff;
+            var invalidName = Encoding.UTF8.GetBytes(json);
+            invalidName[json.IndexOf("\"v\"", StringComparison.Ordinal) + 1] = 0xff;
+            var invalid = new List<string> { Convert.ToBase64String(invalidUtf8).TrimEnd('=').Replace('+', '-').Replace('/', '_'),
+                Convert.ToBase64String(invalidName).TrimEnd('=').Replace('+', '-').Replace('/', '_'),
+                Encode(json.Replace("\"v\"", "\"\\uD800\"", StringComparison.Ordinal)) };
+            foreach (var member in payload.Where(member => member.Value is JsonValue value && value.TryGetValue<string>(out _)))
+                invalid.Add(Encode(json.Replace($"\"{member.Key}\":{JsonSerializer.Serialize(member.Value!.GetValue<string>())}",
+                    $"\"{member.Key}\":\"\\uD800\"", StringComparison.Ordinal)));
+            foreach (var token in invalid)
+                if (isOutline) PublicCursorCodec.TryOutline(token, null, out _).Should().BeFalse();
+                else PublicCursorCodec.TryCatalog(token, null, out _).Should().BeFalse();
+            var escapedFirst = "\\u" + ((int)Scope[0]).ToString("x4", System.Globalization.CultureInfo.InvariantCulture);
+            var validEscaping = Encode(json.Replace(Scope, escapedFirst + Scope[1..], StringComparison.Ordinal));
+            if (isOutline) PublicCursorCodec.TryOutline(validEscaping, Scope, out _).Should().BeTrue();
+            else PublicCursorCodec.TryCatalog(validEscaping, Scope, out _).Should().BeTrue();
+        }
     }
 
     [Theory]

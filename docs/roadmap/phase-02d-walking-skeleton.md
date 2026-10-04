@@ -2393,6 +2393,20 @@ Formatting verifies zero changed files and diff hygiene passes. The link/anchor
 sweep and unchanged P02d-1–3 delivery records/ADR-0052 prefix are verified.
 Both independent review rounds follow this implementation commit.
 
+**Round 1.** Independent GPT-6-astra and GPT-6.1-sol xhigh reviewers inspect
+`b1bff6f..b5c3be2`. The security pass finds no additional isolation, eligibility
+or cache issue. The protocol pass finds a malformed-Unicode cursor exception:
+JSON strings materialize lazily, outside the original parse exception boundary.
+A compiled production probe independently reproduces the unexpected exception.
+The fix strictly decodes UTF-8 and refuses escaped-surrogate materialization
+failures in both codecs. Unit and real GET/HEAD cases prove bounded 400 before
+data access, including property-name corruption and a valid escaped-string control.
+The review's coverage limits are closed too: masked 404 fields are checked in
+full, and real database cases prove deleted-anchor continuation and current-row
+restart for both catalog and outline. The clean Release build and 33 protocol,
+198 architecture and 81 Education database/HTTP cases pass with zero skips.
+Formatting and diff hygiene pass; a fresh second review follows the fix commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

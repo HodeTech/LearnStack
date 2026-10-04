@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Domain;
@@ -14,6 +15,7 @@ public static class PublicCursorCodec
     private const int MaxEncodedLength = 1024;
     private const int MaxDecodedLength = 768;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 4 };
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     public static string Scope(TenantId tenant, OrganizationId? organization, string hostDigest, string locale, bool outline) =>
         Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new object?[]
@@ -42,24 +44,32 @@ public static class PublicCursorCodec
     {
         anchor = null;
         using var document = Decode(raw);
-        if (document is null || !Envelope(document.RootElement, ["v", "scope", "createdAt", "id"], expectedScope)
-            || !Uuid(document.RootElement, "id", out var id)
-            || !String(document.RootElement, "createdAt", out var timestamp)
-            || !DateTimeOffset.TryParseExact(timestamp, TimestampFormat, CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var createdAt)) return false;
-        anchor = new CatalogContinuation(createdAt, CourseId.From(id));
-        return true;
+        try
+        {
+            if (document is null || !Envelope(document.RootElement, ["v", "scope", "createdAt", "id"], expectedScope)
+                || !Uuid(document.RootElement, "id", out var id)
+                || !String(document.RootElement, "createdAt", out var timestamp)
+                || !DateTimeOffset.TryParseExact(timestamp, TimestampFormat, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var createdAt)) return false;
+            anchor = new CatalogContinuation(createdAt, CourseId.From(id));
+            return true;
+        }
+        catch (InvalidOperationException) { return false; } // JSON strings are transcoded lazily, including escaped surrogates.
     }
     public static bool TryOutline(string raw, string? expectedScope, out OutlineContinuation? anchor)
     {
         anchor = null;
         using var document = Decode(raw);
-        if (document is null || !Envelope(document.RootElement, ["v", "scope", "parent", "sort", "id"], expectedScope)
-            || !Uuid(document.RootElement, "id", out var id) || !Uuid(document.RootElement, "parent", out var parent)
-            || document.RootElement.GetProperty("sort").ValueKind != JsonValueKind.Number
-            || !document.RootElement.GetProperty("sort").TryGetInt32(out var sort) || sort < 0) return false;
-        anchor = new OutlineContinuation(CourseId.From(parent), sort, LessonId.From(id));
-        return true;
+        try
+        {
+            if (document is null || !Envelope(document.RootElement, ["v", "scope", "parent", "sort", "id"], expectedScope)
+                || !Uuid(document.RootElement, "id", out var id) || !Uuid(document.RootElement, "parent", out var parent)
+                || document.RootElement.GetProperty("sort").ValueKind != JsonValueKind.Number
+                || !document.RootElement.GetProperty("sort").TryGetInt32(out var sort) || sort < 0) return false;
+            anchor = new OutlineContinuation(CourseId.From(parent), sort, LessonId.From(id));
+            return true;
+        }
+        catch (InvalidOperationException) { return false; }
     }
 
     private static string Encode<T>(T payload) => Base64Url(JsonSerializer.SerializeToUtf8Bytes(payload));
@@ -72,9 +82,9 @@ public static class PublicCursorCodec
         {
             var bytes = Convert.FromBase64String(raw.Replace('-', '+').Replace('_', '/') + new string('=', (4 - raw.Length % 4) % 4));
             if (bytes.Length > MaxDecodedLength || Base64Url(bytes) != raw) return null;
-            return JsonDocument.Parse(bytes, Options);
+            return JsonDocument.Parse(StrictUtf8.GetString(bytes), Options);
         }
-        catch (Exception exception) when (exception is FormatException or JsonException) { return null; }
+        catch (Exception exception) when (exception is FormatException or JsonException or DecoderFallbackException) { return null; }
     }
     private static bool Envelope(JsonElement root, string[] fields, string? expectedScope)
     {

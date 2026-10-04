@@ -1,6 +1,7 @@
 using System.Net;
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
@@ -98,6 +99,37 @@ public sealed class PublicEducationHttpTests(PublicReadFixture fixture, ITestOut
         using var response = await client.GetAsync(Root + query);
         var error = await Error(response, HttpStatusCode.BadRequest, "validation_failed");
         error.GetProperty("errors").TryGetProperty(field, out _).Should().BeTrue();
+        fixture.Observation.Reads.Should().Be(before);
+    }
+
+    [Theory]
+    [InlineData(false, "utf8")]
+    [InlineData(false, "value")]
+    [InlineData(false, "name")]
+    [InlineData(true, "utf8")]
+    [InlineData(true, "value")]
+    [InlineData(true, "name")]
+    public async Task Malformed_cursor_unicode_is_a_bounded_400_before_data_access(bool outline, string corruption)
+    {
+        var scope = new string('a', 64);
+        var json = outline
+            ? $"{{\"v\":1,\"scope\":\"{scope}\",\"parent\":\"01930000-0000-7000-8000-000000000e11\",\"sort\":0,\"id\":\"01930000-0000-7000-8000-000000000e21\"}}"
+            : $"{{\"v\":1,\"scope\":\"{scope}\",\"createdAt\":\"2026-10-03T12:34:56.123456Z\",\"id\":\"01930000-0000-7000-8000-000000000e11\"}}";
+        if (corruption == "value") json = json.Replace(scope, "\\uD800", StringComparison.Ordinal);
+        if (corruption == "name") json = json.Replace("\"v\"", "\"\\uD800\"", StringComparison.Ordinal);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        if (corruption == "utf8") bytes[json.IndexOf(scope, StringComparison.Ordinal)] = 0xff;
+        var token = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var field = outline ? "lessonCursor" : "cursor";
+        var path = Root + (outline ? "/foundation" : "") + "?locale=en&" + field + "=" + token;
+        using var client = fixture.ClientFor(English.Host);
+        var before = fixture.Observation.Reads;
+        using var response = await client.GetAsync(path);
+        (await Error(response, HttpStatusCode.BadRequest, "validation_failed")).GetProperty("errors").TryGetProperty(field, out _).Should().BeTrue();
+        using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, path));
+        head.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        NoStore(head);
+        (await head.Content.ReadAsByteArrayAsync()).Should().BeEmpty();
         fixture.Observation.Reads.Should().Be(before);
     }
 
@@ -273,6 +305,34 @@ public sealed class PublicEducationHttpTests(PublicReadFixture fixture, ITestOut
         using var foreign = fixture.ClientFor(English.Host);
         using var cross = await foreign.GetAsync(Root + "?locale=en&cursor=" + cursor);
         await Error(cross, HttpStatusCode.BadRequest, "validation_failed");
+    }
+
+    [Fact]
+    public async Task Deleted_catalog_and_outline_anchors_continue_by_seek_and_restart_uses_current_rows()
+    {
+        using var client = fixture.ClientFor(Yoga.Host);
+        var catalogCursor = (await Json(client, Root + "?locale=en&limit=1")).GetProperty("pageInfo").GetProperty("nextCursor").GetString()!;
+        var outlineCursor = (await Json(client, Root + "/foundation?locale=en&lessonLimit=1")).GetProperty("lessons").GetProperty("pageInfo").GetProperty("nextCursor").GetString()!;
+        var course = new Dictionary<string, object> { ["id"] = Yoga.Curriculum!.Courses[0].Id };
+        var lesson = new Dictionary<string, object> { ["id"] = Yoga.Curriculum.Courses.SelectMany(row => row.Lessons).Single(row => row.Translations.Any(translation => translation.Slug == "tree-pose")).Id };
+        await fixture.ExecuteAsync(Yoga, "UPDATE courses SET deleted_at=now(),deleted_by=@actor WHERE tenant_id=@tenant AND id=@id", course);
+        try
+        {
+            await fixture.ExecuteAsync(Yoga, "UPDATE lessons SET deleted_at=now(),deleted_by=@actor WHERE tenant_id=@tenant AND id=@id", lesson, Yoga.DefaultOrganization.OrganizationId);
+            try
+            {
+                var remaining = await Json(client, Root + "?locale=en&cursor=" + catalogCursor);
+                Slugs(remaining.GetProperty("items")).Should().Equal("foundation", "guided-flow");
+                Terminal(remaining.GetProperty("pageInfo"));
+                Slugs((await Json(client, Root + "?locale=en")).GetProperty("items")).Should().Equal("foundation", "guided-flow");
+                var outline = (await Json(client, Root + "/foundation?locale=en&lessonCursor=" + outlineCursor)).GetProperty("lessons");
+                Slugs(outline.GetProperty("items")).Should().Equal("child-pose");
+                Terminal(outline.GetProperty("pageInfo"));
+                Slugs((await Json(client, Root + "/foundation?locale=en")).GetProperty("lessons").GetProperty("items")).Should().Equal("child-pose");
+            }
+            finally { await fixture.ExecuteAsync(Yoga, "UPDATE lessons SET deleted_at=NULL,deleted_by=NULL WHERE tenant_id=@tenant AND id=@id", lesson, Yoga.DefaultOrganization.OrganizationId); }
+        }
+        finally { await fixture.ExecuteAsync(Yoga, "UPDATE courses SET deleted_at=NULL,deleted_by=NULL WHERE tenant_id=@tenant AND id=@id", course); }
     }
 
     [Theory]
@@ -484,6 +544,16 @@ public sealed class PublicEducationHttpTests(PublicReadFixture fixture, ITestOut
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
         var error = await response.Content.ReadFromJsonAsync<JsonElement>();
         error.GetProperty("code").GetString().Should().Be(code);
+        if (code == "not_found")
+        {
+            Names(error, "type", "title", "status", "instance", "code", "messageKey", "correlationId");
+            error.GetProperty("type").GetString().Should().Be("https://errors.learnstack.dev/not_found");
+            error.GetProperty("title").GetString().Should().Be("lockey_not_found");
+            error.GetProperty("messageKey").GetString().Should().Be("lockey_not_found");
+            error.GetProperty("status").GetInt32().Should().Be(404);
+            error.GetProperty("instance").GetString().Should().Be(response.RequestMessage!.RequestUri!.AbsolutePath);
+            error.GetProperty("correlationId").GetString().Should().NotBeNullOrWhiteSpace();
+        }
         return error;
     }
     private static string[] Slugs(JsonElement items) => items.EnumerateArray().Select(item => item.GetProperty("slug").GetString()!).ToArray();
