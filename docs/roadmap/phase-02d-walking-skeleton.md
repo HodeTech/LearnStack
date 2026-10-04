@@ -2435,7 +2435,7 @@ failure and caller cancellation remain separate. The unused client export is gon
 P02d-5 still owns the configured trusted server adapter and first consumer.
 
 The always-running `openapi diff` workflow installs checksum-verified oasdiff and
-uses the explicit severity policy. Thirty-two mutation/control fixtures cover
+uses the explicit severity policy. Fifty mutation/control fixtures cover
 representable ADR-0024 rows and verified placement/type-direction tool gaps.
 A deterministic companion traverses reachable request/response schemas and local
 object/schema references. It enforces type changes, closed enum additions and
@@ -2499,6 +2499,29 @@ The complete .NET suite is repeated: all 2843 cases pass with zero failures/skip
 cases). SDK typecheck/lint and all 58 cases pass. These fixes change the
 schema/SDK/policy, not database read behavior.
 Fresh Round 2 review follows the fix commit.
+
+**Round 2 and verified fixes.** Fresh GPT-6-astra and GPT-6.1-sol xhigh reviewers
+inspect `5d72c2f..db9bab6`, independently rerunning 32 policy controls, eight snapshot
+controls, 58 SDK and four contract cases; the SDK reviewer also runs the client
+disposal control. All pass, but review reproduces three additional policy defects
+and two Minor SDK/test gaps. Per-occurrence local reference materialization and
+immutable analysis now prevent an open enum normalization from erasing a closed
+consumer; both object-key orders have controls. Effective operation parameters
+honor inheritance/overrides and the CLI explicitly flattens parameters. Parameter
+and header schema/content forms are mirrored into temporary policy-only bodies
+with source-location metadata, so the pinned tool checks their fields/validators.
+The runtime snapshot is unchanged by this comparison normalization.
+
+The shared-owner reproduction now refuses even where the raw tool already reports
+the break. Inherited tightening/removal/requiredness and relocated type changes
+refuse; equivalent relocation remains compatible. Content-form property removal
+and request-validator tightening refuse. A response minimum-length increase is
+kept as a compatible stronger output guarantee, rather than misclassified as an
+input rejection. Fifty real CLI controls pass (36 breaking, fourteen nonbreaking)
+with eight snapshot controls. The SDK refuses exact dot segments before dispatch;
+all 60 SDK cases/typecheck/lint pass. Added method and path mutants fail the
+eight-operation contract control; all four contract cases pass with zero skips.
+A fresh focused review verifies these final policy/SDK corrections before closeout.
 
 ### P02d-1 decision pass (2026-09-14)
 

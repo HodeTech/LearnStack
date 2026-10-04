@@ -65,20 +65,26 @@ function queryString(query: Record<string, string | undefined>): string {
   return '?' + parameters.toString();
 }
 
+// URL-resolving transports normalize these instead of preserving a resource segment.
+function isDotSegment(value: string): boolean {
+  return value === '.' || value === '..';
+}
+
 /** Four public GET contracts, with no default fetch, tenant selector, header options or implicit host lookup. */
 export function createServerSdk(transport: PublicFetch): ServerSdk {
   async function request<T extends PublicGetOperation>(
     operation: T,
-    buildUrl: () => string,
+    buildUrl: () => string | undefined,
     options?: RequestOptions,
   ): Promise<ApiResult<PublicSuccess<T>>> {
     if (options?.signal?.aborted) return { kind: 'cancelled' };
-    let url: string;
+    let url: string | undefined;
     try {
       url = buildUrl();
     } catch {
       return { kind: 'invalid-request' };
     }
+    if (url === undefined) return { kind: 'invalid-request' };
     let response: Response;
     try {
       response = await transport(url, {
@@ -131,24 +137,28 @@ export function createServerSdk(transport: PublicFetch): ServerSdk {
       request(
         'GetPublicCourse',
         () =>
-          '/api/v1/public/courses/' +
-          encodeURIComponent(path.slug) +
-          queryString({
-            locale: query.locale,
-            lessonCursor: query.lessonCursor,
-            lessonLimit: query.lessonLimit,
-          }),
+          isDotSegment(path.slug)
+            ? undefined
+            : '/api/v1/public/courses/' +
+              encodeURIComponent(path.slug) +
+              queryString({
+                locale: query.locale,
+                lessonCursor: query.lessonCursor,
+                lessonLimit: query.lessonLimit,
+              }),
         options,
       ),
     getLesson: (path, query, options) =>
       request(
         'GetPublicLesson',
         () =>
-          '/api/v1/public/courses/' +
-          encodeURIComponent(path.slug) +
-          '/lessons/' +
-          encodeURIComponent(path.lessonSlug) +
-          queryString({ locale: query.locale }),
+          isDotSegment(path.slug) || isDotSegment(path.lessonSlug)
+            ? undefined
+            : '/api/v1/public/courses/' +
+              encodeURIComponent(path.slug) +
+              '/lessons/' +
+              encodeURIComponent(path.lessonSlug) +
+              queryString({ locale: query.locale }),
         options,
       ),
   };

@@ -942,5 +942,520 @@
         "value": "integer"
       }
     ]
+  },
+  {
+    "name": "shared-reference-open-first",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "WrapperOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "shared-reference-closed-first",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "WrapperClosedFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-validator-tightened",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters",
+          0,
+          "schema",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-became-required",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters",
+          1,
+          "required"
+        ],
+        "value": true
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-type",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "number",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-enum-add",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-enum-remove",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-clean",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-field-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-validator-tightened",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-header-output-bound-strengthened",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-type-changed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "quantity",
+          "type"
+        ],
+        "value": "integer"
+      }
+    ]
+  },
+  {
+    "name": "content-header-closed-enum-added",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-header-open-enum-closed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-validator-loosened",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "description"
+        ],
+        "value": {
+          "type": "string"
+        }
+      }
+    ]
   }
 ]

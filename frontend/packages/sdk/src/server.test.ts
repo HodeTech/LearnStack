@@ -242,6 +242,23 @@ describe('public GET transport', () => {
     ).toEqual({ kind: 'cancelled' });
     expect(transport).not.toHaveBeenCalled();
   });
+  it.each(['.', '..'])('refuses dot segments before URL-resolving transport %s', async (slug) => {
+    const transport = vi.fn<PublicFetch>();
+    const sdk = createServerSdk(transport);
+    expect(await sdk.getCourse({ slug }, { locale: 'en' })).toEqual({ kind: 'invalid-request' });
+    expect(await sdk.getLesson({ slug, lessonSlug: 'intro' }, { locale: 'en' })).toEqual({
+      kind: 'invalid-request',
+    });
+    expect(await sdk.getLesson({ slug: 'foundation', lessonSlug: slug }, { locale: 'en' })).toEqual(
+      { kind: 'invalid-request' },
+    );
+    const controller = new AbortController();
+    controller.abort();
+    expect(await sdk.getCourse({ slug }, { locale: 'en' }, { signal: controller.signal })).toEqual({
+      kind: 'cancelled',
+    });
+    expect(transport).not.toHaveBeenCalled();
+  });
   it.each(['unsupported_locale', 'internal_error', 'future_code'])(
     'maps %s to the closed unknown branch',
     async (code) => {

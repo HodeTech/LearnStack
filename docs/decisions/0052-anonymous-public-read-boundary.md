@@ -296,3 +296,15 @@ and caller cancellation retains precedence. The
 [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
 owns reproduction and regression evidence. Fresh Round 2 and the approved live
 sixth-check registration remain pending at this fix boundary.
+
+## Amendment 7 — second contract/CI review fixes (2026-10-04)
+
+This delivery note changes no decision. Step 4 Round 2 verifies additional
+compatibility gaps in shared-reference normalization, inherited parameters and
+content-form parameter/header schemas. Per-occurrence materialization, immutable
+analysis and tool-supported policy projections close those gaps while preserving
+nonbreaking controls. Exact dot segments remain inside the SDK refusal boundary;
+extra-operation contract mutants supply the promised regression proof. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns the verified findings and fix evidence. Fresh focused review and live sixth
+required-check activation remain pending at this fix boundary.

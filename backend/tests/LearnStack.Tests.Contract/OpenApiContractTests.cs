@@ -62,6 +62,12 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         var missing = clean.DeepClone();
         missing["paths"]!["/api/v1/public/site"]!.AsObject().Remove("head");
         ContractErrors(missing).Should().Contain("operations");
+        var extra = clean.DeepClone();
+        extra["paths"]!["/api/v1/public/site"]!["post"] = extra["paths"]!["/api/v1/public/site"]!["get"]!.DeepClone();
+        ContractErrors(extra).Should().Contain("operations");
+        extra = clean.DeepClone();
+        extra["paths"]!["/api/v1/public/extra"] = extra["paths"]!["/api/v1/public/site"]!.DeepClone();
+        ContractErrors(extra).Should().Contain("operations");
         missing = clean.DeepClone();
         missing["paths"]!["/api/v1/public/courses"]!["get"]!["responses"]!.AsObject().Remove("503");
         ContractErrors(missing).Should().Contain("responses");

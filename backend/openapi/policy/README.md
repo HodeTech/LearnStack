@@ -15,6 +15,15 @@ response enum. The companion walks reachable request/response schemas, including
 local schema and Response/RequestBody/Parameter references. It refuses type changes,
 closed enum additions and open enum closure/removal, and removes only matching
 open enum lists for the tool. Fields, validators and other constraints remain.
+Analysis finishes against immutable occurrences before normalizing separate copies;
+an open reference never erases a closed consumer of the same component. Effective
+parameters honor path inheritance and operation overrides; the CLI also flattens
+parameters. Parameter/header schema and content forms are mirrored into temporary
+request/response bodies the tool checks, preserving original metadata and recording
+source locations. These policy-only paths exist in comparison artifacts, never in
+the published snapshot or runtime routes. Controls cover field/validator changes,
+equivalent relocation and both shared-reference key orders. Strengthening an output
+guarantee is not an input-validator tightening and remains compatible.
 A combined open addition and field removal proves that normalization cannot hide
 another breaking change. Current public enums are closed. A future open-set enum
 still requires compatible generation and consumer proof before shipping.

@@ -191,6 +191,167 @@
           }
         }
       }
+    },
+    "/api/v1/shared-open-first": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "$ref": "#/components/schemas/WrapperOpenFirst/properties/kind",
+                      "x-extensible-enum": true
+                    },
+                    "closed": {
+                      "$ref": "#/components/schemas/WrapperOpenFirst"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared-closed-first": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "closed": {
+                      "$ref": "#/components/schemas/WrapperClosedFirst"
+                    },
+                    "open": {
+                      "$ref": "#/components/schemas/WrapperClosedFirst/properties/kind",
+                      "x-extensible-enum": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inherited-controls": {
+      "parameters": [
+        {
+          "in": "query",
+          "name": "q",
+          "schema": {
+            "type": "string",
+            "minLength": 2
+          }
+        },
+        {
+          "in": "query",
+          "name": "quantity",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/content-controls": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 2
+                    },
+                    "quantity": {
+                      "type": "number"
+                    },
+                    "choice": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ]
+                    },
+                    "openChoice": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ],
+                      "x-extensible-enum": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Data": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 2
+                        },
+                        "quantity": {
+                          "type": "number"
+                        },
+                        "choice": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "openChoice": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ],
+                          "x-extensible-enum": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -201,6 +362,30 @@
           "a",
           "b"
         ]
+      },
+      "WrapperOpenFirst": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      },
+      "WrapperClosedFirst": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          }
+        }
       }
     },
     "responses": {

@@ -23,6 +23,24 @@ FIXTURE_NAMES = {
     'add-closed-referenced-response-enum-value', 'referenced-open-response-enum-becomes-closed',
     'add-closed-request-enum-value', 'open-request-enum-becomes-closed',
     'add-open-request-enum-value', 'request-integer-becomes-number', 'response-number-becomes-integer',
+    'shared-reference-open-first',
+    'shared-reference-closed-first',
+    'inherited-parameter-validator-tightened',
+    'inherited-parameter-removed',
+    'inherited-parameter-became-required',
+    'inherited-parameter-relocated-type',
+    'inherited-parameter-relocated-enum-add',
+    'inherited-parameter-relocated-enum-remove',
+    'inherited-parameter-relocated-clean',
+    'content-parameter-field-removed',
+    'content-parameter-validator-tightened',
+    'content-header-field-removed',
+    'content-header-output-bound-strengthened',
+    'content-header-field-type-changed',
+    'content-header-closed-enum-added',
+    'content-header-open-enum-closed',
+    'content-parameter-validator-loosened',
+    'content-header-field-added',
 }
 
 
@@ -30,89 +48,165 @@ def write(path, value):
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
 
 
-def reachable_schemas(document):
-    """Visit request/response schemas by logical position, including local object/schema refs."""
-    found = {}
+def materialized_document(document):
+    """Resolve each reachable local reference into its own occurrence; keep cycles bounded."""
+    result = copy.deepcopy(document)
 
     def resolve(value, trail=()):
-        if not isinstance(value, dict):
-            return value, value, trail
-        ref = value.get('$ref')
-        if ref is not None:
-            if not isinstance(ref, str) or not ref.startswith('#/'):
-                raise ValueError('External or invalid reference refused')
-            if ref in trail:
-                return None, None, trail
-            target = document
-            for part in (part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/')):
-                target = target[part]
-            resolved, enum_owner, trail = resolve(target, trail + (ref,))
-            if not isinstance(resolved, dict):
-                return None, None, trail
-            effective = {**resolved, **{key: child for key, child in value.items() if key != '$ref'}}
-            return effective, value if 'enum' in value else enum_owner, trail
-        return value, value, trail
+        if not isinstance(value, dict) or '$ref' not in value:
+            return copy.deepcopy(value), trail
+        ref = value['$ref']
+        if not isinstance(ref, str) or not ref.startswith('#/'):
+            raise ValueError('External or invalid reference refused')
+        if ref in trail:
+            return copy.deepcopy(value), trail
+        target = document
+        for part in (part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/')):
+            target = target[part]
+        target, trail = resolve(target, trail + (ref,))
+        if not isinstance(target, dict):
+            raise ValueError('Reference does not identify an object')
+        return {**target, **copy.deepcopy({key: child for key, child in value.items() if key != '$ref'})}, trail
 
-    def visit(schema, location, direction, trail=()):
-        schema, enum_owner, trail = resolve(schema, trail)
-        if not isinstance(schema, dict):
-            return
-        found[(direction, location)] = (schema, enum_owner)
-        for name, child in schema.get('properties', {}).items():
-            visit(child, location + ('properties', name), direction, trail)
+    def schema(value, trail=()):
+        value, trail = resolve(value, trail)
+        if not isinstance(value, dict) or '$ref' in value:
+            return value
+        if 'properties' in value:
+            value['properties'] = {name: schema(child, trail) for name, child in value['properties'].items()}
         for keyword in ('items', 'additionalProperties', 'not'):
-            visit(schema.get(keyword), location + (keyword,), direction, trail)
+            if keyword in value:
+                value[keyword] = schema(value[keyword], trail)
         for keyword in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
-            for index, child in enumerate(schema.get(keyword, [])):
-                visit(child, location + (keyword, index), direction, trail)
+            if keyword in value:
+                value[keyword] = [schema(child, trail) for child in value[keyword]]
+        return value
 
-    def content(value, location, direction):
-        value, _, trail = resolve(value)
-        if isinstance(value, dict):
-            for media, entry in value.get('content', {}).items():
-                visit(entry.get('schema'), location + ('content', media, 'schema'), direction, trail)
+    def content_object(value):
+        value, trail = resolve(value)
+        if not isinstance(value, dict):
+            return value
+        if 'schema' in value:
+            value['schema'] = schema(value['schema'], trail)
+        for entry in value.get('content', {}).values():
+            if 'schema' in entry:
+                entry['schema'] = schema(entry['schema'], trail)
+        return value
 
-    def parameters(values, location, direction):
-        for index, value in enumerate(values):
-            value, _, trail = resolve(value)
-            if isinstance(value, dict):
-                # Names, not list offsets, identify parameters when an optional one is added.
-                position = location + (value.get('in', index), value.get('name', index))
-                visit(value.get('schema'), position + ('schema',), direction, trail)
-                content(value, position, direction)
+    for path, original in document.get('paths', {}).items():
+        item, _ = resolve(original)
+        inherited = [content_object(parameter) for parameter in item.pop('parameters', [])]
+        for method, operation in item.items():
+            if method not in HTTP_METHODS:
+                continue
+            effective = {(parameter['in'], parameter['name']): parameter for parameter in inherited}
+            for parameter in operation.get('parameters', []):
+                parameter = content_object(parameter)
+                effective[(parameter['in'], parameter['name'])] = parameter
+            if effective or 'parameters' in operation:
+                operation['parameters'] = copy.deepcopy(list(effective.values()))
+            if 'requestBody' in operation:
+                operation['requestBody'] = content_object(operation['requestBody'])
+            for status, response in operation.get('responses', {}).items():
+                response = content_object(response)
+                if 'headers' in response:
+                    response['headers'] = {name: content_object(header) for name, header in response['headers'].items()}
+                operation['responses'][status] = response
+        result['paths'][path] = item
+    return result
+
+
+def project_parameter_headers(document):
+    """Mirror schema/content forms into tool-supported bodies, retaining original metadata."""
+    projections = []
+
+    def project(value, location, direction):
+        entries = list(value.get('content', {}).items())
+        if 'schema' in value:
+            entries.append(('application/json', {'schema': value['schema']}))
+        for media, entry in entries:
+            if 'schema' not in entry:
+                continue
+            identity = json.dumps([direction, *location, media], separators=(',', ':'))
+            path = '/__learnstack_policy__/' + hashlib.sha256(identity.encode()).hexdigest()
+            body = {'content': {media: {'schema': copy.deepcopy(entry['schema'])}}}
+            if direction == 'request':
+                body['required'] = value.get('required', False)
+                operation = {'requestBody': body, 'responses': {'204': {'description': 'Policy projection'}}}
+                method = 'post'
+            else:
+                operation = {'responses': {'200': {'description': 'Policy projection', **body}}}
+                method = 'get'
+            operation['x-learnstack-policy-source'] = list(location)
+            projections.append((path, {method: operation}))
 
     for path, item in document.get('paths', {}).items():
-        item, _, _ = resolve(item)
-        if not isinstance(item, dict):
-            continue
-        parameters(item.get('parameters', []), ('paths', path, 'parameters'), 'request')
+        for method, operation in item.items():
+            if method not in HTTP_METHODS:
+                continue
+            for parameter in operation.get('parameters', []):
+                project(parameter, ('paths', path, method, 'parameters', parameter['in'], parameter['name']), 'request')
+            for status, response in operation.get('responses', {}).items():
+                for name, header in response.get('headers', {}).items():
+                    project(header, ('paths', path, method, 'responses', status, 'headers', name), 'response')
+    for path, operation in projections:
+        if path in document['paths']:
+            raise ValueError('Policy projection path collides with the source document')
+        document['paths'][path] = operation
+
+
+def reachable_schemas(document):
+    """Index materialized request/response schemas by effective operation position."""
+    found = {}
+
+    def visit(value, location, direction):
+        if not isinstance(value, dict):
+            return
+        found[(direction, location)] = value
+        for name, child in value.get('properties', {}).items():
+            visit(child, location + ('properties', name), direction)
+        for keyword in ('items', 'additionalProperties', 'not'):
+            visit(value.get(keyword), location + (keyword,), direction)
+        for keyword in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
+            for index, child in enumerate(value.get(keyword, [])):
+                visit(child, location + (keyword, index), direction)
+
+    def content(value, location, direction):
+        if not isinstance(value, dict):
+            return
+        visit(value.get('schema'), location + ('schema',), direction)
+        for media, entry in value.get('content', {}).items():
+            visit(entry.get('schema'), location + ('content', media, 'schema'), direction)
+
+    for path, item in document.get('paths', {}).items():
         for method, operation in item.items():
             if method not in HTTP_METHODS:
                 continue
             position = ('paths', path, method)
-            parameters(operation.get('parameters', []), position + ('parameters',), 'request')
+            for parameter in operation.get('parameters', []):
+                content(parameter, position + ('parameters', parameter['in'], parameter['name']), 'request')
             content(operation.get('requestBody'), position + ('requestBody',), 'request')
             for status, response in operation.get('responses', {}).items():
                 response_position = position + ('responses', status)
                 content(response, response_position, 'response')
-                response, _, _ = resolve(response)
-                if isinstance(response, dict):
-                    for name, header in response.get('headers', {}).items():
-                        header, _, trail = resolve(header)
-                        if isinstance(header, dict):
-                            visit(header.get('schema'), response_position + ('headers', name, 'schema'), 'response', trail)
+                for name, header in response.get('headers', {}).items():
+                    content(header, response_position + ('headers', name), 'response')
     return found
 
 
 def companion_policy(base, head):
-    """Apply ADR-0024's type/enum policy where 1.33.0 uses narrower compatibility rules."""
-    normalized_base, normalized_head = copy.deepcopy(base), copy.deepcopy(head)
-    old, new = reachable_schemas(normalized_base), reachable_schemas(normalized_head)
-    violations = []
-    for (direction, location), (schema, enum_owner) in old.items():
-        current, current_enum_owner = new.get((direction, location), ({}, {}))
+    """Analyze immutable occurrences, then normalize separate copies of matching open enums."""
+    effective_base, effective_head = materialized_document(base), materialized_document(head)
+    project_parameter_headers(effective_base)
+    project_parameter_headers(effective_head)
+    old, new = reachable_schemas(effective_base), reachable_schemas(effective_head)
+    violations, open_locations = [], []
+    for (direction, location), schema in old.items():
+        current = new.get((direction, location), {})
+
         def refuse(reason):
             violations.append({'id': direction + '-' + reason, 'location': list(location)})
+
         before_type, after_type = schema.get('type'), current.get('type')
         if before_type is not None and after_type is not None:
             before_types = set(before_type if isinstance(before_type, list) else [before_type])
@@ -127,10 +221,7 @@ def companion_policy(base, head):
             if isinstance(before, list) and isinstance(after, list):
                 if any(value not in after for value in before):
                     refuse('open-enum-value-removed')
-                # Both remain explicitly open: additions are compatible under ADR-0024.
-                # Drop only their enum lists, never types/properties/validators.
-                enum_owner.pop('enum', None)
-                current_enum_owner.pop('enum', None)
+                open_locations.append((direction, location))
         elif isinstance(before, list) and isinstance(after, list):
             if any(value not in before for value in after):
                 refuse('closed-enum-value-added')
@@ -138,12 +229,18 @@ def companion_policy(base, head):
                 refuse('closed-enum-value-removed')
         if direction == 'response' and isinstance(before, list) and (not isinstance(after, list) or any(value not in after for value in before)):
             refuse('enum-value-removed')
+    normalized_base, normalized_head = copy.deepcopy(effective_base), copy.deepcopy(effective_head)
+    normalized_old, normalized_new = reachable_schemas(normalized_base), reachable_schemas(normalized_head)
+    for location in open_locations:
+        # Per-occurrence copies leave every closed consumer of a shared reference intact.
+        normalized_old[location].pop('enum', None)
+        normalized_new[location].pop('enum', None)
     return normalized_base, normalized_head, violations
 
 
 def run_tool(tool, base, head, output, prefix):
     command = [str(tool), '--config', str(POLICY / 'oasdiff.json'), 'breaking', str(base), str(head),
-               '--allow-external-refs=false', '--severity-levels', str(POLICY / 'severity.txt'), '--fail-on', 'WARN']
+               '--allow-external-refs=false', '--flatten-params', '--severity-levels', str(POLICY / 'severity.txt'), '--fail-on', 'WARN']
     result = subprocess.run(command + ['--format', 'json'], text=True, capture_output=True, check=False)
     (output / (prefix + '.json')).write_text(result.stdout)
     (output / (prefix + '.stderr.txt')).write_text(result.stderr)
