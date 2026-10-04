@@ -26,7 +26,8 @@ equivalent relocation and both shared-reference key orders. Strengthening an out
 guarantee is not an input-validator tightening and remains compatible.
 Recursive edges stay in private schema copies identified by stable declaration
 locations, so open enum additions and documentation edits remain compatible without
-erasing closed consumers. Cycle and mixed open/closed controls cover this boundary.
+erasing closed consumers. Cycle and mixed open/closed controls cover this boundary,
+including inline schemas and schemas declared inside Response components.
 A combined open addition and field removal proves that normalization cannot hide
 another breaking change. Current public enums are closed. A future open-set enum
 still requires compatible generation and consumer proof before shipping.

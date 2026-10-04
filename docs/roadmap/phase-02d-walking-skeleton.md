@@ -2435,7 +2435,7 @@ failure and caller cancellation remain separate. The unused client export is gon
 P02d-5 still owns the configured trusted server adapter and first consumer.
 
 The always-running `openapi diff` workflow installs checksum-verified oasdiff and
-uses the explicit severity policy. Fifty-six mutation/control fixtures cover
+uses the explicit severity policy. Sixty mutation/control fixtures cover
 representable ADR-0024 rows and verified placement/type-direction tool gaps.
 A deterministic companion traverses reachable request/response schemas and local
 object/schema references. It enforces type changes, closed enum additions and
@@ -2533,6 +2533,13 @@ Analysis/normalization reach these cycle copies while preserving closed consumer
 Six added controls cover open addition, unchanged recursion, documentation edits
 and mixed open/closed schemas in both orders. All 56 real CLI controls pass
 (39 breaking, seventeen compatible), with all eight snapshot controls.
+
+**Final recursive verification fix.** A fresh GPT-6-astra xhigh reviewer verifies
+all 56 controls and 27 additional probes, then reproduces an unchanged inline
+recursive schema crashing the normalizer. The same occurs inside a Response
+component. Stable declaration identity now applies to every local schema location,
+rather than only Schema components; four added real CLI controls cover unchanged
+and open-addition cases in both placements. Fresh verification follows this fix.
 
 ### P02d-1 decision pass (2026-09-14)
 

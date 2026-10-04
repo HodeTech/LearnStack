@@ -47,6 +47,10 @@ FIXTURE_NAMES = {
     'recursive-mixed-openfirst',
     'recursive-mixed-closedfirst',
     'recursive-open-addition-closed-removal',
+    'inline-recursive-schema-unchanged',
+    'inline-recursive-open-enum-value-added',
+    'response-component-recursive-schema-unchanged',
+    'response-component-recursive-open-enum-value-added',
 }
 
 
@@ -104,8 +108,7 @@ def materialized_document(document):
             # Each recursive edge stays in a private copy of its effective schema.
             # Sibling overrides distinguish open and closed consumers of one target.
             origin = origins.get(id(value), (None, ()))[1]
-            source = origin if origin[:2] == ('components', 'schemas') else location
-            identity = json.dumps([value['$ref'], source], separators=(',', ':'))
+            identity = json.dumps([value['$ref'], origin], separators=(',', ':'))
             name = '__learnstack_policy_recursive_' + hashlib.sha256(identity.encode()).hexdigest()
             if name not in recursive:
                 recursive[name] = {}  # Register before following its own cycle.

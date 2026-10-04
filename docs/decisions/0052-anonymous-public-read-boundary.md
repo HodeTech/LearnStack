@@ -318,3 +318,12 @@ normalized policy graph, preserving closed consumers and stable identity across
 documentation changes. Six added CLI controls complement the earlier matrix.
 The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
 owns proof and final review evidence. Live sixth-check activation is still pending.
+
+## Amendment 9 — inline recursive comparison fix (2026-10-04)
+
+This delivery note changes no decision. Final focused review identifies recursive
+normalization using an unstable traversal identity outside Schema components.
+Stable declaration origins now cover inline schemas and schemas inside Response
+components, with unchanged/open-addition CLI controls for both placements. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns reproduction and fresh verification. Live sixth-check activation is pending.

@@ -1621,5 +1621,71 @@
         ]
       }
     ]
+  },
+  {
+    "name": "inline-recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "inline-recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inline-recursive",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "response-component-recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "response-component-recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "responses",
+          "RecursiveTree",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
   }
 ]

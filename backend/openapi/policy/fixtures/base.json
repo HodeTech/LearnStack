@@ -400,6 +400,47 @@
           }
         }
       }
+    },
+    "/api/v1/inline-recursive": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ],
+                      "x-extensible-enum": true
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/paths/~1api~1v1~1inline-recursive/get/responses/200/content/application~1json/schema"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/response-component-recursive": {
+      "get": {
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RecursiveTree"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -519,6 +560,32 @@
                 "b"
               ],
               "x-extensible-enum": true
+            }
+          }
+        }
+      },
+      "RecursiveTree": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "a",
+                    "b"
+                  ],
+                  "x-extensible-enum": true
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/responses/RecursiveTree/content/application~1json/schema"
+                  }
+                }
+              }
             }
           }
         }
