@@ -2,6 +2,13 @@
 
 ## Status
 
+> **Implementation update — 2026-10-05.**
+> P02d-4 delivers anonymous eligibility enforcement, restricted marketing
+> projections, hidden-lesson refusal and API cache/transport proofs. The dated
+> 2026-10-02 disclosure below is historical; see
+> [Amendment 3](#amendment-3--p02d-4-public-enforcement-delivery-2026-10-05).
+> Authenticated grants remain Phase 07; server/browser consumers remain P02d-5/6.
+
 > **Implementation update — 2026-10-02.**
 > P02d-2 ships the persisted policy, restricted legacy backfill migration, six
 > Education writers and exact-policy seed verification. P02d-4 anonymous-read
@@ -239,3 +246,19 @@ is the current delivery authority.
 The dated implementation disclosure now sits inside the Status section so direct
 `#status` navigation shows current delivery before the unchanged acceptance-time
 statement. Amendment 1 remains the delivery record; no decision changes.
+
+### Amendment 3 — P02d-4 public enforcement delivery (2026-10-05)
+
+P02d-4 delivers the public-read enforcement and projection scope that Amendment 1
+and the 2026-10-02 status disclosure left pending. Eligible restricted courses
+expose marketing metadata without lesson inventory; lesson reads require an
+eligible public-policy parent. Hidden outcomes share the same refusal, and all
+GET/HEAD outcomes are no-store. Real app-role store/HTTP tests and the
+[Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+record the proof. Phase 07 still owns authenticated grants; P02d-5/6 own the
+server/page consumers. No merge or browser delivery is claimed.
+
+The Decision and acceptance-time status are unchanged. A new dated disclosure
+inside Status points to this amendment without rewriting earlier records.
+Updated carriers: this Status disclosure, the corresponding ADR-0051/0052
+delivery disclosures, the Education module spec and the P02d-4 delivery record.

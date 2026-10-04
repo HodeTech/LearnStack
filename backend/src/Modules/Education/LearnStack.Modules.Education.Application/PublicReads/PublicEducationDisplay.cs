@@ -25,12 +25,15 @@ public sealed partial class PublicEducationDisplay(ICustomizationDefinitionProje
             var result = await definitions.ReadAsync(new DefinitionProjectionRequest([], pins, locale.Locale, locale.DefaultLocale), cancellationToken);
             if (result.IsSuccess) projection = result.Value;
         }
-        return rows.Select(row => new PublicCourseSummary(row.Slug, row.Title, row.Summary,
+        var summaries = rows.Select(row => new PublicCourseSummary(row.Slug, row.Title, row.Summary,
             row.ContentAccess == CourseContentAccess.Public ? PublicCourseAccess.Public : PublicCourseAccess.EnrollmentRequired,
             Level(row, projection))).ToArray();
+        var unavailableCount = summaries.Count(summary => summary.Level?.State == PublicDisplayState.Unavailable);
+        if (unavailableCount != 0) UnavailableLevels(logger, unavailableCount);
+        return summaries;
     }
 
-    private PublicLevel? Level(PublicCourseReadRow row, DefinitionProjection? projection)
+    private static PublicLevel? Level(PublicCourseReadRow row, DefinitionProjection? projection)
     {
         if (row.TaxonomyKey is null && row.TaxonomyVersion is null && row.BandKey is null) return null;
         if (row.TaxonomyKey is not null && row.TaxonomyVersion is { } version && row.BandKey is not null
@@ -39,7 +42,6 @@ public sealed partial class PublicEducationDisplay(ICustomizationDefinitionProje
             var band = taxonomy.Bands.SingleOrDefault(item => item.Key == row.BandKey);
             if (band is not null) return new PublicLevel(PublicDisplayState.Ready, Label(band.DisplayName));
         }
-        UnavailableLevel(logger);
         return new PublicLevel(PublicDisplayState.Unavailable, null);
     }
 
@@ -75,8 +77,8 @@ public sealed partial class PublicEducationDisplay(ICustomizationDefinitionProje
         return new PublicUnavailableContent();
     }
     private static PublicLabel Label(ResolvedLocalizedText value) => new(value.Value, value.Locale);
-    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Public course level is unavailable; an exact definition or band requires remediation.")]
-    private static partial void UnavailableLevel(ILogger logger);
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Public course levels are unavailable for {UnavailableCount} courses; exact definitions or bands require remediation.")]
+    private static partial void UnavailableLevels(ILogger logger, int unavailableCount);
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Public lesson presentation is unavailable; its exact definition or selected content requires remediation.")]
     private static partial void UnavailableContent(ILogger logger);
 }
@@ -97,6 +99,7 @@ public static class PublicEducationFailures
         if (result.IsFailure) return Result<PublicLocaleContext>.Fail(result.Error!);
         if (!result.Value.EnabledLocales.Contains(locale, StringComparer.Ordinal))
             return Result<PublicLocaleContext>.Fail(new Error(new LocalizedMessage("lockey_unsupported_locale")));
+        // Fail closed if a reader breaks its enabled-locale/default contract.
         if (result.Value.DefaultLocale is not { } defaultLocale)
             return Result<PublicLocaleContext>.Fail(new Error(new LocalizedMessage("lockey_dependency_unavailable")));
         return Result.Ok(new PublicLocaleContext(locale, defaultLocale, result.Value.EnabledLocales.ToArray()));

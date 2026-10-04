@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace LearnStack.Infrastructure.Persistence;
@@ -12,10 +13,13 @@ public static class ApplicationDataSource
 {
     public const string RuntimeRole = "learnstack_app";
 
-    public static NpgsqlDataSource Build(string? connectionString)
+    public static NpgsqlDataSource Build(string? connectionString) => Build(connectionString, null);
+
+    public static NpgsqlDataSource Build(string? connectionString, ILoggerFactory? loggerFactory)
     {
         Validate(connectionString);
         var builder = new NpgsqlDataSourceBuilder(connectionString);
+        if (loggerFactory is not null) builder.UseLoggerFactory(loggerFactory);
         builder.UsePhysicalConnectionInitializer(
             connection => RefuseBypassRole(connection, async: false).GetAwaiter().GetResult(),
             connection => RefuseBypassRole(connection, async: true));

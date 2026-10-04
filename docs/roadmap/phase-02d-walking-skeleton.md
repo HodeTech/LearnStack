@@ -2599,6 +2599,38 @@ without rewriting its acceptance-time status. The catalogue identifies the table
 parser’s actual limit: row method cells remain manual, while the separate endpoint
 census mechanically enforces exact GET/HEAD. No production code changes.
 
+**External review remediation — 2026-10-05.** Findings against `1d938388` are
+verified against current code. ADR-0036 Amendment 9 and ADR-0050/0051 Amendment 3
+record delivered provenance, access enforcement and presentation. ADR-0052
+Amendment 12 adds current-delivery navigation. All acceptance statements and
+earlier amendments remain unchanged; dated Status disclosures identify them as
+history. Browser rendering and authenticated grants retain their named owners.
+
+Unavailable catalog levels now emit one count-only Warning per summary batch,
+rather than one per row. A 100-row regression proves the bound and absence of
+private diagnostic fields. The nullable-default refusal remains defensive:
+a broken reader contract is refused, as a focused unit case demonstrates.
+Cleanup proofs now inspect a fresh live writable transaction on the same
+connection after both pre/post-activation setup faults, while the poisoned unit
+still refuses another frame. Injected Npgsql logging uses the shared application
+data-source guard; direct and transitive bypass-role cases exercise its logged
+overload with restored-role positive control.
+
+The suggested common provenance refactor introduces no correctness fix and is
+not bundled. The Education spec explicitly records the controller/helper guard's
+scope and independent handler-connection residual risk already accepted by
+ADR-0052; current handlers use their approved read ports. The pre-existing
+membership-reader DI backstop is outside this PR, rather than a P02d-4 defect;
+production still registers the deny-all reader.
+
+Local verification: clean Release build with zero warnings/errors, format and
+link/anchor checks pass. Full .NET regression is **2847 passed, zero failed or
+skipped**: 1646 unit, 198 architecture, four contract and 999 integration. The
+four added cases are two display/configuration facts and two logged role-guard
+theory cases. Contract tests again verify the production-served v1 document;
+the committed OpenAPI/SDK contract is unchanged. Live main protection still
+requires all six Actions contexts with strict checking; no settings are changed.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

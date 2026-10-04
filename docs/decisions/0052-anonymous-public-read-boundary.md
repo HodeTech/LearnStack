@@ -2,6 +2,12 @@
 
 ## Status
 
+> **Implementation update — 2026-10-05.**
+> All four P02d-4 steps are delivered in PR #25, awaiting maintainer review/merge.
+> The original pending/not-started statements below are acceptance-time history;
+> [Amendment 12](#amendment-12--current-delivery-navigation-2026-10-05)
+> identifies the delivery records. P02d-5/6 remain the server/page owners.
+
 Accepted — maintainer approval recorded 2026-10-03. Implementation is pending.
 
 **Date:** 2026-10-03
@@ -350,3 +356,20 @@ review loops and rollout are complete in
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting maintainer
 review and merge. The original acceptance Status remains historical; P02d-5/6
 remain the server consumer/browser owners.
+
+## Amendment 12 — current delivery navigation (2026-10-05)
+
+This delivery note changes no decision. The Status section now begins with a
+dated current-delivery disclosure; its original acceptance statements and all
+earlier amendments remain unchanged. Amendments 1–4 record host provenance,
+read-only frames, site bootstrap and Education reads; Amendments 5–11 record
+contract/SDK/CI delivery, reviews and required-check activation.
+[ADR-0036 Amendment 9](0036-tenant-resolution-trusted-inputs.md#2026-10-05--amendment-9-public-host-provenance-delivery)
+and ADR-0050/0051 Amendment 3 record their delivered P02d-4 parts without
+rewriting acceptance history. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns current verification. PR #25 awaits maintainer review/merge; server/page
+consumers remain P02d-5/6.
+
+Updated carriers: this Status disclosure, the ADR-0036/0050/0051 delivery notes,
+the Education module spec and the P02d-4 delivery record.

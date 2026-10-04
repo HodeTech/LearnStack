@@ -314,6 +314,9 @@ fix the allowlist and protocol before v1 freezes; no internal/seed DTO is export
   non-object/non-string bodies or missing required fields produce whole bounded
   unavailable content. Ordered string fields alone enter the ready allowlist;
   unknown properties are omitted. No read-time JSON Schema evaluation.
+- Unavailable levels produce one count-only Warning per summary batch, including
+  a full catalog page. Unpinned levels produce no warning; private keys, labels
+  and payload values are not logged.
 - All public-prefix successes/errors are no-store, without response validators or
   representation caches. Internal generation-keyed definitions remain independent.
 
@@ -364,6 +367,12 @@ forcing an index or claiming a production cardinality.
 
 ## Risks and open questions
 
+- Physical READ ONLY constrains the enlisted transaction. The structural
+  persistence guard covers public controllers and their helpers, not every
+  marked handler's dependencies. Current public handlers use the approved read
+  ports; an independently opened handler connection remains a review boundary
+  under [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md#context),
+  not a protection claimed by the controller guard.
 - The invoker parent check runs on INSERT and UPDATE. Checking insertion alone would
   leave later parent-id changes unprotected. The isolation suite exercises both,
   alongside the persisted EF graph tests linked above.

@@ -5,8 +5,10 @@ using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Education.Application.PublicReads;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -79,6 +81,52 @@ public sealed class PublicEducationDisplayTests
         summaries.Should().OnlyContain(item => item.Level!.State == PublicDisplayState.Unavailable && item.Level.Label == null && item.Summary == null);
         reader.Request!.Taxonomies.Should().Equal(new DefinitionRevision("levels", 9));
         reader.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_full_page_of_unavailable_levels_logs_one_payload_free_count_and_absent_levels_log_nothing()
+    {
+        var logger = new CapturingLogger();
+        var display = new PublicEducationDisplay(new Reader(Fields), logger);
+        var row = new PublicCourseReadRow(Lesson.CourseId, DateTimeOffset.UtcNow, "private-slug", "Private title", null,
+            CourseContentAccess.Public, "private-levels", 9, "private-band");
+        var summaries = await display.SummariesAsync(Enumerable.Repeat(row, 100).ToArray(), Locale, CancellationToken.None);
+
+        summaries.Should().HaveCount(100).And.OnlyContain(summary => summary.Level!.State == PublicDisplayState.Unavailable);
+        var warning = logger.Entries.Should().ContainSingle().Which;
+        warning.Level.Should().Be(LogLevel.Warning);
+        warning.Event.Id.Should().Be(1);
+        warning.State.Keys.Should().BeEquivalentTo("UnavailableCount", "{OriginalFormat}");
+        warning.State["UnavailableCount"].Should().Be(100);
+
+        await display.SummariesAsync([row with { TaxonomyKey = null, TaxonomyVersion = null, BandKey = null }], Locale, CancellationToken.None);
+        logger.Entries.Should().ContainSingle("an unpinned level is absent, not an unavailable-definition warning");
+    }
+
+    [Fact]
+    public async Task A_broken_configuration_contract_with_an_enabled_locale_and_no_default_is_refused()
+    {
+        var input = new PublicReadInput("en", null, null, "", []);
+        var result = await PublicEducationFailures.ConfigurationAsync(input, new BrokenConfiguration(), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Message.Key.Should().Be("lockey_dependency_unavailable");
+    }
+
+    private sealed class BrokenConfiguration : IPublicTenantConfigurationReader
+    {
+        public Task<Result<PublicTenantConfiguration>> ReadAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Ok(new PublicTenantConfiguration("Tenant", ["en"], null)));
+    }
+
+    private sealed class CapturingLogger : ILogger<PublicEducationDisplay>
+    {
+        public List<(LogLevel Level, EventId Event, Dictionary<string, object?> State)> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, eventId, ((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary()));
     }
 
     private sealed class Reader(ImmutableArray<TextCardDisplayField> fields, string mode = "ready") : ICustomizationDefinitionProjectionReader

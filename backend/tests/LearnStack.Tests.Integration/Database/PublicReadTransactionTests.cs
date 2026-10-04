@@ -192,7 +192,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         unit.Transaction.Should().BeNull();
         unit.Mode.Should().BeNull();
         unit.IsRollbackOnly.Should().BeTrue();
-        (await ScalarAsync(unit, "SHOW transaction_read_only")).Should().Be("off");
+        await AssertFreshTransactionIsWritableAsync(unit);
         var reuse = async () => await unit.BeginTransactionAsync(TransactionMode.ReadWrite);
         await reuse.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
     }
@@ -272,8 +272,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         unit.Transaction.Should().BeNull();
         unit.Mode.Should().BeNull();
         unit.IsRollbackOnly.Should().BeTrue();
-        (await ScalarAsync(unit, "SHOW transaction_read_only")).Should().Be("off",
-            "cleanup must reset the server before the still-live DI scope is disposed");
+        await AssertFreshTransactionIsWritableAsync(unit);
         var reuse = async () => await unit.BeginTransactionAsync();
         await reuse.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
     }
@@ -293,13 +292,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddMetrics();
-        services.AddSingleton(_ =>
-        {
-            if (injectedLogs is null) return ApplicationDataSource.Build(schema.Postgres.AppConnectionString);
-            var builder = new NpgsqlDataSourceBuilder(schema.Postgres.AppConnectionString);
-            builder.UseLoggerFactory(injectedLogs);
-            return builder.Build();
-        });
+        services.AddSingleton(_ => ApplicationDataSource.Build(schema.Postgres.AppConnectionString, injectedLogs));
         services.AddSingleton<ITenantContext>(Context);
         services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(Context));
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
@@ -355,6 +348,20 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
     {
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction?)unit.Transaction);
         return await command.ExecuteScalarAsync();
+    }
+
+    private static async Task AssertFreshTransactionIsWritableAsync(IUnitOfWork unit)
+    {
+        // The poisoned unit cannot issue another frame. Probe the same physical
+        // connection in a real transaction: an implicit SHOW would only observe
+        // the session default, not prove cleanup permits a writable transaction.
+        await using var transaction = await unit.Connection.BeginTransactionAsync();
+        await using var command = unit.Connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SHOW transaction_read_only";
+        (await command.ExecuteScalarAsync()).Should().Be("off",
+            "cleanup must permit a fresh writable transaction on the same connection");
+        await transaction.RollbackAsync();
     }
 
     /// <summary>Fault injection at the actual driver control statement, without a production seam.</summary>
