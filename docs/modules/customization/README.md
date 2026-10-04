@@ -3,7 +3,7 @@
 **Status:** Design stable, partially implemented (Phase 02a Packet 8 shipped the
 two aggregates, the schema and its isolation, the payload gate, and the write
 path; P02d-2 Step 1 adds contextual exact-definition reads and metadata validation.
-P02d-3 adds internal generation-cached display reads; public consumers follow in P02d-4
+P02d-3 adds internal generation-cached display reads; P02d-4 delivers public consumers
 in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and the Admin Studio
 editors with the phases that consume them).
 
@@ -197,7 +197,7 @@ table, schema validation, HTTP endpoint or write is introduced. Active/Deprecate
 nondeleted definitions are eligible; missing individual pins remain distinguishable
 without failing unrelated members or substituting another revision. Labels resolve
 per call with actual locale metadata from the caller's display-locale context.
-P02d-4 accepts the public response/refusal contract with implementation pending;
+P02d-4 Step 3 delivers the public response/refusal contract;
 page rendering remains P02d-6. The coherent loader supplies
 generation-keyed families; dirty or rollback-only
 scopes bypass their cache. The writer reader remains uncached.
@@ -209,7 +209,7 @@ immutable bands; the writer's exact-purpose reader below stays uncached.
 [P02d-3's accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 owns implementation steps and proof obligations. P02d-4's accepted Education
 consumer uses exact pins and ordered allowlisted string fields, with whole-content
-unavailable outcomes. Planned internal field requiredness comes from schema.required;
+unavailable outcomes. Internal field requiredness comes from schema.required;
 no public required flag or JSON Schema evaluation is added. Unknown fields are omitted;
 Missing required/non-object/non-string body data makes that lesson's whole content
 unavailable in the Education consumer. Customization supplies internal metadata;
@@ -235,7 +235,7 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
   if it is concurrently deprecated. Strict commit-time eligibility is not selected.
 - Body validation uses `IJsonSchemaValidator` against that returned exact schema.
   Generation-keyed read caching is delivered in P02d-3; P02d-4 public shape is
-  Accepted but pending implementation. Renderer fallback remains P02d-6. These are
+  delivered by Step 3. Renderer fallback remains P02d-6. These are
   separate from the exact write contract.
 - Module-owned contextual verification queries give the seeder exact IDs, revision
   data, labels/bands and state. They are audit Off and introduce no setter exception.

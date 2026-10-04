@@ -21,7 +21,9 @@ records final verification. P02d-4's
 and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accepted —
 2026-10-03. Step 3 implements all three Education GET/HEAD pairs with app-role
 HTTP/database proofs; both independent review rounds passed. Step 4 adds
-OpenAPI/SDK/CI controls; its review and live rollout evidence are recorded separately.
+OpenAPI/SDK/CI controls; both review rounds and fresh fix verification pass. The
+[delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+records live rollout separately.
 The diagram includes the access column.
 
 ## Overview
@@ -29,7 +31,7 @@ The diagram includes the access column.
 Education owns courses, lessons and their translated content. P02d-1 Step 2
 implements their domain model, database shape and isolation. P02d-2 implements six
 unrouted command handlers and convergent seed writes;
-P02d-4 owns public reads. [Phase 05](../../roadmap/phase-05-education-learning-content.md)
+P02d-4 implements public reads. [Phase 05](../../roadmap/phase-05-education-learning-content.md)
 owns course versions, modules, lesson items and the authenticated authoring surface.
 
 Content shapes and level vocabularies belong to Customization. Tenant and organization
@@ -147,8 +149,8 @@ owns their storage conventions.
 - Routable slugs and the course authoring handle follow the canonical
   [Education slug grammar](../../standards/08-localization.md#education-slug-grammar).
   `EducationSlug` supplies its separate width and predicate to domain validation;
-  named database checks enforce the same storage rule. Public route templates
-  and parameter handling remain P02d-4 decisions.
+  named database checks enforce the same storage rule. P02d-4 implements public
+  route templates and exact parameter handling under ADR-0052.
 - Each satellite has a flat `UNIQUE (tenant_id, locale, slug)`, across all courses
   or all lessons respectively, and across organizations. Parent identity and
   organization are excluded from that key. There is no cross-table slug registry.
@@ -365,7 +367,7 @@ forcing an index or claiming a production cardinality.
   leave later parent-id changes unprotected. The isolation suite exercises both,
   alongside the persisted EF graph tests linked above.
 - RLS protects each satellite independently. Its plain CLR base is never an isolation
-  exemption. Parent soft deletion still requires parent-aware public reads in P02d-4.
+  exemption. P02d-4 public reads independently enforce parent soft deletion.
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
 - Writer and seed decisions are implemented in P02d-2. P02d-4 read-response

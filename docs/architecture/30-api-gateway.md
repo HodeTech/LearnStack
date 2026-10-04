@@ -26,7 +26,7 @@ the LearnStack core API and the LearnStack Hub API.
 > [Phase 02b](../roadmap/phase-02b-events-auth.md) and authorization in
 > [Phase 03](../roadmap/phase-03-identity-admin.md). Tenant-owned tables now exist;
 > authoring commands remain unrouted and HostOnly pipeline admission requires a
-> `[PublicSurface]` marker. P02d-4's accepted anonymous routes are not implemented yet.
+> `[PublicSurface]` marker. P02d-4 supplies marked anonymous GET/HEAD routes under ADR-0052.
 > The "validated twice" property in § 5 describes the Phase 11 target, not
 > the running system — and the first half of it arrives well before the gateway half.
 > The block is uncommented in

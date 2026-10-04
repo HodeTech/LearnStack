@@ -3,7 +3,7 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-**P02d-4 accepted consumer — implementation pending.** Education consumes this
+**P02d-4 Step 3 consumer implemented — 2026-10-04.** Education consumes this
 internal projection under its [public boundary](../education/README.md#primary-read-flow).
 Customization adds no HTTP route, permission key or audit intent; field requiredness
 is internal metadata, and schema validation remains write-only.

@@ -87,12 +87,13 @@ generation caching and scope-safe bypass; both review rounds passed.
 records final verification.
 **P02d-4 is in progress:** Steps 1–3 implement the read-only host boundary,
 anonymous site bootstrap and Education reads. Both Step 3 review rounds pass;
-Step 4 implements OpenAPI/SDK/CI controls; its review and live rollout are in progress.
+Step 4 implements OpenAPI/SDK/CI controls; both review rounds and fresh fix
+verification pass. Live required-check rollout follows real CI.
 Browser rendering follows
 in P02d-5–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
-is Accepted — 2026-10-03. Public API implementation follows its four-step review
-plan; server rendering and browser delivery remain P02d-5/6.
+is Accepted — 2026-10-03. All four implementation steps and their review loops
+are complete; server rendering and browser delivery remain P02d-5/6.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
@@ -101,7 +102,7 @@ plan; server rendering and browser delivery remain P02d-5/6.
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Trusted server consumer in [P02d-5](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Next.js route scaffolds and generated typed SDK with injected transport | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.

@@ -319,7 +319,7 @@ Course-level content-access policy inherited by independent Lessons; it is neith
 a grant nor a price. The additive `courses.content_access` migration applies
 `enrollment_required` to legacy rows and as the storage default. The current
 [Education diagram](../modules/education/README.md#entity-relationship-diagram)
-includes the column; public consumers remain P02d-4 work. Phase 05 preserves and
+includes the column; P02d-4 supplies enforcing public consumers. Phase 05 preserves and
 locates that policy in its versioned model before its writers.
 
 ## Assessment

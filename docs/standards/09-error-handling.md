@@ -114,7 +114,7 @@ matching localization key adds the `lockey_` prefix.
 | `audit_unavailable` | A MUST-class audit row could not be written durably | 503 |
 | `audit_unclassified_operation` | Operation absent from the audit catalogue | 500 |
 | `recording_consent_required` | Live session requires consent | 409 |
-| `unsupported_locale` | Well-formed public query locale absent or disabled for the tenant; P02d-4 Accepted contract, implementation pending | 400 |
+| `unsupported_locale` | Well-formed public query locale absent or disabled for the tenant; implemented by P02d-4 | 400 |
 | `feature_disabled` | Feature flag off for tenant | 403 |
 | `method_not_allowed` | Route matched, method did not — *framework-minted* | 405 |
 | `payload_too_large` | Request body over the published limit — *framework-minted* | 413 |

@@ -17,10 +17,10 @@ from Phase 03, and the outbox and background-job infrastructure from
 
 ### What Phase 02d did not build
 
-**Accepted contract impact — 2026-10-02.**
+**Current contract impact — 2026-10-04.**
 [ADR-0050](../decisions/0050-publication-and-course-content-access.md) separates
 publication from inherited course policy. P02d-2 ships the policy, migration and
-writers; P02d-4 anonymous-read enforcement remains pending.
+writers; P02d-4 delivers anonymous-read enforcement.
 Restricted courses expose marketing metadata but no anonymous lesson
 inventory/body; this phase supplies the first effective learner-access evaluator.
 No credentials or absent evaluator may cause public fallback. Check access before

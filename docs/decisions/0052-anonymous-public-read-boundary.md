@@ -327,3 +327,13 @@ Stable declaration origins now cover inline schemas and schemas inside Response
 components, with unchanged/open-addition CLI controls for both placements. The
 [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
 owns reproduction and fresh verification. Live sixth-check activation is pending.
+
+## Amendment 10 — implementation and review closeout (2026-10-04)
+
+This delivery note changes no decision. All four P02d-4 implementation steps and
+their two independent review rounds are complete. Fresh focused verification of
+the final compatibility fixes approves, with no verified finding remaining. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns the complete regression and final control counts. Actual PR CI and live
+sixth required-check registration remain the final rollout proof; this note does
+not claim merge or browser delivery. P02d-5/6 remain the server/page owners.

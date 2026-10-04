@@ -531,7 +531,7 @@ Two integration points
 | `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
-| Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Education and contract proof remain Steps 3–4 |
+| Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
 | Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

@@ -12,7 +12,7 @@
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
-> | P02d-4 | Public read API and contract checks | decision pass Accepted — 2026-10-03; Steps 1–3 and their review loops complete; Step 4 implementation/reviews in progress — [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
+> | P02d-4 | Public read API and contract checks | decision pass Accepted — 2026-10-03; all four implementation steps and review loops complete; live required-check rollout pending — [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
@@ -2418,7 +2418,8 @@ continues with the approved OpenAPI, SDK and CI contract.
 
 ### P02d-4 Step 4: contract, SDK and CI
 
-**Implementation — 2026-10-04; reviews and live rollout pending.** The production
+**Implementation and review loops complete — 2026-10-04; live rollout pending.**
+The production
 OpenAPI transformer documents manually parsed locale/cursor/page parameters,
 shared Problem Details, closed enums and bodyless HEAD. The sole committed v1
 snapshot matches the actual production composition. Contract controls assert all
@@ -2539,7 +2540,20 @@ all 56 controls and 27 additional probes, then reproduces an unchanged inline
 recursive schema crashing the normalizer. The same occurs inside a Response
 component. Stable declaration identity now applies to every local schema location,
 rather than only Schema components; four added real CLI controls cover unchanged
-and open-addition cases in both placements. Fresh verification follows this fix.
+and open-addition cases in both placements. Fresh independent verification at
+`ef5c4d8` approves: all 60 real CLI controls pass (39 breaking, 21 compatible), all
+eight snapshot cases and 27 additional probes pass, and all four original
+reproductions return compatible. Both Step 4 review rounds and focused fix review
+are complete. No verified finding remains.
+
+**Pre-PR closeout.** All four implementation steps and their two independent
+review rounds are complete on development. Final frontend validation passes
+typecheck, lint, build and all 73 cases (60 SDK, thirteen web). Complete .NET
+regression remains 2843 passed, zero failed/skipped, as recorded above; the later
+compatibility fixes change scripts/fixtures only, and the final operation mutants
+pass all four contract cases. Formatting, actionlint, link/anchor and frozen-record
+checks pass. Live CI and sixth required-check API read-back follow PR creation;
+packet exit is not yet claimed. P02d-5 is next, with its decision pass not started.
 
 ### P02d-1 decision pass (2026-09-14)
 
@@ -2937,8 +2951,8 @@ Obligations already imposed:
 
 P02d-3 delivered **G12**'s cache contract, the loader/correctness contract (**G22**)
 and internal display fallback (**G24**) under the
-[accepted gate answers](#accepted-gate-answers). Public response and page-state
-parts remain P02d-4/6.
+[accepted gate answers](#accepted-gate-answers). P02d-4 delivers public response
+parts; page-state behavior remains P02d-6.
 
 **The typed settings accessor** over `tenant_settings`, which Phase 02a left to its
 first reader, is delivered in P02d-3. Under Row Level Security a `tenant_settings`
@@ -2955,7 +2969,7 @@ under the
 
 ### Read API
 
-**P02d-4 Accepted — 2026-10-03; implementation pending.** The
+**P02d-4 implemented — 2026-10-04.** The
 [accepted public contract](#public-routes-and-dto-contract) fixes four logical reads
 under `/api/v1/public`, each GET/HEAD: site bootstrap, course catalog, course detail
 with pageable outline, and lesson detail. The DTO allowlists, alternates and cursor
@@ -2977,10 +2991,10 @@ site/Education representation cache. Internal definition caching remains indepen
 The [locale contract](#locale-and-display-applicability),
 [pagination contract](#catalog-and-outline-continuation) and
 [contract/SDK/CI plan](#openapi-sdk-and-required-check-plan) own the detailed decisions.
-Production marker/table rows land with their request types; acceptance leaves the
-currently empty set and implemented guard coverage honest. New guards/proofs are
-Registered before code; runtime verification and real consumer query plans are
-required before packet exit. P02d-5 owns trusted server transport; P02d-6 owns pages.
+Production marker/table rows and structural guards now cover all four request
+types. Runtime verification and real app-role consumer query plans are recorded in
+the [delivery record](#p02d-4-step-3-public-education-reads). P02d-5 owns trusted
+server transport; P02d-6 owns pages.
 
 ### Public renderer
 

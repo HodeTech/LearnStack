@@ -57,7 +57,8 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
   records final verification. P02d-4's
   [public-read decision package](phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
-  is Accepted — 2026-10-03; implementation follows its four-step review plan.
+  is Accepted — 2026-10-03; all four implementation steps and their review loops
+  are complete. Live required-check rollout follows real CI; P02d-5 is next.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
