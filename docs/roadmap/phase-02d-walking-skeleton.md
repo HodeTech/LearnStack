@@ -2631,6 +2631,14 @@ theory cases. Contract tests again verify the production-served v1 document;
 the committed OpenAPI/SDK contract is unchanged. Live main protection still
 requires all six Actions contexts with strict checking; no settings are changed.
 
+**Remediation review closeout.** Two fresh independent rounds review
+`1d938388..ef86f64`: Round 1 code and documentation reviewers both Approve;
+Round 2 code and documentation reviewers both Approve. No actionable finding
+remains. Both documentation reviewers independently verify preserved ADR history,
+delivery claims, phase ownership and all 590 relative links/anchors in the six
+changed Markdown files. The complete local regression above verifies the code
+fix; this closeout adds delivery evidence only.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
