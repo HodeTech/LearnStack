@@ -3,9 +3,12 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using LearnStack.Api.Common;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Pagination;
+using LearnStack.SharedKernel.Results;
 using Xunit;
 
 namespace LearnStack.Tests.Contract;
@@ -72,6 +75,21 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         var first = required[0]!.DeepClone();
         required[0] = required[1]!.DeepClone(); required[1] = first;
         JsonNode.DeepEquals(clean, arrayDrift).Should().BeFalse("schema arrays are not ignored or sorted away");
+        typeof(LocalizedMessage).GetProperty(nameof(LocalizedMessage.Params))!.PropertyType
+            .Should().Be<IReadOnlyDictionary<string, string>>("the error parameter wire carrier holds string values");
+        var parameters = clean["components"]!["schemas"]!["ProblemDetails"]!["properties"]!["errors"]!["additionalProperties"]!["items"]!["properties"]!["params"]!;
+        foreach (var invalid in new JsonNode[] { new JsonObject(), new JsonObject { ["type"] = "number" }, new JsonObject { ["type"] = "object" } })
+        {
+            var malformed = clean.DeepClone();
+            malformed["components"]!["schemas"]!["ProblemDetails"]!["properties"]!["errors"]!["additionalProperties"]!["items"]!["properties"]!["params"]!["additionalProperties"] = invalid;
+            ContractErrors(malformed).Should().Contain("problem-params");
+        }
+        parameters["additionalProperties"]!["type"]!.GetValue<string>().Should().Be("string");
+        var message = new LocalizedMessage("lockey_required", new Dictionary<string, string> { ["maxLength"] = "35" });
+        var actualProblem = ProblemDetailsFactory.For(new Error(new LocalizedMessage("lockey_validation_failed"),
+            new Dictionary<string, IReadOnlyList<LocalizedMessage>> { ["locale"] = [message] }));
+        var actualWire = JsonSerializer.SerializeToNode(actualProblem, JsonSerializerOptions.Web)!;
+        actualWire["errors"]!["locale"]![0]!["params"]!["maxLength"]!.GetValue<string>().Should().Be("35");
     }
 
     [Fact]
@@ -171,6 +189,17 @@ public sealed class OpenApiContractTests(DevelopmentWebApplicationFactory factor
         var problem = document["components"]!["schemas"]!["ProblemDetails"]!;
         if (!problem["required"]!.AsArray().Select(node => node!.GetValue<string>()).ToHashSet(StringComparer.Ordinal)
             .SetEquals(["type", "title", "status", "instance", "code", "messageKey", "correlationId"])) errors.Add("problem");
+        var messages = problem["properties"]?["errors"]?["additionalProperties"];
+        var localized = messages?["items"];
+        if (problem["properties"]?["errors"]?["type"]?.GetValue<string>() != "object"
+            || messages?["type"]?.GetValue<string>() != "array"
+            || localized?["type"]?.GetValue<string>() != "object"
+            || localized?["properties"]?["key"]?["type"]?.GetValue<string>() != "string"
+            || localized?["required"] is not JsonArray messageRequired
+            || !messageRequired.Select(node => node!.GetValue<string>()).SequenceEqual(["key"])) errors.Add("problem-messages");
+        var problemParameters = localized?["properties"]?["params"];
+        if (problemParameters?["type"]?.GetValue<string>() != "object"
+            || problemParameters?["additionalProperties"]?["type"]?.GetValue<string>() != "string") errors.Add("problem-params");
         return errors;
     }
 

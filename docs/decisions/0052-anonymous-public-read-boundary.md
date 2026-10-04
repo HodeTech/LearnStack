@@ -283,3 +283,16 @@ The [Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-ste
 owns actual verification, the two independent review rounds and the approved live
 sixth-check rollout. Reviews and settings activation remain pending at this
 implementation boundary. P02d-5/6 remain the server consumer/browser owners.
+
+## Amendment 6 — contract and compatibility review fixes (2026-10-04)
+
+This delivery note changes no decision. Independent Step 4 review verifies gaps
+between the pinned diff tool and ADR-0024's type/enum policy. The deterministic
+companion now covers reachable request/response schemas and local object
+references; additional CLI controls prove the previously missed changes fail.
+Problem Details parameter schema and SDK parsing match the existing string-valued
+localized-message carrier. Invalid local path encoding returns a bounded result,
+and caller cancellation retains precedence. The
+[Step 4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+owns reproduction and regression evidence. Fresh Round 2 and the approved live
+sixth-check registration remain pending at this fix boundary.

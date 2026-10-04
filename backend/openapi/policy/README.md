@@ -9,10 +9,12 @@ with breaking mutations and nonbreaking controls. The runner checks a literal
 non-empty census against the real pinned executable. It retains raw tool reports,
 normalized reports and companion findings; no external references are allowed.
 
-The pinned tool misses open-to-closed enum changes and rejects additions to an
-explicitly open response enum. The companion walks response schemas and local
-schema references, refuses closure/removal, and removes only matching open enum
-lists for the tool. Types, fields, validators and other constraints remain.
+The pinned tool misses some root enum additions, open-to-closed enum changes and
+numeric field type changes. It also rejects additions to an explicitly open
+response enum. The companion walks reachable request/response schemas, including
+local schema and Response/RequestBody/Parameter references. It refuses type changes,
+closed enum additions and open enum closure/removal, and removes only matching
+open enum lists for the tool. Fields, validators and other constraints remain.
 A combined open addition and field removal proves that normalization cannot hide
 another breaking change. Current public enums are closed. A future open-set enum
 still requires compatible generation and consumer proof before shipping.

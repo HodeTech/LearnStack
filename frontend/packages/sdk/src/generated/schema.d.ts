@@ -93,7 +93,7 @@ export interface components {
                 [key: string]: {
                     key: string;
                     params?: {
-                        [key: string]: unknown;
+                        [key: string]: string;
                     };
                 }[];
             };

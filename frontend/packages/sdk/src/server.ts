@@ -24,6 +24,7 @@ export type ApiResult<T> =
         | 'unexpected-status';
     }
   | { readonly kind: 'transport-error' }
+  | { readonly kind: 'invalid-request' }
   | { readonly kind: 'cancelled' };
 
 type Query<T extends PublicGetOperation> = operations[T]['parameters']['query'];
@@ -68,10 +69,16 @@ function queryString(query: Record<string, string | undefined>): string {
 export function createServerSdk(transport: PublicFetch): ServerSdk {
   async function request<T extends PublicGetOperation>(
     operation: T,
-    url: string,
+    buildUrl: () => string,
     options?: RequestOptions,
   ): Promise<ApiResult<PublicSuccess<T>>> {
     if (options?.signal?.aborted) return { kind: 'cancelled' };
+    let url: string;
+    try {
+      url = buildUrl();
+    } catch {
+      return { kind: 'invalid-request' };
+    }
     let response: Response;
     try {
       response = await transport(url, {
@@ -111,18 +118,20 @@ export function createServerSdk(transport: PublicFetch): ServerSdk {
         };
   }
   return {
-    getSite: (options) => request('GetPublicSite', '/api/v1/public/site', options),
+    getSite: (options) => request('GetPublicSite', () => '/api/v1/public/site', options),
     getCourses: (query, options) =>
       request(
         'GetPublicCourses',
-        '/api/v1/public/courses' +
+        () =>
+          '/api/v1/public/courses' +
           queryString({ locale: query.locale, cursor: query.cursor, limit: query.limit }),
         options,
       ),
     getCourse: (path, query, options) =>
       request(
         'GetPublicCourse',
-        '/api/v1/public/courses/' +
+        () =>
+          '/api/v1/public/courses/' +
           encodeURIComponent(path.slug) +
           queryString({
             locale: query.locale,
@@ -134,7 +143,8 @@ export function createServerSdk(transport: PublicFetch): ServerSdk {
     getLesson: (path, query, options) =>
       request(
         'GetPublicLesson',
-        '/api/v1/public/courses/' +
+        () =>
+          '/api/v1/public/courses/' +
           encodeURIComponent(path.slug) +
           '/lessons/' +
           encodeURIComponent(path.lessonSlug) +

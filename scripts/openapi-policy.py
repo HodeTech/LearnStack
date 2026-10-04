@@ -19,6 +19,10 @@ FIXTURE_NAMES = {
     'add-optional-query', 'loosen-validator', 'add-open-response-enum-value', 'add-response-header',
     'reorder-object-keys', 'improve-error-message-same-code', 'change-internal-implementation',
     'open-enum-value-removed', 'open-enum-addition-does-not-hide-other-break',
+    'add-closed-root-response-enum-value', 'add-closed-array-response-enum-value',
+    'add-closed-referenced-response-enum-value', 'referenced-open-response-enum-becomes-closed',
+    'add-closed-request-enum-value', 'open-request-enum-becomes-closed',
+    'add-open-request-enum-value', 'request-integer-becomes-number', 'response-number-becomes-integer',
 }
 
 
@@ -26,61 +30,114 @@ def write(path, value):
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
 
 
-def response_schemas(document):
-    """Visit only response schema positions, resolving local references with cycle protection."""
+def reachable_schemas(document):
+    """Visit request/response schemas by logical position, including local object/schema refs."""
     found = {}
 
-    def visit(schema, location):
-        if not isinstance(schema, dict) or location in found:
-            return
-        found[location] = schema
-        ref = schema.get('$ref')
+    def resolve(value, trail=()):
+        if not isinstance(value, dict):
+            return value, value, trail
+        ref = value.get('$ref')
         if ref is not None:
             if not isinstance(ref, str) or not ref.startswith('#/'):
-                raise ValueError('External or invalid schema reference refused')
+                raise ValueError('External or invalid reference refused')
+            if ref in trail:
+                return None, None, trail
             target = document
-            path = tuple(part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/'))
-            for part in path:
+            for part in (part.replace('~1', '/').replace('~0', '~') for part in ref[2:].split('/')):
                 target = target[part]
-            visit(target, path)
+            resolved, enum_owner, trail = resolve(target, trail + (ref,))
+            if not isinstance(resolved, dict):
+                return None, None, trail
+            effective = {**resolved, **{key: child for key, child in value.items() if key != '$ref'}}
+            return effective, value if 'enum' in value else enum_owner, trail
+        return value, value, trail
+
+    def visit(schema, location, direction, trail=()):
+        schema, enum_owner, trail = resolve(schema, trail)
+        if not isinstance(schema, dict):
+            return
+        found[(direction, location)] = (schema, enum_owner)
         for name, child in schema.get('properties', {}).items():
-            visit(child, location + ('properties', name))
+            visit(child, location + ('properties', name), direction, trail)
         for keyword in ('items', 'additionalProperties', 'not'):
-            visit(schema.get(keyword), location + (keyword,))
+            visit(schema.get(keyword), location + (keyword,), direction, trail)
         for keyword in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
             for index, child in enumerate(schema.get(keyword, [])):
-                visit(child, location + (keyword, index))
+                visit(child, location + (keyword, index), direction, trail)
+
+    def content(value, location, direction):
+        value, _, trail = resolve(value)
+        if isinstance(value, dict):
+            for media, entry in value.get('content', {}).items():
+                visit(entry.get('schema'), location + ('content', media, 'schema'), direction, trail)
+
+    def parameters(values, location, direction):
+        for index, value in enumerate(values):
+            value, _, trail = resolve(value)
+            if isinstance(value, dict):
+                # Names, not list offsets, identify parameters when an optional one is added.
+                position = location + (value.get('in', index), value.get('name', index))
+                visit(value.get('schema'), position + ('schema',), direction, trail)
+                content(value, position, direction)
 
     for path, item in document.get('paths', {}).items():
+        item, _, _ = resolve(item)
+        if not isinstance(item, dict):
+            continue
+        parameters(item.get('parameters', []), ('paths', path, 'parameters'), 'request')
         for method, operation in item.items():
             if method not in HTTP_METHODS:
                 continue
+            position = ('paths', path, method)
+            parameters(operation.get('parameters', []), position + ('parameters',), 'request')
+            content(operation.get('requestBody'), position + ('requestBody',), 'request')
             for status, response in operation.get('responses', {}).items():
-                for media, content in response.get('content', {}).items():
-                    visit(content.get('schema'), ('paths', path, method, 'responses', status, 'content', media, 'schema'))
+                response_position = position + ('responses', status)
+                content(response, response_position, 'response')
+                response, _, _ = resolve(response)
+                if isinstance(response, dict):
+                    for name, header in response.get('headers', {}).items():
+                        header, _, trail = resolve(header)
+                        if isinstance(header, dict):
+                            visit(header.get('schema'), response_position + ('headers', name, 'schema'), 'response', trail)
     return found
 
 
-def extensible_enum_policy(base, head):
-    """Compensate for 1.33.0's documented open-enum gaps, retaining all other checks."""
+def companion_policy(base, head):
+    """Apply ADR-0024's type/enum policy where 1.33.0 uses narrower compatibility rules."""
     normalized_base, normalized_head = copy.deepcopy(base), copy.deepcopy(head)
-    old, new = response_schemas(normalized_base), response_schemas(normalized_head)
+    old, new = reachable_schemas(normalized_base), reachable_schemas(normalized_head)
     violations = []
-    for location, schema in old.items():
-        if schema.get('x-extensible-enum') is not True:
-            continue
-        current = new.get(location)
-        if current is None or current.get('x-extensible-enum') is not True:
-            violations.append({'id': 'response-extensible-enum-closed', 'location': list(location)})
-            continue
+    for (direction, location), (schema, enum_owner) in old.items():
+        current, current_enum_owner = new.get((direction, location), ({}, {}))
+        def refuse(reason):
+            violations.append({'id': direction + '-' + reason, 'location': list(location)})
+        before_type, after_type = schema.get('type'), current.get('type')
+        if before_type is not None and after_type is not None:
+            before_types = set(before_type if isinstance(before_type, list) else [before_type])
+            after_types = set(after_type if isinstance(after_type, list) else [after_type])
+            if before_types != after_types:
+                refuse('field-type-changed')
         before, after = schema.get('enum'), current.get('enum')
-        if isinstance(before, list) and isinstance(after, list):
-            if any(value not in after for value in before):
-                violations.append({'id': 'response-open-enum-value-removed', 'location': list(location)})
-            # Both remain explicitly open: additions are compatible under ADR-0024.
-            # Drop only these enum lists for the tool, never their types/properties/validators.
-            schema.pop('enum', None)
-            current.pop('enum', None)
+        if schema.get('x-extensible-enum') is True:
+            if current.get('x-extensible-enum') is not True:
+                refuse('extensible-enum-closed')
+                continue
+            if isinstance(before, list) and isinstance(after, list):
+                if any(value not in after for value in before):
+                    refuse('open-enum-value-removed')
+                # Both remain explicitly open: additions are compatible under ADR-0024.
+                # Drop only their enum lists, never types/properties/validators.
+                enum_owner.pop('enum', None)
+                current_enum_owner.pop('enum', None)
+        elif isinstance(before, list) and isinstance(after, list):
+            if any(value not in before for value in after):
+                refuse('closed-enum-value-added')
+            if direction == 'request' and any(value not in after for value in before):
+                refuse('closed-enum-value-removed')
+        if direction == 'response' and isinstance(before, list) and (not isinstance(after, list) or any(value not in after for value in before)):
+            refuse('enum-value-removed')
     return normalized_base, normalized_head, violations
 
 
@@ -110,7 +167,7 @@ def compare(tool, base, head, output):
     write(output / 'base.json', base)
     write(output / 'head.json', head)
     raw = run_tool(tool, output / 'base.json', output / 'head.json', output, 'raw-tool')
-    old, new, companion = extensible_enum_policy(base, head)
+    old, new, companion = companion_policy(base, head)
     write(output / 'normalized-base.json', old)
     write(output / 'normalized-head.json', new)
     checked = run_tool(tool, output / 'normalized-base.json', output / 'normalized-head.json', output, 'policy-tool')

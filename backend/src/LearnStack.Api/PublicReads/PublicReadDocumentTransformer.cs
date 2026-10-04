@@ -118,7 +118,7 @@ internal sealed class PublicReadDocumentTransformer : IOpenApiDocumentTransforme
                         Type = JsonSchemaType.Object,
                         Required = new HashSet<string> { "key" },
                         Properties = new Dictionary<string, IOpenApiSchema>
-                        { ["key"] = Text(), ["params"] = new OpenApiSchema { Type = JsonSchemaType.Object, AdditionalProperties = new OpenApiSchema() } }
+                        { ["key"] = Text(), ["params"] = new OpenApiSchema { Type = JsonSchemaType.Object, AdditionalProperties = Text() } }
                     }
                 }
             },

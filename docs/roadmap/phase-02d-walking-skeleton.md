@@ -2435,10 +2435,11 @@ failure and caller cancellation remain separate. The unused client export is gon
 P02d-5 still owns the configured trusted server adapter and first consumer.
 
 The always-running `openapi diff` workflow installs checksum-verified oasdiff and
-uses the explicit severity policy. Twenty-three mutation/control fixtures cover
-representable ADR-0024 rows. The tool misclassifies open-enum additions and misses
-open-to-closed changes; a deterministic response-schema companion checks closure
-and removal, normalizing only enum lists that remain explicitly open. A combined
+uses the explicit severity policy. Thirty-two mutation/control fixtures cover
+representable ADR-0024 rows and verified placement/type-direction tool gaps.
+A deterministic companion traverses reachable request/response schemas and local
+object/schema references. It enforces type changes, closed enum additions and
+open enum closure/removal, normalizing only matching open enum lists. A combined
 open addition plus another breaking change still fails. Current public enums stay
 closed; this does not claim an open-enum generator/consumer has shipped.
 
@@ -2473,6 +2474,31 @@ zero v1 operations. Formatting, actionlint, diff hygiene and changed-document
 links/anchors pass. Served snapshot and generated SDK are refreshed from the
 current production composition. Both independent review rounds follow this
 implementation commit; live check registration follows the real CI job.
+
+**Round 1 and verified fixes.** Independent GPT-6-astra and GPT-6.1-sol xhigh
+reviewers inspect `5d72c2f..5f49f62`. They reproduce three Major contract/policy
+findings and two Minor SDK/documentation findings; no Blocker. Actual pinned CLI
+probes show root closed-enum additions, referenced open-enum closure and numeric
+type changes passing the original gate. The companion now enforces these ADR-0024
+rules in both request and response positions, including local object references;
+nine added controls cover root, array, reference and request/type directions.
+All 32 pinned-tool controls pass (22 breaking, ten nonbreaking), alongside eight
+snapshot-admission controls. The original root-enum reproduction now fails the
+policy even though the underlying tool still reports no break.
+
+Problem Details parameter values now match the existing string-valued
+`LocalizedMessage` carrier in served OpenAPI, snapshot, generated types and SDK
+parsing. Contract controls compare the nested schema with CLR and actual factory
+serialization; empty/number/object schemas fail. SDK controls refuse numeric,
+object and null parameters. Lazy URL construction keeps ill-formed surrogate
+paths within an `invalid-request` result; already-aborted calls stay `cancelled`
+without transport. The sibling frontend standard no longer treats G31 as open.
+
+The complete .NET suite is repeated: all 2843 cases pass with zero failures/skips
+(1644 unit, 198 architecture, four contract, 997 integration, including 826 Docker
+cases). SDK typecheck/lint and all 58 cases pass. These fixes change the
+schema/SDK/policy, not database read behavior.
+Fresh Round 2 review follows the fix commit.
 
 ### P02d-1 decision pass (2026-09-14)
 

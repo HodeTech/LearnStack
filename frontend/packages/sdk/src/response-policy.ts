@@ -190,9 +190,14 @@ export function parseProblem(value: unknown, status: number): ApiProblem | null 
         if (message.params === undefined) parsed.push({ key: message.key });
         else {
           if (!record(message.params)) return null;
+          const parameters: [string, string][] = [];
+          for (const [name, value] of Object.entries(message.params)) {
+            if (typeof value !== 'string') return null;
+            parameters.push([name, value]);
+          }
           parsed.push({
             key: message.key,
-            params: Object.fromEntries(Object.entries(message.params)),
+            params: Object.fromEntries(parameters),
           });
         }
       }

@@ -195,7 +195,7 @@ describe('public GET transport', () => {
     const payload = {
       ...problem(400, 'validation_failed'),
       errors: {
-        locale: [{ key: 'lockey_required', params: { maxLength: 35 }, extra: 'ignored' }],
+        locale: [{ key: 'lockey_required', params: { maxLength: '35' }, extra: 'ignored' }],
       },
       tenantId: 'hidden',
       provider: 'untrusted',
@@ -207,9 +207,40 @@ describe('public GET transport', () => {
       error: { code: 'validation_failed', fieldErrors: { locale: ['lockey_required'] } },
       problem: {
         ...problem(400, 'validation_failed'),
-        errors: { locale: [{ key: 'lockey_required', params: { maxLength: 35 } }] },
+        errors: { locale: [{ key: 'lockey_required', params: { maxLength: '35' } }] },
       },
     });
+  });
+  it.each([35, { hidden: 'raw' }, null])(
+    'refuses non-string localization parameters %j',
+    async (value) => {
+      const payload = {
+        ...problem(400, 'validation_failed'),
+        errors: { locale: [{ key: 'lockey_required', params: { maxLength: value } }] },
+      };
+      expect(await createServerSdk(async () => json(payload, 400)).getSite()).toEqual({
+        kind: 'invalid-response',
+        reason: 'invalid-problem',
+      });
+    },
+  );
+  it.each(['\uD800', '\uDFFF'])('returns a result for an ill-formed path string', async (slug) => {
+    const transport = vi.fn();
+    const sdk = createServerSdk(transport);
+    expect(await sdk.getCourse({ slug }, { locale: 'en' })).toEqual({ kind: 'invalid-request' });
+    expect(await sdk.getLesson({ slug: 'foundation', lessonSlug: slug }, { locale: 'en' })).toEqual(
+      { kind: 'invalid-request' },
+    );
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await sdk.getLesson(
+        { slug: 'foundation', lessonSlug: slug },
+        { locale: 'en' },
+        { signal: controller.signal },
+      ),
+    ).toEqual({ kind: 'cancelled' });
+    expect(transport).not.toHaveBeenCalled();
   });
   it.each(['unsupported_locale', 'internal_error', 'future_code'])(
     'maps %s to the closed unknown branch',

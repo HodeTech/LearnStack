@@ -217,15 +217,16 @@ features/<feature>/
   types.ts
 ```
 
-> **Open in Phase 02d.** Three questions these trees answer are open for the public
+> **Open in Phase 02d.** Two questions these trees answer are open for the public
 > renderer. Where the UI string catalogue lives is G39: `packages/i18n/` is one of
-> several homes the corpus names, and `frontend/packages` holds no such package. What
-> `packages/sdk` becomes once regeneration fills `paths` is G31; today it holds
-> generated types beside hand-written factories. Where the lesson page's composite and
-> primitive field components live — `packages/ui/`, a route group's or a feature's
+> several homes the corpus names, and `frontend/packages` holds no such package.
+> G31 is Accepted: `packages/sdk` exports generated types and four injected public
+> GET wrappers, governed by [Standards 07](07-frontend-architecture.md#sdk).
+> Where the lesson page's composite and primitive field components live —
+> `packages/ui/`, a route group's or a feature's
 > `components/`, or elsewhere — is G41. Each is a row in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes it edits this section with its answer.
+> and the pass that closes each open question edits this section with its answer.
 
 ## Comments
 

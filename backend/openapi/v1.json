@@ -46,7 +46,9 @@
                     "type": "string"
                   },
                   "params": {
-                    "additionalProperties": {},
+                    "additionalProperties": {
+                      "type": "string"
+                    },
                     "type": "object"
                   }
                 },

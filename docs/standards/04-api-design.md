@@ -465,8 +465,8 @@ SDK has no branch for.
 **G31 delivered by Step 4.** `backend/openapi/v1.json` is the sole v1 snapshot,
 compared against the production served document. Non-empty eight-operation and
 recursive public DTO controls accompany it. Required frontend CI regenerates the
-SDK and refuses scoped drift. Pinned CLI fixtures and an explicit extensible-enum
-companion implement representable ADR-0024 rules; runtime tests own validator and
+SDK and refuses scoped drift. Pinned CLI fixtures and explicit type/enum policy
+companions implement representable ADR-0024 rules; runtime tests own validator and
 status meaning absent from the document. Bootstrap builds and serves the verified
 base composition; only a base without a snapshot and without v1 operations
 qualifies. Verification/read failures and deleted head snapshots fail closed.

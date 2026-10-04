@@ -121,8 +121,10 @@ P02d-5.
 - The unused client factory/export is removed. No tenant-ID option, authority-header
   option, hop secret or request-header lookup enters this package contract.
 - Parse Problem Details as unknown, validate it and map to the existing closed
-  AppError union, including unknown codes. Transport failure, malformed JSON and
-  caller cancellation remain distinct from a valid API error.
+  AppError union, including unknown codes. Localization parameter values are
+  strings, matching Standards 09's carrier. Transport failure, malformed JSON,
+  invalid local path input and caller cancellation remain distinct from a valid
+  API error; cancellation precedes URL construction.
 - P02d-5/G35 supplies the configured trusted server caller. P02d-6 supplies all
   public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
 

@@ -724,5 +724,223 @@
         ]
       }
     ]
+  },
+  {
+    "name": "add-closed-root-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-array-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "201",
+          "content",
+          "application/json",
+          "schema",
+          "items",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-referenced-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "Choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "referenced-open-response-enum-becomes-closed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "responses",
+          "OpenChoice",
+          "content",
+          "application/json",
+          "schema",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "add-closed-request-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "open-request-enum-becomes-closed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "add-open-request-enum-value",
+    "breaking": false,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "request-integer-becomes-number",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "quantity",
+          "type"
+        ],
+        "value": "number"
+      }
+    ]
+  },
+  {
+    "name": "response-number-becomes-integer",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "204",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "value",
+          "type"
+        ],
+        "value": "integer"
+      }
+    ]
   }
 ]
