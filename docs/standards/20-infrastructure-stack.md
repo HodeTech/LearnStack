@@ -575,8 +575,8 @@ are the Hub's public API, governed by the Hub repository.
   [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md), without public
   tenancy IDs or a caller route/query/body host selector. The API continues to use
   the resolver directly; no public resolver endpoint or edge registry is added.
-  P02d-5 owns the authenticated server hop and renderer consumer. Implementation
-  of bootstrap is pending; resolver authority and its cache remain unchanged.
+  P02d-4 Step 2 implements bootstrap; resolver authority and its cache remain
+  unchanged. P02d-5 owns the authenticated server hop and renderer consumer.
 - Custom-domain activations on Hub push a new host-mapping set; LearnStack updates
   `platform_host_to_tenant` and invalidates the resolver cache. Once the event-bus
   adapter lands, the same update also arrives as

@@ -668,3 +668,15 @@ architecture, module specs and catalogue.
 - [Database Standards](../standards/05-database.md)
 - [Permission Standards § Resource-scope checks](../standards/19-permissions.md)
 - [Security Standards § Tenant Context](../standards/11-security.md)
+
+### Amendment 9 — read-only frame delivery (2026-10-04)
+
+This delivery note changes no decision. Amendment 8 records the acceptance-time
+implementation status on 2026-10-03. P02d-4 Step 1 subsequently delivered its
+physical read-only frames, same/mixed-mode joins, partial-setup cleanup, poisoning
+and reset behavior. Both independent review rounds and focused fix verification
+passed. [ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
+records foundation delivery; the
+[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+owns real app-role EF/SQL write refusal, writable controls and lifecycle evidence.
+The original Amendment 8 status remains historical.

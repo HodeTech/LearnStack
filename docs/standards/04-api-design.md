@@ -276,7 +276,7 @@ Rules:
   scope is `400 validation_failed` naming the sent cursor parameter. Forward-only
   PageInfo keeps previousCursor null and hasPrevious false.
   [The accepted pagination contract](../roadmap/phase-02d-walking-skeleton.md#catalog-and-outline-continuation)
-  owns exact payloads, bounds and seek behavior; implementation is pending.
+  owns exact payloads, bounds and seek behavior; P02d-4 Step 3 implements the codec.
 - Offset pagination is allowed only for admin-bounded lists (≤ 10k total rows).
 
 ## Filtering and Sorting

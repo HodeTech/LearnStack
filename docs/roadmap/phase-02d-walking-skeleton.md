@@ -2589,6 +2589,16 @@ owns the next decision pass, trusted server transport and first consumer. P02d-6
 owns pages/rendering; P02d-7 owns the two-host demonstration and full-stack exit.
 No browser delivery, marketplace commerce or production p95 is claimed.
 
+**Final external documentation review.** All six required jobs also pass at
+`ddc96a566cd5babf2af3779314471aac33642b95` in
+[the final documentation run](https://github.com/HodeTech/LearnStack/actions/runs/37189085766).
+CodeRabbit then reports three Minor documentation comments. Current code confirms
+cursor/bootstrap delivery and implemented endpoint/write-refusal controls; the
+standards now reflect them. ADR-0040 Amendment 9 adds dated frame-delivery evidence
+without rewriting its acceptance-time status. The catalogue identifies the table
+parser’s actual limit: row method cells remain manual, while the separate endpoint
+census mechanically enforces exact GET/HEAD. No production code changes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

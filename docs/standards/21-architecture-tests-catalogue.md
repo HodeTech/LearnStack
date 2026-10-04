@@ -3892,15 +3892,14 @@ structural test proves — and what it does not.
 - **Status:** **Implemented** for the enumeration legs (`RequestSurfaceTests`, Packet 7
   step 6): every marked request type is a row of the table, every row names a marked
   type, and the attribute keeps the shape `TenantContextBehavior` reads it with. The
-  table parser reads only the **Request type** cell, and nothing in the suite checks a
-  row's permitted methods or that a marked request writes nothing. The permitted-methods
-  leg and the tenant-owned-write leg are Registered.
-- **Phase:** 02a (Packet 7) for the enumeration legs. The permitted-methods and
-  tenant-owned-write legs arrive with the first `[PublicSurface]` request type, in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Accepted P02d-4 G28 compares
-  the non-empty endpoint/request/table sets and their exact `GET`/`HEAD` methods.
-  Structural dispatch/persistence controls complement physical `READ ONLY` proofs;
-  neither new leg is implemented yet. See
+  table parser reads only the **Request type** cell; it does not parse each row's
+  **Permitted methods** cell. P02d-4's implemented
+  `PublicSurface_Endpoints_Dispatch_Through_The_Pipeline` independently checks the
+  literal endpoint census and exact `GET`/`HEAD` methods. Implemented controller
+  persistence guards and `PublicSurface_Transactions_Refuse_Writes` cover the
+  tenant-owned-write boundary. Per-row method-cell agreement remains manual.
+- **Phase:** 02a (Packet 7) for enumeration; P02d-4 Steps 1–3 for the implemented
+  endpoint/dispatch and physical `READ ONLY` proofs under
   [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 - **Note:** the two directions are not equally vacuous, and the existing note above covers
   only one of them. **Marked set → table** is vacuous while no type carries the marker.
