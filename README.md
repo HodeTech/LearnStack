@@ -202,7 +202,7 @@ three product surfaces. See the
 |---|---|---|
 | Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and four domain modules implemented |
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
-| Frontend | Next.js 15 · React 19 · TypeScript | App and shared packages scaffolded |
+| Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
 | Identity | Keycloak | Local realms configured; application authentication belongs to Phase 02b |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |
