@@ -81,6 +81,17 @@ public static class TextCardPresentation
             CheckShape(property.Value, "/properties/" + Escape(property.Name), "string", Refuse);
         }
 
+        var required = new HashSet<string>(StringComparer.Ordinal);
+        if (root.TryGetProperty("required", out var requiredValue))
+        {
+            if (requiredValue.ValueKind != JsonValueKind.Array) Refuse("/required");
+            else foreach (var item in requiredValue.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String) Refuse("/required");
+                else required.Add(item.GetString()!);
+            }
+        }
+
         var fields = ImmutableArray.CreateBuilder<TextCardFieldDto>();
         var covered = new HashSet<string>(StringComparer.Ordinal);
         if (descriptors.ValueKind != JsonValueKind.Array || descriptors.GetArrayLength() == 0)
@@ -129,7 +140,7 @@ public static class TextCardPresentation
 
                 try
                 {
-                    fields.Add(new TextCardFieldDto(name, LocalizedText.FromJson(label.GetRawText())));
+                    fields.Add(new TextCardFieldDto(name, LocalizedText.FromJson(label.GetRawText()), required.Contains(name)));
                 }
                 catch (ArgumentException)
                 {

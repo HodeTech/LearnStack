@@ -2326,6 +2326,73 @@ Release build has zero warnings/errors and all 195 architecture cases pass with
 zero failures/skips. Step 2 and both independent review rounds are complete;
 Education implementation proceeds in Step 3.
 
+### P02d-4 Step 3: public Education reads
+
+**Implementation — 2026-10-04; review rounds pending.** Education serves all three
+GET/HEAD pairs through marked audit-Off queries and the read-only pipeline. The
+source store intersects immutable host scope with normal EF filters and RLS.
+Published/nondeleted exact-locale marketing is separate from public-parent
+inventory/body eligibility; the body SELECT requires its eligible public parent
+and exact URL relationship in the same SQL statement. Restricted courses retain
+marketing with a null outline; hidden content has the same masked not_found.
+
+Purpose-built DTOs expose ordered string fields and authored label locales only.
+Customization carries admitted `required` metadata through the internal display
+contract; no read evaluates a JSON Schema. Optional missing fields are omitted,
+unknown properties are omitted and malformed selected/required content yields a
+whole unavailable state. Missing exact pins/bands remain bounded without rebinding.
+Enabled content locales are exact, while display fallback remains Pattern B.
+
+The bounded v1 cursor codec checks canonical unpadded base64url, exact JSON members,
+version, lower-case scope/UUIDs and UTC microsecond timestamps or nonnegative sort.
+Scope binds normalized host digest, host tenant/organization, canonical locale and
+endpoint/order; page size is excluded. Syntax/known-scope checks precede the data
+transaction; an outline's parent is checked after eligible course lookup and before
+inventory/definition loading. PostgreSQL tuple seeks preserve timestamp/sort ties.
+
+A new no-schema-evaluation architecture guard inspects all four public handlers
+and follows production helpers/implementations, with direct, concrete and generic
+interface offenders plus a clean control. Controller guards retain all previous
+planted bypasses. The persistence walk distinguishes a value object's declared
+identifier interface from acquisition of an injected identifier-interface service;
+clean metadata, direct domain-ID and hidden service implementations are controls.
+Approved read methods are explicitly enumerated in the aggregate-write census;
+key-only writes remain visible. The route census covers all eight GET/HEAD actions.
+
+HTTP/database cases cover exact locale and alternate URL pairs, nullable values,
+source lifecycle withdrawal after warmed definition reads, hidden draft/restricted/
+foreign/sibling/wrong-parent content, body/definition corruption, cursor boundaries,
+claim/host narrowing, scope hatches, transaction admission and no normal audit rows.
+Fixture mutations assert affected rows and announce their explicit write scope;
+owner-only satellite corruption is setup, never the observed public connection.
+Public execution is proved as non-superuser/non-BYPASSRLS learnstack_app, READ ONLY.
+
+**Local measurement.** The actual production SELECTs are captured and explained
+with ANALYZE/BUFFERS as the application role, without forcing indexes. The tiny
+seed uses the course live-key and translation indexes; both outline and body plans
+also use `ix_lessons_tenant_id_course_id_sort_id`. The catalog ordered partial index
+is available but not selected at this cardinality; no representative large-data or
+production p95 claim is made. Captured catalog/marketing/outline queries fetch no
+lesson body, and the body query includes access/publication/scope/locale predicates.
+
+A local Docker sample records a first HTTP request, one warmup and ten observations
+per Education route and tenant. Catalog/course/lesson warm medians in one run are
+4.16/6.57/6.17 ms for English and 7.65/7.70/7.18 ms for Yoga. Payloads are respectively
+551/415/479 and 733/504/662 UTF-8 bytes. Full plans and timing ranges are test output;
+these six local medians are neither a production p95 nor a rendering budget proof.
+OpenAPI snapshot, SDK/drift and required-check activation remain Step 4.
+
+**Pre-review verification.** The final clean CI=true Release build has zero
+warnings/errors. All 2831 .NET cases pass with zero failures/skips: 1643 unit,
+198 architecture, one contract, 171 Docker-free integration and 818 Docker
+integration. The final architecture run follows the production-census control;
+TRX counters preserve all five suite results. Disabling only transitive helper
+walking or implementation walking makes the new planted guard controls fail;
+both deliberately broken variants are restored before the final clean run.
+Formatting verifies zero changed files and diff hygiene passes. The link/anchor
+sweep and unchanged P02d-1–3 delivery records/ADR-0052 prefix are verified.
+Both independent review rounds follow this implementation commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

@@ -306,6 +306,8 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IExactCustomizationDefinitionReader, ExactCustomizationDefinitionReader>();
         services.TryAddScoped<ITenantLocaleEligibilityReader, TenantLocaleEligibilityReader>();
         services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.IPublicEducationReadStore, PublicEducationReadStore>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.PublicReads.PublicEducationDisplay>();
         services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader, TenancySeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader, CustomizationSeedStateReader>();
         services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader, EducationSeedStateReader>();

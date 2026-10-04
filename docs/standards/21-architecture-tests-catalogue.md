@@ -95,11 +95,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**151 test methods run in
+**154 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Steps 1–2. Methods are not rows:
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Steps 1–3.
+Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
 
@@ -125,7 +126,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**154 rules in this catalogue are Implemented, and 106 of them are in that assembly.**
+**155 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
 The other 48 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -4080,7 +4081,11 @@ of structural detection.
   including transitive helper paths; bounded structural projection remains legal.
 - **Source:** ADR-0043; ADR-0052.
 - **Type:** xUnit + IL. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`PublicSurfaceTests`, P02d-4 Step 3); non-empty
+  production handler census and direct/concrete/transitive/generic-interface
+  offender controls accompany a clean helper control. In-memory production
+  helper plants exercise Domain, Contracts and shared Infrastructure through
+  the real handler and assembly census.
 - **Phase:** 02d (P02d-4 Step 3).
 
 #### `PublicSurface_Transactions_Refuse_Writes`

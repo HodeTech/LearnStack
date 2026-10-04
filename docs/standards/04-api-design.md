@@ -32,8 +32,9 @@ Examples:
 
 Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
-**P02d-4 Accepted contract — 2026-10-03.** Step 2 delivers site GET/HEAD;
-Education reads and contract/SDK verification remain Steps 3–4. Institution
+**P02d-4 Accepted contract — 2026-10-03.** Steps 2–3 deliver all four GET/HEAD
+read pairs;
+contract/SDK verification remains Step 4. Institution
 reads use `/api/v1/public`, separate from future authoring ID routes: `/site`,
 `/courses`, `/courses/{slug}` and `/courses/{slug}/lessons/{lessonSlug}`. Each has
 explicit GET and HEAD; Education routes require query locale. Response/continuation
@@ -203,8 +204,8 @@ reconciliation matrix are the separate case — no tenant context resolves at al
 is the authority for why the ceiling holds and what a forged host reaches under it. The
 matrix is not restated here.
 
-**P02d-4 foundations and site delivered — 2026-10-03.** Steps 1–2 implement
-host admission, read-only execution and the site request/endpoint guards. All
+**P02d-4 public reads delivered — 2026-10-04.** Steps 1–3 implement
+host admission, read-only execution and all institution read endpoints/guards. All
 institution public reads
 are marked requests dispatched through ISender, GET/HEAD only and audit Off. A
 matching factory HostScope independently narrows normal context/filter/RLS reads;
@@ -215,16 +216,19 @@ runtime barrier protects only the enlisted transaction. Rejected-assertion audit
 retains its independent sanctioned path.
 
 The catalogue records implemented Off, host-provenance, dispatch, controller and
-read-only guards with planted controls. Education eligibility and complete
-response/OpenAPI/SDK proof retain their Step 3–4 obligations.
+read-only and no-schema-evaluation guards with planted controls. Education
+eligibility has HTTP/database proof; complete OpenAPI/SDK proof remains Step 4.
 
 The set is this table and nothing else:
 
 | Request type | Permitted methods | Why | Owning phase |
 |--------------|-------------------|-----|--------------|
 | `GetPublicSiteQuery` | GET, HEAD | Anonymous host-resolved institution bootstrap, audit Off and READ ONLY | P02d-4 Step 2 |
+| `GetPublicCoursesQuery` | GET, HEAD | Exact-locale host-scoped marketing catalog, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicCourseQuery` | GET, HEAD | Eligible marketing and public-only outline, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicLessonQuery` | GET, HEAD | Eligible public-parent content, audit Off and READ ONLY | P02d-4 Step 3 |
 
-The first production row is P02d-4's site bootstrap.
+All four rows are production requests with explicit GET/HEAD endpoints.
 `PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
 ([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) now guard

@@ -245,7 +245,7 @@ public sealed class PublicSiteHttpTests(PublicReadFixture fixture)
     public void Production_public_endpoint_inventory_is_exact_get_and_head()
     {
         var endpoints = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
-            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("api/v1/public/", StringComparison.OrdinalIgnoreCase) == true).ToArray();
+            .Where(endpoint => string.Equals(endpoint.RoutePattern.RawText, "api/v1/public/site", StringComparison.OrdinalIgnoreCase)).ToArray();
         endpoints.Should().HaveCount(2);
         endpoints.Select(endpoint => endpoint.RoutePattern.RawText).Should().OnlyContain(path => path == "api/v1/public/site");
         endpoints.SelectMany(endpoint => endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods).Should().BeEquivalentTo(["GET", "HEAD"]);

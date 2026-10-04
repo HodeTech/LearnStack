@@ -17,7 +17,7 @@ public enum DefinitionStatus
     Deprecated = 2,
 }
 
-public sealed record TextCardFieldDto(string Name, LocalizedText Label);
+public sealed record TextCardFieldDto(string Name, LocalizedText Label, bool IsRequired = false);
 
 public sealed record ContentTypeDefinitionDto(
     Guid Id, string Key, int SchemaVersion, DefinitionStatus Status,

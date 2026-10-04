@@ -1,4 +1,5 @@
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
+using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Education.Application.Contracts.Courses;
 using LearnStack.Modules.Education.Application.Contracts.Lessons;
 using LearnStack.Modules.Education.Domain;
@@ -22,5 +23,8 @@ public sealed class EducationAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<PublishLessonCommand>("education.lesson.publish", OperationType.Update, typeof(Lesson));
         builder.Off<GetCourseSeedStateQuery>();
         builder.Off<GetLessonSeedStateQuery>();
+        builder.Off<GetPublicCoursesQuery>();
+        builder.Off<GetPublicCourseQuery>();
+        builder.Off<GetPublicLessonQuery>();
     }
 }

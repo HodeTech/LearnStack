@@ -3,8 +3,10 @@ using FluentAssertions;
 using LearnStack.Api.PublicReads;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Validation;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -39,14 +41,14 @@ public sealed class PublicSurfaceTests
     public void PublicSurface_Endpoints_Dispatch_Through_The_Pipeline()
     {
         var controllers = ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes()).Where(IsPublicController).ToArray();
-        controllers.Should().BeEquivalentTo([typeof(PublicSiteController)], "add each approved public controller to the census");
+        controllers.Should().BeEquivalentTo([typeof(PublicSiteController), typeof(PublicEducationController)], "add each approved public controller to the census");
         using var module = ModuleDefinition.ReadModule(typeof(PublicSiteController).Assembly.Location);
         foreach (var controller in controllers)
         {
             var actions = controller.GetMethods().Where(method => method.IsDefined(typeof(HttpMethodAttribute), true)).ToArray();
-            actions.Should().HaveCount(2);
-            actions.SelectMany(method => method.GetCustomAttributes<HttpMethodAttribute>().SelectMany(attribute => attribute.HttpMethods))
-                .Should().BeEquivalentTo(["GET", "HEAD"]);
+            actions.Should().HaveCount(controller == typeof(PublicSiteController) ? 2 : 6);
+            foreach (var route in actions.SelectMany(method => method.GetCustomAttributes<HttpMethodAttribute>()).GroupBy(attribute => attribute.Template ?? ""))
+                route.SelectMany(attribute => attribute.HttpMethods).Should().BeEquivalentTo(["GET", "HEAD"]);
             var type = module.GetType(controller.FullName!);
             foreach (var action in actions)
                 Dispatches(type, action.Name).Should().BeTrue($"{controller.Name}.{action.Name} must construct a marked query and call ISender.Send");
@@ -107,13 +109,94 @@ public sealed class PublicSurfaceTests
     public void Persistence_guard_follows_helpers_concrete_types_and_service_location()
     {
         using var module = ModuleDefinition.ReadModule(typeof(PublicSurfaceTests).Assembly.Location);
-        var map = Types([module]).ToDictionary(Key, StringComparer.Ordinal);
+        using var kernel = ModuleDefinition.ReadModule(typeof(TenantId).Assembly.Location);
+        var map = Types([module, kernel]).ToDictionary(Key, StringComparer.Ordinal);
         PersistenceOffenders([Definition<CleanController>(module)], map).Should().BeEmpty();
         PersistenceOffenders([Definition<CleanGenericHelperController>(module)], map).Should().BeEmpty();
+        PersistenceOffenders([Definition<CleanIdentifierProbe>(module)], map).Should().BeEmpty();
         Dispatches(Definition<PostDispatchHelperController>(module), "Get").Should().BeTrue(
             "the transitive persistence guard must independently refuse helper dispatch after a clean direct Send");
-        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController), typeof(ConcreteMediatorProbe), typeof(PublisherProbe) })
+        foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController), typeof(ConcreteMediatorProbe), typeof(PublisherProbe), typeof(DomainIdentifierProbe), typeof(IdentityServiceProbe) })
             PersistenceOffenders([module.GetType(type.FullName!.Replace('+', '/'))], map).Should().NotBeEmpty(type.Name);
+    }
+
+    [Fact]
+    public void PublicSurface_Reads_Do_Not_Invoke_JsonSchema_Validation()
+    {
+        var modules = ProductionAssemblies.All().Select(assembly => ModuleDefinition.ReadModule(assembly.Location)).ToArray();
+        try
+        {
+            var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
+            var roots = PublicReadHandlers(map);
+            roots.Should().HaveCount(4, "all four approved public queries must have an inspected handler");
+            ValidationOffenders(roots, map).Should().BeEmpty("public display may parse admitted metadata, but never evaluate a JSON schema");
+        }
+        finally { foreach (var module in modules) module.Dispose(); }
+    }
+
+    [Fact]
+    public void Public_validation_guard_follows_direct_concrete_interface_and_generic_helpers()
+    {
+        using var module = ModuleDefinition.ReadModule(typeof(PublicSurfaceTests).Assembly.Location);
+        var map = Types([module]).ToDictionary(Key, StringComparer.Ordinal);
+        ValidationOffenders([Definition<CleanGenericHelperController>(module)], map).Should().BeEmpty();
+        foreach (var probe in new[] { typeof(ValidationProbe), typeof(ConcreteValidationProbe), typeof(ValidationHelperProbe), typeof(ValidationInterfaceProbe) })
+            ValidationOffenders([module.GetType(probe.FullName!.Replace('+', '/'))], map).Should().NotBeEmpty(probe.Name);
+    }
+
+    [Fact]
+    public void Public_validation_guard_uses_the_production_census_across_all_helper_layers()
+    {
+        var modules = ProductionAssemblies.All().Select(assembly => ModuleDefinition.ReadModule(assembly.Location)).ToArray();
+        try
+        {
+            var application = modules.Single(module => module.Name == "LearnStack.Modules.Education.Application.dll");
+            var handler = application.GetType(typeof(LearnStack.Modules.Education.Application.PublicReads.GetPublicLessonQueryHandler).FullName!);
+            foreach (var name in new[] { "LearnStack.Modules.Education.Domain.dll", "LearnStack.Modules.Education.Application.Contracts.dll", "LearnStack.Infrastructure.dll" })
+            {
+                // Only in-memory metadata changes; the actual production root and
+                // assembly census must discover the planted helper on each pass.
+                var owner = modules.Single(module => module.Name == name);
+                var helper = new TypeDefinition("ReviewProbe", "PublicValidationHelper", Mono.Cecil.TypeAttributes.Class | Mono.Cecil.TypeAttributes.Public);
+                owner.Types.Add(helper);
+                helper.Fields.Add(new FieldDefinition("Validator", Mono.Cecil.FieldAttributes.Public, owner.ImportReference(typeof(IJsonSchemaValidator))));
+                var field = new FieldDefinition("PlantedHelper", Mono.Cecil.FieldAttributes.Private, application.ImportReference(helper));
+                handler.Fields.Add(field);
+                var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
+                ValidationOffenders(PublicReadHandlers(map), map).Should().Contain(helper.FullName, name);
+                handler.Fields.Remove(field);
+                owner.Types.Remove(helper);
+            }
+        }
+        finally { foreach (var module in modules) module.Dispose(); }
+    }
+
+    private static TypeDefinition[] PublicReadHandlers(Dictionary<string, TypeDefinition> map) => ProductionAssemblies.All()
+        .SelectMany(assembly => assembly.GetTypes())
+        .Where(type => type.GetInterfaces().Any(contract => contract.IsGenericType
+            && contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
+            && contract.GenericTypeArguments[0].IsDefined(typeof(PublicSurfaceAttribute), false)))
+        .Select(type => map[$"{type.Assembly.GetName().Name}:{type.FullName!.Replace('+', '/')}"]).ToArray();
+
+    private static IEnumerable<string> ValidationOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<TypeDefinition>(roots);
+        while (queue.TryDequeue(out var type))
+        {
+            if (!visited.Add(Key(type))) continue;
+            if (type.IsInterface || type.IsAbstract)
+                foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, Key(type), map, [])))
+                    queue.Enqueue(implementation);
+            foreach (var reference in Il.ReferencedTypeReferences(type))
+            {
+                if (reference.GetElementType().FullName == typeof(IJsonSchemaValidator).FullName
+                    || reference.FullName.StartsWith("Json.Schema.", StringComparison.Ordinal)
+                    || reference.FullName == typeof(LearnStack.Infrastructure.Validation.JsonSchemaNetValidator).FullName)
+                    yield return type.FullName;
+                if (map.TryGetValue(Key(reference), out var helper)) queue.Enqueue(helper);
+            }
+        }
     }
 
     private static IEnumerable<string> NonOff(IEnumerable<Type> marked, AuditCatalog catalogue) => marked
@@ -217,28 +300,40 @@ public sealed class PublicSurfaceTests
         var controllers = roots.ToArray();
         var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
         var queue = new Queue<TypeDefinition>(controllers);
+        var paths = controllers.ToDictionary(Key, type => type.FullName, StringComparer.Ordinal);
         var visited = new HashSet<string>(StringComparer.Ordinal);
         while (queue.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
             if (type.IsInterface || type.IsAbstract)
                 foreach (var implementation in map.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, Key(type), map, [])))
+                {
+                    paths.TryAdd(Key(implementation), paths[Key(type)] + " -> " + implementation.FullName);
                     queue.Enqueue(implementation);
+                }
             var references = Il.ReferencedTypeReferences(type).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
                 || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
                     reference.FullName == typeof(ISender).FullName || reference.FullName == typeof(IMediator).FullName))
                 || Il.Methods(type).Any(method => method.Definition.HasBody && method.Definition.Body.Instructions.Any(instruction =>
                     instruction.Operand is MethodReference call && call.Name == "get_RequestServices")))
-                yield return type.FullName;
+                yield return paths[Key(type)];
             foreach (var reference in references)
                 if (map.TryGetValue(Key(reference), out var helper)
+                    // A value object's own identifier-interface declaration is
+                    // metadata, not acquisition of every ID implementation. An
+                    // injected interface still follows implementations normally.
+                    && !(type.IsValueType && reference.GetElementType().FullName == typeof(IStronglyTypedId<>).FullName
+                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))
                     // Il already scans generated members as part of their owner.
                     // Re-enqueuing an action's state machine would misclassify its
                     // sanctioned sender as a separate helper dependency.
                     && !(helper.IsNested && visited.Contains(Key(helper.DeclaringType))
                         && helper.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute")))
+                {
+                    paths.TryAdd(Key(helper), paths[Key(type)] + " -> " + helper.FullName);
                     queue.Enqueue(helper);
+                }
         }
     }
 
@@ -453,6 +548,44 @@ public sealed class PublicSurfaceTests
     private sealed class ServiceLocatorProbe(IServiceProvider services)
     {
         public object? Get() => services.GetService(typeof(Npgsql.NpgsqlDataSource));
+    }
+    private sealed class CleanIdentifierProbe
+    {
+        public static TenantId Read() => TenantId.From(Guid.NewGuid());
+    }
+    private sealed class DomainIdentifierProbe
+    {
+        public static LearnStack.Modules.Audit.Domain.AuditConfigId? Read() => null;
+    }
+    private sealed class IdentityServiceProbe(IStronglyTypedId<Guid> identity)
+    {
+        public Guid Read() => identity.Value;
+    }
+    private sealed class HiddenIdentityService(Npgsql.NpgsqlDataSource source) : IStronglyTypedId<Guid>
+    {
+        public Guid Value => source.GetType().GUID;
+        public bool IsInitialized() => true;
+    }
+    private sealed class ValidationProbe(IJsonSchemaValidator validator)
+    {
+        public IJsonSchemaValidator Value => validator;
+    }
+    private sealed class ConcreteValidationProbe
+    {
+        public static LearnStack.Infrastructure.Validation.JsonSchemaNetValidator? Value => null;
+    }
+    private sealed class ValidationHelperProbe(ValidationProbe helper)
+    {
+        public ValidationProbe Value => helper;
+    }
+    private interface IValidationHelper<T> { T Read(); }
+    private sealed class HiddenValidationHelper<T>(IJsonSchemaValidator validator) : IValidationHelper<T>
+    {
+        public T Read() => throw new NotSupportedException(validator.GetType().Name); // Scanned, never executed.
+    }
+    private sealed class ValidationInterfaceProbe(IValidationHelper<string> helper)
+    {
+        public string Read() => helper.Read();
     }
     [Route("[controller]")]
     private sealed class PublicController : ControllerBase

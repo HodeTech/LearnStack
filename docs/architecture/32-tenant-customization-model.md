@@ -518,7 +518,8 @@ P02d-4's accepted Education read check is **structural, not semantic**: it walks
 ordered descriptors with internal requiredness metadata and omits unknown fields.
 A non-object body, non-string selected value or missing required field makes the
 whole content state unavailable; the legacy empty descriptor list is unavailable
-too. This bounded pass performs no JSON Schema evaluation. Implementation is pending;
+too. P02d-4 Step 3 implements this bounded pass without JSON Schema evaluation,
+with a transitive architecture guard and actual wire/database cases.
 P02d-6 owns rendering the returned state.
 
 ### 8.2 Cache strategy

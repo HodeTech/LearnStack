@@ -6,7 +6,7 @@ proofs and both agent review rounds per step are complete. The
 records all five required checks on the final PR head and merge commit.
 The [decision pass](../../roadmap/phase-02d-walking-skeleton.md#p02d-1-decision-pass-2026-09-14)
 records the accepted scope. P02d-2 implements unrouted writers and adds seed execution;
-public reads remain planned for P02d-4.
+P02d-4 Step 3 supplies public Education reads.
 The [P02d-2 package](../../roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 is Accepted on 2026-10-02. Step 1 implements the course access column and contextual
 verification queries, explicitly classified Off. Step 3 implements six writers; both
@@ -19,7 +19,9 @@ records final verification. P02d-3 read internals are complete and merged throug
 records final verification. P02d-4's
 [public-read package](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 and [ADR-0052](../../decisions/0052-anonymous-public-read-boundary.md) are Accepted —
-2026-10-03; implementation and its runtime proof are pending.
+2026-10-03. Step 3 implements all three Education GET/HEAD pairs with app-role
+HTTP/database proofs; both independent review rounds are pending. Step 4 owns
+the complete OpenAPI/SDK/CI proof.
 The diagram includes the access column.
 
 ## Overview
@@ -267,8 +269,10 @@ flowchart LR
 
 The Domain and Infrastructure projects implement the two roots, their satellites
 and a dedicated migration chain. Both API and Seeder register `EducationDbContext`
-on the ambient unit of work and register the writer ports/handlers. Step 3 consumes
-Tenancy/Customization application contracts. No public read flow exists until P02d-4.
+on the ambient unit of work and register the writer ports/handlers. P02d-2 Step 3
+consumes
+Tenancy/Customization application contracts. P02d-4 Step 3 implements the public
+read flow below through the same contract boundary.
 Step 1 also registers filtered `GetCourseSeedStateQuery` and
 `GetLessonSeedStateQuery` handlers in both roots, explicitly classified Off. They
 return immutable verification DTOs without a public marker or HTTP endpoint.
@@ -276,7 +280,7 @@ No Education code names a Customization or Tenancy table.
 
 ### Primary read flow
 
-**P02d-4 Accepted contract — 2026-10-03; implementation pending.** Three institution
+**P02d-4 Step 3 implemented — 2026-10-04; review rounds pending.** Three institution
 Education requests dispatch through ISender under `[PublicSurface]`, audit Off and
 GET/HEAD. Site bootstrap is owned by Tenancy. The
 [public DTO/route contract](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
@@ -310,8 +314,11 @@ fix the allowlist and protocol before v1 freezes; no internal/seed DTO is export
 - All public-prefix successes/errors are no-store, without response validators or
   representation caches. Internal generation-keyed definitions remain independent.
 
-New structural and app-role HTTP/database proofs are Registered before code; actual
-execution and query-plan measurements belong to the implementation delivery record.
+The public no-schema-evaluation guard is Implemented with direct, concrete and
+transitive/interface controls. App-role HTTP/database cases exercise the source
+queries and wire contracts; measurements and review evidence belong to the
+[Step 3 delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
+The recursive OpenAPI response guard remains Step 4.
 
 [EducationPersistenceTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationPersistenceTests.cs)
 exercises persisted graphs, exact pin and locale round trips, independent root
@@ -342,12 +349,15 @@ verification queries Off, without a synthetic write operation.
 
 [Performance Standards](../../standards/15-performance.md#initial-budgets) owns the
 budgets: Education reads target API p95 below 200 ms and writes below 500 ms; catalog
-server response below 300 ms. These are targets, not P02d-1 measurements: no API exists.
+server response below 300 ms. P02d-4 Step 3 records actual app-role consumer plans
+and local HTTP first/warm samples; these do not establish a production p95.
 Full scope and foreign-key indexes include soft-deleted rows. The additional partial
 indexes serve live ordered reads: `(tenant_id, organization_id, created_at, id)` on
 courses and `(tenant_id, course_id, sort, id)` on lessons. They cannot replace the full
 scope/FK indexes because they exclude deleted rows; the shorter full indexes do not
-provide those ordering suffixes. P02d-4 verifies query shape when it writes the consumers.
+provide those ordering suffixes. P02d-4 Step 3 captures and explains the production
+consumer queries without
+forcing an index or claiming a production cardinality.
 
 ## Risks and open questions
 
@@ -359,6 +369,7 @@ provide those ordering suffixes. P02d-4 verifies query shape when it writes the 
 - Phase 05 changes the interim hierarchy. Its migration must preserve ids, published
   slugs, order, scope, bodies and exact bindings rather than recreate seed rows.
 - Writer and seed decisions are implemented in P02d-2. P02d-4 read-response
-  decisions are Accepted with implementation pending; renderer gates remain in
+  decisions are implemented by Step 3, with review rounds pending; renderer gates
+  remain in
   the [decision register](../../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
   No P02d-1 decision is implicitly delegated to those later passes.

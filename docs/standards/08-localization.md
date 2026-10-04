@@ -36,7 +36,7 @@ Localization covers:
   under ADR-0008 and P02d-3's Accepted G24 answer. It never authorizes URL/body
   fallback or enabled-locale membership. Resolved values carry their actual locale.
 
-**P02d-4 Accepted response contract — implementation pending.** Pattern A content
+**P02d-4 response contract delivered — 2026-10-04.** Pattern A content
 uses exact enabled query locale; display-only Pattern B values carry authored
 `{value,locale}`. Neither fallback nor headers authorize a content locale. Internal
 fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
@@ -226,7 +226,7 @@ var msg = _stringLocalizer["course.publish.success"];
 - Tenant locale membership is validated through a Tenancy application contract when
   the P02d-2 writer lands, not through a cross-chain Education foreign key.
 
-**P02d-4 Accepted request contract — implementation pending.** Education requires
+**P02d-4 request contract delivered — 2026-10-04.** Education requires
 one query locale. Validate LocaleTag's 35-character grammar without trimming,
 canonicalize case, then use enabled tenant membership, exact lookup and cursor
 binding. Missing/repeated/malformed/overlength values return `400 validation_failed`

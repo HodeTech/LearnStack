@@ -243,3 +243,20 @@ attribution. Education reads and full OpenAPI/SDK/CI proof remain Steps 3–4.
 
 The [packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-2-public-site-bootstrap)
 owns validation and both review rounds; it does not mark the whole packet complete.
+
+## Amendment 3 — P02d-4 Education read delivery (2026-10-04)
+
+This delivery note changes no decision. Step 3 implements catalog, course and
+lesson GET/HEAD through marked Off read-only requests. Fresh source SQL intersects
+host scope, normal filters and RLS; the body SELECT includes the eligible public
+parent and exact URL translations. Requiredness is admitted metadata carried
+through the internal definition projection, not read-time schema evaluation.
+Marketing, outline, alternates and content use the approved DTO allowlist; exact
+locale and bounded scoped seek cursors precede data selection.
+
+The no-schema-evaluation guard has a non-empty production handler census and
+planted transitive controls. Real PostgreSQL/HTTP cases and actual consumer
+EXPLAIN plans are recorded in the
+[Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads).
+Both independent review rounds are pending at this implementation boundary.
+Full served/snapshot OpenAPI, SDK and required CI proof remain Step 4.

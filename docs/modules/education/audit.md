@@ -15,11 +15,19 @@ executable catalogue entry. A translation belongs to its root's captured navigat
 with the owning course or lesson as audit subject. No standalone satellite
 publication or cross-root publication is declared.
 
-**P02d-4 Accepted public classification — implementation pending.** The catalog,
-course-detail and lesson-detail requests are Off under ADR-0052; their registrations
-land with the marked types. Normal GET/HEAD reads add no audit row or synthetic
+**P02d-4 Step 3 public classification implemented — 2026-10-04.** The catalog,
+course-detail and lesson-detail requests are explicitly Off in
+`EducationAuditCatalogSource` under ADR-0052, with their marked query types.
+Normal GET/HEAD reads add no audit row or synthetic
 business-write operation. Independent rejected-assertion audit remains sanctioned.
-No anonymous request is delivered by this acceptance. The writer MUST floor remains.
+All three GET/HEAD pairs dispatch through the read-only pipeline; normal-read
+audit neutrality is exercised against PostgreSQL. The writer MUST floor remains.
+
+| Request | Class | Surface |
+|---|---|---|
+| `GetPublicCoursesQuery` | Off | Eligible exact-locale marketing catalog |
+| `GetPublicCourseQuery` | Off | Eligible marketing with public-only outline |
+| `GetPublicLessonQuery` | Off | Eligible public-parent content |
 
 ## P02d-2 accepted additions
 

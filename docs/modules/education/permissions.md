@@ -3,7 +3,8 @@
 **Status:** Accepted design — 2026-09-14, with the [module spec](README.md).
 
 P02d-2 Step 3 implements six unrouted commands and contextual verification queries.
-No HTTP endpoint or permission registration exists; their reachability boundary follows
+These writers/verification queries have no HTTP endpoint or permission registration;
+their reachability boundary follows
 the [Tenancy precedent](../tenancy/permissions.md), with tenant and organization derived
 from the execution context. Database isolation is already required for every table.
 
@@ -21,7 +22,7 @@ surface, not the actions or grants a later authoring decision must choose.
 | Surface | Registration and reachability |
 |---|---|
 | Course and lesson seed writes | P02d-2; no HTTP route and no registered permission yet |
-| Anonymous content reads | P02d-4 Accepted GET/HEAD marked reads, implementation pending; matching host ceiling intersected with normal filters/RLS, no permission key or grant; credentials never widen visibility |
+| Anonymous content reads | P02d-4 Step 3 implemented GET/HEAD marked reads; matching host ceiling intersected with normal filters/RLS, no permission key or grant; credentials never widen visibility |
 | Authenticated authoring | Phase 05; uses the permission infrastructure from Phase 03 |
 
 The matrix gains permission keys, scopes and default-role grants with the corresponding

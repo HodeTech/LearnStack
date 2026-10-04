@@ -62,7 +62,7 @@ public sealed class CustomizationDefinitionProjectionReader(
             {
                 var definition = snapshot.ContentTypes.Definitions[pin];
                 return new ContentTypeDisplayDefinition(definition.Id, pin, definition.Status, Label(definition.DisplayName),
-                    definition.RendererKey, definition.Fields.Select(field => new TextCardDisplayField(field.Name, Label(field.Label)))
+                    definition.RendererKey, definition.Fields.Select(field => new TextCardDisplayField(field.Name, Label(field.Label), field.IsRequired))
                         .ToImmutableArray());
             });
         var taxonomies = request.Taxonomies.Distinct().Where(snapshot.Taxonomies.Definitions.ContainsKey)

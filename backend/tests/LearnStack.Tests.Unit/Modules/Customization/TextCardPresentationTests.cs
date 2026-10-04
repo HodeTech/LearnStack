@@ -24,6 +24,7 @@ public sealed class TextCardPresentationTests
         var result = TextCardPresentation.Resolve(Schema, "default-card");
         result.IsSuccess.Should().BeTrue();
         result.Value.Select(field => field.Name).Should().Equal("second", "first");
+        result.Value.Select(field => field.IsRequired).Should().Equal(false, true);
         result.Value[0].Label.Locales.Should().Equal("en", "tr-TR");
         result.Value[1].Label.Resolve("tr-TR").Should().Be("First");
         _validator.ValidateInstance(Schema, """{"first":""}""").IsFailure.Should().BeTrue();

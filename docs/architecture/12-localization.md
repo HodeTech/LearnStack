@@ -29,7 +29,7 @@ Out of scope for the initial implementation:
   keys, closing G6 (a); see
   [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes).
   P02d-4's accepted request contract canonicalizes a required query locale without
-  trimming before admission; implementation remains pending. See
+  trimming before admission; Step 3 implements this contract. See
   [Localization Standards](../standards/08-localization.md#locale-codes).
 - A tenant declares its **available locales** and one **default locale**.
 - Future authenticated display preferences may use the tenant default and display
@@ -55,7 +55,7 @@ admits no content locale when rows are absent and refuses disabled membership.
 This replaces the earlier unimplemented platform-`en` proposal. Writer enforcement
 is delivered in P02d-2. P02d-4's accepted public contract returns site `404` for an
 empty enabled set and refuses malformed configuration with `503`; it synthesizes
-no locale. Public implementation remains pending. Display-label fallback is
+no locale. Steps 2–3 implement these public contracts. Display-label fallback is
 separate from URL/body admission.
 
 The shipped table is the Tenancy module's migration, which adds the audit-free
@@ -207,7 +207,8 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 [ADR-0008](../decisions/0008-localization-schema.md); the standard links here.
 [P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 records acceptance. Step 1 implements locale-carrying resolution; both review
-rounds passed. Public response fields and language attributes remain P02d-4/6.
+rounds passed. P02d-4 Step 3 supplies public response fields; language attributes
+remain P02d-6.
 
 When the requested locale is unavailable:
 
@@ -225,7 +226,7 @@ Supply the tenant default once per batch/request. The string-returning
 different URL, slug or lesson body; content-locale admission is independent.
 P02d-4's accepted response contract preserves exact Pattern A titles, slugs,
 summaries and bodies; an authored null summary stays null. Pattern B display labels
-carry their actual authored `{value, locale}` pair. Implementation remains pending;
+carry their actual authored `{value, locale}` pair. Step 3 implements this contract;
 P02d-6 owns language attributes and page states.
 
 ## Slugs and URLs

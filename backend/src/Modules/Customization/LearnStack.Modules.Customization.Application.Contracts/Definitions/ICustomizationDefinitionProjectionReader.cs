@@ -11,7 +11,7 @@ public sealed record DefinitionProjectionRequest(
     ImmutableArray<DefinitionRevision> ContentTypes, ImmutableArray<DefinitionRevision> Taxonomies,
     string RequestedLocale, string TenantDefaultLocale);
 
-public sealed record TextCardDisplayField(string Name, ResolvedLocalizedText Label);
+public sealed record TextCardDisplayField(string Name, ResolvedLocalizedText Label, bool IsRequired = false);
 
 public sealed record ContentTypeDisplayDefinition(
     Guid Id, DefinitionRevision Revision, DefinitionStatus Status, ResolvedLocalizedText DisplayName,

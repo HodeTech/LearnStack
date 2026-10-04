@@ -69,21 +69,33 @@ public sealed class PublicReadFixture : WebApplicationFactory<Program>, IAsyncLi
     }
 
     /// <summary>Raw corruption/lifecycle fixture setup, never the connection on which isolation is observed.</summary>
-    public async Task ExecuteAsync(SeedTenant tenant, string sql)
+    public Task ExecuteAsync(SeedTenant tenant, string sql, IReadOnlyDictionary<string, object>? parameters = null, OrganizationId? organization = null) =>
+        ExecuteFixtureAsync(tenant, sql, AppConnectionString, parameters, organization);
+
+    /// <summary>Owner-only corruption setup for immutable satellites; public reads still use the application role.</summary>
+    public Task ExecuteOwnerFixtureAsync(SeedTenant tenant, string sql, IReadOnlyDictionary<string, object>? parameters = null, OrganizationId? organization = null) =>
+        ExecuteFixtureAsync(tenant, sql, _postgres.MigrationConnectionString, parameters, organization);
+
+    private static async Task ExecuteFixtureAsync(SeedTenant tenant, string sql, string connectionString, IReadOnlyDictionary<string, object>? parameters, OrganizationId? organization)
     {
-        await using var connection = new NpgsqlConnection(AppConnectionString);
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();
         await using var transaction = await connection.BeginTransactionAsync();
-        await using (var announce = new NpgsqlCommand("SELECT set_config('app.tenant_id', @tenant, true), set_config('app.organization_id', '', true)", connection, transaction))
+        // Setup reaches this declared tenant and explicitly selected write scope.
+        // Observed HTTP requests never inherit these transaction-local settings.
+        await using (var announce = new NpgsqlCommand("SELECT set_config('app.tenant_id', @tenant, true), set_config('app.organization_id', @organization, true)", connection, transaction))
         {
             announce.Parameters.AddWithValue("tenant", tenant.TenantId.Value.ToString("D"));
+            announce.Parameters.AddWithValue("organization", organization?.Value.ToString("D") ?? "");
             await announce.ExecuteNonQueryAsync();
         }
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
         command.Parameters.AddWithValue("organization", tenant.DefaultOrganization.OrganizationId.Value);
         command.Parameters.AddWithValue("actor", UserId.SystemActor.Value);
-        await command.ExecuteNonQueryAsync();
+        if (parameters is not null)
+            foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value);
+        (await command.ExecuteNonQueryAsync()).Should().BeGreaterThan(0, "fixture mutations must reach their declared rows, not silently pass behind RLS");
         await transaction.CommitAsync();
     }
 
