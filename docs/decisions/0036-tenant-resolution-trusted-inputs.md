@@ -1028,6 +1028,18 @@ Carrier updates: API/security standards, context/gateway/isolation architecture,
 frontend standards, Education/Tenancy public specs, glossary and catalogue; the
 phase package owns the concrete public route/eligibility contract.
 
+### 2026-10-05 — Amendment 9: public host provenance delivery
+
+This delivery note changes no decision. Amendment 8's pending status records
+acceptance on 2026-10-03. P02d-4 Step 1 subsequently delivered factory-only
+immutable `HostScope`, matching public admission and host-scope intersection with
+normal tenant/organization filters and RLS. Both independent review rounds and
+focused fix verification passed.
+[ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
+and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+own the implementation and evidence. Amendment 8 remains historical; the
+reconciliation matrix and trusted-input contract are unchanged.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in
@@ -1055,15 +1067,3 @@ phase package owns the concrete public route/eligibility contract.
 - [architecture/13 Identity and Auth](../architecture/13-identity-and-auth.md)
 - [architecture/14 Frontend Architecture](../architecture/14-frontend-architecture.md)
 - [architecture/30 API Gateway](../architecture/30-api-gateway.md)
-
-### 2026-10-05 — Amendment 9: public host provenance delivery
-
-This delivery note changes no decision. Amendment 8's pending status records
-acceptance on 2026-10-03. P02d-4 Step 1 subsequently delivered factory-only
-immutable `HostScope`, matching public admission and host-scope intersection with
-normal tenant/organization filters and RLS. Both independent review rounds and
-focused fix verification passed.
-[ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
-and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
-own the implementation and evidence. Amendment 8 remains historical; the
-reconciliation matrix and trusted-input contract are unchanged.

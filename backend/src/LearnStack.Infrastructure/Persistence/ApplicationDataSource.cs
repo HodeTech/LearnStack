@@ -15,6 +15,12 @@ public static class ApplicationDataSource
 
     public static NpgsqlDataSource Build(string? connectionString) => Build(connectionString, null);
 
+    /// <summary>Builds the guarded pool with driver logging for test fault injection.</summary>
+    /// <remarks>
+    /// Test hosts inject logging to observe or fault setup commands. Production
+    /// callers use <see cref="Build(string)"/> without an injected logger factory.
+    /// This overload does not enable parameter logging.
+    /// </remarks>
     public static NpgsqlDataSource Build(string? connectionString, ILoggerFactory? loggerFactory)
     {
         Validate(connectionString);
