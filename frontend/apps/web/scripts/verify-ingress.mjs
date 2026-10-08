@@ -15,6 +15,7 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { connect } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -22,7 +23,9 @@ const fixtureRoot = mkdtempSync(join(tmpdir(), 'learnstack-production-ingress-')
 const app = join(fixtureRoot, 'frontend/apps/web');
 const secret = randomBytes(32).toString('base64url');
 const children = [];
+const upgrades = [];
 let logs = '';
+let shutdownFailed = false;
 mkdirSync(join(app, 'scripts'), { recursive: true });
 writeFileSync(
   join(fixtureRoot, 'tls.cnf'),
@@ -67,14 +70,41 @@ for (const name of ['.next', '.server', 'node_modules', 'src']) {
 for (const name of ['package.json', 'next.config.ts', 'tsconfig.json']) {
   copyFileSync(join(appRoot, name), join(app, name));
 }
-copyFileSync(join(appRoot, 'scripts/public-server.mjs'), join(app, 'scripts/public-server.mjs'));
+// Observe automatic Next upgrade registrations in the disposable fixture only.
+// No diagnostic route, request value or probe is added to the shipped launcher.
+const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
+writeFileSync(
+  join(app, 'scripts/public-server.mjs'),
+  launcher.replace(
+    "  server.listen(3000, '127.0.0.1',",
+    `  for (const [surface, target] of [['native', server], ['sink', upgradeSink]]) {
+    const register = target.on.bind(target);
+    target.on = (event, listener) => register(event, event !== 'upgrade' ? listener :
+      (request, socket, head) => {
+        process.send?.({ surface, sanitized:
+          !request.headers['x-matched-path'] &&
+          !request.headers['x-middleware-subrequest'] &&
+          request.rawHeaders.filter((value, index) => index % 2 === 0 &&
+            value.toLowerCase() === 'host').length === 1 });
+        return listener(request, socket, head);
+      });
+  }
+  server.listen(3000, '127.0.0.1',`,
+  ),
+);
+assert.notEqual(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'), launcher);
 
 function start(argv) {
   const env = { ...process.env, NODE_ENV: 'production' };
   for (const key of Object.keys(env)) {
     if (key.startsWith('LEARNSTACK_PUBLIC_')) delete env[key];
   }
-  const child = spawn(process.execPath, argv, { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, argv, {
+    cwd: app,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  child.on('message', (message) => upgrades.push(message));
   children.push(child);
   for (const stream of [child.stdout, child.stderr]) {
     stream.on('data', (chunk) => {
@@ -82,6 +112,30 @@ function start(argv) {
     });
   }
   return child;
+}
+
+async function callUpgrade(hostLines) {
+  await new Promise((resolve, reject) => {
+    const socket = connect(
+      { host: '127.0.0.1', port: 3000, servername: 'localhost', ca: certificate },
+      () =>
+        socket.write(
+          'GET /_next/webpack-hmr HTTP/1.1\r\n' +
+            hostLines +
+            '\r\n' +
+            'Connection: Upgrade\r\nUpgrade: websocket\r\n' +
+            'Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ' +
+            randomBytes(16).toString('base64') +
+            '\r\n' +
+            'X-Matched-Path: attacker\r\nX-Middleware-Subrequest: attacker\r\n' +
+            'X-LearnStack-Ingress-Provenance: forged\r\n\r\n',
+        ),
+    );
+    socket.setTimeout(500, () => socket.destroy());
+    socket.on('data', () => socket.destroy());
+    socket.once('error', reject);
+    socket.once('close', resolve);
+  });
 }
 
 function call(tls, port, path, headers = {}) {
@@ -114,7 +168,8 @@ function call(tls, port, path, headers = {}) {
 
 async function ready(child, tls, port) {
   for (let i = 0; i < 200; i++) {
-    if (child.exitCode !== null) throw new Error('Fixture startup failed');
+    if (child.exitCode !== null || child.signalCode !== null)
+      throw new Error('Fixture startup failed');
     try {
       const response = await call(tls, port, '/api/healthz');
       if (response.status === 200 && JSON.parse(response.body).status === 'healthy') return;
@@ -126,9 +181,36 @@ async function ready(child, tls, port) {
   throw new Error('Fixture did not become ready');
 }
 
+async function stop(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolve, reject) => {
+    // Observe exit before sending the signal; it may arrive synchronously.
+    const exited = () => {
+      clearTimeout(force);
+      clearTimeout(deadline);
+      resolve();
+    };
+    const force = setTimeout(() => child.kill('SIGKILL'), 2000);
+    const deadline = setTimeout(() => {
+      child.off('exit', exited);
+      reject(new Error('Fixture shutdown failed'));
+    }, 4000);
+    child.once('exit', exited);
+    child.kill('SIGTERM');
+  });
+}
+
 try {
   const native = start([join(app, 'scripts/public-server.mjs')]);
   await ready(native, true, 3000);
+  await callUpgrade('Host: localhost:3000\r\nHost: attacker.example');
+  assert.deepEqual(upgrades, [], 'Refused upgrade must never reach Next');
+  await callUpgrade('Host: localhost:3000');
+  assert.deepEqual(
+    upgrades,
+    [{ surface: 'sink', sanitized: true }],
+    'Only the admitted, sanitized upgrade may reach the non-listening sink',
+  );
   const positive = await call(true, 3000, '/en/courses?next=https%3A%2F%2Fevil.example', {
     Host: 'tenant.example:3000',
     'X-LearnStack-Ingress-Provenance': 'forged',
@@ -191,11 +273,8 @@ try {
   assert.equal(logs.includes('v1.'), false, 'Provenance entered diagnostics');
   console.warn('Production ingress: trusted TLS readiness, sanitation and stock bypass passed.');
 } finally {
-  for (const child of children) {
-    if (child.exitCode === null) {
-      child.kill('SIGTERM');
-      await new Promise((resolve) => child.once('exit', resolve));
-    }
-  }
+  const stopped = await Promise.allSettled(children.map(stop));
+  shutdownFailed = stopped.some((result) => result.status === 'rejected');
   rmSync(fixtureRoot, { recursive: true, force: true });
 }
+if (shutdownFailed) throw new Error('Fixture shutdown failed');

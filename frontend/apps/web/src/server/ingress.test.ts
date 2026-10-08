@@ -270,6 +270,15 @@ describe('real TLS socket boundary', () => {
       expect(incoming.headers['x-forwarded-for']).toBeUndefined();
       expect(incoming.headers['x-tenant-id']).toBeUndefined();
       expect(incoming.headers['x-middleware-subrequest']).toBeUndefined();
+      for (const name of [
+        'x-matched-path',
+        'x-now-route-matches',
+        'x-next-resume-state-length',
+        'next-resume',
+        'x-prerender-revalidate',
+        'x-prerender-revalidate-if-generated',
+      ])
+        expect(incoming.headers[name]).toBeUndefined();
       expect(incoming.rawHeaders.join(' ')).not.toContain('attacker');
       response.writeHead(200, {
         'cache-control': 'no-store',
@@ -307,6 +316,12 @@ describe('real TLS socket boundary', () => {
               'X-Forwarded-For': 'attacker',
               'X-Tenant-Id': 'attacker',
               'X-Middleware-Subrequest': 'attacker',
+              'X-Matched-Path': 'attacker',
+              'X-Now-Route-Matches': 'attacker',
+              'X-Next-Resume-State-Length': 'attacker',
+              'Next-Resume': 'attacker',
+              'X-Prerender-Revalidate': 'attacker',
+              'X-Prerender-Revalidate-If-Generated': 'attacker',
               [INGRESS_HEADER]: 'attacker',
             },
           },

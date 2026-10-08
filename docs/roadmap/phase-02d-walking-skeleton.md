@@ -2993,6 +2993,23 @@ The corrected frontend suite passes 138 cases with zero failures/skips;
 production TLS/query/bypass controls, typecheck, build, native/config lint and
 changed-link/history checks pass. Second-round review remains pending.
 
+**Step 1 round 2 — closeout (2026-10-08).** Fresh GPT-6-astra xhigh and
+GPT-6.1-sol xhigh reviewers inspect the cumulative implementation. Confirmed
+corrections remove all pinned-Next internal routing/resumption/revalidation
+headers at native admission and prevent Next's automatic upgrade listener from
+receiving rejected inputs. The supported `httpServer` option registers that
+listener on a non-listening sink; native TLS admission alone delegates upgrades.
+Real production controls reject duplicate Host before Next, admit one sanitized
+upgrade, and fail when the sink option is removed. An isolated development fixture
+receives `101` for admitted HMR and no delegation for its rejected control.
+
+The companion also recognizes children already terminated by signal, observes
+exit before signaling and bounds forced cleanup. Real already-exited, running and
+SIGTERM-resistant controls pass. The corrected 138 frontend cases, production
+TLS/query/upgrade/bypass controls, production build, typecheck and lint pass with
+zero failed/skipped cases. Both reviewers approve the corrected scope; Step 1 is
+complete and Step 2 follows. No workstation-browser proof or P6 page is claimed.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

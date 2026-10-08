@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createServer as createUpgradeSink } from 'node:http';
 import { createServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 
@@ -19,10 +20,12 @@ try {
   // Next reads the same values; root/projection conflicts were refused before prepare.
   for (const key of PUBLIC_ENV_KEYS) process.env[key] = values[key];
   const dev = process.argv.includes('--dev');
-  const app = next({ dev, hostname: '127.0.0.1', port: 3000 });
+  // Next attaches its automatic upgrade handler to this documented httpServer
+  // option. The sink never listens: only the native TLS admission may emit to it.
+  const upgradeSink = createUpgradeSink();
+  const app = next({ dev, hostname: '127.0.0.1', port: 3000, httpServer: upgradeSink });
   await app.prepare();
   const handle = app.getRequestHandler();
-  const upgrade = app.getUpgradeHandler();
   const server = createServer(
     {
       cert: readFileSync(configuration.certificate),
@@ -42,7 +45,8 @@ try {
   );
   server.on('upgrade', (request, socket, head) => {
     if (!admitIncomingRequest(request, configuration.secret)) return socket.destroy();
-    Promise.resolve(upgrade(request, socket, head)).catch(() => socket.destroy());
+    // Before Next has registered its handler, close rather than bypass admission.
+    if (!upgradeSink.emit('upgrade', request, socket, head)) socket.destroy();
   });
   server.on('error', () => {
     console.error('Public HTTPS listener failed');

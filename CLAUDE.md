@@ -110,8 +110,9 @@ records final verification. P02d-5 is next; its
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
 and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
 two-round review loop now run on development. Step 1 implements native ingress,
-private local topology and TLS/socket controls; its two review rounds are pending.
-Steps 2–4 remain in progress, and P6 public pages are not claimed.
+private local topology and TLS/socket controls; both independent review rounds
+and fix verification pass. Step 2 proceeds with authenticated visitor admission
+and dual API budgets. Steps 3–4 and P6 public pages are not delivered yet.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

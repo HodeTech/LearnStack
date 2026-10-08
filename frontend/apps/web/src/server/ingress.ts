@@ -189,7 +189,7 @@ export function verifyNextProvenance(
 }
 
 function privateInboundHeader(name: string): boolean {
-  return /^(?:forwarded|x-forwarded-.*|x-learnstack-.*|x-tenant-id|x-organization-id|x-locale|x-middleware-.*|x-invoke-.*|x-nextjs-.*)$/i.test(
+  return /^(?:forwarded|x-forwarded-.*|x-learnstack-.*|x-tenant-id|x-organization-id|x-locale|x-middleware-.*|x-invoke-.*|x-nextjs-.*|x-matched-path|x-now-route-matches|x-next-resume-state-length|next-resume|x-prerender-revalidate(?:-if-generated)?)$/i.test(
     name,
   );
 }

@@ -246,6 +246,19 @@ complete production integration. TLS socket/production-launch controls are not a
 workstation-browser or P6 page-delivery claim. The original acceptance body remains
 unchanged.
 
+### Amendment 2 — Native ingress review closeout (2026-10-08)
+
+Step 1's two independent review rounds and fix verification are complete.
+Authenticated raw targets are matched against explicit pinned-Next query
+processing; repeated pathname slashes are refused before delegation. Native
+sanitation also removes Next's routing, resumption and revalidation controls.
+Next's documented `httpServer` option points at a non-listening upgrade sink:
+only admitted native TLS upgrades reach it, including development HMR.
+
+The [Step 1 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-1--native-ingress-and-local-topology)
+owns production/socket, mutation and cleanup evidence. Steps 2–4 retain their
+scopes; this note changes no Accepted decision or browser-readiness claim.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)
