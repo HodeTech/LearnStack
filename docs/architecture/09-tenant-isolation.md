@@ -36,8 +36,8 @@ intersected with normal context, filters and RLS. Tenant hosts expose tenant-wid
 rows only; organization hosts add only their own organization's rows. Claim-only,
 ambient and unresolved origins have no public host scope. Publication/access and
 lifecycle remain explicit read predicates. P02d-4 Step 1 delivers host provenance,
-public admission and physical transaction-mode proofs. Endpoint and eligibility
-proofs remain with Steps 2–4;
+public admission and physical transaction-mode proofs. Steps 2–4 delivered endpoint,
+eligibility and contract proofs;
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the boundary.
 
 | Layer | Tenant mechanism | Organization mechanism |

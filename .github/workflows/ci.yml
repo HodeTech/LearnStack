@@ -322,7 +322,14 @@ jobs:
           set -euo pipefail
           case "$EVENT_NAME" in
             pull_request) openapi_base="$PR_BASE_SHA"; openapi_head="$PR_HEAD_SHA" ;;
-            push) openapi_base="$PUSH_BEFORE_SHA"; openapi_head="$HEAD_SHA" ;;
+            push)
+              if [[ "$PUSH_BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+                openapi_base="${HEAD_SHA}^"
+              else
+                openapi_base="$PUSH_BEFORE_SHA"
+              fi
+              openapi_head="$HEAD_SHA"
+              ;;
             workflow_dispatch) openapi_base="$MANUAL_BASE_REF"; openapi_head="$HEAD_SHA" ;;
             *) echo "Unsupported OpenAPI event" >&2; exit 1 ;;
           esac

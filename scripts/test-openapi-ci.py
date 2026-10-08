@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Falsifiable controls for snapshot admission and the one-time bootstrap exception."""
+"""Falsifiable controls for event selection, snapshot admission and bootstrap."""
 import importlib.util
 import json
+import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -53,6 +56,58 @@ class SnapshotControls(unittest.TestCase):
         with patch.object(sys, 'argv', ['openapi-ci.py', '--base', base, '--head', head,
                 '--tool', str(self.root / 'tool'), '--output', str(self.root / 'reports')]), patch.object(ci.subprocess, 'run', side_effect=run):
             return ci.main()
+
+    def select_event(self, event, head, before='', pr_base='', pr_head='', manual_base=''):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ci.yml').read_text()
+        selections = re.findall(r'(?m)^          case "\$EVENT_NAME" in\n(?:.*\n)*?          esac\n', workflow)
+        self.assertEqual(1, len(selections), 'Exercise the actual workflow event selector')
+        script = 'set -euo pipefail\n' + textwrap.dedent(selections[0])
+        script += '\nprintf "%s\\n%s\\n" "$openapi_base" "$openapi_head"\n'
+        result = REAL_RUN(['bash', '-c', script], cwd=self.root, check=True, capture_output=True, text=True,
+            env={**os.environ, 'EVENT_NAME': event, 'HEAD_SHA': head, 'PUSH_BEFORE_SHA': before,
+                 'PR_BASE_SHA': pr_base, 'PR_HEAD_SHA': pr_head, 'MANUAL_BASE_REF': manual_base})
+        return result.stdout.splitlines()
+
+    def test_new_branch_push_uses_the_selected_heads_verified_parent(self):
+        parent = self.save(CURRENT)
+        head = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Selected head'}})
+        self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Later checkout'}})
+        base_ref, head_ref = self.select_event('push', head, before='0' * 40)
+        self.assertEqual(parent, ci.commit(base_ref))
+        self.assertEqual(head, head_ref)
+        self.assertEqual(0, self.run_ci(base_ref, head_ref))
+        recorded = json.loads((self.root / 'reports/commits.json').read_text())
+        self.assertEqual((parent, head, False), (recorded['base'], recorded['head'], recorded['firstBaseline']))
+
+    def test_existing_branch_push_preserves_before_across_multiple_commits(self):
+        before = self.save(CURRENT)
+        self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Intermediate'}})
+        head = self.save({**CURRENT, 'info': {**CURRENT['info'], 'title': 'Head'}})
+        self.assertEqual([before, head], self.select_event('push', head, before=before))
+
+    def test_pull_request_preserves_its_base_and_head(self):
+        head = self.save(CURRENT)
+        self.assertEqual([self.base, head], self.select_event('pull_request', 'unused-runner-head',
+            before='0' * 40, pr_base=self.base, pr_head=head))
+
+    def test_manual_run_preserves_its_explicit_base_ref(self):
+        self.git('branch', 'manual-base', self.base)
+        head = self.save(CURRENT)
+        base_ref, head_ref = self.select_event('workflow_dispatch', head, manual_base='manual-base')
+        self.assertEqual('manual-base', base_ref)
+        self.assertEqual(self.base, ci.commit(base_ref))
+        self.assertEqual(head, head_ref)
+
+    def test_unknown_event_is_refused(self):
+        with self.assertRaises(subprocess.CalledProcessError) as error:
+            self.select_event('pull_request_target', self.base)
+        self.assertIn('Unsupported OpenAPI event', error.exception.stderr)
+
+    def test_new_branch_push_without_a_parent_is_refused(self):
+        base_ref, head_ref = self.select_event('push', self.base, before='0' * 40)
+        with patch.object(ci, 'bootstrap') as bootstrap, self.assertRaises(subprocess.CalledProcessError):
+            self.run_ci(base_ref, head_ref)
+        bootstrap.assert_not_called()
 
     def test_missing_head_snapshot_is_refused_before_bootstrap(self):
         with patch.object(ci, 'bootstrap') as bootstrap, self.assertRaisesRegex(ValueError, 'Head snapshot'):
