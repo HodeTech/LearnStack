@@ -3180,6 +3180,27 @@ normal native TLS and planted listener-cleanup controls pass. Both `pnpm test`
 and `make test-frontend` route through the guarded runner. SDK snapshot drift and
 the final per-step review evidence are recorded below when complete.
 
+**Step 4 round 1 — proof repairs (2026-10-09).** Independent GPT-6-astra
+xhigh runtime/security review approves the production boundary. It reruns the real
+API fixture and verifies that compiled shared-result and credential-log mutants
+fail their intended isolation/containment assertions; owned listeners and build
+trees are cleaned on failure. GPT-6.1-sol xhigh quality/standards review identifies
+three proof gaps: the missing-report control fails before reaching report parsing,
+namespace aliases can hide Next caching, and destructured headers can hide raw
+authority reads. Each gap is independently reproduced before repair.
+
+The report control now runs a successful script without a report and requires
+`ENOENT`; empty and unreadable reports have separate reason assertions. Source
+analysis follows namespace variable/import/reexport aliases and object-binding
+headers, including a transitive barrel control. All 77 source controls and 26
+runner controls pass, and the complete guarded frontend run passes **388 cases**:
+328 web and 60 SDK, with zero failures/skips/todos. Web typecheck/lint pass. Three
+workflow skills now describe Accepted G25/G36/G37/G44 instead of their prior open
+questions; no accepted decision or production behavior changes in these repairs.
+The quality reviewer independently confirms all three fixes and passes 127 focused
+source/runner/middleware cases. Both first-round reviewers approve the corrected
+tree; second-round review remains pending.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

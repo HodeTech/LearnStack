@@ -71,10 +71,9 @@ backend/tests/
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
-                                   # arrive in Phase 06. Whether CI's deferred
-                                   # `lighthouse budget` job activates in Phase 02d
-                                   # is G44 in that phase's decision register; the
-                                   # pass that closes it edits this comment.
+                                   # arrive in Phase 06. Accepted P02d-5 G44 assigns
+                                   # the deferred Lighthouse job to P02d-7/G44/G45
+                                   # after P6 pages; it remains disabled today.
 ```
 
 ### Step 3: Run unit tests
@@ -172,12 +171,10 @@ an existing user process. Product-page browser/a11y tests remain P6/P7.
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
-> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md). Whether
-> CI's deferred `lighthouse budget` job activates earlier, in Phase 02d, is G44, and
-> which accessibility checks fail a build on that phase's pages is G43;
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-> holds both, and the pass that closes each edits this note. Today there is no
-> accessibility or end-to-end gate to run.
+> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
+> Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
+> remains disabled. P02d-6/G43 selects the skeleton's accessibility gate. P5's
+> production HTML/RSC fixture proves transport, not a browser/a11y audit.
 
 ### Step 7: Single-test focus
 

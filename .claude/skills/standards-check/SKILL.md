@@ -246,12 +246,11 @@ domain the diff doesn't touch.
 #### `07-frontend-architecture.md`
 - [ ] Route group correct (`(public)` / `(studio)` / `(portal)`).
 - [ ] Server Components default; `"use client"` only when needed.
-- [ ] Tenant + organization + locale resolution via middleware; not
-  re-implemented in the page. The API resolves tenant and organization from the host
-  ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop));
-  what the middleware resolves or carries for `(public)` routes is G25 and G36 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes them edits this item.
+- [ ] Accepted ADR-0052/0053 public scope: the API resolves tenant/organization;
+  native ingress supplies verified host/peer and middleware bootstraps live locale
+  membership. Pages use the configured server-only SDK caller, never raw host,
+  forwarding headers or tenant IDs. Education locale comes from the canonical
+  route. Secret/provenance values stay out of public data and client assets.
 - [ ] Folder structure under `frontend/apps/web/`.
 
 #### `08-localization.md`
@@ -317,10 +316,9 @@ domain the diff doesn't touch.
   [15-performance.md § Initial Budgets](../../../docs/standards/15-performance.md#initial-budgets)
   and [§ Bundle Size](../../../docs/standards/15-performance.md#bundle-size) respected.
   **Not mechanically checkable yet** — `ci.yml`'s `lighthouse-budget` job is a
-  placeholder. Whether it activates in Phase 02d is G44 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it edits this paragraph. Judge by reading; do not report a pass
-  or a failure as measured.
+  placeholder. Accepted P02d-5 G44 assigns activation to P02d-7/G44/G45 after
+  P6 pages. Judge by reading until that harness ships; do not report an unrun
+  audit as a measured pass or failure.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`

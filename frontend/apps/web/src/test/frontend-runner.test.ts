@@ -61,6 +61,8 @@ describe('frontend outcome guard', () => {
     'missing-script',
     'missing-report',
     'invalid-report',
+    'empty-report',
+    'unreadable-report',
     'omitted-file',
   ])(
     'executes the actual workspace runner with planted %s',
@@ -75,14 +77,11 @@ describe('frontend outcome guard', () => {
           join(pkg, 'node_modules'),
           'dir',
         );
-        const script =
-          mode === 'missing-report'
-            ? 'node -e "process.exit(0)"'
-            : mode === 'invalid-report'
-              ? 'node broken-report.mjs'
-              : mode === 'omitted-file'
-                ? 'vitest run probe.test.ts'
-                : 'vitest run';
+        const script = mode.endsWith('-report')
+          ? 'node report-probe.mjs'
+          : mode === 'omitted-file'
+            ? 'vitest run probe.test.ts'
+            : 'vitest run';
         await writeFile(
           join(pkg, 'package.json'),
           JSON.stringify({
@@ -102,9 +101,16 @@ describe('frontend outcome guard', () => {
                 : ''),
         );
         await writeFile(
-          join(pkg, 'broken-report.mjs'),
-          "import { writeFileSync } from 'node:fs';\n" +
-            "writeFileSync(process.argv.find(x=>x.startsWith('--outputFile=')).slice(13), '{');\n",
+          join(pkg, 'report-probe.mjs'),
+          "import { writeFileSync, mkdirSync } from 'node:fs';\n" +
+            "const path=process.argv.find(x=>x.startsWith('--outputFile=')).slice(13);\n" +
+            (mode === 'invalid-report'
+              ? "writeFileSync(path, '{');\n"
+              : mode === 'unreadable-report'
+                ? 'mkdirSync(path);\n'
+                : mode === 'empty-report'
+                  ? `writeFileSync(path, ${JSON.stringify(JSON.stringify({ ...report(), numTotalTests: 0, numPassedTests: 0 }))});\n`
+                  : '// Exit successfully without a report; appended arguments are script data.\n'),
         );
         if (mode === 'omitted-file')
           await writeFile(
@@ -113,7 +119,20 @@ describe('frontend outcome guard', () => {
           );
         const result = runTestWorkspaces(root, () => {});
         if (mode === 'clean') await expect(result).resolves.toEqual({ packages: 1, tests: 1 });
-        else await expect(result).rejects.toThrow();
+        else if (mode === 'missing-report')
+          await expect(result).rejects.toMatchObject({ code: 'ENOENT' });
+        else if (mode === 'unreadable-report')
+          await expect(result).rejects.toMatchObject({ code: 'EISDIR' });
+        else if (mode === 'invalid-report')
+          await expect(result).rejects.toBeInstanceOf(SyntaxError);
+        else if (mode === 'missing-script')
+          await expect(result).rejects.toThrow('Discovered tests without an execution script');
+        else if (mode === 'omitted-file')
+          await expect(result).rejects.toThrow('Frontend report omits a discovered test file');
+        else
+          await expect(result).rejects.toThrow(
+            'Frontend test report is empty, incomplete, failed, skipped or todo',
+          );
       } finally {
         await rm(root, { recursive: true, force: true });
       }

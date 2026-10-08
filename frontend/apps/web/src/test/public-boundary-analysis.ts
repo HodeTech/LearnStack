@@ -456,6 +456,36 @@ export function clientBoundaryFindings(graph: SourceGraph): Finding[] {
   );
 }
 
+function importedNamespace(
+  node: ts.Node,
+  graph: SourceGraph,
+  modules: readonly string[],
+  visited = new Set<ts.Node>(),
+): boolean {
+  node = unwrapped(node);
+  if (visited.has(node) || !ts.isIdentifier(node)) return false;
+  visited.add(node);
+  // Preserve namespace bindings even when the external module has no type body.
+  const bindings = new Set([
+    ...(graph.checker.getSymbolAtLocation(node)?.declarations ?? []),
+    ...declarations(node, graph.checker),
+  ]);
+  return [...bindings].some((declaration) => {
+    if (ts.isNamespaceImport(declaration)) {
+      const parent = declaration.parent.parent;
+      return (
+        ts.isImportDeclaration(parent) &&
+        modules.includes(constantString(parent.moduleSpecifier, graph.checker) ?? '')
+      );
+    }
+    return (
+      ts.isVariableDeclaration(declaration) &&
+      declaration.initializer !== undefined &&
+      importedNamespace(declaration.initializer, graph, modules, visited)
+    );
+  });
+}
+
 function importedFunction(
   node: ts.Node,
   graph: SourceGraph,
@@ -481,6 +511,21 @@ function importedFunction(
     }
     if (ts.isVariableDeclaration(declaration) && declaration.initializer)
       return importedFunction(declaration.initializer, graph, modules, names, visited);
+    if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
+      const parent = declaration.parent.parent;
+      const property =
+        declaration.propertyName ??
+        (ts.isIdentifier(declaration.name) ? declaration.name : undefined);
+      const name = property ? propertyName(property, graph.checker) : undefined;
+      if (
+        name &&
+        names.includes(name) &&
+        ts.isVariableDeclaration(parent) &&
+        parent.initializer &&
+        importedNamespace(parent.initializer, graph, modules)
+      )
+        return true;
+    }
   }
   if (ts.isIdentifier(node)) {
     // getAliasedSymbol returns an unknown symbol for external modules: retain original import declarations.
@@ -500,17 +545,7 @@ function importedFunction(
   }
   const receiver = memberReceiver(node);
   if (!receiver || !names.includes(memberName(node, graph.checker) ?? '')) return false;
-  if (ts.isIdentifier(receiver))
-    for (const declaration of graph.checker.getSymbolAtLocation(receiver)?.declarations ?? [])
-      if (ts.isNamespaceImport(declaration)) {
-        const parent = declaration.parent.parent;
-        if (
-          ts.isImportDeclaration(parent) &&
-          modules.includes(constantString(parent.moduleSpecifier, graph.checker) ?? '')
-        )
-          return true;
-      }
-  return false;
+  return importedNamespace(receiver, graph, modules);
 }
 
 function moduleScope(node: ts.Node): boolean {
@@ -691,12 +726,19 @@ function headerCollection(
     return true;
   if (ts.isIdentifier(node) && node.text === 'headers' && declarations(node, checker).length === 0)
     return true;
-  return declarations(node, checker).some(
-    (declaration) =>
+  return declarations(node, checker).some((declaration) => {
+    if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
+      const property =
+        declaration.propertyName ??
+        (ts.isIdentifier(declaration.name) ? declaration.name : undefined);
+      return property !== undefined && propertyName(property, checker) === 'headers';
+    }
+    return (
       ts.isVariableDeclaration(declaration) &&
       declaration.initializer !== undefined &&
-      headerCollection(declaration.initializer, graph, visited),
-  );
+      headerCollection(declaration.initializer, graph, visited)
+    );
+  });
 }
 
 export function rawAuthorityFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {
@@ -729,10 +771,7 @@ export function rawAuthorityFindings(graph: SourceGraph, subjects: readonly stri
             finding(node, 'Fix: derive visitor host/peer only from verified ingress provenance.'),
           );
       }
-      if (
-        ts.isElementAccessExpression(node) &&
-        memberName(node.expression, graph.checker) === 'headers'
-      ) {
+      if (ts.isElementAccessExpression(node) && headerCollection(node.expression, graph)) {
         const header = constantString(node.argumentExpression, graph.checker)?.toLowerCase();
         if (header && RAW_AUTHORITY_HEADERS.has(header))
           findings.push(

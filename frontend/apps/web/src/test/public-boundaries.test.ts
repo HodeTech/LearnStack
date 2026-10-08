@@ -279,6 +279,8 @@ describe('public cache fence planted controls', () => {
     'const params = () => []; export { params as generateStaticParams };',
     'import { unstable_cache as memo } from "next/cache"; memo(load);',
     'import * as caching from "next/cache"; caching.unstable_cache(load);',
+    'import * as caching from "next/cache"; const alias = caching; alias.unstable_cache(load);',
+    'import * as caching from "next/cache"; const { unstable_cache: memo } = caching; memo(load);',
     'const shared = new Map();',
     'const shared = new WeakMap();',
     'const Collection = globalThis.Map; const shared = new Collection();',
@@ -300,6 +302,19 @@ describe('public cache fence planted controls', () => {
     expect(
       cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])).map((item) => item.file),
     ).toContain(helper);
+  });
+  it('refuses an imported namespace alias reexported by a local helper', () => {
+    const helper = 'apps/web/src/lib/cache-alias.ts';
+    const barrel = 'apps/web/src/lib/cache-barrel.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import { alias } from "@/lib/cache-barrel"; alias.unstable_cache(load);',
+      [barrel]: 'export { alias } from "./cache-alias";',
+      [helper]: 'import * as caching from "next/cache"; export const alias = caching;',
+    });
+    clean(graph.unresolved, 'The imported alias belongs to the supported local source graph.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: PUBLIC_LAYOUT })]),
+    );
   });
   it('allows dynamic/no-store and request-local data reuse', () => {
     const graph = buildSourceGraph({
@@ -343,6 +358,8 @@ describe('raw authority fence planted controls', () => {
   it.each([
     'request.headers.get("host");',
     'const name = "x-forwarded-for"; request.headers.get(name);',
+    'const { headers: incoming } = request; incoming.get("host");',
+    'const incoming = request.headers; incoming["host"];',
     'headers().get("X-LearnStack-Host");',
     'import { headers as readHeaders } from "next/headers"; readHeaders().get("host");',
     'request.headers["x-forwarded-host"];',
