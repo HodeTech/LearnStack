@@ -60,14 +60,16 @@ public static class RateLimitingExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<AnonymousRequestIdentity>();
+        // DI owns shutdown. Neither RateLimiterOptions nor the chain owns members.
+        // Peer first: exhausted peers cannot mint additional visitor partitions.
+        services.AddSingleton(_ => new NoQueueAdmissionLimiter(
+            Budget(identity => identity.PeerKey, PeerPermitPerWindow),
+            Budget(identity => identity.VisitorKey, AnonymousPermitPerWindow)));
+        services.AddOptions<RateLimiterOptions>().Configure<NoQueueAdmissionLimiter>(
+            (options, limiter) => options.GlobalLimiter = limiter);
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-            // Peer first: exhausted peers cannot mint additional visitor partitions.
-            options.GlobalLimiter = new NoQueueAdmissionLimiter(PartitionedRateLimiter.CreateChained(
-                Budget(identity => identity.PeerKey, PeerPermitPerWindow),
-                Budget(identity => identity.VisitorKey, AnonymousPermitPerWindow)));
 
             options.OnRejected = (context, cancellationToken) =>
             {

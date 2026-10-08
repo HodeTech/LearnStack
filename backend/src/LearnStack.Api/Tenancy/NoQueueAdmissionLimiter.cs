@@ -9,10 +9,19 @@ namespace LearnStack.Api.Tenancy;
 /// This wrapper keeps peer-first ordering and one charge per actual HTTP request.
 /// It is specific to the no-queue anonymous chain, not a queued limiter adapter.
 /// </remarks>
-internal sealed class NoQueueAdmissionLimiter(PartitionedRateLimiter<HttpContext> inner)
-    : PartitionedRateLimiter<HttpContext>
+internal sealed class NoQueueAdmissionLimiter : PartitionedRateLimiter<HttpContext>
 {
-    private readonly PartitionedRateLimiter<HttpContext> _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+    private readonly PartitionedRateLimiter<HttpContext>[] _budgets;
+    private readonly PartitionedRateLimiter<HttpContext> _inner;
+    private int _disposed;
+
+    /// <summary>Takes ownership of the budgets; the framework chain does not dispose its members.</summary>
+    public NoQueueAdmissionLimiter(params PartitionedRateLimiter<HttpContext>[] budgets)
+    {
+        ArgumentNullException.ThrowIfNull(budgets);
+        _budgets = budgets.ToArray();
+        _inner = PartitionedRateLimiter.CreateChained(_budgets);
+    }
 
     public override RateLimiterStatistics? GetStatistics(HttpContext resource) => _inner.GetStatistics(resource);
 
@@ -38,8 +47,22 @@ internal sealed class NoQueueAdmissionLimiter(PartitionedRateLimiter<HttpContext
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _inner.Dispose();
+        if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _inner.Dispose();
+            foreach (var budget in _budgets) budget.Dispose();
+        }
         base.Dispose(disposing);
+    }
+
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            await _inner.DisposeAsync();
+            foreach (var budget in _budgets) await budget.DisposeAsync();
+        }
+        await base.DisposeAsyncCore();
     }
 
     private sealed record Refusal(int Permits, IReadOnlyDictionary<string, object?> Metadata);

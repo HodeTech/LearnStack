@@ -3050,6 +3050,26 @@ identity/hop/configuration cases pass with zero failures/skips. The pre-correcti
 full regression passed 2,890 cases but did not cover this newly reproduced boundary;
 it is not evidence for the corrected head. Second-round review follows.
 
+**Step 2 round 2 — lifecycle correction (2026-10-08).** Fresh GPT-6-astra
+xhigh and GPT-6.1-sol xhigh reviewers confirm the corrected quota behavior and
+identify incomplete limiter shutdown. The framework chain does not own its child
+budgets; the wrapper's asynchronous path and the options registration also lacked
+ownership. DI now owns the wrapper, which disposes both budgets exactly once on
+synchronous and asynchronous shutdown. Four focused lifecycle cases pass.
+Both reviewers independently verify the correction, including actual provider
+shutdown, completed child timers and refusal after disposal, and approve.
+
+The independent security probes also confirm that rotating visitor metadata after
+peer exhaustion creates no further visitor partitions, while an already-cancelled
+acquisition creates none. These are test-owned probes, not production telemetry.
+Both review rounds are complete. The final corrected Release build has zero
+warnings/errors; **2,896 backend cases** pass: 1,679 unit, 198 architecture,
+four contract and 1,015 integration, with zero failures/skips. The nonempty-run
+check covers all four assemblies. The two changed Markdown files pass the local
+link/fragment audit (552 links, 295 fragments), added-prose width and diff checks.
+Frozen P1–P4 history and Accepted ADR bodies remain unchanged. Step 2 is complete;
+Steps 3–4 follow automatically under the approved plan.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
