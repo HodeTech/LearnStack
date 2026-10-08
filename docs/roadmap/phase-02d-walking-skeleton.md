@@ -3072,7 +3072,7 @@ Steps 3–4 follow automatically under the approved plan.
 
 #### P02d-5 Step 3 — Configured caller and public entry
 
-**Implemented — 2026-10-08; independent reviews pending.** One server-only
+**Complete after both review rounds — 2026-10-08.** One server-only
 adapter supplies the four injected SDK GETs with private origin and a closed
 authenticated hop. It re-verifies the envelope and derives locale only from the
 canonical signed route. Redirects are refused; caller cancellation is distinct
@@ -3110,6 +3110,16 @@ without printing credential values; the awaited outer flow raises the failure
 where cleanup owns all resources. A source-planted wrong-path control runs the
 real production harness, exits red and verifies its child and tree are gone.
 The unmodified production TLS companion also passes. No API/entry policy changes.
+
+
+**Step 3 round 2 and closeout (2026-10-08).** Fresh GPT-6-astra xhigh
+approves security and runtime behavior, including both production companions and
+no-store scaffold continuation. Fresh GPT-6.1-sol xhigh reproduces a test-oracle
+gap: a 36-letter locale already fails primary-subtag grammar, so removing only
+the 35-character guard leaves the entry suite green. Grammar-valid 35/36-character
+controls now isolate the bound; the reviewer verifies all 84 cases pass and the
+removed-guard mutant fails exactly the 36-character case. Production policy is
+unchanged. Both independent rounds and fix verification pass; Step 4 follows.
 
 ### P02d-1 decision pass (2026-09-14)
 

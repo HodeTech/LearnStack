@@ -31,6 +31,8 @@ describe('public locale grammar and route-only identity', () => {
     ['en-1234', 'en-1234'],
     ['en-abc', null],
     ['a'.repeat(36), null],
+    ['abcde-abcde-abcde-abcde-abcde-abcde', 'abcde-abcde-abcde-abcde-abcde-abcde'],
+    ['abcdef-abcde-abcde-abcde-abcde-abcde', null],
     ['tr%2dTR', null],
     ['tr-TR-x', null],
   ])('canonicalizes grammar rather than a fixed language registry: %s', (input, canonical) => {
