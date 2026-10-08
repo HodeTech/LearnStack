@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-08).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-09).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -13,7 +13,7 @@
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
-> | P02d-5 | Server-rendering path | [decision package Accepted](#p02d-5-decision-package-2026-10-08); Steps 1–3 complete; [Step 4 implemented, reviews pending](#p02d-5-step-4--frontend-fences-and-production-integration) |
+> | P02d-5 | Server-rendering path | ✅ implementation-complete, unmerged — 2026-10-09; all four steps and both review rounds complete; [packet closeout](#p02d-5-packet-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
@@ -86,6 +86,12 @@ gate is Accepted, no implementation is started and maintainer approval is pendin
 [decision package](#p02d-5-decision-package-2026-10-08) after the external-review
 corrections. Its named gate parts close; implementation starts on development,
 with four steps and two fresh review rounds per step. P6/P7 gates remain open.
+
+**P02d-5 implementation complete — 2026-10-09, unmerged.** All four steps and
+their two independent review rounds are complete; confirmed fixes are verified and
+committed. The [packet closeout](#p02d-5-packet-closeout-2026-10-09) records the final
+local verification and scope. P02d-5 awaits maintainer PR review and merge. P02d-6's
+public-renderer decision pass is next; no P6/P7 gate is closed by this delivery.
 
 ## Goal
 
@@ -3227,6 +3233,47 @@ rendering fact in Release with `CI=true`, with zero failures/skips. The helper's
 declaration uses the existing shared typed ESLint parser. No production trust rule
 changes in this round. Both second-round reviewers approve the corrected tree;
 Step 4's two independent rounds and fix verification are complete.
+
+#### P02d-5 packet closeout (2026-10-09)
+
+**Implementation-complete, unmerged.** All four planned steps and two fresh
+independent review rounds per step are complete. Confirmed findings are repaired
+and committed; no verified P5 issue or maintainer decision remains open. The native
+ingress, authenticated visitor budgets, configured server caller, live locale entry,
+dynamic/no-store policy and their mechanical/runtime proof surfaces are delivered.
+
+Local verification:
+
+- Release build: zero warnings/errors; format verification passes.
+- All **2,898 backend cases** pass: 1,679 unit, 198 architecture, four contract and
+  1,017 integration, with zero failures/skips; direct TRX counters and the nonempty
+  assembly checks agree. After the final cleanup repair, the independent security
+  reviewer reruns the real-API production rendering fact successfully. The final
+  architecture rerun also passes 198/198.
+- The final guarded frontend run passes **420 cases**: 360 web and 60 SDK across two
+  tested packages, with zero failures/skips/todos. Workspace typecheck/lint,
+  production build and regenerated SDK snapshot drift checks pass.
+- Native socket/TLS, failed-listener cleanup, actual skipped/todo/missing-report
+  controls and production Client Component import refusal pass. HTML/RSC separation,
+  eligibility freshness, trace continuity and secret containment use the real API;
+  they are transport evidence, not a shipped product-page or browser-demo claim.
+- Manual changed-document file/fragment validation, added-prose wrapping,
+  `git diff --check`, strict commit messages and Accepted-ADR/P02d-1–4 history
+  preservation pass. CI's existing link check covers files, not fragment targets.
+
+These local runs use Node 22.23.1 and .NET SDK 10.0.302; they do not claim the pinned
+CI Node 20.11.0/.NET SDK 10.0.112 run. The P5 PR's actual checks establish that
+separate evidence before maintainer handoff. No live protection setting or required
+check name changes. This packet adds no database migration or public OpenAPI/SDK
+contract change.
+
+**Next: P02d-6 — Public renderer.** Re-verify G5/G12/G16/G20/G38/G39–G43 against
+the delivered transport, then accept its page/state, text-card, theme and
+accessibility contracts before implementation. P6 consumes the configured SDK and
+preserves uncached rendering and live eligibility. P7 still owns `make demo`, the
+two-host browser harness, Lighthouse and phase exit. Phase 02d remains in progress;
+P5 does not complete the full walking skeleton or deliver authentication, CMS,
+enrollment grants, commerce or production ingress/distributed quotas.
 
 ### P02d-1 decision pass (2026-09-14)
 

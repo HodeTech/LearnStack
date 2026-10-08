@@ -106,7 +106,7 @@ and fresh fix verification pass. All six real CI jobs pass; the approved sixth
 required check is active with all other live settings preserved. **P02d-4 is complete
 and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
 2026-10-08; its [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
-records final verification. P02d-5 is next; its
+records final verification. P02d-5
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
 and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
 two-round review loop now run on development. Step 1 implements native ingress,
@@ -116,8 +116,11 @@ dual API budgets; both independent review rounds and fix verification pass.
 Step 3 implements the configured server caller and membership-first public entry;
 both independent review rounds and fix verification pass. Step 4 implements
 frontend source fences, a nonempty/no-skip workspace runner and real-API production
-HTML/RSC controls; its independent reviews remain pending. P6 public pages are not
-delivered yet.
+HTML/RSC controls; both independent review rounds and fix verification pass.
+**P02d-5 is implementation-complete, unmerged**, with its
+[packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
+recording final verification. P02d-6 is next: its decision pass and public product
+pages are not started. P02d-7 still owns the browser demo and Lighthouse.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -93,8 +93,8 @@ Its four steps deliver the read-only host boundary, anonymous site/Education
 GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
 rounds; final fix verification and all six real required CI jobs pass. The sixth
 required OpenAPI check is active, with all other live protection settings preserved.
-Browser rendering follows
-in P02d-5–7. The
+Trusted server rendering is delivered by P02d-5; public product pages and the
+browser demo remain P02d-6–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -107,7 +107,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Public page consumers in [P02d-6](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, route scaffolds and generated typed SDK | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, route scaffolds and generated typed SDK | Public pages and two-tenant browser demo in [P02d-6–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -188,11 +188,11 @@ no-hop API startup remains supported outside this paired renderer recipe.
 **P02d-5 implements ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default
 locales and refuses unavailable scope. The server caller enforces no-store,
-deadline/body limits and the closed authenticated hop. Steps 1–3 completed both
-review rounds. Step 4 adds source fences, the no-skip test runner and real-API
-production HTML/RSC proofs; its reviews remain in progress. Public pages are
-P02d-6, and the two-host
-browser demo with `make demo` is P02d-7. See
+deadline/body limits and the closed authenticated hop. All four steps completed
+both independent review rounds and fix verification. Source fences, the no-skip
+test runner and real-API production HTML/RSC proofs pass. P02d-5 is
+implementation-complete and awaits maintainer PR review; public pages are
+P02d-6, and the two-host browser demo with `make demo` is P02d-7. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.
 

@@ -63,9 +63,10 @@ not deferred to the showcase phase.
   [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
   [merge closeout](phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
   records final verification. P02d-5's decision package and ADR-0053 are Accepted
-  — 2026-10-08. Steps 1–3 and both review rounds are complete. Step 4 implements
-  production integration and frontend fences, with reviews pending; P6/P7 remain
-  later packets.
+  — 2026-10-08. All four steps and both fresh review rounds per step are complete.
+  The [packet closeout](phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
+  records final verification; P02d-5 awaits maintainer PR review and merge.
+  P02d-6's public-renderer decision pass is next; the P7 browser demo remains later.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

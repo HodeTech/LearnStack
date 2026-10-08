@@ -304,6 +304,19 @@ The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-4--fron
 owns validation and independent reviews. Test-owned routes are not P6 product
 pages or P7 browser/Lighthouse delivery. The original Accepted body is unchanged.
 
+### Amendment 6 — P02d-5 review and implementation closeout (2026-10-09)
+
+All four P02d-5 steps complete two fresh independent review rounds and verified
+fixes. The final source controls follow bounded static declaration and ESM value
+origins, preserving explicit export precedence and request-local React caching.
+Owned fixture cleanup proves process-group absence even when a leader exits first.
+
+The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
+owns test counts, scope and handoff. P02d-5 is implementation-complete and unmerged;
+maintainer PR review remains. P02d-6 owns product page composition and its decision
+pass; P02d-7 owns the browser demo and Lighthouse. No Accepted decision, original
+metadata, prior amendment or browser-readiness claim changes in this note.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)
