@@ -3102,6 +3102,15 @@ uses its own span with the adapter's propagated trace identifier. The HTTP test
 disables the test HttpClient's ambient trace injection so it observes the intended
 wire header; the production caller itself remains unchanged.
 
+**Step 3 round 1 — harness failure cleanup (2026-10-08).** Independent
+GPT-6-astra xhigh approves the security/runtime boundary. GPT-6.1-sol xhigh
+reproduces an asynchronous fixture-listener assertion bypassing the outer cleanup,
+leaving a Next child and temporary tree alive. The listener now records refusal
+without printing credential values; the awaited outer flow raises the failure
+where cleanup owns all resources. A source-planted wrong-path control runs the
+real production harness, exits red and verifies its child and tree are gone.
+The unmodified production TLS companion also passes. No API/entry policy changes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

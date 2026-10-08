@@ -25,14 +25,25 @@ const secret = randomBytes(32).toString('base64url');
 const children = [];
 const upgrades = [];
 let bootstrapCalls = 0;
+let listenerFailed = false;
 const api = createServer((request, response) => {
   bootstrapCalls++;
-  assert.equal(request.url, '/api/v1/public/site');
-  assert.equal(request.headers['x-learnstack-hop-secret'], secret);
-  assert.equal(request.headers['x-learnstack-visitor-address'], '127.0.0.1');
-  assert.equal(request.headers.authorization, undefined);
-  assert.equal(request.headers.cookie, undefined);
-  assert.equal(request.headers['x-learnstack-ingress-provenance'], undefined);
+  try {
+    // Boolean checks never print a credential in a failed assertion.
+    assert(request.url === '/api/v1/public/site', 'Unexpected bootstrap path');
+    assert(request.headers['x-learnstack-hop-secret'] === secret, 'Invalid fixture hop');
+    assert(request.headers['x-learnstack-visitor-address'] === '127.0.0.1', 'Invalid fixture peer');
+    assert(request.headers.authorization === undefined, 'Unexpected authorization');
+    assert(request.headers.cookie === undefined, 'Unexpected cookie');
+    assert(request.headers['x-learnstack-ingress-provenance'] === undefined, 'Unexpected stamp');
+  } catch {
+    // A listener throw cannot reach the outer finally. Refuse and make the
+    // awaited control below fail there, where cleanup owns every child.
+    listenerFailed = true;
+    response.writeHead(503);
+    response.end();
+    return;
+  }
   response.setHeader('content-type', 'application/json');
   if (request.headers['x-learnstack-host'] !== 'tenant.example:3000') {
     response.writeHead(404);
@@ -267,6 +278,7 @@ try {
     'X-Forwarded-For': 'attacker',
     'X-Middleware-Subrequest': 'middleware:middleware:middleware',
   });
+  assert.equal(listenerFailed, false, 'Bootstrap fixture refused the hop');
   assert.equal(positive.status, 404); // P6 pages are absent; verified bootstrap still ran.
   assert.equal(bootstrapCalls, 1);
   assert.match(positive.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
