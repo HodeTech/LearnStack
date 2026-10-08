@@ -3282,6 +3282,15 @@ hid this ordering gap. Removing that owned output reproduces the precise import
 refusal; the web lint command now compiles ingress first, then retains all lint
 rules. The staged-web hook follows the same preflight. Full workspace lint passes
 from absent generated output; no runtime policy or test count changes.
+Two fresh GPT-6.1-sol high reviewers independently approve this narrow correction;
+shell syntax, failure propagation, ignored output and staged-file isolation pass.
+
+**PR handoff — 2026-10-09.**
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26) proposes development into
+main for maintainer review. Main synchronization uses a normal merge on development
+and preserves the validated tree; no branch switch or history rewrite occurs.
+The PR's actual required-check rollup owns pinned CI evidence separately from the
+local runs above. P02d-5 remains unmerged; P6/P7 delivery is not claimed.
 
 ### P02d-1 decision pass (2026-09-14)
 
