@@ -290,16 +290,10 @@ if [[ ${#real_prettier_batch[@]} -gt 0 || ${#js_like_files[@]} -gt 0 ]]; then
         restage "${real_prettier_batch[@]}"
     fi
 
-    # ESLint is wired in exactly one workspace: `@learnstack/web` is the only
-    # package with a `lint` script, so `pnpm -r lint` in CI covers
-    # `frontend/apps/web` and nothing else. Two reasons the previous
-    # invocation could never work: `eslint` is a devDependency of that package
-    # only, so `pnpm exec eslint` from `frontend/` fails with
-    # ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL; and ESLint 9 does not read the
-    # `.eslintrc.cjs` this app still uses, so the bare binary bails with
-    # "couldn't find an eslint.config.js" even where it does resolve.
-    # `next lint` is what the package's own script runs and what CI therefore
-    # runs, and it understands the eslintrc format.
+    # Staged web files use the package-local Next lint wrapper, which reads
+    # this app's eslintrc format. SDK/UI use their own workspace lint commands.
+    # Compile the native ingress dependency first, matching the web lint
+    # preflight so module resolution also works on a clean checkout.
     # `next lint` takes one `--file` FLAG per path, so the array is built as
     # alternating flag/value pairs — a `${a[@]/#/--file }` rewrite would make
     # each element a single argument containing a space and never split.
@@ -315,7 +309,7 @@ if [[ ${#real_prettier_batch[@]} -gt 0 || ${#js_like_files[@]} -gt 0 ]]; then
     if [[ $web_count -gt 0 ]]; then
         # `--max-warnings 0` turns ANY warning into a hook failure.
         printf "pre-commit: next lint --fix (%d file(s)) …\n" "$web_count"
-        (cd frontend/apps/web && pnpm exec next lint --fix --max-warnings 0 "${web_lint_args[@]}")
+        (cd frontend/apps/web && pnpm build:ingress && pnpm exec next lint --fix --max-warnings 0 "${web_lint_args[@]}")
         restage "${js_like_files[@]}"
     fi
 fi

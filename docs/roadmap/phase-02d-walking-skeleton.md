@@ -3275,6 +3275,14 @@ two-host browser harness, Lighthouse and phase exit. Phase 02d remains in progre
 P5 does not complete the full walking skeleton or deliver authentication, CMS,
 enrollment grants, commerce or production ingress/distributed quotas.
 
+**CI lint preflight correction (2026-10-09).** The first P5 PR run exposes a
+clean-checkout dependency: native launcher lint resolves generated
+`.server/ingress.js` before the later build step emits it. Existing local output
+hid this ordering gap. Removing that owned output reproduces the precise import
+refusal; the web lint command now compiles ingress first, then retains all lint
+rules. The staged-web hook follows the same preflight. Full workspace lint passes
+from absent generated output; no runtime policy or test count changes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
