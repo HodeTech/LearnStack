@@ -13,6 +13,14 @@ public sealed class AnonymousRequestIdentityTests
     private static readonly AnonymousRequestIdentity Identity = new(new EffectiveHostAccessor(Options.Create(
         new TrustedHopOptions { Networks = ["127.0.0.1/32"], Secrets = [Secret] })));
 
+    [Fact]
+    public void Budgets_match_the_accepted_contract_independently_of_request_loops()
+    {
+        RateLimitingExtensions.AnonymousPermitPerWindow.Should().Be(60);
+        RateLimitingExtensions.PeerPermitPerWindow.Should().Be(600);
+        RateLimitingExtensions.Window.Should().Be(TimeSpan.FromMinutes(1));
+    }
+
     [Theory]
     [InlineData("127.0.0.1", "127.0.0.1")]
     [InlineData("::ffff:127.0.0.1", "127.0.0.1")]

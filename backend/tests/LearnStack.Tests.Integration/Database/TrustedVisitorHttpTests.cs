@@ -181,6 +181,28 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
         return await host.Client.SendAsync(request);
     }
 
+    [Fact]
+    public async Task Visitor_refusals_charge_the_peer_once_and_preserve_its_remaining_allowance()
+    {
+        using var host = new SocketHost(fixture);
+        for (var index = 0; index < 330; index++)
+        {
+            using var response = await Send(host, "/healthz", "203.0.113.1", SeedData.English.Host);
+            response.StatusCode.Should().Be(index < 60 ? HttpStatusCode.OK : HttpStatusCode.TooManyRequests);
+        }
+        // 330 actual requests have spent 330 peer permits, including 270 IP refusals.
+        // Framework AttemptAcquire/AcquireAsync must not charge those refusals twice.
+        for (var index = 0; index < 270; index++)
+        {
+            var visitor = "203.0.113." + (index / 60 + 2).ToString(CultureInfo.InvariantCulture);
+            using var response = await Send(host, "/healthz", visitor, SeedData.English.Host);
+            response.StatusCode.Should().Be(HttpStatusCode.OK, "request {0} is within the physical allowance", index + 331);
+        }
+        using var denied = await Send(host, Site, "203.0.113.99", "novel.example");
+        await RateLimited(denied);
+        host.Lookups.Should().Be(0);
+    }
+
     private static async Task RateLimited(HttpResponseMessage response)
     {
         response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);

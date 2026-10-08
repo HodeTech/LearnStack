@@ -65,9 +65,9 @@ public static class RateLimitingExtensions
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             // Peer first: exhausted peers cannot mint additional visitor partitions.
-            options.GlobalLimiter = PartitionedRateLimiter.CreateChained(
+            options.GlobalLimiter = new NoQueueAdmissionLimiter(PartitionedRateLimiter.CreateChained(
                 Budget(identity => identity.PeerKey, PeerPermitPerWindow),
-                Budget(identity => identity.VisitorKey, AnonymousPermitPerWindow));
+                Budget(identity => identity.VisitorKey, AnonymousPermitPerWindow)));
 
             options.OnRejected = (context, cancellationToken) =>
             {

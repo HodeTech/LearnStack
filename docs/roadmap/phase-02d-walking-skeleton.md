@@ -3034,6 +3034,22 @@ rotation, repeated raw headers, novel-host bounds and both budget ceilings.
 Invalid metadata and over-budget requests do not call the host resolver. The
 initial API Release build passes with zero warnings/errors. Steps 3–4 remain open.
 
+**Step 2 round 1 — confirmed corrections (2026-10-08).** Independent
+GPT-6-astra xhigh and GPT-6.1-sol xhigh reviews identify premature physical-peer
+exhaustion and a quota-test oracle gap. ASP.NET retries a refused synchronous
+acquisition asynchronously; re-running the peer-first fixed-window chain charges
+its earlier peer permit twice. A real-Kestrel regression fails on request 331
+after 60 accepted and 270 refused calls. A request-local no-queue wrapper preserves
+the first refusal and its metadata without repeating the acquisition; each
+framework attempt owns a separate lease. Peer-first ordering remains unchanged.
+
+The corrected mixed-traffic control admits the remaining allowance through actual
+request 600 and refuses 601 before lookup. Independent assertions fix the accepted
+60/IP, 600/peer and one-minute values. All 18 focused HTTP controls and 47
+identity/hop/configuration cases pass with zero failures/skips. The pre-correction
+full regression passed 2,890 cases but did not cover this newly reproduced boundary;
+it is not evidence for the corrected head. Second-round review follows.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
