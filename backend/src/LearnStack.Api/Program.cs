@@ -87,6 +87,9 @@ app.UseLearnStackCorrelationHeader();
 // nothing delivered it, and ADR-0035 puts the gateway that would replace it in
 // Phase 11.
 app.UseRateLimiter();
+// Invalid authenticated visitor metadata has spent its bounded fallback budget.
+// Refuse before host classification so malformed values cannot purchase lookups.
+app.UseLearnStackVisitorAdmission();
 
 // Below MapLearnStackClientErrors, so a 413 acquires the one Problem Details
 // shape without a second writer; after the rate limiter, so a client flooding

@@ -3712,8 +3712,12 @@ structural test proves — and what it does not.
   partitioning for authenticated renderer traffic with one canonical-IP quota and a
   separate peer ceiling. Untrusted forwarding metadata remains ineffective; trusted
   malformed visitor metadata is bounded and refused before lookup. Existing direct
-  socket controls remain Implemented; the extended HTTP/socket proofs are pending
-  P5 Step 2, not yet passing evidence.
+  socket controls remain Implemented. P5 Step 2 implements the extension, with
+  `AnonymousRequestIdentityTests` covering strict bounded IP identity and hop
+  admission, and `TrustedVisitorHttpTests` covering real Kestrel sockets, shared
+  direct/SSR quotas, independent visitors, malformed/repeated metadata, rotation,
+  pre-lookup novel-host bounds and the physical-peer ceiling. Positive public
+  reads assert READ ONLY and the non-BYPASSRLS application role.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 

@@ -111,8 +111,9 @@ records final verification. P02d-5 is next; its
 and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
 two-round review loop now run on development. Step 1 implements native ingress,
 private local topology and TLS/socket controls; both independent review rounds
-and fix verification pass. Step 2 proceeds with authenticated visitor admission
-and dual API budgets. Steps 3–4 and P6 public pages are not delivered yet.
+and fix verification pass. Step 2 implements authenticated visitor admission and
+dual API budgets; its independent review rounds are pending. Steps 3–4 and P6
+public pages are not delivered yet.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

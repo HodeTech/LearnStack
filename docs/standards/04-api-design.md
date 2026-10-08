@@ -486,7 +486,7 @@ a limit, and the first version of this table was four of those.
 | URL length | 8 KiB | Kestrel (`MaxRequestLineSize`), server default |
 | Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
-| Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / Accepted P02d-5 G34: authenticated-hop visitor metadata may supply the IP; direct/untrusted traffic uses its socket peer. Fixed one-minute windows, no queue; no host/cookie partition. Implementation remains socket-only until P5 Step 2 delivers the two budgets |
+| Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34: Step 2 implements both budgets. Authenticated-hop visitor metadata may supply the IP; direct/untrusted traffic uses its socket peer. Fixed one-minute windows, no queue; no host/cookie partition. Invalid trusted metadata spends fallback quota and is masked before lookup |
 | Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 

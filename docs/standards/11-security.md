@@ -510,9 +510,10 @@ gates it to Phase 11), the application enforces anonymous limits in process.
 quota for direct socket peers and authenticated-hop visitor addresses, plus a
 separate physical-peer ceiling. Neither forwarded headers nor a host/cookie creates
 a visitor partition. Trusted malformed visitor metadata spends the fallback budget,
-then receives masked `404` before lookup. At acceptance the implementation remains
-socket-only; P5 Step 2 owns delivery. This is local limiting, not distributed DDoS
-protection. NAT/local loopback callers share an IP quota; budgets count API calls.
+then receives masked `404` before lookup. P5 Step 2 implements both budgets and
+pre-lookup admission, with real-socket controls. This is local limiting, not
+distributed DDoS protection. NAT/local loopback callers share an IP quota; budgets
+count API calls.
 
 | Surface | Limit |
 |---------|-------|

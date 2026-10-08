@@ -259,6 +259,19 @@ The [Step 1 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-1--nati
 owns production/socket, mutation and cleanup evidence. Steps 2–4 retain their
 scopes; this note changes no Accepted decision or browser-readiness claim.
 
+### Amendment 3 — API visitor admission and budgets delivered (2026-10-08)
+
+P02d-5 Step 2 implements exactly-one bounded visitor metadata after the existing
+network-and-secret hop predicate, strict canonical IP keys shared with direct
+traffic, and chained 600/physical-peer plus 60/visitor-IP fixed-window budgets.
+The peer ceiling runs first; invalid trusted metadata spends fallback quota and
+receives masked `404` before host classification. Untrusted metadata is ignored.
+
+The [Step 2 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-2--api-visitor-admission-and-budgets)
+owns validation and review evidence. Empty-hop startup, API tenant authority,
+rotation-list support and existing public response contracts remain unchanged.
+Configured frontend transport and full renderer proofs still belong to Steps 3–4.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

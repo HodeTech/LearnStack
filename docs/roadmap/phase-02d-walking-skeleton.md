@@ -3010,6 +3010,30 @@ TLS/query/upgrade/bypass controls, production build, typecheck and lint pass wit
 zero failed/skipped cases. Both reviewers approve the corrected scope; Step 1 is
 complete and Step 2 follows. No workstation-browser proof or P6 page is claimed.
 
+#### P02d-5 Step 2 — API visitor admission and budgets
+
+**Implemented — 2026-10-08; independent reviews pending.** The API captures one
+request-local visitor identity through the existing network-and-secret hop
+predicate. Its bounded IP parser rejects abbreviated/integer IPv4, ports, lists,
+zones and whitespace; IPv4-mapped IPv6 shares the direct IPv4 namespace. Unknown
+peers retain one fixed fallback partition. No header selects a tenant.
+
+Chained fixed-window limiters apply 600 calls/minute per physical peer first,
+then 60 calls/minute per canonical visitor IP, without queues. This ordering
+prevents exhausted peers from creating additional visitor partitions. Missing,
+malformed and repeated trusted metadata consumes fallback quota, then receives
+masked `404` before host classification; untrusted forwarding metadata is ignored.
+Existing `429` Problem Details and `Retry-After` remain authoritative.
+
+**Validation.** The 28 new identity cases and 18 existing hop/configuration cases
+pass. Fifteen new real-Kestrel/PostgreSQL cases and both existing anonymous HTTP
+controls pass, with zero failures/skips. Positive public reads reach the production
+reader as `learnstack_app`, with READ ONLY and no superuser/BYPASSRLS privileges.
+Controls cover shared direct/hop quotas, independent visitors, canonical IPv6,
+rotation, repeated raw headers, novel-host bounds and both budget ceilings.
+Invalid metadata and over-budget requests do not call the host resolver. The
+initial API Release build passes with zero warnings/errors. Steps 3–4 remain open.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
