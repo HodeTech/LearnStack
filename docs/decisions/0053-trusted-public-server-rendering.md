@@ -272,6 +272,20 @@ owns validation and review evidence. Empty-hop startup, API tenant authority,
 rotation-list support and existing public response contracts remain unchanged.
 Configured frontend transport and full renderer proofs still belong to Steps 3–4.
 
+### Amendment 4 — Configured caller and public entry delivered (2026-10-08)
+
+P02d-5 Step 3 implements the server-only configured SDK adapter, private origin
+and closed hop headers, validated/generated W3C trace context, total ten-second
+deadline and decoded 8 MiB consumer limit. Node middleware verifies provenance
+before live bootstrap, applies membership-first locale entry, preserves inert raw
+query bytes and rebuilds downstream request headers. The public layout is dynamic
+and no-store. Neither bootstrap nor SDK responses enter a shared renderer cache.
+
+The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-3--configured-caller-and-public-entry)
+owns validation and reviews. Step 4 still owns complete production-build integration
+and mechanical frontend fences; P6 owns public page composition. This delivery
+note changes no Accepted decision or browser-readiness claim.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

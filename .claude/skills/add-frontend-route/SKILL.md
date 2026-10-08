@@ -53,7 +53,7 @@ contract per
 
 | Group | Purpose | Auth | Default render |
 |-------|---------|------|----------------|
-| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | SSR + ISR-like cache per `(tenantId, organizationId?, locale, slug)` (under an open gate — see Step 8). |
+| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | Dynamic SSR, no-store per ADR-0053; see Step 8. |
 | `(studio)` | Tenant admin Studio. | Tenant-admin or org-admin. Required at the edge. | SSR, no cache (always fresh). |
 | `(portal)` | Learner / instructor portal. | Membership in the resolved tenant. | SSR shell + Client Component for interactivity. |
 
@@ -76,20 +76,23 @@ unless the screen genuinely needs one.
 
 ```tsx
 // page.tsx (Server Component by default)
-import { createServerSdk, type PublicFetch } from '@learnstack/sdk/server';
+import { createConfiguredPublicClient } from '@/server/configured-public-client';
 
 // The configured server caller supplies this transport; never a tenant-ID option.
-export function loadCourses(transport: PublicFetch, locale: string) {
-  return createServerSdk(transport).getCourses({ locale });
+export function loadCourses(envelope: string | null) {
+  const client = createConfiguredPublicClient(envelope);
+  if (!client) throw new Error('Invalid public ingress');
+  return client.getCourses(); // Locale comes from the authenticated route.
 }
 ```
 
 > **P02d-4 delivered.** `@learnstack/sdk/server` exports an injected
 > `createServerSdk(transport)` with four typed public GET wrappers; no global `sdk`
 > object, tenant-ID option or module namespace exists. The example is a loader,
-> not a complete route. P02d-5/G35 owns the configured trusted transport in
+> not a complete route. P02d-5/G35 delivers the configured trusted transport in
 > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> that pass supplies the server caller before public page consumers are added.
+> that caller precedes P02d-6 public page consumers. Read the verified envelope
+> from request-local `headers()`; never create or expose a provenance stamp in a page.
 
 Rules:
 
@@ -107,10 +110,10 @@ The API resolves tenant and organization from the host
 The frontend never calls `IHostToTenantResolver`. P02d-4's SDK is a pure injected
 transport contract and sets no hop headers. ADR-0053 replaces ADR-0036's older
 exact setter
-path with one server-only adapter in apps/web. The current
-`src/middleware.ts` remains a scaffold that copies the raw host into `x-tenant-id`
-and sets `x-locale`; it sets no `x-organization-id`. Its replacement and the
-configured transport are recorded as G35 and G36 in
+path with one server-only adapter in apps/web. P02d-5 Step 3's Node middleware
+verifies the native envelope, bootstraps the live host and applies enabled-locale
+entry before rebuilding downstream request headers. The caller verifies the
+envelope again. G35 and G36 are recorded in
 [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 Don't read `host` directly inside a page.
 

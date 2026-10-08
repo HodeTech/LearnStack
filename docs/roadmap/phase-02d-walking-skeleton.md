@@ -3070,6 +3070,38 @@ link/fragment audit (552 links, 295 fragments), added-prose width and diff check
 Frozen P1–P4 history and Accepted ADR bodies remain unchanged. Step 2 is complete;
 Steps 3–4 follow automatically under the approved plan.
 
+#### P02d-5 Step 3 — Configured caller and public entry
+
+**Implemented — 2026-10-08; independent reviews pending.** One server-only
+adapter supplies the four injected SDK GETs with private origin and a closed
+authenticated hop. It re-verifies the envelope and derives locale only from the
+canonical signed route. Redirects are refused; caller cancellation is distinct
+from the ten-second total header/body deadline. Decoded response bytes are counted
+while consuming, up to 8 MiB; oversize is a transport failure without truncation.
+Cleanup does not wait indefinitely for stream cancellation or late fetches.
+
+Node middleware verifies before request-local live bootstrap, then applies the
+accepted membership-first entry matrix. Non-English default, disabled/malformed
+prefixes and default/nondefault `courses`/`studio`/`portal` locale collisions are
+covered. Redirect authority comes from the bootstrapped captured host and fixed
+HTTPS port, preserving signed raw query bytes. Continuation rebuilds request
+headers and emits no cookie or ordinary provenance response header. The public
+layout is dynamic with zero revalidation and force-no-store fetches.
+
+**Validation.** All **280 frontend cases** pass: 220 web and 60 SDK, zero
+failures/skips. The 39 adapter controls include real loopback HTTP gzip expansion,
+exact decoded size, redirect credential containment, caller cancellation and a
+ten-second deadline spanning delayed headers and body. Eighty-two entry and 21
+middleware cases cover admission, raw queries, error mapping and request isolation.
+Workspace lint/typecheck and the production build pass. The production TLS
+companion exercises the real middleware/caller against a test-owned bootstrap
+server, proving live redirects, raw-query retention and stock-Next refusal before
+bootstrap. It does not replace Step 4's real-API integration or P6 pages.
+The real-Kestrel/PostgreSQL trace control also passes: the API's Problem Details
+uses its own span with the adapter's propagated trace identifier. The HTTP test
+disables the test HttpClient's ambient trace injection so it observes the intended
+wire header; the production caller itself remains unchanged.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

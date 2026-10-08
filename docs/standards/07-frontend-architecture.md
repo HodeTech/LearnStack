@@ -92,8 +92,8 @@ flowchart TD
   server-only configured caller in P02d-5. The
   [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
   owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
-  P02d-5 Step 1 delivers native ingress and interim fail-closed Node admission.
-  Step 3 still owns bootstrap/entry and the configured caller; Step 4 owns fences.
+  P02d-5 Steps 1–3 deliver native ingress, visitor budgets, Node bootstrap/entry
+  and the configured caller; Step 4 owns frontend fences and runtime closeout.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
 
@@ -113,8 +113,8 @@ public-site URL canonicalization and header transport remain P02d-5.
 ## SDK
 
 The SDK is the frontend API boundary. **P02d-4 Step 4 delivers** generated
-types and an injected public GET transport; the configured server caller remains
-P02d-5.
+types and an injected public GET transport. P02d-5 Step 3 delivers the configured
+server caller in `apps/web/src/server/configured-public-client.ts`.
 
 - Generate from committed `backend/openapi/v1.json` through `LEARNSTACK_OPENAPI`
   using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
@@ -130,8 +130,14 @@ P02d-5.
   strings, matching Standards 09's carrier. Transport failure, malformed JSON,
   invalid local path input and caller cancellation remain distinct from a valid
   API error; cancellation precedes URL construction.
-- P02d-5/G35 supplies the configured trusted server caller. P02d-6 supplies all
+- P02d-5/G35 delivers the configured trusted server caller. P02d-6 supplies all
   public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
+
+The `server-only` marker is pinned to **0.0.1**, MIT (compatible with the project's
+permissive dependency policy); the installed package metadata and lockfile are
+the version/license evidence. [Next's server/client guidance](https://nextjs.org/docs/app/getting-started/server-and-client-components#preventing-environment-poisoning)
+explains the import guard. Vitest aliases the marker only in server tests; Step 4
+proves a real client import fails the production build.
 
 The [accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
 owns the source, pin, diff policy, bootstrap exception and required-check rollout.

@@ -184,9 +184,11 @@ this launcher. Both processes read the same private root source; a web `.env.loc
 projection is optional and must match. No shell evaluates the values. Ordinary
 no-hop API startup remains supported outside this paired renderer recipe.
 
-**P02d-5 Step 1 delivers the ingress foundation.** Public entry currently returns
-bounded `503` after valid ingress and `404` after missing/forged provenance; Step 3
-adds API bootstrap and locale entry. Public pages are P02d-6, and the two-host
+**P02d-5 Steps 1–3 deliver ingress, visitor budgets and public entry.** The web
+bootstraps the captured host through the API, redirects using enabled/default
+locales and refuses unavailable scope. The server caller enforces no-store,
+deadline/body limits and the closed authenticated hop. Step 3 reviews and Step 4
+runtime/fence closeout remain in progress. Public pages are P02d-6, and the two-host
 browser demo with `make demo` is P02d-7. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.

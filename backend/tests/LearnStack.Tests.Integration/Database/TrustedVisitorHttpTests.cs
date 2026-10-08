@@ -29,6 +29,33 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
     private const string Site = "/api/v1/public/site";
 
     [Fact]
+    public async Task Trusted_hop_Problem_Details_preserves_the_incoming_W3C_trace_identifier()
+    {
+        using var host = new SocketHost(fixture);
+        const string traceparent = "00-11223344556677889900aabbccddeeff-1234567890abcdef-01";
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/public/courses/absent?locale=en");
+        request.Headers.Host = SeedData.English.Host;
+        request.Headers.Add(TrustedHopOptions.HostHeaderName, SeedData.English.Host);
+        request.Headers.Add(TrustedHopOptions.SecretHeaderName, Secret);
+        request.Headers.Add(AnonymousRequestIdentity.VisitorHeaderName, "203.0.113.11");
+        request.Headers.Add("traceparent", traceparent);
+        // Send the specified wire parent, not HttpClient's ambient test Activity.
+        using var client = new HttpClient(new SocketsHttpHandler { ActivityHeadersPropagator = null })
+        {
+            BaseAddress = host.Client.BaseAddress,
+        };
+        using var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var correlation = problem.GetProperty("correlationId").GetString();
+        correlation.Should().NotBeNull();
+        correlation!.Split('-')[1].Should().Be(traceparent.Split('-')[1],
+            "the API creates its own span inside the adapter's propagated trace");
+        correlation.Should().NotBe(traceparent, "a server span is not an echo of the caller's span");
+        response.Headers.CacheControl?.NoStore.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Trusted_socket_requests_keep_API_host_resolution_and_real_application_role_reads()
     {
         using var host = new SocketHost(fixture);

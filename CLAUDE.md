@@ -113,7 +113,9 @@ two-round review loop now run on development. Step 1 implements native ingress,
 private local topology and TLS/socket controls; both independent review rounds
 and fix verification pass. Step 2 implements authenticated visitor admission and
 dual API budgets; both independent review rounds and fix verification pass.
-Steps 3–4 and P6 public pages are not delivered yet.
+Step 3 implements the configured server caller and membership-first public entry;
+its independent review rounds are pending. Step 4 and P6 public pages are not
+delivered yet.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -16,6 +16,11 @@ module.exports = {
   },
   overrides: [
     {
+      // ADR-0053: this is the sole configured API transport; pages use its SDK.
+      files: ['src/server/configured-public-client.ts'],
+      rules: { 'no-restricted-globals': 'off' },
+    },
+    {
       files: ['scripts/**/*.mjs', '.eslintrc.cjs'],
       env: { node: true, es2022: true },
       // Native Node launch/test scripts are JavaScript, outside the TS program.

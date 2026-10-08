@@ -245,7 +245,7 @@ Enabled but untranslated means empty catalog or masked detail `404`, not fallbac
 `X-Locale` and `Accept-Language` do not select content. No locale rows authorize
 none; bootstrap returns `404`. Invalid stored locale/default configuration is
 `503 dependency_unavailable`, never a synthesized default. URL-segment redirects
-are Accepted in P02d-5/G6(c), pending Step 3 implementation. ADR-0052 and the
+are delivered by P02d-5 Step 3 under G6(c). ADR-0052 and the
 [accepted locale contract](../roadmap/phase-02d-walking-skeleton.md#locale-and-display-applicability)
 record the authority; no platform locale registry is introduced.
 

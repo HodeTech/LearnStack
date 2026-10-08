@@ -11,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { request as httpRequest } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,6 +24,41 @@ const app = join(fixtureRoot, 'frontend/apps/web');
 const secret = randomBytes(32).toString('base64url');
 const children = [];
 const upgrades = [];
+let bootstrapCalls = 0;
+const api = createServer((request, response) => {
+  bootstrapCalls++;
+  assert.equal(request.url, '/api/v1/public/site');
+  assert.equal(request.headers['x-learnstack-hop-secret'], secret);
+  assert.equal(request.headers['x-learnstack-visitor-address'], '127.0.0.1');
+  assert.equal(request.headers.authorization, undefined);
+  assert.equal(request.headers.cookie, undefined);
+  assert.equal(request.headers['x-learnstack-ingress-provenance'], undefined);
+  response.setHeader('content-type', 'application/json');
+  if (request.headers['x-learnstack-host'] !== 'tenant.example:3000') {
+    response.writeHead(404);
+    response.end(
+      JSON.stringify({
+        type: 'about:blank',
+        title: 'Not found',
+        status: 404,
+        instance: '/api/v1/public/site',
+        code: 'not_found',
+        messageKey: 'lockey_not_found',
+        correlationId: 'fixture',
+      }),
+    );
+    return;
+  }
+  response.end(
+    JSON.stringify({
+      displayName: 'Institution',
+      enabledLocales: ['tr', 'en'],
+      defaultLocale: 'tr',
+      theme: null,
+      showPlatformAttribution: true,
+    }),
+  );
+});
 let logs = '';
 let shutdownFailed = false;
 mkdirSync(join(app, 'scripts'), { recursive: true });
@@ -201,6 +236,21 @@ async function stop(child) {
 }
 
 try {
+  await new Promise((resolve, reject) => {
+    api.once('error', reject);
+    api.listen(0, '127.0.0.1', resolve);
+  });
+  const address = api.address();
+  assert(address && typeof address === 'object');
+  const privateEnvironment = readFileSync(join(fixtureRoot, '.env'), 'utf8');
+  writeFileSync(
+    join(fixtureRoot, '.env'),
+    privateEnvironment.replace(
+      'LEARNSTACK_PUBLIC_API_ORIGIN=http://127.0.0.1:5080',
+      'LEARNSTACK_PUBLIC_API_ORIGIN=http://127.0.0.1:' + address.port,
+    ),
+    { mode: 0o600 },
+  );
   const native = start([join(app, 'scripts/public-server.mjs')]);
   await ready(native, true, 3000);
   await callUpgrade('Host: localhost:3000\r\nHost: attacker.example');
@@ -217,8 +267,9 @@ try {
     'X-Forwarded-For': 'attacker',
     'X-Middleware-Subrequest': 'middleware:middleware:middleware',
   });
-  assert.equal(positive.status, 503); // Verified ingress; entry is delivered in Step 3.
-  assert.equal(positive.headers['cache-control'], 'no-store');
+  assert.equal(positive.status, 404); // P6 pages are absent; verified bootstrap still ran.
+  assert.equal(bootstrapCalls, 1);
+  assert.match(positive.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
   for (const query of [
     '?',
     '?x=%20',
@@ -231,10 +282,11 @@ try {
     '?x=%20&_rsc=abc',
     '?next=https://evil.example',
   ]) {
-    const response = await call(true, 3000, '/en/courses' + query, {
+    const response = await call(true, 3000, '/courses' + query, {
       Host: 'tenant.example:3000',
     });
-    assert.equal(response.status, 503, 'Valid raw query must survive Next processing: ' + query);
+    assert.equal(response.status, 307, 'Valid raw query must survive Next processing: ' + query);
+    assert.equal(response.headers.location, 'https://tenant.example:3000/tr/courses' + query);
     assert.equal(response.headers['cache-control'], 'no-store');
   }
   const ambiguous = await call(true, 3000, '/en//courses?next=https://evil.example', {
@@ -252,6 +304,7 @@ try {
     '3011',
   ]);
   await ready(stock, false, 3011);
+  const beforeBypass = bootstrapCalls;
   const bypass = await call(false, 3011, '/en/courses', {
     Host: 'tenant.example:3000',
     'X-LearnStack-Ingress-Provenance': 'forged',
@@ -261,6 +314,7 @@ try {
     'X-Middleware-Subrequest-Id': 'attacker',
   });
   assert.equal(bypass.status, 404);
+  assert.equal(bootstrapCalls, beforeBypass, 'Stock bypass must not reach bootstrap');
   for (const response of [positive, bypass]) {
     assert.equal(JSON.stringify(response).includes(secret), false, 'Secret containment failed');
     assert.equal(
@@ -271,8 +325,12 @@ try {
   }
   assert.equal(logs.includes(secret), false, 'Secret entered diagnostics');
   assert.equal(logs.includes('v1.'), false, 'Provenance entered diagnostics');
-  console.warn('Production ingress: trusted TLS readiness, sanitation and stock bypass passed.');
+  console.warn(
+    'Production ingress: trusted TLS, bootstrap, raw-query redirects and stock bypass passed.',
+  );
 } finally {
+  api.closeAllConnections();
+  await new Promise((resolve) => api.close(resolve));
   const stopped = await Promise.allSettled(children.map(stop));
   shutdownFailed = stopped.some((result) => result.status === 'rejected');
   rmSync(fixtureRoot, { recursive: true, force: true });

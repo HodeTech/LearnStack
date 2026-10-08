@@ -37,6 +37,7 @@ export default defineConfig({
       // tsconfig paths on its own, so an import that typechecks would fail to
       // resolve at test time without this.
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'server-only': fileURLToPath(new URL('./src/test/server-only.ts', import.meta.url)),
     },
   },
 });

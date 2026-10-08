@@ -89,12 +89,12 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 ## Tenant + Organization Resolution at the Edge
 
 **Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
-server transport and consumers remain P02d-5/6. The frontend
+P02d-5 Step 3 delivers server transport; page consumers remain P02d-6. The frontend
 uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
 [Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)
-owns the ongoing frontend rule. P02d-5/G35/G36 still owns transport and middleware
-placement, and P02d-6 owns public page consumers.
+owns the ongoing frontend rule. P02d-5/G35/G36 delivers the configured transport
+and Node middleware entry; P02d-6 owns public page consumers.
 
 The API computes the effective host once under ADR-0036's direct/trusted-hop rules,
 resolves its existing mapping and preserves a factory host ceiling. The configured
@@ -138,7 +138,9 @@ so a claim cannot enlarge what the host serves.
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) accepts native socket
 provenance, a server-only configured transport and uncached institution rendering.
 Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
-is starting; acceptance is not runtime evidence. P02d-6 owns public page consumers.
+records implementation and reviews: Steps 1–2 are complete, Step 3 implements
+the caller/entry and dynamic public layout, and Step 4 owns runtime/fence closeout.
+P02d-6 owns public page consumers.
 
 Per segment:
 
