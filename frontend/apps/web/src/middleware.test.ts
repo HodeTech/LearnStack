@@ -41,6 +41,7 @@ function incoming(target: string, stamp: 'valid' | 'missing' | 'forged' = 'valid
     'x-forwarded-host': 'attacker',
     'x-forwarded-for': 'attacker',
     'x-middleware-request-host': 'attacker',
+    'next-url': '/attacker',
     'x-arbitrary': 'private',
     accept: 'text/html',
     traceparent: trace,

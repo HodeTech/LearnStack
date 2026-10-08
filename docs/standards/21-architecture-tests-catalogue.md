@@ -4119,26 +4119,6 @@ of structural detection.
 - **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); eight-operation, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Phase:** 02d (P02d-4 Step 4).
 
-## References
-
-- [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
-- [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
-- [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
-- [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
-- [ADR-0024 API Versioning Policy](../decisions/0024-api-versioning-policy.md)
-- [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
-- [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
-- [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
-- [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)
-- [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md)
-- [09-error-handling.md](09-error-handling.md)
-- [10-observability.md](10-observability.md)
-- [11-security.md § Tenant Context](11-security.md)
-- [20-infrastructure-stack.md](20-infrastructure-stack.md)
-- [Phase 02a Roadmap § Architecture Tests](../roadmap/phase-02a-kernel-tenancy.md)
-- [Phase 02b Roadmap § Architecture Tests](../roadmap/phase-02b-events-auth.md)
-- [add-architecture-test skill](../../.claude/skills/add-architecture-test/SKILL.md)
-
 ## P02d-5 public server rendering controls
 
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
@@ -4174,3 +4154,23 @@ of structural detection.
   isolation and next-request publication freshness as `learnstack_app`. It owns
   disposable routes, not P6 product pages or P7 browser delivery.
 - **Phase:** 02d (P02d-5).
+
+## References
+
+- [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
+- [ADR-0018 Tenant-Driven Customization Model](../decisions/0018-tenant-driven-customization-model.md)
+- [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
+- [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
+- [ADR-0024 API Versioning Policy](../decisions/0024-api-versioning-policy.md)
+- [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
+- [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
+- [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
+- [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)
+- [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md)
+- [09-error-handling.md](09-error-handling.md)
+- [10-observability.md](10-observability.md)
+- [11-security.md § Tenant Context](11-security.md)
+- [20-infrastructure-stack.md](20-infrastructure-stack.md)
+- [Phase 02a Roadmap § Architecture Tests](../roadmap/phase-02a-kernel-tenancy.md)
+- [Phase 02b Roadmap § Architecture Tests](../roadmap/phase-02b-events-auth.md)
+- [add-architecture-test skill](../../.claude/skills/add-architecture-test/SKILL.md)

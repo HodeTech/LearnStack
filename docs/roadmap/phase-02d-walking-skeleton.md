@@ -3292,6 +3292,36 @@ and preserves the validated tree; no branch switch or history rewrite occurs.
 The PR's actual required-check rollup owns pinned CI evidence separately from the
 local runs above. P02d-5 remains unmerged; P6/P7 delivery is not claimed.
 
+**Review evidence clarification — 2026-10-09.** The Step 4 and packet-closeout
+counts above describe `e580444f0dbaf11151bf008a06a75688f2bd6e4a`: 104 source cases
+and 420 frontend cases (360 web + 60 SDK), confirmed by
+[CI run 37852875524](https://github.com/HodeTech/LearnStack/actions/runs/37852875524).
+The subsequent `5db8daedfd93f816ef23e545b8741ee54395e2f8` remediation adds four
+compiler-erasure controls: inline type-only imports/reexports retain runtime edges,
+while declaration-level type-only forms are erased. Both inline controls fail
+before the guard fix. Two fresh independent reviewers approve the correction.
+That tree passes 108 source cases and **424 frontend cases** (364 web + 60 SDK),
+with zero failures/skips/todos. All six required checks pass in
+[CI run 37855253417](https://github.com/HodeTech/LearnStack/actions/runs/37855253417);
+TRX counters confirm 2,898 backend passes, including 846 Docker cases and the
+real-API production renderer. These named runs qualify the earlier dated evidence;
+they do not rewrite it as a claim about every later commit.
+
+**Review sanitation correction — 2026-10-09.** Client-supplied `next-url` is
+removed from both native header collections and the middleware's downstream
+allowlist under ADR-0053's existing client-carrier sanitation boundary. The
+middleware control first reproduces its prior forwarding; the real TLS control
+checks parsed/raw header removal while retaining successful native admission.
+Next uses this carrier for interception routes, which P5 does not implement;
+normal RSC/navigation protocol headers remain available.
+
+The other suggestions do not identify current failures. Port 3000 is the Accepted
+local topology; Phase 11 owns its replacement. ADR-0052 limits the API to GET/HEAD,
+and the configured caller exposes only those reads; a blanket web-method rule
+would also govern scaffold and future Phase 02b BFF/auth paths. The caller consumes
+only API origin and secret, never its computed TLS paths; the native launcher alone
+reads certificate/key files, resolved against the repository root.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

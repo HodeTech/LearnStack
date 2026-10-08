@@ -65,7 +65,6 @@ export async function middleware(request: NextRequest) {
       'next-router-state-tree',
       'next-router-prefetch',
       'next-router-segment-prefetch',
-      'next-url',
     ]) {
       const value = request.headers.get(name);
       if (value !== null) downstream.set(name, value);
