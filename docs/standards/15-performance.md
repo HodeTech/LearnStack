@@ -127,11 +127,11 @@ owns that boundary under ADR-0052.
 - Dashboards track LCP, INP, CLS, FCP per route.
 - Regression on a critical route is a Sev-2 issue.
 
-> **Open in Phase 02d.** Whether web-vitals reporting ships with that phase's public
-> pages, and which phase owns it if not, is G35 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits this section with its answer, together with
-> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability).
+> **Accepted P02d-5 G35.** Web-vitals reporting belongs to
+> [Phase 11](../roadmap/phase-11-production-hardening.md); P02d-5 provides no hook,
+> per [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability)
+> records that ownership.
 
 ## Live Classroom
 

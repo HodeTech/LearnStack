@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -228,6 +229,38 @@ describe('server boundary planted controls', () => {
       ]),
     );
   });
+  it.each([
+    ['import { type ConfiguredPublicClient }', true],
+    ['export { type ConfiguredPublicClient }', true],
+    ['import type { ConfiguredPublicClient }', false],
+    ['export type { ConfiguredPublicClient }', false],
+  ] as const)('matches compiler erasure for %s', (declaration, runtime) => {
+    const specifier = '@/server/configured-public-client';
+    const source = `"use client"; ${declaration} from "${specifier}";`;
+    const config = ts.readConfigFile(
+      join(frontend, 'packages/config/tsconfig/base.json'),
+      ts.sys.readFile,
+    );
+    expect(config.error).toBeUndefined();
+    const { options, errors } = ts.convertCompilerOptionsFromJson(
+      config.config.compilerOptions,
+      frontend,
+    );
+    expect(errors).toEqual([]);
+    expect(options.verbatimModuleSyntax).toBe(true);
+    const emitted = ts.transpileModule(source, { compilerOptions: options }).outputText;
+    expect(emitted.includes(specifier)).toBe(runtime);
+
+    const graph = buildSourceGraph({ ...sources, [probe]: source });
+    expect(reachable(graph, [probe]).includes(ADAPTER)).toBe(runtime);
+    if (runtime)
+      expect(clientBoundaryFindings(graph)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ file: probe, reason: expect.stringContaining(ADAPTER) }),
+        ]),
+      );
+    else clean(clientBoundaryFindings(graph), 'Declaration-level type edges are erased.');
+  });
   it('detects an indirect private-env module outside the server directory', () => {
     const graph = buildSourceGraph({
       [probe]: '"use client"; import "./helper";',
@@ -240,7 +273,7 @@ describe('server boundary planted controls', () => {
     const graph = buildSourceGraph({
       ...sources,
       [probe]:
-        '"use client"; import { View } from "@learnstack/ui"; import type { ConfiguredPublicClient } from "@/server/configured-public-client"; import { type IngressContext } from "@/server/ingress"; export type { PublicSite } from "@/server/public-entry"; export { type ConfiguredPublicClient } from "@/server/configured-public-client";',
+        '"use client"; import { View } from "@learnstack/ui"; import type { ConfiguredPublicClient } from "@/server/configured-public-client"; import type { IngressContext } from "@/server/ingress"; export type { PublicSite } from "@/server/public-entry"; export type { ConfiguredPublicClient } from "@/server/configured-public-client";',
       'packages/ui/src/index.ts': 'export const View = () => null;',
     });
     expect(hasDirective(graph.files.get(probe)!, 'use client')).toBe(true);

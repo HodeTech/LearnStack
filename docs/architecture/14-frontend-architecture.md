@@ -61,7 +61,7 @@ frontend/
           auth/
           tenant/
           i18n/
-        middleware.ts                     # tenant + organization + locale resolution
+        middleware.ts                     # ingress verification + locale entry
         extensions/                       # client-side block resolver, see Page Builder
   packages/
     ui/                                   # extracted only once duplication is real
@@ -331,9 +331,9 @@ This document does not restate them.
 
 Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
 
-CI's Lighthouse job over representative public pages is scaffolded and not yet active.
-Whether it activates in [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), and what
-it asserts, is G44 in
+CI's Lighthouse job over representative public pages remains a disabled placeholder.
+Accepted P02d-5 G44 assigns activation to P02d-7 after P6 pages; P7 selects the
+harness and assertions. The decision is recorded in
 [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Accessibility

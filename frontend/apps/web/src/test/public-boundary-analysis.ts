@@ -211,27 +211,12 @@ function finding(node: ts.Node, reason: string): Finding {
 }
 
 function runtimeImport(node: ts.ImportDeclaration): boolean {
-  const clause = node.importClause;
-  if (!clause) return true;
-  if (clause.isTypeOnly) return false;
-  if (clause.name || (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)))
-    return true;
-  return (
-    clause.namedBindings !== undefined &&
-    ts.isNamedImports(clause.namedBindings) &&
-    (clause.namedBindings.elements.length === 0 ||
-      clause.namedBindings.elements.some((item) => !item.isTypeOnly))
-  );
+  // verbatimModuleSyntax preserves empty imports with inline type-only specifiers.
+  return !node.importClause?.isTypeOnly;
 }
 
 function runtimeExport(node: ts.ExportDeclaration): boolean {
-  return (
-    !node.isTypeOnly &&
-    (!node.exportClause ||
-      !ts.isNamedExports(node.exportClause) ||
-      node.exportClause.elements.length === 0 ||
-      node.exportClause.elements.some((item) => !item.isTypeOnly))
-  );
+  return !node.isTypeOnly;
 }
 
 export function buildSourceGraph(sources: SourceCensus): SourceGraph {
