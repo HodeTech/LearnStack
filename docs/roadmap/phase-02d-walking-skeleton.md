@@ -2979,6 +2979,20 @@ failures/skips, preserving empty-hop mode-independent startup. TLS controls use
 isolated trusted roots and a test-only Secure-cookie response header; no browser
 cookie acceptance or local CA installation is claimed.
 
+**Step 1 round 1 — confirmed corrections (2026-10-08).** Independent security
+and quality reviewers identify two boundary failures in the committed foundation.
+The production companion reproduces a valid raw query returning `404` because Next
+serializes its search parameters and removes `_rsc`; it also reproduces an interior
+repeated slash causing a pre-middleware redirect. The fix preserves the signed raw
+target, compares only its explicit pinned-Next projection at middleware admission,
+and rejects repeated pathname slashes before delegation. Ten focused cases and
+production controls cover query rewriting, terminal `?`, RSC query stripping,
+method/path/query substitutions and no-store refusal without an implicit redirect.
+OpenSSL prerequisites and the paired/API-only restart guidance are clarified.
+The corrected frontend suite passes 138 cases with zero failures/skips;
+production TLS/query/bypass controls, typecheck, build, native/config lint and
+changed-link/history checks pass. Second-round review remains pending.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

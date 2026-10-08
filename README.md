@@ -126,7 +126,8 @@ The [roadmap dependency map](docs/roadmap/README.md) owns the order: **02d runs 
 
 ### 1. Prepare the tools
 
-Use Docker with **Compose V2**, Git, Make, Bash, Python 3 and curl, plus:
+Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
+(the TLS test fixtures require its CLI), plus:
 
 | Tool | Repository requirement |
 |---|---|

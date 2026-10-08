@@ -90,6 +90,8 @@ export function validTarget(value: string): boolean {
   )
     return false;
   const path = value.split('?')[0] ?? '';
+  // Next emits this redirect before middleware, independent of normalization flags.
+  if (path.includes('//')) return false;
   // Refuse path identities that URL normalization would turn into another route.
   if (/%(?:2f|5c|00|0a|0d)/i.test(path)) return false;
   try {
@@ -167,6 +169,23 @@ export function verifyProvenance(
   } catch {
     return null;
   }
+}
+
+/**
+ * Next 15.5.18's web adapter always deletes `_rsc`, serializing URLSearchParams
+ * even when absent. Bind that exact projection, while retaining the signed raw
+ * target for inert query preservation. The generic verifier stays byte-exact.
+ */
+export function verifyNextProvenance(
+  envelope: string | null,
+  secret: string | undefined,
+  observed: { readonly method: string; readonly target: string },
+): IngressContext | null {
+  const context = verifyProvenance(envelope, secret);
+  if (!context || context.method !== observed.method) return null;
+  const projected = new URL(context.target, 'https://ingress.invalid');
+  projected.searchParams.delete('_rsc');
+  return projected.pathname + projected.search === observed.target ? context : null;
 }
 
 function privateInboundHeader(name: string): boolean {

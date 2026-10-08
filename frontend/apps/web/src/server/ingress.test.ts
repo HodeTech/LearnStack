@@ -21,6 +21,7 @@ import {
   refuseIngress,
   validTarget,
   verifyProvenance,
+  verifyNextProvenance,
 } from './ingress';
 
 const secret = randomBytes(32).toString('base64url');
@@ -126,6 +127,52 @@ describe('captured ingress provenance', () => {
     }
     expect(verifyProvenance(envelope, undefined)).toBeNull();
     expect(verifyProvenance(envelope, '')).toBeNull();
+  });
+});
+
+describe('pinned Next target projection', () => {
+  it.each([
+    ['?', ''],
+    ['?x=%20', '?x=+'],
+    ['?x=~', '?x=%7E'],
+    ['?x=%2f', '?x=%2F'],
+    ['?x', '?x='],
+    ['?x=%41', '?x=A'],
+    ['?_rsc=abc', ''],
+    ['?x=1&x=2', '?x=1&x=2'],
+    ['?x=%20&_rsc=abc', '?x=+'],
+  ])('accepts Next processing and preserves raw bytes: %s', (raw, next) => {
+    const captured = { ...context, target: '/en/courses' + raw };
+    const envelope = mintProvenance(captured, secret);
+    expect(
+      verifyNextProvenance(envelope, secret, {
+        method: 'GET',
+        target: '/en/courses' + next,
+      }),
+    ).toEqual(captured);
+    expect(
+      verifyNextProvenance(envelope, secret, {
+        method: 'POST',
+        target: '/en/courses' + next,
+      }),
+    ).toBeNull();
+    expect(
+      verifyNextProvenance(envelope, secret, {
+        method: 'GET',
+        target: '/tr/courses' + next,
+      }),
+    ).toBeNull();
+    expect(
+      verifyNextProvenance(envelope, secret, {
+        method: 'GET',
+        target: '/en/courses?x=substituted',
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects an interior repeated slash before Next can redirect it', () => {
+    expect(validTarget('/en//courses?next=https://evil.example')).toBe(false);
+    expect(validTarget('/en/courses?next=https://evil.example')).toBe(true);
   });
 });
 

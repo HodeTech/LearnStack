@@ -50,6 +50,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 |-------|----------|-------------|
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
+| OpenSSL CLI | Yes for frontend tests | Isolated TLS fixtures generate temporary certificates without installing trust. |
 | Node >=20.11.0 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `20.11.0`. |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
@@ -215,8 +216,10 @@ TLS socket tests with isolated trust roots do not claim a workstation browser ru
 
 ### Step 6: Switch deployment modes locally
 
-Set `Deployment__Mode` in the shell that runs `dotnet run`, or `Deployment:Mode` in the
-user-secrets store Step 3 uses, to flip the mode. Editing `.env` does nothing: it has no
+For an API-only run, set `Deployment__Mode` in the shell that runs `dotnet run`,
+or `Deployment:Mode` in its user-secrets store, to flip the mode. The paired
+`make public-api` recipe explicitly selects Development; it is not a deployment
+mode switch. Editing `.env` does nothing: it has no
 mode key, and `dotnet run` reads no `.env` (Step 3). The committed value is
 `Development`, under `Deployment:Mode` in `appsettings.Development.json`, and the
 composition root refuses to start without the key rather than defaulting it. The mode
@@ -236,7 +239,9 @@ For **every** value today, the three demand-gated ports still resolve to
 `ConfigurationSecretProvider`. `DaprEventBus`, `DaprCacheService`, and
 `DaprSecretProvider` land in Phase 11 only after their ADR-0035 triggers fire.
 
-After changing the mode, stop and rerun the API process:
+After changing the mode for an API-only run, stop and rerun that process. Keep its
+separately configured runtime credential. For the paired renderer workflow, restart
+with `make public-api` so its child-only database and hop configuration is retained:
 
 ```bash
 # In the terminal running `dotnet run`, press Ctrl+C, then:

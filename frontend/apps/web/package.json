@@ -9,7 +9,7 @@
     "build:ingress": "tsc --project tsconfig.server.json",
     "build": "pnpm build:ingress && next build",
     "start": "pnpm build:ingress && node scripts/public-server.mjs",
-    "lint": "next lint",
+    "lint": "next lint --dir src --dir scripts --file next.config.ts --file vitest.config.ts --file .eslintrc.cjs --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

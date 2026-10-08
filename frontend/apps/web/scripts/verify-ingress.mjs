@@ -137,6 +137,30 @@ try {
   });
   assert.equal(positive.status, 503); // Verified ingress; entry is delivered in Step 3.
   assert.equal(positive.headers['cache-control'], 'no-store');
+  for (const query of [
+    '?',
+    '?x=%20',
+    '?x=~',
+    '?x=%2f',
+    '?x',
+    '?x=%41',
+    '?_rsc=abc',
+    '?x=1&x=2',
+    '?x=%20&_rsc=abc',
+    '?next=https://evil.example',
+  ]) {
+    const response = await call(true, 3000, '/en/courses' + query, {
+      Host: 'tenant.example:3000',
+    });
+    assert.equal(response.status, 503, 'Valid raw query must survive Next processing: ' + query);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  }
+  const ambiguous = await call(true, 3000, '/en//courses?next=https://evil.example', {
+    Host: 'unknown.example:3000',
+  });
+  assert.equal(ambiguous.status, 404);
+  assert.equal(ambiguous.headers['cache-control'], 'no-store');
+  assert.equal(ambiguous.headers.location, undefined);
   const stock = start([
     join(appRoot, 'node_modules/next/dist/bin/next'),
     'start',
