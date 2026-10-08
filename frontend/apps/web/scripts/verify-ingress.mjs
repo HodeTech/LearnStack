@@ -18,6 +18,8 @@ import { join } from 'node:path';
 import { connect } from 'node:tls';
 import { fileURLToPath } from 'node:url';
 
+import { stopTestChild } from './stop-test-child.mjs';
+
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 const fixtureRoot = mkdtempSync(join(tmpdir(), 'learnstack-production-ingress-'));
 const app = join(fixtureRoot, 'frontend/apps/web');
@@ -149,6 +151,7 @@ function start(argv) {
     cwd: app,
     env,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    detached: process.platform !== 'win32',
   });
   child.on('message', (message) => upgrades.push(message));
   children.push(child);
@@ -225,25 +228,6 @@ async function ready(child, tls, port) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error('Fixture did not become ready');
-}
-
-async function stop(child) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  await new Promise((resolve, reject) => {
-    // Observe exit before sending the signal; it may arrive synchronously.
-    const exited = () => {
-      clearTimeout(force);
-      clearTimeout(deadline);
-      resolve();
-    };
-    const force = setTimeout(() => child.kill('SIGKILL'), 2000);
-    const deadline = setTimeout(() => {
-      child.off('exit', exited);
-      reject(new Error('Fixture shutdown failed'));
-    }, 4000);
-    child.once('exit', exited);
-    child.kill('SIGTERM');
-  });
 }
 
 try {
@@ -343,7 +327,7 @@ try {
 } finally {
   api.closeAllConnections();
   await new Promise((resolve) => api.close(resolve));
-  const stopped = await Promise.allSettled(children.map(stop));
+  const stopped = await Promise.allSettled(children.map(stopTestChild));
   shutdownFailed = stopped.some((result) => result.status === 'rejected');
   rmSync(fixtureRoot, { recursive: true, force: true });
 }

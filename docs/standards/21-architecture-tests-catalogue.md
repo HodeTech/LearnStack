@@ -490,7 +490,8 @@ otherwise).
   Public descriptors are projected only after P02d-4 content eligibility.
 - **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
 - **Type:** frontend component and public-boundary tests. **Kind:** behavioural.
-- **Status:** **Registered**; the renderer and public projection are not delivered.
+- **Status:** **Registered**; P02d-4 delivers the eligible public projection;
+  the P02d-6 renderer is not delivered.
 - **Phase:** 02d (P02d-4/P02d-6).
 
 #### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`

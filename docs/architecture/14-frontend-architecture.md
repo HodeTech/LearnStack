@@ -69,11 +69,11 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
-> **Open in Phase 02d.** Where composite and primitive components live (G41), where the
-> UI string catalogue lives (G39) and middleware placement (G36) are open
-> in
+> **Phase 02d ownership.** Component placement (G41) and the UI string catalogue
+> (G39) remain P02d-6 decisions. P02d-5/G36 delivers Node middleware in
+> `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The tree records the plan written before them.
+> The tree above is the earlier target layout, not a shipped-directory census.
 
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
@@ -372,13 +372,13 @@ mechanical.
 
 ## Risks
 
-> **Remaining Phase 02d decision.** Public route caching and its key remain G37 in
-> [the phase register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> G16(d) now requires contrast refusal, not a warning-only save. Neither decision
-> claims implemented transport or rendering.
+> **Accepted P02d-5.** ADR-0053 / G37 requires dynamic/no-store public rendering;
+> request-local reuse is allowed. P5 delivers transport and its runtime proofs;
+> P6 owns product pages. G16(d) requires contrast refusal before a branding save.
 
-- **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
-  Cardinality is bounded; budget memory headroom.
+- **Per-request SSR cost** — bootstrap and content reads consume latency and API
+  quota on each request. Measure that cost; only request-local reuse is allowed
+  under [the public rendering policy](../standards/07-frontend-architecture.md#public-site-renderer).
 - **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use
   SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
   Domain registration and TLS flow:

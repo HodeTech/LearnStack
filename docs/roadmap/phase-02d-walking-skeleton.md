@@ -3201,6 +3201,33 @@ The quality reviewer independently confirms all three fixes and passes 127 focus
 source/runner/middleware cases. Both first-round reviewers approve the corrected
 tree; second-round review remains pending.
 
+**Step 4 round 2 — source and cleanup repairs (2026-10-09).** Fresh
+GPT-6-astra xhigh security/runtime and GPT-6.1-sol xhigh quality/standards reviewers
+verify the current implementation independently. The confirmed source gaps are
+awaited header collections, named/default/star/namespace export aliases, private
+environment bindings and exported global fetch. Reused constant expressions need
+path-local cycle detection, and explicit runtime exports must shadow star exports.
+All original counterexamples fail before their fixes; dirty and clean controls now
+separate these cases without interpreting function bodies or runtime reassignment.
+
+The final source suite passes **104 cases**. The quality reviewer independently
+executes 28 additional in-memory controls over the production census: all 20 dirty
+cases are detected and all eight clean cases are accepted. The complete guarded
+frontend run passes **420 cases**: 360 web and 60 SDK, with zero failures/skips/todos.
+Workspace lint/typecheck pass. Focused-test instructions use the package command;
+the guarded root runner deliberately accepts no filters. Stale App Shape, SSR risk
+and text-card projection status clauses are synchronized without changing decisions.
+
+Owned test process groups can outlive their leader, so both native fixtures share
+bounded group cleanup. Only an absent group closes the proof; transient Darwin
+`EPERM` counts as present, and persistent refusal fails at the deadline. Five clean
+and planted cleanup cases pass. The security reviewer independently passes four
+consecutive native runs, the failed-listener companion and the real-API production
+rendering fact in Release with `CI=true`, with zero failures/skips. The helper's ESM
+declaration uses the existing shared typed ESLint parser. No production trust rule
+changes in this round. Both second-round reviewers approve the corrected tree;
+Step 4's two independent rounds and fix verification are complete.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

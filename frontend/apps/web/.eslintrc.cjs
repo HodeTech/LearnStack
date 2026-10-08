@@ -16,6 +16,14 @@ module.exports = {
   },
   overrides: [
     {
+      // Next's parser override covers .ts/.tsx, not ESM declarations. Use the
+      // same shared typed parser for the test helper's imported .d.mts contract.
+      files: ['scripts/**/*.d.mts'],
+      parser: require.resolve('@typescript-eslint/parser', {
+        paths: [require.resolve('@learnstack/config/eslint')],
+      }),
+    },
+    {
       // ADR-0053: this is the sole configured API transport; pages use its SDK.
       files: ['src/server/configured-public-client.ts'],
       rules: { 'no-restricted-globals': 'off' },

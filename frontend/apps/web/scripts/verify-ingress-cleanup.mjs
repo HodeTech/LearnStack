@@ -16,6 +16,10 @@ let runner;
 let deadline;
 try {
   const source = readFileSync(join(appRoot, 'scripts/verify-ingress.mjs'), 'utf8');
+  writeFileSync(
+    join(proof, 'stop-test-child.mjs'),
+    readFileSync(join(appRoot, 'scripts/stop-test-child.mjs'), 'utf8'),
+  );
   let mutant = replaceOne(
     source,
     "const appRoot = fileURLToPath(new URL('../', import.meta.url));",
@@ -69,6 +73,11 @@ try {
     { code: 'ESRCH' },
     'The refused control must stop its child',
   );
+  assert.throws(
+    () => process.kill(-pid, 0),
+    { code: 'ESRCH' },
+    'The refused control must stop its entire owned group',
+  );
   assert.equal(
     existsSync(readFileSync(join(proof, 'fixture'), 'utf8')),
     false,
@@ -82,7 +91,7 @@ try {
   if (existsSync(join(proof, 'pid'))) {
     const pid = Number(readFileSync(join(proof, 'pid'), 'utf8'));
     try {
-      process.kill(pid, 'SIGKILL');
+      process.kill(-pid, 'SIGKILL');
     } catch {
       /* Already stopped. */
     }

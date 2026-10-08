@@ -15,6 +15,7 @@ export type SourceGraph = {
   readonly checker: ts.TypeChecker;
   readonly edges: ReadonlyMap<string, readonly string[]>;
   readonly unresolved: readonly Finding[];
+  readonly resolveModule: (specifier: string, from: string) => string | undefined;
 };
 
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
@@ -47,7 +48,8 @@ function unwrapped(node: ts.Node): ts.Node {
     ts.isAsExpression(node) ||
     ts.isTypeAssertionExpression(node) ||
     ts.isNonNullExpression(node) ||
-    ts.isSatisfiesExpression(node)
+    ts.isSatisfiesExpression(node) ||
+    ts.isAwaitExpression(node)
   )
     return unwrapped(node.expression);
   return node;
@@ -70,8 +72,8 @@ export function constantString(
   node = unwrapped(node);
   if (ts.isStringLiteralLike(node)) return node.text;
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-    const left = constantString(node.left, checker, visited);
-    const right = constantString(node.right, checker, visited);
+    const left = constantString(node.left, checker, new Set(visited));
+    const right = constantString(node.right, checker, new Set(visited));
     return left === undefined || right === undefined ? undefined : left + right;
   }
   for (const declaration of declarations(node, checker))
@@ -80,7 +82,7 @@ export function constantString(
       ts.isVariableDeclarationList(declaration.parent) &&
       declaration.parent.flags & ts.NodeFlags.Const
     ) {
-      const value = constantString(declaration.initializer, checker, visited);
+      const value = constantString(declaration.initializer, checker, new Set(visited));
       if (value !== undefined) return value;
     }
   return undefined;
@@ -102,6 +104,19 @@ function memberReceiver(node: ts.Node): ts.Expression | undefined {
   node = unwrapped(node);
   return ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)
     ? node.expression
+    : undefined;
+}
+
+function objectBinding(
+  node: ts.BindingElement,
+  checker: ts.TypeChecker,
+): { readonly name: string; readonly receiver: ts.Expression } | undefined {
+  if (node.dotDotDotToken || !ts.isObjectBindingPattern(node.parent)) return undefined;
+  const declaration = node.parent.parent;
+  const property = node.propertyName ?? (ts.isIdentifier(node.name) ? node.name : undefined);
+  const name = property ? propertyName(property, checker) : undefined;
+  return name && ts.isVariableDeclaration(declaration) && declaration.initializer
+    ? { name, receiver: declaration.initializer }
     : undefined;
 }
 
@@ -127,11 +142,8 @@ function globalObject(
   return false;
 }
 
-function globalFetch(
-  node: ts.Node,
-  checker: ts.TypeChecker,
-  visited = new Set<ts.Node>(),
-): boolean {
+function globalFetch(node: ts.Node, graph: SourceGraph, visited = new Set<ts.Node>()): boolean {
+  const { checker } = graph;
   node = unwrapped(node);
   if (visited.has(node)) return false;
   visited.add(node);
@@ -139,19 +151,39 @@ function globalFetch(
   if (
     receiver &&
     ['bind', 'call', 'apply'].includes(memberName(node, checker) ?? '') &&
-    globalFetch(receiver, checker, visited)
+    globalFetch(receiver, graph, visited)
   )
     return true;
   if (ts.isCallExpression(node) && memberName(node.expression, checker) === 'bind')
-    return globalFetch(node.expression, checker, visited);
+    return globalFetch(node.expression, graph, visited);
   if (receiver && memberName(node, checker) === 'fetch' && globalObject(receiver, checker))
     return true;
   if (!ts.isIdentifier(node)) return false;
-  const bindings = declarations(node, checker);
-  if (node.text === 'fetch' && bindings.length === 0) return true;
-  return bindings.some((declaration) => {
+  const bindings = new Set([
+    ...(checker.getSymbolAtLocation(node)?.declarations ?? []),
+    ...declarations(node, checker),
+  ]);
+  if (node.text === 'fetch' && bindings.size === 0) return true;
+  return [...bindings].some((declaration) => {
+    if (ts.isExportAssignment(declaration))
+      return globalFetch(declaration.expression, graph, visited);
+    if (ts.isImportClause(declaration) && !declaration.isTypeOnly) {
+      const statement = declaration.parent;
+      const specifier = constantString(statement.moduleSpecifier, checker);
+      const fileName = specifier
+        ? graph.resolveModule(specifier, statement.getSourceFile().fileName)
+        : undefined;
+      return (
+        (fileName ? graph.files.get(fileName)?.statements : [])?.some(
+          (exported) =>
+            ts.isExportAssignment(exported) &&
+            !exported.isExportEquals &&
+            globalFetch(exported.expression, graph, visited),
+        ) ?? false
+      );
+    }
     if (ts.isVariableDeclaration(declaration) && declaration.initializer)
-      return globalFetch(declaration.initializer, checker, visited);
+      return globalFetch(declaration.initializer, graph, visited);
     if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
       const container = declaration.parent.parent;
       return (
@@ -298,7 +330,7 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
     });
     edges.set(name, [...new Set(targets)].sort());
   }
-  return { files, checker, edges, unresolved };
+  return { files, checker, edges, unresolved, resolveModule };
 }
 
 export function reachable(graph: SourceGraph, roots: readonly string[]): string[] {
@@ -369,19 +401,26 @@ export function transportFindings(graph: SourceGraph): Finding[] {
   for (const [name, file] of graph.files) {
     if (name === ADAPTER) continue;
     walk(file, (node) => {
-      if (ts.isCallExpression(node) && globalFetch(node.expression, graph.checker))
+      if (ts.isCallExpression(node) && globalFetch(node.expression, graph))
         findings.push(
           finding(node, 'Fix: call the configured public SDK adapter instead of global fetch.'),
         );
       if (
         (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isPropertyAssignment(node)) &&
         node.initializer &&
-        globalFetch(node.initializer, graph.checker)
+        globalFetch(node.initializer, graph)
       )
         findings.push(
           finding(
             node,
             'Fix: inject transport; do not store or default to global fetch outside the configured adapter.',
+          ),
+        );
+      if (ts.isExportAssignment(node) && globalFetch(node.expression, graph))
+        findings.push(
+          finding(
+            node,
+            'Fix: inject transport; do not export global fetch outside the configured adapter.',
           ),
         );
       let key: string | undefined;
@@ -420,6 +459,48 @@ export function transportFindings(graph: SourceGraph): Finding[] {
   return findings;
 }
 
+function processObject(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  visited = new Set<ts.Node>(),
+): boolean {
+  node = unwrapped(node);
+  if (visited.has(node)) return false;
+  visited.add(node);
+  if (ts.isIdentifier(node) && node.text === 'process' && declarations(node, checker).length === 0)
+    return true;
+  return declarations(node, checker).some(
+    (declaration) =>
+      ts.isVariableDeclaration(declaration) &&
+      declaration.initializer !== undefined &&
+      processObject(declaration.initializer, checker, visited),
+  );
+}
+
+function environmentCollection(
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  visited = new Set<ts.Node>(),
+): boolean {
+  node = unwrapped(node);
+  if (visited.has(node)) return false;
+  visited.add(node);
+  const receiver = memberReceiver(node);
+  if (memberName(node, checker) === 'env' && receiver && processObject(receiver, checker))
+    return true;
+  return declarations(node, checker).some((declaration) => {
+    if (ts.isBindingElement(declaration)) {
+      const binding = objectBinding(declaration, checker);
+      return binding?.name === 'env' && processObject(binding.receiver, checker);
+    }
+    return (
+      ts.isVariableDeclaration(declaration) &&
+      declaration.initializer !== undefined &&
+      environmentCollection(declaration.initializer, checker, visited)
+    );
+  });
+}
+
 export function privateServerFiles(graph: SourceGraph): string[] {
   return [...graph.files]
     .filter(([name, file]) => {
@@ -430,10 +511,18 @@ export function privateServerFiles(graph: SourceGraph): string[] {
         const receiver = memberReceiver(node);
         if (
           receiver &&
-          memberName(receiver, graph.checker) === 'env' &&
+          environmentCollection(receiver, graph.checker) &&
           (memberName(node, graph.checker) ?? '').startsWith('LEARNSTACK_PUBLIC_')
         )
           privateEnvironment = true;
+        if (ts.isBindingElement(node)) {
+          const binding = objectBinding(node, graph.checker);
+          if (
+            binding?.name.startsWith('LEARNSTACK_PUBLIC_') &&
+            environmentCollection(binding.receiver, graph.checker)
+          )
+            privateEnvironment = true;
+        }
       });
       return privateEnvironment;
     })
@@ -456,34 +545,213 @@ export function clientBoundaryFindings(graph: SourceGraph): Finding[] {
   );
 }
 
-function importedNamespace(
+type ModuleValueOrigin =
+  | { readonly kind: 'external'; readonly specifier: string; readonly name: string }
+  | { readonly kind: 'namespace'; readonly specifier: string; readonly from: string };
+
+type ValueResolution = {
+  readonly nodes: Set<ts.Node>;
+  readonly exports: Set<string>;
+};
+
+function namespaceMemberOrigins(
+  origins: readonly ModuleValueOrigin[],
+  member: string,
+  graph: SourceGraph,
+  resolution: ValueResolution,
+): ModuleValueOrigin[] {
+  return origins.flatMap((origin) =>
+    origin.kind === 'namespace'
+      ? moduleValueOrigins(origin.specifier, origin.from, member, graph, resolution)
+      : [],
+  );
+}
+
+function declarationValueOrigins(
+  declaration: ts.Node,
+  graph: SourceGraph,
+  resolution: ValueResolution,
+): ModuleValueOrigin[] {
+  if (ts.isNamespaceImport(declaration) || ts.isNamespaceExport(declaration)) {
+    const statement = ts.isNamespaceImport(declaration)
+      ? declaration.parent.parent
+      : declaration.parent;
+    if (
+      (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) ||
+      (ts.isImportDeclaration(statement) && statement.importClause?.isTypeOnly) ||
+      (ts.isExportDeclaration(statement) && statement.isTypeOnly)
+    )
+      return [];
+    const specifier = constantString(statement.moduleSpecifier, graph.checker);
+    return specifier === undefined
+      ? []
+      : [{ kind: 'namespace', specifier, from: statement.getSourceFile().fileName }];
+  }
+  if (
+    ts.isImportSpecifier(declaration) ||
+    ts.isExportSpecifier(declaration) ||
+    ts.isImportClause(declaration)
+  )
+    return bindingValueOrigins(declaration, graph, resolution);
+  if (ts.isExportAssignment(declaration))
+    return valueOrigins(declaration.expression, graph, resolution);
+  if (ts.isVariableDeclaration(declaration) && declaration.initializer)
+    return valueOrigins(declaration.initializer, graph, resolution);
+  if (ts.isBindingElement(declaration)) {
+    const binding = objectBinding(declaration, graph.checker);
+    return binding
+      ? namespaceMemberOrigins(
+          valueOrigins(binding.receiver, graph, resolution),
+          binding.name,
+          graph,
+          resolution,
+        )
+      : [];
+  }
+  return [];
+}
+
+function valueOrigins(
   node: ts.Node,
   graph: SourceGraph,
-  modules: readonly string[],
-  visited = new Set<ts.Node>(),
-): boolean {
+  resolution: ValueResolution,
+): ModuleValueOrigin[] {
   node = unwrapped(node);
-  if (visited.has(node) || !ts.isIdentifier(node)) return false;
-  visited.add(node);
-  // Preserve namespace bindings even when the external module has no type body.
-  const bindings = new Set([
-    ...(graph.checker.getSymbolAtLocation(node)?.declarations ?? []),
-    ...declarations(node, graph.checker),
-  ]);
-  return [...bindings].some((declaration) => {
-    if (ts.isNamespaceImport(declaration)) {
-      const parent = declaration.parent.parent;
-      return (
-        ts.isImportDeclaration(parent) &&
-        modules.includes(constantString(parent.moduleSpecifier, graph.checker) ?? '')
+  if (resolution.nodes.has(node)) return [];
+  resolution.nodes.add(node);
+  try {
+    if (ts.isIdentifier(node)) {
+      // Preserve the original import: external bodies and erased type bindings are opaque.
+      const bindings = graph.checker.getSymbolAtLocation(node)?.declarations ?? [];
+      return bindings.flatMap((declaration) =>
+        declarationValueOrigins(declaration, graph, resolution),
       );
     }
-    return (
-      ts.isVariableDeclaration(declaration) &&
-      declaration.initializer !== undefined &&
-      importedNamespace(declaration.initializer, graph, modules, visited)
+    const receiver = memberReceiver(node);
+    const member = memberName(node, graph.checker);
+    return receiver && member !== undefined
+      ? namespaceMemberOrigins(valueOrigins(receiver, graph, resolution), member, graph, resolution)
+      : [];
+  } finally {
+    resolution.nodes.delete(node);
+  }
+}
+
+function bindingValueOrigins(
+  binding: ts.ImportSpecifier | ts.ExportSpecifier | ts.ImportClause,
+  graph: SourceGraph,
+  resolution: ValueResolution,
+): ModuleValueOrigin[] {
+  if (binding.isTypeOnly) return [];
+  const statement = ts.isImportClause(binding)
+    ? binding.parent
+    : ts.isImportSpecifier(binding)
+      ? binding.parent.parent.parent
+      : binding.parent.parent;
+  if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) return [];
+  if (
+    (ts.isExportDeclaration(statement) && statement.isTypeOnly) ||
+    (ts.isImportDeclaration(statement) && statement.importClause?.isTypeOnly)
+  )
+    return [];
+  if (!statement.moduleSpecifier && ts.isExportSpecifier(binding)) {
+    const target = graph.checker.getExportSpecifierLocalTargetSymbol(binding);
+    return (target?.declarations ?? []).flatMap((declaration) =>
+      declarationValueOrigins(declaration, graph, resolution),
     );
-  });
+  }
+  const specifier = constantString(statement.moduleSpecifier, graph.checker);
+  const name = ts.isImportClause(binding) ? 'default' : (binding.propertyName ?? binding.name).text;
+  return specifier === undefined
+    ? []
+    : moduleValueOrigins(specifier, statement.getSourceFile().fileName, name, graph, resolution);
+}
+
+function explicitValueExports(file: ts.SourceFile, name: string): ts.Node[] {
+  const exports: ts.Node[] = [];
+  for (const statement of file.statements) {
+    if (ts.isExportAssignment(statement)) {
+      if (name === 'default' && !statement.isExportEquals) exports.push(statement);
+      continue;
+    }
+    if (ts.isExportDeclaration(statement)) {
+      if (!runtimeExport(statement) || !statement.exportClause) continue;
+      if (ts.isNamedExports(statement.exportClause))
+        exports.push(
+          ...statement.exportClause.elements.filter(
+            (item) => item.name.text === name && !item.isTypeOnly,
+          ),
+        );
+      else if (statement.exportClause.name.text === name) exports.push(statement.exportClause);
+      continue;
+    }
+    const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
+    if (
+      !modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ||
+      modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword)
+    )
+      continue;
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) {
+          if (declaration.name.text === name) exports.push(declaration);
+        } else
+          walk(declaration.name, (node) => {
+            if (ts.isBindingElement(node) && ts.isIdentifier(node.name) && node.name.text === name)
+              exports.push(node);
+          });
+      }
+    } else if (
+      ts.isFunctionDeclaration(statement) ||
+      ts.isClassDeclaration(statement) ||
+      ts.isEnumDeclaration(statement) ||
+      ts.isModuleDeclaration(statement)
+    ) {
+      const exportedName = modifiers.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword,
+      )
+        ? 'default'
+        : statement.name?.text;
+      if (exportedName === name) exports.push(statement);
+    }
+  }
+  return exports;
+}
+
+/** Static ESM values only: aliases, namespaces and exports; never function bodies or object tables. */
+function moduleValueOrigins(
+  specifier: string,
+  from: string,
+  name: string,
+  graph: SourceGraph,
+  resolution: ValueResolution,
+): ModuleValueOrigin[] {
+  const fileName = graph.resolveModule(specifier, from);
+  const file = fileName ? graph.files.get(fileName) : undefined;
+  if (!file) return [{ kind: 'external', specifier, name }];
+  const query = file.fileName + '\0' + name;
+  if (resolution.exports.has(query)) return [];
+  resolution.exports.add(query);
+  try {
+    const explicit = explicitValueExports(file, name);
+    // A pure explicit export still overrides every same-named star export.
+    if (explicit.length > 0)
+      return explicit.flatMap((declaration) =>
+        declarationValueOrigins(declaration, graph, resolution),
+      );
+    // ESM export stars never forward a default export.
+    if (name === 'default') return [];
+    return file.statements.flatMap((statement) => {
+      if (!ts.isExportDeclaration(statement) || !runtimeExport(statement) || statement.exportClause)
+        return [];
+      const next = constantString(statement.moduleSpecifier, graph.checker);
+      return next === undefined
+        ? []
+        : moduleValueOrigins(next, file.fileName, name, graph, resolution);
+    });
+  } finally {
+    resolution.exports.delete(query);
+  }
 }
 
 function importedFunction(
@@ -491,61 +759,13 @@ function importedFunction(
   graph: SourceGraph,
   modules: readonly string[],
   names: readonly string[],
-  visited = new Set<ts.Node>(),
 ): boolean {
-  node = unwrapped(node);
-  if (visited.has(node)) return false;
-  visited.add(node);
-  for (const declaration of declarations(node, graph.checker)) {
-    // External modules have no source body in the census, so inspect their import bindings.
-    if (
-      ts.isImportSpecifier(declaration) &&
-      names.includes((declaration.propertyName ?? declaration.name).text)
-    ) {
-      const parent = declaration.parent.parent.parent;
-      if (
-        ts.isImportDeclaration(parent) &&
-        modules.includes(constantString(parent.moduleSpecifier, graph.checker) ?? '')
-      )
-        return true;
-    }
-    if (ts.isVariableDeclaration(declaration) && declaration.initializer)
-      return importedFunction(declaration.initializer, graph, modules, names, visited);
-    if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
-      const parent = declaration.parent.parent;
-      const property =
-        declaration.propertyName ??
-        (ts.isIdentifier(declaration.name) ? declaration.name : undefined);
-      const name = property ? propertyName(property, graph.checker) : undefined;
-      if (
-        name &&
-        names.includes(name) &&
-        ts.isVariableDeclaration(parent) &&
-        parent.initializer &&
-        importedNamespace(parent.initializer, graph, modules)
-      )
-        return true;
-    }
-  }
-  if (ts.isIdentifier(node)) {
-    // getAliasedSymbol returns an unknown symbol for external modules: retain original import declarations.
-    const original = graph.checker.getSymbolAtLocation(node);
-    for (const declaration of original?.declarations ?? [])
-      if (
-        ts.isImportSpecifier(declaration) &&
-        names.includes((declaration.propertyName ?? declaration.name).text)
-      ) {
-        const parent = declaration.parent.parent.parent;
-        if (
-          ts.isImportDeclaration(parent) &&
-          modules.includes(constantString(parent.moduleSpecifier, graph.checker) ?? '')
-        )
-          return true;
-      }
-  }
-  const receiver = memberReceiver(node);
-  if (!receiver || !names.includes(memberName(node, graph.checker) ?? '')) return false;
-  return importedNamespace(receiver, graph, modules);
+  return valueOrigins(node, graph, { nodes: new Set(), exports: new Set() }).some(
+    (origin) =>
+      origin.kind === 'external' &&
+      modules.includes(origin.specifier) &&
+      names.includes(origin.name),
+  );
 }
 
 function moduleScope(node: ts.Node): boolean {
@@ -700,12 +920,15 @@ function requestUrl(node: ts.Node, checker: ts.TypeChecker, visited = new Set<ts
     if (input && memberName(input, checker) === 'url') return true;
     return input !== undefined && requestUrl(input, checker, visited);
   }
-  return declarations(node, checker).some(
-    (declaration) =>
+  return declarations(node, checker).some((declaration) => {
+    if (ts.isBindingElement(declaration))
+      return objectBinding(declaration, checker)?.name === 'nextUrl';
+    return (
       ts.isVariableDeclaration(declaration) &&
       declaration.initializer !== undefined &&
-      requestUrl(declaration.initializer, checker, visited),
-  );
+      requestUrl(declaration.initializer, checker, visited)
+    );
+  });
 }
 
 function headerCollection(
@@ -749,17 +972,37 @@ export function rawAuthorityFindings(graph: SourceGraph, subjects: readonly stri
     if (!file) continue;
     walk(file, (node) => {
       const member = memberName(node, graph.checker);
+      const receiver = memberReceiver(node);
       if (
         member === 'remoteAddress' ||
         member === 'rawHeaders' ||
         member === 'ip' ||
         (['hostname', 'host'].includes(member ?? '') &&
           requestUrl(memberReceiver(node) ?? node, graph.checker)) ||
-        (member === 'host' && memberName(memberReceiver(node) ?? node, graph.checker) === 'headers')
+        (member &&
+          RAW_AUTHORITY_HEADERS.has(member.toLowerCase()) &&
+          receiver &&
+          headerCollection(receiver, graph))
       )
         findings.push(
           finding(node, 'Fix: derive visitor host/peer only from verified ingress provenance.'),
         );
+      if (ts.isBindingElement(node)) {
+        const binding = objectBinding(node, graph.checker);
+        if (
+          binding &&
+          ((RAW_AUTHORITY_HEADERS.has(binding.name.toLowerCase()) &&
+            headerCollection(binding.receiver, graph)) ||
+            (['hostname', 'host'].includes(binding.name) &&
+              requestUrl(binding.receiver, graph.checker)))
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: do not bind unsigned host/peer authority; use verified ingress provenance.',
+            ),
+          );
+      }
       if (
         ts.isCallExpression(node) &&
         ['get', 'getAll'].includes(memberName(node.expression, graph.checker) ?? '') &&

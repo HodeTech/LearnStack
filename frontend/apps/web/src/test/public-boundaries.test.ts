@@ -391,3 +391,271 @@ describe('raw authority fence planted controls', () => {
     expect(rawAuthorityFindings(graph, [helper]).map((item) => item.file)).toContain(helper);
   });
 });
+
+// R2 regressions stay within static declarations and the already supported module graph.
+describe('R2 bounded source-proof regressions', () => {
+  it.each([
+    'export { unstable_cache as memo } from "next/cache";',
+    'import { unstable_cache as externalMemo } from "next/cache"; export { externalMemo as memo };',
+  ])('refuses a named external cache function through a local barrel: %s', (barrelSource) => {
+    const barrel = 'apps/web/src/lib/named-cache-barrel.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import { memo } from "@/lib/named-cache-barrel"; memo(load);',
+      [barrel]: barrelSource,
+    });
+    clean(graph.unresolved, 'The named barrel is a complete supported local module graph.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: PUBLIC_LAYOUT })]),
+    );
+  });
+
+  it.each([
+    '(await headers()).get("host");',
+    'import { headers as readHeaders } from "next/headers"; const incoming = await readHeaders(); incoming.get("x-forwarded-host");',
+    'const incoming = request.headers; incoming.host;',
+    'const { host } = request.headers;',
+    'const { hostname } = request.nextUrl;',
+  ])('refuses awaited or bound raw authority reads: %s', (source) => {
+    const graph = buildSourceGraph({ [probe]: source });
+    clean(graph.unresolved, 'The authority control has no unresolved local modules.');
+    expect(rawAuthorityFindings(graph, [probe])).not.toEqual([]);
+  });
+
+  it.each([
+    'const env = process.env; export const secret = env.LEARNSTACK_PUBLIC_HOP_SECRET;',
+    'const { LEARNSTACK_PUBLIC_HOP_SECRET } = process.env; export const secret = LEARNSTACK_PUBLIC_HOP_SECRET;',
+  ])('classifies aliased or destructured private environment modules: %s', (source) => {
+    const helper = 'apps/web/src/lib/private-environment.ts';
+    const graph = buildSourceGraph({
+      [probe]: '"use client"; import { secret } from "@/lib/private-environment";',
+      [helper]: source,
+    });
+    clean(graph.unresolved, 'The environment helper is a complete supported local module graph.');
+    expect(privateServerFiles(graph)).toContain(helper);
+    expect(clientBoundaryFindings(graph)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: probe })]),
+    );
+  });
+
+  it('refuses a default global-fetch export and its imported call', () => {
+    const helper = 'apps/web/src/lib/default-transport.ts';
+    const graph = buildSourceGraph({
+      [probe]: 'import get from "@/lib/default-transport"; get("/api");',
+      [helper]: 'export default globalThis.fetch;',
+    });
+    clean(graph.unresolved, 'The default-export transport is a complete supported local graph.');
+    expect(transportFindings(graph).map((item) => item.file)).toEqual(
+      expect.arrayContaining([probe, helper]),
+    );
+  });
+
+  it('permits a default injected transport and request-local React cache through a named barrel', () => {
+    const transport = 'apps/web/src/lib/default-transport.ts';
+    const barrel = 'apps/web/src/lib/request-local-cache.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import get from "@/lib/default-transport"; import { memo } from "@/lib/request-local-cache"; const siteCache = memo(load); get(transport, url);',
+      [transport]: 'export default (transport: Function, url: string) => transport(url);',
+      [barrel]: 'export { cache as memo } from "react";',
+    });
+    clean(graph.unresolved, 'Both clean exports belong to a complete supported local graph.');
+    clean(
+      transportFindings(graph),
+      'A default export remains legal when its transport is injected.',
+    );
+    clean(
+      cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'React cache remains request-local through a named barrel.',
+    );
+  });
+
+  it('leaves ordinary public environment aliases and bindings clean', () => {
+    const helper = 'apps/web/src/lib/public-environment.ts';
+    const graph = buildSourceGraph({
+      [probe]: '"use client"; import { title } from "@/lib/public-environment";',
+      [helper]:
+        'const env = process.env; const { NEXT_PUBLIC_TITLE } = env; export const title = env.NEXT_PUBLIC_TITLE ?? NEXT_PUBLIC_TITLE;',
+    });
+    clean(graph.unresolved, 'Ordinary public environment controls have a complete graph.');
+    expect(privateServerFiles(graph)).toEqual([]);
+    clean(
+      clientBoundaryFindings(graph),
+      'Public environment variables carry no private authority.',
+    );
+  });
+
+  it('leaves verified payload bindings, inert header reads and erased private type edges clean', () => {
+    const helper = 'apps/web/src/lib/private-environment.ts';
+    const graph = buildSourceGraph({
+      [probe]:
+        '"use client"; import type { SecretShape } from "@/lib/private-environment"; const { host, peer } = verifyProvenance(envelope, secret); const incoming = await headers(); incoming.get("x-learnstack-ingress-provenance"); const { pathname } = request.nextUrl;',
+      [helper]:
+        'const { LEARNSTACK_PUBLIC_HOP_SECRET } = process.env; export type SecretShape = string;',
+    });
+    clean(graph.unresolved, 'The clean control has no unresolved runtime module edges.');
+    clean(clientBoundaryFindings(graph), 'Type-only private edges are erased.');
+    clean(
+      rawAuthorityFindings(graph, [probe]),
+      'Verified payloads and inert request inputs carry no raw authority.',
+    );
+  });
+});
+
+describe('R2 static export and environment collection regressions', () => {
+  it('resolves repeated constants on separate branches of a hop-header expression', () => {
+    const graph = buildSourceGraph({
+      [probe]:
+        'const hyphen = "-"; const header = "x" + hyphen + "learnstack" + hyphen + "hop" + hyphen + "secret"; headers.set(header, secret);',
+    });
+    clean(graph.unresolved, 'The reused constants have no unresolved local module edges.');
+    expect(transportFindings(graph)).not.toEqual([]);
+  });
+
+  it('terminates cyclic constant declarations as an unresolved static module path', () => {
+    const graph = buildSourceGraph({
+      [probe]: 'const left = right; const right = left; import(left);',
+    });
+    expect(graph.unresolved).toHaveLength(1);
+  });
+  it.each([
+    [
+      'export * from "next/cache";',
+      'import { unstable_cache as memo } from "@/lib/cache-exports"; memo(load);',
+    ],
+    [
+      'import { unstable_cache } from "next/cache"; export default unstable_cache;',
+      'import memo from "@/lib/cache-exports"; memo(load);',
+    ],
+    [
+      'export { unstable_cache as memo } from "next/cache";',
+      'import * as caching from "@/lib/cache-exports"; caching.memo(load);',
+    ],
+  ])('refuses cache functions through static export forms: %s', (helperSource, consumerSource) => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: consumerSource,
+      'apps/web/src/lib/cache-exports.ts': helperSource,
+    });
+    clean(graph.unresolved, 'The static exports belong to a complete local source graph.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: PUBLIC_LAYOUT })]),
+    );
+  });
+
+  it('refuses an awaited next/headers function reached through a local namespace barrel', () => {
+    const graph = buildSourceGraph({
+      [probe]:
+        'import * as edge from "@/lib/header-exports"; (await edge.readHeaders()).get("host");',
+      'apps/web/src/lib/header-exports.ts':
+        'export { headers as readHeaders } from "next/headers";',
+    });
+    clean(graph.unresolved, 'The headers namespace belongs to a complete local source graph.');
+    expect(rawAuthorityFindings(graph, [probe])).not.toEqual([]);
+  });
+
+  it('classifies private environment reads through a destructured process collection', () => {
+    const helper = 'apps/web/src/lib/environment-collection.ts';
+    const graph = buildSourceGraph({
+      [probe]: '"use client"; import { secret } from "@/lib/environment-collection";',
+      [helper]: 'const { env } = process; export const secret = env.LEARNSTACK_PUBLIC_HOP_SECRET;',
+    });
+    clean(
+      graph.unresolved,
+      'The destructured collection belongs to a complete local source graph.',
+    );
+    expect(privateServerFiles(graph)).toContain(helper);
+    expect(clientBoundaryFindings(graph)).not.toEqual([]);
+  });
+
+  it('keeps request-local React cache clean across star, default and namespace exports', () => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import { cache as memo } from "@/lib/react-star"; import defaultMemo from "@/lib/react-default"; import * as ReactMemo from "@/lib/react-named"; const siteCache = memo(load); const bootstrapCache = defaultMemo(load); const dataCache = ReactMemo.memo(load);',
+      'apps/web/src/lib/react-star.ts': 'export * from "react";',
+      'apps/web/src/lib/react-default.ts': 'import { cache } from "react"; export default cache;',
+      'apps/web/src/lib/react-named.ts': 'export { cache as memo } from "react";',
+    });
+    clean(graph.unresolved, 'All request-local export forms have a complete local source graph.');
+    clean(
+      cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'React cache preserves its request-local lifetime through static exports.',
+    );
+  });
+
+  it('keeps public environment collection bindings and type-only star exports clean', () => {
+    const graph = buildSourceGraph({
+      [probe]:
+        '"use client"; import { title } from "@/lib/environment-collection"; import type { SecretShape } from "@/lib/private-types";',
+      'apps/web/src/lib/environment-collection.ts':
+        'const { env: publicEnvironment } = process; export const title = publicEnvironment.NEXT_PUBLIC_TITLE;',
+      'apps/web/src/lib/private-types.ts': 'export type * from "@/server/private-types";',
+      'apps/web/src/server/private-types.ts': 'export type SecretShape = string;',
+    });
+    clean(graph.unresolved, 'The clean controls have no unresolved runtime edges.');
+    clean(
+      clientBoundaryFindings(graph),
+      'Public environment data and erased exports carry no private authority.',
+    );
+  });
+
+  it('terminates when ordinary static export stars form a cycle', () => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import { memo } from "@/lib/cycle-a"; memo(load);',
+      'apps/web/src/lib/cycle-a.ts': 'export * from "./cycle-b";',
+      'apps/web/src/lib/cycle-b.ts':
+        'export * from "./cycle-a"; export const memo = (value: unknown) => value;',
+    });
+    clean(graph.unresolved, 'The cycle remains a complete local source graph.');
+    clean(
+      cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'A local pure function is not an external shared cache.',
+    );
+  });
+});
+
+describe('R2 namespace exports and explicit export precedence', () => {
+  it('refuses shared cache through a named import of an exported namespace', () => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import { caching } from "@/lib/namespace-cache"; caching.unstable_cache(load);',
+      'apps/web/src/lib/namespace-cache.ts': 'export * as caching from "next/cache";',
+    });
+    clean(graph.unresolved, 'The exported namespace belongs to a complete local graph.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).not.toEqual([]);
+  });
+
+  it('refuses awaited raw headers through an exported namespace property path', () => {
+    const graph = buildSourceGraph({
+      [probe]:
+        'import * as edge from "@/lib/namespace-headers"; (await edge.requestHeaders.headers()).get("host");',
+      'apps/web/src/lib/namespace-headers.ts': 'export * as requestHeaders from "next/headers";',
+    });
+    clean(graph.unresolved, 'The namespace property path belongs to a complete local graph.');
+    expect(rawAuthorityFindings(graph, [probe])).not.toEqual([]);
+  });
+
+  it('allows request-local React cache through an exported namespace alias', () => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import { requestCache as ReactCache } from "@/lib/namespace-react"; const siteCache = ReactCache.cache(load);',
+      'apps/web/src/lib/namespace-react.ts': 'export * as requestCache from "react";',
+    });
+    clean(graph.unresolved, 'The request-local namespace belongs to a complete local graph.');
+    clean(
+      cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'A namespace export preserves React cache request-local lifetime.',
+    );
+  });
+
+  it('lets an explicit pure runtime export override an external cache star', () => {
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import { unstable_cache as memo } from "@/lib/explicit-cache"; memo(load);',
+      'apps/web/src/lib/explicit-cache.ts':
+        'export * from "next/cache"; export const unstable_cache = (value: unknown) => value;',
+    });
+    clean(graph.unresolved, 'The explicit override belongs to a complete local graph.');
+    clean(
+      cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'Explicit runtime exports override same-named star exports.',
+    );
+  });
+});

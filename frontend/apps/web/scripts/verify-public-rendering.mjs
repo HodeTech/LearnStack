@@ -19,6 +19,8 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { stopTestChild } from './stop-test-child.mjs';
+
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
 const fixtureRoot = mkdtempSync(join(tmpdir(), 'learnstack-public-rendering-'));
 const app = join(fixtureRoot, 'frontend/apps/web');
@@ -119,29 +121,9 @@ async function completion(child, milliseconds = 180_000) {
   });
 }
 
-async function stop(child) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  const signal = (name) => {
-    try {
-      if (process.platform === 'win32') child.kill(name);
-      else process.kill(-child.pid, name);
-    } catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-    }
-  };
-  const exited = completion(child, 5000);
-  const force = setTimeout(() => signal('SIGKILL'), 2000);
-  try {
-    signal('SIGTERM');
-    await exited;
-  } finally {
-    clearTimeout(force);
-  }
-}
-
 function dispose() {
   cleanup ??= (async () => {
-    const results = await Promise.allSettled(children.map(stop));
+    const results = await Promise.allSettled(children.map(stopTestChild));
     rmSync(fixtureRoot, { recursive: true, force: true });
     assert.equal(
       results.some((result) => result.status === 'rejected'),

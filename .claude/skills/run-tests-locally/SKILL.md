@@ -194,8 +194,9 @@ dotnet test --filter "Requires=Docker"
 `vitest`:
 
 ```bash
-pnpm test usage-meter             # path filter
-pnpm test -t "shows danger tone"  # name filter
+# From frontend/; the guarded workspace runner accepts no filters.
+pnpm --filter @learnstack/web test usage-meter             # path filter
+pnpm --filter @learnstack/web test -t "shows danger tone"  # name filter
 ```
 
 ### Step 8: Coverage (optional)
