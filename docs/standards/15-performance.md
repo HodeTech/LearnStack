@@ -60,7 +60,9 @@ app-role query plans and local HTTP samples in its delivery record. Every
 No site/Education representation cache, ETag, Last-Modified or 304 is introduced;
 internal generation-keyed definitions remain independent. Record actual app-role
 consumer query plans and representative local cold/warm measurements without a
-production p95 claim. Renderer caches remain P02d-5/G37.
+production p95 claim. P02d-5/G37 accepts dynamic/no-store public rendering under
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); no shared Next
+representation cache is introduced. Internal definition caches remain independent.
 [The accepted package](../roadmap/phase-02d-walking-skeleton.md#branding-entitlement-and-cache-boundary)
 owns that boundary under ADR-0052.
 

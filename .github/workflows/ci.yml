@@ -26,7 +26,7 @@
 #
 # P02d-4 activates the always-running `openapi diff` check: pinned oasdiff,
 # ADR-0024 policy controls and verified base/head snapshots. Lighthouse remains
-# deferred under P02d-6's G44; a public-page harness has not shipped yet.
+# deferred under P02d-7's G44/G45; a public-page harness has not shipped yet.
 
 name: ci
 
@@ -346,11 +346,11 @@ jobs:
 
   # ─── Lighthouse budget (deferred — Phase 02d) ─────────────────────────
   lighthouse-budget:
-    name: lighthouse budget (deferred to Phase 02d)
+    name: lighthouse budget (deferred to P02d-7)
     runs-on: ubuntu-latest
     if: vars.ENABLE_LIGHTHOUSE_BUDGET == 'true'
     steps:
-      - run: echo "Placeholder — Phase 02d wires LHCI against the built Next.js app."
+      - run: echo "Placeholder — P02d-7 wires the full-stack harness after P02d-6 pages."
 
   # ─── Meta (commit-message format, link audit) ─────────────────────────
   meta:

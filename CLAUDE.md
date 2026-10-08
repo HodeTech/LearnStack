@@ -106,7 +106,10 @@ and fresh fix verification pass. All six real CI jobs pass; the approved sixth
 required check is active with all other live settings preserved. **P02d-4 is complete
 and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
 2026-10-08; its [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
-records final verification. P02d-5 is next; its decision pass is not started.
+records final verification. P02d-5 is next; its
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
+and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
+two-round review loop now run on development; no P02d-5 delivery is claimed yet.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

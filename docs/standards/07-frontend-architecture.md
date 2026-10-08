@@ -88,7 +88,11 @@ flowchart TD
   origin, headers and transport configuration are P02d-5/G35, not client authority.
 - Public URLs carry locale and content slugs, never tenant identifiers.
 - The approved bootstrap creates no edge tenant registry or resolver endpoint.
-- Middleware placement, URL canonicalization and cookies remain P02d-5/G36/G21.
+- ADR-0053 accepts native ingress provenance, Node middleware bootstrap and the
+  server-only configured caller in P02d-5. The
+  [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+  owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
+  At acceptance these implementations are pending; delivery is recorded per step.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
 
@@ -152,14 +156,17 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 
 ## Public Site Renderer
 
-> **Open in Phase 02d.** How tenant-varying `(public)` routes render and which caches
-> may hold tenant data (G37), and where composite and primitive components live (G41),
-> are open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+**Accepted P02d-5 policy — 2026-10-08. Derives from:**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md). Public institution
+routes render dynamically with no-store API transport. No ISR, positive
+`revalidate`, `generateStaticParams`, `unstable_cache` or shared bootstrap/data/route
+cache is permitted. Request-local reuse is isolated to one incoming request.
+Freshness is the next new server/document request, not client Router Cache history.
+Disable local Server Component HMR caching. P02d-6/G41 still owns components.
+Acceptance alone does not claim the renderer or pages implemented.
 
 - Renders **published** pages, courses, blog content.
-- Server-side rendering with `revalidate` based on tenant + content type.
+- Institution public SSR uses ADR-0053's dynamic/no-store policy.
 - Block rendering pulls from a block registry (`packages/blocks`); blocks register a React component plus a JSON schema.
 - Preview tokens enable draft rendering for editors.
 

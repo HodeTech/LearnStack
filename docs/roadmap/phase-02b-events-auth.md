@@ -1,5 +1,11 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
+**P02d-5 handoff — 2026-10-08.** Accepted ADR-0053 supplies native ingress
+provenance and a server-only public caller, with no anonymous cookies or credential
+forwarding. G12/G14 must re-verify that boundary before adding BFF/session behavior;
+auth routes may not shadow enabled `/{locale}/courses...` paths. P5 implementation
+and P6 pages remain separately recorded; this note accepts no Phase 02b gate.
+
 ## Goal
 
 Give the platform a signed-in user, a durable cross-module event path, and a place for

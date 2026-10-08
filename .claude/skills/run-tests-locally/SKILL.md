@@ -254,6 +254,10 @@ For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 dotnet test --blame-hang --blame-hang-timeout 5min
 ```
 
+**Lighthouse ownership — Accepted P02d-5, 2026-10-08.** P02d-7/G44/G45
+activates the full-stack job after P6 pages; it remains a disabled placeholder.
+The entry decision does not provide a Lighthouse command or passing audit.
+
 ## Validation
 
 - The relevant suite passes locally with the same `dotnet --version` and
@@ -262,7 +266,7 @@ dotnet test --blame-hang --blame-hang-timeout 5min
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
   The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
-  findings fail a build earlier, on Phase 02d's pages, is G43 in
+  findings fail a build on Phase 02d's pages is P02d-6/G43 in
   [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
   and the pass that closes it edits this line.
 

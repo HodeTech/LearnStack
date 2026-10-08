@@ -504,23 +504,20 @@ which is why the edge cannot own these rows. A request passes both layers or
 neither.
 
 Until the gateway fronts the app ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
-gates it to [Phase 11](../roadmap/phase-11-production-hardening.md)), only the
-anonymous row is enforced, in process, keyed on the socket peer — see
-[Standards 04 § Request and Response Limits](04-api-design.md) for what enforces
-which row today.
-
-> **Open in Phase 02d.** Its server-rendered pages call the API from the renderer's
-> peer, so every visitor of both seed tenants shares that peer's anonymous partition.
-> How the limiter treats a request arriving over the authenticated trusted hop — the
-> partition key, the budget, and any visitor address the renderer states — is G34 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits the anonymous row and the paragraph above with its
-> answer.
+gates it to Phase 11), the application enforces anonymous limits in process.
+**Accepted P02d-5 policy — 2026-10-08. Derives from:**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md). Use one canonical-IP
+quota for direct socket peers and authenticated-hop visitor addresses, plus a
+separate physical-peer ceiling. Neither forwarded headers nor a host/cookie creates
+a visitor partition. Trusted malformed visitor metadata spends the fallback budget,
+then receives masked `404` before lookup. At acceptance the implementation remains
+socket-only; P5 Step 2 owns delivery. This is local limiting, not distributed DDoS
+protection. NAT/local loopback callers share an IP quota; budgets count API calls.
 
 | Surface | Limit |
 |---------|-------|
 | `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
-| Anonymous API | 60 req/min per IP |
+| Anonymous API | 60 req/min per canonical IP + 600 req/min per physical peer (P5 Step 2) |
 | Authenticated API | 600 req/min per token |
 | Write endpoints | 60 req/min per token |
 | Webhook endpoints | 1000 req/min per provider |

@@ -1040,6 +1040,29 @@ and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4
 own the implementation and evidence. Amendment 8 remains historical; the
 reconciliation matrix and trusted-input contract are unchanged.
 
+### 2026-10-08 — Amendment 10: trusted public renderer decision navigation
+
+[ADR-0053](0053-trusted-public-server-rendering.md) is Accepted with the
+[P02d-5 package](../roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08).
+It owns three bounded replacements: authenticated visitor-IP limiting with a peer
+ceiling; a server-only configured header setter outside the injected SDK; and the
+mode-independent no-hop startup policy/minimum of 32 characters. All other host
+normalization, reconciliation and assertion-only tenancy rules remain unchanged.
+The original body and prior amendments remain intact; this note is navigation and
+disclosure under ADR-0041, not an in-place fact correction or a changed Decision.
+
+Source/history evidence: `TrustedHopOptions.Secrets` permits overlapping rotation;
+`EffectiveHostAccessor.SecretMatches` requires one presented value and compares all
+configured secrets. `AddLearnStackTenancyEdge` permits both lists empty and refuses
+partial configuration in every mode; commit `b499dc8` records the 2026-08-20 change.
+`TrustedHopOptions.Validate` measures secret length in characters. ADR-0053 explicitly
+adopts that shipped behavior rather than inferring policy from stale wording.
+
+Acceptance carriers: ADR index/0053; CLAUDE and Phase 02d; Frontend Architecture;
+Standards 04/07/11/15/21; the route skill. Other ongoing owner/launch/environment/CI
+carriers are updated before or with their enforcing P5 step, as enumerated in the
+package. No P5 runtime proof is claimed by this decision commit.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

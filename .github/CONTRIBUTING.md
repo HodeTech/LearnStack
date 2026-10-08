@@ -61,9 +61,10 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
-  - `lighthouse budget (deferred to Phase 02d)` remains behind its unset
-    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. P02d-6/G44 owns activation,
-    pages, harness and assertions; its rename also needs live registration.
+  - `lighthouse budget (deferred to P02d-7)` remains behind its unset
+    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. Accepted P02d-5 G44 assigns
+    activation to P02d-7/G44/G45 after P6 pages. It remains optional and disabled;
+    P7 selects the harness/assertions and any live required-check registration.
 
     GitHub matches required checks **by name**. The
     [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)

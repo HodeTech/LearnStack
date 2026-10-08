@@ -729,8 +729,9 @@ otherwise).
   `[Theory]`, and — at the runner, where the rule itself cannot see — no backend suite's
   `.trx` reports a case that did not run. The `frontend` job's Vitest run is not read: a
   skipped or todo case there, including one in `lint-rules.test.ts`, exits 0 today, and
-  closing that gap is G38 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  Accepted P02d-5 G38(d) extends this rule to all tested frontend workspaces,
+  including actual skip/todo and missing-script controls. Step 4 implements the
+  runner; this acceptance does not claim the current gap closed.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -3692,7 +3693,11 @@ structural test proves — and what it does not.
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
 
-- **Asserts:** the anonymous budget is spent per socket peer, a request over it is **429** with `Retry-After` and the one Problem Details shape, and the partition key never comes from a header. architecture/30 has promised this middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres round trip on a pre-auth surface.
+- **Asserts:** the shipped direct anonymous budget is spent per socket peer, a request
+  over it is **429** with `Retry-After` and the one Problem Details shape, and an
+  untrusted header never creates its partition. architecture/30 has promised this
+  middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres
+  round trip on a pre-auth surface.
 - **Source:** Standards 04 § Request and Response Limits; ADR-0036.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`RateLimitingHttpTests`, two cases: the budget and
@@ -3703,14 +3708,12 @@ structural test proves — and what it does not.
   header produced **zero** rejections against eleven without it, and the
   composition root refuses to start in that configuration now.
 - **Phase:** 02a (Packet 4).
-- **Note:** the partition key is open for one class of request.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s server-rendered reads reach
-  the API over the authenticated trusted hop from the renderer's peer, so every visitor
-  of both seed tenants shares one partition. How the limiter keys and budgets such a
-  request is G34 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-  An answer keyed on a visitor address the renderer states changes the "never comes from
-  a header" clause above, and the pass that closes G34 edits this entry.
+- **Accepted extension — 2026-10-08:** ADR-0053 / P02d-5 G34 replaces socket-only
+  partitioning for authenticated renderer traffic with one canonical-IP quota and a
+  separate peer ceiling. Untrusted forwarding metadata remains ineffective; trusted
+  malformed visitor metadata is bounded and refused before lookup. Existing direct
+  socket controls remain Implemented; the extended HTTP/socket proofs are pending
+  P5 Step 2, not yet passing evidence.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -4129,3 +4132,26 @@ of structural detection.
 - [Phase 02a Roadmap § Architecture Tests](../roadmap/phase-02a-kernel-tenancy.md)
 - [Phase 02b Roadmap § Architecture Tests](../roadmap/phase-02b-events-auth.md)
 - [add-architecture-test skill](../../.claude/skills/add-architecture-test/SKILL.md)
+
+## P02d-5 public server rendering controls
+
+#### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
+
+- **Asserts:** every public caller derives provenance from the native socket ingress;
+  only one server-only adapter constructs API-hop headers, never client assets or
+  the SDK package. Real sockets, forged/bypassed controls and import/header plants
+  accompany the structural census; no empty subject can satisfy the rule.
+- **Source:** ADR-0053; Accepted P02d-5 G30/G33/G35.
+- **Type:** frontend structural + socket/runtime. **Kind:** structural.
+- **Status:** **Registered** — implementation and planted controls are P5 Steps 1/3/4.
+- **Phase:** 02d (P02d-5).
+
+#### `Public_Renderer_Does_Not_Share_Tenant_Representations`
+
+- **Asserts:** institution public paths use dynamic/no-store transport and no shared
+  route/data/ISR/bootstrap cache; request-local reuse never crosses an incoming
+  request. Production-build controls prove same-path/different-host isolation.
+- **Source:** ADR-0053; Accepted P02d-5 G37.
+- **Type:** frontend structural + production runtime. **Kind:** structural.
+- **Status:** **Registered** — P5 Steps 3/4; public page consumers remain P6.
+- **Phase:** 02d (P02d-5).

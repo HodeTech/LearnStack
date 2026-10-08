@@ -55,6 +55,16 @@ Rules:
 - The default locale does **not** get a special slot (no `/default/...`); requests without a locale prefix redirect to `/{tenant-default-locale}/...`.
 - Custom domains resolve tenant first; locale resolves from the path.
 
+**Accepted P02d-5 entry policy — 2026-10-08.**
+[The entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix) owns
+Education path admission: bootstrap first, then bounded LocaleTag canonicalization
+and enabled membership before any shorthand/scaffold rule. Enabled noncanonical
+prefixes get `308`; default/locale-root entry gets `307`. Unsupported prefixes get
+masked `404`; no cookie, Accept-Language or query override supplies a locale.
+Grammar-valid names such as `courses` are not reserved; membership has precedence.
+Redirect origins use the verified visitor host and configured scheme/port. P5
+implements this policy; P6 owns pages and localized section names remain Phase 06.
+
 ## Translatable Storage
 
 Per [ADR-0008](../decisions/0008-localization-schema.md) two storage patterns coexist;
@@ -235,7 +245,7 @@ Enabled but untranslated means empty catalog or masked detail `404`, not fallbac
 `X-Locale` and `Accept-Language` do not select content. No locale rows authorize
 none; bootstrap returns `404`. Invalid stored locale/default configuration is
 `503 dependency_unavailable`, never a synthesized default. URL-segment redirects
-remain P02d-5/G6(c). ADR-0052 and the
+are Accepted in P02d-5/G6(c), pending Step 3 implementation. ADR-0052 and the
 [accepted locale contract](../roadmap/phase-02d-walking-skeleton.md#locale-and-display-applicability)
 record the authority; no platform locale registry is introduced.
 

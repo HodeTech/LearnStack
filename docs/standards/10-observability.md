@@ -306,12 +306,11 @@ In addition to system metrics, business KPIs:
 - Client errors include `correlation_id` from the last server request.
 - Trace propagation: server-issued `traceparent` injected into the page; client follow-up fetches continue the trace.
 
-> **Open in Phase 02d.** `apps/web` wires none of this yet: it has no Sentry client, no
-> web-vitals hook and no trace propagation. Which of these rules Phase 02d ships,
-> including whether its server SDK transport forwards `traceparent` to the API, and
-> which phase owns the rest are G35 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes G35 edits this section with its answer.
+**Accepted P02d-5 scope — 2026-10-08.** G35/ADR-0053 requires valid W3C
+`traceparent` propagation from the configured server caller to the API; Step 3
+delivers it. Next client/server error capture, web-vitals reporting and browser trace
+injection belong to Phase 11's frontend observability work before production
+rollout. No Sentry client or web-vitals hook is claimed by P5.
 
 ## Dashboards
 

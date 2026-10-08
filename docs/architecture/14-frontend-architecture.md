@@ -123,7 +123,8 @@ For text renderers:
    effective attribution, without tenant/organization IDs or raw settings.
 5. Education calls use explicit query locale; headers never select content.
 6. P02d-6 renders the bounded DTOs. No site/Education representation cache or edge
-   lookup cache is part of this API contract; renderer-cache choices remain G37.
+   lookup cache is part of this API contract; ADR-0053 also forbids shared Next
+   representation caches.
 
 The API host resolver's own cache remains unchanged and never calls Hub. Existing
 custom-domain push and invalidation contracts remain under their named phases;
@@ -133,16 +134,17 @@ so a claim cannot enlarge what the host serves.
 
 ## Rendering Strategies
 
-> **Open in Phase 02d.** How tenant-varying `(public)` routes render, and which caches
-> may hold tenant data, is G37 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The `(public)` row below records the plan written before it; that pass rewrites it.
+**P02d-5 Accepted — 2026-10-08.**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md) accepts native socket
+provenance, a server-only configured transport and uncached institution rendering.
+Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
+is starting; acceptance is not runtime evidence. P02d-6 owns public page consumers.
 
 Per segment:
 
 | Segment | Strategy | Notes |
 |---|---|---|
-| `(public)` | SSR with cache (ISR-like) | Pages built on demand, cached by tenant+slug+locale. Revalidated by webhook on publish. |
+| `(public)` | Dynamic SSR, no-store | ADR-0053: no shared Next data/route/ISR cache; fresh API eligibility on each new server request. |
 | `(studio)` | SSR, no cache | Always fresh; authentication required at the edge. |
 | `(portal)` | SSR for lesson shell, CSR for player | Player benefits from client-side state; shell needs SEO/auth. |
 
