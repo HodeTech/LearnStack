@@ -1,5 +1,6 @@
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
+using LearnStack.Api.PublicReads;
 using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
 using LearnStack.SharedKernel.Hosting;
@@ -65,6 +66,7 @@ builder.Services.AddLearnStackApiVersioning();
 
 var app = builder.Build();
 
+app.UseLearnStackPublicResponsePolicy();
 app.UseExceptionHandler();
 
 // UseStatusCodePages goes here, ahead of everything that can short-circuit

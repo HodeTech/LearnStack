@@ -223,10 +223,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	exit "$$failed"
 
 .PHONY: sdk
-sdk: ## Regenerate @learnstack/sdk types from a running API's OpenAPI document.
-	@# Needs the API up. `make dev` starts the compose stack, NOT the API — run
-	@# `dotnet run --project backend/src/LearnStack.Api` in another shell first.
-	@# Override the source with LEARNSTACK_OPENAPI=<url-or-path>.
+sdk: ## Regenerate @learnstack/sdk types from the committed v1 snapshot.
+	@# No running API is needed. Contract tests verify this snapshot against Program.
+	@# LEARNSTACK_OPENAPI=<url-or-path> is a diagnostic override; CI uses the snapshot.
 	(cd frontend && pnpm --filter @learnstack/sdk generate)
 
 # ─── Tests ────────────────────────────────────────────────────────────────

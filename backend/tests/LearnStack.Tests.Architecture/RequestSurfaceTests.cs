@@ -20,11 +20,8 @@ namespace LearnStack.Tests.Architecture;
 /// it counts its hole. A hole nobody counts becomes a hole everybody uses.
 /// </para>
 /// <para>
-/// <b>One hole is occupied and one is still empty.</b>
-/// <c>ProvisionTenantCommand</c> carries <c>[AllowsUnresolvedTenantContext]</c> as of
-/// Packet 7, so that leg now counts a real entry; the first <c>[PublicSurface]</c>
-/// types arrive in Phase 02d, so that set is empty and its membership leg passes over
-/// nothing. What is <b>not</b> vacuous either way is the reverse direction: the
+/// <b>Both sets are occupied.</b> Packet 7 supplies provisioning; P02d-4 Step 2
+/// supplies the public site query. The reverse direction also matters: the
 /// enumerated table in Standards 04 must not name a type that carries no marker, and
 /// both attributes must keep the shape the pipeline reads them with. Each leg below
 /// says which of the two it is.
@@ -61,7 +58,7 @@ public sealed class RequestSurfaceTests
     [Fact]
     public void PublicSurface_Marker_Set_Is_Enumerated()
     {
-        // Leg 1 — vacuous today: every marked type appears in the Standards 04 table.
+        // Leg 1 — every marked type appears in the Standards 04 table.
         var marked = RequestTypes()
             .Where(type => type.IsDefined(typeof(PublicSurfaceAttribute), inherit: false))
             .Select(type => type.Name)
@@ -76,8 +73,7 @@ public sealed class RequestSurfaceTests
         // Leg 2 — LIVE, and the half that is not vacuous. The table may not name a
         // type that carries no marker: an entry there reads as a reviewed decision,
         // and one with no attribute behind it is a decision the pipeline never
-        // enforces. It ships empty, so this asserts emptiness — and stops being an
-        // assertion about nothing the moment Phase 02d writes the first row.
+        // enforces. Both directions now cover the shipped site query.
         enumerated.Should().BeSubsetOf(marked,
             "the table is the enumeration of what carries the marker, not a wish list");
 
@@ -96,8 +92,8 @@ public sealed class RequestSurfaceTests
         // read-sensitive would become a durable standalone audit write, triggered at will
         // by a caller nobody authenticated.
         //
-        // The marked set is still empty — its first rows land in Phase 02d — so the check
-        // runs over nothing today, and the companion below is what shows it can fail.
+        // The marked set includes the shipped site query. The companion below still
+        // proves the predicate can detect the forbidden classification.
         var marked = RequestTypes()
             .Where(type => type.IsDefined(typeof(PublicSurfaceAttribute), inherit: false));
 
@@ -109,9 +105,8 @@ public sealed class RequestSurfaceTests
     [Fact]
     public void The_PublicSurface_Cross_Check_Can_Actually_Fail()
     {
-        // With no marked type shipped, the rule above passes whether its predicate works or
-        // matches nothing — the defect this suite has found in itself more than once. A
-        // marked probe registered MUST read-sensitive is what it has to catch.
+        // A clean shipped set cannot prove that the detector sees a forbidden entry.
+        // A marked probe registered MUST read-sensitive is what it has to catch.
         var catalog = new AuditCatalog([new ReadSensitiveProbeSource()]);
 
         ReadSensitive([typeof(PublicProbeQuery), typeof(QuietProbeQuery)], catalog)

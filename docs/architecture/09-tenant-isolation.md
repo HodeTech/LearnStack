@@ -31,6 +31,15 @@ two scopes (tenant + organization):
 
 ## Defense-in-depth layers
 
+P02d-4's accepted public boundary adds immutable factory-preserved HostScope,
+intersected with normal context, filters and RLS. Tenant hosts expose tenant-wide
+rows only; organization hosts add only their own organization's rows. Claim-only,
+ambient and unresolved origins have no public host scope. Publication/access and
+lifecycle remain explicit read predicates. P02d-4 Step 1 delivers host provenance,
+public admission and physical transaction-mode proofs. Steps 2–4 delivered endpoint,
+eligibility and contract proofs;
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the boundary.
+
 | Layer | Tenant mechanism | Organization mechanism |
 |-------|------------------|------------------------|
 | Application context | `ITenantContextAccessor.Current.TenantId` (AsyncLocal) | `ITenantContextAccessor.Current.OrganizationId` (AsyncLocal; nullable) |
@@ -60,14 +69,14 @@ sequenceDiagram
     participant EF as EF Core
     participant PG as PostgreSQL + RLS
 
-    Browser->>APISIX: Request with JWT (tenant_id, organization_id claims)
-    APISIX->>APISIX: Validate JWT signature + expiry
+    Browser->>APISIX: Request with optional JWT (authentication: Phase 02b)
+    APISIX->>APISIX: Gateway checks when Phase 11 adapter is active
     APISIX->>API: Forward with X-Correlation-Id
     API->>MW: HTTP pipeline
     MW->>MW: Resolve host via platform_host_to_tenant AND read JWT claims#59;<br/>reject on disagreement (ADR-0036 — agreement, not priority)
-    MW->>Accessor: Current = resolved context (tenant, organization, user)
+    MW->>Accessor: Current = reconciled context and immutable host ceiling
     MW->>API: continue
-    API->>EF: BeginTransaction, then SET LOCAL app.tenant_id /<br/>app.organization_id as the first statement (TransactionBehavior, step 6)
+    API->>EF: Begin with selected mode, complete RO setup when public,<br/>then tenant announcement before data (step 6)
     API->>EF: Query tenant-owned aggregate
     EF->>EF: Apply global filter (tenant + org)
     EF->>PG: Query with WHERE tenant_id = X AND (organization_id = Y OR IS NULL)
@@ -77,10 +86,9 @@ sequenceDiagram
 
 In text, for a reader whose renderer does not draw it:
 
-1. The browser sends a request carrying a JWT with `tenant_id` and
-   `organization_id` claims.
-2. APISIX validates the signature and expiry, then forwards with an
-   `X-Correlation-Id`.
+1. The browser sends a host-based request; authenticated claims arrive in Phase 02b.
+2. APISIX is demand-gated to Phase 11; until then API middleware owns ingress
+   controls. Active gateway configurations forward correlation metadata.
 3. Middleware resolves the host through `platform_host_to_tenant` **and** reads
    the JWT claims, rejecting on disagreement — agreement, not priority
    ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
@@ -88,8 +96,9 @@ In text, for a reader whose renderer does not draw it:
    accessor's only member
    ([ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md)) —
    and the request continues.
-5. `TransactionBehavior` opens the transaction and issues
-   `SET LOCAL app.tenant_id` / `app.organization_id` as its **first** statement.
+5. TransactionBehavior selects ambient mode. Default writers announce tenant first;
+   physical public reads complete only the approved READ ONLY setup first, then
+   announce tenant before data under [Security's rule](../standards/11-security.md#the-rule).
 6. EF Core applies the global query filter, so the SQL carries the tenant and
    organization predicate before it leaves the process.
 7. PostgreSQL enforces the RLS policy on the same row set, and returns only what
@@ -118,8 +127,10 @@ Three properties of that template matter to the isolation model described on thi
   what is writable.
 
 The `app.scope = 'tenant'` setting belongs with `app.tenant_id` and
-`app.organization_id`, issued as the transaction's first statement for the same
-reason — all three are transaction-local, so middleware setting them would discard
+`app.organization_id`, announced before data under
+[Security's sequencing rule](../standards/11-security.md#the-rule) — the read-only
+setup exception does not move announcement to middleware. All are transaction-local,
+so middleware setting them would discard
 them before the guarded query ran. **Two of the three are issued today.** Packet 6
 ships `IUnitOfWork.SetTenantContextAsync`, which writes `app.tenant_id` and
 `app.organization_id`; `ITenantContext` carries no scope member

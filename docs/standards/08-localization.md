@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0008 — Localization Schema](../decisions/0008-localization-schema.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 i18n is a platform-level concern. It affects translatable content, slugs, URLs, SEO, dates, numbers, currencies, formats, and the Admin Studio UI itself. See [docs/architecture/12-localization.md](../architecture/12-localization.md) for the strategy.
 
@@ -34,10 +36,10 @@ Localization covers:
   under ADR-0008 and P02d-3's Accepted G24 answer. It never authorizes URL/body
   fallback or enabled-locale membership. Resolved values carry their actual locale.
 
-> **Remaining Phase 02d decision.** G13 denies disabled or absent locale membership;
-> writers ship in P02d-2 and public enforcement belongs to P02d-4. G24's internal
-> display fallback is Accepted; public response fields remain P02d-4 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+**P02d-4 response contract delivered — 2026-10-04.** Pattern A content
+uses exact enabled query locale; display-only Pattern B values carry authored
+`{value,locale}`. Neither fallback nor headers authorize a content locale. Internal
+fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 
 ## URL Strategy
 
@@ -224,17 +226,25 @@ var msg = _stringLocalizer["course.publish.success"];
 - Tenant locale membership is validated through a Tenancy application contract when
   the P02d-2 writer lands, not through a cross-chain Education foreign key.
 
-> **Open in Phase 02d.** Request-parameter canonicalization remains G6 (b).
-> G13 selects no platform registry; no `LearnStack.SharedKernel.Locales` namespace
-> exists today. The remaining request handling is in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+**P02d-4 request contract delivered — 2026-10-04.** Education requires
+one query locale. Validate LocaleTag's 35-character grammar without trimming,
+canonicalize case, then use enabled tenant membership, exact lookup and cursor
+binding. Missing/repeated/malformed/overlength values return `400 validation_failed`
+for `locale`; a well-formed absent/disabled locale returns `400 unsupported_locale`.
+Enabled but untranslated means empty catalog or masked detail `404`, not fallback.
+`X-Locale` and `Accept-Language` do not select content. No locale rows authorize
+none; bootstrap returns `404`. Invalid stored locale/default configuration is
+`503 dependency_unavailable`, never a synthesized default. URL-segment redirects
+remain P02d-5/G6(c). ADR-0052 and the
+[accepted locale contract](../roadmap/phase-02d-walking-skeleton.md#locale-and-display-applicability)
+record the authority; no platform locale registry is introduced.
 
 **G13 reader implemented in P02d-2 Step 1 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#locale-guarantees-and-read-contract)
 selects no platform registry: use LocaleTag's existing grammar, canonicalization and
 35-character bound, then the tenant's enabled membership. No locale rows authorize
-no content locale, rather than an implicit `en`. Request G6(b) and G24's public
-response fields remain P02d-4; P02d-3 implements the internal display fallback.
+no content locale, rather than an implicit `en`. P02d-4 accepts request G6(b) and
+G24's public fields; P02d-3 implements the internal display fallback.
 P02d-2 Step 2 implements locale command admission and the
 default-enabled CHECK; request-language negotiation is not part of those writers.
 

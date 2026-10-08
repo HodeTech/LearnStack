@@ -81,18 +81,30 @@ records verification. P02d-3 read internals are implemented; the
 is Accepted — 2026-10-02, with Step 1 implemented and both review rounds passed.
 Step 2 implements batched definition reads; both review rounds passed. Step 3 adds
 generation caching and scope-safe bypass; both review rounds passed.
-P02d-3 is complete and ready for PR review; it remains unmerged.
-**P02d-4** owns anonymous public API reads. Browser rendering follows
-in P02d-5–7; none of these later packets has started.
+**P02d-3 is complete and merged** through
+[PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+records final verification.
+**P02d-4 is implementation-complete** in
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting review and merge.
+Its four steps deliver the read-only host boundary, anonymous site/Education
+GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
+rounds; final fix verification and all six real required CI jobs pass. The sixth
+required OpenAPI check is active, with all other live protection settings preserved.
+Browser rendering follows
+in P02d-5–7. The
+[P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+is Accepted — 2026-10-03. All four implementation steps and their review loops
+are complete; server rendering and browser delivery remain P02d-5/6.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolation tests | Public reading in [P02d-4](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Trusted server consumer in [P02d-5](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Next.js app and public / studio / portal route scaffolds | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Next.js route scaffolds and generated typed SDK with injected transport | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -190,7 +202,7 @@ three product surfaces. See the
 |---|---|---|
 | Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and four domain modules implemented |
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
-| Frontend | Next.js 15 · React 19 · TypeScript | App and shared packages scaffolded |
+| Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
 | Identity | Keycloak | Local realms configured; application authentication belongs to Phase 02b |
 | Storage and search | SeaweedFS · PostgreSQL full-text search | Selected architecture; feature delivery belongs to Phases 04–05 |

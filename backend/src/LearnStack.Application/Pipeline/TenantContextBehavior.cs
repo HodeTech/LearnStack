@@ -18,7 +18,7 @@ namespace LearnStack.Application.Pipeline;
 /// <c>tenant_mismatch</c> is the authenticated code. It does <strong>not</strong>
 /// set the PostgreSQL RLS session variables: <c>SET LOCAL</c> is transaction-local and
 /// this behavior runs at step 4, before any transaction exists. They are issued by
-/// <c>TransactionBehavior</c> as the first statement inside the transaction at step 6
+/// <c>TransactionBehavior</c> before data statements inside the transaction at step 6
 /// — see Security Standards § Tenant Context, the single authority for this
 /// placement. Packet 6 shipped both halves: <c>TransactionBehavior</c> opens the
 /// ambient transaction and calls <c>IUnitOfWork.SetTenantContextAsync</c> inside
@@ -81,11 +81,11 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         ArgumentNullException.ThrowIfNull(next);
 
         // Gate 1 — the assertion. Returns either way: an unresolved context states no
-        // origin, so there is no ceiling to apply, and falling through to one would
-        // refuse the very requests the marker admits.
+        // origin, so there is no ceiling to apply. Public reads still require real
+        // host provenance, even when a type also carries the unresolved marker.
         if (!tenantContext.IsResolved)
         {
-            return AllowsUnresolved
+            return AllowsUnresolved && !IsPublicSurface
                 ? next()
                 : Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
         }
@@ -93,7 +93,8 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         // Gate 2 — the authority ceiling. [AllowsUnresolvedTenantContext] is not an
         // exemption from this one: a provisioning command addressed to a live tenant's
         // own hostname resolves HostOnly, and refusing it there is the whole point.
-        if (!PermittedUnder(tenantContext.Origin))
+        if (!PermittedUnder(tenantContext.Origin)
+            || (IsPublicSurface && !HasMatchingHostScope()))
         {
             // TenantContextFactory.Refused, not a second literal. The refusal must be
             // byte-identical on the wire to an unresolvable host's 404, and sharing the
@@ -113,12 +114,26 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         // (set_config('app.tenant_id', ..., true)) and this behavior runs at
         // step 4 with no transaction open, so the value would be discarded
         // before the query it protects ever runs. TransactionBehavior at step 6
-        // issues them as the first statement inside the transaction — Security
-        // Standards § Tenant Context. A DbConnectionInterceptor cannot do it
+        // issues them before data, following ReadOnly's bounded mode setup — Security
+        // Standards § Tenant Context and ADR-0052. A DbConnectionInterceptor cannot do it
         // either: it fires at connection open, which precedes BEGIN.
 
         return next();
     }
+
+    private bool HasMatchingHostScope() =>
+        tenantContext.Origin is TenantContextOrigin.HostOnly or TenantContextOrigin.HostAndClaim
+        && tenantContext.HostScope is { } host
+        && host.TenantId.IsInitialized()
+        && host.TenantId.Value != Guid.Empty
+        && host.TenantId != LearnStack.SharedKernel.Identifiers.TenantId.PlatformSentinel
+        && tenantContext.TenantId.IsInitialized()
+        && host.TenantId == tenantContext.TenantId
+        && (host.OrganizationId is null
+            || (host.OrganizationId is { } organization
+                && organization.IsInitialized()
+                && organization.Value != Guid.Empty
+                && organization == tenantContext.OrganizationId));
 
     /// <summary>
     /// Whether a context carrying <paramref name="origin"/> may reach this request.

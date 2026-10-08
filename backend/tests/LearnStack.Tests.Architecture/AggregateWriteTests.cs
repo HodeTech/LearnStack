@@ -99,6 +99,7 @@ public sealed class AggregateWriteTests
         TakesDomainObject(typeof(IParentCourseReader), domains).Should().BeFalse();
         TakesDomainObject(typeof(ITranslationCollisionReader), domains).Should().BeFalse();
         TakesDomainObject(typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader), domains).Should().BeFalse();
+        TakesDomainObject(typeof(IPublicEducationReadStore), domains).Should().BeFalse();
         TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
         foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
@@ -139,6 +140,9 @@ public sealed class AggregateWriteTests
     private static readonly HashSet<MethodInfo> ReadMethods =
     [
         typeof(IParentCourseReader).GetMethod(nameof(IParentCourseReader.ReadAsync))!,
+        typeof(IPublicEducationReadStore).GetMethod(nameof(IPublicEducationReadStore.ReadOutlineAsync))!,
+        typeof(IPublicEducationReadStore).GetMethod(nameof(IPublicEducationReadStore.ReadCourseAlternatesAsync))!,
+        typeof(IPublicEducationReadStore).GetMethod(nameof(IPublicEducationReadStore.ReadLessonAlternatesAsync))!,
         typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader).GetMethod("ReadCourseAsync")!,
         typeof(LearnStack.Modules.Education.Application.Abstractions.ISeedStateReader).GetMethod("ReadLessonAsync")!,
         typeof(LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader).GetMethod("ReadSettingAsync")!,

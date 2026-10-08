@@ -3,6 +3,8 @@
 **Status:** Active
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md), [ADR 0037 — What an Idempotency Key Identifies, Owns, and Replays](../decisions/0037-idempotency-key-contract.md),
 [ADR 0039 — The Optimistic Concurrency Token](../decisions/0039-optimistic-concurrency-token.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -30,13 +32,13 @@ Examples:
 
 Platform-admin endpoints live under `/api/v1/platform/...` and require platform-admin scope.
 
-> **Open in Phase 02d.** The template has one identity slot, `{id?}`, and the course
-> examples fill it with an id. Phase 02d's public detail reads address a course by slug.
-> Whether they share that slot with Phase 05's authoring `/courses/{id}`, take a
-> distinct public prefix or use `/courses/by-slug/{slug}` is G26 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> It is answered in the decision pass of the packet that ships the public reads, which
-> edits this section with the answer before the OpenAPI baseline is stored.
+**P02d-4 Accepted contract — 2026-10-03.** Steps 2–3 deliver all four GET/HEAD
+read pairs; Step 4 delivers the contract/SDK controls. Institution
+reads use `/api/v1/public`, separate from future authoring ID routes: `/site`,
+`/courses`, `/courses/{slug}` and `/courses/{slug}/lessons/{lessonSlug}`. Each has
+explicit GET and HEAD; Education routes require query locale. Response/continuation
+contracts are the [accepted packet](../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
+under [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 ## Versioning
 
@@ -201,34 +203,44 @@ reconciliation matrix are the separate case — no tenant context resolves at al
 is the authority for why the ceiling holds and what a forged host reaches under it. The
 matrix is not restated here.
 
-> **Open in Phase 02d.** Which audit class this phase's marked requests register, and
-> whether a rule makes `Off` the only permitted one; whether the phase's rows permit
-> `GET` alone or `GET` and `HEAD`, and what the permitted-methods check compares a row
-> against; and what mechanically stops a marked request from writing are G28 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The default above is ADR-0036's; G28 decides what this phase's rows declare under it.
-> The pass that closes it edits this section with its answer before the first row lands.
+**P02d-4 public reads delivered — 2026-10-04.** Steps 1–3 implement
+host admission, read-only execution and all institution read endpoints/guards. All
+institution public reads
+are marked requests dispatched through ISender, GET/HEAD only and audit Off. A
+matching factory HostScope independently narrows normal context/filter/RLS reads;
+credentials never widen it. Physical ambient reads are READ ONLY under ADR-0052
+and ADR-0040 Amendment 8. Controller/helper direct persistence is forbidden.
+Structural bypass detection complements real HTTP/app-role database proofs; the
+runtime barrier protects only the enlisted transaction. Rejected-assertion audit
+retains its independent sanctioned path.
+
+The catalogue records implemented Off, host-provenance, dispatch, controller and
+read-only and no-schema-evaluation guards with planted controls. Education
+eligibility has HTTP/database proof; Step 4 adds complete OpenAPI/SDK controls.
 
 The set is this table and nothing else:
 
 | Request type | Permitted methods | Why | Owning phase |
 |--------------|-------------------|-----|--------------|
+| `GetPublicSiteQuery` | GET, HEAD | Anonymous host-resolved institution bootstrap, audit Off and READ ONLY | P02d-4 Step 2 |
+| `GetPublicCoursesQuery` | GET, HEAD | Exact-locale host-scoped marketing catalog, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicCourseQuery` | GET, HEAD | Eligible marketing and public-only outline, audit Off and READ ONLY | P02d-4 Step 3 |
+| `GetPublicLessonQuery` | GET, HEAD | Eligible public-parent content, audit Off and READ ONLY | P02d-4 Step 3 |
 
-Its first rows arrive with [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s
-anonymous read endpoints. Until then `PublicSurface_Marker_Set_Is_Enumerated` and
+All four rows are production requests with explicit GET/HEAD endpoints.
+`PublicSurface_Marker_Set_Is_Enumerated` and
 `PublicSurface_Requests_Are_Never_ReadSensitive`
-([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) pass over an
-empty set — the honest state of a marker no request type carries yet.
+([21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md)) now guard
+a non-empty set. The separate `PublicSurface_Requests_Are_Registered_Off` refuses
+every non-Off or unclassified public request.
 
 **Adding a row here is half of an edit.** The rule reads this table in both directions,
 so a row naming a request type that does not carry `[PublicSurface]` fails the build:
 an entry here reads as a reviewed decision, and one with no attribute behind it is a
 decision the pipeline never enforces. `PublicSurface_Requests_Are_Never_ReadSensitive`
-is the one to watch when the first row lands: its cross-check against the audit
-catalogue, `IAuditCatalog`, is written (Packet 9) and fails any marked request the
-catalogue registers as MUST-class `read-sensitive` — its companion proves it on a probe, because the
-production set is empty until Phase 02d. The first row is where it starts guarding a real
-endpoint.
+cross-checks the merged `IAuditCatalog` and fails any marked request registered as
+MUST-class `read-sensitive`. Its companion proves the forbidden classification is
+detected even when all shipped requests are correctly Off.
 
 ## Pagination
 
@@ -257,10 +269,14 @@ Rules:
   rejected** — one behaviour, decided once in `CursorPagination` and not
   re-decided at the edge. A `limit` of zero or less **is** rejected, with
   `errors.limit` naming the parameter the client sent.
-- Cursor is opaque; clients must never parse it. Nothing validates its *shape*
-  yet: the payload belongs to whoever mints it, and the first minting query is
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s course catalog, which
-  also decides the 400 for a cursor it cannot read.
+- Cursor is opaque to clients. P02d-4 accepts a bounded resource-local v1 keyset
+  codec for catalog and outline, context-bound to endpoint, host digest, tenant,
+  host organization, canonical locale and order, plus outline parent. It is keyless
+  and makes no confidentiality, MAC or snapshot promise. Invalid encoding/shape/
+  scope is `400 validation_failed` naming the sent cursor parameter. Forward-only
+  PageInfo keeps previousCursor null and hasPrevious false.
+  [The accepted pagination contract](../roadmap/phase-02d-walking-skeleton.md#catalog-and-outline-continuation)
+  owns exact payloads, bounds and seek behavior; P02d-4 Step 3 implements the codec.
 - Offset pagination is allowed only for admin-bounded lists (≤ 10k total rows).
 
 ## Filtering and Sorting
@@ -380,13 +396,10 @@ statuses it can answer before the action runs.
 
 Mutable resources expose `ETag` (or `version` field).
 
-> **Open in Phase 02d.** Whether the anonymous public reads emit an `ETag` and honour
-> `If-None-Match` — a composite read cannot use
-> [ADR-0039](../decisions/0039-optimistic-concurrency-token.md)'s one derivation without
-> publishing `row_version` — is G27 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The decision pass of the packet that ships the public reads answers it and adds this
-> section's sentence on anonymous read contracts, which is owed under either answer.
+**P02d-4 public exception delivered — Step 2.** The public prefix
+uses no-store on successes and errors; it emits no ETag or Last-Modified and does
+not honor If-None-Match/304. Mutable authoring resources retain ADR-0039's
+concurrency contract below. Internal definition caching is separate.
 
 ```
 GET /api/v1/courses/{id}        → ETag: "7"
@@ -445,17 +458,20 @@ SDK has no branch for.
   the serializer omits defaults.
 - TypeScript SDK `@learnstack/sdk` is generated from this spec;
   [Standards 07 § SDK](07-frontend-architecture.md) owns how and when.
-- Breaking OpenAPI changes fail CI unless the version bumps — once the `openapi diff`
-  job is active. Today that job is a placeholder behind the unset
-  `vars.ENABLE_OPENAPI_DIFF` and reports as skipped, so no breaking change fails CI yet.
+- Breaking OpenAPI changes fail the always-running `openapi diff` job under
+  ADR-0024. Required-check registration is recorded only after a real run and
+  API read-back, in [the packet delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci).
 
-> **Open in Phase 02d.** How that job activates and what it can see are G31 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register):
-> the committed snapshot and the base copy it is diffed against, the `oasdiff` version
-> and fail level, which [ADR-0024](../decisions/0024-api-versioning-policy.md) breaking
-> changes that level detects and which it cannot see, and whether the job keeps its
-> skip condition. It is answered in the decision pass of the packet that ships the
-> public reads, which edits this section with the answer.
+**G31 delivered by Step 4.** `backend/openapi/v1.json` is the sole v1 snapshot,
+compared against the production served document. Non-empty eight-operation and
+recursive public DTO controls accompany it. Required frontend CI regenerates the
+SDK and refuses scoped drift. Pinned CLI fixtures and explicit type/enum policy
+companions implement representable ADR-0024 rules; runtime tests own validator and
+status meaning absent from the document. Bootstrap builds and serves the verified
+base composition; only a base without a snapshot and without v1 operations
+qualifies. Verification/read failures and deleted head snapshots fail closed.
+[The accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+owns pins, overrides and the six-check rollout; the delivery record owns execution.
 
 ## Request and Response Limits
 

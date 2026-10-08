@@ -114,13 +114,43 @@ choose a locale automatically. The CHECK cannot detect enabled-without-default;
 reader/writer validation does. Arbitrary raw deletes do not gain an exactly-one
 database guarantee.
 
-`ITenantLocaleEligibilityReader` in Tenancy application contracts returns canonical
+The shipped authoring-only `ITenantLocaleEligibilityReader` returns canonical
 enabled membership in the announced tenant, uncached in the caller's ambient frame.
 It rejects invalid legacy configuration with a bounded configuration failure; it
 does not invent `en`. A missing/disabled requested member gives Education bounded
 `validation_failed`. Content URL/body lookup has no label fallback. Phase 03 owns
-locale removal/disable commands; those retain Education translations and future
-public readers recheck enabled membership rather than cascading across modules.
+locale removal/disable commands; those retain Education translations and public
+readers recheck enabled membership rather than cascading across modules.
+
+### P02d-4 public configuration contract
+
+**Step 2 implemented — 2026-10-03.** Both review rounds
+and focused fix verification pass.
+`IPublicTenantConfigurationReader`
+reads live scope and locale configuration on the announced/enlisted ambient
+connection. The existing authoring reader above keeps its bounded failure behavior.
+No caller tenant/org IDs or cross-module table join is introduced.
+
+- Require matching real factory HostScope. Tenant must be nondeleted Trial/Active;
+  a mapped organization must be nondeleted Active. Missing/suspended/archived scope
+  returns masked not_found. Credentials never widen institution public visibility.
+- Use canonical enabled tenant locales and exactly one enabled default. Valid no-row
+  or all-disabled configurations authorize no content locale: bootstrap is `404`,
+  Education well-formed locale queries are `400 unsupported_locale`.
+- Invalid stored locale/default configuration is bounded `503 dependency_unavailable`
+  with internal diagnostics; no synthesized `en` or silent repair.
+- The Off GET/HEAD site request returns only tenant displayName, enabledLocales,
+  defaultLocale, whole typed theme or null and effective showPlatformAttribution.
+  No raw settings, generic key lookup, resource IDs or organization merge is public.
+- Theme invalidity/absence gives null, not configuration 503. Frontend safe defaults
+  remain the renderer's responsibility. Baseline colors are independent of plan;
+  only attribution removal uses effective WhiteLabelBranding through IFeatureFlags.
+- The public query is marked and dispatched through ISender in READ ONLY under
+  ADR-0052; no-store applies to all responses. Direct internal contracts inherit
+  the ambient mode and create no request/audit intent.
+
+[The accepted public allowlist](../../roadmap/phase-02d-walking-skeleton.md#public-routes-and-dto-contract)
+owns serialized fields; HTTP/database positive controls are required before exit.
 
 No platform locale registry is introduced. Admission uses the existing `LocaleTag`
 grammar, canonicalization and 35-character application bound; membership is the
@@ -150,9 +180,11 @@ A failing pair returns `validation_failed`, not a warning-only save without a St
 One setting root and exact version protect the whole contrast unit. Concurrent
 replacement yields a concurrency conflict; competing creates use the existing
 tenant/scope/key uniqueness. No retry merges colors from different candidates.
-Invalid existing override falls back as a whole to safe CSS defaults at the later
-public projection; never emit raw JSON or partial unsafe colors. G16(f/g) and G42
-still own transport, attribution and injection. Authoring this baseline theme is
+Invalid existing override projects as a whole null in P02d-4 Step 2; safe CSS
+defaults remain the renderer's responsibility. Never emit raw JSON or partial unsafe
+colors. Whole-theme/null and attribution-only semantics are delivered; G42 still
+owns injection. Authoring
+this baseline theme is
 not gated by `tenancy.white_label_branding` in P02d-2.
 
 Generic `TenantSetting.Value` carries `[PiiSensitive]`; audit capture redacts the whole
@@ -170,8 +202,8 @@ exposes registered typed settings under ADR-0010's application-contract mechanis
 No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
 admitted. The first production registration is tenant-wide `branding.theme`,
 reusing its four-color grammar and contrast validator above. It returns a complete
-typed palette or bounded absent/invalid outcome; public defaults and allowlisting
-remain P02d-4, CSS injection P02d-6.
+typed palette or bounded absent/invalid outcome. P02d-4 public allowlisting is
+delivered by Step 2; CSS injection remains P02d-6.
 
 Registrations are values in an explicit server-owned `TenantSettingRegistry`.
 The composition extension installs its default only when no registry was already

@@ -19,6 +19,8 @@ model, and session-variable placement**),
 [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -253,10 +255,31 @@ from; this section remains the authority for session-variable **placement** only
 
 ### The rule
 
-`app.tenant_id` and `app.organization_id` are set with **`SET LOCAL`, inside the
-ambient transaction, as the first statement after it opens** — in practice by
-`TransactionBehavior` (step 6 of the MediatR pipeline), from the `ITenantContext` that
-`TenantContextBehavior` asserted at step 4.
+`app.tenant_id` and `app.organization_id` are announced inside the ambient
+transaction by TransactionBehavior at step 6, from the context admitted at step 4.
+Default ReadWrite transactions announce them as their first SQL statement.
+
+For a physical PublicSurface ReadOnly owner only,
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and
+[ADR-0040 Amendment 8](../decisions/0040-ambient-unit-of-work.md#amendment-8--read-only-public-frames-2026-10-03)
+authorize one predecessor: begin READ COMMITTED, execute and await
+`SET TRANSACTION READ ONLY`, then return the owner frame. The existing tenant/
+organization setter follows before any data SQL or handler dispatch. Mode setup
+alone never stamps the tenant-announced marker. If setup fails or is cancelled,
+Begin cleans up the partial transaction and marks rollback-only before rethrowing.
+Mode resets per transaction; poisoning remains sticky for the unit's lifetime.
+
+Every institution public read dispatches a marked request through ISender, audit
+Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected
+with normal reconciliation, query filters and RLS; it cannot widen through claims
+or the tenant-scope read hatch. Publication, access and lifecycle remain explicit
+application predicates. The four context writers and eight tenant setters are
+unchanged. Host resolution, flag-loader connections and rejected-assertion audit
+keep their separately sanctioned paths.
+
+READ ONLY protects the enlisted ambient transaction. Structural guards detect
+controller/helper/independent-connection bypasses; real app-role HTTP/database
+proofs are required. No public-data endpoint may use a direct persistence path.
 
 `SET LOCAL` and `set_config(name, value, true)` are **transaction-local**. PostgreSQL
 discards them when the transaction ends, and they have no effect at all outside one. Two
@@ -272,7 +295,8 @@ consequences follow, and both are load-bearing:
 
 **`app.scope` has no carrier.** No application path sets it, and
 [Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
-`ITenantContext` carries no scope member
+`ITenantContext` carries no `app.scope` authority member; ADR-0052's immutable
+HostScope is an independent narrowing ceiling, never a scope-widening carrier
 ([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
 derives from the actor's role plus a declared tenant-wide operation, and **the role is
 the part that does not exist yet**. [Phase 02b](../roadmap/phase-02b-events-auth.md)

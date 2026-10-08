@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -113,11 +115,16 @@ and were read as running.
 
 - Validate every endpoint against the published OpenAPI.
 - Breaking changes require a version bump.
-- **What runs today:** `LearnStack.Tests.Contract` asserts the document is served, and
-  nothing more — there is no business endpoint to hold to it yet. The OpenAPI
-  breaking-change check in CI activates with the first one, in
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), which is also where a committed
-  snapshot first has something to pin.
+- **P02d-4 Step 4 delivered:** the contract suite compares the production
+  composition's served document with `backend/openapi/v1.json`, preserving array
+  order. Eight GET/HEAD operations, exact parameters/statuses and recursive DTO
+  allowlists have clean and planted offending controls. The required frontend job
+  regenerates the locked SDK and refuses drift; fake transports exercise all four
+  generated GET wrappers. Pinned CLI fixtures cover ADR-0024 compatibility, with
+  explicit companions for the tool's open-enum gaps. Snapshot admission controls
+  fail closed on missing/deleted snapshots and failed base verification.
+  [The packet record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+  records executed counts, reviews and the live required-check rollout.
 
 ### End-to-End Tests
 

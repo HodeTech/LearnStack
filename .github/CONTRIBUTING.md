@@ -54,29 +54,21 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       no test — `dotnet test --filter` exits 0 when nothing matches, and a renamed
       `Requires=Docker` trait would otherwise leave the whole Docker suite unrun
       behind a green check.
-  - Deferred checks. Each is gated on a repository variable (`vars.ENABLE_*`,
-    unset by default — a constant `if: false` is rejected by actionlint).
-    Activating one is **four edits, in the same pull request wherever possible**:
-    set the variable in **Settings → Secrets and variables → Actions → Variables**,
-    replace the placeholder step with the real one, **rename the job** to drop the
-    `(deferred …)` suffix, and add the new name both to this list and to the live
-    branch-protection setting. Setting the variable alone leaves a job that runs
-    but gates nothing.
-    - `openapi diff (deferred to Phase 02d)` — **Phase 02d**, with the first real
-      `/api/v1/*` read endpoints.
-    - `lighthouse budget (deferred to Phase 02d)` — **Phase 02d**, with the first
-      content-bearing public pages.
+    - `openapi diff` — **required since P02d-4, 2026-10-04.** The always-running
+      job uses pinned policy fixtures, verified base/head snapshots and actual
+      first-baseline proof. Its real PR run passed before activation. API read-back
+      verifies all six GitHub Actions contexts, strict up-to-date checking and
+      every other protection setting unchanged. The
+      [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+      records the successful job and activation proof.
+  - `lighthouse budget (deferred to Phase 02d)` remains behind its unset
+    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. P02d-6/G44 owns activation,
+    pages, harness and assertions; its rename also needs live registration.
 
-    GitHub matches required checks **by name**, so the rename is the dangerous
-    half: a renamed check that nobody re-required is a check that no longer blocks
-    anything, and the PR still shows green.
-
-    > **Open in Phase 02d.** Whether the Lighthouse job activates in Phase 02d, and on
-    > what harness, is G44; whether an activated job keeps its `vars.ENABLE_*`
-    > condition — GitHub treats a skipped required job as passing — is G31.
-    > [Phase 02d's decision register](../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-    > holds both. The pass that closes each gate edits the activation steps and the
-    > Lighthouse entry above with its answer.
+    GitHub matches required checks **by name**. The
+    [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+    owns execution and dated API read-back; a workflow edit alone is not a
+    protection-setting change.
 - **Require conversation resolution before merging**: on.
 - **Require signed commits**: optional (off until the team rolls out signing keys).
 - **Require linear history**: on (we use squash-merge or rebase-merge, never bubble).

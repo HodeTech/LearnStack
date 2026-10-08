@@ -361,11 +361,18 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
 
     public System.Data.Common.DbTransaction? Transaction => null;
 
+    public TransactionMode? Mode { get; private set; }
+
     public bool HasActiveTransaction { get; private set; }
 
-    public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+            BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
+
+    public Task<IUnitOfWorkScope> BeginTransactionAsync(
+        TransactionMode mode, CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = true;
+        Mode = mode;
         return Task.FromResult<IUnitOfWorkScope>(new Frame(this));
     }
 
@@ -385,12 +392,14 @@ internal sealed class NoDatabaseUnitOfWork : IUnitOfWork
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = false;
+        Mode = null;
         return Task.CompletedTask;
     }
 
     public Task RollbackAsync(CancellationToken cancellationToken = default)
     {
         HasActiveTransaction = false;
+        Mode = null;
         return Task.CompletedTask;
     }
 

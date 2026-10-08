@@ -24,9 +24,10 @@ the LearnStack core API and the LearnStack Hub API.
 > `backend/src` returns no registration, and `AuthorizationBehavior.Handle` is
 > `return next()` with a Phase 03 TODO. Authentication lands in
 > [Phase 02b](../roadmap/phase-02b-events-auth.md) and authorization in
-> [Phase 03](../roadmap/phase-03-identity-admin.md); until then every `/api/v*` route is
-> open, which is survivable only because no tenant-owned table and no protected endpoint
-> exists yet. The "validated twice" property in § 5 describes the Phase 11 target, not
+> [Phase 03](../roadmap/phase-03-identity-admin.md). Tenant-owned tables now exist;
+> authoring commands remain unrouted and HostOnly pipeline admission requires a
+> `[PublicSurface]` marker. P02d-4 supplies marked anonymous GET/HEAD routes under ADR-0052.
+> The "validated twice" property in § 5 describes the Phase 11 target, not
 > the running system — and the first half of it arrives well before the gateway half.
 > The block is uncommented in
 > [Phase 11](../roadmap/phase-11-production-hardening.md), with the rest of APISIX:
@@ -223,6 +224,11 @@ lint ships with APISIX itself in
 `priority`, and when any route whose plugin
 set lacks `openid-connect` shares a path prefix with a higher-or-equal-priority route
 that has it.
+
+P02d-4's accepted bootstrap and Education route set is defined by
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md), with mandatory
+marked pipeline dispatch and a host ceiling. Gateway banding does not replace
+backend admission or turn caller-supplied tenant ids into authority.
 
 ### Rule 3 — one trust domain per credential
 

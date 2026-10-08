@@ -6,6 +6,8 @@
 (Amendment 1: `learnstack-hub` realm for the separate operator portal),
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
 `operator-portal` lives in the separate `learnstack-hub` repository).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -65,88 +67,69 @@ Migration to multiple apps within this repo (e.g. extracting `(studio)` into
 
 ## Tenant Resolution
 
-> **Open in Phase 02d.** For the public site, whether the edge resolves a tenant and
-> what it carries inward (G25, G36), and whether the anonymous path sets any cookie
-> (G21), are open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+**P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
+Steps 3–4 deliver Education reads and the typed SDK; P02d-5 owns the trusted server
+transport.
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) replaces public edge
+ID lookup with host-resolved `/api/v1/public/site` bootstrap. The API owns effective
+host resolution under ADR-0036; bootstrap exposes rendering configuration without
+tenant/organization IDs or route/query/body tenancy selectors.
 
 ```mermaid
 flowchart TD
-  req[Request lands at edge]
-  mw[middleware.ts]
-  host[Read Host header]
-  reg{Host in tenant registry?}
-  studio{Studio/Portal route?}
-  reject[Return 404]
-  ctx[Set tenant + locale headers + cookies]
-  route[Continue to route handler / RSC]
-
-  req --> mw --> host --> reg
-  reg -- yes --> ctx --> route
-  reg -- no --> studio
-  studio -- yes --> ctx
-  studio -- no --> reject
+  request[Visitor request] --> server[Server renderer - P02d-5]
+  server --> api[API effective host and reconciliation]
+  api --> scope[Factory host ceiling and public admission]
+  scope --> bootstrap[Read-only site bootstrap]
+  bootstrap --> render[Locale and typed rendering configuration]
 ```
 
-Rules:
-- Edge middleware is the only place **in the frontend** that resolves a tenant from a
-  host. The API resolves the host independently and authoritatively; the edge's answer
-  is a render-time convenience, not the security boundary
-  ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
-- The server-side SDK states the **visitor's host** to the API over the trusted hop
-  (`X-LearnStack-Host` + `X-LearnStack-Hop-Secret`). It may also attach `X-Tenant-Id`,
-  but only as an assertion the API compares against its own resolution — a mismatch is
-  a 404, and the header never selects the tenant.
-- SDK reads tenant from request headers (server) or request-scoped context (client). Client never invents the tenant.
-- Studio and Portal users pick a tenant via a switcher; choice persisted in JWT claim and validated cookie.
-- Public-site URLs do **not** carry the tenant in the path; locale yes, tenant no.
+- The server states the visitor host over ADR-0036's authenticated trusted hop;
+  origin, headers and transport configuration are P02d-5/G35, not client authority.
+- Public URLs carry locale and content slugs, never tenant identifiers.
+- The approved bootstrap creates no edge tenant registry or resolver endpoint.
+- Middleware placement, URL canonicalization and cookies remain P02d-5/G36/G21.
+- Studio/Portal tenant switching is separate authenticated functionality; its
+  validated claim/cookie contract does not select institution public content.
 
 ## Locale Resolution
 
-> **Open in Phase 02d.** How the locale reaches the API on the public reads — the query
-> parameter or `X-Locale` — is G30 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits this section with its answer.
+P02d-4 accepts one required query `locale` for Education reads. Canonicalize the
+bounded LocaleTag grammar without trimming before enabled membership, lookup or
+cursor binding. `X-Locale` and `Accept-Language` never select public content.
+[Localization Standards](08-localization.md#locale-codes) owns admission/errors;
+public-site URL canonicalization and header transport remain P02d-5.
 
 - Public-site URL: `/{locale}/...`.
-- Default locale from the tenant's default `tenant_locales` row, which the Tenancy
-  module owns ([ADR-0008](../decisions/0008-localization-schema.md)).
-- Locale propagated as `X-Locale` to downstream API calls.
-- Client-side locale switching triggers `router.push` to the new locale path.
+- A successful site bootstrap supplies the configured default and enabled locales.
+  An unavailable/no-locale site supplies no synthesized `en` default.
+- Client-side locale switching navigates to the new locale path.
 
 ## SDK
 
-The SDK is the only allowed way to talk to the API from frontend code.
+The SDK is the frontend API boundary. **P02d-4 Step 4 delivers** generated
+types and an injected public GET transport; the configured server caller remains
+P02d-5.
 
-> **Open in Phase 02d.** The server SDK's transport and options (G35), and the surface
-> the package exposes once regeneration makes `paths` non-empty (G31), are open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+- Generate from committed `backend/openapi/v1.json` through `LEARNSTACK_OPENAPI`
+  using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
+  Production served/snapshot equality and required frontend regeneration/drift
+  checks are part of P02d-4; generator output remains outside formatter rewriting.
+- The root exports generated types only. `/server` supplies four thin public GET
+  wrappers using generated operation types and an injected Fetch-compatible
+  transport that resolves relative URLs; no global-fetch default.
+- The unused client factory/export is removed. No tenant-ID option, authority-header
+  option, hop secret or request-header lookup enters this package contract.
+- Parse Problem Details as unknown, validate it and map to the existing closed
+  AppError union, including unknown codes. Localization parameter values are
+  strings, matching Standards 09's carrier. Transport failure, malformed JSON,
+  invalid local path input and caller cancellation remain distinct from a valid
+  API error; cancellation precedes URL construction.
+- P02d-5/G35 supplies the configured trusted server caller. P02d-6 supplies all
+  public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
 
-- **Generated** from the backend's `/openapi/v{N}.json` by `openapi-typescript`
-  into `src/generated/schema.d.ts`, which is **checked in** so a reviewer sees the
-  contract the app compiles against. `pnpm --filter @learnstack/sdk generate`
-  runs it against a local API; `LEARNSTACK_OPENAPI` overrides the source.
-  Regeneration is byte-stable — the generated directory is in `.prettierignore`,
-  because reformatting the generator's output makes every run dirty the tree.
-  That is what makes `generate && git diff --exit-code` a usable gate;
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) wires it into CI, when
-  the document has an operation for a diff to catch. Today it has none, so the
-  pipeline is wired and its output is empty.
-- Typed end to end.
-- Reads tenant + locale from request headers (server) or context (client).
-- Maps Problem Details → typed `AppError`.
-- Handles auth tokens (refresh, expiry) transparently via Auth.js.
-
-```ts
-import { sdk } from "@learnstack/sdk/server";
-
-export default async function CourseListPage() {
-  const courses = await sdk.education.listPublishedCourses({ limit: 20 });
-  return <CourseList courses={courses.items} />;
-}
-```
+The [accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
+owns the source, pin, diff policy, bootstrap exception and required-check rollout.
 
 ## Auth
 
@@ -199,13 +182,14 @@ export default async function CourseListPage() {
 **G16(a–e)/G21 writer contract delivered in P02d-2 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects one whole-theme color document, contrast refusal, no organization override
-and no font/logo/URL/layout value. Public transport/attribution and injection remain
-G16(f/g)/G42; this decision does not claim a themed layout or an anonymous API exists.
+and no font/logo/URL/layout value. Document injection remains G42.
+P02d-4 accepts complete typed theme or null and attribution-only entitlement;
+Step 2 delivers that public projection.
 
-> **Remaining Phase 02d decisions.** Anonymous branding projection and entitlement/
-> attribution (G16 f/g), and document injection (G42), remain open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+P02d-4's public theme is exactly four validated colors or null; frontend safe
+CSS defaults remain the fallback, with no backend palette copy. Baseline colors
+are independent of plan. Effective WhiteLabelBranding removes LearnStack
+attribution only. Document injection remains G42/P02d-6.
 
 - Tenant theme tokens loaded at the layout level via RSC.
 - Tokens map to CSS variables; Tailwind reads them via `--ls-primary`, `--ls-bg`, etc.

@@ -102,7 +102,7 @@ and the P02d-2 package on 2026-10-02. Its
 replaces ADR-0048's public-only implication while preserving the original answer and
 delivery history. Explicit persisted policy, restricted legacy backfill and fail-closed
 anonymous reads are decided. P02d-2 delivers the policy, migration and writers;
-P02d-4 anonymous-read enforcement remains pending. Phase 07 supplies grants; Phase 05
+P02d-4 delivers anonymous-read enforcement. Phase 07 supplies grants; Phase 05
 owns preview/policy evolution.
 
 The public-only alternative was considered and not selected for the first protected
@@ -352,7 +352,7 @@ economics stop or re-scope that offer rather than authorize unchecked expansion.
 
 | Boundary | Required before the first affected code |
 |---|---|
-| Protected publication | ADR-0050 and dated G3 supersession Accepted 2026-10-02; P02d-2 policy, migration, writers and seed delivered; anonymous-read enforcement remains P02d-4 |
+| Protected publication | ADR-0050 and dated G3 supersession Accepted 2026-10-02; P02d-2 policy, migration, writers and seed delivered; P02d-4 anonymous-read enforcement delivered |
 | Source identity and organization scope | Keep P02d-1 tenant ownership and parent-derived scope; listings are not tenant authority |
 | Global catalog / commerce | Accept table classes, roles, host/context, audit and export rules before P09a migration or reader/producer; no broader Education filters |
 | Source publication/export | Consent, revisions, withdrawal and durable delivery before the first listing producer; P02d-2 promises tenant-local publication only |

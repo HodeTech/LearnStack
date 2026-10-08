@@ -2,6 +2,13 @@
 
 ## Status
 
+> **Implementation update — 2026-10-05.**
+> P02d-4 delivers ordered public descriptor/content projection after eligibility,
+> including bounded unavailable results. The dated 2026-10-02 disclosure below
+> is historical; see
+> [Amendment 3](#amendment-3--p02d-4-public-presentation-delivery-2026-10-05).
+> Browser rendering, fallbacks and active-sink proofs remain P02d-6.
+
 > **Implementation update — 2026-10-02.**
 > P02d-2 ships profile admission, ordered descriptor resolution, exact-definition
 > DTOs and seeded presentation verification. P02d-4 public descriptor projection and
@@ -197,3 +204,19 @@ is the current delivery authority.
 The dated implementation disclosure now sits inside the Status section so direct
 `#status` navigation shows current delivery before the unchanged acceptance-time
 statement. Amendment 1 remains the delivery record; no decision changes.
+
+### Amendment 3 — P02d-4 public presentation delivery (2026-10-05)
+
+P02d-4 delivers the public projection that Amendment 1 and the 2026-10-02 status
+disclosure left pending. Exact eligible definitions supply ordered labels and
+plain string fields; unsupported/missing definitions or unsuitable selected
+content produce the bounded unavailable DTO. Reads do not repeat schema
+evaluation or rebind to a current revision. Display unit tests, app-role HTTP
+tests and the [Step 3 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-3-public-education-reads)
+record the proof. P02d-6 still owns browser rendering, fallbacks and active-sink
+proofs; no browser delivery is claimed.
+
+The Decision and acceptance-time status are unchanged. A new dated disclosure
+inside Status points to this amendment without rewriting earlier records.
+Updated carriers: this Status disclosure, the corresponding ADR-0050/0052
+delivery disclosures, the Education module spec and the P02d-4 delivery record.

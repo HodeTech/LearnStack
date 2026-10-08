@@ -52,7 +52,15 @@ not deferred to the showcase phase.
   is Accepted — 2026-10-02; Step 1 is implemented; both review rounds passed.
   Step 2 implements batched definition reads; both review rounds passed.
   Step 3 adds generation caching and scope-safe bypass; both review rounds passed.
-  P02d-3 is complete, unmerged and ready for PR review.
+  P02d-3 is complete and merged through
+  [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
+  [merge closeout](phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+  records final verification. P02d-4's
+  [public-read decision package](phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+  is Accepted — 2026-10-03; all four implementation steps and their review loops
+  are complete. All six real required CI jobs pass and live sixth-check activation
+  is verified. [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits
+  maintainer review and merge; P02d-5 is next.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

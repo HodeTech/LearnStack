@@ -83,6 +83,14 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 
 ## 2. MediatR Pipeline Order
 
+P02d-4's [accepted boundary](../decisions/0052-anonymous-public-read-boundary.md)
+adds factory host-ceiling admission and read-only transaction intent.
+[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+delivers these foundations and app-role write-refusal proofs. Step 2 adds the site
+endpoint and structural dispatch/Off/persistence controls; Education eligibility
+and contract proof remain Steps 3–4. The eight-stage order, normal writer
+ownership and independent rejected-assertion audits are unchanged.
+
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the order. Reading bottom-most as innermost:
 
@@ -103,13 +111,13 @@ Request
                                 catch { ExceptionDispatchInfo.Throw() }
   ▼
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
-                                carry tenant + organization forward (touches no connection)
+                                preserve context; public requests require host ceiling
   ▼
 [5] AuthorizationBehavior    ←  IAuthorizationService.AuthorizeAsync;
                                 Result.Fail(forbidden) on deny
   ▼
 [6] TransactionBehavior      ←  IUnitOfWork.BeginTransactionAsync(); announce
-                                app.tenant_id + app.organization_id first;
+                                mode setup, then tenant announcement before data;
                                 IAuditStore.WritePendingAsync just before COMMIT;
                                 commit on success-Result, rollback on fail-Result
                                 or exception
@@ -184,8 +192,10 @@ Why this order:
   *only* validates the context — it asserts the middleware populated it.
   It does **not** set the PostgreSQL session variables: `SET LOCAL` is
   transaction-local and step 4 runs before any transaction exists, so the
-  variables are issued by `TransactionBehavior` at step 6 as the first statement
-  inside the transaction. A `DbConnectionInterceptor` cannot do it either — it
+  variables are issued by TransactionBehavior at step 6 before data SQL. Default
+  writers announce first; physical public reads complete ADR-0052's single READ ONLY
+  setup predecessor before announcement. A `DbConnectionInterceptor` cannot do it either
+  — it
   fires at connection open, not at transaction start. See
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
@@ -521,6 +531,7 @@ Two integration points
 | `IProviderResilience<TPort>` collaborator | Phase 02a | Foundation for every adapter |
 | Roslyn analyzer for `DomainException` | Phase 02a | Compile-time enforcement of "bug only" |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
+| Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
 | Outbox / Hangfire correlation propagation | Phase 02b | Row schema + activator |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

@@ -52,6 +52,7 @@ public sealed class NpgsqlUnitOfWork(
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
     private int _depth;
+    private TransactionMode? _mode;
 
     /// <summary>
     /// Incremented every time a physical transaction is opened, so a frame can
@@ -100,8 +101,13 @@ public sealed class NpgsqlUnitOfWork(
 
     public bool HasActiveTransaction => _transaction is not null;
 
+    public TransactionMode? Mode => _mode;
+
+    public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
+        BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
+
     public async Task<IUnitOfWorkScope> BeginTransactionAsync(
-        CancellationToken cancellationToken = default)
+        TransactionMode mode, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -113,16 +119,61 @@ public sealed class NpgsqlUnitOfWork(
                 + "fresh transaction takes a fresh scope, which is the model ADR-0040 decides.");
         }
 
+        if (mode is not (TransactionMode.ReadWrite or TransactionMode.ReadOnly))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        }
+
+        if (_transaction is not null && _mode != mode)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException(
+                "A mixed-mode transaction join is forbidden. The unit is marked rollback-only; "
+                + "use the owner's mode or a fresh scope (ADR-0052).");
+        }
+
         if (_transaction is null)
         {
-            _connection ??= _dataSource.CreateConnection();
-
-            if (_connection.State != System.Data.ConnectionState.Open)
+            try
             {
-                await _connection.OpenAsync(cancellationToken);
-            }
+                _connection ??= _dataSource.CreateConnection();
 
-            _transaction = await _connection.BeginTransactionAsync(cancellationToken);
+                if (_connection.State != System.Data.ConnectionState.Open)
+                {
+                    await _connection.OpenAsync(cancellationToken);
+                }
+
+                _transaction = mode == TransactionMode.ReadOnly
+                    ? await _connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken)
+                    : await _connection.BeginTransactionAsync(cancellationToken);
+
+                if (mode == TransactionMode.ReadOnly)
+                {
+                    // The sole permitted predecessor of tenant announcement.
+                    // Await before handing out a frame: callers cannot observe a
+                    // writable public transaction while setup is still in flight.
+                    await ExecuteAsync("SET TRANSACTION READ ONLY", cancellationToken);
+                }
+
+                _mode = mode;
+            }
+            catch
+            {
+                // Begin sits outside the pipeline's owned-frame try. It must not
+                // strand a partially opened transaction or permit reuse after an
+                // absorbed failure. Cleanup must preserve the original exception.
+                MarkRollbackOnly();
+                try
+                {
+                    await RollbackCoreAsync();
+                }
+                catch (Exception cleanupFailure)
+                {
+                    LogSetupCleanupFailure(_logger, cleanupFailure);
+                }
+
+                throw;
+            }
             _generation++;
 
             // Scoped to this transaction, like the generation above it. The flag
@@ -322,6 +373,12 @@ public sealed class NpgsqlUnitOfWork(
             "{ContextType} reports IsResolved but carries no usable tenant id. app.tenant_id "
             + "was left empty, so every tenant-owned read on this transaction returns zero rows.");
 
+    private static readonly Action<ILogger, Exception?> LogSetupCleanupFailure =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(2, nameof(LogSetupCleanupFailure)),
+            "Failed to clean up a partially opened ambient transaction; the unit remains poisoned.");
+
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -423,6 +480,7 @@ public sealed class NpgsqlUnitOfWork(
 
         var transaction = _transaction!;
         _transaction = null;
+        _mode = null;
 
         try
         {
@@ -457,6 +515,7 @@ public sealed class NpgsqlUnitOfWork(
     {
         var transaction = _transaction;
         _transaction = null;
+        _mode = null;
         _depth = 0;
 
         if (transaction is null)

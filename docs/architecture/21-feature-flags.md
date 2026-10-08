@@ -117,6 +117,13 @@ public static class KillswitchKeys
 }
 ```
 
+P02d-4 accepts the first public WhiteLabelBranding consumer: baseline theme colors
+apply independently of plan; only effective WhiteLabelBranding removes LearnStack
+attribution. Public theme/attribution projection is delivered by P02d-4 Step 2;
+browser rendering remains P02d-6. This changes no Hub wire
+key or fail-closed policy. See
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+
 Rules:
 
 - Key **shape** is fixed once, in

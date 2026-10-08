@@ -148,7 +148,10 @@ public static class TenantContextFactory
             organizationId,
             attempt.UserId,
             OriginFor(attempt),
-            attempt.CorrelationId));
+            attempt.CorrelationId,
+            attempt.HostTenantId is { } hostTenant
+                ? new HostScope(hostTenant, attempt.HostOrganizationId)
+                : null));
     }
 
     /// <summary>

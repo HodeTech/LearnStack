@@ -1008,6 +1008,38 @@ and every permission key. Neither key has been emitted — Packet 4 through Pack
 a rejected assertion to a log, not to `audit_log`, exactly as § Staging across packets
 says — so there is no stored value to migrate.
 
+### 2026-10-03 — Amendment 8: public host provenance
+
+**Status: Accepted.** Approved with [ADR-0052](0052-anonymous-public-read-boundary.md)
+and the P02d-4 decision package on 2026-10-03. Implementation is pending.
+
+The Decision and reconciliation matrix are unchanged. P02d-4 needs to distinguish
+the host's public scope from a valid context narrowed/selected by claims. Under
+ADR-0052, `ITenantContext.HostScope` is nullable and immutable. Only
+`TenantContextFactory` constructs it from existing `HostTenantId` and
+`HostOrganizationId`, after all existing reconciliation/membership checks succeed.
+Claim-only, unresolved and ambient contexts carry null. No host string, route or
+new lookup enters `TenantResolutionAttempt`; no context-accessor writer or SQL
+setter is added. Public query admission requires real matching host scope and
+explicit host predicates intersect with normal filters/RLS. Row 7 cannot expose
+organization content through a tenant host; row 14 has no institution host scope.
+Claims/assertions retain their refusals and never widen the anonymous response.
+Carrier updates: API/security standards, context/gateway/isolation architecture,
+frontend standards, Education/Tenancy public specs, glossary and catalogue; the
+phase package owns the concrete public route/eligibility contract.
+
+### 2026-10-05 — Amendment 9: public host provenance delivery
+
+This delivery note changes no decision. Amendment 8's pending status records
+acceptance on 2026-10-03. P02d-4 Step 1 subsequently delivered factory-only
+immutable `HostScope`, matching public admission and host-scope intersection with
+normal tenant/organization filters and RLS. Both independent review rounds and
+focused fix verification passed.
+[ADR-0052 Amendment 1](0052-anonymous-public-read-boundary.md#amendment-1--p02d-4-foundation-delivery-2026-10-03)
+and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
+own the implementation and evidence. Amendment 8 remains historical; the
+reconciliation matrix and trusted-input contract are unchanged.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

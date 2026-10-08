@@ -1,0 +1,1813 @@
+{
+  "components": {
+    "schemas": {
+      "PageInfo": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "hasPrevious": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "previousCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "nextCursor",
+          "previousCursor",
+          "hasNext",
+          "hasPrevious"
+        ],
+        "type": "object"
+      },
+      "ProblemDetails": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "errors": {
+            "additionalProperties": {
+              "items": {
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "messageKey": {
+            "type": "string"
+          },
+          "status": {
+            "maximum": 599,
+            "minimum": 400,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "instance",
+          "code",
+          "messageKey",
+          "correlationId"
+        ],
+        "type": "object"
+      },
+      "PublicCourseAccess": {
+        "enum": [
+          "public",
+          "enrollment_required"
+        ],
+        "type": "string"
+      },
+      "PublicCourseAlternate": {
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "PublicCourseCatalog": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCourseSummary"
+            },
+            "type": "array"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "locale",
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "PublicCourseDetail": {
+        "properties": {
+          "alternates": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCourseAlternate"
+            },
+            "type": "array"
+          },
+          "course": {
+            "$ref": "#/components/schemas/PublicCourseSummary"
+          },
+          "lessons": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCourseOutline"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "course",
+          "alternates",
+          "lessons"
+        ],
+        "type": "object"
+      },
+      "PublicCourseOutline": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOutlineItem"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "PublicCourseSummary": {
+        "properties": {
+          "contentAccess": {
+            "$ref": "#/components/schemas/PublicCourseAccess"
+          },
+          "level": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicLevel"
+              }
+            ]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "summary",
+          "contentAccess",
+          "level"
+        ],
+        "type": "object"
+      },
+      "PublicDisplayState": {
+        "enum": [
+          "ready",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "PublicLabel": {
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "locale"
+        ],
+        "type": "object"
+      },
+      "PublicLessonAlternate": {
+        "properties": {
+          "courseSlug": {
+            "type": "string"
+          },
+          "lessonSlug": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "courseSlug",
+          "lessonSlug"
+        ],
+        "type": "object"
+      },
+      "PublicLessonContent": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PublicLessonContentPublicReadyContent"
+          },
+          {
+            "$ref": "#/components/schemas/PublicLessonContentPublicUnavailableContent"
+          }
+        ],
+        "discriminator": {
+          "mapping": {
+            "ready": "#/components/schemas/PublicLessonContentPublicReadyContent",
+            "unavailable": "#/components/schemas/PublicLessonContentPublicUnavailableContent"
+          },
+          "propertyName": "state"
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "PublicLessonContentPublicReadyContent": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTextField"
+            },
+            "type": "array"
+          },
+          "label": {
+            "$ref": "#/components/schemas/PublicLabel"
+          },
+          "rendererKey": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ready"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rendererKey",
+          "label",
+          "fields",
+          "state"
+        ],
+        "type": "object"
+      },
+      "PublicLessonContentPublicUnavailableContent": {
+        "properties": {
+          "state": {
+            "enum": [
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "PublicLessonDetail": {
+        "properties": {
+          "alternates": {
+            "items": {
+              "$ref": "#/components/schemas/PublicLessonAlternate"
+            },
+            "type": "array"
+          },
+          "content": {
+            "$ref": "#/components/schemas/PublicLessonContent"
+          },
+          "course": {
+            "$ref": "#/components/schemas/PublicNamedResource"
+          },
+          "lesson": {
+            "$ref": "#/components/schemas/PublicNamedResource"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "course",
+          "lesson",
+          "alternates",
+          "content"
+        ],
+        "type": "object"
+      },
+      "PublicLevel": {
+        "properties": {
+          "label": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicLabel"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/PublicDisplayState"
+          }
+        },
+        "required": [
+          "state",
+          "label"
+        ],
+        "type": "object"
+      },
+      "PublicNamedResource": {
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title"
+        ],
+        "type": "object"
+      },
+      "PublicOutlineItem": {
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "sort": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "sort"
+        ],
+        "type": "object"
+      },
+      "PublicSite": {
+        "properties": {
+          "defaultLocale": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "enabledLocales": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "showPlatformAttribution": {
+            "type": "boolean"
+          },
+          "theme": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicTheme"
+              }
+            ]
+          }
+        },
+        "required": [
+          "displayName",
+          "enabledLocales",
+          "defaultLocale",
+          "theme",
+          "showPlatformAttribution"
+        ],
+        "type": "object"
+      },
+      "PublicTextField": {
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/PublicLabel"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "value"
+        ],
+        "type": "object"
+      },
+      "PublicTheme": {
+        "properties": {
+          "background": {
+            "type": "string"
+          },
+          "foreground": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "string"
+          },
+          "primary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary",
+          "background",
+          "foreground",
+          "muted"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "LearnStack API",
+    "version": "v1"
+  },
+  "openapi": "3.1.1",
+  "paths": {
+    "/api/v1/public/courses": {
+      "get": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "GetPublicCourses",
+        "parameters": [
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Canonical unpadded base64url v1 seek cursor, bound to host, scope, locale, endpoint and order. Not authority or a snapshot; malformed or mismatched values give validation_failed.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Positive ASCII decimal, including leading zeros. Default 20; values above 100 clamp to 100. Zero, signs, whitespace and repeats are refused.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCourseCatalog"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      },
+      "head": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "HeadPublicCourses",
+        "parameters": [
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Canonical unpadded base64url v1 seek cursor, bound to host, scope, locale, endpoint and order. Not authority or a snapshot; malformed or mismatched values give validation_failed.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Positive ASCII decimal, including leading zeros. Default 20; values above 100 clamp to 100. Zero, signs, whitespace and repeats are refused.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/public/courses/{slug}": {
+      "get": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "GetPublicCourse",
+        "parameters": [
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Canonical unpadded base64url v1 seek cursor, bound to host, scope, locale, endpoint and order. Not authority or a snapshot; malformed or mismatched values give validation_failed.",
+            "explode": false,
+            "in": "query",
+            "name": "lessonCursor",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Positive ASCII decimal, including leading zeros. Default 20; values above 100 clamp to 100. Zero, signs, whitespace and repeats are refused.",
+            "explode": false,
+            "in": "query",
+            "name": "lessonLimit",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCourseDetail"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      },
+      "head": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "HeadPublicCourse",
+        "parameters": [
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Canonical unpadded base64url v1 seek cursor, bound to host, scope, locale, endpoint and order. Not authority or a snapshot; malformed or mismatched values give validation_failed.",
+            "explode": false,
+            "in": "query",
+            "name": "lessonCursor",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Positive ASCII decimal, including leading zeros. Default 20; values above 100 clamp to 100. Zero, signs, whitespace and repeats are refused.",
+            "explode": false,
+            "in": "query",
+            "name": "lessonLimit",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/public/courses/{slug}/lessons/{lessonSlug}": {
+      "get": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "GetPublicLesson",
+        "parameters": [
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "lessonSlug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLessonDetail"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      },
+      "head": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "HeadPublicLesson",
+        "parameters": [
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Lowercase ASCII slug with single interior hyphens; UUID-shaped slugs are refused.",
+            "in": "path",
+            "name": "lessonSlug",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one well-formed locale, canonicalized by case without trimming. Headers do not select content; absent/disabled locales give unsupported_locale.",
+            "explode": false,
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "maxLength": 35,
+              "minLength": 2,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed or unsupported_locale; bounded localizable field errors where applicable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicEducation"
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/public/site": {
+      "get": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "GetPublicSite",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSite"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "validation_failed; the site bootstrap accepts no query parameters.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicSite"
+        ],
+        "x-version-introduced": "v1"
+      },
+      "head": {
+        "description": "Anonymous host-scoped read through the read-only pipeline. Unknown query keys and repeated single-valued keys are refused. No response caching or validators.",
+        "operationId": "HeadPublicSite",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed; the site bootstrap accepts no query parameters.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found; unavailable host or hidden/untranslated/ineligible resource, without disclosure.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed from routing.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from the anonymous limiter.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error from unexpected failures; no exception or query details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable from invalid stored public configuration.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PublicSite"
+        ],
+        "x-version-introduced": "v1"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "PublicEducation"
+    },
+    {
+      "name": "PublicSite"
+    }
+  ]
+}

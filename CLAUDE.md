@@ -88,9 +88,24 @@ is Accepted — 2026-10-02. Step 1 implements typed settings and locale resoluti
 both review rounds passed. Step 2 implements batched definition reads; both review
 rounds passed. Step 3
 adds generation caching and scope-safe bypass; both review rounds passed.
-P02d-3 is complete and ready for PR review; it remains unmerged.
-Public reads
-stay with P02d-4.
+**P02d-3 is complete and merged** through
+[PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
+records final verification. Public reads stay with P02d-4.
+Its [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+and ADR-0052 are Accepted — 2026-10-03. The approved four-step implementation and
+two-round review loop run on development; delivery evidence is recorded per step.
+Step 1 implements immutable host provenance and physical read-only transactions;
+both review rounds and the focused fix review pass. Step 2 implements live site
+configuration and GET/HEAD with no-store; both review rounds and focused fix
+verification pass. Step 3 implements Education GET/HEAD reads, exact-locale
+marketing/content projections and scoped seek cursors; both independent review
+rounds pass. Step 4 implements served/snapshot contract controls, the injected typed
+SDK and always-running OpenAPI compatibility CI. Both independent review rounds
+and fresh fix verification pass. All six real CI jobs pass; the approved sixth
+required check is active with all other live settings preserved. P02d-4 is
+implementation-complete in [PR #25](https://github.com/HodeTech/LearnStack/pull/25),
+awaiting maintainer review and merge. P02d-5 is next; its decision pass is not started.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

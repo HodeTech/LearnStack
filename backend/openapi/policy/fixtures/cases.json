@@ -1,0 +1,1691 @@
+[
+  {
+    "name": "remove-optional-response-field",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "remove-required-response-field",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "id"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "required"
+        ],
+        "value": [
+          "kind"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "rename-response-field",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "displayName"
+        ],
+        "value": {
+          "type": "string"
+        }
+      }
+    ]
+  },
+  {
+    "name": "remove-request-field",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "note"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "change-field-type",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "id",
+          "type"
+        ],
+        "value": "string"
+      }
+    ]
+  },
+  {
+    "name": "add-required-request-field",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "extra"
+        ],
+        "value": {
+          "type": "string"
+        }
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "required"
+        ],
+        "value": [
+          "title",
+          "extra"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "remove-response-enum-value",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-response-enum-value",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "tighten-representable-validator",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "parameters",
+          0,
+          "schema",
+          "minLength"
+        ],
+        "value": 3
+      }
+    ]
+  },
+  {
+    "name": "change-documented-status",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "202"
+        ],
+        "value": {
+          "description": "OK",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "kind"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ]
+                  },
+                  "openKind": {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ],
+                    "x-extensible-enum": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "rename-path-segment",
+    "breaking": true,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/renamed-widgets"
+        ],
+        "value": {
+          "get": {
+            "operationId": "GetWidget",
+            "parameters": [
+              {
+                "name": "q",
+                "in": "query",
+                "schema": {
+                  "type": "string",
+                  "minLength": 2
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "openKind": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ],
+                          "x-extensible-enum": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "post": {
+            "operationId": "CreateWidget",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": [
+                      "title"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "201": {
+                "description": "Created"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "open-response-enum-becomes-closed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openKind",
+          "x-extensible-enum"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-response-field",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "extra"
+        ],
+        "value": {
+          "type": "string"
+        }
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "required"
+        ],
+        "value": [
+          "id",
+          "kind",
+          "extra"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-endpoint",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/new"
+        ],
+        "value": {
+          "get": {
+            "operationId": "GetNew",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "add-optional-query",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "optional",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "loosen-validator",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "parameters",
+          0,
+          "schema",
+          "minLength"
+        ],
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "add-open-response-enum-value",
+    "breaking": false,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openKind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-response-header",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "headers"
+        ],
+        "value": {
+          "X-Trace": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "reorder-object-keys",
+    "breaking": false,
+    "scope": "tool",
+    "changes": []
+  },
+  {
+    "name": "improve-error-message-same-code",
+    "breaking": false,
+    "scope": "tool",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "description"
+        ],
+        "value": "A clearer description"
+      }
+    ]
+  },
+  {
+    "name": "change-internal-implementation",
+    "breaking": false,
+    "scope": "tool",
+    "changes": []
+  },
+  {
+    "name": "open-enum-value-removed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openKind",
+          "enum"
+        ],
+        "value": [
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "open-enum-addition-does-not-hide-other-break",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openKind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/widgets",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-root-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-array-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "201",
+          "content",
+          "application/json",
+          "schema",
+          "items",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "add-closed-referenced-response-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "Choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "referenced-open-response-enum-becomes-closed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "responses",
+          "OpenChoice",
+          "content",
+          "application/json",
+          "schema",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "add-closed-request-enum-value",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "open-request-enum-becomes-closed",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "add-open-request-enum-value",
+    "breaking": false,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "request-integer-becomes-number",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "post",
+          "requestBody",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "quantity",
+          "type"
+        ],
+        "value": "number"
+      }
+    ]
+  },
+  {
+    "name": "response-number-becomes-integer",
+    "breaking": true,
+    "scope": "companion",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/enum-controls",
+          "get",
+          "responses",
+          "204",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "value",
+          "type"
+        ],
+        "value": "integer"
+      }
+    ]
+  },
+  {
+    "name": "shared-reference-open-first",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "WrapperOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "shared-reference-closed-first",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "WrapperClosedFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-validator-tightened",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters",
+          0,
+          "schema",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-became-required",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters",
+          1,
+          "required"
+        ],
+        "value": true
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-type",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "number",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-enum-add",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-enum-remove",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inherited-parameter-relocated-clean",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inherited-controls",
+          "get",
+          "parameters"
+        ],
+        "value": [
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-field-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-validator-tightened",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-removed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "remove",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-header-output-bound-strengthened",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 5
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-type-changed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "quantity",
+          "type"
+        ],
+        "value": "integer"
+      }
+    ]
+  },
+  {
+    "name": "content-header-closed-enum-added",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "choice",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "content-header-open-enum-closed",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "openChoice",
+          "x-extensible-enum"
+        ],
+        "value": false
+      }
+    ]
+  },
+  {
+    "name": "content-parameter-validator-loosened",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "parameters",
+          0,
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "name",
+          "minLength"
+        ],
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "content-header-field-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/content-controls",
+          "get",
+          "responses",
+          "200",
+          "headers",
+          "X-Data",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "description"
+        ],
+        "value": {
+          "type": "string"
+        }
+      }
+    ]
+  },
+  {
+    "name": "recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveOpen",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "recursive-reference-description-updated",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveOpen",
+          "properties",
+          "children",
+          "items",
+          "description"
+        ],
+        "value": "Updated documentation"
+      }
+    ]
+  },
+  {
+    "name": "recursive-mixed-openfirst",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-mixed-closedfirst",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedClosedFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedClosedFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "recursive-open-addition-closed-removal",
+    "breaking": true,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "schemas",
+          "RecursiveMixedOpenFirst",
+          "properties",
+          "status",
+          "enum"
+        ],
+        "value": [
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inline-recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "inline-recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "paths",
+          "/api/v1/inline-recursive",
+          "get",
+          "responses",
+          "200",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "response-component-recursive-schema-unchanged",
+    "breaking": false,
+    "scope": "policy",
+    "changes": []
+  },
+  {
+    "name": "response-component-recursive-open-enum-value-added",
+    "breaking": false,
+    "scope": "policy",
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "components",
+          "responses",
+          "RecursiveTree",
+          "content",
+          "application/json",
+          "schema",
+          "properties",
+          "kind",
+          "enum"
+        ],
+        "value": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]
+  }
+]

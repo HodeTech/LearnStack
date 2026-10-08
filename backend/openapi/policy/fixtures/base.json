@@ -1,0 +1,595 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ADR-0024 policy controls",
+    "version": "1"
+  },
+  "paths": {
+    "/api/v1/widgets": {
+      "get": {
+        "operationId": "GetWidget",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "kind"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ]
+                    },
+                    "openKind": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ],
+                      "x-extensible-enum": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "CreateWidget",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/enum-controls": {
+      "get": {
+        "operationId": "GetEnumControls",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Choice"
+                }
+              }
+            }
+          },
+          "203": {
+            "$ref": "#/components/responses/OpenChoice"
+          },
+          "204": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "PostEnumControls",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "choice": {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ]
+                  },
+                  "openChoice": {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ],
+                    "x-extensible-enum": true
+                  },
+                  "quantity": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/shared-open-first": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "$ref": "#/components/schemas/WrapperOpenFirst/properties/kind",
+                      "x-extensible-enum": true
+                    },
+                    "closed": {
+                      "$ref": "#/components/schemas/WrapperOpenFirst"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shared-closed-first": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "closed": {
+                      "$ref": "#/components/schemas/WrapperClosedFirst"
+                    },
+                    "open": {
+                      "$ref": "#/components/schemas/WrapperClosedFirst/properties/kind",
+                      "x-extensible-enum": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inherited-controls": {
+      "parameters": [
+        {
+          "in": "query",
+          "name": "q",
+          "schema": {
+            "type": "string",
+            "minLength": 2
+          }
+        },
+        {
+          "in": "query",
+          "name": "quantity",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/content-controls": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 2
+                    },
+                    "quantity": {
+                      "type": "number"
+                    },
+                    "choice": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ]
+                    },
+                    "openChoice": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ],
+                      "x-extensible-enum": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Data": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 2
+                        },
+                        "quantity": {
+                          "type": "number"
+                        },
+                        "choice": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "openChoice": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ],
+                          "x-extensible-enum": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/RecursiveOpen": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecursiveOpen"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/RecursiveMixedOpenFirst": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecursiveMixedOpenFirst"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/RecursiveMixedClosedFirst": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecursiveMixedClosedFirst"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inline-recursive": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "a",
+                        "b"
+                      ],
+                      "x-extensible-enum": true
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/paths/~1api~1v1~1inline-recursive/get/responses/200/content/application~1json/schema"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/response-component-recursive": {
+      "get": {
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RecursiveTree"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Choice": {
+        "type": "string",
+        "enum": [
+          "a",
+          "b"
+        ]
+      },
+      "WrapperOpenFirst": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      },
+      "WrapperClosedFirst": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          }
+        }
+      },
+      "RecursiveOpen": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ],
+            "x-extensible-enum": true
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecursiveOpen"
+            }
+          }
+        }
+      },
+      "RecursiveMixedOpenFirst": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ],
+            "x-extensible-enum": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecursiveMixedOpenFirst"
+            }
+          }
+        }
+      },
+      "RecursiveMixedClosedFirst": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "a",
+              "b"
+            ],
+            "x-extensible-enum": true
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecursiveMixedClosedFirst"
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "OpenChoice": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "a",
+                "b"
+              ],
+              "x-extensible-enum": true
+            }
+          }
+        }
+      },
+      "RecursiveTree": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "a",
+                    "b"
+                  ],
+                  "x-extensible-enum": true
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/responses/RecursiveTree/content/application~1json/schema"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

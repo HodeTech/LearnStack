@@ -3,6 +3,14 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
+and focused fix verification pass. Site bootstrap
+is a marked GET/HEAD request, audit Off and without a permission key or grant. It
+uses matching host scope and READ ONLY; normal reads add no audit row. Public
+configuration/settings ports remain internal and unrouted. Independent rejected-
+assertion auditing remains unchanged. [The public contract](README.md#p02d-4-public-configuration-contract)
+owns allowlisting and lifecycle/locale checks.
+
 **P02d-3 Step 1 implemented — 2026-10-02; both review rounds passed.**
 `ITenantSettingsAccessor` is internal and unrouted, uses trusted ambient
 scope and adds no HTTP endpoint or permission key. Public admission belongs to

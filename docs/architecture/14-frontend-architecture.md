@@ -20,6 +20,14 @@ optional per-organization override, rendering strategies, data fetching, the ten
 block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
 independent apps when warranted.
 
+> **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
+> Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
+> [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
+> site bootstrap in place of public edge ID lookup. Its
+> [approval package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
+> records public DTOs, locale and cache rules, read-only execution and implementation
+> steps. Runtime delivery is recorded by the packet; P02d-5 owns server transport.
+
 ## App Shape
 
 ```text
@@ -62,7 +70,7 @@ frontend/
 ```
 
 > **Open in Phase 02d.** Where composite and primitive components live (G41), where the
-> UI string catalogue lives (G39) and what `middleware.ts` resolves (G25, G36) are open
+> UI string catalogue lives (G39) and middleware placement (G36) are open
 > in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 > The tree records the plan written before them.
@@ -80,138 +88,48 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 
 ## Tenant + Organization Resolution at the Edge
 
-> **Open in Phase 02d.** Whether the edge calls an API host lookup at all, and what it
-> returns, is G25; what the middleware carries inward and answers is G36; the server
-> SDK's transport, including the headers the sketch below sends, is G35; and how the
-> locale reaches the API is G30 — all in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> This section's "Phase 02d ships it", the diagram's host-lookup step and the SDK sketch
-> record the plan the section was written against. Each pass reconciles them with its
-> answer, together with
-> [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)
-> and
-> [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution).
+**Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
+server transport and consumers remain P02d-5/6. The frontend
+uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
+[Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)
+owns the ongoing frontend rule. P02d-5/G35/G36 still owns transport and middleware
+placement, and P02d-6 owns public page consumers.
 
-Next.js middleware resolves the tenant, and optionally the organization, before any
-route handler runs. Four rules, all of them from
-[ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md);
-[Standards 07 § Tenant Context](../standards/07-frontend-architecture.md) owns them.
-
-- **The edge resolves for rendering, not for authority.** Branding, locale, which
-  navigation to draw. It is not the backend's source of truth and never was one.
-- **The API resolves the host itself**, independently, on every request.
-- **The SDK states the visitor's *host*** over the trusted hop —
-  `X-LearnStack-Host` with `X-LearnStack-Hop-Secret`. A host is a lookup key with a
-  closed codomain; a tenant id is a selection.
-- **`X-Tenant-Id` is an assertion.** The API compares it against what it resolved.
-  A mismatch is a 404; the header never selects a tenant.
-
-```ts
-// src/middleware.ts
-export async function middleware(req: NextRequest) {
-  const host = normaliseHost(req.headers.get('host') ?? '');
-  const resolved = await resolveHost(host);   // an /api/v1 lookup; Phase 02d ships it
-  if (!resolved) return new NextResponse(null, { status: 404 });
-
-  const locale = resolveLocaleFromPathOrTenant(req.nextUrl, resolved.tenant);
-
-  // Headers MUST be written to the request (not the response) — only request
-  // headers reach downstream Server Components / route handlers via
-  // `next/headers`. Writing to `res.headers` only surfaces them to the browser.
-  const requestHeaders = new Headers(req.headers);
-
-  // Carried for RENDERING — branding, locale, which nav to draw. The API does
-  // not read these to decide anything; it resolves the host itself and treats
-  // x-tenant-id as an assertion to compare against that answer.
-  requestHeaders.set('x-tenant-id', resolved.tenant.id);
-  if (resolved.organizationId) requestHeaders.set('x-organization-id', resolved.organizationId);
-  requestHeaders.set('x-locale', locale);
-
-  // The visitor's host, carried INWARD so the server-side SDK can state it to
-  // the API. The host — not the tenant — is the input the API resolves from.
-  // The hop SECRET is deliberately not here: it is server configuration, and a
-  // secret written into a forwarded request header travels further than the one
-  // hop it authenticates.
-  requestHeaders.set('x-learnstack-host', host);
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
-};
-```
-
-The SDK is what states the hop, on the way **out**. It reads the host the
-middleware carried inward and pairs it with the secret from server configuration
-— which is why `createServerSdk` is a server-only entry point and why the secret
-never appears in the middleware above:
-
-```ts
-// packages/sdk/src/server.ts — the shape, once the first operation exists.
-const response = await fetch(new URL(path, options.apiBaseUrl), {
-  headers: {
-    // The trusted hop: both halves, or the API ignores the host header
-    // entirely and resolves from its own Host (ADR-0036).
-    'X-LearnStack-Host': options.host,
-    'X-LearnStack-Hop-Secret': process.env.LEARNSTACK_HOP_SECRET!,
-
-    // An assertion, not a selector. The API compares it against the host it
-    // resolved for itself; a mismatch is a 404.
-    'X-Tenant-Id': options.tenantId,
-    'Accept-Language': options.locale,
-  },
-});
-```
-
-`resolveHost` is backed by a short-TTL edge cache (~60 s) that calls the LearnStack API,
-which in turn reads the `platform_host_to_tenant` projection (populated by the Hub —
-[27-custom-domain-tls.md](27-custom-domain-tls.md)). Custom-domain activations and
-deactivations on the Hub side publish a `learnstack.hub.custom-domain.activated`
-(and `.deactivated`) Dapr pub/sub event; LearnStack listens, invalidates the
-`ICacheService` entry, and the next edge fetch picks up the change. Tenant deletions
-similarly invalidate via Dapr pub/sub.
-
-A request to an org-scoped subdomain (`branch-istanbul.example.edu`) resolves to the
-parent tenant id **plus** an organization id; the rest of the page render gets
-appropriate filtering for free because the API resolves that same host itself and scopes
-the request to the organization on its mapping row. The scope comes from the host
-lookup, never from a header — headers are assertions the API compares against its own
-answer ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)).
-
-**One page load, from the browser to a tenant-scoped render.** The edge resolves
-for rendering; the API resolves again, for itself.
+The API computes the effective host once under ADR-0036's direct/trusted-hop rules,
+resolves its existing mapping and preserves a factory host ceiling. The configured
+server caller states the visitor host over the authenticated hop; neither public
+configuration nor SDK options select a tenant by ID. Credentials may cause refusal
+but cannot widen institution public visibility.
 
 ```mermaid
 sequenceDiagram
-    Browser->>Edge: GET https://english.example.com/tr/courses
-    Edge->>Edge: cache lookup host -> {tenantId, organizationId?}
-    alt cache miss
-        Edge->>API: GET /api/v1 host lookup (Phase 02d)
-        API->>API: SELECT FROM platform_host_to_tenant WHERE host = $1
-        API-->>Edge: { tenantId, organizationId?, branding }
-        Edge->>Edge: cache (60s SWR)
-    end
-    Edge->>Next: forward with x-tenant-id (assertion), x-organization-id?, x-locale
-    Next->>API: call carrying X-LearnStack-Host + X-LearnStack-Hop-Secret
-    API->>API: resolve the host independently; compare any assertion
-    API-->>Next: tenant- + org-scoped responses
-    Next-->>Browser: rendered HTML
+    Browser->>Next: GET institution page with locale and content slugs
+    Next->>API: GET /api/v1/public/site over configured trusted hop
+    API->>API: effective host, reconciliation, host ceiling, READ ONLY
+    API-->>Next: typed site configuration without tenancy IDs, no-store
+    Next->>API: GET /api/v1/public/courses?locale=... over same hop
+    API->>API: exact enabled locale and eligible source rows
+    API-->>Next: allowlisted public response, no-store
+    Next-->>Browser: public page (P02d-6)
 ```
 
-In text, for a reader whose renderer does not draw it:
+For text renderers:
 
-1. The browser requests a page on a tenant's host.
-2. The edge looks the host up in a short-TTL cache.
-3. On a miss it asks the API, which reads `platform_host_to_tenant`, and caches
-   the answer for 60 seconds.
-4. The edge forwards to Next.js with `x-tenant-id` as an **assertion**, plus the
-   organization and locale it resolved for rendering.
-5. Next.js calls the API stating the **visitor's host** over the trusted hop —
-   `X-LearnStack-Host` with `X-LearnStack-Hop-Secret`.
-6. The API resolves that host itself and compares any assertion against its own
-   answer; a mismatch is a 404.
-7. The API returns tenant- and organization-scoped data, and Next.js renders.
+1. The browser selects an institution host and a locale/content URL.
+2. The P02d-5 server caller supplies the trusted transport and visitor host.
+3. The API resolves authority and dispatches marked read-only requests.
+4. Bootstrap returns enabled/default locales, whole typed theme or null and
+   effective attribution, without tenant/organization IDs or raw settings.
+5. Education calls use explicit query locale; headers never select content.
+6. P02d-6 renders the bounded DTOs. No site/Education representation cache or edge
+   lookup cache is part of this API contract; renderer-cache choices remain G37.
+
+The API host resolver's own cache remains unchanged and never calls Hub. Existing
+custom-domain push and invalidation contracts remain under their named phases;
+this bootstrap does not add an event bus adapter or a second resolver surface.
+Organization public visibility intersects host scope with normal context and RLS,
+so a claim cannot enlarge what the host serves.
 
 ## Rendering Strategies
 
@@ -232,7 +150,16 @@ Static export is not used; tenants are resolved at request time and the renderer
 
 ## Theming
 
-**P02d-2 accepted design — 2026-10-02, not implemented.** The
+**P02d-4 Step 2 public projection delivered.** Bootstrap returns
+only the whole typed four-color theme or null; frontend safe CSS defaults remain
+owned here, without backend duplication. Baseline colors apply independently of
+plan. Effective WhiteLabelBranding removes LearnStack attribution only. Public
+responses expose no setting keys, raw/partial JSON or organization merge. G42
+still owns document injection in P02d-6.
+
+**P02d-2/3 delivered foundation — 2026-10-03.** The theme writer and typed settings
+accessor are implemented. Step 2 delivers the anonymous projection; renderer
+injection remains P02d-6. The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
 logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
@@ -243,19 +170,20 @@ as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` 
 [Frontend Architecture Standards § Tenant Branding](../standards/07-frontend-architecture.md#tenant-branding)
 names and the shared Tailwind preset reads; this document keeps no second vocabulary.
 The accepted [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
-owns P02d-2's admitted tokens and values. G16(f/g)'s public projection and entitlement/
-attribution remain in the phase register.
+owns P02d-2's admitted tokens and values. P02d-4 accepts their public projection and
+attribution rule; Step 2 delivers this API projection.
 How the tokens reach the document, and how that mechanism stays compatible with the
 nonce-based policy that
 [Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as
 the target, is G42 in the same register.
 
-When the resolved request carries an organization id and that organization has a
+In Phase 06's planned organization override, when the request carries an organization id
+and that organization has a
 `BrandingOverride`, the override merges on top of the tenant defaults before injection —
 the merged token set is the source of truth for the SSR'd page.
 
-The first paint is themed; there is no FOUC because tokens are injected into the SSR'd
-HTML.
+P02d-6's target is a themed first paint through safe SSR injection; no renderer
+injection is implemented yet.
 
 Logo/font assets and uploads are Phase 06 targets, requiring safe media and
 subresource contracts before their writers or consumers. P02d-2's accepted color-only

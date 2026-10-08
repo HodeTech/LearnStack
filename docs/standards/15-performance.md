@@ -2,6 +2,8 @@
 
 **Status:** Adopted
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (initial budgets in [04-technical-architecture.md § Performance Budgets](../architecture/04-technical-architecture.md)), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md) (classroom join + bandwidth budgets).
+Public-read additions derive from
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
 
@@ -36,7 +38,8 @@ Budgets are reviewed quarterly against measured production metrics.
 
 ### Caching
 
-- Read-through cache for stable, public, read-heavy data (published page render, course catalog list).
+- Read-through cache for stable, read-heavy data except the P02d-4 public API
+  boundary below; renderer-cache choices remain separately owned.
 - Cache invalidation triggered by integration events from the producing module.
 - Cache keys carry the tenant, the organization where applicable, and the locale
   ([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist)).
@@ -50,13 +53,16 @@ requires a fresh SQL generation probe; `< 1 ms` measures in-memory resolution
 only, not end-to-end latency. Cold/partial/fault reads use at most two SELECTs.
 Seeded timings and plans do not establish a production p95.
 
-> **Open in Phase 02d.** That phase ships the first course-catalog reads and the first
-> pages rendered from them, and no Education publish event to invalidate a cache with.
-> Whether those reads are cached at all, with what directive and what freshness, is G27;
-> which Next.js caches may hold the rendered pages is G37. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> A pass whose answer caches edits this section with it, and the pass that closes the
-> later of the two gates removes this note.
+**P02d-4 Accepted exception — 2026-10-03.** Step 2 delivers the early
+public-prefix response policy; Step 3 delivers Education reads and records actual
+app-role query plans and local HTTP samples in its delivery record. Every
+`/api/v1/public` response, including middleware/errors, uses `Cache-Control: no-store`.
+No site/Education representation cache, ETag, Last-Modified or 304 is introduced;
+internal generation-keyed definitions remain independent. Record actual app-role
+consumer query plans and representative local cold/warm measurements without a
+production p95 claim. Renderer caches remain P02d-5/G37.
+[The accepted package](../roadmap/phase-02d-walking-skeleton.md#branding-entitlement-and-cache-boundary)
+owns that boundary under ADR-0052.
 
 ### Pagination
 

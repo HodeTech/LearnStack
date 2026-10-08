@@ -117,7 +117,8 @@ before anonymous lesson exposure. This marketplace proposal itself supersedes no
 
 P02d-2 has no technical dependency on marketplace commerce. Its decision pass is
 Accepted; P02d-2 policy, migration, writers and seed are delivered following
-maintainer resumption. Public-read enforcement remains P02d-4, rendering P02d-6.
+maintainer resumption. P02d-4 delivers public-read enforcement; rendering remains
+P02d-6.
 Commerce feasibility does not reopen its access decision or
 silently block the independent packet.
 
