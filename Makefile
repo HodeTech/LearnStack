@@ -269,8 +269,8 @@ test-integration: ## Just the LearnStack.Tests.Integration assembly (a subset of
 	(cd backend && dotnet test tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj --nologo)
 
 .PHONY: test-frontend
-test-frontend: ## `pnpm -r test` (Vitest component + lib tests).
-	(cd frontend && pnpm -r test)
+test-frontend: ## Guarded workspace Vitest run (nonempty, zero skips/todos).
+	(cd frontend && pnpm test)
 
 # ─── Lint / format ────────────────────────────────────────────────────────
 .PHONY: lint

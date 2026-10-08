@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { middleware } from './middleware';
+import { validatedTraceparent } from './server/configured-public-client';
 import type * as ConfiguredClientModule from './server/configured-public-client';
 import { INGRESS_HEADER, mintProvenance } from './server/ingress';
 import type { PublicSite } from './server/public-entry';
@@ -153,6 +154,24 @@ describe('Node public middleware', () => {
     });
     expect(bootstrap).toHaveBeenCalledTimes(1);
   });
+
+  it.each([null, 'invalid', trace.replace('-01', '-xyz')])(
+    'shares a fresh request-local trace between bootstrap and rendering for %s',
+    async (incomingTrace) => {
+      const request = incoming('/tr/courses');
+      if (incomingTrace === null) request.headers.delete('traceparent');
+      else request.headers.set('traceparent', incomingTrace);
+      const response = await middleware(request);
+      const downstream = response.headers.get('x-middleware-request-traceparent');
+      expect(validatedTraceparent(downstream)).toBe(downstream);
+      expect(downstream).not.toBeNull();
+      expect(factory).toHaveBeenCalledWith(request.headers.get(INGRESS_HEADER), {
+        traceparent: downstream,
+        signal: request.signal,
+      });
+      expect(response.headers.get('traceparent')).toBeNull();
+    },
+  );
 
   it.each(['/studio', '/portal'])(
     'requires live bootstrap even for exact scaffold %s',

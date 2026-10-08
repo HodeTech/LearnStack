@@ -61,6 +61,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
+  - P02d-5 keeps the existing check names. The frontend job uses the guarded
+    workspace test runner and native production/cleanup controls. Backend
+    integration also builds a disposable Next app against the real API/PostgreSQL;
+    Node/pnpm, frozen frontend dependencies and OpenSSL are required by that job.
+    Its test-owned HTML/RSC routes do not claim P6 pages or a browser audit.
   - `lighthouse budget (deferred to P02d-7)` remains behind its unset
     `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. Accepted P02d-5 G44 assigns
     activation to P02d-7/G44/G45 after P6 pages. It remains optional and disabled;

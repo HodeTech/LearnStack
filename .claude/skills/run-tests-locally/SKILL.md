@@ -153,11 +153,21 @@ Common failure shapes:
 ### Step 6: Run frontend tests
 
 ```bash
-cd frontend/apps/web
-pnpm test                # vitest
-pnpm typecheck           # tsc --noEmit
-pnpm lint                # next lint — what `pnpm -r lint` runs in CI
+cd frontend
+pnpm test                # all discovered test packages; nonempty, zero skips/todos
+pnpm typecheck           # workspace tsc --noEmit
+pnpm lint                # workspace lint, including next lint
 ```
+
+
+The root frontend runner reads actual Vitest reports, compares discovered files,
+and refuses missing scripts, unreadable/empty reports, failures, skipped or todo
+cases. Use `pnpm --filter @learnstack/web test <path>` only for focused development;
+packet/PR validation uses the guarded workspace command. Backend Docker integration
+also runs P5's disposable production Next/TLS fixture against the real API and
+PostgreSQL; Node, pnpm, installed frontend dependencies and OpenSSL are required.
+It owns ports 3000/3011 while running and refuses occupied ports without stopping
+an existing user process. Product-page browser/a11y tests remain P6/P7.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither

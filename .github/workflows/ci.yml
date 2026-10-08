@@ -185,6 +185,24 @@ jobs:
         with:
           global-json-file: backend/global.json
 
+      # P02d-5 compiles a disposable production Next fixture against this job's
+      # real API/PostgreSQL host. It remains a Docker-trait integration test.
+      - name: Set up pnpm for production rendering fixture
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js for production rendering fixture
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install production rendering fixture dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
       - name: Restore
         working-directory: backend
         # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and
@@ -279,7 +297,12 @@ jobs:
         run: pnpm -r build
 
       - name: Test (Vitest)
-        run: pnpm -r test
+        run: pnpm test
+
+      - name: Prove native production ingress and failed-fixture cleanup
+        run: |
+          node apps/web/scripts/verify-ingress.mjs
+          node apps/web/scripts/verify-ingress-cleanup.mjs
 
   # ─── OpenAPI breaking-change check (active — P02d-4) ─────────────────
   openapi-diff:

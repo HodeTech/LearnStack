@@ -138,8 +138,9 @@ so a claim cannot enlarge what the host serves.
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) accepts native socket
 provenance, a server-only configured transport and uncached institution rendering.
 Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
-records implementation and reviews: Steps 1–2 are complete, Step 3 implements
-the caller/entry and dynamic public layout, and Step 4 owns runtime/fence closeout.
+records implementation and reviews: Steps 1–3 are complete; Step 4 implements
+frontend fences, no-skip outcomes and real-API production HTML/RSC proofs. Its
+review closeout remains pending.
 P02d-6 owns public page consumers.
 
 Per segment:

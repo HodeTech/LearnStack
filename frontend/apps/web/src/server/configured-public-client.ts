@@ -35,10 +35,10 @@ export function validatedTraceparent(value: string | null | undefined): string |
     : null;
 }
 
-function traceContext(value: string | null | undefined): string {
+export function publicTraceparent(value: string | null | undefined): string {
   const incoming = validatedTraceparent(value);
   if (incoming) return incoming;
-  // The adapter starts a trace when no usable context arrived; no browser carrier is emitted.
+  // Bootstrap and rendering share this request-local context; no browser carrier is emitted.
   let trace: string;
   let span: string;
   do trace = randomBytes(16).toString('hex');
@@ -143,7 +143,7 @@ export function createConfiguredPublicClient(
     'X-LearnStack-Host': ingress.host,
     'X-LearnStack-Hop-Secret': configuration.secret,
     'X-LearnStack-Visitor-Address': ingress.peer,
-    traceparent: traceContext(options.traceparent),
+    traceparent: publicTraceparent(options.traceparent),
   });
   const sdk = createServerSdk((path) => {
     // Only the SDK's four fixed operations can call this closure. Recheck origin

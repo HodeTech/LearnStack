@@ -1,9 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import {
-  createConfiguredPublicClient,
-  validatedTraceparent,
-} from '@/server/configured-public-client';
+import { createConfiguredPublicClient, publicTraceparent } from '@/server/configured-public-client';
 import { INGRESS_HEADER, verifyNextProvenance } from '@/server/ingress';
 import { publicEntry, publicRedirect } from '@/server/public-entry';
 
@@ -31,7 +28,7 @@ export async function middleware(request: NextRequest) {
   });
   if (!context) return refusal(404);
   try {
-    const traceparent = validatedTraceparent(request.headers.get('traceparent'));
+    const traceparent = publicTraceparent(request.headers.get('traceparent'));
     const client = createConfiguredPublicClient(envelope, {
       traceparent,
       signal: request.signal,
@@ -74,7 +71,7 @@ export async function middleware(request: NextRequest) {
       if (value !== null) downstream.set(name, value);
     }
     downstream.set(INGRESS_HEADER, envelope!); // Verified above; the caller verifies again.
-    if (traceparent) downstream.set('traceparent', traceparent);
+    downstream.set('traceparent', traceparent);
     const response = NextResponse.next({ request: { headers: downstream } });
     response.headers.set('cache-control', 'no-store');
     return response;

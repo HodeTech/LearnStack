@@ -13,7 +13,7 @@
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
-> | P02d-5 | Server-rendering path | [decision package Accepted](#p02d-5-decision-package-2026-10-08); four-step implementation starting |
+> | P02d-5 | Server-rendering path | [decision package Accepted](#p02d-5-decision-package-2026-10-08); Steps 1–3 complete; [Step 4 implemented, reviews pending](#p02d-5-step-4--frontend-fences-and-production-integration) |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
@@ -3121,6 +3121,65 @@ controls now isolate the bound; the reviewer verifies all 84 cases pass and the
 removed-guard mutant fails exactly the 36-character case. Production policy is
 unchanged. Both independent rounds and fix verification pass; Step 4 follows.
 
+
+#### P02d-5 Step 4 — Frontend fences and production integration
+
+**Implemented — 2026-10-09; independent reviews pending.** Two reserved frontend
+rules now name actual Vitest assertions with a nonempty production TypeScript
+census. AST analysis follows runtime imports/reexports and constant dynamic imports,
+with alias/computed fetch and header, server-only, raw-authority, layout-policy and
+cache controls. Request-local React cache remains allowed. Arbitrary eval, runtime
+reassignment and external implementation bodies are outside the structural claim;
+actual production/socket proofs remain separate.
+
+The root frontend runner discovers test packages from the workspace declaration,
+including ones pnpm would otherwise skip. It refuses missing scripts, missing or
+invalid/empty reports, failures, skipped/todo cases and omitted discovered files.
+Actual isolated Vitest clean/skip/todo/missing-script/report/omission controls prove
+refusal. The existing frontend CI context uses this runner and executes the native
+production TLS/failed-listener cleanup companions after build.
+
+`PublicServerRenderingTests` compiles a disposable app with test-owned routes that
+import the real ingress/middleware/caller and SDK against real Kestrel/PostgreSQL.
+Both seed hosts render the same locale/slug in cold/interleaved HTML and RSC without
+cross-host values. The fixture proves exact lesson projection, non-English default
+redirect, stock-Next forgery refusal before any API/database bootstrap, nonempty
+client asset and native/API log containment, and next-request publication freshness
+in the same native process. Its real API reads use `learnstack_app`, physical READ
+ONLY frames and the existing isolation observer. Only test setup mutates owner rows,
+with restoration in `finally`; it is not the role used to prove isolation.
+
+A real Client Component import of the configured caller fails with the server-only
+diagnostic; deleting that test-owned route yields a clean production build. Private
+runtime configuration is supplied only after compilation. Bootstrap/page reads
+share one valid trace identifier for supplied, missing and malformed incoming
+contexts; the middleware creates a request-local context before either caller.
+No trace or private carrier is emitted to the browser.
+
+Pinned Next streams RSC not-found with HTTP 200 and its exact
+`NEXT_HTTP_ERROR_FALLBACK;404` digest, while the document response is 404. The
+fixture requires the real API's parsed 404, the digest and absence of previous
+content; other API/transport failures fail the proof. It stays below the existing
+60-call visitor budget and owns only isolated ports/certificates/build trees.
+Backend integration CI receives Node/pnpm and frozen frontend dependencies; no
+required check name or branch-protection setting changes.
+
+Test-owned routes are P5 transport/runtime evidence. Public catalog/course/lesson
+product UI is P6; browser demo and Lighthouse remain P7/G44/G45. This step adds no
+production diagnostic route, page UX, auth, CMS or database migration.
+
+
+**Step 4 pre-review verification (2026-10-09).** Release build has zero
+warnings/errors; format verification passes. All **2,898 backend cases** pass:
+1,679 unit, 198 architecture, four contract and 1,017 integration, with zero
+failures/skips. Every assembly passes the nonempty-run checker and direct TRX
+counter comparison. The complete guarded frontend run passes **381 cases**:
+321 web and 60 SDK, zero failures/skips/todos. Workspace lint/typecheck and the
+production build pass. Focused production integration also passes independently;
+normal native TLS and planted listener-cleanup controls pass. Both `pnpm test`
+and `make test-frontend` route through the guarded runner. SDK snapshot drift and
+the final per-step review evidence are recorded below when complete.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
@@ -4211,25 +4270,29 @@ otherwise
   request-level hop tests in `backend integration` and the manual walkthrough, plus any
   automated smoke G38 adopts.
 - Neither the built client assets nor rendered HTML contain the hop secret value, and no
-  `NEXT_PUBLIC_` variable carries it; only `frontend/packages/sdk/src/server.ts` sets
-  the hop headers on a request to the API, and importing the server entry from a Client
-  Component fails the build or lint; the server SDK's API origin comes from server
-  configuration, never from the inbound `Host` or any request header (`frontend` job,
+  `NEXT_PUBLIC_` variable carries it. Only
+  `frontend/apps/web/src/server/configured-public-client.ts` sets hop headers on
+  an API request; a real Client Component import of that configured caller fails
+  the production build. The SDK retains its injected transport seam.
+  The configured API origin comes from server configuration, never from inbound
+  `Host` or any request header (`frontend` job,
   each with a failing companion; **G35**).
 - Client-supplied `x-tenant-id`, `x-organization-id`, `x-locale`, `x-learnstack-host`
   and `x-learnstack-hop-secret` never reach an SDK call's outbound headers unchanged;
-  under `next build && next start`, no `(public)` route and not `/api/healthz` answers
-  the scaffold's `503`; `/` and a locale-less path, a disabled or malformed locale
-  segment, and a platform or unknown host answer as **G36** records — on a seed tenant
+  under the production build and mandatory native launcher, public entry and
+  `/api/healthz` do not answer the old unwired scaffold `503`; product content pages
+  remain P6. Stock `next start` bypass is refused before bootstrap; `/` and a
+  locale-less path, a disabled or malformed locale segment, and a platform or
+  unknown host answer as **G36** records — on a seed tenant
   whose default locale is not `en`, never `en` (`frontend` job). Once `P02d-5` merges,
   no comment under `frontend/apps/web/src` assigns unbuilt host wiring to Phase 02a or
   cites a `resolve-host` endpoint
   (`git grep -nE "resolve-host|(wired|lands|plug in) in Phase 02a|Phase 02a (wires|resolves|resolution)" frontend/apps/web/src`
   is empty, recorded in that packet's delivery record).
-- With the development hop configuration committed, the API starts under the committed
-  Development configuration with no `.env` present, and every Development-environment
-  fixture stays green (`backend`, `backend integration`); every hop variable is listed
-  in `.env.example`.
+- With private hop configuration kept outside version control, ordinary no-hop API
+  startup works under committed Development settings with no `.env` present, and
+  every Development-environment fixture stays green (`backend`, `backend integration`);
+  every hop variable is listed in `.env.example`.
 - A non-hop peer is still limited per socket peer, getting `429` with `Retry-After` over
   budget, and rotating `X-Forwarded-For` or any header **G34** introduces buys it
   nothing (`RateLimitingHttpTests`). Through the whole middleware chain and one
@@ -4237,7 +4300,7 @@ otherwise
   single source sending novel `Host` values through the hop is refused before more
   resolver lookups than G34's budget, with the unknown-host cache within its cap.
 - If **G35** places it here, a server-to-API call carries a `traceparent` whose trace id
-  matches the API's Problem Details `correlationId`.
+  matches the API's Problem Details `traceId`.
 - On a production build, one `(public)` path requested on host A, then B, then A returns
   each tenant's own markers every time; the build reports every tenant-varying
   `(public)` route in the rendering mode **G37** decides, and the frontend source holds

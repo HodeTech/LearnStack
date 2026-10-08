@@ -286,6 +286,24 @@ owns validation and reviews. Step 4 still owns complete production-build integra
 and mechanical frontend fences; P6 owns public page composition. This delivery
 note changes no Accepted decision or browser-readiness claim.
 
+### Amendment 5 — Frontend fences and production integration delivered (2026-10-09)
+
+P02d-5 Step 4 implements source guards for private server imports, the single
+fetch/header adapter, dynamic/no-store policy and raw-authority refusal. The
+workspace runner discovers tested packages and refuses missing scripts/reports,
+empty outcomes, skipped/todo cases and omitted files; actual planted runs prove it.
+
+The disposable production fixture imports the real middleware/caller against the
+real Kestrel API and PostgreSQL as `learnstack_app`. Same-path HTML/RSC requests on
+two hosts stay separate; publication changes affect the next request. A real Client
+Component import fails the build, stock-Next forgeries cannot bootstrap, and private
+values stay out of responses, client assets and logs. Bootstrap/rendering share a
+request-local trace even when incoming trace context is absent or invalid.
+
+The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-4--frontend-fences-and-production-integration)
+owns validation and independent reviews. Test-owned routes are not P6 product
+pages or P7 browser/Lighthouse delivery. The original Accepted body is unchanged.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

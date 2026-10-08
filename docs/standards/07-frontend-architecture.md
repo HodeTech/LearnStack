@@ -93,7 +93,8 @@ flowchart TD
   [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
   owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
   P02d-5 Steps 1–3 deliver native ingress, visitor budgets, Node bootstrap/entry
-  and the configured caller; Step 4 owns frontend fences and runtime closeout.
+  and the configured caller; Step 4 implements frontend fences and real-API
+  production HTML/RSC proofs. Public page composition remains P02d-6.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
 
@@ -136,8 +137,9 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
 The `server-only` marker is pinned to **0.0.1**, MIT (compatible with the project's
 permissive dependency policy); the installed package metadata and lockfile are
 the version/license evidence. [Next's server/client guidance](https://nextjs.org/docs/app/getting-started/server-and-client-components#preventing-environment-poisoning)
-explains the import guard. Vitest aliases the marker only in server tests; Step 4
-proves a real client import fails the production build.
+explains the import guard. Vitest aliases the marker only in server tests. The
+P5 production fixture proves a real client import fails with the marker diagnostic
+before rebuilding a clean server route against the real API.
 
 The [accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
 owns the source, pin, diff policy, bootstrap exception and required-check rollout.
@@ -170,7 +172,8 @@ routes render dynamically with no-store API transport. No ISR, positive
 cache is permitted. Request-local reuse is isolated to one incoming request.
 Freshness is the next new server/document request, not client Router Cache history.
 Disable local Server Component HMR caching. P02d-6/G41 still owns components.
-Acceptance alone does not claim the renderer or pages implemented.
+P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
+production routes exercise the real API; P6 public pages are not delivered by them.
 
 - Renders **published** pages, courses, blog content.
 - Institution public SSR uses ADR-0053's dynamic/no-store policy.

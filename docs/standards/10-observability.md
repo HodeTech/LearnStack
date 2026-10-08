@@ -308,7 +308,9 @@ In addition to system metrics, business KPIs:
 
 **Accepted P02d-5 scope — 2026-10-08.** G35/ADR-0053 requires valid W3C
 `traceparent` propagation from the configured server caller to the API; Step 3
-delivers it. Next client/server error capture, web-vitals reporting and browser trace
+delivers it. Step 4 preserves one request-local trace across middleware bootstrap
+and subsequent rendering, including missing/malformed incoming context. Real API
+observations verify agreement. Next error capture, web-vitals and browser trace
 injection belong to Phase 11's frontend observability work before production
 rollout. No Sentry client or web-vitals hook is claimed by P5.
 

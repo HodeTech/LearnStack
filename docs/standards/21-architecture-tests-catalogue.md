@@ -126,8 +126,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**157 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 50 are no less binding, and most could not live there. The table says where
+**159 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 52 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -727,11 +727,12 @@ otherwise).
 
 - **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
   `[Theory]`, and — at the runner, where the rule itself cannot see — no backend suite's
-  `.trx` reports a case that did not run. The `frontend` job's Vitest run is not read: a
-  skipped or todo case there, including one in `lint-rules.test.ts`, exits 0 today, and
-  Accepted P02d-5 G38(d) extends this rule to all tested frontend workspaces,
-  including actual skip/todo and missing-script controls. Step 4 implements the
-  runner; this acceptance does not claim the current gap closed.
+  `.trx` reports a case that did not run. P02d-5 G38(d) extends the runner to
+  frontend workspaces: `scripts/run-frontend-tests.mjs` discovers test packages and
+  reads nonempty Vitest JSON outcomes, refusing failures, skipped/todo cases,
+  missing scripts/reports and omitted discovered files. Real clean/planted runs in
+  `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
+  refusals; CLI success alone cannot close the rule.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -4147,7 +4148,13 @@ of structural detection.
   accompany the structural census; no empty subject can satisfy the rule.
 - **Source:** ADR-0053; Accepted P02d-5 G30/G33/G35.
 - **Type:** frontend structural + socket/runtime. **Kind:** structural.
-- **Status:** **Registered** — implementation and planted controls are P5 Steps 1/3/4.
+- **Status:** **Implemented** — `public-boundaries.test.ts` names this rule and
+  pins the nonempty production TypeScript graph, marker, direct/global/aliased
+  fetches, hop setters and transitive Client Component dependencies. Clean/planted
+  controls cover imports, reexports and literal dynamic imports. Arbitrary eval,
+  runtime reassignment, external package bodies and native MJS are outside the
+  source scan; production socket/TLS and `PublicServerRenderingTests` prove the
+  runtime boundary, actual client-import rejection and private-value containment.
 - **Phase:** 02d (P02d-5).
 
 #### `Public_Renderer_Does_Not_Share_Tenant_Representations`
@@ -4156,6 +4163,13 @@ of structural detection.
   route/data/ISR/bootstrap cache; request-local reuse never crosses an incoming
   request. Production-build controls prove same-path/different-host isolation.
 - **Source:** ADR-0053; Accepted P02d-5 G37.
-- **Type:** frontend structural + production runtime. **Kind:** structural.
-- **Status:** **Registered** — P5 Steps 3/4; public page consumers remain P6.
+- **Type:** frontend AST + actual production Next/API/PostgreSQL. **Kind:**
+  structural + behavioural.
+- **Status:** **Implemented** — `public-boundaries.test.ts` names this rule, checks
+  the public layout policy and follows public/helper imports for shared storage,
+  forbidden Next cache APIs and static/revalidation overrides. Clean/planted
+  controls accompany it; request-local React cache remains allowed.
+  `PublicServerRenderingTests` proves cold/interleaved same-path HTML/RSC host
+  isolation and next-request publication freshness as `learnstack_app`. It owns
+  disposable routes, not P6 product pages or P7 browser delivery.
 - **Phase:** 02d (P02d-5).

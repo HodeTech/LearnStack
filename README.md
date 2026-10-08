@@ -97,16 +97,17 @@ Browser rendering follows
 in P02d-5–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
-are complete; server rendering and browser delivery remain P02d-5/6.
+are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
+page consumers and P02d-7 the two-host browser demo.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Trusted server consumer in [P02d-5](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Public page consumers in [P02d-6](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Next.js route scaffolds and generated typed SDK with injected transport | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, route scaffolds and generated typed SDK | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -184,11 +185,13 @@ this launcher. Both processes read the same private root source; a web `.env.loc
 projection is optional and must match. No shell evaluates the values. Ordinary
 no-hop API startup remains supported outside this paired renderer recipe.
 
-**P02d-5 Steps 1–3 deliver ingress, visitor budgets and public entry.** The web
+**P02d-5 implements ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default
 locales and refuses unavailable scope. The server caller enforces no-store,
-deadline/body limits and the closed authenticated hop. Step 3 reviews and Step 4
-runtime/fence closeout remain in progress. Public pages are P02d-6, and the two-host
+deadline/body limits and the closed authenticated hop. Steps 1–3 completed both
+review rounds. Step 4 adds source fences, the no-skip test runner and real-API
+production HTML/RSC proofs; its reviews remain in progress. Public pages are
+P02d-6, and the two-host
 browser demo with `make demo` is P02d-7. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.

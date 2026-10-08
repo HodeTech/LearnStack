@@ -240,8 +240,10 @@ If a test gets slow, fix the test before the suite.
 - A `Skip` fails CI: `scripts/assert-tests-ran.py` refuses any backend run whose results
   report a case that did not run
   ([`No_Architecture_Test_Is_Skippable`](21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)).
-  The frontend Vitest run is not yet checked; closing that is G38 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  P02d-5 G38(d) extends the runner to frontend workspaces: `pnpm test` from
+  `frontend/` discovers test packages and checks actual nonempty Vitest JSON
+  outcomes, rejecting failures, skipped/todo cases, missing scripts/reports and
+  omitted discovered files. Real clean/planted runner controls prove refusal.
 
 ## Live Classroom Testing
 
