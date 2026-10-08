@@ -85,8 +85,10 @@ generation caching and scope-safe bypass; both review rounds passed.
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification.
-**P02d-4 is implementation-complete** in
-[PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting review and merge.
+**P02d-4 is complete and merged** through
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+records final verification.
 Its four steps deliver the read-only host boundary, anonymous site/Education
 GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
 rounds; final fix verification and all six real required CI jobs pass. The sixth

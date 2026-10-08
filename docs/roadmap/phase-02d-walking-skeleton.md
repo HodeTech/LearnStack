@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-04).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-08).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -12,7 +12,7 @@
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
-> | P02d-4 | Public read API and contract checks | ✅ implementation, review loops and live check rollout complete — 2026-10-04; [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review and merge; [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
+> | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | not started |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
@@ -69,6 +69,12 @@ their two independent review rounds are complete. The
 verified activation of the sixth required check.
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review
 and merge. P02d-5 is next; its decision pass has not started.
+
+**P02d-4 merge complete — 2026-10-08.** The preceding notes record pre-merge
+milestones. P02d-4 is now closed through
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25); its
+[merge closeout](#p02d-4-merge-and-closeout-2026-10-08) records final verification.
+Phase 02d remains in progress. P02d-5 is next; its decision pass has not started.
 
 ## Goal
 
@@ -2638,6 +2644,65 @@ remains. Both documentation reviewers independently verify preserved ADR history
 delivery claims, phase ownership and all 590 relative links/anchors in the six
 changed Markdown files. The complete local regression above verifies the code
 fix; this closeout adds delivery evidence only.
+
+### P02d-4 merge and closeout (2026-10-08)
+
+The maintainer merged [PR #25](https://github.com/HodeTech/LearnStack/pull/25) at
+2026-10-08 15:25:18 UTC. GitHub records final PR head
+`f8adb110ff7fca2a15bbd3f87c1546c62852dc4c` and merge commit
+`b83175538cf6f9c5415294a8f77dadd9c82588dd`. The merge's second parent is that
+head, and both commits have the identical tree. Development remains the working
+branch; the fetched main ref verifies the merge without changing branches.
+
+- All six required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/37794924088).
+  Downloaded TRX artifacts confirm **2847 passed, zero failed or skipped**:
+  1646 unit, 198 architecture, four contract, 171 Docker-free integration and
+  828 Docker integration. Frontend CI passes typecheck, lint, build, SDK drift
+  verification and **73 tests** (60 SDK, thirteen web).
+- All six required checks also pass in the
+  [merge-commit run](https://github.com/HodeTech/LearnStack/actions/runs/37800631591).
+  Independently downloaded merge-run TRX confirms the same 2847 passing cases
+  and zero failures/skips. Its OpenAPI artifact matches the merge SHA and
+  snapshot hash. Read-only protection verification confirms all six Actions
+  contexts with `app_id=15368` and `strict: true`; no setting is changed.
+- OpenAPI artifacts match the final head, verified base and committed snapshot
+  hash. All **60 policy controls** pass (39 breaking, 21 compatible). The final
+  workflow correction adds six actual-event selection controls to the eight
+  admission/bootstrap controls: **14 Python tests** pass locally and in CI.
+  Four local selector mutants fail. Zero-before pushes select the head's parent;
+  ordinary push, PR and manual refs retain their existing contracts.
+- The final review corrections retain unchanged ADR decisions and align delivery
+  navigation. Two fresh focused reviewers approve each final follow-up
+  (`7e07613..7ad4b91` and `7ad4b91..f8adb11`). CodeRabbit succeeds at the final
+  head; all five inline threads are resolved. The four implementation steps'
+  two-round review records above remain unchanged.
+
+**P02d-4 is closed.** Host-scoped anonymous site/catalog/course/lesson GET/HEAD,
+physical read-only frames, exact enabled-locale/access eligibility, bounded public
+projections and cursors, the served OpenAPI baseline, typed SDK and compatibility
+gate are delivered. No database migration is added by P02d-4.
+
+**Next: P02d-5 — Server-rendering path.** Its implementation and decision pass
+have not started. The [packet gate table](#packets-and-decision-gates) owns its
+complete prerequisites; the [decision register](#the-decision-register) still
+leaves development transport/hosts, trusted-hop topology and rate limiting,
+server SDK transport, middleware/locale entry, rendering/cache policy and the
+frontend test/skip fence open. P02d-4 supplies the completed API prerequisite;
+it does not accept those later decisions.
+
+P02d-6 owns the three public pages, text-card renderer, safe theme injection,
+language attributes and accessibility. P02d-7 owns `make demo`, the two-host
+full-stack evidence and phase exit. G44 retains the Lighthouse activation
+decision. Phase 02d remains in progress; no browser delivery, authenticated
+learner grants or Course Marketplace commerce is claimed by this closeout.
+
+**Documentation-only closeout validation.** Five local corpus-consistency tests
+pass with zero failures/skips. The seven changed Markdown files pass the local
+relative-link/fragment audit (825 link occurrences, 342 fragments), added-prose
+width and diff checks. ADR-0052 changes are insertion-only; previous P02d-4
+delivery notes and the P02d-1 suffix remain byte-identical. No production code
+changes or new decisions are introduced.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -24,8 +24,10 @@ HTTP/database proofs; both independent review rounds passed. Step 4 adds
 OpenAPI/SDK/CI controls; both review rounds and fresh fix verification pass. The
 [delivery record](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
 records verified live rollout and all six successful required jobs.
-[PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review
-and merge. The diagram includes the access column.
+P02d-4 is complete and merged through
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
+[merge closeout](../../roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+records final verification. The diagram includes the access column.
 
 ## Overview
 

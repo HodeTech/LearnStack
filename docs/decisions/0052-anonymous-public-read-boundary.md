@@ -2,6 +2,11 @@
 
 ## Status
 
+> **Merge update — 2026-10-08.** P02d-4 is complete and merged through PR #25.
+> [Amendment 13](#amendment-13--merge-closeout-2026-10-08) links final verification.
+> The pending/awaiting-merge statements below record earlier milestones;
+> P02d-5/6 remain the server/page owners.
+
 > **Implementation update — 2026-10-05.**
 > All four P02d-4 steps are delivered in PR #25, awaiting maintainer review/merge.
 > The original pending/not-started statements below are acceptance-time history;
@@ -373,3 +378,17 @@ consumers remain P02d-5/6.
 
 Updated carriers: this Status disclosure, the ADR-0036/0050/0051 delivery notes,
 the Education module spec and the P02d-4 delivery record.
+
+## Amendment 13 — merge closeout (2026-10-08)
+
+This delivery note changes no decision. The maintainer merged
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08. All four
+P02d-4 steps, their two-round reviews and the approved required-check rollout
+are complete. The [merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+owns the final head, merge/tree proof and verification evidence. The original
+Status, Date, Deciders and previous delivery notes remain unchanged as history.
+P02d-5/6 retain server/page delivery; Phase 02d remains in progress.
+
+Updated carriers: this dated Status disclosure, the decisions index, repository
+README and guidance, roadmap index and packet status, and the Education module
+status. No implementation or new decision is introduced by this closeout.
