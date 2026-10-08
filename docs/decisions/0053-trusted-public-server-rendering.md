@@ -229,6 +229,23 @@ catalogue records implementation status separately:
   actual skipped/todo fixtures and a missing test script must fail the runner.
 - Preserve existing public scope, READ ONLY, SDK drift and contract controls.
 
+## Amendments
+
+### Amendment 1 — Native ingress foundation delivered (2026-10-08)
+
+P02d-5 Step 1 implements the mandatory native HTTPS launcher, socket-derived
+host/address envelope, strict verification and inbound private-header sanitation.
+The root private environment source, optional matching web projection and paired
+loopback API launcher are delivered. The native launcher provides readiness;
+stock Next with forged provenance is refused by the middleware foundation.
+
+The [Step 1 record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-step-1--native-ingress-and-local-topology)
+owns validation and review evidence. Step 2 still owns visitor budgets; Step 3
+owns configured API transport/bootstrap/entry; Step 4 owns mechanical fences and
+complete production integration. TLS socket/production-launch controls are not a
+workstation-browser or P6 page-delivery claim. The original acceptance body remains
+unchanged.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

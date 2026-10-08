@@ -92,7 +92,8 @@ flowchart TD
   server-only configured caller in P02d-5. The
   [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
   owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
-  At acceptance these implementations are pending; delivery is recorded per step.
+  P02d-5 Step 1 delivers native ingress and interim fail-closed Node admission.
+  Step 3 still owns bootstrap/entry and the configured caller; Step 4 owns fences.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
 

@@ -2944,6 +2944,41 @@ explicit 60/IP plus 600/peer API budgets. Automatic trust-store modification is 
 authorized. Implementation now proceeds on development through the four steps and
 two fresh review rounds per step; acceptance alone marks no delivery criterion done.
 
+### P02d-5 delivery record
+
+#### P02d-5 Step 1 — Native ingress and local topology
+
+**Implementation delivered — 2026-10-08; review rounds pending.** The mandatory
+native Node launcher binds HTTPS to `127.0.0.1:3000`, validates the private source
+and delegates requests/upgrades to Next 15.5.18. It captures the real socket peer,
+canonicalizes IP identities, validates exactly one Host and bounded request target,
+strips incoming private/forwarding/framework carriers, then mints the HMAC envelope.
+Verification binds host, peer, method and raw target and refuses forged/repeated or
+noncanonical envelopes. No ingress code resolves tenant/organization authority.
+
+`make public-env` generates an ignored 32-byte random ASCII-encoded secret without
+hosts/trust changes. `make public-api` supplies only runtime database credentials,
+fixed loopback network and matching secret; `make public-web` and `pnpm dev/start`
+use the native launcher. Root/web environment examples and README/local-dev/seed
+workflows describe explicit mkcert trust, leaf creation and manual hosts aliases.
+The API's ordinary no-hop startup remains unchanged.
+
+The old middleware's tenant-header placeholder and invented `en` fallback are
+removed. Its interim Node admission returns no-store `503` after valid provenance
+and masked `404` otherwise. Health/assets are excluded from tenant entry, but all
+requests pass native sanitation. Step 3 replaces the interim refusal with real
+bootstrap and locale entry. Next implicit URL/slash redirects and Server Component
+HMR caching are disabled. P6 pages and P7's demo remain separate delivery scopes.
+
+**Validation.** The frontend suites pass 128 cases (60 SDK, 68 web), including 55
+ingress/config/socket cases; workspace lint, typecheck and production build pass.
+The production companion verifies test-root TLS readiness, private-header stripping,
+no carrier/secret in responses or retained fixture diagnostics, and stock-Next
+forged-carrier refusal. Existing API hop-configuration tests pass 5/5 with zero
+failures/skips, preserving empty-hop mode-independent startup. TLS controls use
+isolated trusted roots and a test-only Secure-cookie response header; no browser
+cookie acceptance or local CA installation is claimed.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

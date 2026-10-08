@@ -147,36 +147,48 @@ and eight scoped courses, ten lessons and twenty-seven translations. It uses the
 ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 
-### 3. Start the applications in separate terminals
-
-`make seed` starts infrastructure. The API and web app run separately on your host.
-The API needs the application connection string from `.env`; it does not load that
-file automatically. From the repository root:
+### 3. Prepare local HTTPS and start the applications
 
 ```bash
-# Terminal 1 — read only the application credential, then start the API.
-export ConnectionStrings__Default="$(sed -n 's/^ConnectionStrings__Default=//p' .env \
-  | tail -1 | tr -d '\r' | sed "s/^['\"]//; s/['\"]$//")"
-(cd backend && dotnet run --project src/LearnStack.Api)
+make public-env   # generate a private 32-byte hop secret in the ignored root .env
+```
+
+Install mkcert using its [official instructions](https://github.com/FiloSottile/mkcert).
+Run its trust step yourself, then create the local leaf certificate:
+
+```bash
+mkcert -install
+mkdir -p .data/tls
+mkcert -cert-file .data/tls/public.pem -key-file .data/tls/public-key.pem \
+  localhost demo-english.learnstack.local demo-yoga.learnstack.local
+```
+
+Manually map the two seeded names to `127.0.0.1` in your hosts file. Repository
+commands never edit that file or install trust. Keep the CA private key local;
+only the ignored leaf/key paths belong in `.env`.
+
+```bash
+# Terminal 1 — loopback API with runtime credentials and network + hop secret.
+make public-api
 ```
 
 ```bash
-# Terminal 2 — start the frontend.
-(cd frontend && pnpm dev)
+# Terminal 2 — the mandatory native HTTPS launcher, then Next.js.
+make public-web
 ```
 
-The API's liveness endpoint is <http://localhost:5080/healthz>; the frontend scaffold
-is at <http://localhost:3000>. The application connection uses `learnstack_app`;
-`make migrate` manages the separate migration credential. See
-[local setup](.claude/skills/local-dev-setup/SKILL.md) for the persistent user-secrets
-alternative and [Compose documentation](infra/compose/README.md) for service endpoints
-and troubleshooting.
+Readiness is <http://127.0.0.1:5080/healthz> for the API and
+<https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
+this launcher. Both processes read the same private root source; a web `.env.local`
+projection is optional and must match. No shell evaluates the values. Ordinary
+no-hop API startup remains supported outside this paired renderer recipe.
 
-> **The two-site browser demo is not available yet.** The seed currently registers
-> `demo-english.learnstack.local` and `demo-yoga.learnstack.local`.
-> [Phase 02d gates G32 and G45](docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-> own the final host setup and demo command. The frontend's production tenant-resolution
-> guard currently returns `503`; a successful build is not a production-ready site.
+**P02d-5 Step 1 delivers the ingress foundation.** Public entry currently returns
+bounded `503` after valid ingress and `404` after missing/forged provenance; Step 3
+adds API bootstrap and locale entry. Public pages are P02d-6, and the two-host
+browser demo with `make demo` is P02d-7. See
+[local setup](.claude/skills/local-dev-setup/SKILL.md) and
+[Compose documentation](infra/compose/README.md) for troubleshooting.
 
 ### Everyday commands
 

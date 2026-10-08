@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/ensure-routes-stub.mjs",
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000",
+    "dev": "pnpm build:ingress && node scripts/public-server.mjs --dev",
+    "build:ingress": "tsc --project tsconfig.server.json",
+    "build": "pnpm build:ingress && next build",
+    "start": "pnpm build:ingress && node scripts/public-server.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

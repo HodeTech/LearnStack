@@ -14,4 +14,15 @@ module.exports = {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,
   },
+  overrides: [
+    {
+      files: ['scripts/**/*.mjs', '.eslintrc.cjs'],
+      env: { node: true, es2022: true },
+      // Native Node launch/test scripts are JavaScript, outside the TS program.
+      // Keep the ordinary security/import rules; only the TS type-import rule
+      // requires a parser service these files cannot supply.
+      parserOptions: { project: null },
+      rules: { '@typescript-eslint/consistent-type-imports': 'off' },
+    },
+  ],
 };

@@ -109,7 +109,9 @@ and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
 records final verification. P02d-5 is next; its
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
 and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
-two-round review loop now run on development; no P02d-5 delivery is claimed yet.
+two-round review loop now run on development. Step 1 implements native ingress,
+private local topology and TLS/socket controls; its two review rounds are pending.
+Steps 2–4 remain in progress, and P6 public pages are not claimed.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

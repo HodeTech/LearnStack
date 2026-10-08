@@ -16,8 +16,9 @@ description: >
 The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 records the decisions. Step 4 delivers the complete inventory and contextual
 verification; both implementation review rounds and final verification passed.
-PR review/merge remains pending. Public API reads and browser rendering remain
-P02d-4 and P02d-5–7. Do not claim a rendered demo from seed alone.
+P02d-2 is merged, and P02d-4 supplies public API reads. Server ingress/transport
+belongs to P02d-5; pages and the browser demo remain P02d-6/7. Do not claim a
+rendered demo from seed alone.
 
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns all demo
 identities, schemas, labels, palettes, bodies and computed inventory. The runner
@@ -151,10 +152,13 @@ remains Registered for P02d-5/6 scope and P02d-7 exit.
 
 ### 6. Reach the hosts
 
-The existing names are under `*.learnstack.local` and need hosts-file aliases for
-local browsing. Development transport/host changes remain G32 in P02d-5. The web
-middleware is still a scaffold; no browser render is supplied by this seed packet.
-Do not add a host alias or change a deployment's reserved-host registry implicitly.
+The existing names remain under `*.learnstack.local`. P02d-5/G32 accepts manual
+hosts aliases and local HTTPS; Step 1 supplies the native launcher and private
+shared-source configuration. Follow [README Quickstart](../../../README.md#3-prepare-local-https-and-start-the-applications)
+for explicit CA trust/leaf creation and `make public-api` / `make public-web`.
+Repository scripts never edit hosts or system trust. P02d-5 Step 3 owns entry,
+P02d-6 owns pages, and P02d-7 owns the two-site browser demo. No browser render is
+supplied by seeding alone.
 
 ### 7. Reset only an explicitly disposable development environment
 

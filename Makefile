@@ -64,6 +64,18 @@ help: ## Show this help, listing every target and its one-line description.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_.-]+:.*?## / {printf "  $(CYAN)%-18s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ─── Dev infrastructure ───────────────────────────────────────────────────
+.PHONY: public-env public-api public-web
+public-env: .env ## Generate the private local renderer secret (no hosts/trust edits).
+	(cd frontend && pnpm --filter @learnstack/web build:ingress)
+	node scripts/public-local.mjs prepare
+
+public-api: ## Start the loopback API with the paired trusted-hop configuration.
+	(cd frontend && pnpm --filter @learnstack/web build:ingress)
+	node scripts/public-local.mjs api
+
+public-web: ## Start the native HTTPS renderer (manual local certificate required).
+	cd frontend && pnpm --filter @learnstack/web dev
+
 .PHONY: dev dev-gated
 dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 	$(COMPOSE_DEV) up -d

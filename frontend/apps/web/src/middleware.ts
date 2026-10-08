@@ -1,56 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-/**
- * Tenant + locale resolution at the edge — the only place a host maps to a
- * tenant. The real `IHostToTenantResolver` lookup is wired in Phase 02a; this
- * scaffold propagates `x-tenant-id` and `x-locale` only. The third documented
- * header `x-organization-id` is intentionally OMITTED here — it lights up once
- * Phase 02a resolves an organization context from the host or JWT claim. See
- * [docs/architecture/14-frontend-architecture.md](../../../../docs/architecture/14-frontend-architecture.md)
- * § Tenant + Organization Resolution for the full shape.
- *
- * Headers MUST be written to the request (via `NextResponse.next({ request })`)
- * — writing only to the response makes them visible to the browser but not to
- * downstream `headers()` calls in RSC. Real Phase 02a resolution will plug in
- * here; until then, the `x-tenant-id` value is a placeholder so layouts can be
- * authored against the final shape today.
- */
+import { INGRESS_HEADER, verifyProvenance } from '@/server/ingress';
+
+/** Step 1 proves ingress admission; bootstrap/entry is wired by P02d-5 Step 3. */
 export function middleware(request: NextRequest) {
-  // Loud guard: the placeholder below trusts the client-supplied Host header.
-  // If this scaffold were ever deployed before Phase 02a wires real host →
-  // tenant resolution, tenant isolation would be decided by the caller — fail
-  // closed instead of silently degrading.
-  if (process.env.NODE_ENV === 'production') {
-    return new NextResponse('tenant resolution scaffold; production wiring lands in Phase 02a', {
-      status: 503,
-    });
-  }
-
   const url = new URL(request.url);
-  const host = request.headers.get('host') ?? 'localhost';
-
-  const requestHeaders = new Headers(request.headers);
-  // TODO(2026-05-19, @platform): replace placeholders once `IHostToTenantResolver`
-  // is wired and the `/v1/tenants/resolve-host` endpoint exists (Phase 02a).
-  // When the real resolver lands, drop the production guard above.
-  requestHeaders.set('x-tenant-id', host);
-  requestHeaders.set('x-locale', extractLocaleOrDefault(url.pathname));
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-// TODO(2026-05-19, @platform): drive the supported-locale set from
-// `Tenant.SupportedLocales` once tenant resolution lands. Right now the
-// regex matches any ISO-like locale and falls back to `en`.
-function extractLocaleOrDefault(pathname: string): string {
-  const segments = pathname.split('/').filter(Boolean);
-  const first = segments[0];
-  if (first && /^[a-z]{2}(-[A-Z]{2})?$/.test(first)) {
-    return first;
-  }
-  return 'en';
+  const context = verifyProvenance(
+    request.headers.get(INGRESS_HEADER),
+    process.env.LEARNSTACK_PUBLIC_HOP_SECRET,
+    { method: request.method, target: `${url.pathname}${url.search}` },
+  );
+  return new NextResponse(context ? 'Service unavailable' : 'Not found', {
+    status: context ? 503 : 404,
+    headers: { 'cache-control': 'no-store' },
+  });
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  runtime: 'nodejs',
+  matcher: ['/((?!_next/|api/healthz$|favicon.ico$).*)'],
 };
