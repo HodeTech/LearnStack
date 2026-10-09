@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import LessonPage, {
   generateMetadata,
 } from '@/app/(public)/[locale]/courses/[slug]/lessons/[lessonSlug]/page';
+import CoursePage from '@/app/(public)/[locale]/courses/[slug]/page';
 import { createPublicTranslator } from '@/i18n/catalogues';
 import type { ConfiguredPublicClient } from '@/server/configured-public-client';
 import type { PublicRequest } from '@/server/public-request';
@@ -366,23 +367,37 @@ describe('lesson route dispatch', () => {
     for (const operation of Object.values(client)) expect(operation).not.toHaveBeenCalled();
   });
 
-  it.each(['invalid_cursor', 'rate_limited', 'unavailable'] as const)(
-    'selects the controlled %s state before lesson markup',
-    async (state) => {
+  it.each(
+    [CoursePage, LessonPage].flatMap((page) =>
+      (['invalid_cursor', 'rate_limited', 'unavailable'] as const).map(
+        (state) => [page, state] as const,
+      ),
+    ),
+  )(
+    'selects %s controlled %s recovery with an accurate translated destination',
+    async (page, state) => {
       const request = lesson().request;
       const ui = createPublicTranslator('tr-TR');
       dependencies.resource.mockResolvedValue({ kind: 'failure', request, state });
       dependencies.ui.mockResolvedValue(ui);
-      expect(await LessonPage()).toMatchObject({
+      const view = await page();
+      const recoveryPath = state === 'invalid_cursor' ? request.route.path : '/tr-TR/courses';
+      expect(view).toMatchObject({
         type: PublicState,
         props: {
           state,
-          recoveryPath: request.route.path,
+          recoveryPath,
           locale: ui.locale,
           direction: ui.direction,
           t: ui.t,
         },
       });
+      render(view);
+      expect(
+        screen.getByRole('link', {
+          name: state === 'invalid_cursor' ? 'İlk sayfaya dön' : 'Kurslara göz at',
+        }),
+      ).toHaveAttribute('href', recoveryPath);
       expect(dependencies.notFound).not.toHaveBeenCalled();
     },
   );

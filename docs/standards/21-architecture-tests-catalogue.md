@@ -130,8 +130,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**159 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 52 are no less binding, and most could not live there. The table says where
+**160 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 53 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -494,8 +494,11 @@ otherwise).
   Public descriptors are projected only after P02d-4 content eligibility.
 - **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
 - **Type:** frontend component and public-boundary tests. **Kind:** behavioural.
-- **Status:** **Registered**; P02d-4 delivers the eligible public projection;
-  the P02d-6 renderer is not delivered.
+- **Status:** **Implemented** — P02d-6 Step 3, `PublicServerRenderingTests`,
+  `frontend/apps/web/src/components/public/lesson.test.tsx` and the unchanged
+  product-route presentation checks in `scripts/verify-public-rendering.mjs`.
+  P02d-4 supplies eligible descriptors; Step 3 proves ordered escaped text,
+  unsupported fallbacks and exact schema changes through the production renderer.
 - **Phase:** 02d (P02d-4/P02d-6).
 
 #### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`

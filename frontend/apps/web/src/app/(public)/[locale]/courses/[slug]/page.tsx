@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { PublicCourse } from '@/components/public/course';
 import { PublicState } from '@/components/public/state';
 import { publicMetadata } from '@/server/public-metadata';
+import { catalogPath } from '@/server/public-paths';
 import { requirePublicResource } from '@/server/public-resource';
 import { getPublicUi } from '@/server/public-ui';
 
@@ -18,7 +19,11 @@ export default async function CoursePage() {
     return (
       <PublicState
         state={resource.state}
-        recoveryPath={resource.request.route.path}
+        recoveryPath={
+          resource.state === 'invalid_cursor'
+            ? resource.request.route.path
+            : (catalogPath(resource.request.locale ?? '') ?? '/')
+        }
         locale={ui.locale}
         direction={ui.direction}
         t={ui.t}

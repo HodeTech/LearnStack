@@ -4412,6 +4412,25 @@ closure, DEBUG containment and development HMR. The solution Release build passe
 with zero warnings/errors. No browser or manual
 accessibility pass is claimed; full product/manual proof remains Step 4.
 
+#### Step 3 review round 1 (2026-10-10)
+
+Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol xhigh proof/corpus agents
+review `c250677..0be38e8` independently. No Blocker/Major is found. The runtime
+review confirms a misleading recovery destination: the translated catalog anchor
+reloads the failed lesson. The lesson route and the adjacent course route now
+send unavailable/rate-limited recovery to the admitted locale's catalog; invalid
+cursor reset retains its original route. Dispatch controls render the synchronous
+state and assert translated label and destination together.
+
+The proof reviewer independently confirms a stale narrow ADR-0051 catalogue row.
+It now names the delivered component and actual presentation fixture as
+Implemented, with its published counts reconciled. The five broader P6 rules stay Registered
+and Accessibility stays Adopted pending Step 4. Each reviewer passes 164 focused
+frontend cases, zero failures/skips; neither runs native/Docker or manual checks.
+The root passes 167 focused frontend cases, five Release corpus cases, workspace
+typecheck and diff checks after the fixes. A fresh second round follows before
+Step 4.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
