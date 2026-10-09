@@ -4485,12 +4485,37 @@ complete response. Fixture mutations restore locales, translations, theme and
 publication in `finally`; every mode uses a fresh unchanged visitor budget.
 
 **Validation and reviews.** The guarded frontend run passes 1,065 cases
-(1,005 web, 60 SDK), zero failures/skips/todos. All 20 focused Release production-rendering cases pass, zero failures/skips.
+(1,005 web, 60 SDK), zero failures/skips/todos. All 20 focused Release
+production-rendering cases pass, zero failures/skips.
 The new isolation/freshness modes observe exactly 43/52 API calls; the earlier
 foundation/pagination/presentation modes retain 52/18/46. Full backend regression,
-both fresh review rounds and the manual accessibility record follow. No browser or screen-reader pass is claimed here.
+both fresh review rounds and the manual accessibility record follow. No browser
+or screen-reader pass is claimed here.
 P6 completion and Accessibility promotion remain pending until actual keyboard,
 focus, 320 CSS px reflow, contrast and screen-reader evidence exists.
+
+#### Step 4 review round 1 (2026-10-10)
+
+Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol xhigh proof/corpus agents
+review `e2b8de4..e073075` independently. Neither finds a Blocker/Major. Both
+independently reproduce a narrow containment-test false negative: the injected
+Problem Details type URI uses a different marker from the other private fields.
+The URI now includes the common private sentinel; both reviewers confirm that a
+type-only leak is rejected and a clean response remains accepted. No production
+leak is demonstrated. The proof reviewer also confirms stale scaffold-only
+wording in README; it now distinguishes implemented public pages from the
+Studio/portal scaffolds. Related mutable roadmap, frontend setup and contributor
+carriers are aligned without claiming completion or browser evidence.
+
+The root passes the full Release Docker integration suite: 866 passed, zero
+failures/skips. After rebuilding the one-line fixture fix, both product modes
+pass again (2/2); exact 43/52 request counts remain unchanged. Earlier current
+Release results are 1,705 unit, 198 architecture, four contract and 172 Docker-free
+integration cases, all passing with zero skips. TRX counters for the newly run
+suites are inspected directly. Reviewers run read-only helper probes, syntax and
+link checks; neither claims independent full-suite or manual execution. Both
+fresh second-round reviews follow the fix commit. Manual accessibility remains
+an explicit packet-completion requirement.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -38,5 +38,6 @@ Before starting web, follow the root [HTTPS Quickstart](../README.md#quickstart)
 `make public-env` prepares the paired private configuration; hosts and mkcert trust
 remain explicit developer steps. Start `make public-api` in another terminal.
 The native ingress serves the configured tenant hosts over HTTPS on port 3000.
-Direct stock `next dev/start` is unsupported; P6 product pages and P7's browser/demo
-harness remain pending.
+Direct stock `next dev/start` is unsupported. P6 implements localized public
+catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+tracks remaining review/manual accessibility work. P7 owns the browser/demo harness.

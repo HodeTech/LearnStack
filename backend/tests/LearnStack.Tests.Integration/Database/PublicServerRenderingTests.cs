@@ -1014,7 +1014,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         context.Response.Headers.CacheControl = "no-store";
                         await context.Response.WriteAsJsonAsync(new
                         {
-                            type = "https://fixture.invalid/problem-private-type",
+                            type = "https://fixture.invalid/fixture-private-problem-type",
                             title = "fixture-private-problem-title",
                             status = fault.Status,
                             detail = "fixture-private-problem-detail",

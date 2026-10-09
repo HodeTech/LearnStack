@@ -8,8 +8,9 @@ learner-facing and instructor-facing screen after this phase is built into.
 
 [Phase 02d](phase-02d-walking-skeleton.md) delivers the public read API and trusted
 server transport through P02d-5. P02d-6 owns catalog, course-detail/outline and
-lesson pages; P02d-7 owns the browser/demo harness. Neither remaining packet is
-delivered yet. This phase deepens that bounded path with authored navigation,
+lesson pages, now implemented with product proofs and manual accessibility
+closeout pending. P02d-7 owns the unbuilt browser/demo harness. This phase deepens
+that bounded path with authored navigation,
 tenant error pages, complete block composition and editing surfaces.
 
 After this phase, LearnStack publishes a simple but real education website for a tenant,
@@ -21,7 +22,8 @@ and a non-developer tenant admin can maintain it.
 
 ### What Phase 02d supplies
 
-Rows identify their delivery packet; planned P02d-6/7 work is not current behavior.
+Rows identify implemented P02d-6 scope; its closeout remains pending. Planned
+P02d-7 work is not current behavior.
 
 | Phase 02d foundation | Phase 06 adds |
 |---|---|
@@ -31,7 +33,7 @@ Rows identify their delivery packet; planned P02d-6/7 work is not current behavi
 | Four-color public theme projection delivered P02d-4; safe document injection delivered P02d-6 Step 1 | The branding configuration surface, additional tokens and organization override |
 | The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 
-**P02d-6 inheritance — Accepted 2026-10-09; Step 1 foundation delivered.**
+**P02d-6 inheritance — Accepted 2026-10-09; Steps 1–4 implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9,
 app-local `src/i18n/messages/<locale>/<namespace>.json` and complete `en`/`tr`
 `public` messages. This phase extends its namespaces for full Studio/portal and

@@ -22,8 +22,10 @@ don't collide at `/`:
 P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
 entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
 Exact scaffold roots continue only after bootstrap; enabled locale membership takes
-precedence. P02d-6 still owns G40's product pages and page-state behavior in the
-[decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+precedence. P02d-6 implements localized catalog/course/lesson pages, ordered
+plain-text presentation, safe four-color themes and G40 page states. Its
+[product closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+records current verification and pending manual accessibility/review work.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),

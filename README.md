@@ -52,9 +52,9 @@ The planned surfaces serve the people on each side of that experience:
 | **Learner portal** | Enrolled learners | Work through lessons, track progress and join live sessions. |
 | **Optional Course Marketplace** | Learners and participating institutions | Shared discovery and central checkout; endorsed target, architecture approval pending. |
 
-These are planned product capabilities. Today, the frontend contains route scaffolds
-for the first three surfaces; the status below separates delivered foundations from the
-remaining product work.
+The public catalog, course and lesson pages are implemented. Studio and learner
+portal remain scaffolds; the status below separates delivered work from remaining
+product and validation obligations.
 
 **Built for different ways of teaching.** Content types and level taxonomies already
 have a validated customization model. The wider design covers page blocks, lesson
