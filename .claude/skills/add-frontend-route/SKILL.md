@@ -115,7 +115,27 @@ verifies the native envelope, bootstraps the live host and applies enabled-local
 entry before rebuilding downstream request headers. The caller verifies the
 envelope again. G35 and G36 are recorded in
 [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-Don't read `host` directly inside a page.
+Don't read `host` directly inside a page. The
+[public entry matrix](../../../docs/roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+is authoritative: bootstrap the live host before locale/redirect decisions;
+enabled-locale membership precedes `courses` shorthand and exact `/studio` or
+`/portal` scaffold handling. Disabled/malformed/unknown prefixes fail closed;
+no locale header, cookie or query supplies authority. The API remains the only
+tenant/organization owner. Continue the request-local validated `traceparent`
+through bootstrap and the configured caller; Phase 11 owns participation/sampling.
+
+**ADR-0054 Accepted, not implemented — 2026-10-09.**
+[The replacement contract](../../../docs/decisions/0054-bounded-public-renderer-admission.md)
+requires native GET/HEAD admission on every HTTP callback path, including
+middleware-exempt health/assets/scaffolds, with masked no-store refusal of other
+methods and bodyless HEAD. Production upgrades close; development retains only
+validated GET HMR. Remediation Step 2 implements these native/URL controls;
+existing runtime behavior remains until then. Do not add Server Actions/write
+routes or WebSocket consumers without an explicit owning Phase 02b/Phase 06
+admission decision. Preserve signed raw-target route/locale authority when
+accounting for pinned Next's URL projection. Redirects retain inert query values,
+duplicates and order with equivalent percent encoding; only verified live host,
+accepted HTTPS port and local path select the destination.
 
 ### Step 5: Authentication + permission gating
 

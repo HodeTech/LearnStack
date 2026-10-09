@@ -9,7 +9,8 @@
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); private ingress,
 configured caller and dynamic rendering derive from
-[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); native admission and
+redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -99,6 +100,30 @@ flowchart TD
   production HTML/RSC proofs. Public page composition remains P02d-6.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
+
+## Native Admission and URL Identity
+
+**ADR-0054 Accepted, not implemented — 2026-10-09.** Remediation Step 2
+implements these native/URL controls; the existing launcher and middleware remain
+current behavior until that step is verified.
+
+- Admit GET/HEAD on every HTTP path reaching the native listener callback before
+  Next dispatch, including matcher-exempt health/assets and exact scaffolds.
+  Other methods receive masked `404`, `Cache-Control: no-store`, without bootstrap
+  or Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
+- Close every production WebSocket upgrade. Development admits only the validated
+  GET HMR upgrade path and closes failed/unhandled delegation. Health/asset
+  exemptions grant no method, provenance or tenant authority.
+- Future Server Actions/write routes and WebSocket consumers require an explicit
+  admission decision in their owning Phase 02b BFF/auth or Phase 06 admin work.
+  Disable `poweredByHeader` independently, including framework fallback responses.
+- Signed raw targets select route/locale identity. Match observed middleware URLs
+  only against pinned Next 15.5.18's explicit full-URL RSC/`_rsc` projection; do
+  not introduce suffix aliases or select another lesson after normalization.
+- Redirects retain inert query values, duplicates and ordering; equivalent percent
+  encoding is allowed. Only the verified live host, accepted HTTPS port and local
+  path select the destination. Membership-first precedence and redirect statuses
+  remain those of the [entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix).
 
 ## Locale Resolution
 

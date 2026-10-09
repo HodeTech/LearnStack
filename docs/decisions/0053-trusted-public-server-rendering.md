@@ -317,6 +317,31 @@ maintainer PR review remains. P02d-6 owns product page composition and its decis
 pass; P02d-7 owns the browser demo and Lighthouse. No Accepted decision, original
 metadata, prior amendment or browser-readiness claim changes in this note.
 
+### Amendment 7 — Bounded admission supersession (2026-10-09)
+
+The maintainer accepted [ADR-0054](0054-bounded-public-renderer-admission.md) and
+P02d-5's five-step remediation plan on 2026-10-09. ADR-0054 supersedes only this
+record's anonymous accounting order, native method/upgrade admission and
+redirect-query encoding promise:
+
+- [Anonymous accounting](0054-bounded-public-renderer-admission.md#anonymous-accounting)
+  replaces Amendment 3's peer-first debit, retaining the numeric windows, shared
+  visitor namespace and peer-gated new allocation. The peer budget bounds admitted
+  calls/allocation; known-visitor refusals do not debit it or gain a total-work cap.
+- [Native admission](0054-bounded-public-renderer-admission.md#native-method-and-upgrade-admission)
+  requires GET/HEAD before Next on every listener path and closes every production
+  upgrade; development retains only validated required HMR.
+- [URL identity and redirects](0054-bounded-public-renderer-admission.md#url-identity-and-redirects)
+  replaces Amendment 4's raw-query-byte promise with inert value/duplicate/order
+  preservation through equivalent serializer encoding, retaining signed raw route
+  identity and membership-first entry.
+
+The original Accepted body, metadata and Amendments 1–6 remain historical. All
+other contracts remain authoritative; no API tenant authority, public wire contract
+or local topology changes. The [remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+owns current status. Acceptance delivers no runtime correction or new test/CI
+result; each implementation step still owes validation and two independent reviews.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

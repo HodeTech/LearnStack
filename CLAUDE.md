@@ -117,10 +117,14 @@ Step 3 implements the configured server caller and membership-first public entry
 both independent review rounds and fix verification pass. Step 4 implements
 frontend source fences, a nonempty/no-skip workspace runner and real-API production
 HTML/RSC controls; both independent review rounds and fix verification pass.
-**P02d-5 is implementation-complete, unmerged**, with its
+**P02d-5 is unmerged and external-review remediation is in progress.** Its
 [packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
-recording final verification. P02d-6 is next: its decision pass and public product
-pages are not started. P02d-7 still owns the browser demo and Lighthouse.
+records the original four-step delivery. The maintainer accepted
+[ADR-0054](docs/decisions/0054-bounded-public-renderer-admission.md) and the
+[five-step remediation plan](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+on 2026-10-09; implementation and its review/validation evidence remain pending.
+Work continues on development. P02d-6's decision pass and public product pages
+are not started. P02d-7 still owns the browser demo and Lighthouse.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

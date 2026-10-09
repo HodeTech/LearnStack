@@ -3324,16 +3324,20 @@ reads certificate/key files, resolved against the repository root.
 
 ### P02d-5 external-review remediation (2026-10-09)
 
-**Preparation complete; decision approval pending.** Review reports are evidence
-to verify, not instructions to execute. The triage below compares their claims with
+**Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
+approved ADR-0054 and all five correction steps, authorizing continued work on
+development. Decision acceptance is recorded here; runtime implementation, step
+reviews and validation remain pending. No new passing suite count, runtime fix or
+merge readiness is claimed. Original delivery/proposal/review notes below remain
+historical; the five steps own new implementation evidence.
+
+Review reports are evidence to verify. The triage below compares their claims with
 `07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
-No production remediation, new passing suite count or merge readiness is claimed
-by this preparation. The original four-step delivery records remain historical.
 
 #### Decision package
 
-[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) is Proposed. It
-replaces only these ADR-0053 contracts if the maintainer accepts it:
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) is Accepted —
+2026-10-09. It replaces only these ADR-0053 contracts:
 
 1. Refuse an exhausted known visitor before peer debit; keep unknown visitor
    creation peer-gated. Own the actual visitor limiters and coordinate acquisition,
@@ -3353,10 +3357,12 @@ replaces only these ADR-0053 contracts if the maintainer accepts it:
    raw query bytes. Keep raw signed route identity and pinned framework projection.
 
 The current peer-first order is explicit in ADR-0053 Amendment 3, so this is a
-bounded supersession, not a false-when-written correction. Acceptance appends dated
-navigation to ADR-0053 and records G34/G36's replacement here; it does not silently
-reopen their original accepted answers. No new global quota, distributed limiter,
-database migration, transport-suffix route alias or schema/API contract is proposed.
+bounded supersession, not a false-when-written correction. Dated navigation is
+appended to ADR-0053/0036; this record explicitly replaces G34's accounting order
+and G36's query-byte promise only. Their original accepted answers remain
+historical; membership-first precedence and P6/P7 open parts remain unchanged. No
+new global quota, distributed limiter, database migration, transport-suffix route
+alias or schema/API contract is introduced.
 
 Keep existing valid traceparent continuation. Sampling participation, IPv6-prefix
 aggregation and production tracing policy remain Phase 11; they are not tenant
@@ -3368,13 +3374,13 @@ production trust/distribution evidence, owned by Phase 11.
 
 | Finding group | Verified result | Action in this PR |
 |---|---|---|
-| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement ADR-0054 only after approval; prove refusal fairness, bounded work per refusal and peer-gated allocation independently. Retain the admitted-call/allocation cap; total refusal traffic is outside it |
+| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement Accepted ADR-0054; prove refusal fairness, bounded work per refusal and peer-gated allocation independently. Retain the admitted-call/allocation cap; total refusal traffic is outside it |
 | Framework endpoint retry | Current global-only wiring charges once. Adding an endpoint policy reproduces a second global debit after success | Save successful and refused request outcomes in the new owner; test actual endpoint-policy retry now |
 | Next URL projection, M1 | Valid query values ending `.rsc` are changed by the adapter's full-URL normalization and rejected by the current verifier | Mirror pinned adapter processing, while retaining the signed raw target for route/locale identity. Test query cases and unrelated routes; add no suffix aliases |
 | Proxy header sanitation, M2 | Native parsed/raw headers retain `x-real-ip`, bare `x-forwarded` and vendor authority spellings. Current downstream/API allowlists prevent authority escalation | Strip the explicit forwarding/authority carrier set from both collections; prove mixed-case controls and unchanged signed socket identity |
 | Framework debug output | Installed Next logs full request headers under `DEBUG=next:*`, including the signed envelope | Refuse/suppress unsafe framework diagnostic configuration before request handling; prove containment with an enabled-debug canary |
-| Methods/upgrades | TRACE/TRACK can fail before user middleware. Unmatched production upgrades can remain open because Next expects another WS consumer | Apply the proposed native GET/HEAD and production upgrade rule; retain proven development HMR, no-store and bodyless HEAD |
-| Redirect bytes | Literal apostrophe query values become `%27`; meaning is retained | Apply the proposed equivalent-encoding contract; test actual runtime Location, not only the helper |
+| Methods/upgrades | TRACE/TRACK can fail before user middleware. Unmatched production upgrades can remain open because Next expects another WS consumer | Apply the Accepted native GET/HEAD and production upgrade rule; retain proven development HMR, no-store and bodyless HEAD |
+| Redirect bytes | Literal apostrophe query values become `%27`; meaning is retained | Apply the Accepted equivalent-encoding contract; test actual runtime Location, not only the helper |
 | Authority/source guard, M4 | `new Headers(request.headers)` and `Object.fromEntries(request.headers)` reads escape tracking, including spread of the converted object | Add bounded constructor/conversion tracking, named planted/clean controls and a census of supported tsconfig aliases; fail unsupported local mappings |
 | Compiler evidence, M7 | Existing tests measure tsc verbatim emission. Installed Next SWC erases inline type-only imports/reexports | Keep the conservative graph policy; label the tsc proof accurately and add pinned SWC evidence with value/mixed-edge positive controls |
 | Ingress fixture lifecycle, M6 | Setup occurs before try/finally; interruption leaves detached children/temp material | Put setup under one idempotent resource owner; cover setup failure, SIGINT/SIGTERM and parent/control-pipe closure |
@@ -3426,15 +3432,16 @@ Remaining route-skill/seed/hook/CI edits ship with their corresponding code/test
 | Merge versus squash blocks remediation | Neither changes the code contract. Maintainer chooses merge mode; dated source/CI references remain scoped evidence, not a demand for a merge strategy |
 | CLAUDE status length / model diversity proves a runtime bug | No. Keep task-specific current state honest and evidence scoped; broad guidance restructuring and unsupported transcript claims are not corrective production changes |
 
-Historical ADR-0053 delivery amendments remain intact. On acceptance, append the
-bounded supersession note; clarify ADR-0036's existing navigation wording through
-dated navigation rather than rewriting old text. CI currently checks relative
+Historical ADR-0053 delivery amendments remain intact. Acceptance appends the
+bounded supersession note and clarifies ADR-0036's existing navigation wording
+through dated navigation, preserving old text. CI currently checks relative
 file targets, not anchors; keep manual anchor evidence labeled honestly. No new
 required check or protection weakening is proposed.
 
 #### Implementation and review sequence
 
-After explicit approval, use these five correction steps on development. For each:
+Maintainer approval on 2026-10-09 authorizes these five correction steps on
+development. **Current step status: 1–5 pending implementation and review.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.

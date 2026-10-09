@@ -2,7 +2,8 @@
 
 **Derives from:** [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0019](../decisions/0019-learnstack-hub.md),
-[ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md),
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 LearnStack targets three deployment models from **one codebase, one Helm chart, one set
 of container images**. The differentiator across modes is configuration + component
@@ -120,14 +121,19 @@ Internet
   lands, which [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates to
   [Phase 11](../roadmap/phase-11-production-hardening.md). Neither policy is
   per-tenant fairness: many client IPs can serve one tenant, while NAT users share
-  an IP quota. The renderer's physical-peer ceiling is an aggregate API-call cap
-  shared by its visitors and tenants. Current peer-first accounting also charges
-  requests later refused by the visitor quota; the
-  [P5 remediation proposal](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-  records this availability limitation and its approval boundary. G34's original
-  policy is Accepted under
-  [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); a proposal does
-  not replace that policy.
+  an IP quota. Current peer-first accounting also charges requests later refused
+  by the visitor quota. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
+  is **Accepted, not implemented — 2026-10-09**: remediation Step 1 replaces that
+  accounting with owned visitor limiters under one process-local owner lock.
+  Exhausted known visitors refuse before peer debit; unknown visitor allocation
+  remains peer-gated. The 600/min peer budget bounds successful peer acquisitions
+  and new visitor allocations shared by visitors/tenants, not all attempts or
+  refusal-response work. It is an allocation-rate bound, not a fixed global
+  cardinality cap. Neither current nor accepted accounting bounds total incoming
+  network/refusal cost. [Security Standards](../standards/11-security.md#rate-limiting)
+  own lifecycle, replay and Retry-After obligations; the
+  [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+  owns implementation evidence.
 
   What is required, and where it lives: **resource fairness is
   [Phase 11](../roadmap/phase-11-production-hardening.md)** — `statement_timeout` per

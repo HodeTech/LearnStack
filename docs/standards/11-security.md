@@ -22,7 +22,8 @@ model, and session-variable placement**),
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
 ingress/caller and anonymous visitor budgets derive from
-[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); coordinated accounting,
+native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -458,7 +459,8 @@ the production ingress/secret lifecycle. See
 
 ### Private public-rendering boundary
 
-ADR-0053 owns the protocol; these are its ongoing security obligations:
+ADR-0053 owns the protocol; ADR-0054 replaces its accounting, native admission
+and redirect/query rules. These are the ongoing security obligations:
 
 - Only the native listener captures host/socket provenance. Strip client tenancy,
   forwarding, internal and framework-override carriers before Next; validate the
@@ -478,7 +480,12 @@ ADR-0053 owns the protocol; these are its ongoing security obligations:
 
 P02d-5 delivers this boundary, with verified remaining gaps tracked in the
 [external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
-That proposal changes no Accepted rule before approval.
+ADR-0054 is Accepted, not implemented: remediation Step 1 replaces current
+peer-first accounting; Step 2 implements native method/upgrade and URL controls.
+Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
+production upgrades close and development retains only validated GET HMR. See
+[Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
+for the accepted controls; existing runtime behavior remains until those steps.
 
 
 ## File Uploads
@@ -547,6 +554,37 @@ then receives masked `404` before lookup. P5 Step 2 implements both budgets and
 pre-lookup admission, with real-socket controls. This is local limiting, not
 distributed DDoS protection. NAT/local loopback callers share an IP quota; budgets
 count API calls.
+
+**ADR-0054 Accepted, not implemented — 2026-10-09.** Peer-first accounting
+remains current runtime behavior until remediation Step 1. The replacement owns
+the actual visitor limiters, with one process-local owner lock across all visitor
+keys and physical peers. The lock serializes positive acquisition, creation and
+retirement; no network/database work, `await` or disposal runs under it. One-minute
+fixed windows, 60/min per canonical IP, 600/min per peer and no queue remain. No
+request retains a limiter removed by retirement.
+
+- Probe an existing visitor with zero permits. Its refusal returns unchanged
+  Retry-After before any peer acquisition. Otherwise acquire the peer permit;
+  peer refusal neither debits the visitor nor creates an unknown visitor limiter.
+  Create an unknown visitor only after peer admission, then acquire one visitor
+  permit. No competing debit/retirement separates the known-visitor probe and debit.
+- First refusal wins, including the visitor when both budgets are exhausted. Do
+  not combine metadata, debit to obtain failure metadata, or use a partition
+  lookup that allocates merely to check membership. Reuse successful and refused
+  outcomes on framework retry of the same HTTP request; returned leases have
+  independent lifetimes. Cancellation, Retry-After and disposal need explicit proofs.
+- Retire only after full-quota idle state lasts a complete window. One
+  non-overlapping sweep visits the whole registry in bounded batches; removal
+  shares the acquisition lock and disposal occurs outside it. Recreated state
+  never restores unexpired quota. DI shutdown closes admission, joins the sweep
+  and disposes every remaining limiter exactly once on both teardown paths.
+- The 600/min peer budget bounds successful peer acquisitions and new visitor
+  allocations. It is not a fixed global cardinality cap or a bound on all
+  attempts/refusal work. Known exhausted visitors can generate arbitrarily many
+  429 responses without spending peer permits; their path performs no registry
+  sweep, new limiter allocation or host/database lookup. No unbounded parallel
+  identity registry is permitted. Phase 11 owns upstream transport/edge protection
+  and contention/load measurement; no measured throughput is claimed here.
 
 | Surface | Limit |
 |---------|-------|

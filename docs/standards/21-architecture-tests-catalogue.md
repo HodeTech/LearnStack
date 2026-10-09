@@ -2,7 +2,9 @@
 
 **Status:** Active
 **Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
-(ships the first batch of catalogue entries). The catalogue grows as
+(ships the first batch of catalogue entries),
+[ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
+(accepted replacement proofs pending). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -3720,6 +3722,19 @@ structural test proves — and what it does not.
   direct/SSR quotas, independent visitors, malformed/repeated metadata, rotation,
   pre-lookup novel-host bounds and the physical-peer ceiling. Positive public
   reads assert READ ONLY and the non-BYPASSRLS application role.
+- **Accepted replacement, proofs pending — 2026-10-09:** ADR-0054 replaces
+  peer-first accounting. Remediation Step 1 has not implemented or verified it;
+  prior P5 tests/counts remain historical evidence for the original policy.
+  Required replacement proofs cover exhausted-known-visitor refusal without peer
+  debit, unknown-allocation gating, shared direct/hop quota, parallel last-permit
+  admission, first-refusal Retry-After (including both exhausted), and successful/
+  refused same-request replay through real endpoint-policy retry. Deterministic
+  owner/sweep controls must prove bounded refusal work, cancellation, independent
+  lease disposal, whole-registry bounded sweeping, safe idle retirement and
+  acquisition/shutdown races with exact-once disposal on both DI paths. Retain
+  real HTTP/app-role and admitted-traffic peer-ceiling controls. Register final
+  enforcing names when implementation selects them; these obligations are not
+  new passing catalogue entries.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -4120,6 +4135,18 @@ of structural detection.
 - **Phase:** 02d (P02d-4 Step 4).
 
 ## P02d-5 public server rendering controls
+
+**ADR-0054 Accepted, new proofs pending — 2026-10-09.** The implemented rules
+below retain their existing scope; they do not establish remediation Step 2's new
+native/URL contracts. Required real-launcher/socket proofs cover GET/HEAD on
+ordinary and matcher-exempt health/assets/scaffold paths, native refusal of other
+methods before Next/bootstrap, no-store and bodyless HEAD, every production
+upgrade closing, and retained validated development GET HMR. URL controls must
+prove pinned Next full-URL RSC/`_rsc` projection without raw-route aliases, inert
+query value/duplicate/order preservation under equivalent encoding, and framework
+identification suppression on fallback responses. Final enforcing names are
+registered with implementation and new executions; no passing names or delivery
+counts are claimed by acceptance.
 
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
 

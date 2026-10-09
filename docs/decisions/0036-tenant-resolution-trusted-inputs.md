@@ -1063,6 +1063,27 @@ Standards 04/07/11/15/21; the route skill. Other ongoing owner/launch/environmen
 carriers are updated before or with their enforcing P5 step, as enumerated in the
 package. No P5 runtime proof is claimed by this decision commit.
 
+### 2026-10-09 — Amendment 11: bounded admission and amendment navigation
+
+The maintainer accepted [ADR-0054](0054-bounded-public-renderer-admission.md) with
+P02d-5's five-step remediation plan on 2026-10-09. Its
+[anonymous accounting](0054-bounded-public-renderer-admission.md#anonymous-accounting)
+replaces ADR-0053 Amendment 3's peer-first debit while preserving authenticated
+visitor inputs, direct/hop shared identity, numeric windows and peer-gated new
+allocation. [ADR-0053 Amendment 7](0053-trusted-public-server-rendering.md#amendment-7--bounded-admission-supersession-2026-10-09)
+records its bounded native-admission and redirect-query supersession. No change
+is made to this ADR's host normalization, reconciliation or assertion-only tenant
+authority. Implementation and its evidence remain pending.
+
+Amendment 10's phrase “navigation and disclosure under ADR-0041” is imprecise.
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) bounds correction
+of statements false when written; it does not authorize changed decisions.
+ADR-0053 and now ADR-0054 are the new decision vehicles for their bounded
+replacements. These dated notes provide navigation under
+[Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md#correcting-and-amending-adrs),
+without applying either false-when-written correction mechanism. Amendment 10,
+the original body, metadata and all earlier amendments are preserved verbatim.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

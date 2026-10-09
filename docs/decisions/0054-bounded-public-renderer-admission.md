@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed — maintainer approval required before implementing the changed contracts.
-ADR-0053 remains Accepted; this proposal closes no gate and claims no delivery.
-The Decision below defines the proposed contract, binding only on acceptance.
+Accepted — 2026-10-09. The maintainer approved this ADR and the five-step
+P02d-5 remediation plan. Implementation and its review/validation remain pending;
+acceptance is not runtime delivery evidence. ADR-0053 remains Accepted outside
+the bounded supersession below.
 
 **Date:** 2026-10-09
 **Deciders:** @cemil
-**Proposed supersession:** ADR-0053, limited to accounting, native method/upgrade
-admission and redirect-query wording; effective only if this proposal is Accepted.
+**Bounded supersession:** ADR-0053, limited to accounting, native method/upgrade
+admission and redirect-query wording.
 
 ## Decision Drivers
 
@@ -21,7 +22,7 @@ admission and redirect-query wording; effective only if this proposal is Accepte
 
 ## Considered Options
 
-1. **Coordinated admission over owned visitor limiters** (recommended): inspect an
+1. **Coordinated admission over owned visitor limiters** (chosen): inspect an
    existing visitor without a debit; charge the peer only when visitor admission
    remains possible. Gate new visitor allocation on successful peer admission.
 2. **Keep the peer-first chain** (rejected): a single IP can spend 600 peer permits
@@ -95,7 +96,7 @@ spending peer permits. Each still costs transport parsing, identity verification
 lock/probe work and response generation. Its admission path performs no registry
 sweep, new limiter allocation or host/database lookup. Background sweep batches
 are bounded; dispose removed instances outside the lock. Neither the old nor the
-proposed limiter bounds incoming network traffic or the total cost of refusals.
+chosen limiter bounds incoming network traffic or the total cost of refusals.
 Phase 11 owns upstream transport/edge protection and contention/load measurement;
 this local correction supplies neither total-work protection nor measured throughput.
 
@@ -149,7 +150,7 @@ remain unchanged.
 Review of PR #26 at `07016405` reproduced the accounting defect using current source:
 600 requests from one trusted visitor admit 60, refuse 540, and refuse a fresh
 visitor afterward. ADR-0053 Amendment 3 explicitly records peer-first ordering;
-this is a proposed decision replacement, not an ADR-0041 false-when-written erratum.
+this is a decision replacement, not an ADR-0041 false-when-written erratum.
 
 An isolated comparison also showed that bare visitor-first ordering allocates 660
 visitor partitions for 660 distinct identities while admitting only 600 calls;
@@ -160,7 +161,7 @@ socket peer. Its current wire format remains `v1.<payload>.<mac>`: canonical
 unpadded base64url of UTF-8 JSON `[host, peer, method, target]`, authenticated by
 HMAC-SHA256 over `learnstack.public-ingress.v1\0` plus the encoded payload. The
 private paired hop secret is also this MAC key. A separate process key would need
-an additional trusted distribution path to every verifier; this proposal adds none.
+an additional trusted distribution path to every verifier; this decision adds none.
 
 The envelope has no nonce/expiry and proves origin/integrity, not freshness. The
 supported listener strips submitted stamps and mints its own; direct stock Next
@@ -184,7 +185,7 @@ flowchart LR
 Middleware bootstrap also uses the configured caller/API path. No browser or web
 component announces tenant/organization scope. Existing traceparent continuation
 is preserved; Phase 11 owns participating/sampling policy. Request-local bootstrap
-reuse and P6 prefetch/page choices cannot be claimed as delivered by this proposal.
+reuse and P6 prefetch/page choices are not delivered by accepting this ADR.
 
 ## Consequences
 
@@ -213,13 +214,14 @@ reuse and P6 prefetch/page choices cannot be claimed as delivered by this propos
 ## Implementation Notes
 
 P02d-5's [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-owns implementation and review steps. On acceptance, append a dated bounded
-supersession/navigation note to ADR-0053 for accounting, web method/upgrade admission
-and redirect-query wording; preserve its original body and delivery history.
-Append dated navigation to [ADR-0036 Amendment 10](0036-tenant-resolution-trusted-inputs.md#2026-10-08--amendment-10-trusted-public-renderer-decision-navigation)
-that identifies this decision replacement and its accounting scope. Do not rewrite
-Amendment 10 or its ADR-0041 wording; host normalization, trusted-input resolution
-and assertion-only tenant authority remain unchanged.
+owns implementation and review steps. Acceptance appends dated bounded
+supersession/navigation to ADR-0053 for accounting, web method/upgrade admission
+and redirect-query wording, preserving its original body and delivery history.
+[ADR-0036 Amendment 11](0036-tenant-resolution-trusted-inputs.md#2026-10-09--amendment-11-bounded-admission-and-amendment-navigation)
+identifies this decision replacement and its accounting scope, following the
+unchanged [Amendment 10](0036-tenant-resolution-trusted-inputs.md#2026-10-08--amendment-10-trusted-public-renderer-decision-navigation).
+Host normalization, trusted-input resolution and assertion-only tenant authority
+remain unchanged.
 Update ongoing Standards 04/07/11, Architecture 14/25, phase/route guidance and
 catalogue entries with their concrete enforcing tests. Existing
 [G34/G36 acceptance](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
@@ -241,7 +243,7 @@ historical; only new executions establish remediation evidence.
 
 ## Architecture Tests
 
-Proposed obligations, not registered or passing tests:
+Accepted proof obligations, not registered or passing-test claims:
 
 - Exhausted visitor then fresh visitor; no unknown-identity allocation after peer
   exhaustion; direct/hop shared quota; parallel last-permit admission/creation.
@@ -260,7 +262,7 @@ Proposed obligations, not registered or passing tests:
   encoding; framework identification suppressed on fallback responses.
 
 Retain real HTTP/app-role integration evidence alongside deterministic accounting
-tests. Register final rule names when implementation is selected; claim delivery
+tests. Register final rule names with their enforcing implementation; claim delivery
 only after these tests and both independent review rounds pass.
 
 ## References
