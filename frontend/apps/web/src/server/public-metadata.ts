@@ -4,7 +4,7 @@ import type { PublicTranslate } from '@/i18n/catalogues';
 import type { TextDirection } from '@/i18n/locale';
 
 import { publicRedirect } from './public-entry';
-import { catalogPath, coursePath } from './public-paths';
+import { catalogPath, coursePath, lessonPath } from './public-paths';
 import type { requirePublicResource } from './public-resource';
 
 type Resource = Awaited<ReturnType<typeof requirePublicResource>>;
@@ -57,29 +57,40 @@ export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
     }
     return unavailable(t);
   }
-  // Lesson metadata is extended with the actual lesson page in P02d-6 Step 3.
-  if (resource.kind === 'lesson' || resource.kind === 'scaffold') {
+  if (resource.kind === 'scaffold') {
     return { title: resource.request.site.displayName, robots: { index: false, follow: false } };
   }
-  const { request, pagination } = resource;
+  const { request } = resource;
   const { locale, site, context } = request;
   if (locale === null || !site.enabledLocales.includes(locale)) return unavailable(t);
   const path =
     resource.kind === 'catalog'
       ? catalogPath(locale)
-      : coursePath(locale, resource.data.course.slug);
+      : resource.kind === 'course'
+        ? coursePath(locale, resource.data.course.slug)
+        : lessonPath(locale, resource.data.course.slug, resource.data.lesson.slug);
   const canonical = publicUrl(context.host, path);
   if (canonical === null) return unavailable(t);
 
-  const title = resource.kind === 'catalog' ? t('catalog.title') : resource.data.course.title;
+  const title =
+    resource.kind === 'catalog'
+      ? t('catalog.title')
+      : resource.kind === 'course'
+        ? resource.data.course.title
+        : resource.data.lesson.title;
   const summary = resource.kind === 'course' ? resource.data.course.summary : null;
   const description = summary?.trim() ? summary : undefined;
   const candidates =
     resource.kind === 'catalog'
       ? site.enabledLocales.map((language) => [language, catalogPath(language)] as const)
-      : resource.data.alternates.map(
-          ({ locale: language, slug }) => [language, coursePath(language, slug)] as const,
-        );
+      : resource.kind === 'course'
+        ? resource.data.alternates.map(
+            ({ locale: language, slug }) => [language, coursePath(language, slug)] as const,
+          )
+        : resource.data.alternates.map(
+            ({ locale: language, courseSlug, lessonSlug }) =>
+              [language, lessonPath(language, courseSlug, lessonSlug)] as const,
+          );
   // Resource alternates intentionally exclude the current API locale.
   const languages: Record<string, string> = { [locale]: canonical };
   for (const [language, alternatePath] of candidates) {
@@ -90,7 +101,14 @@ export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
   return {
     title,
     ...(description === undefined ? {} : { description }),
-    robots: { index: !pagination.isPaginated, follow: true },
+    robots: {
+      index:
+        resource.kind === 'lesson'
+          ? resource.data.content.state === 'ready' &&
+            resource.data.content.rendererKey === 'default-card'
+          : !resource.pagination.isPaginated,
+      follow: true,
+    },
     alternates: { canonical, ...(Object.keys(languages).length ? { languages } : {}) },
     openGraph: {
       type: 'website',

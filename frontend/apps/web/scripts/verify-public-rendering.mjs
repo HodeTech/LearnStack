@@ -842,6 +842,329 @@ async function verifyPagination(native) {
   assert.equal(native.exitCode, null, 'Pagination checks use one native process');
 }
 
+function lessonContainment(response, tenant) {
+  const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
+  for (const value of [
+    other.name,
+    other.lessonTitle,
+    ...other.content.fields.map((field) => field.value),
+  ])
+    assert.equal(response.body.includes(value), false, 'Opposite tenant lesson is absent');
+  assert.equal(
+    catalogueCanaries.some((value) => response.body.includes(value)),
+    false,
+    'Complete UI catalogue cannot enter the lesson Flight payload',
+  );
+}
+
+function lessonDocument(response, tenant, locale, title, path, content) {
+  lessonContainment(response, tenant);
+  // Inspect the original DOM as well: the visible-document helper deliberately
+  // removes Next scripts and must not hide an authored active element.
+  const original = new JSDOM(response.body).window.document.querySelector('article.public-lesson');
+  assert.ok(original, 'Actual lesson article is rendered');
+  assert.equal(
+    original.querySelector(
+      'script, template, style, img, svg, math, iframe, object, embed, audio, video, form',
+    ),
+    null,
+    'Authored values create no active DOM element',
+  );
+  for (const node of original.querySelectorAll('*'))
+    for (const attribute of node.attributes)
+      assert.equal(
+        /^on|^(?:src|srcdoc|action|formaction)$/i.test(attribute.name),
+        false,
+        'No authored active attribute',
+      );
+  const doc = productDocument(response, tenant, locale, title, path);
+  const article = doc.querySelector('article.public-lesson');
+  assert.equal(article.lang, locale, 'Lesson text retains the exact content locale');
+  assert.equal(article.dir, 'ltr');
+  const back = article.querySelector('a');
+  assert.equal(article.querySelectorAll('a').length, 1, 'URL-looking content is never linkified');
+  assert.equal(
+    back.getAttribute('href'),
+    path.split('/lessons/')[0],
+    'Back link uses the actual same-locale course',
+  );
+  assert.equal(
+    back.textContent,
+    locale === tenant.defaultLocale ? tenant.defaultCourseTitle : tenant.courseTitle,
+  );
+  assert.ok(doc.querySelector('a[href="#main-content"]'), 'Lesson has the product skip link');
+  assert.ok(doc.querySelector('main#main-content'), 'Lesson has the product skip target');
+  assert.equal(
+    doc.querySelectorAll('h3, h4, h5, h6').length,
+    0,
+    'Lesson heading outline stays sequential',
+  );
+  if (content === null) {
+    assert.equal(
+      article.querySelector('h2, dl, dt, dd'),
+      null,
+      'Unavailable presentation has no authored card',
+    );
+    assert.ok(article.textContent.includes('This lesson content is currently unavailable.'));
+    assert.equal(article.textContent.includes('This lesson has no content to display yet.'), false);
+    assert.ok(doc.querySelector('meta[name="robots"]')?.content.includes('noindex'));
+    assert.equal(
+      response.body.includes('unavailable-private-body-canary'),
+      false,
+      'Unavailable payload stays absent from HTML and Flight',
+    );
+    return doc;
+  }
+  assert.equal(
+    article.querySelectorAll('h2').length,
+    1,
+    'One card heading follows the lesson heading',
+  );
+  const label = article.querySelector('h2');
+  assert.equal(label.textContent, content.label.value, 'Card heading uses the API label');
+  assert.equal(label.lang, content.label.locale, 'Card label attributes its resolved locale');
+  assert.equal(label.dir, content.label.locale === 'ar' ? 'rtl' : 'ltr');
+  assert.equal(
+    doc.querySelector('meta[name="robots"]')?.content.includes('noindex') ?? false,
+    false,
+    'Ready lesson metadata is indexable',
+  );
+  const terms = [...article.querySelectorAll('dl dt')];
+  const values = [...article.querySelectorAll('dl dd')];
+  assert.deepEqual(
+    terms.map((term) => term.textContent),
+    content.fields.map((field) => field.label.value),
+    'Descriptor order controls authored labels',
+  );
+  assert.deepEqual(
+    values.map((value) => value.textContent),
+    content.fields.map((field) => field.value),
+    'Every exact API string renders as text in descriptor order',
+  );
+  assert.equal(
+    article.querySelectorAll('dl').length,
+    content.fields.length ? 1 : 0,
+    'Only nonempty cards have a definition list',
+  );
+  for (const [index, field] of content.fields.entries()) {
+    const term = terms[index];
+    const value = values[index];
+    assert.equal(
+      term.lang,
+      field.label.locale,
+      'Each label attributes the actual fallback-resolved language',
+    );
+    assert.equal(term.dir, field.label.locale === 'ar' ? 'rtl' : 'ltr');
+    assert.equal(term.childElementCount, 0, 'Labels remain escaped text');
+    assert.equal(value.childElementCount, 0, 'Values remain escaped text');
+    assert.equal(
+      value.closest('[lang]').lang,
+      locale,
+      'Content value does not inherit its label fallback locale',
+    );
+    assert.notEqual(term.textContent, field.name, 'Internal field names never become labels');
+    assert.equal(term.nextElementSibling, value, 'Every term is followed by its definition');
+  }
+  assert.equal(
+    article.textContent.includes('Omitted optional field'),
+    false,
+    'Absent optional field has no label or value',
+  );
+  assert.equal(
+    article.textContent.includes('This lesson has no content to display yet.'),
+    content.fields.length === 0,
+    'Ready empty is distinct from unavailable',
+  );
+  assert.equal(
+    article.textContent.includes('This lesson content is currently unavailable.'),
+    false,
+  );
+  return doc;
+}
+
+async function verifyPresentation(native) {
+  const [first, second] = configuration.tenants;
+  const course = '/' + configuration.locale + '/courses/' + configuration.courseSlug;
+  const englishPath = course + '/lessons/' + first.lessonSlug;
+  const yogaPath = course + '/lessons/' + second.lessonSlug;
+  const turkishPath =
+    '/' +
+    second.defaultLocale +
+    '/courses/' +
+    second.defaultCourseSlug +
+    '/lessons/' +
+    second.defaultLessonSlug;
+  const request = (tenant, path, rsc = false) =>
+    call(true, 3000, path, { Host: tenant.host + ':3000', ...(rsc ? { RSC: '1' } : {}) });
+  const html = async (name, tenant, locale, title, path, content) => {
+    stage = name;
+    const doc = lessonDocument(await request(tenant, path), tenant, locale, title, path, content);
+    await checkpoint(name);
+    return doc;
+  };
+  const rsc = async (name, tenant, path, title, content) => {
+    stage = name;
+    const response = await request(tenant, path, true);
+    safeResponse(response, 200, true);
+    lessonContainment(response, tenant);
+    for (const value of [
+      title,
+      content.label.value,
+      ...content.fields.flatMap((field) => [field.label.value, field.value]),
+    ])
+      assert.ok(
+        response.body.includes(value) || response.body.includes(JSON.stringify(value).slice(1, -1)),
+        'Actual lesson Flight contains the projected text',
+      );
+    await checkpoint(name);
+  };
+  await html('presentation-english', first, 'en', first.lessonTitle, englishPath, first.content);
+  const englishYoga = await html(
+    'presentation-yoga-en',
+    second,
+    'en',
+    second.lessonTitle,
+    yogaPath,
+    second.content,
+  );
+  assert.equal(
+    englishYoga
+      .querySelector('link[rel="alternate"][hreflang="' + second.defaultLocale + '"]')
+      ?.getAttribute('href'),
+    'https://' + second.host + ':3000' + turkishPath,
+    'Lesson alternate uses both actual translated slugs',
+  );
+  const turkishYoga = await html(
+    'presentation-yoga-tr',
+    second,
+    second.defaultLocale,
+    second.defaultLessonTitle,
+    turkishPath,
+    second.defaultContent,
+  );
+  assert.equal(
+    turkishYoga.querySelector('link[rel="alternate"][hreflang="en"]')?.getAttribute('href'),
+    'https://' + second.host + ':3000' + yogaPath,
+    'Reverse alternate uses the actual English course and lesson slugs',
+  );
+  await rsc('presentation-rsc-english', first, englishPath, first.lessonTitle, first.content);
+  await rsc(
+    'presentation-rsc-yoga-tr',
+    second,
+    turkishPath,
+    second.defaultLessonTitle,
+    second.defaultContent,
+  );
+
+  // One running app first warms the old pin, then observes a new active revision
+  // and generation. The old deprecated pin must still render its old fields.
+  stage = 'presentation publish revision';
+  await checkpoint('presentation-publish-revision');
+  const pinned = await html(
+    'presentation-exact-pin',
+    first,
+    'en',
+    first.lessonTitle,
+    englishPath,
+    first.content,
+  );
+  assert.equal(
+    pinned.body.textContent.includes(configuration.presentation.label.value),
+    false,
+    'A current revision cannot replace an exact pin',
+  );
+  await checkpoint('presentation-pin-revision');
+  const swapped = await html(
+    'presentation-swapped',
+    first,
+    'en',
+    first.lessonTitle,
+    englishPath,
+    configuration.presentation,
+  );
+  for (const field of first.content.fields)
+    assert.equal(
+      swapped.body.textContent.includes(field.value),
+      false,
+      'New exact pin replaces the old fields',
+    );
+  await rsc(
+    'presentation-rsc-swapped',
+    first,
+    englishPath,
+    first.lessonTitle,
+    configuration.presentation,
+  );
+  await html(
+    'presentation-yoga-unchanged',
+    second,
+    second.defaultLocale,
+    second.defaultLessonTitle,
+    turkishPath,
+    second.defaultContent,
+  );
+
+  await checkpoint('presentation-make-empty');
+  await html('presentation-empty', first, 'en', first.lessonTitle, englishPath, {
+    ...configuration.presentation,
+    fields: [],
+  });
+  await checkpoint('presentation-make-unavailable');
+  await html('presentation-unavailable', first, 'en', first.lessonTitle, englishPath, null);
+  await checkpoint('presentation-restore-lesson');
+  await html('presentation-restored', first, 'en', first.lessonTitle, englishPath, first.content);
+
+  for (const [name, path, locale, uiLocale] of [
+    ['presentation-cross-host', englishPath, 'en', 'en'],
+    [
+      'presentation-protected',
+      '/' +
+        second.defaultLocale +
+        '/courses/' +
+        second.restrictedDefaultSlug +
+        '/lessons/' +
+        second.restrictedDefaultLessonSlug,
+      second.defaultLocale,
+      'tr',
+    ],
+  ]) {
+    stage = name;
+    const refusal = await request(second, path);
+    safeResponse(refusal, 307);
+    const location = refusal.headers.location;
+    const target = new URL(location, 'https://' + second.host + ':3000');
+    assert.equal(target.origin, 'https://' + second.host + ':3000');
+    assert.equal(target.pathname, '/' + locale + '/status/not-found');
+    assert.equal(target.search, '');
+    const response = await request(second, target.pathname);
+    statusDocument(response, second, locale, uiLocale);
+    for (const [index, value] of [
+      first.lessonTitle,
+      ...first.content.fields.map((field) => field.value),
+      ...second.restrictedDefaultCanaries,
+    ].entries()) {
+      stage = name + ' redirect containment ' + index;
+      // Next's redirect Flight tree can contain the request's own route segments.
+      // They reveal no new content; titles/body values must still be absent, and
+      // the destination below must omit even the original requested slug.
+      if (!path.split('/').includes(value))
+        assert.equal(
+          refusal.body.includes(value),
+          false,
+          'Refused lesson has no content Flight leak',
+        );
+      stage = name + ' status containment ' + index;
+      assert.equal(
+        response.body.includes(value),
+        false,
+        'Localized missing page has no lesson leak',
+      );
+    }
+    await checkpoint(name);
+  }
+  assert.equal(native.exitCode, null, 'All schema and content changes use the same native process');
+}
+
 // The real Next adapter removes Flight inputs before user middleware, then
 // restores them after its request-header override. Observe that final request
 // through a disposable admitted route, without exposing any header values.
@@ -866,8 +1189,11 @@ try {
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.match(configuration.secret, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(configuration.tenants.length, 2);
+  const presentation = configuration.mode === 'presentation';
   const foundation =
-    configuration.mode === 'foundation' || configuration.mode === 'foundation-pagination';
+    configuration.mode === 'foundation' ||
+    configuration.mode === 'foundation-pagination' ||
+    presentation;
   const pagination = configuration.mode === 'foundation-pagination';
   if (foundation) {
     catalogueCanaries = ['en', 'tr'].map(
@@ -911,6 +1237,11 @@ try {
   if (foundation) {
     assert.ok(existsSync(join(coursesDirectory, 'page.tsx')), 'Copied product catalog route');
     assert.ok(existsSync(join(coursesDirectory, '[slug]/page.tsx')), 'Copied product course route');
+    if (presentation)
+      assert.ok(
+        existsSync(join(coursesDirectory, '[slug]/lessons/[lessonSlug]/page.tsx')),
+        'Copied product lesson route',
+      );
   } else {
     rmSync(join(app, 'src/app/(public)/[locale]'), { recursive: true, force: true });
     // The original transport probe predates product Suspense/error boundaries.
@@ -1017,7 +1348,9 @@ try {
   const catalog = '/' + configuration.locale + '/courses';
   const course = catalog + '/' + configuration.courseSlug;
 
-  if (pagination) {
+  if (presentation) {
+    await verifyPresentation(native);
+  } else if (pagination) {
     await verifyPagination(native);
   } else if (foundation) {
     await verifyFoundation(native, nextBin);

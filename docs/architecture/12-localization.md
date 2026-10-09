@@ -20,8 +20,8 @@ Initial renderer scope:
   renderer, including an enabled RTL locale; they are not deferred until a tenant
   requests a redesign. Accepted P02d-6 G39/G43 selects the mapping and proofs;
   Step 1 implements direction selection and fallback chrome; Step 2 adds
-  catalog/course language attribution. Lesson and full product/manual proof
-  remain Steps 3–4.
+  catalog/course language attribution; Step 3 adds ordered lesson field labels.
+  Full product/manual proof remains Step 4.
 - P02d-6 accepts initial English and Turkish platform UI catalogues in
   [ADR-0027](../decisions/0027-frontend-i18n.md). Additional UI translations are
   added when authored; their absence must not narrow enabled content locales.
@@ -343,7 +343,8 @@ Step 1 implements the pinned dependency/plugin, catalogues, request runtime and
 key/ICU/callsite controls. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation verification and review evidence. Step 2 adds catalog/course
-consumers; lesson and full product/manual proof remain Steps 3–4. Phase 04 inherits
+consumers; Step 3 adds ordered lesson labels and metadata. Full product/manual
+proof remains Step 4. Phase 04 inherits
 the foundation for CMS/Studio; Phase 06
 owns the full Studio/portal consumers.
 

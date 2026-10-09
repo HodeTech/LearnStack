@@ -126,7 +126,11 @@ loading components. Its
 owns its validation and review evidence. Step 2 adds actual catalog/course pages,
 independent pagination and metadata from the shared resource loader. Its
 [delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
-owns current verification and review status. Lesson presentation remains Step 3.
+owns current verification and review status. Step 3 adds the ordered plain-text
+lesson page, eligible lesson metadata and 31 blocking JSX accessibility rules
+with actual-config planted controls. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+owns verification and review status; full product/manual closeout remains Step 4.
 P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
 the full renderer/Studio expansion.
 

@@ -49,10 +49,11 @@ organization-scoped where it makes sense.
 [ADR-0051](../decisions/0051-ordered-text-card-presentation.md) adds optional root
 ordered `x-fields` metadata and a plain-string `default-card` profile. The two seed
 types opt in; the parser and exact reader validate metadata, and legacy schemas remain
-valid. Browser rendering belongs to P02d-6. The wider renderer set below is a
-target, not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
+valid. P02d-6 Step 3 implements the bounded lesson view. The wider renderer set
+below is a target, not implemented Phase 02d coverage. P02d-6 implements only the
+approved subset.
 
-> **P02d-6 G41 Accepted — 2026-10-09; implementation pending.** ADR-0051 selects
+> **P02d-6 G41 subset implemented — Step 3, 2026-10-10.** ADR-0051 selects
 > ordered plain-string `default-card` fields with authored language-bearing labels.
 > Synchronous views live in `frontend/apps/web/src/components/public/`. Unsupported
 > renderers/unresolved presentation use bounded placeholders, with no raw JSON,

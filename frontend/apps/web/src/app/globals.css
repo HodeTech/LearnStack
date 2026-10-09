@@ -130,3 +130,28 @@
     padding-block: 0.75rem;
   }
 }
+
+@layer components {
+  .public-lesson,
+  .public-lesson-content,
+  .public-lesson-fields {
+    display: grid;
+    gap: 1.25rem;
+    min-inline-size: 0;
+  }
+  .public-lesson-field {
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--ls-muted);
+    min-inline-size: 0;
+  }
+  .public-lesson-field dt {
+    font-weight: 600;
+  }
+  .public-lesson-field dd {
+    margin-block-start: 0.5rem;
+    margin-inline-start: 0;
+    max-inline-size: 65ch;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

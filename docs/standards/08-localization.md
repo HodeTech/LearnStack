@@ -47,7 +47,8 @@ fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 catalogue home, with UI-language fallback separate from content admission. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation validation. Step 2 adds catalog/course views with actual resolved
-label languages and exact-locale metadata; lesson presentation remains Step 3.
+label languages and exact-locale metadata; Step 3 adds ordered lesson fields and
+lesson metadata with eligible translated course/lesson slugs.
 Phase 04 inherits this foundation for CMS/Studio coverage.
 
 ## URL Strategy
@@ -310,8 +311,10 @@ runtime internationalization data; an undescribed admitted tag falls back to
 `ltr`, never refusal. UI fallback groups retain their own direction. Test-owned
 enabled `ar` content proves `lang="ar"`/`dir="rtl"` and labelled English fallback
 UI independently; it neither rewrites the seed nor claims an Arabic UI catalogue.
-Step 1 implements direction selection and labelled fallback chrome; actual
-content-page and production RTL evidence remains a later P02d-6 obligation.
+Step 1 implements direction selection and labelled fallback chrome; Step 2
+proves an empty admitted Arabic catalog in production. Step 3 adds per-field
+label direction. Eligible authored RTL content and full manual proof remain
+Step 4 obligations.
 
 ## Admin Studio UI
 

@@ -26,8 +26,8 @@ Rows identify their delivery packet; planned P02d-6/7 work is not current behavi
 | Phase 02d foundation | Phase 06 adds |
 |---|---|
 | Host-based tenant + organization resolution, end to end | Per-organization branding override on the resolved context |
-| Anonymous `(public)` catalog/course Server Component pages delivered P02d-6 Step 2; lesson page planned Step 3 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
-| ADR-0051 ordered plain-text lesson presentation, API projection delivered P02d-4 and renderer planned P02d-6 | The complete two-tier block registry with safe-render placeholders |
+| Anonymous `(public)` catalog/course Server Component pages delivered P02d-6 Step 2; lesson page delivered Step 3 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
+| ADR-0051 ordered plain-text lesson presentation, API projection delivered P02d-4 and bounded renderer delivered P02d-6 Step 3 | The complete two-tier block registry with safe-render placeholders |
 | Four-color public theme projection delivered P02d-4; safe document injection delivered P02d-6 Step 1 | The branding configuration surface, additional tokens and organization override |
 | The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 

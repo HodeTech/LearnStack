@@ -60,9 +60,16 @@ export const getPublicResource = requestMemo(async (): Promise<PublicResource> =
   if (route.kind === 'scaffold') return { kind: 'scaffold', request };
   if (route.kind === 'lesson') {
     const result = await client.getLesson({ slug: route.slug, lessonSlug: route.lessonSlug });
-    return result.kind === 'success'
-      ? { kind: 'lesson', request, data: result.data }
-      : failure(result, request);
+    if (result.kind !== 'success') return failure(result, request);
+    if (result.data.content.state === 'ready' && result.data.content.rendererKey !== 'default-card')
+      // This memoized resource read is shared by metadata, layout and page.
+      // The API diagnoses unavailable definitions; only an unsupported future
+      // composite needs a renderer diagnostic, without its key or field values.
+      console.warn('Public lesson presentation unavailable', {
+        state: 'unsupported_renderer',
+        count: 1,
+      });
+    return { kind: 'lesson', request, data: result.data };
   }
   const pagination = publicPagination(context.target, route.kind === 'course');
   if (!pagination) return { kind: 'failure', request, state: 'invalid_cursor' };

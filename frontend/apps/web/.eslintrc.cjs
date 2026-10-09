@@ -7,9 +7,29 @@
 // only handles bare package names + the `eslint-config-*` convention; subpath
 // exports from a workspace package (`@learnstack/config/eslint`) do not
 // resolve through ESLint's built-in resolver under pnpm-isolated layouts.
+// Next already installs this plugin. Resolve it beside eslint-config-next so
+// pnpm's isolated dependency layout does not require a duplicate app dependency.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- This legacy CommonJS config must load the plugin's rule map.
+const jsxA11yRecommended = require(
+  require.resolve('eslint-plugin-jsx-a11y', { paths: [require.resolve('eslint-config-next')] }),
+).configs.recommended.rules;
+
+// Next enables a small JSX accessibility subset as warnings. Apply every active
+// recommended rule at blocking severity while retaining the preset's options.
+const jsxA11yErrors = Object.fromEntries(
+  Object.entries(jsxA11yRecommended)
+    .filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) !== 'off')
+    .filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) !== 0)
+    .map(([name, setting]) => [
+      name,
+      Array.isArray(setting) ? ['error', ...setting.slice(1)] : 'error',
+    ]),
+);
+
 module.exports = {
   root: true,
   extends: [require.resolve('@learnstack/config/eslint'), 'next/core-web-vitals'],
+  rules: jsxA11yErrors,
   parserOptions: {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,

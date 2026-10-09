@@ -191,8 +191,10 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
-**Accepted P02d-6 G38(b,c)/G43 — 2026-10-09; implementation pending.** Vitest
-covers synchronous views and pure mappings. Async pages require production
+**P02d-6 G38(b,c)/G43 — Steps 1–3 implemented, 2026-10-10.** Vitest
+covers synchronous views and pure mappings; all 31 active recommended JSX
+accessibility rules have blocking actual-config dirty/clean controls. Async pages
+require production
 HTML/RSC proof against unchanged product routes in the existing required real
 API/Next Docker fixture; keep P5's synthetic transport probe in a separate mode
 so its catch-all cannot shadow product routes. Preserve `learnstack_app`, RLS,

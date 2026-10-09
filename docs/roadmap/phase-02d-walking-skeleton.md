@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; Steps 3–4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) implemented, review pending; Step 4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4361,6 +4361,56 @@ Release production-rendering cases pass again, zero failures/skips, with the
 unchanged 52/18 call accounting and new real metadata/containment assertions.
 Local links/fragments and added prose checks pass. Step 2 is complete after both
 independent review rounds; Step 3 follows.
+
+### P02d-6 Step 3: Ordered lesson presentation
+
+**Implementation — 2026-10-10; independent review rounds pending.** The actual
+lesson route consumes the shared verified resource loader in page and metadata,
+without a separate content read. Its synchronous view renders the API's ordered
+plain-string fields as definition pairs, preserves present empty strings, and
+attributes each resolved label's language/direction independently of the content
+and UI locales. The course backlink uses the admitted request locale. No field
+name, raw body/schema, active URL, HTML or richer primitive becomes visible.
+
+Empty ready content differs from unavailable/unknown presentation. Unsupported
+renderers short-circuit before reading their descriptors and emit at most one
+request-local bounded count/state warning; API-reported unavailable definitions
+retain their own existing diagnostic. Lesson canonical/Open Graph and eligible
+hreflang URLs use validated current and actual translated course/lesson slugs.
+Unavailable/unknown presentation is noindex with its eligible canonical preserved.
+
+All 31 active recommended jsx-a11y rules are blocking through the actual app
+configuration. A literal census and per-rule dirty/clean controls detect missing
+rules, downgraded severity and vacuous subjects. Synchronous view and page-dispatch
+units supplement the production fixture; they do not claim async Server Component
+DOM support. Full product/manual accessibility closeout remains Step 4, and the
+Accessibility standard stays Adopted.
+
+**Validation — 2026-10-10.** The guarded frontend suite passes 1,059 tests
+(999 web and 60 SDK), zero failures/skips/todos. Workspace typecheck and full web
+lint pass. All 18 Release production-rendering cases pass, zero failures/skips.
+The new presentation mode observes exactly 46 API calls; foundation and pagination
+retain 52 and 18 respectively, each in a fresh unchanged visitor budget.
+
+Actual English and Yoga lesson HTML/RSC proves ordered text, resolved label
+languages, eligible translated metadata and tenant absence. A test-owned successor
+revision first leaves the deprecated exact pin unchanged, then changes descriptors
+only after switching the lesson pin. Inert script/markup/URL strings, absent
+optional fields, empty ready and unavailable content are exercised in one running
+process. Setup restores the original body, pin, lifecycle and generation. Both
+cross-host and protected lesson requests follow the localized 307→404 chain:
+original path segments may occur in Next's redirect routing tree, while private
+content stays absent and the final status document omits even the original slug.
+Native ports, fixture directories and containers are clean after completion.
+
+Workspace production build passes with all three content routes dynamic; its
+about 103 kB First Load JS is a local observation, not a Lighthouse result.
+All 198 Release architecture cases and seven ADR workflow cases pass, zero
+failures/skips. Local relative links/fragments, added-prose and formatting checks
+pass. Native verification passes TLS, method/HEAD admission, redirects, production
+closure, DEBUG containment and development HMR. The solution Release build passes
+with zero warnings/errors. No browser or manual
+accessibility pass is claimed; full product/manual proof remains Step 4.
 
 ### P02d-1 decision pass (2026-09-14)
 

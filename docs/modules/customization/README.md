@@ -235,7 +235,8 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
   if it is concurrently deprecated. Strict commit-time eligibility is not selected.
 - Body validation uses `IJsonSchemaValidator` against that returned exact schema.
   Generation-keyed read caching is delivered in P02d-3; P02d-4 public shape is
-  delivered by Step 3. Renderer fallback remains P02d-6. These are
+  delivered by Step 3. P02d-6 Step 3 implements the bounded ordered-text renderer
+  and unavailable fallback. These are
   separate from the exact write contract.
 - Module-owned contextual verification queries give the seeder exact IDs, revision
   data, labels/bands and state. They are audit Off and introduce no setter exception.

@@ -60,7 +60,7 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 | **Composite renderer** | C# composite registry + React renderer (`default-card`, `content-list`, `card-grid`). | LearnStack engineering. | Tenants compose this in `TenantPageBlock` rows. |
 | **Tenant block** | `tenant_page_blocks` row (data only). | Tenant admin via Studio editor. | Tenant-specific shape (`vocabulary-list` for English, `asana-card` for yoga). |
 
-> **Accepted P02d-6 G41 — 2026-10-09; implementation pending.** The first
+> **P02d-6 G41 subset implemented — Step 3, 2026-10-10.** The first
 > ordered plain-string `default-card` views live in
 > `frontend/apps/web/src/components/public/`, with bounded unavailable fallbacks
 > and no active URL sink. The wider registry and component sketches below remain
@@ -209,8 +209,10 @@ the page.
   [Testing Standards](../../../docs/standards/06-testing.md#end-to-end-tests).
   Accepted P02d-6/G43 requires applicable jsx-a11y error rules with actual-config
   planted controls, localized product-page semantics and real manual keyboard,
-  focus, reflow, contrast and screen-reader evidence. Implementation and evidence
-  remain pending; acceptance alone supplies no passing accessibility check.
+  focus, reflow, contrast and screen-reader evidence. Step 3 implements the
+  applicable lint controls and synchronous lesson semantics; full product/manual
+  evidence remains Step 4. See the
+  [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation).
 - [Performance Standards](../../../docs/standards/15-performance.md) governs pages
   embedding the block. Accepted G44 assigns Lighthouse activation and assertions
   to P02d-7 after P6; the job remains disabled until that harness ships.

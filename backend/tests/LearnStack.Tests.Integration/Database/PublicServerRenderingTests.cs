@@ -23,8 +23,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
 /// Production Next/native TLS/SDK/API/PostgreSQL proof. The disposable renderer
-/// separates the P5 transport probe from unchanged P6 catalog/course routes.
-/// The larger pagination inventory exists only during its own fixture mode.
+/// separates the P5 transport probe from unchanged P6 product routes.
+/// Pagination inventory and presentation revisions belong to their own modes.
 /// </summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -32,11 +32,22 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
 {
     private const string SuppliedTrace = "00-1234567890abcdef1234567890abcdef-1234567890abcdef-01";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly Guid PresentationRevisionId = Guid.Parse("01930000-0000-7000-8000-000000006003");
+    private static readonly PresentationField[] PresentationFields =
+    [
+        new("fixture_script", new("Script text", "en"), "<script>globalThis.fixturePresentationExecuted=true</script>"),
+        new("fixture_markup", new("İşaretleme metni", "tr-TR"), "<img src=\"https://fixture-presentation.invalid/image\" onerror=\"alert('fixture')\"><strong>Authored markup</strong>"),
+        new("fixture_javascript", new("نص البرمجية", "ar"), "javascript:alert('fixture-presentation')"),
+        new("fixture_data", new("Data address", "en"), "data:text/html,<script>alert('fixture-presentation')</script>"),
+        new("fixture_http", new("HTTP address", "en"), "http://fixture-presentation.invalid/content")
+    ];
+    private static readonly PresentationLabel PresentationTypeLabel = new("Deneme kartı", "tr-TR");
 
     [Theory]
     [InlineData("transport")]
     [InlineData("foundation")]
     [InlineData("foundation-pagination")]
+    [InlineData("presentation")]
     public async Task Production_rendering_is_host_isolated_fresh_and_private_through_the_real_public_API(string mode)
     {
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -82,6 +93,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var foundationPosition = 0;
         var foundationLocales = false;
         var paginationRows = false;
+        var presentationRevision = false;
         var tracePosition = 0;
         var beforeProtocol = -1;
         var beforeStock = -1;
@@ -113,7 +125,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 locale,
                 courseSlug = sharedSlug,
                 traceparent = SuppliedTrace,
-                tenants
+                tenants,
+                presentation = new { label = PresentationTypeLabel, fields = PresentationFields }
             }, JsonOptions));
             while (await process.StandardOutput.ReadLineAsync(deadline.Token) is { } checkpoint)
             {
@@ -226,6 +239,61 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                             "status pages and admission refusals must never query Education");
                         foundationPosition = observed.Requests.Length;
                         break;
+                    case "presentation-english":
+                    case "presentation-yoga-en":
+                    case "presentation-yoga-tr":
+                    case "presentation-rsc-english":
+                    case "presentation-rsc-yoga-tr":
+                    case "presentation-exact-pin":
+                    case "presentation-swapped":
+                    case "presentation-rsc-swapped":
+                    case "presentation-yoga-unchanged":
+                    case "presentation-empty":
+                    case "presentation-unavailable":
+                    case "presentation-restored":
+                        var presentationRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        presentationRequests.Should().HaveCount(3,
+                            "the unchanged lesson route shares one exact content read across metadata, document and page");
+                        presentationRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
+                        var lessonRequest = presentationRequests.Single(request => request.Path != "/api/v1/public/site");
+                        lessonRequest.Path.Should().Contain("/lessons/");
+                        lessonRequest.Locale.Should().Be(checkpoint is "presentation-yoga-tr" or "presentation-rsc-yoga-tr" or "presentation-yoga-unchanged"
+                            ? SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale : locale);
+                        foundationPosition = observed.Requests.Length;
+                        break;
+                    case "presentation-cross-host":
+                    case "presentation-protected":
+                        var hiddenLessonRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        hiddenLessonRequests.Should().HaveCount(5,
+                            "one refused lesson document and its localized status redirect use the real bootstrap chain");
+                        hiddenLessonRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
+                        hiddenLessonRequests.Single(request => request.Path != "/api/v1/public/site").Locale.Should()
+                            .Be(checkpoint == "presentation-protected" ? SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale : locale);
+                        foundationPosition = observed.Requests.Length;
+                        break;
+                    case "presentation-publish-revision":
+                        observed.Requests.Length.Should().Be(foundationPosition, "fixture setup makes no public API calls");
+                        await AddPresentationRevisionAsync();
+                        presentationRevision = true;
+                        break;
+                    case "presentation-pin-revision":
+                        observed.Requests.Length.Should().Be(foundationPosition);
+                        await SetPresentationLessonAsync(firstCourse, SeedData.English.Curriculum!.ContentType.SchemaVersion + 1,
+                            JsonSerializer.Serialize(PresentationFields.ToDictionary(field => field.Name, field => field.Value), JsonOptions));
+                        break;
+                    case "presentation-make-empty":
+                        observed.Requests.Length.Should().Be(foundationPosition);
+                        await SetPresentationLessonAsync(firstCourse, SeedData.English.Curriculum!.ContentType.SchemaVersion + 1, "{}");
+                        break;
+                    case "presentation-make-unavailable":
+                        observed.Requests.Length.Should().Be(foundationPosition);
+                        await SetPresentationLessonAsync(firstCourse, SeedData.English.Curriculum!.ContentType.SchemaVersion + 1,
+                            "{\"fixture_script\":42,\"fixture_hidden\":\"unavailable-private-body-canary\"}");
+                        break;
+                    case "presentation-restore-lesson":
+                        observed.Requests.Length.Should().Be(foundationPosition);
+                        await RestorePresentationLessonAsync(firstCourse);
+                        break;
                     case "verified":
                         verified = true;
                         break;
@@ -245,13 +313,20 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 "foundation-course-yoga", "foundation-course-turkish",
                 "foundation-restricted", "foundation-empty", "foundation-cross-tenant", "foundation-missing",
                 "foundation-status", "foundation-head", "foundation-refused", "foundation-canonical", "stock-before", "stock-after", "verified");
-            else checkpoints.Should().Equal("build-complete", "pagination-catalog-first", "pagination-catalog-next",
+            else if (mode == "foundation-pagination") checkpoints.Should().Equal("build-complete", "pagination-catalog-first", "pagination-catalog-next",
                 "pagination-catalog-restart", "pagination-outline-first", "pagination-outline-next",
                 "pagination-outline-restart", "verified");
+            else checkpoints.Should().Equal("build-complete", "presentation-english", "presentation-yoga-en", "presentation-yoga-tr",
+                "presentation-rsc-english", "presentation-rsc-yoga-tr", "presentation-publish-revision", "presentation-exact-pin",
+                "presentation-pin-revision", "presentation-swapped", "presentation-rsc-swapped", "presentation-yoga-unchanged",
+                "presentation-make-empty", "presentation-empty", "presentation-make-unavailable", "presentation-unavailable",
+                "presentation-restore-lesson", "presentation-restored", "presentation-cross-host", "presentation-protected", "verified");
             if (mode == "foundation") observed.Requests.Should().HaveCount(52,
                 "normal/repeat, both hosts and languages, restricted/empty/cross-tenant, status and refusal checks fit one visitor window");
             if (mode == "foundation-pagination") observed.Requests.Should().HaveCount(18,
                 "six actual catalog/outline documents each make exactly three API calls");
+            if (mode == "presentation") observed.Requests.Should().HaveCount(46,
+                "twelve actual lesson HTML/RSC representations and two followed hidden lessons fit the unchanged visitor budget");
             observed.Requests.Length.Should().BeInRange(1, 59, "the fixture stays within one real anonymous visitor budget");
             observed.Requests.Should().OnlyContain(request => request.ValidHop, "the real caller uses the closed authenticated hop");
             observed.Logs.Should().BeGreaterThan(0, "API log containment needs a nonempty real logging subject");
@@ -278,6 +353,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     await fixture.ExecuteAsync(SeedData.English,
                         "DELETE FROM tenant_locales WHERE tenant_id=@tenant AND locale IN ('ar','tr-TR','tr')");
                 if (paginationRows) await RemovePaginationRowsAsync(firstCourse);
+                if (presentationRevision) await RemovePresentationRevisionAsync(firstCourse);
             }
         }
     }
@@ -382,6 +458,87 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         "UPDATE courses SET status=@status WHERE tenant_id=@tenant AND id=@id",
         new Dictionary<string, object> { ["id"] = course.Id, ["status"] = status.ToLowerInvariant() });
 
+    private Task AddPresentationRevisionAsync()
+    {
+        var type = SeedData.English.Curriculum!.ContentType;
+        var fields = PresentationFields.Select(field => new
+        {
+            name = field.Name,
+            label = new Dictionary<string, string> { [field.Label.Locale] = field.Label.Value }
+        }).Append(new { name = "fixture_optional", label = new Dictionary<string, string> { ["en"] = "Omitted optional field" } }).ToArray();
+        // This new optional-string profile satisfies ADR-0051. Its order differs
+        // from JSONB key order; the immutable seeded revision is never rewritten.
+        var schema = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["$schema"] = "https://json-schema.org/draft/2020-12/schema",
+            ["type"] = "object",
+            ["properties"] = fields.ToDictionary(field => field.name, _ => new { type = "string" }),
+            ["additionalProperties"] = false,
+            ["x-fields"] = fields
+        }, JsonOptions);
+        return fixture.ExecuteOwnerFixtureAsync(SeedData.English,
+            """
+            UPDATE tenant_content_types SET status='Deprecated'
+            WHERE tenant_id=@tenant AND id=@original AND status='Active';
+            INSERT INTO tenant_content_types(id,tenant_id,key,schema_version,status,display_name,
+                                             json_schema,renderer_key,created_at,created_by)
+            VALUES(@revision,@tenant,@key,@version,'Active',CAST(@label AS jsonb),
+                   CAST(@schema AS jsonb),'default-card',now(),@actor);
+            UPDATE customization_generations SET generation=generation+1 WHERE tenant_id=@tenant;
+            """,
+            new Dictionary<string, object>
+            {
+                ["original"] = type.Id,
+                ["revision"] = PresentationRevisionId,
+                ["key"] = type.Key,
+                ["version"] = type.SchemaVersion + 1,
+                ["label"] = JsonSerializer.Serialize(new Dictionary<string, string>
+                {
+                    [PresentationTypeLabel.Locale] = PresentationTypeLabel.Value
+                }, JsonOptions),
+                ["schema"] = schema
+            });
+    }
+
+    private Task SetPresentationLessonAsync(SeedCourse course, int version, string body) => fixture.ExecuteOwnerFixtureAsync(
+        SeedData.English,
+        """
+        UPDATE lessons SET content_type_schema_version=@version WHERE tenant_id=@tenant AND id=@lesson;
+        UPDATE lesson_translations SET body=CAST(@body AS jsonb)
+        WHERE tenant_id=@tenant AND lesson_id=@lesson AND locale='en';
+        """,
+        new Dictionary<string, object>
+        {
+            ["lesson"] = course.Lessons.First(row => row.Status == "Published").Id,
+            ["version"] = version,
+            ["body"] = body
+        });
+
+    private Task RestorePresentationLessonAsync(SeedCourse course)
+    {
+        var lesson = course.Lessons.First(row => row.Status == "Published");
+        return SetPresentationLessonAsync(course, lesson.ContentTypeSchemaVersion,
+            lesson.Translations.Single(row => row.Locale == "en").Body);
+    }
+
+    private async Task RemovePresentationRevisionAsync(SeedCourse course)
+    {
+        // Also runs after any failed checkpoint; no test-owned pin/body, lifecycle
+        // or generation increment survives into the shared fixture's next case.
+        await RestorePresentationLessonAsync(course);
+        await fixture.ExecuteOwnerFixtureAsync(SeedData.English,
+            """
+            DELETE FROM tenant_content_types WHERE tenant_id=@tenant AND id=@revision;
+            UPDATE tenant_content_types SET status='Active' WHERE tenant_id=@tenant AND id=@original;
+            UPDATE customization_generations SET generation=generation-1 WHERE tenant_id=@tenant;
+            """,
+            new Dictionary<string, object>
+            {
+                ["revision"] = PresentationRevisionId,
+                ["original"] = SeedData.English.Curriculum!.ContentType.Id
+            });
+    }
+
     private Task AddPaginationRowsAsync(SeedCourse course)
     {
         var lesson = course.Lessons.First(row => row.Status == "Published");
@@ -440,6 +597,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var hidden = tenant.Curriculum.Courses.Except(visible).ToArray();
         var restricted = visible.FirstOrDefault(row => row.ContentAccess == "enrollment_required");
         var restrictedTranslation = restricted?.Translations.Single(row => row.Locale == locale);
+        var restrictedDefault = restricted?.Translations.Single(row => row.Locale == defaultLocale);
         var catalogEn = visible.Select(row => row.Translations.Single(translation => translation.Locale == locale))
             .Select(row => new { row.Title, row.Slug }).ToArray();
         var catalogDefault = visible.Select(row => row.Translations.Single(translation => translation.Locale == defaultLocale))
@@ -460,22 +618,52 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             defaultCourseSummary = defaultCourse.Summary,
             defaultLessonSlug = defaultLesson.Slug,
             defaultLessonTitle = defaultLesson.Title,
+            content = SeedPresentation(tenant, translation, locale),
+            defaultContent = SeedPresentation(tenant, defaultLesson, defaultLocale),
             restrictedSlug = restrictedTranslation?.Slug,
+            restrictedDefaultSlug = restrictedDefault?.Slug,
+            restrictedDefaultLessonSlug = restricted?.Lessons.First(row => row.Status == "Published")
+                .Translations.Single(row => row.Locale == defaultLocale).Slug,
             restrictedTitle = restrictedTranslation?.Title,
             restrictedSummary = restrictedTranslation?.Summary,
-            restrictedCanaries = restricted?.Lessons.SelectMany(row => row.Translations.Where(item => item.Locale == locale))
-                .SelectMany(item =>
-                {
-                    using var content = JsonDocument.Parse(item.Body);
-                    return new[] { item.Title, item.Slug }.Concat(content.RootElement.EnumerateObject()
-                        .Select(field => field.Value.GetString()!)).ToArray();
-                }).Distinct(StringComparer.Ordinal).ToArray() ?? [],
+            restrictedCanaries = LessonCanaries(restricted, locale),
+            restrictedDefaultCanaries = LessonCanaries(restricted, defaultLocale),
             catalogEn,
             catalogDefault,
             hiddenEn = hidden.Select(row => row.Translations.Single(translation => translation.Locale == locale).Title).ToArray(),
             hiddenDefault = hidden.Select(row => row.Translations.Single(translation => translation.Locale == defaultLocale).Title).ToArray()
         };
     }
+
+    private static object SeedPresentation(SeedTenant tenant, SeedLessonTranslation translation, string locale)
+    {
+        var type = tenant.Curriculum!.ContentType;
+        using var schema = JsonDocument.Parse(type.JsonSchema);
+        using var body = JsonDocument.Parse(translation.Body);
+        return new
+        {
+            label = new PresentationLabel(type.DisplayName[locale], locale),
+            fields = schema.RootElement.GetProperty("x-fields").EnumerateArray().Select(field =>
+            {
+                var name = field.GetProperty("name").GetString()!;
+                return new PresentationField(name,
+                    new PresentationLabel(field.GetProperty("label").GetProperty(locale).GetString()!, locale),
+                    body.RootElement.GetProperty(name).GetString()!);
+            }).ToArray()
+        };
+    }
+
+    private static string[] LessonCanaries(SeedCourse? course, string locale) => course?.Lessons
+        .SelectMany(row => row.Translations.Where(item => item.Locale == locale))
+        .SelectMany(item =>
+        {
+            using var content = JsonDocument.Parse(item.Body);
+            return new[] { item.Title, item.Slug }.Concat(content.RootElement.EnumerateObject()
+                .Select(field => field.Value.GetString()!)).ToArray();
+        }).Distinct(StringComparer.Ordinal).ToArray() ?? [];
+
+    private sealed record PresentationLabel(string Value, string Locale);
+    private sealed record PresentationField(string Name, PresentationLabel Label, string Value);
 
     private static Process RendererProcess(string root, string? temporaryRoot = null)
     {

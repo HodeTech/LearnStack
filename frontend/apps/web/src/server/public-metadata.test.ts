@@ -65,6 +65,25 @@ function course(): Extract<Resource, { kind: 'course' }> {
   };
 }
 
+function lesson(): Extract<Resource, { kind: 'lesson' }> {
+  return {
+    kind: 'lesson',
+    request: request('/tr/courses/temel/lessons/giris'),
+    data: {
+      locale: 'tr',
+      course: { slug: 'temel', title: 'Temel kursu' },
+      lesson: { slug: 'giris', title: 'Giriş' },
+      content: {
+        state: 'ready',
+        rendererKey: 'default-card',
+        label: { value: 'Ders kartı', locale: 'tr' },
+        fields: [],
+      },
+      alternates: [{ locale: 'en', courseSlug: 'foundation', lessonSlug: 'introduction' }],
+    },
+  };
+}
+
 const ui = createPublicTranslator('tr');
 
 describe('public metadata projection', () => {
@@ -189,6 +208,95 @@ describe('public metadata projection', () => {
     for (const operation of Object.values(resource.request.client))
       expect(operation).not.toHaveBeenCalled();
   });
+
+  it('uses actual eligible lesson and course translations, with the current canonical self', () => {
+    const resource = lesson();
+    const metadata = publicMetadata(resource, ui);
+    expect(metadata).toMatchObject({
+      title: 'Giriş',
+      robots: { index: true, follow: true },
+      alternates: {
+        canonical: 'https://school.example:3000/tr/courses/temel/lessons/giris',
+        languages: {
+          tr: 'https://school.example:3000/tr/courses/temel/lessons/giris',
+          en: 'https://school.example:3000/en/courses/foundation/lessons/introduction',
+        },
+      },
+      openGraph: { title: 'Giriş', locale: 'tr', alternateLocale: ['en'] },
+    });
+    expect(metadata).not.toHaveProperty('description');
+    expect(JSON.stringify(metadata)).not.toMatch(/\/en\/courses\/temel|\/ar\//);
+    for (const operation of Object.values(resource.request.client))
+      expect(operation).not.toHaveBeenCalled();
+  });
+
+  it('ignores lesson query/UI/payload locale when constructing admitted resource URLs', () => {
+    const original = lesson();
+    const resource = {
+      ...original,
+      request: {
+        ...original.request,
+        context: {
+          ...original.request.context,
+          target: original.request.context.target + '?locale=ar&host=evil.example&cursor=private',
+        },
+      },
+    };
+    resource.data.locale = 'ar';
+    const metadata = publicMetadata(resource, createPublicTranslator('en'));
+    expect(metadata.robots).toEqual({ index: true, follow: true });
+    expect(metadata.alternates?.canonical).toBe(
+      'https://school.example:3000/tr/courses/temel/lessons/giris',
+    );
+    expect(metadata.openGraph).toMatchObject({ locale: 'tr' });
+    expect(JSON.stringify(metadata)).not.toMatch(/private|evil|\?/);
+  });
+
+  it.each(['unavailable', 'unknown'] as const)(
+    'keeps an eligible %s lesson noindex without losing its canonical identity',
+    (state) => {
+      const resource = lesson();
+      resource.data.content =
+        state === 'unavailable'
+          ? { state: 'unavailable' }
+          : {
+              state: 'ready',
+              rendererKey: 'future-composite',
+              label: { value: 'Unused', locale: 'en' },
+              fields: [],
+            };
+      expect(publicMetadata(resource, ui)).toMatchObject({
+        title: 'Giriş',
+        robots: { index: false, follow: true },
+        alternates: { canonical: 'https://school.example:3000/tr/courses/temel/lessons/giris' },
+      });
+    },
+  );
+
+  it('keeps the current lesson self when no other locale is eligible and refuses unsafe alternatives', () => {
+    const resource = lesson();
+    resource.data.alternates = [
+      { locale: 'en', courseSlug: '../private', lessonSlug: 'introduction' },
+      { locale: 'en', courseSlug: 'foundation', lessonSlug: '%69ntroduction' },
+      { locale: 'tr', courseSlug: 'wrong', lessonSlug: 'wrong' },
+      { locale: 'fr', courseSlug: 'fondation', lessonSlug: 'introduction' },
+    ];
+    expect(publicMetadata(resource, ui).alternates?.languages).toEqual({
+      tr: 'https://school.example:3000/tr/courses/temel/lessons/giris',
+    });
+  });
+
+  it.each(['../private', 'https://evil.example', 'giris?token=private', '%67iris'])(
+    'refuses an invalid current lesson slug %s before emitting resource URLs',
+    (slug) => {
+      const resource = lesson();
+      resource.data.lesson.slug = slug;
+      const metadata = publicMetadata(resource, ui);
+      expect(metadata).not.toHaveProperty('alternates');
+      expect(metadata).not.toHaveProperty('openGraph');
+      expect(metadata.robots).toEqual({ index: false, follow: false });
+    },
+  );
 });
 
 describe('metadata rejects unsafe URL inputs', () => {
@@ -317,26 +425,10 @@ describe('controlled noindex metadata states', () => {
     });
   });
 
-  it('keeps scaffold and pending lesson implementation noindex', () => {
-    const resources: Resource[] = [
-      { kind: 'scaffold', request: request('/studio', null) },
-      {
-        kind: 'lesson',
-        request: request('/tr/courses/temel/lessons/giris'),
-        data: {
-          locale: 'tr',
-          course: { slug: 'temel', title: 'Temel' },
-          lesson: { slug: 'giris', title: 'Giriş' },
-          content: { state: 'unavailable' },
-          alternates: [],
-        },
-      },
-    ];
-    for (const resource of resources) {
-      expect(publicMetadata(resource, ui)).toEqual({
-        title: 'School',
-        robots: { index: false, follow: false },
-      });
-    }
+  it('keeps the admitted scaffold noindex', () => {
+    expect(publicMetadata({ kind: 'scaffold', request: request('/studio', null) }, ui)).toEqual({
+      title: 'School',
+      robots: { index: false, follow: false },
+    });
   });
 });

@@ -435,7 +435,7 @@ implementation remains pending.
 
 ### Public Page Status and Recovery
 
-**Accepted P02d-6 G40 — 2026-10-09; implementation pending.** A missing/hidden
+**P02d-6 G40 composition implemented — Steps 1–3, 2026-10-10.** A missing/hidden
 content resource redirects locally with **307** to the same host's fixed
 `/{locale}/status/not-found`, whose admitted branded document returns **404**.
 The browser URL changes. The page rechecks live host/locale admission, never calls

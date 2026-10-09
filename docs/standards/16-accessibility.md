@@ -102,13 +102,16 @@ LearnStack is an education platform; learners with disabilities are a first-clas
   routes; the CI placeholder remains disabled.
 - Manual keyboard walkthroughs for new screens in the PR review.
 
-**Accepted P02d-6 G43 — 2026-10-09; implementation pending.** Applicable
-jsx-a11y rules run at error severity with planted controls through the actual app
-configuration. Actual product-page HTML/DOM proves titles, languages, one main,
+**P02d-6 G43 enforcement — Step 3, 2026-10-10.** All 31 active recommended
+jsx-a11y rules run at error severity with a literal rule census and per-rule dirty/
+clean controls through the actual app configuration in
+`src/test/accessibility-lint.test.ts`. Synchronous catalog/course/lesson and state
+views have semantic/language cases. Actual product-page HTML/DOM must prove
+titles, languages, one main,
 one descriptive h1, sequential headings, semantic lists/definition lists, skip
 target and visible focus, including all controlled states. Logical CSS and wrapping
 must support RTL and long unbroken strings. Acceptance does not promote this
-standard: it stays **Adopted** until its enforcement lands.
+standard: it stays **Adopted** while full product/manual proof is pending.
 
 Catalog → course → lesson is a critical flow requiring manual keyboard, focus,
 320 CSS px reflow/zoom, long-string, contrast and real screen-reader smoke evidence.

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { ApiResult, AppError } from '@learnstack/sdk/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConfiguredPublicClient } from './configured-public-client';
 import { getPublicRequest } from './public-request';
@@ -106,6 +106,8 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('public resource dispatch after shared live admission', () => {
   it('refuses before any content call when request admission fails', async () => {
     getRequest.mockResolvedValue(null);
@@ -176,6 +178,67 @@ describe('public resource dispatch after shared live admission', () => {
     expect(client.getCourses).not.toHaveBeenCalled();
     expect(client.getCourse).not.toHaveBeenCalled();
   });
+
+  it('diagnoses an unsupported composite once without its key, label, names or values', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const admitted = request('/tr-TR/courses/foundation/lessons/intro');
+    getRequest.mockResolvedValue(admitted);
+    client.getLesson.mockResolvedValue({
+      kind: 'success',
+      status: 200,
+      data: {
+        ...lesson,
+        content: {
+          state: 'ready',
+          rendererKey: 'PRIVATE_COMPOSITE',
+          label: { locale: 'en', value: 'PRIVATE_LABEL' },
+          fields: [
+            {
+              name: 'PRIVATE_FIELD',
+              label: { locale: 'en', value: 'PRIVATE_FIELD_LABEL' },
+              value: 'PRIVATE_VALUE',
+            },
+          ],
+        },
+      },
+    });
+    expect((await getPublicResource()).kind).toBe('lesson');
+    expect(client.getLesson).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith('Public lesson presentation unavailable', {
+      state: 'unsupported_renderer',
+      count: 1,
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(
+      /PRIVATE|203\.0|foundation|intro|Institution/,
+    );
+  });
+
+  it.each(['ready', 'unavailable'] as const)(
+    'does not duplicate API diagnostics for %s content',
+    async (state) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      getRequest.mockResolvedValue(request('/tr-TR/courses/foundation/lessons/intro'));
+      client.getLesson.mockResolvedValue({
+        kind: 'success',
+        status: 200,
+        data: {
+          ...lesson,
+          content:
+            state === 'unavailable'
+              ? { state: 'unavailable' }
+              : {
+                  state: 'ready',
+                  rendererKey: 'default-card',
+                  label: { locale: 'en', value: 'Card' },
+                  fields: [],
+                },
+        },
+      });
+      expect((await getPublicResource()).kind).toBe('lesson');
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     '/tr-TR/courses?cursor=',
