@@ -1165,6 +1165,412 @@ async function verifyPresentation(native) {
   assert.equal(native.exitCode, null, 'All schema and content changes use the same native process');
 }
 
+// Step 4 drives unchanged product routes. All expected identity/content values
+// arrive from the C# seed/test-owned rows; this is not another seed registry.
+function productDetails(tenant, locale) {
+  const extra = configuration.product.find((candidate) => candidate.host === tenant.host);
+  const arabic = locale === 'ar';
+  const courseSlug = arabic
+    ? extra.courseSlug
+    : locale === 'en'
+      ? configuration.courseSlug
+      : tenant.defaultCourseSlug;
+  return {
+    ...extra,
+    locale,
+    coursePath: '/' + locale + '/courses/' + courseSlug,
+    lessonPath:
+      '/' +
+      locale +
+      '/courses/' +
+      courseSlug +
+      '/lessons/' +
+      (arabic ? extra.lessonSlug : locale === 'en' ? tenant.lessonSlug : tenant.defaultLessonSlug),
+    courseTitle: arabic
+      ? extra.courseTitle
+      : locale === 'en'
+        ? tenant.courseTitle
+        : tenant.defaultCourseTitle,
+    lessonTitle: arabic
+      ? extra.lessonTitle
+      : locale === 'en'
+        ? tenant.lessonTitle
+        : tenant.defaultLessonTitle,
+    content: arabic ? extra.content : locale === 'en' ? tenant.content : tenant.defaultContent,
+  };
+}
+
+function absentFromWholeResponse(response, values) {
+  const decoded = new JSDOM(response.body).window.document.documentElement.textContent;
+  const phase = stage;
+  for (const [index, value] of values.entries()) {
+    stage = phase + ' containment marker ' + index;
+    assert.ok(value.length > 0, 'Leak markers are nonempty');
+    for (const representation of [value, JSON.stringify(value).slice(1, -1)])
+      assert.equal(
+        response.body.includes(representation),
+        false,
+        'Complete HTML/Flight containment',
+      );
+    assert.equal(decoded.includes(value), false, 'Entity-decoded response containment');
+  }
+  stage = phase;
+}
+
+function productContainment(response, tenant) {
+  const own = configuration.product.find((candidate) => candidate.host === tenant.host);
+  const other = configuration.product.find((candidate) => candidate.host !== tenant.host);
+  const opposite = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
+  assert.ok(own.protectedCanaries.length > 0 && other.allCanaries.length > 0);
+  absentFromWholeResponse(response, [
+    opposite.name,
+    ...other.allCanaries,
+    other.courseTitle,
+    other.courseSummary,
+    other.lessonTitle,
+    ...other.content.fields.map((field) => field.value),
+    ...own.protectedCanaries,
+    ...catalogueCanaries,
+  ]);
+}
+
+function productTheme(doc, details, malformed = false) {
+  const styles = [...doc.querySelectorAll('style')].filter((element) =>
+    element.textContent.includes('--ls-primary:'),
+  );
+  const { primary, background, foreground, muted } = details.theme;
+  assert.equal(styles.length, malformed ? 0 : 1, 'A malformed palette emits no partial override');
+  if (!malformed)
+    assert.equal(
+      styles[0].textContent,
+      `:root{--ls-primary:${primary};--ls-bg:${background};--ls-fg:${foreground};--ls-muted:${muted};}`,
+      'Exact complete seed palette is independent of entitlement',
+    );
+  const footer = doc.querySelector('footer.public-footer');
+  assert.equal(
+    footer !== null,
+    details.showAttribution,
+    'Effective tenant entitlement alone selects attribution',
+  );
+  if (footer)
+    assert.equal(
+      footer.textContent,
+      details.locale === 'tr-TR' ? 'LearnStack altyapısıyla' : 'Powered by LearnStack',
+    );
+  if (malformed) {
+    assert.equal(doc.documentElement.hasAttribute('style'), false);
+    const cssLinks = [...doc.querySelectorAll('link[rel="stylesheet"]')];
+    assert.ok(cssLinks.length > 0, 'The fallback has a real compiled stylesheet');
+    const css = cssLinks
+      .map((link) => {
+        const path = link.getAttribute('href').split('?')[0];
+        assert.match(path, /^\/_next\/static\/css\/[a-zA-Z0-9._-]+\.css$/);
+        return readFileSync(join(app, '.next', path.slice('/_next/'.length)), 'utf8');
+      })
+      .join('');
+    assert.match(
+      css,
+      /:root\{[^}]*--ls-primary:#1f6feb;[^}]*--ls-bg:#fff(?:fff)?;[^}]*--ls-fg:#0f172a;[^}]*--ls-muted:#64748b[;}]/,
+      'All four existing CSS defaults remain available together',
+    );
+  }
+}
+
+function productLesson(response, tenant, details, malformed = false) {
+  const doc = productDocument(
+    response,
+    tenant,
+    details.locale,
+    details.lessonTitle,
+    details.lessonPath,
+    details.locale === 'ar' ? 'rtl' : 'ltr',
+  );
+  productContainment(response, tenant);
+  productTheme(doc, details, malformed);
+  const article = doc.querySelector('article.public-lesson');
+  assert.equal(article.lang, details.locale);
+  assert.equal(article.dir, details.locale === 'ar' ? 'rtl' : 'ltr');
+  assert.equal(article.querySelector('a').textContent, details.courseTitle);
+  assert.equal(article.querySelector('a').getAttribute('href'), details.coursePath);
+  const skip = doc.querySelector('a.public-skip');
+  assert.equal(skip.textContent, 'Skip to content');
+  assert.equal(skip.lang, 'en', 'Arabic content uses the authored English UI fallback');
+  assert.equal(skip.dir, 'ltr');
+  assert.equal(doc.querySelector('header nav').lang, 'en');
+  assert.equal(doc.querySelector('header nav').textContent, 'Course catalog');
+  const label = article.querySelector('h2');
+  assert.equal(label.textContent, details.content.label.value);
+  assert.equal(
+    label.lang,
+    details.content.label.locale,
+    'Resolved API label language is independent of UI language',
+  );
+  assert.equal(label.dir, 'ltr');
+  const terms = [...article.querySelectorAll('dt')];
+  const values = [...article.querySelectorAll('dd')];
+  assert.deepEqual(
+    terms.map((term) => term.textContent),
+    details.content.fields.map((field) => field.label.value),
+  );
+  assert.deepEqual(
+    values.map((value) => value.textContent),
+    details.content.fields.map((field) => field.value),
+  );
+  assert.ok(values.length > 0, 'The RTL document contains actual authored content');
+  details.content.fields.forEach((field, index) => {
+    assert.equal(terms[index].lang, field.label.locale);
+    assert.equal(terms[index].dir, 'ltr');
+    assert.equal(values[index].closest('[lang]').lang, details.locale);
+    assert.equal(values[index].closest('[dir]').dir, details.locale === 'ar' ? 'rtl' : 'ltr');
+    assert.equal(values[index].childElementCount, 0);
+  });
+  return doc;
+}
+
+async function productRequest(tenant, path, rsc = false) {
+  return call(true, 3000, path, { Host: tenant.host + ':3000', ...(rsc ? { RSC: '1' } : {}) });
+}
+
+async function productMissing(name, tenant, path, locale, hidden) {
+  stage = name;
+  const refusal = await productRequest(tenant, path);
+  safeResponse(refusal, 307);
+  productContainment(refusal, tenant);
+  absentFromWholeResponse(refusal, hidden);
+  const target = new URL(refusal.headers.location, 'https://' + tenant.host + ':3000');
+  assert.equal(target.origin, 'https://' + tenant.host + ':3000');
+  assert.equal(target.pathname, '/' + locale + '/status/not-found');
+  assert.equal(target.search, '');
+  const response = await productRequest(tenant, target.pathname);
+  statusDocument(response, tenant, locale, locale === 'tr-TR' ? 'tr' : 'en');
+  productContainment(response, tenant);
+  absentFromWholeResponse(response, [
+    ...hidden,
+    ...path.split('/').filter((segment) => segment.startsWith('p6-')),
+  ]);
+  await checkpoint(name);
+}
+
+async function verifyProductIsolation(native) {
+  const pid = native.pid;
+  const lanes = configuration.tenants.flatMap((tenant) =>
+    ['en', 'ar'].map((locale) => ({ tenant, details: productDetails(tenant, locale) })),
+  );
+  for (const rsc of [false, true]) {
+    stage = rsc ? 'product concurrent Flight barrier' : 'product concurrent HTML barrier';
+    await checkpoint(rsc ? 'product-arm-rsc' : 'product-arm-html');
+    // Promise.all only starts the work. The API holds every exact content lane
+    // until all four have arrived, and C# independently verifies that barrier.
+    const responses = await Promise.all(
+      lanes.map(({ tenant, details }) => productRequest(tenant, details.lessonPath, rsc)),
+    );
+    for (const [index, response] of responses.entries()) {
+      const { tenant, details } = lanes[index];
+      stage = `product concurrent ${rsc ? 'Flight' : 'HTML'} lane ${index}`;
+      safeResponse(response, 200, rsc);
+      productContainment(response, tenant);
+      if (rsc) {
+        for (const value of [
+          tenant.name,
+          details.courseTitle,
+          details.lessonTitle,
+          ...details.content.fields.map((field) => field.value),
+        ])
+          assert.ok(
+            response.body.includes(value) ||
+              response.body.includes(JSON.stringify(value).slice(1, -1)),
+            'Flight contains its own exact authored representation',
+          );
+      } else productLesson(response, tenant, details);
+    }
+    await checkpoint(rsc ? 'product-rsc' : 'product-html');
+  }
+  const [first, second] = configuration.tenants;
+  await checkpoint('product-malform-theme');
+  for (const [name, tenant, malformed] of [
+    ['product-theme-fallback', first, true],
+    ['product-theme-other', second, false],
+  ]) {
+    stage = name;
+    const details = productDetails(tenant, 'ar');
+    const response = await productRequest(tenant, details.lessonPath);
+    productLesson(response, tenant, details, malformed);
+    absentFromWholeResponse(response, ['fixture-invalid-color', '#abcdef']);
+    await checkpoint(name);
+  }
+  await checkpoint('product-restore-theme');
+  stage = 'product restored theme';
+  const restored = productDetails(first, 'ar');
+  productLesson(await productRequest(first, restored.lessonPath), first, restored);
+  await checkpoint('product-theme-restored');
+  for (const [name, tenant, locale, slug, lessonSlug] of [
+    ['product-protected-en', first, 'en', first.restrictedSlug, first.restrictedLessonSlug],
+    [
+      'product-protected-tr',
+      second,
+      second.defaultLocale,
+      second.restrictedDefaultSlug,
+      second.restrictedDefaultLessonSlug,
+    ],
+  ]) {
+    await productMissing(
+      name,
+      tenant,
+      '/' + locale + '/courses/' + slug + '/lessons/' + lessonSlug,
+      locale,
+      [],
+    );
+  }
+  assert.equal(native.pid, pid);
+  assert.equal(native.exitCode, null, 'The entire product matrix uses one native process');
+}
+
+async function verifyProductFreshness(native) {
+  const pid = native.pid;
+  const [first, second] = configuration.tenants;
+  const details = productDetails(first, 'ar');
+  const catalog = '/ar/courses';
+  const success = async (name, tenant, path, title, visible = true) => {
+    stage = name;
+    const response = await productRequest(tenant, path);
+    safeResponse(response, 200);
+    productContainment(response, tenant);
+    const doc = document(response);
+    assert.equal(doc.documentElement.lang, path.split('/')[1]);
+    assert.equal(doc.documentElement.dir, path.startsWith('/ar/') ? 'rtl' : 'ltr');
+    assert.equal(
+      doc.body.textContent.includes(title),
+      visible,
+      'Publication is observed by a fresh product read',
+    );
+    if (!visible)
+      absentFromWholeResponse(response, [
+        details.courseTitle,
+        details.lessonTitle,
+        ...details.content.fields.map((field) => field.value),
+      ]);
+    if (path === catalog) {
+      assert.equal(doc.querySelectorAll('ul.public-course-list > li').length, visible ? 1 : 0);
+      assert.equal(doc.querySelector('a[href="' + details.coursePath + '"]') !== null, visible);
+    }
+    await checkpoint(name);
+  };
+  for (const prefix of ['warm', 'restored']) {
+    if (prefix === 'restored') {
+      await checkpoint('make-draft');
+      await success('product-draft-catalog', first, catalog, details.courseTitle, false);
+      const hidden = [
+        details.courseTitle,
+        details.lessonTitle,
+        ...details.content.fields.map((field) => field.value),
+      ];
+      await productMissing('product-draft-course', first, details.coursePath, 'ar', hidden);
+      await productMissing('product-draft-lesson', first, details.lessonPath, 'ar', hidden);
+      const other = productDetails(second, 'ar');
+      await success('product-draft-other', second, other.lessonPath, other.lessonTitle);
+      await checkpoint('restore-published');
+    }
+    await success('product-' + prefix + '-catalog', first, catalog, details.courseTitle);
+    await success('product-' + prefix + '-course', first, details.coursePath, details.courseTitle);
+    await success('product-' + prefix + '-lesson', first, details.lessonPath, details.lessonTitle);
+  }
+  const turkish = productDetails(second, second.defaultLocale);
+  for (const scenario of [
+    {
+      name: 'product-bad-cursor',
+      recovery: 'product-cursor-recovery',
+      tenant: second,
+      locale: second.defaultLocale,
+      path: turkish.coursePath + '?lessonCursor=bad-cursor',
+      state: 'invalid_cursor',
+      target: turkish.coursePath,
+      title: turkish.courseTitle,
+    },
+    {
+      name: 'product-content-429',
+      recovery: 'product-429-recovery',
+      arm: 'product-arm-429',
+      tenant: second,
+      locale: second.defaultLocale,
+      path: turkish.coursePath,
+      state: 'rate_limited',
+      target: '/' + second.defaultLocale + '/courses',
+      title: turkish.courseTitle,
+    },
+    {
+      name: 'product-content-503',
+      recovery: 'product-503-recovery',
+      arm: 'product-arm-503',
+      tenant: first,
+      locale: 'ar',
+      path: details.lessonPath,
+      state: 'unavailable',
+      target: catalog,
+      title: details.courseTitle,
+    },
+  ]) {
+    if (scenario.arm) await checkpoint(scenario.arm);
+    stage = scenario.name;
+    const response = await productRequest(scenario.tenant, scenario.path);
+    safeResponse(response, 200, false);
+    productContainment(response, scenario.tenant);
+    const doc = document(response);
+    const uiLocale = scenario.locale === 'tr-TR' ? 'tr' : 'en';
+    const messages = JSON.parse(
+      readFileSync(join(sourceApp, 'src/i18n/messages', uiLocale, 'public.json'), 'utf8'),
+    );
+    stage = scenario.name + ' bounded state';
+    const state = doc.querySelector('section.public-state');
+    assert.ok(state, 'Known content failure renders a bounded product state');
+    assert.equal(doc.documentElement.lang, scenario.locale);
+    assert.equal(doc.documentElement.dir, scenario.locale === 'ar' ? 'rtl' : 'ltr');
+    assert.equal(state.lang, uiLocale);
+    assert.equal(state.dir, 'ltr');
+    assert.equal(doc.querySelectorAll('h1').length, 1);
+    assert.equal(doc.querySelectorAll('main').length, 1);
+    assert.equal(state.querySelector('h1').textContent, messages.page[scenario.state].title);
+    assert.equal(state.querySelector('p').textContent, messages.page[scenario.state].description);
+    stage = scenario.name + ' metadata';
+    assert.ok(doc.title.includes(messages.page[scenario.state].title));
+    assert.ok(doc.querySelector('meta[name="robots"]')?.content.includes('noindex'));
+    assert.equal(
+      doc.querySelector('link[rel="alternate"]'),
+      null,
+      'Failure advertises no resource alternates',
+    );
+    stage = scenario.name + ' recovery';
+    const recovery = state.querySelector('a');
+    assert.equal(recovery.getAttribute('href'), scenario.target);
+    assert.equal(
+      recovery.textContent,
+      scenario.state === 'invalid_cursor'
+        ? messages.page.invalid_cursor.reset
+        : messages.page.recovery,
+    );
+    assert.ok(state.textContent.length < 400, 'Failure copy remains bounded');
+    // Next may serialize the request's own query in its router tree. The
+    // controlled visible state and metadata never echo that cursor.
+    assert.equal(doc.body.textContent.includes('bad-cursor'), false);
+    assert.equal(doc.title.includes('bad-cursor'), false);
+    stage = scenario.name + ' private failure';
+    absentFromWholeResponse(response, [
+      'fixture-private-',
+      'lockey_',
+      'service_unavailable',
+      'rate_limited',
+      'validation_failed',
+    ]);
+    await checkpoint(scenario.name);
+    await success(scenario.recovery, scenario.tenant, scenario.target, scenario.title);
+  }
+  assert.equal(native.pid, pid);
+  assert.equal(
+    native.exitCode,
+    null,
+    'Lifecycle and controlled failures use the same native process',
+  );
+}
+
 // The real Next adapter removes Flight inputs before user middleware, then
 // restores them after its request-header override. Observe that final request
 // through a disposable admitted route, without exposing any header values.
@@ -1189,11 +1595,13 @@ try {
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.match(configuration.secret, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(configuration.tenants.length, 2);
+  const product = configuration.mode?.startsWith('product-') ?? false;
   const presentation = configuration.mode === 'presentation';
   const foundation =
     configuration.mode === 'foundation' ||
     configuration.mode === 'foundation-pagination' ||
-    presentation;
+    presentation ||
+    product;
   const pagination = configuration.mode === 'foundation-pagination';
   if (foundation) {
     catalogueCanaries = ['en', 'tr'].map(
@@ -1237,7 +1645,7 @@ try {
   if (foundation) {
     assert.ok(existsSync(join(coursesDirectory, 'page.tsx')), 'Copied product catalog route');
     assert.ok(existsSync(join(coursesDirectory, '[slug]/page.tsx')), 'Copied product course route');
-    if (presentation)
+    if (presentation || product)
       assert.ok(
         existsSync(join(coursesDirectory, '[slug]/lessons/[lessonSlug]/page.tsx')),
         'Copied product lesson route',
@@ -1348,7 +1756,11 @@ try {
   const catalog = '/' + configuration.locale + '/courses';
   const course = catalog + '/' + configuration.courseSlug;
 
-  if (presentation) {
+  if (configuration.mode === 'product-isolation') {
+    await verifyProductIsolation(native);
+  } else if (configuration.mode === 'product-freshness') {
+    await verifyProductFreshness(native);
+  } else if (presentation) {
     await verifyPresentation(native);
   } else if (pagination) {
     await verifyPagination(native);

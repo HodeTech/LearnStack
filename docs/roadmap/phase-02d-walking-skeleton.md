@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) review rounds complete; Step 4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) review rounds complete; [Step 4 product proof](#p02d-6-step-4-product-proof-and-accessibility-closeout) implemented; reviews and manual accessibility pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4449,6 +4449,48 @@ and all 53 resource cases and workspace typecheck pass. Diff checks pass. Both
 independent rounds are complete; Step 4 follows.
 Actual product RTL/fault/concurrency and manual accessibility obligations remain
 explicit.
+
+### P02d-6 Step 4: Product proof and accessibility closeout
+
+**Implementation in progress — 2026-10-10.** The unchanged product routes now
+have dedicated `product-isolation` and `product-freshness` modes in
+`PublicServerRenderingTests` / `verify-public-rendering.mjs`. P5's synthetic
+transport mode and the foundation, pagination and presentation modes remain
+separate and mandatory. This step adds proof inventory; it changes no production
+route, API, rate budget or historical seed declaration.
+
+Test-owned Arabic translations use the same ASCII course/lesson slugs on both
+hosts, with each course's original organization scope. A four-target content
+barrier admits both hosts × English/Arabic before continuing the real API pipeline;
+HTML and Flight checks reject opposite-tenant and protected authored markers.
+Actual document direction, authored content and independently labelled fallback
+UI are observed. Both seeded four-color palettes and effective attribution are
+checked independently; one malformed theme must fall back atomically to the
+whole local default palette, then recover after restoration.
+
+Freshness runs in one native server process. Publishing state changes remove the
+course from the catalog and send course/lesson detail through the approved local
+307→fixed localized 404 chain; restoring publication restores eligible content
+without changing the other host. A naturally invalid cursor reaches the real
+API. Strict one-shot exact host/locale/path content-boundary faults exercise
+429 and 503 page states while bootstrap still uses the real application role and
+read-only pipeline. These two faulted Education requests intentionally stop at
+the test-owned API boundary; they do not claim production handler execution.
+
+Known content failures expose bounded translated HTTP 200/noindex views and
+accurate cursor-reset/catalog recovery. Next may retain the request's own cursor
+in its private Flight routing tree; the visible state/title and recovery link do
+not echo it. Problem details and private provider copy stay absent from the
+complete response. Fixture mutations restore locales, translations, theme and
+publication in `finally`; every mode uses a fresh unchanged visitor budget.
+
+**Validation and reviews.** The guarded frontend run passes 1,065 cases
+(1,005 web, 60 SDK), zero failures/skips/todos. All 20 focused Release production-rendering cases pass, zero failures/skips.
+The new isolation/freshness modes observe exactly 43/52 API calls; the earlier
+foundation/pagination/presentation modes retain 52/18/46. Full backend regression,
+both fresh review rounds and the manual accessibility record follow. No browser or screen-reader pass is claimed here.
+P6 completion and Accessibility promotion remain pending until actual keyboard,
+focus, 320 CSS px reflow, contrast and screen-reader evidence exists.
 
 ### P02d-1 decision pass (2026-09-14)
 
