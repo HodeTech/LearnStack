@@ -3326,8 +3326,9 @@ reads certificate/key files, resolved against the repository root.
 
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Remediation Step 1 is complete after both independent review rounds;
-Step 2 is implemented with independent reviews pending; Steps 3–5 remain pending.
+development. Remediation Steps 1–2 are complete after both independent review
+rounds. Step 3 implements fixture reliability/containment with independent reviews
+pending; Steps 4–5 remain pending.
 Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
@@ -3442,7 +3443,8 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Steps 1–2 complete; Steps 3–5 pending.** For each:
+development. **Current step status: Steps 1–2 complete; Step 3 implemented with
+reviews pending; Steps 4–5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3572,6 +3574,53 @@ consistency cases. These reviewers inspect the committed fixed-port fixture
 proofs without rerunning them. Step 2 is complete; no corrective runtime commit
 is required. Fixture ownership/containment and source/tooling remediation remain
 Steps 3–4.
+
+#### Remediation Step 3 — Fixture reliability and containment
+
+**Implemented — 2026-10-09; independent reviews pending.** Test fixtures share
+resource ownership, positive environment construction and bounded sticky output
+scanning. Setup occurs inside cleanup ownership; signals, explicit parent control
+closure and broken output pipes join the same cleanup before exit. Children stop
+before private trees are removed. Process handles coalesce repeated cleanup and
+retire permanently after confirmed absence; exited leaders still require cleanup
+of surviving descendants. This narrows stale-handle exposure without claiming an
+atomic POSIX process-identity signalling API.
+
+Both fixed ports are preflighted. Readiness requires evidence from the actual
+owned child before accepting a healthy response; a foreign listener is neither
+reused nor stopped. HTTPS, raw TLS and WebSocket clients explicitly verify trust.
+Wrong-CA and wrong-name controls fail before bootstrap. Private-output verdicts
+remain sticky after truncation and across chunk boundaries; structural envelope
+checks distinguish ordinary API/version text from private wire values.
+
+The real renderer builds with nonempty private configuration and an actual
+public-only Client Component. A successfully compiled secret-leaking component
+fails emitted-asset scanning; the restored component builds cleanly with nonempty
+client output. The API observes no request during compilation. Existing SDK,
+host/trace isolation, six Flight/bootstrap calls, same-process freshness and stock
+launcher refusal remain covered. Actual stdin closure and EPIPE controls require
+exit 1 and removal of the owned temporary build tree.
+
+**Validation — 2026-10-09.** The guarded frontend runner passes 491 cases
+(431 web, 60 SDK), with zero skips/todos; workspace lint and typecheck pass.
+`PublicServerRenderingTests` passes 15/15: the real production path, twelve
+structured-log controls and two actual parent-pipe cleanup cases. The strengthened
+pipe controls also pass a focused rerun. Release integration build reports zero
+warnings/errors; changed-source format verification passes with a workspace-load
+warning. The shared scanner/environment/owner and process-handle controls pass
+27/27. Corpus consistency passes 5/5 with zero failures/skips, and ADR-0054's
+change is insertion-only.
+
+The real ingress source-mutant matrix passes 18/18: early OpenSSL failure,
+asynchronous bootstrap refusal, setup/omitted cleanup, both signals, explicit IPC
+closure, EPIPE, secure environment/TLS and disabled-TLS rejection, benign large
+output and early split leaks, stale/bind failures, and upgrade closure/refusal.
+Each intended failure is checked by its own oracle; cleanup rescue runs only
+after the absence verdict and never re-signals a saved PID after confirmed absence.
+Independent normal native/TLS/HMR verification remains the clean control.
+
+Both fresh review rounds are pending. Source/tooling remediation and final PR
+closeout remain Steps 4–5.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

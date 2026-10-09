@@ -124,8 +124,9 @@ records the original four-step delivery. The maintainer accepted
 [five-step remediation plan](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 on 2026-10-09. Remediation Step 1 implements coordinated anonymous accounting;
 both independent review rounds passed. Step 2 completes native admission and URL
-controls after both fresh review rounds. Steps 3–5 remain pending. Work continues
-on development. P02d-6's decision pass and public product pages
+controls after both fresh review rounds. Step 3 implements owned fixture cleanup
+and containment, with independent reviews pending. Steps 4–5 remain pending.
+Work continues on development. P02d-6's decision pass and public product pages
 are not started. P02d-7 still owns the browser demo and Lighthouse.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

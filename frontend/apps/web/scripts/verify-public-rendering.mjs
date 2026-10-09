@@ -19,26 +19,26 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-import { stopTestChild } from './stop-test-child.mjs';
+import {
+  createFixtureOwner,
+  createPrivateScanner,
+  fixtureEnvironment,
+} from './fixture-support.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
-const fixtureRoot = mkdtempSync(join(tmpdir(), 'learnstack-public-rendering-'));
-const app = join(fixtureRoot, 'frontend/apps/web');
-const input = createInterface({ input: process.stdin, terminal: false });
-const lines = input[Symbol.asyncIterator]();
-const children = [];
+const owner = createFixtureOwner();
+const scanners = [];
+let fixtureRoot;
+let app;
+let input;
+let lines;
 let stage = 'configuration';
 let configuration;
 let certificate;
-let privateOutput = false;
-let cleanup;
-let finished = false;
+let privateScanner;
 
 function checkPrivate(value) {
-  return (
-    /x-learnstack-|\bv1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}/i.test(value) ||
-    (configuration !== undefined && value.includes(configuration.secret))
-  );
+  return privateScanner.contains(value);
 }
 
 async function line() {
@@ -50,6 +50,7 @@ async function line() {
         timer = setTimeout(() => reject(new Error('Control deadline')), 30_000);
       }),
     ]);
+    owner.assertActive();
     assert.equal(result.done, false, 'Parent control closed');
     return result.value;
   } finally {
@@ -62,51 +63,46 @@ async function checkpoint(name) {
   assert.equal(await line(), 'continue', 'Invalid parent acknowledgement');
 }
 
-// Do not inherit private/public Next environment, loader hooks, trust overrides,
-// proxy settings or a developer's certificate configuration into the fixture.
-function environment(runtime = false) {
-  const env = {
-    PATH: process.env.PATH,
-    TMPDIR: fixtureRoot,
-    NODE_ENV: 'production',
-    NODE_PATH: join(sourceApp, '../../node_modules/.pnpm/node_modules'),
-    NEXT_TELEMETRY_DISABLED: '1',
-    CI: 'true',
-  };
-  if (runtime)
-    Object.assign(env, {
+function environment() {
+  return fixtureEnvironment({
+    root: fixtureRoot,
+    nodePath: join(sourceApp, '../../node_modules/.pnpm/node_modules'),
+    privateValues: {
       LEARNSTACK_PUBLIC_API_ORIGIN: configuration.apiOrigin,
       LEARNSTACK_PUBLIC_HOP_SECRET: configuration.secret,
       LEARNSTACK_PUBLIC_TLS_CERT: join(fixtureRoot, 'cert.pem'),
       LEARNSTACK_PUBLIC_TLS_KEY: join(fixtureRoot, 'key.pem'),
-    });
-  return env;
+    },
+  });
 }
 
-function start(command, args, runtime = false) {
-  const child = spawn(command, args, {
-    cwd: app,
-    env: environment(runtime),
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: process.platform !== 'win32',
-  });
-  child.output = '';
+function start(command, args) {
+  owner.assertActive();
+  const child = owner.ownChild(
+    spawn(command, args, {
+      cwd: app,
+      env: environment(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    }),
+  );
   child.failed = false;
   child.on('error', () => {
     child.failed = true;
   });
-  for (const stream of [child.stdout, child.stderr])
-    stream.on('data', (chunk) => {
-      // Scan before truncation, including a split secret/header across chunks.
-      const combined = child.output.slice(-16384) + chunk.toString();
-      privateOutput ||= checkPrivate(combined);
-      child.output = (child.output + chunk.toString()).slice(-65536);
-    });
-  children.push(child);
+  const output = [];
+  for (const stream of [child.stdout, child.stderr]) {
+    const scanner = createPrivateScanner([configuration.secret]);
+    scanners.push(scanner);
+    output.push(scanner);
+    stream.on('data', (chunk) => scanner.push(chunk));
+  }
+  Object.defineProperty(child, 'output', { get: () => output.map((scan) => scan.tail).join('\n') });
   return child;
 }
 
 async function completion(child, milliseconds = 180_000) {
+  owner.assertActive();
   if (child.exitCode !== null) return child.exitCode;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Child deadline')), milliseconds);
@@ -114,37 +110,19 @@ async function completion(child, milliseconds = 180_000) {
       clearTimeout(timer);
       reject(new Error('Child startup'));
     });
-    child.once('exit', (code) => {
+    child.once('close', (code) => {
       clearTimeout(timer);
       resolve(code);
     });
+  }).then((code) => {
+    owner.assertActive();
+    return code;
   });
 }
 
-function dispose() {
-  cleanup ??= (async () => {
-    const results = await Promise.allSettled(children.map(stopTestChild));
-    rmSync(fixtureRoot, { recursive: true, force: true });
-    assert.equal(
-      results.some((result) => result.status === 'rejected'),
-      false,
-      'Child cleanup',
-    );
-    assert.equal(privateOutput, false, 'Private data entered shutdown logs');
-  })();
-  return cleanup;
-}
-
-// Parent failure/termination must not leave the listener or compiler workers alive.
-function cancelled() {
-  if (!finished) void dispose().finally(() => process.exit(1));
-}
-input.once('close', cancelled);
-process.once('SIGTERM', cancelled);
-process.once('SIGINT', cancelled);
-
 async function vacant(port) {
-  const probe = createServer();
+  owner.assertActive();
+  const probe = owner.ownServer(createServer());
   await new Promise((resolve, reject) => {
     probe.once('error', () => reject(new Error('Required test port is occupied')));
     probe.listen(port, '127.0.0.1', resolve);
@@ -155,6 +133,7 @@ async function vacant(port) {
 }
 
 function call(tls, port, path, headers = {}, method = 'GET') {
+  owner.assertActive();
   return new Promise((resolve, reject) => {
     const send = tls ? httpsRequest : httpRequest;
     const request = send(
@@ -164,7 +143,13 @@ function call(tls, port, path, headers = {}, method = 'GET') {
         path,
         headers,
         method,
-        ...(tls ? { ca: certificate, servername: headers.Host?.split(':')[0] ?? 'localhost' } : {}),
+        ...(tls
+          ? {
+              ca: certificate,
+              servername: headers.Host?.split(':')[0] ?? 'localhost',
+              rejectUnauthorized: true,
+            }
+          : {}),
         timeout: 15_000,
       },
       (response) => {
@@ -186,15 +171,24 @@ function call(tls, port, path, headers = {}, method = 'GET') {
 }
 
 async function ready(child, tls, port) {
+  // A healthy foreign listener cannot establish readiness: first observe this
+  // owned process's successful bind. Both launchers print readiness after listen.
+  const bound = tls ? /Public HTTPS listener ready on 127\.0\.0\.1:3000/ : /[✓✔] Ready in /;
   for (let attempt = 0; attempt < 200; attempt++) {
     assert.equal(
       child.failed || child.exitCode !== null || child.signalCode !== null,
       false,
       'Listener startup',
     );
+    owner.assertActive();
     try {
+      if (!bound.test(child.output)) throw new Error('Owned bind pending');
       const response = await call(tls, port, '/api/healthz');
-      if (response.status === 200 && JSON.parse(response.body).status === 'healthy') return;
+      if (response.status === 200 && JSON.parse(response.body).status === 'healthy') {
+        assert.equal(child.exitCode, null, 'Owned listener remains live');
+        assert.equal(child.signalCode, null, 'Owned listener remains live');
+        return;
+      }
     } catch {
       /* Readiness only; public API calls are never retried. */
     }
@@ -229,27 +223,41 @@ async function representation(tenant, path, rsc = false, extra = {}, status = 20
   const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
   assert.equal(response.body.includes(other.name), false, 'Opposite tenant name');
   assert.equal(response.body.includes(other.courseTitle), false, 'Opposite tenant course');
-  if (status === 200)
+  if (status === 200) {
     assert.equal(response.body.includes(tenant.name), true, 'Live bootstrap name');
+    if (!rsc) assert.equal(response.body.includes(clientMarker), true, 'Rendered Client Component');
+  }
   return response;
 }
 
-function scanClientAssets(directory) {
+function scanClientAssets(directory, expectedMarker = false) {
   let files = 0;
+  let marker = false;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) files += scanClientAssets(path);
-    else {
-      files++;
-      assert.equal(
-        checkPrivate(readFileSync(path, 'utf8')),
-        false,
-        'Static client private-data containment',
-      );
+    if (entry.isDirectory()) {
+      const scanned = scanClientAssets(path);
+      files += scanned.files;
+      marker ||= scanned.marker;
+    } else {
+      const content = readFileSync(path, 'utf8');
+      if (entry.name.endsWith('.js')) {
+        files++;
+        marker ||= content.includes(clientMarker);
+      }
+      assert.equal(checkPrivate(content), false, 'Static client private-data containment');
     }
   }
-  return files;
+  if (expectedMarker) assert.equal(marker, true, 'Built public Client Component marker');
+  return { files, marker };
 }
+
+const clientMarker = 'learnstack-public-client-marker';
+const clientComponent = `'use client';
+export default function FixtureClient({ displayName }: { displayName: string }) {
+  return <p data-fixture-client="${clientMarker}">{displayName}</p>;
+}
+`;
 
 // This source exists only inside the disposable app. Every public value comes
 // from the real configured SDK; headers, envelopes and errors are never serialized.
@@ -257,6 +265,7 @@ const page = `import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { createConfiguredPublicClient } from '@/server/configured-public-client';
 import { INGRESS_HEADER } from '@/server/ingress';
+import FixtureClient from './fixture-client';
 
 export default async function FixturePage({ params }: {
   params: Promise<{ locale: string; segments?: string[] }>;
@@ -274,7 +283,7 @@ export default async function FixturePage({ params }: {
     await client.getLesson({ slug: segments[0]!, lessonSlug: segments[2]! });
   if (result.kind === 'api-error' && result.status === 404) notFound();
   if (result.kind !== 'success') throw new Error('Fixture public read failed');
-  return <section><h1>{site.data.displayName}</h1><pre>{JSON.stringify(result.data)}</pre></section>;
+  return <section><h1>{site.data.displayName}</h1><FixtureClient displayName={site.data.displayName}/><pre>{JSON.stringify(result.data)}</pre></section>;
 }
 `;
 
@@ -295,12 +304,20 @@ export function GET(request: Request) {
 `;
 
 try {
+  input = createInterface({ input: process.stdin, terminal: false });
+  owner.install({ control: input, event: 'close' });
+  lines = input[Symbol.asyncIterator]();
   configuration = JSON.parse(await line());
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.match(configuration.secret, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(configuration.tenants.length, 2);
+  privateScanner = createPrivateScanner([configuration.secret]);
+  owner.assertActive();
+  fixtureRoot = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-public-rendering-')));
+  app = join(fixtureRoot, 'frontend/apps/web');
   await vacant(3000);
   await vacant(3011);
+  owner.assertActive();
   mkdirSync(app, { recursive: true });
   for (const name of [
     'src',
@@ -326,6 +343,8 @@ try {
   const fixturePage = join(app, 'src/app/(public)/[locale]/courses/[[...segments]]/page.tsx');
   mkdirSync(dirname(fixturePage), { recursive: true });
   writeFileSync(fixturePage, page);
+  const fixtureClient = join(dirname(fixturePage), 'fixture-client.tsx');
+  writeFileSync(fixtureClient, clientComponent);
   const fixtureProbe = join(app, 'src/app/(public)/[locale]/courses/protocol-probe/route.ts');
   mkdirSync(dirname(fixtureProbe), { recursive: true });
   writeFileSync(fixtureProbe, protocolProbe);
@@ -351,6 +370,26 @@ try {
   rmSync(dirname(mutant), { recursive: true });
   rmSync(join(app, '.next'), { recursive: true, force: true });
 
+  stage = 'built client canary rejection';
+  // This mutant must compile successfully. Only scanning real emitted browser
+  // assets can reject it; source fences or an import failure prove another seam.
+  writeFileSync(
+    fixtureClient,
+    clientComponent.replace(
+      '{displayName}</p>',
+      '{displayName}{' + JSON.stringify(configuration.secret) + '}</p>',
+    ),
+  );
+  const canary = start(process.execPath, [nextBin, 'build']);
+  assert.equal(await completion(canary), 0, 'Client canary builds successfully');
+  assert.throws(
+    () => scanClientAssets(join(app, '.next/static'), true),
+    /Static client private-data containment/,
+    'The emitted client canary must be rejected by asset scanning',
+  );
+  writeFileSync(fixtureClient, clientComponent);
+  rmSync(join(app, '.next'), { recursive: true, force: true });
+
   stage = 'healthy production build';
   const ingress = start(process.execPath, [
     join(sourceApp, 'node_modules/typescript/bin/tsc'),
@@ -360,7 +399,10 @@ try {
   assert.equal(await completion(ingress), 0, 'Production ingress compilation');
   const build = start(process.execPath, [nextBin, 'build']);
   assert.equal(await completion(build), 0, 'Healthy production build');
-  assert.ok(scanClientAssets(join(app, '.next/static')) > 0, 'Nonempty production client assets');
+  assert.ok(
+    scanClientAssets(join(app, '.next/static'), true).files > 0,
+    'Nonempty production client assets',
+  );
   await checkpoint('build-complete');
 
   stage = 'isolated TLS';
@@ -388,7 +430,7 @@ try {
   ]);
   assert.equal(await completion(openssl, 20_000), 0, 'Isolated TLS generation');
   certificate = readFileSync(join(fixtureRoot, 'cert.pem'));
-  const native = start(process.execPath, [join(app, 'scripts/public-server.mjs')], true);
+  const native = start(process.execPath, [join(app, 'scripts/public-server.mjs')]);
   await ready(native, true, 3000);
   const [first, second] = configuration.tenants;
   const catalog = '/' + configuration.locale + '/courses';
@@ -478,11 +520,14 @@ try {
   await checkpoint('protocol-after');
 
   stage = 'stock launcher forgery before bootstrap';
-  const stock = start(
-    process.execPath,
-    [nextBin, 'start', '--hostname', '127.0.0.1', '--port', '3011'],
-    true,
-  );
+  const stock = start(process.execPath, [
+    nextBin,
+    'start',
+    '--hostname',
+    '127.0.0.1',
+    '--port',
+    '3011',
+  ]);
   await ready(stock, false, 3011);
   await checkpoint('stock-before');
   for (const rsc of [false, true]) {
@@ -537,32 +582,29 @@ try {
   );
 
   stage = 'private output containment';
-  assert.equal(privateOutput, false, 'Private data entered child logs');
-  assert.ok(scanClientAssets(join(app, '.next/static')) > 0);
+  assert.equal(
+    scanners.some((scanner) => scanner.leaked),
+    false,
+    'Private data entered child logs',
+  );
+  assert.ok(scanClientAssets(join(app, '.next/static'), true).files > 0);
   await checkpoint('verified');
 } catch {
   // Assertions and compiler/provider errors may contain private values. Report
   // only this finite test-owned stage; raw stdout/stderr never leave this process.
   process.stderr.write('Production rendering fixture failed during ' + stage + '.\n');
-  if (stage === 'client import rejection' || stage === 'healthy production build') {
-    const diagnostic = (children.at(-1)?.output ?? '')
-      .replaceAll(configuration.secret, '[private]')
-      .replaceAll(configuration.apiOrigin, '[private origin]')
-      .replaceAll(fixtureRoot, '[fixture]')
-      .replace(/x-learnstack-[a-z-]+/gi, '[private header]')
-      .replace(/\bv1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}/g, '[private provenance]')
-      .replace(/\s+/g, ' ')
-      .slice(-2000);
-    process.stderr.write('Production rendering fixture compiler diagnostic: ' + diagnostic + '\n');
-  }
   process.exitCode = 1;
 } finally {
-  finished = true;
   try {
-    await dispose();
+    await owner.dispose();
+    assert.equal(
+      scanners.some((scanner) => scanner.leaked),
+      false,
+      'Private shutdown logs',
+    );
   } catch {
     process.stderr.write('Production rendering fixture cleanup failed.\n');
     process.exitCode = 1;
   }
-  input.close();
+  input?.close();
 }

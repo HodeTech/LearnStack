@@ -288,6 +288,15 @@ Step 1's accounting implementation has completed both independent review rounds.
 The accepted decision and prior delivery notes remain unchanged; fixture/tooling
 remediation and final PR closeout remain Steps 3–5.
 
+### Amendment 3 — Fixture proof implementation (2026-10-09)
+
+**Delivery note; independent reviews pending.** Remediation Step 3 implements
+owned fixture lifecycle and falsifiable containment controls. The decision and
+prior delivery notes remain unchanged. Ongoing rules live in [Testing Standards](../standards/06-testing.md#public-renderer-fixture-ownership),
+concrete enforcing tests in the [catalogue](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls),
+and execution/review evidence in the [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment).
+Source/tooling remediation and final PR closeout remain Steps 4–5.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Builder;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Parsing;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -68,23 +70,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             TenantInput(SeedData.Yoga, secondCourse, locale)
         };
         var root = RepositoryRoot();
-        var start = new ProcessStartInfo("node")
-        {
-            WorkingDirectory = root,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/verify-public-rendering.mjs"));
-        // Neither workstation secrets nor Node loader/TLS overrides enter the
-        // child. Configuration travels once on stdin, never argv or test output.
-        start.Environment.Clear();
-        start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
-        using var process = new Process { StartInfo = start };
-        process.Start().Should().BeTrue();
+        using var process = RendererProcess(root);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(8));
-        var errors = BoundedErrorsAsync(process.StandardError, deadline.Token);
+        var started = false;
         var draft = false;
         var verified = false;
         var tracePosition = 0;
@@ -94,6 +82,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var checkpoints = new List<string>();
         try
         {
+            started = process.Start();
+            started.Should().BeTrue();
+            var errors = BoundedErrorsAsync(process.StandardError, deadline.Token);
             await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
             {
                 apiOrigin = origin,
@@ -176,8 +167,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             // own process groups and delete TLS/build files, before a last resort kill.
             try
             {
-                process.StandardInput.Close();
-                if (!process.HasExited)
+                if (started) process.StandardInput.Close();
+                if (started && !process.HasExited)
                 {
                     using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                     try { await process.WaitForExitAsync(shutdown.Token); }
@@ -186,6 +177,101 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             }
             finally { if (draft) await SetStatusAsync(firstCourse, firstCourse.Status); }
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Renderer_control_pipe_failure_cleans_up_the_owned_build(bool brokenOutput)
+    {
+        var temporaryRoot = Path.Combine(Path.GetTempPath(), "learnstack-renderer-control-" + Guid.NewGuid().ToString("N"));
+        using var process = RendererProcess(RepositoryRoot(), temporaryRoot);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        var started = false;
+        try
+        {
+            Directory.CreateDirectory(temporaryRoot);
+            started = process.Start();
+            started.Should().BeTrue();
+            var errors = BoundedErrorsAsync(process.StandardError, deadline.Token);
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
+            {
+                apiOrigin = "http://127.0.0.1:1",
+                secret = new string('s', 43),
+                tenants = new[] { new { host = "first.example" }, new { host = "second.example" } }
+            }, JsonOptions));
+            // Wait for a real compiler acquisition before failing its parent
+            // pipe. No listener or API call is needed before build-complete.
+            string? ownedRoot = null;
+            while (!process.HasExited)
+            {
+                ownedRoot = Directory.EnumerateDirectories(temporaryRoot, "learnstack-public-rendering-*").SingleOrDefault();
+                if (ownedRoot is not null && Directory.Exists(Path.Combine(ownedRoot, "frontend/apps/web/.next"))) break;
+                await Task.Delay(50, deadline.Token);
+            }
+            ownedRoot.Should().NotBeNull("the actual renderer must acquire its private build root");
+            Directory.Exists(Path.Combine(ownedRoot!, "frontend/apps/web/.next")).Should().BeTrue("the owned compiler must have started");
+            if (brokenOutput) process.StandardOutput.Close();
+            else process.StandardInput.Close();
+            await process.WaitForExitAsync(deadline.Token);
+            var errorOutput = await errors;
+            process.ExitCode.Should().Be(1, errorOutput);
+            if (brokenOutput) errorOutput.Should().BeEmpty("the build-complete write must trigger EPIPE cancellation after successful configured builds");
+            Directory.EnumerateFileSystemEntries(temporaryRoot).Should().BeEmpty(
+                "pipe failure must join child cleanup before deleting the owned build/TLS root");
+        }
+        finally
+        {
+            if (started && !process.HasExited)
+            {
+                process.StandardInput.Close();
+                using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                try { await process.WaitForExitAsync(shutdown.Token); }
+                catch (OperationCanceledException) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(CancellationToken.None); }
+            }
+            if (Directory.Exists(temporaryRoot)) Directory.Delete(temporaryRoot, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("ordinary-route", false)]
+    [InlineData("ordinary-version", false)]
+    [InlineData("bare-version", false)]
+    [InlineData("short-mac", false)]
+    [InlineData("long-mac", false)]
+    [InlineData("padded-mac", false)]
+    [InlineData("empty-payload", false)]
+    [InlineData("embedded-version", false)]
+    [InlineData("envelope", true)]
+    [InlineData("long-envelope", true)]
+    [InlineData("header", true)]
+    [InlineData("secret", true)]
+    public void Api_log_containment_recognizes_private_values_without_matching_ordinary_versions(string scenario, bool expected)
+    {
+        const string secret = "test-owned-private-hop-credential";
+        var mac = new string('m', 43);
+        var value = scenario switch
+        {
+            "ordinary-route" => "/api/v1/public/courses",
+            "ordinary-version" => "API contract v1.2.3 remains supported",
+            "bare-version" => "v1.",
+            "short-mac" => "v1.payload." + new string('m', 42),
+            "long-mac" => "v1.payload." + new string('m', 44),
+            "padded-mac" => "v1.payload." + mac + "=",
+            "empty-payload" => "v1.." + mac,
+            "embedded-version" => "av1.payload." + mac,
+            "envelope" => "v1.payload." + mac,
+            "long-envelope" => "v1." + new string('p', 12_000) + "." + mac,
+            "header" => "X-LearnStack-Ingress-Provenance",
+            "secret" => secret,
+            _ => throw new InvalidOperationException("Unknown log containment control.")
+        };
+        var observation = new RenderingObservation(secret);
+        observation.Emit(new LogEvent(DateTimeOffset.UtcNow, LogEventLevel.Information, null,
+            new MessageTemplateParser().Parse("Fixture {Value}"),
+            [new LogEventProperty("Value", new ScalarValue(value))]));
+        observation.Logs.Should().Be(1, "the control must pass through the real structured log formatter");
+        observation.PrivateLog.Should().Be(expected);
     }
 
     private Task SetStatusAsync(SeedCourse course, string status) => fixture.ExecuteOwnerFixtureAsync(
@@ -208,6 +294,26 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             lessonText = body.RootElement.EnumerateObject().First().Value.GetString(),
             defaultLocale = tenant.Curriculum!.Locales.Single(row => row.IsDefault).Locale
         };
+    }
+
+    private static Process RendererProcess(string root, string? temporaryRoot = null)
+    {
+        var start = new ProcessStartInfo("node")
+        {
+            WorkingDirectory = root,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/verify-public-rendering.mjs"));
+        // Configuration travels on stdin; only the tool path and an explicitly
+        // verified TLS policy enter from this process's environment.
+        start.Environment.Clear();
+        start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
+        start.Environment["NODE_TLS_REJECT_UNAUTHORIZED"] = "1";
+        if (temporaryRoot is not null) start.Environment["TMPDIR"] = temporaryRoot;
+        return new Process { StartInfo = start };
     }
 
     private static string RepositoryRoot()
@@ -238,6 +344,13 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
     /// <summary>Observes the real Kestrel request without changing API resolution or transactions.</summary>
     private sealed class RenderingObservation(string secret) : IStartupFilter, ILogEventSink
     {
+        // Match the complete unpadded wire shape, rather than ordinary v1 route
+        // or version text. Retain boundaries so truncated/padded tokens cannot
+        // accidentally satisfy the containment proof.
+        private static readonly Regex PrivateEnvelope = new(
+            @"(?<![A-Za-z0-9_.-])v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_.=-])",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
         private readonly ConcurrentQueue<ObservedRequest> _requests = new();
         private int _logs;
         private int _privateLog;
@@ -254,7 +367,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             Interlocked.Increment(ref _logs);
             if (value.Contains(secret, StringComparison.Ordinal)
                 || value.Contains("x-learnstack-", StringComparison.OrdinalIgnoreCase)
-                || value.Contains("v1.", StringComparison.Ordinal))
+                || PrivateEnvelope.IsMatch(value))
                 Interlocked.Exchange(ref _privateLog, 1);
         }
 

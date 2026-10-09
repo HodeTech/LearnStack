@@ -4153,7 +4153,18 @@ refusal of suffix aliases and inert ordered redirect query data. The real-API
 `PublicServerRenderingTests` fixture verifies restored Flight protocol inputs
 through the pinned Next adapter, with five GET probes and HEAD causing exactly six
 live bootstrap calls. The delivery record owns execution and independent review
-results; future fixture/source-guard remediation remains Steps 3–4.
+results. Step 3 implements fixture reliability/containment with reviews pending;
+source-guard remediation remains Step 4.
+
+`fixture-support.test.ts` exercises positive environment construction, sticky
+split/early output verdicts and shared owner cancellation/disposal. Controls for
+surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
+`verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
+upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`
+remains its independent clean socket/framework control. `PublicServerRenderingTests`
+uses actual stdin/EPIPE failures and structured-log positive/negative controls;
+its real production build checks configured private values against nonempty client
+assets and rejects a successfully compiled leaking Client Component.
 
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
 

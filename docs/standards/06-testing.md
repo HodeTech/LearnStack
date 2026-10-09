@@ -3,7 +3,9 @@
 **Status:** Active
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
+controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
+and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -150,6 +152,22 @@ against the real API, using explicitly test-owned pages. G33's local topology is
 delivered; its browser/TLS evidence remains P02d-7's G45 obligation. P02d-6 owns
 G38(c)'s product-page cases. P02d-7 selects the demo/browser harness and Lighthouse
 assertions after P6; Phase 06 retains the broader Playwright/axe golden-flow suite.
+
+### Public renderer fixture ownership
+
+P02d-5 remediation Step 3 implements test-owned process/tree cleanup, positive
+child environments, explicit TLS verification and sticky bounded private-output
+scanning. Setup and termination share one owner; SIGINT/SIGTERM, explicit control
+closure and EPIPE must stop owned children before removing private files. Fixed
+port collisions fail; a healthy response alone cannot establish owned readiness.
+
+Controls must fail for omitted cleanup, early split leaks followed by large output,
+disabled trust verification, stale listeners and unclosed upgrades. Healthy builds
+receive nonempty private configuration; a real public-only Client Component and a
+successfully built leaking mutant make emitted-asset containment falsifiable.
+The [remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment)
+owns execution/review evidence. These are socket/build controls, not P7 browser
+or Lighthouse delivery.
 
 ## Frontend Test Types
 

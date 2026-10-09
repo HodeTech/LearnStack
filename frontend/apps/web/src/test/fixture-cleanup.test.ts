@@ -77,6 +77,61 @@ describe('owned production fixture cleanup', () => {
     },
     15_000,
   );
+  it('retires an absent handle without signaling a reused numeric PID', async () => {
+    const child = { pid: 123456, exitCode: 0, signalCode: null } as ChildProcess;
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('Owned group absent'), { code: 'ESRCH' });
+    });
+    try {
+      await stopTestChild(child);
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(kill).toHaveBeenCalledWith(-child.pid!, 0);
+      kill.mockClear();
+      // A future process can reuse the number; the old handle is no authority.
+      kill.mockImplementation(() => true);
+      await Promise.all([stopTestChild(child), stopTestChild(child)]);
+      expect(kill).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+  it('retires immediately if the group disappears while signaling', async () => {
+    const child = { pid: 123458, exitCode: 0, signalCode: null } as ChildProcess;
+    const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 'SIGTERM')
+        throw Object.assign(new Error('Owned group absent'), { code: 'ESRCH' });
+      return true;
+    });
+    try {
+      await stopTestChild(child);
+      expect(kill.mock.calls).toEqual([
+        [-child.pid!, 0],
+        [-child.pid!, 'SIGTERM'],
+      ]);
+      await stopTestChild(child);
+      expect(kill).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+  it('coalesces concurrent cleanup of the same live ownership handle', async () => {
+    const child = { pid: 123457, exitCode: null, signalCode: null } as ChildProcess;
+    let probes = 0;
+    const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 0 && ++probes > 1)
+        throw Object.assign(new Error('Owned group absent'), { code: 'ESRCH' });
+      return true;
+    });
+    try {
+      const first = stopTestChild(child);
+      expect(stopTestChild(child)).toBe(first);
+      await first;
+      expect(kill.mock.calls.filter(([, signal]) => signal === 'SIGTERM')).toHaveLength(1);
+      expect(kill.mock.calls.filter(([, signal]) => signal === 'SIGKILL')).toHaveLength(0);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
   it('accepts a failed spawn with no owned process', async () => {
     await expect(stopTestChild({ pid: undefined } as ChildProcess)).resolves.toBeUndefined();
   });
