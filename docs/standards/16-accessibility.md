@@ -106,12 +106,14 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 jsx-a11y rules run at error severity with a literal rule census and per-rule dirty/
 clean controls through the actual app configuration in
 `src/test/accessibility-lint.test.ts`. Synchronous catalog/course/lesson and state
-views have semantic/language cases. Actual product-page HTML/DOM must prove
-titles, languages, one main,
-one descriptive h1, sequential headings, semantic lists/definition lists, skip
-target and visible focus, including all controlled states. Logical CSS and wrapping
-must support RTL and long unbroken strings. Acceptance does not promote this
-standard: it stays **Adopted** while full product/manual proof is pending.
+views have semantic/language cases. Product-page HTML/DOM proofs now cover
+titles, languages, one main, one descriptive h1, sequential headings, semantic
+lists/definition lists and skip targets, including controlled states. Visible
+focus, logical layout and long-string wrapping still require actual manual
+observation. Acceptance does not promote this
+standard: it stays **Adopted** while actual manual proof is pending. Step 4's
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns automated product execution and the remaining manual closeout.
 
 Catalog → course → lesson is a critical flow requiring manual keyboard, focus,
 320 CSS px reflow/zoom, long-string, contrast and real screen-reader smoke evidence.

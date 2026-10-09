@@ -1235,8 +1235,10 @@ function productContainment(response, tenant) {
 }
 
 function productTheme(doc, details, malformed = false) {
-  const styles = [...doc.querySelectorAll('style')].filter((element) =>
-    element.textContent.includes('--ls-primary:'),
+  const styles = [...doc.querySelectorAll('style,[style]')].filter((element) =>
+    /--ls-(?:primary|bg|fg|muted)\s*:/.test(
+      element.tagName === 'STYLE' ? element.textContent : element.getAttribute('style'),
+    ),
   );
   const { primary, background, foreground, muted } = details.theme;
   assert.equal(styles.length, malformed ? 0 : 1, 'A malformed palette emits no partial override');
@@ -1346,7 +1348,9 @@ async function productMissing(name, tenant, path, locale, hidden) {
   productContainment(response, tenant);
   absentFromWholeResponse(response, [
     ...hidden,
-    ...path.split('/').filter((segment) => segment.startsWith('p6-')),
+    // Own route segments can occur in the 307 Flight tree, but the fixed 404
+    // destination must not reflect any requested course or lesson slug.
+    ...path.split('/').filter((_segment, index) => index === 3 || index === 5),
   ]);
   await checkpoint(name);
 }

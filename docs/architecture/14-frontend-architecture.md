@@ -27,7 +27,7 @@ native method/upgrade admission and pinned URL controls. The remediation record
 owns execution and independent review evidence; the ongoing rules live in
 [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
-**P02d-6 decisions Accepted — 2026-10-09; Steps 1–3 implemented.**
+**P02d-6 decisions Accepted — 2026-10-09; Steps 1–4 implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects the UI foundation; the
 [decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 selects pages, status/navigation, safe theme and product/accessibility proofs.
@@ -35,9 +35,10 @@ Step 1 installs the pinned runtime and supplies shared request-local loaders,
 document language/direction, atomic theme injection, chrome and controlled
 status/error/loading components. Step 2 adds actual catalog/course pages,
 independent opaque pagination and metadata. Step 3 adds ordered lesson fields,
-language attribution and eligible metadata. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
-owns current validation and review evidence.
+language attribution and eligible metadata. Step 4 adds concurrent host/locale,
+theme, freshness and content-fault product proofs. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns validation, review status and pending manual accessibility closeout.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -428,8 +429,9 @@ harness and assertions. The decision is recorded in
 - Accepted P02d-6/G38(b,c)/G43 requires actual product HTML/DOM proofs and applicable
   jsx-a11y error rules with planted controls. Manual keyboard, focus, reflow/zoom,
   contrast and real screen-reader evidence for catalog → course → lesson names
-  commit, environment and both hosts/locales. These remain pending, as does packet
-  completion until the manual evidence exists. See
+  commit, environment and both hosts/locales. Automated product proofs and blocking
+  lint controls are implemented; manual evidence and packet completion remain
+  pending. See
   [Testing Standards](../standards/06-testing.md#frontend-test-types); HTTP/RSC
   proofs do not claim browser E2E or full Playwright/axe delivery.
 - Color contrast is verified for every branded theme, including the merged tenant and

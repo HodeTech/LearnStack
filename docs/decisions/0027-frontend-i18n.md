@@ -286,6 +286,25 @@ Catalog/course pages remain Step 2; lesson presentation remains Step 3. The
 owns current validation, review and product/accessibility proof status. The
 Decision, Status, Date and Deciders remain unchanged.
 
+### Amendment 2 — P02d-6 pages and automated product proof (2026-10-10)
+
+Steps 2–3 implement localized catalog, course and ordered plain-text lesson pages,
+independent opaque pagination and eligible metadata from shared request-local
+loaders. Known content failures use bounded translated HTTP 200/noindex views;
+missing or hidden details use the approved local 307 to a fixed localized 404.
+Resolved API label language remains distinct from UI fallback language.
+
+Step 4 adds separate real API/production Next product modes for concurrent
+host/locale isolation, authored RTL content, atomic theme fallback, publication
+freshness and content-failure recovery. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns execution and review evidence. Actual manual keyboard, focus, reflow,
+contrast and screen-reader evidence remains pending; P6 completion and
+Accessibility promotion are not claimed. This delivery note changes no decision
+or historical amendment. Phase 04 consumes the implemented UI foundation;
+Phase 06 owns the full renderer/Studio and Playwright/axe expansion, and P02d-7
+owns the browser demo and Lighthouse activation.
+
 ## References
 
 - [ADR-0008 — Localization Schema](0008-localization-schema.md)

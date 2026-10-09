@@ -313,8 +313,9 @@ enabled `ar` content proves `lang="ar"`/`dir="rtl"` and labelled English fallbac
 UI independently; it neither rewrites the seed nor claims an Arabic UI catalogue.
 Step 1 implements direction selection and labelled fallback chrome; Step 2
 proves an empty admitted Arabic catalog in production. Step 3 adds per-field
-label direction. Eligible authored RTL content and full manual proof remain
-Step 4 obligations.
+label direction. Step 4 adds eligible authored RTL content with concurrent
+host/locale HTML/Flight proofs. Actual manual accessibility remains pending in
+the [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout).
 
 ## Admin Studio UI
 

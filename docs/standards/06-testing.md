@@ -191,14 +191,18 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
-**P02d-6 G38(b,c)/G43 — Steps 1–3 implemented, 2026-10-10.** Vitest
+**P02d-6 G38(b,c)/G43 — Steps 1–4 implemented, 2026-10-10.** Vitest
 covers synchronous views and pure mappings; all 31 active recommended JSX
 accessibility rules have blocking actual-config dirty/clean controls. Async pages
-require production
-HTML/RSC proof against unchanged product routes in the existing required real
+have production
+HTML/RSC proofs against unchanged product routes in the existing required real
 API/Next Docker fixture; keep P5's synthetic transport probe in a separate mode
 so its catch-all cannot shadow product routes. Preserve `learnstack_app`, RLS,
 read-only transactions, native HTTPS, closed hop headers and fixture containment.
+Step 4 adds deterministic overlapping host/locale lanes, authored RTL content,
+whole-theme fallback, next-document freshness and one-shot content-failure modes.
+The [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns execution and review evidence; manual accessibility remains pending.
 
 Assert visible HTML/DOM separately from Flight: status, `lang`/`dir`, headings,
 theme, attribution, both hosts/locales, cross-tenant absence, overlapping concurrent

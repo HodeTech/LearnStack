@@ -96,7 +96,7 @@ required OpenAPI check is active, with all other live protection settings preser
 Trusted server rendering is delivered by P02d-5. P02d-6 implements localized
 catalog/course/lesson pages, ordered text fields, safe themes and metadata; its
 [product closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records current verification and pending manual accessibility/review work.
+records completed automated verification/reviews and pending manual accessibility.
 The browser demo remains P02d-7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops

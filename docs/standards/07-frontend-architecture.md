@@ -242,11 +242,13 @@ cache is permitted. Request-local reuse is isolated to one incoming request.
 Freshness is the next new server/document request, not client Router Cache history.
 Disable local Server Component HMR caching. P02d-6 Step 1 implements document
 loaders, chrome, state views and atomic theme injection. Step 2 adds catalog/course
-views; Step 3 adds ordered lesson views. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
-owns verification and review status.
+views; Step 3 adds ordered lesson views. Step 4 adds concurrent host/locale, theme,
+freshness and failure-state product proofs. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns verification, review status and pending manual accessibility evidence.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
-production routes exercise the real API; P6 public pages are not delivered by them.
+production routes exercise the real API. P6 product modes copy the actual public
+routes separately; the synthetic transport mode cannot shadow those pages.
 
 - Renders **published** pages, courses, blog content.
 - Institution public SSR uses ADR-0053's dynamic/no-store policy.

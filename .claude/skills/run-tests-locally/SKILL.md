@@ -166,7 +166,10 @@ packet/PR validation uses the guarded workspace command. Backend Docker integrat
 also runs P5's disposable production Next/TLS fixture against the real API and
 PostgreSQL; Node, pnpm, installed frontend dependencies and OpenSSL are required.
 It owns ports 3000/3011 while running and refuses occupied ports without stopping
-an existing user process. Product-page browser/a11y tests remain P6/P7.
+an existing user process. P6 adds separate production product modes for foundation,
+pagination, presentation, concurrent isolation and freshness/failure states. Those
+HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
+accessibility closeout remains required and P7 owns the browser demo.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
@@ -175,8 +178,9 @@ an existing user process. Product-page browser/a11y tests remain P6/P7.
 > Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
 > remains disabled. Accepted P02d-6/G43 requires failing applicable `jsx-a11y`
 > rules, localized page semantics and a real manual screen-reader smoke. These
-> controls are implementation obligations, not delivered by acceptance. P5's
-> production HTML/RSC fixture proves transport, not a browser/a11y audit.
+> lint and product-semantic controls are implemented. Actual manual evidence remains
+> pending in the P6 delivery record. P5's production HTML/RSC mode proves transport;
+> P6's separate product modes still do not claim a browser/a11y audit.
 
 ### Step 7: Single-test focus
 

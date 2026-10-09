@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) review rounds complete; [Step 4 product proof](#p02d-6-step-4-product-proof-and-accessibility-closeout) implemented; reviews and manual accessibility pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation), [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages), [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) and [Step 4 product proof](#p02d-6-step-4-product-proof-and-accessibility-closeout) implemented with both review rounds complete; actual manual accessibility closeout pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4452,7 +4452,7 @@ explicit.
 
 ### P02d-6 Step 4: Product proof and accessibility closeout
 
-**Implementation in progress — 2026-10-10.** The unchanged product routes now
+**Implemented; manual closeout pending — 2026-10-10.** The unchanged product routes now
 have dedicated `product-isolation` and `product-freshness` modes in
 `PublicServerRenderingTests` / `verify-public-rendering.mjs`. P5's synthetic
 transport mode and the foundation, pagination and presentation modes remain
@@ -4488,9 +4488,10 @@ publication in `finally`; every mode uses a fresh unchanged visitor budget.
 (1,005 web, 60 SDK), zero failures/skips/todos. All 20 focused Release
 production-rendering cases pass, zero failures/skips.
 The new isolation/freshness modes observe exactly 43/52 API calls; the earlier
-foundation/pagination/presentation modes retain 52/18/46. Full backend regression,
-both fresh review rounds and the manual accessibility record follow. No browser
-or screen-reader pass is claimed here.
+foundation/pagination/presentation modes retain 52/18/46. Full backend regression
+passes as recorded below; both review rounds are complete after their fixes.
+Manual accessibility closeout remains pending. No browser or screen-reader pass
+is claimed here.
 P6 completion and Accessibility promotion remain pending until actual keyboard,
 focus, 320 CSS px reflow, contrast and screen-reader evidence exists.
 
@@ -4516,6 +4517,59 @@ suites are inspected directly. Reviewers run read-only helper probes, syntax and
 link checks; neither claims independent full-suite or manual execution. Both
 fresh second-round reviews follow the fix commit. Manual accessibility remains
 an explicit packet-completion requirement.
+
+#### Step 4 review round 2 and automated verification (2026-10-10)
+
+Fresh GPT-6-astra xhigh runtime/security and GPT-6-sol xhigh proof/corpus agents
+review `e2b8de4..b86e20d` independently. No production defect is demonstrated. The
+proof review identifies two assertion gaps: the malformed-theme check only sees
+primary-token style elements, and fixed-status containment only checks `p6-`
+requested slugs. The first now rejects any of the four color-token declarations
+in style elements or style attributes. The second rejects every requested course
+and lesson slug on the final fixed 404, including historical seed slugs. Own
+requested route segments remain permitted in Next's 307 Flight tree, as already
+recorded in Step 3; private content remains forbidden on both responses.
+
+Both reviewers independently verify the fixes with extracted real helpers and
+clean/planted controls. The root's ten planted violations are all rejected;
+both real product modes then pass again, zero failures/skips, preserving exact
+43/52 API call counts. Current-state documents distinguish implemented automated
+product proof from pending manual observation. ADR-0027 Amendment 2 is insertion
+only and changes no accepted decision. The optional suggestion to revisit the
+original faulted resource after catalog recovery is not required: the accepted
+G40 catalog-navigation contract is directly exercised and passes. No automatic
+retry or broader recovery guarantee is introduced.
+
+Full Release backend verification totals 2,945 distinct passing cases: 1,705 unit,
+198 architecture, four contract, 172 Docker-free integration and 866 Docker
+integration. There are zero failures/skips; recorded TRX counters are inspected.
+The architecture suite is rerun after the current-status documentation changes.
+Guarded frontend verification passes 1,065 cases (1,005 web, 60 SDK), zero
+failures/skips/todos. Workspace lint/typecheck, JavaScript syntax, Prettier and
+the seven ADR workflow tests pass. Production build evidence remains the earlier
+Step 3 build; the review fixes change proof assertions and documentation only.
+A local audit checks 2,194 relative links and 666 fragments across 33 changed
+Markdown files against `origin/main`, excluding one explicit catalogue-link
+template placeholder. No target is missing. This manual script audit does not
+claim that CI's file-only link job enforces fragments. Added prose respects the
+88-column rule and `git diff --check` passes.
+
+#### Manual accessibility handoff (2026-10-10)
+
+A temporary production fixture is prepared from `b86e20d`, with the real API,
+`learnstack_app`, read-only frames, actual public routes and test-owned Arabic
+long-string content. A separate Brave window opens both institution hosts. The
+browser refuses the temporary test certificate before any product page loads;
+the computer-use policy requires the user to pass that security interstitial.
+The requested handoff is pending. No keyboard, focus, 320 CSS px reflow, contrast
+or screen-reader pass is claimed. The temporary server and its owned children
+are stopped cleanly before the automated rerun; ports 3000/3011 are free and no
+test container remains. Existing developer services are untouched.
+
+Resume the actual manual walkthrough after the browser handoff, record its
+commit/environment/hosts/locales/assistive technology and fix any observed issue
+before closing P6 or promoting Accessibility and the five registered P6 rules.
+The packet remains in progress; P02d-7 and its Lighthouse job have not started.
 
 ### P02d-1 decision pass (2026-09-14)
 
