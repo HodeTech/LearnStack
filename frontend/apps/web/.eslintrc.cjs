@@ -14,11 +14,13 @@ module.exports = {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,
   },
+  ignorePatterns: ['.next/', '.server/', 'next-env.d.ts'],
   overrides: [
     {
-      // Next's parser override covers .ts/.tsx, not ESM declarations. Use the
-      // same shared typed parser for the test helper's imported .d.mts contract.
-      files: ['scripts/**/*.d.mts'],
+      // Native ESM/CJS TypeScript helpers are outside the Next TS program.
+      // Parse their syntax explicitly, without relying on parser leniency.
+      files: ['**/*.mts', '**/*.cts'],
+      parserOptions: { project: null },
       parser: require.resolve('@typescript-eslint/parser', {
         paths: [require.resolve('@learnstack/config/eslint')],
       }),
@@ -29,7 +31,7 @@ module.exports = {
       rules: { 'no-restricted-globals': 'off' },
     },
     {
-      files: ['scripts/**/*.mjs', '.eslintrc.cjs'],
+      files: ['**/*.mjs', '**/*.cjs'],
       env: { node: true, es2022: true },
       // Native Node launch/test scripts are JavaScript, outside the TS program.
       // Keep the ordinary security/import rules; only the TS type-import rule

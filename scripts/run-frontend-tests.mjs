@@ -26,6 +26,8 @@ async function testsBelow(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (ignored.has(entry.name)) continue;
     const path = join(directory, entry.name);
+    if (entry.isSymbolicLink())
+      throw new Error(`Symlinked test source is unsupported: ${path}`);
     if (entry.isDirectory()) found.push(...(await testsBelow(path)));
     else if (entry.isFile() && testFile.test(entry.name)) found.push(path);
   }
@@ -58,6 +60,8 @@ export async function discoverTestPackages(workspaceRoot) {
     for (const entry of await readdir(join(root, group), {
       withFileTypes: true,
     })) {
+      if (entry.isSymbolicLink())
+        throw new Error(`Symlinked workspace package is unsupported: ${group}/${entry.name}`);
       if (!entry.isDirectory()) continue;
       const path = join(root, group, entry.name);
       const manifest = JSON.parse(

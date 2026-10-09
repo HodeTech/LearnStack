@@ -4169,6 +4169,20 @@ uses actual stdin/EPIPE failures and structured-log positive/negative controls;
 its real production build checks configured private values against nonempty client
 assets and rejects a successfully compiled leaking Client Component.
 
+Step 4 extends `public-boundaries.test.ts` with named constructor/conversion,
+converted-record spread/destructure, inherited alias/export and real render-helper
+mutants, plus actual pinned Next SWC and separate TypeScript verbatim controls.
+`lint-tooling.test.ts` exercises the shared real subject census/configuration and
+actual staged hook invocations; `frontend-runner.test.ts` refuses symlinked packages
+and test sources. `scripts/test-adr-status.py` exercises the lifecycle parser and
+actual CI disclosure block against an Accepted record with a delivery banner.
+`TrustedVisitorHttpTests` includes
+`Repeated_raw_secret_headers_spend_the_exhausted_direct_fallback_budget`; it observes two real Kestrel secret fields before proving fallback refusal and a fresh
+single-field positive control. `PublicLocalLaunchTests` launches the actual local
+API script with app credentials and an isolated empty user-secret root, without a
+PlatformAdmin credential. Mapped-peer and strict dotted-tail unit controls pin
+current framework behavior. Independent Step 4 reviews remain pending.
+
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
 
 - **Asserts:** every public caller derives provenance from the native socket ingress;

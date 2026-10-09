@@ -297,6 +297,16 @@ concrete enforcing tests in the [catalogue](../standards/21-architecture-tests-c
 and execution/review evidence in the [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment).
 Source/tooling remediation and final PR closeout remain Steps 4–5.
 
+### Amendment 4 — Source and tooling proof implementation (2026-10-09)
+
+**Delivery note; independent reviews pending.** Remediation Step 4 implements the
+bounded source-analysis, runner, lint and CI evidence corrections without changing
+this decision. Current rules live in [Frontend Coding Standards](../standards/03-frontend-coding.md#current-toolchain-and-lint-subjects)
+and [Frontend Architecture Standards](../standards/07-frontend-architecture.md#public-source-fence-scope).
+The [catalogue](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
+names enforcing controls; the [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-4--source-runner-and-tooling-proof)
+owns execution/review evidence. Final corpus/CI/PR closeout remains Step 5.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

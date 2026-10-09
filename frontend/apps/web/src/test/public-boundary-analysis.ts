@@ -211,12 +211,84 @@ function finding(node: ts.Node, reason: string): Finding {
 }
 
 function runtimeImport(node: ts.ImportDeclaration): boolean {
-  // verbatimModuleSyntax preserves empty imports with inline type-only specifiers.
+  // Conservative source policy: tsc verbatim emission retains inline type-only
+  // edges; pinned Next SWC erases them. Declaration-level type edges are excluded.
   return !node.importClause?.isTypeOnly;
 }
 
 function runtimeExport(node: ts.ExportDeclaration): boolean {
   return !node.isTypeOnly;
+}
+
+export type ResolutionConfig = {
+  readonly baseUrl?: string;
+  readonly pathsBasePath?: string;
+  readonly paths?: Readonly<Record<string, readonly string[]>>;
+};
+export type WorkspaceEntry = {
+  readonly name?: string;
+  readonly main?: string;
+  readonly exports?: unknown;
+};
+
+/** Validate the real inherited configuration against this deliberately bounded resolver. */
+export function resolutionCensusFindings(
+  configs: Readonly<Record<string, ResolutionConfig>>,
+  packages: Readonly<Record<string, WorkspaceEntry>>,
+): Finding[] {
+  const findings: Finding[] = [];
+  for (const [file, config] of Object.entries(configs)) {
+    const web = file.startsWith('apps/web/');
+    if (
+      config.baseUrl !== undefined ||
+      JSON.stringify(config.paths ?? {}) !== JSON.stringify(web ? { '@/*': ['./src/*'] } : {}) ||
+      (config.paths !== undefined && config.pathsBasePath !== 'apps/web')
+    )
+      findings.push({
+        file,
+        line: 1,
+        reason:
+          'Unsupported inherited module aliases: update the bounded source resolver and its controls.',
+      });
+  }
+  for (const [directory, entry] of Object.entries(packages)) {
+    const file = `${directory}/package.json`;
+    const exports = entry.exports;
+    if (
+      entry.name !== '@learnstack/' + directory.split('/').at(-1) ||
+      typeof exports !== 'object' ||
+      exports === null ||
+      Array.isArray(exports) ||
+      !Object.hasOwn(exports, '.') ||
+      Object.entries(exports).some(([key, value]) => {
+        const subpath = key === '.' ? 'index' : key.startsWith('./') ? key.slice(2) : undefined;
+        return (
+          !subpath ||
+          subpath.includes('*') ||
+          (value !== `./src/${subpath}.ts` && value !== `./src/${subpath}.tsx`)
+        );
+      }) ||
+      (entry.main !== undefined && entry.main !== (exports as Record<string, unknown>)['.'])
+    )
+      findings.push({
+        file,
+        line: 1,
+        reason:
+          'Unsupported workspace exports: update the bounded source resolver and its controls.',
+      });
+  }
+  return findings;
+}
+
+export function unsupportedSourceFindings(names: readonly string[]): Finding[] {
+  return names
+    .filter((name) => /\.(?:mts|cts)$/.test(name) && !/\.(?:test|spec|d)\.(?:mts|cts)$/.test(name))
+    .map((file) => ({
+      file,
+      line: 1,
+      reason:
+        'Unsupported production module extension: include it in the source census and resolver before use.',
+    }));
 }
 
 export function buildSourceGraph(sources: SourceCensus): SourceGraph {
@@ -916,37 +988,114 @@ function requestUrl(node: ts.Node, checker: ts.TypeChecker, visited = new Set<ts
   });
 }
 
-function headerCollection(
+function globalBuiltin(
+  node: ts.Node,
+  name: string,
+  checker: ts.TypeChecker,
+  visited = new Set<ts.Node>(),
+): boolean {
+  node = unwrapped(node);
+  if (visited.has(node)) return false;
+  visited.add(node);
+  const receiver = memberReceiver(node);
+  const dot = name.lastIndexOf('.');
+  if (receiver && memberName(node, checker) === name.slice(dot + 1)) {
+    if (
+      dot < 0
+        ? globalObject(receiver, checker)
+        : globalBuiltin(receiver, name.slice(0, dot), checker, new Set(visited))
+    )
+      return true;
+  }
+  if (ts.isIdentifier(node) && node.text === name && declarations(node, checker).length === 0)
+    return true;
+  return declarations(node, checker).some((declaration) => {
+    if (ts.isVariableDeclaration(declaration) && declaration.initializer)
+      return globalBuiltin(declaration.initializer, name, checker, new Set(visited));
+    if (ts.isBindingElement(declaration) && dot >= 0) {
+      const binding = objectBinding(declaration, checker);
+      return (
+        binding?.name === name.slice(dot + 1) &&
+        globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited))
+      );
+    }
+    return false;
+  });
+}
+
+type HeaderOrigin = 'headers' | 'record' | undefined;
+
+function headerOrigin(
   node: ts.Node | undefined,
   graph: SourceGraph,
   visited = new Set<ts.Node>(),
-): boolean {
-  if (!node || visited.has(node)) return false;
+): HeaderOrigin {
+  if (!node) return undefined;
   node = unwrapped(node);
+  if (visited.has(node)) return undefined;
   visited.add(node);
   const { checker } = graph;
-  if (memberName(node, checker) === 'headers') return true;
+  if (memberName(node, checker) === 'headers') return 'headers';
   if (
     ts.isCallExpression(node) &&
     (importedFunction(node.expression, graph, ['next/headers'], ['headers']) ||
       (ts.isIdentifier(node.expression) && node.expression.text === 'headers'))
   )
-    return true;
+    return 'headers';
   if (ts.isIdentifier(node) && node.text === 'headers' && declarations(node, checker).length === 0)
-    return true;
-  return declarations(node, checker).some((declaration) => {
+    return 'headers';
+  if (
+    ts.isNewExpression(node) &&
+    globalBuiltin(node.expression, 'Headers', checker) &&
+    headerOrigin(node.arguments?.[0], graph, new Set(visited))
+  )
+    return 'headers';
+  if (ts.isCallExpression(node) && globalBuiltin(node.expression, 'Object.fromEntries', checker)) {
+    const input = node.arguments[0] ? unwrapped(node.arguments[0]) : undefined;
+    if (
+      input &&
+      (headerOrigin(input, graph, new Set(visited)) === 'headers' ||
+        (ts.isCallExpression(input) &&
+          memberName(input.expression, checker) === 'entries' &&
+          headerOrigin(memberReceiver(input.expression), graph, new Set(visited)) === 'headers'))
+    )
+      return 'record';
+  }
+  // A Headers instance has no enumerable string host property. Only converted
+  // records propagate through object spread; plain {...request.headers} stays inert.
+  if (
+    ts.isObjectLiteralExpression(node) &&
+    node.properties.some(
+      (property) =>
+        ts.isSpreadAssignment(property) &&
+        headerOrigin(property.expression, graph, new Set(visited)) === 'record',
+    )
+  )
+    return 'record';
+  for (const declaration of declarations(node, checker)) {
     if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
+      const container = declaration.parent.parent;
+      if (
+        declaration.dotDotDotToken &&
+        ts.isVariableDeclaration(container) &&
+        headerOrigin(container.initializer, graph, new Set(visited)) === 'record'
+      )
+        return 'record';
       const property =
         declaration.propertyName ??
         (ts.isIdentifier(declaration.name) ? declaration.name : undefined);
-      return property !== undefined && propertyName(property, checker) === 'headers';
+      if (property !== undefined && propertyName(property, checker) === 'headers') return 'headers';
     }
-    return (
-      ts.isVariableDeclaration(declaration) &&
-      declaration.initializer !== undefined &&
-      headerCollection(declaration.initializer, graph, visited)
-    );
-  });
+    if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
+      const origin = headerOrigin(declaration.initializer, graph, new Set(visited));
+      if (origin) return origin;
+    }
+  }
+  return undefined;
+}
+
+function headerCollection(node: ts.Node | undefined, graph: SourceGraph): boolean {
+  return headerOrigin(node, graph) !== undefined;
 }
 
 export function rawAuthorityFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {

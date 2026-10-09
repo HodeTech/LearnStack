@@ -13,6 +13,16 @@ TypeScript, React, and Next.js coding conventions. Frontend *architecture* (App 
 - `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes`, `strictPropertyInitialization` all on.
 - `verbatimModuleSyntax: true` to make `type` imports explicit.
 
+### Current toolchain and lint subjects
+
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) remediation pins
+Node 22.23.1 in CI and `frontend/.nvmrc`; the workspace declares the same minimum.
+Web CI and staged lint share `scripts/lint-web.mjs` inside the app: source, scripts
+and root JS/TS configurations, including `.mts`/`.cts`. Generated `next-env.d.ts`,
+`.next` and `.server` are excluded. Native ESM/CJS TypeScript helpers use an explicit
+syntax parser outside the Next typecheck program. SDK/UI changes also run their
+workspace lint in the hook. Generated native output is excluded from Prettier.
+
 ## Naming
 
 | Element | Convention |

@@ -44,7 +44,7 @@ flags, and a triage map for the most common failure shapes.
 ```bash
 # Required toolchain
 dotnet --version    # 10.0.x
-node --version      # 20+ for the frontend
+node --version      # 22.23.1 (frontend/.nvmrc)
 pnpm --version
 
 # Restore — from the directories that hold the solution and the workspace.

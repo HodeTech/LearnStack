@@ -51,7 +51,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
 | OpenSSL CLI | Yes for frontend tests | Isolated TLS fixtures generate temporary certificates without installing trust. |
-| Node >=20.11.0 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `20.11.0`. |
+| Node >=22.23.1 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `22.23.1`. |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
 
@@ -61,7 +61,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 
 ```bash
 dotnet --version       # 10.0.x
-node --version         # >=20.11.0
+node --version         # >=22.23.1
 pnpm --version
 docker info >/dev/null && echo "docker OK"
 ```
@@ -69,8 +69,8 @@ docker info >/dev/null && echo "docker OK"
 If any of these is missing, install:
 
 - .NET 10 SDK: <https://dotnet.microsoft.com/download>
-- Node: use Volta or fnm; `frontend/package.json` requires `>=20.11.0` and CI
-  pins `20.11.0`.
+- Node: use Volta or fnm; `frontend/package.json` requires `>=22.23.1` and CI
+  pins `22.23.1`.
 - pnpm: `corepack enable`; `frontend/package.json` pins `pnpm@9.12.3`.
 - Docker Desktop: <https://www.docker.com/products/docker-desktop>.
 

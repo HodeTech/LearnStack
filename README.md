@@ -133,7 +133,7 @@ Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
 | Tool | Repository requirement |
 |---|---|
 | .NET SDK | `10.0.112` with the roll-forward policy in [backend/global.json](backend/global.json) |
-| Node.js | `>=20.11.0`, as declared in [frontend/package.json](frontend/package.json) |
+| Node.js | `>=22.23.1`, as declared in [frontend/package.json](frontend/package.json) |
 | pnpm | `9.12.3`, pinned in [frontend/package.json](frontend/package.json) |
 
 ### 2. Bootstrap from the repository root

@@ -140,6 +140,41 @@ describe('frontend outcome guard', () => {
     30_000,
   );
 
+  it('refuses a symlinked workspace package instead of skipping its tests', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'learnstack-workspace-symlink-'));
+    try {
+      await mkdir(join(root, 'packages'), { recursive: true });
+      await mkdir(join(root, 'actual'), { recursive: true });
+      await writeFile(join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+      await symlink(join(root, 'actual'), join(root, 'packages/probe'), 'dir');
+      await expect(discoverTestPackages(root)).rejects.toThrow(
+        'Symlinked workspace package is unsupported: packages/probe',
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses symlinked test sources instead of silently omitting them', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'learnstack-source-symlink-'));
+    try {
+      const pkg = join(root, 'packages/probe');
+      await mkdir(pkg, { recursive: true });
+      await writeFile(join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+      await writeFile(
+        join(pkg, 'package.json'),
+        JSON.stringify({ scripts: { test: 'vitest run' } }),
+      );
+      await writeFile(join(root, 'actual.test.ts'), 'owned source');
+      await symlink(join(root, 'actual.test.ts'), join(pkg, 'probe.test.ts'));
+      await expect(discoverTestPackages(root)).rejects.toThrow(
+        'Symlinked test source is unsupported',
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('discovers the actual web and SDK test packages', async () => {
     const packages = await discoverTestPackages(frontend);
     expect(packages.map((pkg) => pkg.name)).toEqual(['apps/web', 'packages/sdk']);

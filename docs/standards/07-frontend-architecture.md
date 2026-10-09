@@ -207,6 +207,20 @@ production routes exercise the real API; P6 public pages are not delivered by th
 - Block rendering pulls from a block registry (`packages/blocks`); blocks register a React component plus a JSON schema.
 - Preview tokens enable draft rendering for editors.
 
+### Public source fence scope
+
+P02d-5 remediation Step 4 follows header constructors and converted records through
+bounded declaration aliases. Inherited tsconfig paths and workspace exports must
+match the resolver census; unsupported production `.mts`/`.cts` extensions fail
+until the census/resolver supports them. Declaration-level `import type` and
+`export type` edges are erased. Inline type-only specifiers remain conservative
+source edges: TypeScript verbatim emission retains them; pinned Next 15.5.18 SWC
+erases them. Separate real compiler controls establish that distinction.
+An empty production Client Component census is source information; the configured
+production-build canary supplies independent asset containment evidence.
+[The catalogue](21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
+names the controls; the remediation record owns execution evidence.
+
 ## Admin Studio
 
 - Server-rendered shell; data-heavy screens use Client Components with optimistic UI.

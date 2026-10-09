@@ -9,6 +9,7 @@ using LearnStack.Api.Tenancy;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -162,7 +163,6 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
     [Theory]
     [InlineData("wrong-secret")]
     [InlineData("wrong-network")]
-    [InlineData("repeated-secret")]
     [InlineData("unconfigured")]
     public async Task Untrusted_visitor_and_forwarding_headers_never_mint_partitions(string mode)
     {
@@ -171,7 +171,7 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/healthz");
             request.Headers.TryAddWithoutValidation(TrustedHopOptions.SecretHeaderName,
-                mode == "repeated-secret" ? [Secret, Secret] : [mode == "wrong-secret" ? "wrong" : Secret]);
+                mode == "wrong-secret" ? "wrong" : Secret);
             request.Headers.TryAddWithoutValidation(AnonymousRequestIdentity.VisitorHeaderName,
                 "203.0.113." + (index + 1).ToString(CultureInfo.InvariantCulture));
             request.Headers.TryAddWithoutValidation("X-Forwarded-For", "198.51.100." + (index + 1).ToString(CultureInfo.InvariantCulture));
@@ -179,6 +179,37 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
             response.StatusCode.Should().Be(index < RateLimitingExtensions.AnonymousPermitPerWindow
                 ? HttpStatusCode.OK : HttpStatusCode.TooManyRequests);
         }
+    }
+
+    [Fact]
+    public async Task Repeated_raw_secret_headers_spend_the_exhausted_direct_fallback_budget()
+    {
+        var observed = new SecretMultiplicityObservation();
+        using var host = new SocketHost(fixture, observation: observed);
+        for (var index = 0; index < RateLimitingExtensions.AnonymousPermitPerWindow; index++)
+        {
+            using var direct = await Send(host, "/healthz", null, SeedData.English.Host, secret: null);
+            direct.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        using var socket = new TcpClient();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await socket.ConnectAsync(IPAddress.Loopback, host.Client.BaseAddress!.Port, deadline.Token);
+        var request = $"GET {Site} HTTP/1.1\r\nHost: novel.example\r\n"
+            + $"{TrustedHopOptions.SecretHeaderName}: {Secret}\r\n"
+            + $"{TrustedHopOptions.SecretHeaderName}: {Secret}\r\n"
+            + $"{AnonymousRequestIdentity.VisitorHeaderName}: 203.0.113.99\r\nConnection: close\r\n\r\n";
+        await socket.GetStream().WriteAsync(Encoding.ASCII.GetBytes(request), deadline.Token);
+        using var reader = new StreamReader(socket.GetStream());
+        var response = await reader.ReadToEndAsync(deadline.Token);
+        observed.Count.Should().Be(2, "Kestrel must receive two actual fields, not one comma-joined HttpClient value");
+        response.Should().StartWith("HTTP/1.1 429").And.Contain("no-store")
+            .And.MatchRegex(@"(?im)^Retry-After: [1-9]\d*\r?$");
+        host.Lookups.Should().Be(0, "untrusted repeated secrets retain the already exhausted socket-IP quota");
+
+        using var positive = await Send(host, Site, "203.0.113.99", SeedData.English.Host);
+        positive.StatusCode.Should().Be(HttpStatusCode.OK, "one valid secret admits the fresh visitor independently");
+        host.Lookups.Should().Be(1);
     }
 
     [Fact]
@@ -249,7 +280,7 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
         public HttpClient Client { get; }
         public int Lookups => _resolver.Lookups;
 
-        public SocketHost(PublicReadFixture fixture, string mode = "configured")
+        public SocketHost(PublicReadFixture fixture, string mode = "configured", SecretMultiplicityObservation? observation = null)
         {
             Factory = fixture.WithWebHostBuilder(builder =>
             {
@@ -261,6 +292,7 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
                 }
                 builder.ConfigureTestServices(services =>
                 {
+                    if (observation is not null) services.AddSingleton<IStartupFilter>(observation);
                     // Keep the production fixed-window/no-queue limiters and quotas,
                     // but freeze replenishment so socket-test duration cannot reset them.
                     services.RemoveAll<NoQueueAdmissionLimiter>();
@@ -289,6 +321,23 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
             Client.Dispose();
             Factory.Dispose();
         }
+    }
+
+    /// <summary>Records only field multiplicity at the real socket pipeline entry.</summary>
+    private sealed class SecretMultiplicityObservation : IStartupFilter
+    {
+        private int _count;
+        public int Count => Volatile.Read(ref _count);
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use(async (context, continuation) =>
+            {
+                Volatile.Write(ref _count, context.Request.Headers[TrustedHopOptions.SecretHeaderName].Count);
+                await continuation();
+            });
+            next(app);
+        };
     }
 
     private sealed class CountedResolver(CachedHostToTenantResolver inner) : IHostToTenantResolver

@@ -126,8 +126,8 @@ on 2026-10-09. Remediation Step 1 implements coordinated anonymous accounting;
 both independent review rounds passed. Step 2 completes native admission and URL
 controls after both fresh review rounds. Step 3 completes owned fixture cleanup
 and containment after both independent review rounds and verified fixes.
-Steps 4–5 remain pending.
-Work continues on development. P02d-6's decision pass and public product pages
+Step 4 implements source/runner/tooling proof with reviews pending; Step 5 remains
+pending. Work continues on development. P02d-6's decision pass and public product pages
 are not started. P02d-7 still owns the browser demo and Lighthouse.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

@@ -88,12 +88,9 @@ public sealed class RateLimitForwardedForTests(ForwardedForHostFixture fixture)
         // start in that configuration; this asserts the other half — that the
         // header buys nothing while it is off.
         //
-        // Open in Phase 02d: this caller is outside the trusted hop, and the case
-        // stays a non-hop case. How a request arriving over the hop is keyed and
-        // budgeted is G34 in Phase 02d's decision register at
-        // ../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register
-        // — the pass that closes it edits "it must stay that way" above with its
-        // answer.
+        // This remains a non-hop control. Accepted P02d-5 G34/ADR-0053 and
+        // ADR-0054 own authenticated visitor metadata and coordinated budgets;
+        // TrustedVisitorHttpTests exercises the separate actual socket path.
         using var client = fixture.CreateClient();
         var path = new Uri("/healthz", UriKind.Relative);
         var rejected = 0;

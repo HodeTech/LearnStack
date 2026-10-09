@@ -47,6 +47,17 @@ public sealed class AnonymousRequestIdentityTests
         AnonymousRequestIdentity.ParseAddress(new string('1', AnonymousRequestIdentity.MaximumAddressLength + 1)).Should().BeNull();
 
     [Fact]
+    public void Framework_accepted_mapped_dotted_tail_still_requires_canonical_IPv4_spelling()
+    {
+        const string noncanonical = "::ffff:127.0.0.01";
+        IPAddress.TryParse(noncanonical, out var parsed).Should().BeTrue(
+            "this control must reach the dotted-tail round-trip guard, not framework parse rejection");
+        parsed!.IsIPv4MappedToIPv6.Should().BeTrue(); // Successful TryParse supplies the address.
+        AnonymousRequestIdentity.ParseAddress(noncanonical).Should().BeNull();
+        AnonymousRequestIdentity.ParseAddress("::ffff:127.0.0.1").Should().Be("127.0.0.1");
+    }
+
+    [Fact]
     public void Trusted_visitor_and_direct_socket_use_one_canonical_namespace()
     {
         var direct = Request("::ffff:203.0.113.9");

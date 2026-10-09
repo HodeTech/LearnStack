@@ -34,3 +34,6 @@
 # that run from `frontend/`; this file covers the editor, which runs from here.
 # Measured — without it, an explicit Format Document rewrites 3761 lines of it.
 /frontend/pnpm-lock.yaml
+
+# Generated native ingress output; format its TypeScript source.
+/frontend/apps/web/.server/

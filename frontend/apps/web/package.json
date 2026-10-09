@@ -9,9 +9,10 @@
     "build:ingress": "tsc --project tsconfig.server.json",
     "build": "pnpm build:ingress && next build",
     "start": "pnpm build:ingress && node scripts/public-server.mjs",
-    "lint": "pnpm build:ingress && next lint --dir src --dir scripts --file next.config.ts --file vitest.config.ts --file .eslintrc.cjs --max-warnings 0",
+    "lint": "pnpm build:ingress && node scripts/lint-web.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:staged": "pnpm build:ingress && node scripts/lint-web.mjs --fix"
   },
   "dependencies": {
     "@learnstack/sdk": "workspace:*",

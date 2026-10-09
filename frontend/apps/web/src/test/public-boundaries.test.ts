@@ -1,7 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { transform as nextTransform } from 'next/dist/build/swc';
+import type { getLoaderSWCOptions as nextLoaderOptions } from 'next/dist/build/swc/options';
+import type { WEBPACK_LAYERS as nextLayers } from 'next/dist/lib/constants';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -19,12 +23,28 @@ import {
   PUBLIC_LAYOUT,
   rawAuthorityFindings,
   reachable,
+  resolutionCensusFindings,
   SDK_SERVER,
   transportFindings,
+  unsupportedSourceFindings,
 } from './public-boundary-analysis';
-import type { Finding, SourceCensus } from './public-boundary-analysis';
+import type {
+  Finding,
+  ResolutionConfig,
+  SourceCensus,
+  WorkspaceEntry,
+} from './public-boundary-analysis';
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const require = createRequire(import.meta.url);
+const { transform } = require('next/dist/build/swc') as { transform: typeof nextTransform };
+const { getLoaderSWCOptions } = require('next/dist/build/swc/options') as {
+  getLoaderSWCOptions: typeof nextLoaderOptions;
+};
+const { WEBPACK_LAYERS } = require('next/dist/lib/constants') as {
+  WEBPACK_LAYERS: typeof nextLayers;
+};
+const extensionFindings: Finding[] = [];
 function productionSources(): SourceCensus {
   const sources: Record<string, string> = {};
   const visit = (directory: string) => {
@@ -35,7 +55,10 @@ function productionSources(): SourceCensus {
         if (!['test', '__tests__', '__fixtures__', 'fixtures'].includes(entry.name)) visit(path);
       } else if (/\.tsx?$/.test(entry.name) && !/\.(?:test|spec|d)\.tsx?$/.test(entry.name)) {
         sources[relative(frontend, path).split('\\').join('/')] = readFileSync(path, 'utf8');
-      }
+      } else
+        extensionFindings.push(
+          ...unsupportedSourceFindings([relative(frontend, path).split('\\').join('/')]),
+        );
     }
   };
   visit(join(frontend, 'apps/web/src'));
@@ -57,6 +80,53 @@ const clean = (findings: readonly Finding[], fix: string) =>
 const graphWith = (file: string, source: string) =>
   buildSourceGraph({ ...sources, [file]: source });
 const probe = 'apps/web/src/app/(public)/probe.ts';
+
+function resolutionCensus() {
+  const configs: Record<string, ResolutionConfig> = {};
+  const packages: Record<string, WorkspaceEntry> = {};
+  const directories = [
+    'apps/web',
+    ...readdirSync(join(frontend, 'packages'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== 'config')
+      .map((entry) => 'packages/' + entry.name),
+  ];
+  for (const directory of directories) {
+    for (const name of readdirSync(join(frontend, directory)).filter((name) =>
+      /^tsconfig(?:\.[^.]+)?\.json$/.test(name),
+    )) {
+      const file = directory + '/' + name;
+      const config = ts.getParsedCommandLineOfConfigFile(
+        join(frontend, file),
+        {},
+        {
+          ...ts.sys,
+          onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+            throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+          },
+        },
+      );
+      expect(config, file).toBeDefined();
+      expect(config!.errors, file).toEqual([]);
+      const options = config!.options as ts.CompilerOptions & { pathsBasePath?: string };
+      configs[file] = {
+        paths: options.paths,
+        baseUrl:
+          options.baseUrl === undefined
+            ? undefined
+            : relative(frontend, options.baseUrl).split('\\').join('/'),
+        pathsBasePath:
+          options.pathsBasePath === undefined
+            ? undefined
+            : relative(frontend, options.pathsBasePath).split('\\').join('/'),
+      };
+    }
+    if (directory.startsWith('packages/'))
+      packages[directory] = JSON.parse(
+        readFileSync(join(frontend, directory, 'package.json'), 'utf8'),
+      ) as WorkspaceEntry;
+  }
+  return { configs, packages };
+}
 
 /** ADR-0053 § Architecture Tests; Standards 07 § SDK / Public Site Renderer. */
 describe('ADR-0053 production public boundaries', () => {
@@ -90,6 +160,30 @@ describe('ADR-0053 production public boundaries', () => {
       ]),
     );
     clean(production.unresolved, 'Fix: keep every runtime local import in the production census.');
+    clean(extensionFindings, 'Fix: model every production TypeScript runtime extension.');
+  });
+  it('the source resolver covers inherited tsconfig aliases and workspace exports', () => {
+    const { configs, packages } = resolutionCensus();
+    expect(Object.keys(configs)).toEqual(
+      expect.arrayContaining([
+        'apps/web/tsconfig.json',
+        'apps/web/tsconfig.server.json',
+        'packages/sdk/tsconfig.json',
+        'packages/ui/tsconfig.json',
+      ]),
+    );
+    expect(Object.keys(packages)).toEqual(expect.arrayContaining(['packages/sdk', 'packages/ui']));
+    clean(
+      resolutionCensusFindings(configs, packages),
+      'Fix: keep configured module resolution inside the source resolver census.',
+    );
+    for (const [directory, entry] of Object.entries(packages))
+      for (const [key, value] of Object.entries(entry.exports as Record<string, string>)) {
+        const specifier = entry.name + (key === '.' ? '' : key.slice(1));
+        expect(production.resolveModule(specifier, MIDDLEWARE)).toBe(
+          directory + '/' + value.slice(2),
+        );
+      }
   });
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)
@@ -234,33 +328,94 @@ describe('server boundary planted controls', () => {
     ['export { type ConfiguredPublicClient }', true],
     ['import type { ConfiguredPublicClient }', false],
     ['export type { ConfiguredPublicClient }', false],
-  ] as const)('matches compiler erasure for %s', (declaration, runtime) => {
-    const specifier = '@/server/configured-public-client';
-    const source = `"use client"; ${declaration} from "${specifier}";`;
-    const config = ts.readConfigFile(
-      join(frontend, 'packages/config/tsconfig/base.json'),
-      ts.sys.readFile,
-    );
-    expect(config.error).toBeUndefined();
-    const { options, errors } = ts.convertCompilerOptionsFromJson(
-      config.config.compilerOptions,
-      frontend,
-    );
-    expect(errors).toEqual([]);
-    expect(options.verbatimModuleSyntax).toBe(true);
-    const emitted = ts.transpileModule(source, { compilerOptions: options }).outputText;
-    expect(emitted.includes(specifier)).toBe(runtime);
-
-    const graph = buildSourceGraph({ ...sources, [probe]: source });
-    expect(reachable(graph, [probe]).includes(ADAPTER)).toBe(runtime);
-    if (runtime)
-      expect(clientBoundaryFindings(graph)).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ file: probe, reason: expect.stringContaining(ADAPTER) }),
-        ]),
+  ] as const)(
+    'matches TypeScript 5.6.3 verbatim emission and conservative graph policy for %s',
+    (declaration, runtime) => {
+      const specifier = '@/server/configured-public-client';
+      const source = `"use client"; ${declaration} from "${specifier}";`;
+      const config = ts.readConfigFile(
+        join(frontend, 'packages/config/tsconfig/base.json'),
+        ts.sys.readFile,
       );
-    else clean(clientBoundaryFindings(graph), 'Declaration-level type edges are erased.');
-  });
+      expect(config.error).toBeUndefined();
+      const { options, errors } = ts.convertCompilerOptionsFromJson(
+        config.config.compilerOptions,
+        frontend,
+      );
+      expect(errors).toEqual([]);
+      expect(options.verbatimModuleSyntax).toBe(true);
+      const emitted = ts.transpileModule(source, { compilerOptions: options }).outputText;
+      expect(emitted.includes(specifier)).toBe(runtime);
+
+      const graph = buildSourceGraph({ ...sources, [probe]: source });
+      expect(reachable(graph, [probe]).includes(ADAPTER)).toBe(runtime);
+      if (runtime)
+        expect(clientBoundaryFindings(graph)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ file: probe, reason: expect.stringContaining(ADAPTER) }),
+          ]),
+        );
+      else clean(clientBoundaryFindings(graph), 'Declaration-level type edges are erased.');
+    },
+  );
+  it.each([
+    ['inline type import', 'import { type Secret } from "private-edge";', false],
+    ['inline type reexport', 'export { type Secret } from "private-edge";', false],
+    ['declaration type import', 'import type { Secret } from "private-edge";', false],
+    ['declaration type reexport', 'export type { Secret } from "private-edge";', false],
+    ['used value import', 'import { value } from "private-edge"; console.log(value);', true],
+    [
+      'mixed import',
+      'import { type Secret, value } from "private-edge"; console.log(value);',
+      true,
+    ],
+    ['value reexport', 'export { value } from "private-edge";', true],
+    ['mixed reexport', 'export { type Secret, value } from "private-edge";', true],
+    ['side-effect import', 'import "private-edge";', true],
+  ] as const)(
+    'pinned Next 15.5.18 production SWC emission: %s',
+    async (_name, declaration, retained) => {
+      expect((require('next/package.json') as { version: string }).version).toBe('15.5.18');
+      const filename = join(frontend, probe);
+      const config = ts.readConfigFile(
+        join(frontend, 'packages/config/tsconfig/base.json'),
+        ts.sys.readFile,
+      );
+      expect(config.error).toBeUndefined();
+      const options = getLoaderSWCOptions({
+        filename,
+        development: false,
+        isServer: false,
+        isPageFile: false,
+        isCacheComponents: false,
+        useCacheEnabled: false,
+        hasReactRefresh: false,
+        modularizeImports: undefined,
+        swcPlugins: undefined,
+        compilerOptions: {},
+        jsConfig: config.config,
+        supportedBrowsers: undefined,
+        swcCacheDir: '',
+        relativeFilePathFromRoot: probe,
+        serverComponents: true,
+        serverReferenceHashSalt: 'source-boundary-control',
+        bundleLayer: WEBPACK_LAYERS.appPagesBrowser,
+        esm: true,
+        cacheHandlers: undefined,
+      });
+      const emitted = await transform('"use client"; ' + declaration, { ...options, filename });
+      const file = ts.createSourceFile(probe, emitted.code as string, ts.ScriptTarget.ES2022, true);
+      expect(
+        file.statements.some(
+          (statement) =>
+            (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+            statement.moduleSpecifier &&
+            ts.isStringLiteral(statement.moduleSpecifier) &&
+            statement.moduleSpecifier.text === 'private-edge',
+        ),
+      ).toBe(retained);
+    },
+  );
   it('detects an indirect private-env module outside the server directory', () => {
     const graph = buildSourceGraph({
       [probe]: '"use client"; import "./helper";',
@@ -689,6 +844,222 @@ describe('R2 namespace exports and explicit export precedence', () => {
     clean(
       cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
       'Explicit runtime exports override same-named star exports.',
+    );
+  });
+});
+
+describe('remediation bounded header conversions', () => {
+  it.each([
+    ['Headers clone', 'new Headers(request.headers).get("host");'],
+    ['qualified constructor', 'new globalThis["Headers"](request.headers).get("x-forwarded-for");'],
+    ['constructor alias', 'const Copy = Headers; new Copy(request.headers).get("host");'],
+    ['entries record', 'Object.fromEntries(request.headers).host;'],
+    ['entries iterator', 'Object.fromEntries(request.headers.entries()).host;'],
+    ['conversion alias', 'const convert = Object.fromEntries; convert(request.headers).host;'],
+    ['bound conversion', 'const { fromEntries: convert } = Object; convert(request.headers).host;'],
+    [
+      'computed conversion',
+      'const key = "fromEntries"; globalThis.Object[key](request.headers)["host"];',
+    ],
+    ['converted binding', 'const { host } = Object.fromEntries(request.headers);'],
+    [
+      'converted rest binding',
+      'const { accept, ...incoming } = Object.fromEntries(request.headers); incoming.host;',
+    ],
+    [
+      'converted spread',
+      'const values = Object.fromEntries(request.headers); const copy = { ...values }; copy.host;',
+    ],
+    ['spread binding', 'const { host } = { ...Object.fromEntries(request.headers) };'],
+    [
+      'awaited Next collection',
+      'import { headers as incoming } from "next/headers"; Object.fromEntries(await incoming()).host;',
+    ],
+  ])('refuses %s at the named source location', (_name, source) => {
+    const graph = buildSourceGraph({ [probe]: source });
+    clean(graph.unresolved, 'Header conversions have complete static inputs.');
+    expect(rawAuthorityFindings(graph, [probe])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: probe,
+          line: 1,
+          reason: expect.stringContaining('verified ingress provenance'),
+        }),
+      ]),
+    );
+  });
+  it.each([
+    ['inert clone read', 'new Headers(request.headers).get("accept");'],
+    ['inert converted read', 'Object.fromEntries(request.headers)["accept"];'],
+    ['ordinary entries', 'Object.fromEntries([["host", "fixed.invalid"]]).host;'],
+    ['plain Headers spread', '({ ...request.headers }).host;'],
+    ['cloned Headers spread', '({ ...new Headers(request.headers) }).host;'],
+    [
+      'plain Headers rest binding',
+      'const { accept, ...incoming } = request.headers; incoming.host;',
+    ],
+    [
+      'shadowed constructor',
+      'function read(Headers: Function) { return new Headers(request.headers).get("host"); }',
+    ],
+    [
+      'shadowed conversion',
+      'const Object = { fromEntries: (value: unknown) => ({ host: "fixed.invalid" }) }; Object.fromEntries(request.headers).host;',
+    ],
+    [
+      'verified payload spread',
+      'const context = verifyProvenance(envelope, secret); ({ ...context }).host;',
+    ],
+    ['cyclic aliases', 'const left = right; const right = left; Object.fromEntries(left).host;'],
+  ])('keeps %s clean', (_name, source) => {
+    clean(
+      rawAuthorityFindings(buildSourceGraph({ [probe]: source }), [probe]),
+      'Only tracked unsigned authority is refused.',
+    );
+  });
+  it.each([
+    ['clone', 'new Headers(request.headers).get("host")'],
+    ['conversion', 'Object.fromEntries(request.headers).host'],
+    ['converted spread', '({ ...Object.fromEntries(request.headers) }).host'],
+  ])('finds the %s mutation in the real public-entry render closure', (_name, expression) => {
+    const helper = 'apps/web/src/server/public-entry.ts';
+    const graph = graphWith(
+      helper,
+      sources[helper]! + `\nexport const authorityControl = (request: Request) => ${expression};\n`,
+    );
+    expect(reachable(graph, renderRoots)).toContain(helper);
+    expect(rawAuthorityFindings(graph, reachable(graph, renderRoots))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: helper,
+          reason: 'Fix: derive visitor host/peer only from verified ingress provenance.',
+        }),
+      ]),
+    );
+  });
+  it('keeps converted inert reads clean in the real public-entry render closure', () => {
+    const helper = 'apps/web/src/server/public-entry.ts';
+    const graph = graphWith(
+      helper,
+      sources[helper]! +
+        '\nexport const authorityControl = (request: Request) => ({ ...Object.fromEntries(request.headers) }).accept;\n',
+    );
+    expect(reachable(graph, renderRoots)).toContain(helper);
+    clean(
+      rawAuthorityFindings(graph, reachable(graph, renderRoots)),
+      'The real helper may read inert header values.',
+    );
+  });
+});
+
+describe('remediation source resolution census controls', () => {
+  it.each([
+    [
+      'new local alias',
+      { paths: { '@/*': ['./src/*'], '~/*': ['./src/*'] }, pathsBasePath: 'apps/web' },
+    ],
+    ['remapped alias', { paths: { '@/*': ['./other/*'] }, pathsBasePath: 'apps/web' }],
+    ['multiple targets', { paths: { '@/*': ['./src/*', './other/*'] }, pathsBasePath: 'apps/web' }],
+    ['different inherited base', { paths: { '@/*': ['./src/*'] }, pathsBasePath: 'packages/ui' }],
+    [
+      'bare baseUrl resolution',
+      { paths: { '@/*': ['./src/*'] }, pathsBasePath: 'apps/web', baseUrl: 'apps/web/src' },
+    ],
+  ])('refuses %s through the production alias predicate', (_name, config) => {
+    const { configs, packages } = resolutionCensus();
+    const file = 'apps/web/tsconfig.json';
+    expect(resolutionCensusFindings({ ...configs, [file]: config }, packages)).toEqual([
+      {
+        file,
+        line: 1,
+        reason:
+          'Unsupported inherited module aliases: update the bounded source resolver and its controls.',
+      },
+    ]);
+  });
+  it.each([
+    ['conditional exports', { '.': { import: './src/index.ts' } }],
+    ['remapped subpath', { '.': './src/index.ts', './server': './src/other.ts' }],
+    ['wildcard exports', { '.': './src/index.ts', './*': './src/*.ts' }],
+    ['missing root export', { './server': './src/server.ts' }],
+  ])('refuses %s through the production workspace predicate', (_name, exports) => {
+    const { configs, packages } = resolutionCensus();
+    expect(
+      resolutionCensusFindings(configs, {
+        ...packages,
+        'packages/sdk': { ...packages['packages/sdk'], exports },
+      }),
+    ).toEqual([
+      {
+        file: 'packages/sdk/package.json',
+        line: 1,
+        reason:
+          'Unsupported workspace exports: update the bounded source resolver and its controls.',
+      },
+    ]);
+  });
+  it('refuses an unsupported alias targeting the actual private adapter', () => {
+    const { configs, packages } = resolutionCensus();
+    const graph = graphWith(probe, '"use client"; import "~private/configured-public-client";');
+    const config = {
+      ...configs['apps/web/tsconfig.json'],
+      paths: { '@/*': ['./src/*'], '~private/*': ['./src/server/*'] },
+    };
+    expect(
+      resolutionCensusFindings({ ...configs, 'apps/web/tsconfig.json': config }, packages).map(
+        (item) => item.file,
+      ),
+    ).toEqual(['apps/web/tsconfig.json']);
+    // The independent config guard closes the alias that this bounded graph cannot model.
+    expect(reachable(graph, [probe])).toEqual([probe]);
+  });
+  it('refuses unsupported production mts/cts while excluding declarations and test files', () => {
+    const names = ['apps/web/src/lib/runtime.mts', 'packages/sdk/src/runtime.cts'];
+    expect(
+      unsupportedSourceFindings([
+        ...names,
+        'packages/sdk/src/schema.d.mts',
+        'apps/web/src/lib/probe.test.cts',
+      ]),
+    ).toEqual(
+      names.map((file) => ({
+        file,
+        line: 1,
+        reason:
+          'Unsupported production module extension: include it in the source census and resolver before use.',
+      })),
+    );
+    clean(
+      unsupportedSourceFindings(['apps/web/src/lib/runtime.ts', 'packages/sdk/src/schema.d.cts']),
+      'Supported sources and declarations are clean.',
+    );
+  });
+  it('uses named clean and dirty clients over the real production adapter graph', () => {
+    const helper = 'apps/web/src/lib/client-boundary-control.ts';
+    const cleanGraph = graphWith(
+      probe,
+      '"use client"; import "@learnstack/ui"; import type { ConfiguredPublicClient } from "@/server/configured-public-client";',
+    );
+    expect(hasDirective(cleanGraph.files.get(probe)!, 'use client')).toBe(true);
+    expect(reachable(cleanGraph, [probe])).toContain('packages/ui/src/index.ts');
+    clean(
+      clientBoundaryFindings(cleanGraph),
+      'A nonempty UI client with private types remains clean.',
+    );
+    const dirtyGraph = buildSourceGraph({
+      ...sources,
+      [probe]: '"use client"; import "@/lib/client-boundary-control";',
+      [helper]: 'export { createConfiguredPublicClient } from "@/server/configured-public-client";',
+    });
+    clean(dirtyGraph.unresolved, 'The dirty client uses real supported local imports.');
+    expect(clientBoundaryFindings(dirtyGraph)).toEqual(
+      expect.arrayContaining([
+        {
+          file: probe,
+          line: 1,
+          reason: `Fix: pass public data through server props; client imports reach private module ${ADAPTER}.`,
+        },
+      ]),
     );
   });
 });

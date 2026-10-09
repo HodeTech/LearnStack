@@ -21,7 +21,7 @@ There is **no `extensions/` folder** — ADR-0018 model is data, not code.
 
 ## Prerequisites
 
-- Node ≥ 20.11 (see [.nvmrc](.nvmrc)).
+- Node 22.23.1 (see [.nvmrc](.nvmrc)).
 - pnpm 9.x — bootstrap via `corepack enable && corepack prepare pnpm@9.12.3 --activate`.
 
 ## Common Commands

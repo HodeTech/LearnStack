@@ -3327,7 +3327,8 @@ reads certificate/key files, resolved against the repository root.
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
 development. Remediation Steps 1–3 are complete after both independent review
-rounds and verified fixes. Steps 4–5 remain pending.
+rounds and verified fixes. Step 4 implements source/runner/tooling proof with
+reviews pending; Step 5 remains pending.
 Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
@@ -3442,7 +3443,8 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Steps 1–3 complete; Steps 4–5 pending.** For each:
+development. **Current step status: Steps 1–3 complete; Step 4 implemented with reviews
+pending; Step 5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3634,6 +3636,49 @@ reviewer independently passes 31 helper/process-group cases, the normal real
 native ingress and all 19 source-mutant controls. The proof reviewer independently
 passes 31 helpers and five Release corpus cases. Step 3 is complete after both
 rounds and verified fixes. Source/tooling and final closeout remain Steps 4–5.
+
+#### Remediation Step 4 — Source, runner and tooling proof
+
+**Implemented — 2026-10-09; independent reviews pending.** Bounded AST tracking
+covers global Headers constructors, converted records, constant aliases,
+destructuring and converted-record spread, with named clean/dirty controls and
+real public-entry mutations. Plain WHATWG Headers spread stays inert. Effective
+inherited tsconfig paths and workspace exports are checked against the resolver;
+unsupported production module extensions fail explicitly. Real pinned Next SWC
+and TypeScript verbatim emission are separate proofs; the conservative graph
+keeps inline type-only edges even where SWC erases them. No production Client
+Component is invented to make the census appear nonempty.
+
+Web CI and staged lint share one source/script/root-config census, with generated
+output/declarations excluded explicitly. Native `.mts`/`.cts` parsing is explicit;
+the hook also invokes SDK/UI lint. Root Tailwind configuration now participates
+in typecheck; its shared preset declares the existing Tailwind peer dependency.
+The lock changes only that importer, without changing a resolved package version.
+CI, `.nvmrc`, engine minimum and current setup guidance use Node 22.23.1. Generated
+`.server` output is excluded from Prettier. Test discovery refuses symlinked
+workspace packages or sources rather than silently skipping them.
+
+The ADR disclosure job reads the lifecycle declaration inside Status, ignoring
+banners and consuming the complete input. A real workflow-block control rejects
+an undisclosed Accepted-with-banner edit and accepts its dated disclosure. The
+original Accepted ADR status/body/history remains unchanged.
+
+Raw HTTP proves two actual secret fields reach Kestrel, spend the exhausted
+socket-IP fallback and bypass no lookup; one valid field then admits a fresh
+visitor. Mapped-peer and noncanonical dotted-tail controls pin .NET behavior.
+The actual public-local API launcher starts with only the application credential,
+an empty owned user-secret root and no local env fallback, then serves both seeded
+hosts through the trusted hop without PlatformAdmin. It uses a dynamic API port;
+the accepted fixed renderer topology is unchanged.
+
+**Validation — 2026-10-09.** The guarded frontend run passes 557 cases (497 web,
+60 SDK), with zero skips/todos. Focused source-boundary cases pass 157/157;
+lint-tooling/runner controls pass 39/39. Workspace typecheck/lint and frozen offline
+installation pass. Seven Python lifecycle/workflow controls pass. The focused
+backend units pass 45/45; trusted visitor and real local-launch integration pass
+18/18, with zero skips. Release solution build reports zero warnings/errors;
+owned backend formatting and diff checks pass. Both fresh review rounds remain
+pending; final full regression, real CI and PR closeout belong to Step 5.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

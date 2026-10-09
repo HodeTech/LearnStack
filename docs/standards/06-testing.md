@@ -262,7 +262,9 @@ If a test gets slow, fix the test before the suite.
   P02d-5 G38(d) extends the runner to frontend workspaces: `pnpm test` from
   `frontend/` discovers test packages and checks actual nonempty Vitest JSON
   outcomes, rejecting failures, skipped/todo cases, missing scripts/reports and
-  omitted discovered files. Real clean/planted runner controls prove refusal.
+  omitted discovered files. Symlinked workspace packages and test sources fail
+explicitly rather than disappearing from discovery. Real clean/planted runner
+controls prove refusal.
 
 ## Live Classroom Testing
 
