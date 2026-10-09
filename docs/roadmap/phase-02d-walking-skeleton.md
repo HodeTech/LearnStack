@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-09).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-10).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); implementation pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1 foundation delivered](#p02d-6-step-1-localization-and-document-foundation), reviews in progress; Steps 2–4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4262,8 +4262,21 @@ browser E2E, Lighthouse or manual accessibility pass is claimed here.
 All five P02d-6 architecture-test rules remain **Registered** until their complete
 named proof obligations are verified; a foundation test alone does not promote the
 broader page-state or accessibility rule. Accessibility remains **Adopted**.
-Round 1 and Round 2 have not started. Commit, both independent rounds and affected
-revalidation precede Step 2 under the accepted implementation loop.
+
+#### Step 1 review round 1 (2026-10-10)
+
+Fresh GPT-6-astra xhigh and GPT-6.1-sol xhigh sessions review `c14ecf2..568ecc2`
+independently. Runtime/security has no confirmed finding; the proof/corpus review
+finds one stale live packet-table cell. It is verified against the delivered code
+and corrected to link this foundation record and distinguish the remaining steps.
+No production change is required by this round.
+
+Independent verification includes 216 focused runtime cases and 360 focused proof
+cases; the proof reviewer also reruns all 817 guarded frontend cases with zero
+skips/todos. Both reviewers approve the Step 1 scope. They inspect the production
+fixture but do not rerun its native/Docker execution; the root's validation above
+owns that evidence. Product/manual accessibility work remains Steps 2–4.
+Round 2 has not started. Both rounds and affected revalidation precede Step 2.
 
 ### P02d-1 decision pass (2026-09-14)
 
