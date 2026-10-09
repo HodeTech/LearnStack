@@ -693,7 +693,7 @@ otherwise).
 
 - **Asserts:** each of the twenty-two standards declares the same status in its own
   header as [the index](README.md) assigns it in the table, and the sentence that counts
-  the split — "Nineteen `Active`, three `Adopted`" — matches the table it summarises.
+  the split matches the table it summarises. The index owns the current counts.
 - **Why it matters:** these are two views of one claim, *what is actually enforced*, and
   they disagreed for a month: every document declared `Active` while the index classified
   eight of them `Adopted`, with the index carrying a paragraph saying so and asking the

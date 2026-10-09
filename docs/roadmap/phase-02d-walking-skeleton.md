@@ -4678,6 +4678,15 @@ fragment is missing. This remains a manual audit, not a new CI anchor check.
 Added prose and diff checks pass. No production code or test changes accompany
 this closeout.
 
+Fresh GPT-6.1-sol high corpus and GPT-6-astra high evidence/governance reviewers
+independently review `27a02ba..7d98228`. Both approve with one verified Minor:
+the catalogue's current status-consistency assertion quotes the former
+nineteen/three split. It now references the index-owned counts instead. Both
+reviewers verify the five promoted entries against existing tests, 165 catalogue
+rules (107 architecture, 58 outside), twenty Active/two Adopted standards,
+maintainer-attributed VoiceOver scope and insertion-only ADR history. Neither
+claims new broad runtime execution. Fresh second-round reviews follow the fix.
+
 P02d-6 implementation is complete; PR review and merge remain separate. P02d-7
 owns `make demo`, the browser/full-stack CI harness, Lighthouse activation and the
 Phase 02d exit checks. Its decision pass must close G20/G33/G38/G44/G45's remaining
