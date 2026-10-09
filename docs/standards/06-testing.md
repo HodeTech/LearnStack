@@ -6,6 +6,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
 controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
 and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
+and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -189,12 +191,34 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
-> **Open in P02d-6.** G38(b/c)'s product-page cases and G43's accessibility checks
-> remain in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> P02d-5 already delivers G38(a)'s transport cases and G38(d)'s guarded Vitest runner;
-> neither is an open page-testing decision. The P6 pass records whether axe under
-> jsdom or another page check supplements the later Playwright suite.
+**Accepted P02d-6 G38(b,c)/G43 — 2026-10-09; implementation pending.** Vitest
+covers synchronous views and pure mappings. Async pages require production
+HTML/RSC proof against unchanged product routes in the existing required real
+API/Next Docker fixture; keep P5's synthetic transport probe in a separate mode
+so its catch-all cannot shadow product routes. Preserve `learnstack_app`, RLS,
+read-only transactions, native HTTPS, closed hop headers and fixture containment.
+
+Assert visible HTML/DOM separately from Flight: status, `lang`/`dir`, headings,
+theme, attribution, both hosts/locales, cross-tenant absence, overlapping concurrent
+host/locale requests, freshness in one process, controlled failures, both opaque
+pagination surfaces, exact schema swaps and inert authored values. Test-owned
+inventory exceeds the page bound; test-owned enabled RTL content proves direction
+and labelled UI fallback without rewriting historical seed inventory. Verify the
+approved local 307→404 chain, changed status URL, no direct internal bypass and
+HTTP 200 noindex known content-failure states. Shared metadata/layout/page loaders
+must preserve three API calls per normal document and five for a followed missing
+document; the next document re-reads. These proofs are not browser E2E evidence.
+
+Applicable jsx-a11y rules run at error severity with actual-config planted
+controls. Catalogue checks cover nonempty/equal key sets, valid ICU and argument
+agreement, checked callsite coverage and bounded formatter failure, with planted
+offenders. Canonical names/statuses live in the
+[architecture-test catalogue](21-architecture-tests-catalogue.md); acceptance does
+not mark them Implemented. Manual keyboard, focus, 320 CSS px reflow/zoom, long
+strings, contrast and real screen-reader smoke evidence must name commit,
+environment, both hosts/locales and assistive technology. If pending, P6 completion
+is not claimed. Full Playwright/axe remains Phase 06; demo/browser/Lighthouse remains
+P02d-7. G38(a)'s transport proofs and G38(d)'s guarded runner are already delivered.
 
 ## Tenant Isolation Tests
 

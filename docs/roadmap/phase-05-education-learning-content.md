@@ -81,6 +81,17 @@ Each change follows [Database Standards § Migrations](../standards/05-database.
 | The customization definition read path — content types and taxonomies through the generation-keyed cache ([32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)) | The `TenantLessonItemType` read, the batched reference walk and the measured cost model |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
 
+**Accepted renderer inheritance — 2026-10-09; implementation pending.**
+The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+fixes exact-locale content, both opaque pagination surfaces, inert plain-text
+presentation and distinct restricted/empty/unavailable states. Its local 307→404
+status-route chain changes the browser URL; known content-call failures use
+translated HTTP 200 noindex states. Preserve these boundaries when expanding
+catalog data. [ADR-0027](../decisions/0027-frontend-i18n.md) supplies UI messages
+through shared verified request admission; UI fallback never substitutes content
+language or revises stored schema/taxonomy pins. Richer item renderers and the
+full registry remain this phase and Phase 06 work, not P02d-6 delivery.
+
 ### ADR-0025 — the scoring and completion DSL engine
 
 The one decision this phase cannot ship without. The ADR settles:

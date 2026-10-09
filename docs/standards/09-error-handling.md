@@ -4,6 +4,8 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (implementation patterns), [04-api-design.md](04-api-design.md) § Error Responses.
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18n.md)
+and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -82,7 +84,7 @@ frontend UI copy. Backend code never returns raw English.
 consumer resolving a backend message reads `Message.Key` — two wire surfaces in
 sync by construction. This does not claim a shipped frontend message catalogue.
 See [Frontend Error Handling](#mapping-problem-details--ui) for current SDK
-normalization and the Proposed public UI mapping. Per
+normalization and the Accepted, implementation-pending public UI mapping. Per
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
 [ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -424,11 +426,32 @@ It validates/preserves backend message keys as data and owns no translated
 resources. A feature that displays backend messages owns its supported error
 resources; general UI copy has its own feature identifiers.
 
-[Proposed ADR-0027](../decisions/0027-frontend-i18n.md#message-and-test-contract)
+[ADR-0027](../decisions/0027-frontend-i18n.md#message-and-test-contract)
 specifies P02d-6's closed page-outcome mapping to owned UI keys, with unknown
 outcomes mapped to the bounded unavailable state. It does not authorize arbitrary
 Problem Details keys, titles, field errors or parameters as UI lookup identifiers
-or visible copy. This public-page mapping is not implemented or Accepted yet.
+or visible copy. This public-page mapping is Accepted — 2026-10-09;
+implementation remains pending.
+
+### Public Page Status and Recovery
+
+**Accepted P02d-6 G40 — 2026-10-09; implementation pending.** A missing/hidden
+content resource redirects locally with **307** to the same host's fixed
+`/{locale}/status/not-found`, whose admitted branded document returns **404**.
+The browser URL changes. The page rechecks live host/locale admission, never calls
+Education, echoes no original target/query/cursor and supplies localized noindex
+metadata and a catalog recovery anchor. This is not a direct branded 404 at the
+original URL. A fresh bootstrap refusal remains neutral.
+
+Known content-call failures are translated **HTTP 200 noindex** page states:
+invalid cursor has a relative reset link, rate limiting has a retry-later state,
+and transport/invalid-response/unavailable or unknown outcomes have the bounded
+unavailable state. They do not claim HTTP 400/429/503. Bootstrap retains its real
+404/429/503 and bounded Retry-After. Unexpected framework failures retain
+pre-stream 500/post-stream 200 behavior; `error.tsx` cannot choose arbitrary status.
+Plain same-host relative anchors trigger fresh document requests. Admission
+completes before loading boundaries flush; [Standards 07](07-frontend-architecture.md#routing)
+owns placement and the shared request-local loader.
 
 ### User-Facing Copy
 

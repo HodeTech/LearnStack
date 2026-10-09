@@ -2,6 +2,7 @@
 
 **Status:** Active
 **Derives from:** [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md).
+Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.md).
 
 TypeScript, React, and Next.js coding conventions. Frontend *architecture* (App Router layout, tenant resolution, SDK shape) is in [07-frontend-architecture.md](07-frontend-architecture.md).
 
@@ -128,7 +129,8 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 
 P02d-2 accepts and implements G16's theme value grammar; P02d-4 delivers its public
 projection. [Tenant Branding](07-frontend-architecture.md#tenant-branding) owns that
-contract. P02d-6 still owns G42's server-rendered token injection and its proof.
+contract. P02d-6's Accepted G42 selects safe server-rendered token injection;
+implementation and proof remain pending.
 
 ## Server Actions
 
@@ -175,7 +177,27 @@ Accepted G35 assigns the browser logger, Sentry and web-vitals to Phase 11;
 P02d-5 provides the bounded server caller and trace propagation, with no browser
 observability hook. See
 [Frontend Observability](10-observability.md#frontend-observability).
-P02d-6 still owns G40's public error/loading/not-found placement and localized states.
+P02d-6's Accepted G40 selects public error/loading placement and localized states;
+implementation remains pending. [Standards 07](07-frontend-architecture.md#routing)
+owns the approved status-route behavior.
+
+## UI Messages
+
+**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects server-first `next-intl`
+4.14.9 and `apps/web/src/i18n/messages/{en,tr}/public.json`. General UI identifiers
+use lowercase dotted feature namespaces with snake_case segments, for example
+`public.catalog.course_count`. Backend `lockey_*` keys retain their separate wire
+contract; the SDK owns no translated resources.
+
+Use ICU MessageFormat and plain text parameters. Do not use rich-text callbacks,
+HTML messages, authored URL attributes or client input as a lookup identifier.
+Require nonempty catalogues, equal key sets, valid ICU and matching argument
+names/types, plus checked callsite coverage. Missing required keys fail the build;
+formatter failures select a bounded translated unavailable state. Planted controls
+must prove these checks can fail. See
+[Localization Standards](08-localization.md#strings-in-code) for request integration
+and UI/content-language separation.
 
 ## Forbidden
 
@@ -208,7 +230,6 @@ packages/
   ui/                # design system primitives
   sdk/               # generated API client
   config/            # shared configs
-  i18n/              # locale messages + helpers
 ```
 
 Feature folder layout:
@@ -223,16 +244,12 @@ features/<feature>/
   types.ts
 ```
 
-> **Open in P02d-6.** Two questions these trees answer are open for the public
-> renderer. Where the UI string catalogue lives is G39: `packages/i18n/` is one of
-> several homes the corpus names, and `frontend/packages` holds no such package.
-> G31 is Accepted: `packages/sdk` exports generated types and four injected public
-> GET wrappers, governed by [Standards 07](07-frontend-architecture.md#sdk).
-> Where the lesson page's composite and primitive field components live —
-> `packages/ui/`, a route group's or a feature's
-> `components/`, or elsewhere — is G41. Each is a row in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each open question edits this section with its answer.
+**Accepted P02d-6 placement — 2026-10-09; implementation pending.** G39 uses
+`apps/web/src/i18n/request.ts` and the app-local message home above; no
+`packages/i18n` is created. G41 uses synchronous public views under
+`apps/web/src/components/public/` for ordered plain-string `default-card` fields
+only. Richer primitives remain Phase 04/05 and Phase 06. G31's delivered SDK
+contract remains governed by [Standards 07](07-frontend-architecture.md#sdk).
 
 ## Comments
 

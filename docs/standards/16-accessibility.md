@@ -2,6 +2,8 @@
 
 **Status:** Adopted
 **Derives from:** WCAG 2.2 AA (external authoritative standard), [00-principles.md](00-principles.md) § 6 (Foundation First).
+Public-page obligations also follow [ADR-0027](../decisions/0027-frontend-i18n.md)
+and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
 LearnStack targets **WCAG 2.2 AA** across all user-facing surfaces.
 
@@ -55,6 +57,9 @@ LearnStack is an education platform; learners with disabilities are a first-clas
   [complete palette contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
   defines supported usage and atomic replacement. The future Studio can explain
   that refusal; a warning does not authorize saving an invalid palette.
+- P02d-6 uses foreground plus underline for normal text links. Primary has only
+  a 3:1 background guarantee; do not assume white text on primary meets body-text
+  contrast. Primary may supply sufficient-contrast non-text focus/border accents.
 
 ### Images and Media
 
@@ -91,18 +96,29 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 ## Tooling
 
 - `eslint-plugin-jsx-a11y` in the frontend lint config.
-- `axe-core` integrated with Playwright; runs on every E2E test for the public renderer and portal critical flows.
-- Lighthouse accessibility audit runs in CI for public routes.
+- Phase 06 integrates `axe-core` with Playwright for public-renderer and portal
+  critical flows.
+- P02d-7 owns Lighthouse activation and the accessibility assertions for public
+  routes; the CI placeholder remains disabled.
 - Manual keyboard walkthroughs for new screens in the PR review.
 
-> **Open in Phase 02d.** Its public pages are the first routes this section binds.
-> Whether the Lighthouse job activates there, and whether its accessibility audit is
-> asserted, is G44; which checks fail a build on those pages — route tests, `jsx-a11y`
-> at error severity or component axe — is G43. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the passes that close them edit this section. The Playwright axe run is
-> [Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s, per
-> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests).
+**Accepted P02d-6 G43 — 2026-10-09; implementation pending.** Applicable
+jsx-a11y rules run at error severity with planted controls through the actual app
+configuration. Actual product-page HTML/DOM proves titles, languages, one main,
+one descriptive h1, sequential headings, semantic lists/definition lists, skip
+target and visible focus, including all controlled states. Logical CSS and wrapping
+must support RTL and long unbroken strings. Acceptance does not promote this
+standard: it stays **Adopted** until its enforcement lands.
+
+Catalog → course → lesson is a critical flow requiring manual keyboard, focus,
+320 CSS px reflow/zoom, long-string, contrast and real screen-reader smoke evidence.
+The record names commit, environment, both hosts/locales and screen reader used.
+DOM assertions cannot replace assistive-technology observation; pending evidence
+keeps packet completion pending. Full Playwright/axe remains
+[Phase 06](../roadmap/phase-06-renderer-admin-studio.md)'s, per
+[Testing Standards](06-testing.md#end-to-end-tests). Accepted G44 leaves Lighthouse
+activation and its assertions with P02d-7 after the P6 pages; no audit is passing
+by acceptance alone.
 
 ## Testing
 

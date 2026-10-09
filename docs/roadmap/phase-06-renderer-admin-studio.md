@@ -31,6 +31,22 @@ Rows identify their delivery packet; planned P02d-6/7 work is not current behavi
 | Four-color public theme projection delivered P02d-4; safe document injection planned P02d-6 | The branding configuration surface, additional tokens and organization override |
 | The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 
+**Accepted P02d-6 inheritance — 2026-10-09; implementation pending.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9,
+app-local `src/i18n/messages/<locale>/<namespace>.json` and complete `en`/`tr`
+`public` messages. This phase extends its namespaces for full Studio/portal and
+renderer UI. It preserves shared verified request admission, exact content locale,
+whole-catalogue UI fallback and missing-key failure; the SDK owns no translations.
+
+The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+uses plain same-host anchors, opaque signed-target pagination, safe four-color
+injection and local 307→404 navigation to `/{locale}/status/not-found`. The URL
+changes; known content-call failures are translated HTTP 200 noindex states.
+Tenant-authored errors, menus, media, expanded renderer composition and
+organization overrides remain here. P02d-7 owns the initial browser/demo and
+Lighthouse activation; this phase owns the full Playwright/axe suite and Phase 11
+owns web-vitals telemetry. Acceptance does not claim these consumers are shipped.
+
 ### Public site renderer
 
 The Next.js `apps/web` app supports:
@@ -212,9 +228,10 @@ live class. **Phase 06 owns it.**
 
 ### End-to-end test stack — a carried dependency
 
-Phase 06 is the first phase to run browser tests, so it is the first phase that depends
-on the ephemeral end-to-end stack actually working. `infra/compose/e2e.yml` overlays the
-development stack with `volumes: !reset []`, which discards more than the named volumes:
+P02d-7 owns the initial browser/demo harness; Phase 06 expands it into the full
+browser/axe suite and depends on the ephemeral end-to-end stack working.
+`infra/compose/e2e.yml` overlays the development stack with `volumes: !reset []`,
+which discards more than the named volumes:
 it also discards the **PostgreSQL init script** and the **SeaweedFS S3 identity file**.
 A browser suite launched against that stack meets a database without the
 `learnstack_app` / `learnstack_migration` roles the init script creates and an object

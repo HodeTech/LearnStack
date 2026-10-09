@@ -173,7 +173,9 @@ an existing user process. Product-page browser/a11y tests remain P6/P7.
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
 > [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
 > Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
-> remains disabled. P02d-6/G43 selects the skeleton's accessibility gate. P5's
+> remains disabled. Accepted P02d-6/G43 requires failing applicable `jsx-a11y`
+> rules, localized page semantics and a real manual screen-reader smoke. These
+> controls are implementation obligations, not delivered by acceptance. P5's
 > production HTML/RSC fixture proves transport, not a browser/a11y audit.
 
 ### Step 7: Single-test focus
@@ -274,10 +276,11 @@ The entry decision does not provide a Lighthouse command or passing audit.
   The P5 native renderer fixtures require free 3000/3011 and fail on collisions.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
-  The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
-  findings fail a build on Phase 02d's pages is P02d-6/G43 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes it edits this line.
+  The axe suite joins this list in Phase 06. Accepted P02d-6/G43 requires failing
+  applicable `jsx-a11y` rules and localized page-semantics checks, plus manual
+  keyboard, focus, reflow, contrast and screen-reader evidence. Acceptance does
+  not claim those controls pass; implementation records their actual results in
+  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
 
 ## Common pitfalls
 
@@ -295,9 +298,9 @@ The entry decision does not provide a Lighthouse command or passing audit.
 - **Assuming an accessibility gate exists.**
   [16-accessibility.md](../../../docs/standards/16-accessibility.md) makes WCAG
   2.2 AA binding, and Phase 06 brings the axe suite that enforces it. Reading the
-  standard is the gate today; whether a route test or lint rule fails a build
-  earlier, on Phase 02d's pages, is G43 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes it edits this pitfall.
+  standard does not prove implementation. Accepted P02d-6/G43 requires earlier
+  failing lint/semantics controls and actual manual assistive-technology evidence;
+  DOM assertions cannot substitute for a screen reader. Delivery is recorded in
+  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.

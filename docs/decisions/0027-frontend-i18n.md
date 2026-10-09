@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed — maintainer approval pending; implementation has not started.
+Accepted — 2026-10-09.
 
 **Date:** 2026-10-09
 **Deciders:** @cemil
 
-This uses the reserved frontend-i18n number. It proposes closing P02d-6 G39;
-it closes no gate until accepted. Phase 04's existing reservation remains binding
-until acceptance moves the first-consumer commitment to P02d-6. The
+The maintainer accepted this reserved frontend-i18n decision and P02d-6 G39 before
+implementation. At acceptance, no implementation is delivered; later delivery is
+recorded in dated amendments. P02d-6 owns the first consumer, and Phase 04 consumes
+that foundation. The
 [P02d-6 decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 owns the page plan and approval boundary.
 
@@ -30,7 +31,7 @@ owns the page plan and approval boundary.
 
 ## Considered Options
 
-1. **next-intl, server-first, without its routing middleware** (recommended).
+1. **next-intl, server-first, without its routing middleware** (chosen).
    Direct async App Router APIs fit the first consumers. Routing remains owned by
    the verified public entry, with one app-local request configuration.
 2. **react-intl / FormatJS**. A viable ICU and React alternative, including its
@@ -44,7 +45,7 @@ owns the page plan and approval boundary.
    the first plural/select messages, error states and translation checks would
    create a temporary parallel runtime at the first real consumer.
 
-These are alternatives to the proposed decision, not assertions that the other
+These are alternatives to the decision, not assertions that the other
 libraries cannot support Server Components. Reconsider the selection if a pinned
 production-build proof fails, its licence changes incompatibly, or actual Studio
 requirements demonstrate a material gap in extraction or formatting.
@@ -57,8 +58,8 @@ public entry owns host and content-locale admission; the library neither resolve
 tenants nor redirects requests. UI catalogue fallback never changes the admitted
 content locale.
 
-This is the proposed decision. Acceptance authorizes the contracts below;
-it does not claim implementation or test delivery.
+Acceptance authorizes the contracts below; it does not claim implementation or
+test delivery.
 
 ## Context
 
@@ -70,7 +71,7 @@ Phase 04 reservation.
 
 The documentation currently sketches `packages/i18n`, `apps/web/locales` and
 `apps/web/src/i18n/<locale>/<namespace>.json`, with differing namespace layouts in
-the frontend skills. None exists as an implemented catalogue. The proposed single
+the frontend skills. None exists as an implemented catalogue. The single
 home is:
 
 ```text
@@ -112,7 +113,7 @@ middleware-derived `requestLocale` or use a callsite locale override as authorit
 It adds no locale header, i18n middleware, rewrite, cookie or `Accept-Language`
 selection. Route params and observed query data cannot replace the signed source.
 
-The proposed `/{locale}/status/not-found` namespace uses that same live admission;
+The accepted `/{locale}/status/not-found` namespace uses that same live admission;
 it never loads Education content. Admitted `/studio` and `/portal` scaffolds have
 no content locale and retain platform English until Phase 06 supplies their UI.
 A failed admission cannot select a tenant document through English fallback.
@@ -218,8 +219,8 @@ configuration do not cross into an unnecessary client payload.
 
 ## Implementation Notes
 
-Acceptance moves ADR-0027 to Active ADRs with P02d-6 as its first-consumer gate.
-The same decision commit reconciles these carriers:
+The acceptance commit moves ADR-0027 to Active ADRs with P02d-6 as its first-consumer
+gate and reconciles these carriers:
 
 - [Standards 03](../standards/03-frontend-coding.md) for UI keys/checks,
   [07](../standards/07-frontend-architecture.md) for the `packages/i18n` sketch and
@@ -237,19 +238,26 @@ The same decision commit reconciles these carriers:
   for the same catalogue home, namespace grammar and server request integration.
 
 Phase 04 consumes the installed foundation and still owns its CMS/Studio message
-coverage. Proposed status does not make these installation or acceptance claims.
+coverage. The decision commit makes no installation or implementation claim.
 
 P02d-6 implements catalogues, server configuration, bounded interactive labels and
 the checks above. Each implementation step follows the packet's commit and two
-independent review rounds. This Proposed file changes no Accepted ADR body.
+independent review rounds. This acceptance changes no previously Accepted ADR.
 
 ## Architecture Tests
 
-The obligations above are proposed proof requirements, not registered or passing
-test names. The acceptance commit registers their non-skippable names and planted
-controls in a new **P02d-6 public UI localization controls** section of
-[Standards 21](../standards/21-architecture-tests-catalogue.md#how-to-add-an-entry),
-before implementation. Status becomes Implemented only with the actual checks.
+The acceptance commit registers these non-skippable rules with planted controls
+in [Standards 21](../standards/21-architecture-tests-catalogue.md#p02d-6-public-ui-localization-controls),
+before implementation:
+
+- [Ui_Catalogues_Cover_Public_Call_Sites](../standards/21-architecture-tests-catalogue.md#ui_catalogues_cover_public_call_sites)
+- [Public_Ui_Locale_Does_Not_Change_Content_Admission](../standards/21-architecture-tests-catalogue.md#public_ui_locale_does_not_change_content_admission)
+- [Public_Theme_Emits_Only_Validated_Color_Tokens](../standards/21-architecture-tests-catalogue.md#public_theme_emits_only_validated_color_tokens)
+- [Public_Pages_Preserve_Approved_Response_States](../standards/21-architecture-tests-catalogue.md#public_pages_preserve_approved_response_states)
+- [Public_Pages_Expose_Localized_Accessible_Semantics](../standards/21-architecture-tests-catalogue.md#public_pages_expose_localized_accessible_semantics)
+
+All five are Registered at acceptance, not passing implementation claims. Status
+becomes Implemented only with the actual checks.
 Existing [public source-boundary controls](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
 and [No_Architecture_Test_Is_Skippable](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)
 remain mandatory; no second skip-refusal rule is created.

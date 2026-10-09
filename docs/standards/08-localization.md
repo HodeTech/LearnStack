@@ -4,6 +4,7 @@
 **Derives from:** [ADR 0008 — Localization Schema](../decisions/0008-localization-schema.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Frontend UI additions derive from [ADR-0027](../decisions/0027-frontend-i18n.md).
 
 i18n is a platform-level concern. It affects translatable content, slugs, URLs, SEO, dates, numbers, currencies, formats, and the Admin Studio UI itself. See [docs/architecture/12-localization.md](../architecture/12-localization.md) for the strategy.
 
@@ -41,11 +42,10 @@ uses exact enabled query locale; display-only Pattern B values carry authored
 `{value,locale}`. Neither fallback nor headers authorize a content locale. Internal
 fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 
-**Proposed P02d-6 UI foundation — 2026-10-09.**
-[ADR-0027](../decisions/0027-frontend-i18n.md) proposes next-intl and one app-local
-catalogue home, with UI-language fallback separate from content admission. It is
-not yet accepted or implemented; G39 and the existing Phase 04 exit commitment
-remain open until approval reconciles their carriers.
+**Accepted P02d-6 UI foundation — 2026-10-09; implementation pending.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects next-intl and one app-local
+catalogue home, with UI-language fallback separate from content admission. P6 is
+the first consumer; Phase 04 inherits this foundation for CMS/Studio coverage.
 
 ## URL Strategy
 
@@ -219,18 +219,49 @@ applying the fallback chain.
 
 ## Strings in Code
 
-- Frontend: `next-intl` (or equivalent) loaded from `packages/i18n/locales/{locale}.json`.
+- Frontend: server-first `next-intl` **4.14.9**, with app-local
+  `apps/web/src/i18n/messages/{en,tr}/public.json` and `src/i18n/request.ts`.
+  This is Accepted in P02d-6; dependency installation, catalogues and checks remain
+  pending. No shared i18n package is created without ADR-0009's duplication trigger.
 - Backend: localized strings live in resource files under each module.
 - Strings are referenced by key, never duplicated:
 
 ```tsx
-const t = useTranslations("CourseCard");
-return <button>{t("enroll")}</button>;
+const t = await getTranslations("public");
+return <p>{t("catalog.course_count", {count})}</p>;
 ```
 
 ```csharp
-var msg = _stringLocalizer["course.publish.success"];
+var msg = _stringLocalizer["lockey_course_publish_success"];
 ```
+
+General UI identifiers use lowercase dotted feature namespaces and snake_case
+segments (`public.catalog.course_count`); JSON nesting supplies the dots. Backend
+`LocalizedMessage.Key` and Problem Details `messageKey` retain `lockey_*`, including
+consumer-owned backend error resources. The SDK normalizes errors and owns no
+translated resources. P6 maps closed page outcomes to explicitly owned UI keys;
+arbitrary wire keys/titles/errors/parameters never become lookup identifiers or copy.
+
+Request configuration shares the server-only request-cached admission loader used
+by document/layout/page consumers. It re-verifies the ingress envelope and live
+enabled membership using the signed target's canonical content locale. No i18n
+routing middleware, middleware-derived `requestLocale`, callsite override, cookie
+or `Accept-Language` is authority, and message loading adds no bootstrap call.
+
+Select a whole UI catalogue by exact tag, then remove rightmost subtags, then use
+platform `en`. Missing required keys in supported bundled catalogues fail the
+build; no per-key fallback or raw-key output. ICU formatting uses the selected UI
+catalogue's locale. Plain text parameters only; no HTML/rich callbacks or authored
+URL attributes. Formatter failure yields a bounded translated unavailable state.
+Nonempty/equal key sets, ICU argument names/types and callsite coverage require
+planted failure controls, per ADR-0027 and the canonical
+[test catalogue](21-architecture-tests-catalogue.md).
+
+The exact admitted content locale still selects API reads and document `lang`.
+UI groups carry their selected catalogue's actual `lang`/direction when different;
+Pattern B labels carry the API-resolved locale. Neither UI fallback nor label
+fallback substitutes Pattern A titles, summaries or bodies. Studio/portal scaffolds
+retain platform English until Phase 06 supplies their UI.
 
 ## Locale Codes
 
@@ -269,6 +300,13 @@ default-enabled CHECK; request-language negotiation is not part of those writers
 - The platform supports RTL languages from the start.
 - Layout uses logical CSS properties (`padding-inline-start`, not `padding-left`).
 - Components flip via `dir="rtl"` on the document root.
+
+Accepted P02d-6 derives document direction from the admitted content locale using
+runtime internationalization data; an undescribed admitted tag falls back to
+`ltr`, never refusal. UI fallback groups retain their own direction. Test-owned
+enabled `ar` content proves `lang="ar"`/`dir="rtl"` and labelled English fallback
+UI independently; it neither rewrites the seed nor claims an Arabic UI catalogue.
+These renderer controls remain implementation obligations.
 
 ## Admin Studio UI
 

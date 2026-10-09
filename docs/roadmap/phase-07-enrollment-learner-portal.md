@@ -42,6 +42,20 @@ What Phase 07 inherits from 02d is narrow and read-side only: `Course` and
 host-based tenant and organization resolution works end to end, and the public content
 path exists to contrast the entitled one against.
 
+**Accepted UI inheritance — 2026-10-09; implementation pending in P02d-6.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9
+and app-local `src/i18n/messages/<locale>/<namespace>.json`. Learner screens add
+feature UI namespaces through the Phase 06 portal shell, preserving complete
+supported catalogues and checked ICU/callsite coverage. General UI identifiers
+remain distinct from backend `lockey_*`; the SDK supplies no translations.
+
+The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+selects anonymous page/status composition and shared verified public admission.
+Its UI fallback changes no content locale or access policy. Its local 307→404 URL
+change and HTTP 200 noindex content-failure states do not decide authenticated
+portal response behavior. This phase still owns learner access, enrollment and
+progress; public page acceptance supplies none of those implementations.
+
 ## Scope
 
 ### Enrollment

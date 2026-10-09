@@ -18,8 +18,9 @@ Initial renderer scope:
 
 - Document direction and logical layout properties apply from the first public
   renderer, including an enabled RTL locale; they are not deferred until a tenant
-  requests a redesign. P02d-6 G39/G43 selects the runtime mapping and its proofs.
-- P02d-6 proposes initial English and Turkish platform UI catalogues in
+  requests a redesign. Accepted P02d-6 G39/G43 selects the mapping and proofs;
+  implementation remains pending.
+- P02d-6 accepts initial English and Turkish platform UI catalogues in
   [ADR-0027](../decisions/0027-frontend-i18n.md). Additional UI translations are
   added when authored; their absence must not narrow enabled content locales.
 - Plural forms beyond ICU MessageFormat defaults (Turkish has different rules than English; ICU handles both).
@@ -297,34 +298,53 @@ The routing consequences follow directly, and are behaviour rather than defects:
 
 ## UI String Catalogue
 
-UI strings (button labels, validation messages, empty-state copy) live in JSON catalogues under the frontend.
+**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects server-first `next-intl`
+4.14.9 and one app-local catalogue home:
 
 ```text
-apps/web/locales/
-  en/
-    common.json
-    portal.json
-    studio.json
-  tr/
-    common.json
-    portal.json
-    studio.json
+apps/web/src/i18n/
+  request.ts
+  messages/
+    en/public.json
+    tr/public.json
 ```
 
-Keys are dotted, namespaced by feature, ICU MessageFormat for plural/select. The
-frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the
-choice is now drafted in
-[Proposed ADR-0027](../decisions/0027-frontend-i18n.md). No library is installed or
-accepted yet. The tree above remains an unimplemented sketch until G39 accepts
-one catalogue home; the proposal selects an app-local server-first foundation.
+Only `public` ships first; later feature namespaces use the same locale directory.
+Shared-package extraction follows ADR-0009's measured duplication trigger.
+General UI keys are lowercase dotted feature names with snake_case segments, such
+as `public.catalog.course_count`; JSON nesting supplies the dots. Values use ICU
+MessageFormat with plain text parameters. Backend `lockey_*` message resources
+remain separate; the SDK validates/normalizes wire errors and owns no translations.
+The web app maps closed page outcomes to its own keys, with bounded unavailable
+copy for unknown outcomes, never arbitrary backend lookup or visible diagnostics.
 
-> **Open in Phase 02d.** Where the catalogue lives — this tree,
-> [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code)
-> and the `add-i18n-key` skill each name a different path — and whether ADR-0027 is
-> Accepted in that phase are G39 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+Request configuration uses the same server-only request-cached admission source as
+document/layout/page consumers: verified ingress, signed target locale and live
+enabled membership. It adds no bootstrap call, i18n routing middleware, locale
+header, rewrite, cookie or `Accept-Language` authority. Messages/configuration stay
+server-only; interactive consumers receive only needed translated labels.
 
-API responses do **not** localise system-level identifiers, only human-facing strings. Error codes are stable English strings; human-readable messages are localised by the consumer when needed, using the locale from the JWT or request.
+UI fallback selects a whole catalogue by exact tag, narrowed rightmost subtags,
+then platform `en`. Missing required keys in bundled supported languages fail the
+build, not per-key fallback. ICU uses the selected UI language's plural rules.
+Checked key/ICU/argument/callsite contracts and planted controls are required by
+[Localization Standards](../standards/08-localization.md#strings-in-code).
+
+The admitted content locale independently selects API reads and document `lang`;
+runtime internationalization data supplies its direction, with deterministic `ltr`
+when undescribed. UI groups carry their actual selected language/direction, and
+Pattern B labels carry their resolved locale. A test-owned enabled `ar` route
+proves RTL content with English fallback UI, without altering seed inventory or
+claiming an Arabic catalogue. Pattern A content never gains cross-locale fallback.
+The dependency, catalogues, runtime and proofs are not installed/delivered by this
+acceptance. Phase 04 inherits the foundation for CMS/Studio; Phase 06 owns the full
+Studio/portal consumers.
+
+API error codes remain stable machine identifiers. Problem Details carries
+backend `lockey_*` message data, not translated text; supported consumer resources
+own its resolution. Public pages instead use the closed UI-outcome mapping above.
+See [Error Handling Standards](../standards/09-error-handling.md#mapping-problem-details--ui).
 
 ## Notification Template Localisation
 

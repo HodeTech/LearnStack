@@ -4,7 +4,9 @@
 **Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 (ships the first batch of catalogue entries),
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
-(accepted replacement proofs implemented). The catalogue grows as
+(accepted replacement proofs implemented),
+[ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
+(P02d-6 rules Registered; implementation pending). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -4219,6 +4221,72 @@ verification pass; the delivery record owns execution evidence.
   disposable routes, not P6 product pages or P7 browser delivery.
 - **Phase:** 02d (P02d-5).
 
+## P02d-6 public UI localization controls
+
+The maintainer accepted ADR-0027 and the P6 decision package on 2026-10-09. The
+rules below are commitments before the first implementation; none is a passing
+test claim at acceptance. Existing P5 source/runtime controls remain mandatory,
+and P6 product proofs supplement the isolated synthetic transport fixture.
+
+#### `Ui_Catalogues_Cover_Public_Call_Sites`
+
+- **Asserts:** nonempty supported UI catalogues have equal key sets, valid ICU
+  syntax and matching argument names/types; every used key exists. General UI
+  feature keys are separate from backend `lockey_*` wire keys. Planted per-locale
+  and absent-from-all keys, unknown callsites, bad ICU and mismatched arguments
+  fail. Public graphs include configuration and JSON catalogue dependencies.
+- **Source:** ADR-0027; Accepted P02d-6 G39.
+- **Type:** frontend catalogue/callsite + production build. **Kind:** structural.
+- **Status:** **Registered** — P02d-6 Step 1.
+- **Phase:** 02d (P02d-6).
+
+#### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
+
+- **Asserts:** request configuration uses the existing verified signed target and
+  live membership. Whole-catalogue UI fallback changes neither exact API locale
+  nor admission. Document and UI groups retain their actual languages/directions;
+  test-owned enabled RTL content and overlapping host/locale requests exercise
+  the real configuration without another authority carrier or bootstrap call.
+- **Source:** ADR-0027; Accepted P02d-6 G39 and G38(b,c).
+- **Type:** frontend mapping + actual production rendering. **Kind:** behavioural.
+- **Status:** **Registered** — P02d-6 Steps 1 and 4.
+- **Phase:** 02d (P02d-6).
+
+#### `Public_Theme_Emits_Only_Validated_Color_Tokens`
+
+- **Asserts:** the complete four-color value is admitted atomically before fixed
+  `--ls-*` CSS emission. Malformed/null input preserves the whole default palette;
+  no raw style attributes, extra tokens, URLs or organization merges appear.
+  Effective attribution alone controls the platform label, independently of theme.
+- **Source:** Accepted P02d-6 G16(g)/G42; Standards 07 § Tenant Branding.
+- **Type:** frontend pure mapping + rendered document. **Kind:** behavioural.
+- **Status:** **Registered** — P02d-6 Step 1.
+- **Phase:** 02d (P02d-6).
+
+#### `Public_Pages_Preserve_Approved_Response_States`
+
+- **Asserts:** real product routes preserve shared request-local reads, opaque
+  pagination and no-store isolation. Missing/hidden content follows the approved
+  same-host 307→fixed localized 404 chain; known content-call errors use bounded
+  HTTP 200/noindex states. The status page makes no Education call. Production
+  tests observe actual status, visible HTML, call counts, freshness and no leaks.
+- **Source:** Accepted P02d-6 G40/G38(b,c); ADR-0053/0054.
+- **Type:** actual production Next/API/PostgreSQL. **Kind:** behavioural.
+- **Status:** **Registered** — P02d-6 Steps 1–4.
+- **Phase:** 02d (P02d-6).
+
+#### `Public_Pages_Expose_Localized_Accessible_Semantics`
+
+- **Asserts:** public states expose document language/direction, one main,
+  descriptive headings/title, skip navigation and language-bearing fallback UI.
+  Applicable jsx-a11y errors fail through the real lint config with planted
+  controls. Automated semantics supplement mandatory manual keyboard, focus,
+  320 CSS px reflow, contrast and screen-reader evidence; they do not replace it.
+- **Source:** Accepted P02d-6 G43; Standards 16 § Testing.
+- **Type:** frontend lint/DOM + actual production HTML. **Kind:** structural.
+- **Status:** **Registered** — P02d-6 Steps 1–4; manual evidence remains separate.
+- **Phase:** 02d (P02d-6).
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
@@ -4226,6 +4294,7 @@ verification pass; the delivery record owns execution evidence.
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 - [ADR-0024 API Versioning Policy](../decisions/0024-api-versioning-policy.md)
+- [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)

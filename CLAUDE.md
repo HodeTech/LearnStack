@@ -115,8 +115,12 @@ and merged** through [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on
 2026-10-09. Its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
 records final verification.
-Work stays on development. P02d-6's decision pass and product pages are next;
-P02d-7 owns the browser demo and Lighthouse. Neither packet is delivered by P5.
+Work stays on development. **P02d-6's decision pass is Accepted — 2026-10-09**:
+[ADR-0027](docs/decisions/0027-frontend-i18n.md) and its
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+authorize four implementation steps and two independent review rounds per step.
+The decision commit delivers no product pages. P02d-7 owns the browser demo and
+Lighthouse; Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -29,11 +29,15 @@ Decisions consumed in this phase:
   directly here: presentation and content shape are inside it, so nothing in this phase
   needs a code branch per tenant.
 
-Decision required **before this phase exits**:
-[ADR-0027 — frontend UI localization](../decisions/0027-frontend-i18n.md) is Proposed
-for P02d-6's first UI strings. If accepted there, this phase consumes its installed
-foundation and adds CMS/Studio message coverage. Until acceptance, this phase's
-existing decision-and-wiring exit requirement remains in force.
+**Accepted foundation — 2026-10-09; implementation pending in P02d-6.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) closes G39 at the first public UI
+consumer: exact `next-intl` 4.14.9, server-first request configuration and app-local
+`src/i18n/messages/<locale>/<namespace>.json` catalogues. This phase consumes that
+foundation and adds CMS/Studio message coverage; it does not reselect the library
+or own its initial installation. Tenant-authored content localization remains
+this phase's responsibility. The
+[P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+records accepted page/status behavior and distinguishes it from delivery.
 
 ## Scope
 
@@ -208,7 +212,10 @@ Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing 
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
 API-returned messages
 ([Error Handling Standards § Validation Errors](../standards/09-error-handling.md#validation-errors)).
-The frontend i18n library is chosen in ADR-0027 (see the Phase Exit Decision).
+Frontend UI messages consume Accepted ADR-0027's separate whole-catalogue fallback
+contract; that fallback never changes the admitted content locale. Public route
+admission remains signed-source and live-membership based; `Accept-Language` is
+not route authority.
 
 ### Page Blocks — Two-Tier Registry
 
@@ -391,7 +398,8 @@ describes.
 - Admin Studio CMS screens per the list above.
 - Public read APIs for the renderer, versioned per
   [ADR-0024](../decisions/0024-api-versioning-policy.md).
-- ADR-0027 Accepted, and the chosen i18n library wired into `frontend/apps/web`.
+- CMS/Studio UI messages extend the ADR-0027 foundation owned by P02d-6, with
+  complete supported catalogues and checked ICU/callsite coverage.
 
 ## Completion Criteria
 
@@ -477,9 +485,9 @@ describes.
   the education catalog as disconnected systems. Both are corpus-level regressions;
   the catalog in [Phase 05](phase-05-education-learning-content.md) composes the same
   blocks and the same content types.
-- **ADR-0027 slipping past the exit gate.** An i18n library chosen after the Studio and
-  the public renderer already have strings is a mechanical but wide refactor. The gate
-  is there to make the cost visible while it is still small.
+- **Bypassing the accepted localization foundation.** A second catalogue home or
+  unchecked CMS/Studio literals recreate the drift G39 closes. Extend ADR-0027's
+  app-local namespaces and checks rather than introducing another UI runtime.
 
 ## Phase Exit Decision
 
@@ -502,6 +510,8 @@ hold:
   `IVideoTranscoder` has exactly one registered implementation with the managed
   alternative recorded against [Phase 11](phase-11-production-hardening.md) and its
   trigger.
-- ADR-0027 is **Accepted** and the chosen library is wired, not merely selected.
+- CMS/Studio UI coverage uses the P02d-6 ADR-0027 foundation, with complete
+  supported catalogues and passing ICU/callsite checks. Its installation belongs
+  to P02d-6; acceptance alone is not evidence of delivery.
 - Public rendering and Admin Studio work can proceed against a stable content contract —
   which is what [Phase 06](phase-06-renderer-admin-studio.md) assumes.

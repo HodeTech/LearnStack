@@ -187,23 +187,36 @@ Hide, don't disable. The hook reads the entitlement projection. See
 
 ### Step 7: Localisation
 
-```tsx
-import { useTranslations } from "next-intl";   // or react-intl per the i18n ADR
+**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+[ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact `next-intl`
+4.14.9. The target async Server Component pattern is:
 
-export default function CoursesPage() {
-  const t = useTranslations("courses");
+```tsx
+import { getTranslations } from "next-intl/server";
+
+export default async function CoursesPage() {
+  const t = await getTranslations("public.catalog");
   return <h1>{t("title")}</h1>;
 }
 ```
 
-Translation keys live under `frontend/apps/web/src/i18n/<locale>/courses.json`.
+Messages live in `frontend/apps/web/src/i18n/messages/<locale>/<namespace>.json`;
+P02d-6 supplies complete `en/public.json` and `tr/public.json`. General UI keys
+are dotted feature identifiers, distinct from backend `lockey_*` wire keys. The
+web app owns closed page-outcome mappings; the SDK supplies no translations.
 See [add-i18n-key](../add-i18n-key/SKILL.md).
 
-> **Open in Phase 02d.** No i18n library is installed and no catalogue exists. Whether
-> ADR-0027 picks the library in Phase 02d, and where the one UI string catalogue
-> lives — the corpus names three paths — are G39 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits this step and add-i18n-key.
+`src/i18n/request.ts` uses the same server-only, request-cached verified admission
+loader as document/layout/page consumers. It re-verifies the ingress envelope,
+reads the canonical locale from the signed target and checks live enabled-locale
+membership. The loader neither imports next-intl nor reads messages. No i18n
+routing middleware, preference cookie, locale header or callsite override supplies
+authority. Only whole-catalogue fallback is allowed for unauthored UI languages;
+missing used keys in supported catalogues fail validation. Preserve exact content
+locale, document language and actual resolved-label language.
+
+Acceptance supplies no installed runtime, catalogue, `lint:i18n` command or
+screenshot/axe tooling. Implement and prove the registered contract in P02d-6.
 
 ### Step 8: Public-site SSR caching
 
@@ -214,21 +227,54 @@ public rendering and no-store API transport; no positive `revalidate`, ISR,
 Request-local reuse is isolated to one incoming request. Server Component HMR caching
 is disabled. A new server/document request rechecks eligibility; client history is
 not a revocation guarantee. Use the configured server caller; never derive tenancy
-from a page header or add hop options to the injected SDK. P6 owns page consumers.
+from a page header or add hop options to the injected SDK.
+
+**Accepted P02d-6 G40 — 2026-10-09; implementation pending.** Use ordinary
+same-host relative anchors for public navigation and pagination, without automatic
+prefetch or reliance on retained client Router Cache. Request-local metadata,
+layout and page share verified admission and resource loaders; each page honors
+their result before emitting a shell. No loading boundary may flush before
+redirect admission.
+
+Parse owned pagination values only from the verified raw signed target, never
+observed Next `searchParams`. Catalog uses `cursor`/`limit`; outline uses
+`lessonCursor`/`lessonLimit`, default 20 and API bounds. Refuse duplicate, empty,
+malformed or oversized owned values; never decode opaque cursors or fabricate a
+previous cursor. Paginated metadata is noindex with a cursor-free canonical.
+Canonical/alternate URLs use the verified live host and eligible API slugs.
 
 ### Step 9: Loading + error boundaries
 
-Every route ships its own:
+Each route retains `loading.tsx` and a graceful `error.tsx`; P02d-6's accepted
+status composition is distinct from the framework's thrown `notFound()` behavior:
 
-- `loading.tsx` — skeleton shell, not a blank page. No "loading…" spinners for
-  expected-fast resources (<250 ms).
-- `error.tsx` — graceful boundary; 404 page renders the tenant's brand if a
-  tenant was resolved.
+- A missing/hidden content resource returns local HTTP 307 to the same host's
+  `/{locale}/status/not-found`. The browser URL changes; the original response is
+  not a direct 404.
+- Middleware admits that fixed status namespace through the same live host and
+  locale checks, then supplies HTTP 404. Its ordinary server-rendered document has
+  localized language/direction, safe theme/chrome, noindex metadata and a catalog
+  recovery link. It never queries Education or echoes the original slug/query.
+- Unknown-host/provenance refusals remain direct masked responses. Fresh status
+  bootstrap failure retains neutral 404/429/503; fallback UI cannot invent tenant
+  admission. HEAD is bodyless throughout.
+- Known content-call failures are controlled translated HTTP 200 noindex states:
+  invalid cursor with reset link, retry-later for 429, unavailable for transport,
+  invalid responses or unavailable API. They do not claim HTTP 400/429/503.
+  Closed outcome mapping never exposes backend keys, titles, field errors or
+  parameters as lookup identifiers or visible copy.
+- Unexpected framework errors keep pre-stream 500 / post-stream 200 behavior;
+  `error.tsx` cannot set arbitrary status.
+
+The accepted normal document costs three API calls; following a missing document
+through the status route costs five total. Shared request-local loaders add no
+metadata/layout/page calls or cross-request cache. See
+[the P02d-6 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
 ### Step 10: Tests
 
-- Component tests (`frontend/apps/web/src/app/(studio)/dashboard/users/page.test.tsx`)
-  with Testing Library, per
+- Synchronous view/mapping tests use Vitest/Testing Library; async public pages use
+  the real production HTML/RSC fixture, per
   [Testing Standards § Frontend Test Types](../../../docs/standards/06-testing.md#frontend-test-types).
   Automated `axe-core` runs through Playwright, owned by
   [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) per
@@ -236,8 +282,11 @@ Every route ships its own:
   the manual keyboard and contrast checks
   [Accessibility Standards § Tooling](../../../docs/standards/16-accessibility.md#tooling)
   and [§ Testing](../../../docs/standards/16-accessibility.md#testing) require are
-  recorded in the PR description. The phase that ships a route names its test set in
-  its decision register.
+  recorded in the PR description. P02d-6 also requires actual manual screen-reader,
+  keyboard, focus, 320 CSS px reflow/zoom, long-string and contrast evidence on both
+  hosts/locales. If unavailable, evidence stays pending and completion is not
+  claimed. HTTP/RSC assertions are not browser or assistive-technology proof.
+  P02d-7 owns browser/demo and Lighthouse; Phase 11 owns web-vitals telemetry.
 - Lighthouse budget check on representative public routes — CI's `lighthouse budget`
   job remains deferred until P02d-7/G44/G45 after P6 pages; judge by reading until
   that harness is implemented. Its remaining details are in the

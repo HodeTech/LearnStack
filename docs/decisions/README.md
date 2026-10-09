@@ -46,6 +46,7 @@ an amendment is not a lifecycle status change.
 | 0022 | [Custom Domain & TLS](0022-custom-domain-tls.md) | Hub-owned custom domain admin; DNS-01 + HTTP-01 + Let's Encrypt; APISIX hot-reload |
 | 0023 | [Strongly-Typed ID Source Generator — Vogen](0023-strongly-typed-id-source-generator.md) | Vogen as the source generator for both IDs and value objects; `[ValueObject<Guid>]` annotation; EF + JSON + ASP.NET + OpenAPI emitters out of the box (Amendment 1: Vogen 7.0.0 pin + architecture-test placement, 2026-05-21; Amendment 2: `UserId` / `TenantId` / `OrganizationId` are cross-cutting and live in `LearnStack.SharedKernel`, 2026-08-10; **Amendment 3: `IStronglyTypedId` gains `IsInitialized()` and is no longer a pure marker, 2026-08-10**; Amendments 4–7, 2026-08-27 to 2026-09-01: `idempotency_keys` mints no id, `gen_uuid_v7()` is not a PostgreSQL function, the retroactive disclosure of the 2026-05-21 edit, and an id's own formatting is not a wire format; **Amendment 8, 2026-09-07: a module-local identifier crosses a cross-module contract as `Guid`**) |
 | 0024 | [API Versioning Policy](0024-api-versioning-policy.md) | URL-based `/v{N}/`; 6-month deprecation window; RFC 8594 `Sunset` + `Deprecation` headers; OpenAPI `deprecated` + `x-sunset` extensions; 410 Gone with RFC 7807 on sunset |
+| 0027 | [Frontend UI Localization with next-intl](0027-frontend-i18n.md) | Accepted 2026-10-09: next-intl 4.14.9, server-first app-local ICU catalogues, dotted UI keys and verified request-locale source; P02d-6 first consumer, implementation pending; Phase 04 consumes the foundation |
 | 0028 | [`audit_log` Partition Management — Hangfire Recurring Job](0028-audit-log-partition-management.md) | Daily `learnstack:audit:partition-management` Hangfire job; create-ahead 2 months; drop only on platform-max retention horizon; row-level purge separate; no `pg_partman` dependency (Amendment 2026-09-07: Packet 9 creates a **plain, unpartitioned** table and executes none of this ADR's DDL; `Partition_Manager_Job_Is_Registered_AtStartup` moves to Phase 11 with the job it guards) |
 | 0029 | [Object Storage — SeaweedFS](0029-object-storage-seaweedfs.md) | Self-hosted SeaweedFS behind the existing `IStorageProvider` S3 contract; partially supersedes ADR-0002's MinIO row |
 | 0030 | [Redis-compatible Store — Valkey](0030-redis-compatible-store-valkey.md) | Valkey (Linux Foundation, BSD-3-Clause) for the cache + Dapr state-store backend; RESP-protocol drop-in; partially supersedes ADR-0002's Redis row |
@@ -74,7 +75,6 @@ an amendment is not a lifecycle status change.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
-| 0027 | [Frontend UI Localization with next-intl](0027-frontend-i18n.md) | Proposed server-first UI runtime and one catalogue home; G39 remains open | Proposed first consumer P02d-6, approval before implementation; existing Phase 04 exit SLA remains until acceptance |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
@@ -145,9 +145,9 @@ table records the phase commitment so reviewers can flag late drafts.
 draft lands, take its reserved number; do not let another ADR claim it. If the
 decision is dropped, leave the number unused — never recycle.
 
-ADR-0027 is now drafted in Proposed ADRs. Its proposed first consumer is P02d-6;
-only maintainer acceptance moves the existing Phase 04 commitment to that packet.
-The draft itself neither installs a dependency nor closes G39.
+ADR-0027 is Accepted on 2026-10-09 and appears in Active ADRs. P02d-6 now owns
+its first consumer and G39 is closed; Phase 04 consumes that foundation. The
+acceptance record does not claim dependency installation or implementation.
 
 **SLA:** any draft whose target phase is currently in progress without an Accepted ADR
 is a blocker on the phase exit checklist for that phase. The roadmap's Phase Exit

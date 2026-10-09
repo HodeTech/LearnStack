@@ -1,7 +1,8 @@
 ---
 name: add-i18n-key
 description: >
-  Add a translation key under `frontend/apps/web/src/i18n/<locale>/<namespace>.json`
+  Add a translation key under
+  `frontend/apps/web/src/i18n/messages/<locale>/<namespace>.json`
   with the project's dotted-feature namespace + ICU MessageFormat conventions.
   USE FOR: adding a user-facing string, renaming a key (with deprecation), removing
   a key. DO NOT USE FOR: backend `LocalizedMessage` keys (those follow the
@@ -19,14 +20,13 @@ Manage user-facing translations in `apps/web` consistently per
 [08-localization.md](../../../docs/standards/08-localization.md) +
 [ADR-0008 Localization Schema](../../../docs/decisions/0008-localization-schema.md).
 
-> **Open in Phase 02d.** None of the machinery below exists today: no
-> `frontend/apps/web/src/i18n/` tree, no i18n library, no `pnpm lint:i18n` task, no
-> `no-literal-strings` rule, no `_deprecated.json`, and no screenshot or `axe-core`
-> test. The competing catalogue sketches and library choice are G39 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> [Proposed ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects their
-> replacement, pending approval. The pass that accepts it edits this skill's
-> catalogue paths and implementation workflow.
+> **Accepted G39 — 2026-10-09; implementation pending.**
+> [ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact
+> `next-intl` 4.14.9 and the catalogue home below for P02d-6. Acceptance installs
+> no runtime, catalogue or tooling. No `pnpm lint:i18n`, `no-literal-strings`,
+> `_deprecated.json`, screenshot or `axe-core` task exists today. Use the packet's
+> registered proof obligations; do not claim these commands or checks run until
+> implementation supplies them.
 
 ## When to use
 
@@ -52,30 +52,27 @@ Manage user-facing translations in `apps/web` consistently per
 |-------|----------|-------------|
 | Key | Yes | Dotted-feature namespace: `enrollment.list.empty_state.title`. |
 | Default locale value | Yes | The English (or product-default) translation. |
-| Other locales | If translations exist | Each locale's translation. |
+| Other locales | Yes for supported UI languages | Complete `en` and `tr` initially. |
 | Pluralisation / interpolation | If applicable | Use ICU MessageFormat. |
 
 ## Workflow
 
 ### Step 1: Pick the namespace
 
-Translation files are split by **feature**:
+The accepted app-local catalogue layout is:
 
-```
+```text
 frontend/apps/web/src/i18n/
-  en/
-    auth.json
-    catalog.json
-    classroom.json
-    common.json
-    enrollment.json
-    notifications.json
-    portal.json
-    studio.json
-  tr/
-    ...
-  ...
+  request.ts
+  messages/
+    en/public.json
+    tr/public.json
 ```
+
+P02d-6 supplies only `public`; later features add a namespace beneath each locale.
+Request configuration mounts each file beneath its namespace. JSON nesting
+supplies dotted identifiers: `public.catalog.course_count` is
+`catalog.course_count` within the `public` translator.
 
 Keys are dotted: `<namespace>.<feature>.<descriptor>`. Examples:
 
@@ -100,17 +97,18 @@ Rules:
   `errors.invalid_credentials` (no global error namespace).
 - General UI copy does not copy the backend `lockey_*` namespace. The SDK returns
   normalized outcomes and message keys as data, not translations.
-  [Proposed ADR-0027](../../../docs/decisions/0027-frontend-i18n.md#message-and-test-contract)
+  [ADR-0027](../../../docs/decisions/0027-frontend-i18n.md#message-and-test-contract)
   assigns P02d-6 page-outcome-to-UI-key mapping to the web app; arbitrary backend
   message keys never become general UI lookup identifiers.
 
 ### Step 2: Add the key in every locale
 
-The convention: a key MUST exist in the default locale (en) before any non-default
-locale. Don't ship a key with translations missing from `en`.
+Every used key MUST exist in each supported bundled UI catalogue. P02d-6 requires
+complete `en` and `tr` `public` messages. These later enrollment examples show the
+same layout; they do not introduce an enrollment catalogue in P02d-6.
 
 ```jsonc
-// frontend/apps/web/src/i18n/en/enrollment.json
+// frontend/apps/web/src/i18n/messages/en/enrollment.json
 {
   "list": {
     "empty_state": {
@@ -123,7 +121,7 @@ locale. Don't ship a key with translations missing from `en`.
 ```
 
 ```jsonc
-// frontend/apps/web/src/i18n/tr/enrollment.json
+// frontend/apps/web/src/i18n/messages/tr/enrollment.json
 {
   "list": {
     "empty_state": {
@@ -155,10 +153,23 @@ return <p>{t("count", { count: learners.length })}</p>;
 
 ### Step 4: Variable interpolation
 
-ICU placeholders: `{name}`, `{count}`, `{date, date, short}`. The frontend i18n
-library (next-intl / react-intl — ADR-0027, reserved in
-[the decisions index](../../../docs/decisions/README.md#open-adr-drafts)) handles ICU
-natively.
+ICU placeholders: `{name}`, `{count}`, `{date, date, short}`. The accepted
+`next-intl` 4.14.9 runtime handles ICU using the selected UI catalogue's locale.
+Dynamic values enter as plain text parameters, never HTML or rich-text callbacks.
+
+`src/i18n/request.ts` uses the same server-only request-cached verified admission
+loader as document/layout/page consumers. That loader neither imports next-intl
+nor reads messages. The canonical locale comes from the signed target and live
+site membership, never next-intl middleware `requestLocale`, callsite overrides,
+query data, cookies or `Accept-Language`. Do not install i18n routing middleware.
+
+Select one whole UI catalogue by exact canonical tag, successive rightmost-subtag
+removal, then platform `en`. An unauthored UI language does not refuse or redirect
+an enabled content locale. API content locale and document language remain the
+admitted locale; fallback UI groups carry their actual language and direction.
+A missing used key within a supported catalogue fails validation; it never
+triggers per-key fallback. See
+[ADR-0027's contract](../../../docs/decisions/0027-frontend-i18n.md#message-and-test-contract).
 
 ### Step 5: Don't branch on locale
 
@@ -176,15 +187,15 @@ it as data (date formats, currency, plural rules ICU already knows).
 
 1. Add the new key with the same value as the old key.
 2. Update all call sites to use the new key.
-3. Mark the old key in a tracking file (`frontend/apps/web/src/i18n/_deprecated.json`)
-   with the planned removal date (≥ 1 release window).
+3. Record the planned removal date (≥ 1 release window). The sketched
+   `_deprecated.json` is not implemented; do not assume a tracking file exists.
 4. After the window, remove the old key from every locale file.
 
 ### Step 7: Remove a key
 
-1. Confirm zero call sites: `grep -rn "<old.key>" frontend/apps/web/src/`.
+1. Confirm zero call sites: `rg "<old.key>" frontend/apps/web/src/`.
 2. Remove the key from every locale's JSON file.
-3. Remove the tracking entry from `_deprecated.json`.
+3. Remove the deprecation tracking entry, if present.
 
 ### Step 8: Trailer
 
@@ -197,20 +208,28 @@ I18n: enrollment.list.empty_state.title, enrollment.list.empty_state.cta_label
 
 ## Validation
 
-- `pnpm lint:i18n` (custom lint task) flags missing keys per locale.
-- `pnpm test` is green; tests that depend on a key surface a clear failure if
-  it's missing.
-- Visual / screenshot tests show the key resolving in every locale, not the
-  raw key string.
-- `axe-core` accessibility test passes (translations don't break ARIA labels).
+P02d-6 implements these accepted obligations in the guarded frontend suite; the
+acceptance record alone is not passing evidence:
+
+- Nonempty catalogues with equal key sets and valid ICU messages, including
+  matching argument names/types across supported languages.
+- Typed callsite checking or a checked census rejects absent-from-all keys and
+  misspelled identifiers. Planted missing-key, unknown-callsite, malformed-ICU
+  and mismatched-argument controls must fail.
+- Formatter failures select the bounded translated unavailable state without raw
+  keys, parameters or library diagnostics in the document or logs.
+- Production HTML/RSC proofs cover locale fallback, language/direction and
+  concurrent hosts/locales without unnecessary client catalogue payloads.
+- Record actual implemented commands and results. Screenshot/axe tooling is not
+  supplied by acceptance; Phase 06 owns the full Playwright/axe suite.
 
 ## Common pitfalls
 
-- **Hardcoded English in JSX.** Lint rule `no-literal-strings` will reject. Move
-  to a translation key.
+- **Hardcoded English in JSX.** Move platform copy to a translation key. No
+  `no-literal-strings` rule is installed by the acceptance record.
 - **Per-locale branching.** If you find yourself doing
   `if (locale === "tr") ...`, encode the behaviour as data via ICU.
-- **Confusing language fallback with a missing key.** Proposed ADR-0027 selects a
+- **Confusing language fallback with a missing key.** ADR-0027 selects a
   whole fallback catalogue only for an unauthored UI language; missing keys in
   supported bundled catalogues must fail validation, not mix languages per key.
 - **Renaming without deprecation window.** Stale references break the build for

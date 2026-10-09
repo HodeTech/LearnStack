@@ -52,13 +52,21 @@ types opt in; the parser and exact reader validate metadata, and legacy schemas 
 valid. Browser rendering belongs to P02d-6. The wider renderer set below is a
 target, not implemented Phase 02d coverage. P02d-6 implements only the approved subset.
 
-> **Accepted subset; renderer placement remains open.** ADR-0051 selects plain-string
-> text cards with authored order and labels; Phase 02d adds no Markdown or active sink.
-> ADR-0018's wider closed set below is unchanged and is not implemented coverage.
-> G41 still decides unsupported-content fallbacks and component placement. The folder
-> in the sketch does not exist; the key registry in
-> `frontend/apps/web/src/lib/customization/` does not settle that gate. See
+> **P02d-6 G41 Accepted — 2026-10-09; implementation pending.** ADR-0051 selects
+> ordered plain-string `default-card` fields with authored language-bearing labels.
+> Synchronous views live in `frontend/apps/web/src/components/public/`. Unsupported
+> renderers/unresolved presentation use bounded placeholders, with no raw JSON,
+> HTML, Markdown, linkification, active URL sink or richer primitive. ADR-0018's
+> wider closed set below remains a target; registry keys are not implementation.
+> The sketch's primitive folder does not exist. See
 > [Phase 02d's register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+
+P02d-6 omits absent optional fields and renders script/HTML/URL-like values as
+escaped inert text. Empty ready content differs from unavailable presentation;
+unknown/unavailable content emits at most one count/state diagnostic per request,
+without field values, keys or private context. Exact schema swaps and inert-value
+proofs use unchanged product routes. Integer/boolean/enum/taxonomy and richer
+primitive expansion remain Phase 04/05 and Phase 06, not this accepted subset.
 
 The frontend ships a **fixed, closed set** of primitive renderers:
 
