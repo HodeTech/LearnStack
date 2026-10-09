@@ -65,7 +65,10 @@ not deferred to the showcase phase.
   records final verification. P02d-5's decision package and ADR-0053 are Accepted
   — 2026-10-08. All four steps and both fresh review rounds per step are complete.
   The [remediation and closeout record](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-  owns current delivery, review and CI evidence; P02d-5 remains unmerged in PR #26.
+  owns delivery and review evidence. P02d-5 is complete and merged through
+  [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on 2026-10-09; its
+  [merge closeout](phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+  records final verification.
   P02d-6's public-renderer decision pass is next; the P7 browser demo remains later.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

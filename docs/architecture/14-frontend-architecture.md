@@ -147,8 +147,10 @@ provenance, a server-only configured transport and uncached institution renderin
 Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
 records all four completed steps and both independent review rounds per step.
 Frontend fences, no-skip outcomes and real-API production HTML/RSC proofs pass;
-P02d-5 remains unmerged while external-review remediation continues. P02d-6 owns
-public page consumers.
+P02d-5 and its external-review remediation are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26); the
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+records final verification. P02d-6 owns public page consumers.
 
 ADR-0054 retains API-owned tenant authority and membership-first locale entry.
 Its accepted native boundary admits GET/HEAD on every callback path, including

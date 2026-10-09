@@ -316,6 +316,15 @@ reviews and unmerged PR readiness live in the [five-step remediation record](../
 including its [corpus/PR closeout](../roadmap/phase-02d-walking-skeleton.md#remediation-step-5--corpus-and-pr-closeout).
 This adds delivery navigation, not a new decision or a claim that PR #26 is merged.
 
+### Amendment 6 — Merge closeout (2026-10-09)
+
+All five remediation steps are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+owns the final head, merge verification and CI evidence. The accepted decision,
+metadata and earlier delivery notes remain unchanged. This note records delivery
+only; P02d-6/7 and Phase 11 retain their named work.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

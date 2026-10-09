@@ -13,7 +13,7 @@
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
-> | P02d-5 | Server-rendering path | Original four steps delivered and reviewed, unmerged; external-review remediation in progress; [approval package](#p02d-5-external-review-remediation-2026-10-09) |
+> | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
@@ -97,6 +97,13 @@ public-renderer decision pass is next; no P6/P7 gate is closed by this delivery.
 and proof corrections are delivered. The [current remediation record](#p02d-5-external-review-remediation-2026-10-09)
 owns the five steps, their reviews and final PR/CI readiness. Earlier delivery
 notes remain historical; PR #26 is not merged.
+
+**P02d-5 merge complete — 2026-10-09.** The preceding notes record pre-merge
+milestones. P02d-5 is now closed through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26); its
+[merge closeout](#p02d-5-merge-and-closeout-2026-10-09) records the final head,
+verification and merge. Phase 02d remains in progress. P02d-6's public-renderer
+decision pass is next; P6/P7 implementation has not started.
 
 ## Goal
 
@@ -232,9 +239,11 @@ owner; where a choice is still open, it names the register row that answers it.
 
 P02d-1 implements Education's roots, translations, migration and isolation.
 P02d-2 implements its six commands and seeded data. P02d-3 supplies internal reads;
-P02d-4 supplies public endpoints and contract/SDK controls. What remains unimplemented:
-every renderer component; the configured trusted server SDK transport;
-any trusted-hop configuration; any Lighthouse tooling; and a `make demo` target.
+P02d-4 supplies public endpoints and contract/SDK controls. P02d-5 supplies native
+HTTPS ingress, coordinated anonymous admission, the configured trusted server
+caller and live-host/locale entry. Public product pages, text-card components,
+theme injection and accessibility remain P02d-6; the browser/demo/Lighthouse
+harness and phase exit remain P02d-7.
 
 ### Explicitly not in this phase
 
@@ -3329,13 +3338,13 @@ reads certificate/key files, resolved against the repository root.
 
 ### P02d-5 external-review remediation (2026-10-09)
 
-**Current status — Implementation and reviews complete (2026-10-09).** The
+**Current status — Complete and merged (2026-10-09).** The
 maintainer approved ADR-0054 and all five correction steps on development.
 Runtime, proof and corpus corrections complete both fresh independent review
-rounds and verified fixes. Step 5 records full local validation. [PR #26](https://github.com/HodeTech/LearnStack/pull/26)
-owns exact published-head CI results and final maintainer review readiness;
-local results never substitute for those six required checks. Original delivery,
-proposal and review notes below remain historical. PR #26 is unmerged.
+rounds and verified fixes. Step 5 records full local validation. The
+[merge closeout](#p02d-5-merge-and-closeout-2026-10-09) records PR #26's final
+head, six required checks and merge verification. Original delivery, proposal and
+review notes below remain historical; P6/P7 scope remains separate.
 
 Review reports are evidence to verify. The triage below compares their claims with
 `07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
@@ -3809,6 +3818,67 @@ GPT-6.1-sol high. Both rounds report no actionable design or corpus findings aft
 checking the changed contract against source, existing tests and pinned framework
 behavior. This approves the revised proposal for maintainer decision review;
 it does not accept ADR-0054 or establish runtime remediation/CI evidence.
+
+### P02d-5 merge and closeout (2026-10-09)
+
+The maintainer merged [PR #26](https://github.com/HodeTech/LearnStack/pull/26) at
+2026-10-09 15:45:36 UTC. GitHub records final PR head
+`f09a4edf3e00e7043f6775642e10e40024ab9393` and merge commit
+`863f5c1b0051c318a0326357c2fb65dded75afca`. The merge's second parent is that
+head, and both commits have the identical tree. Development is fast-forwarded to
+the verified merge without changing branches or rewriting history.
+
+- All six required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/37943884658).
+  Downloaded TRX confirms **2,940 passed, zero failed or skipped**: 1,705 unit,
+  198 architecture, four contract, 172 Docker-free integration and 861 Docker
+  integration. Frontend CI confirms **578 passed** (518 web, 60 SDK), zero
+  skips/todos, and successful typecheck, lint, production build and SDK drift.
+- Native HTTPS/Next verification and all **19 failure controls** pass in CI.
+  Real API/PostgreSQL HTML/RSC, build containment and parent-pipe cleanup proofs
+  remain part of the Docker suite. These are transport/runtime proofs, not P6
+  product-page or P7 browser/Lighthouse delivery.
+- The final review correction isolates fixture Git/hook environments from inherited
+  `GIT_*` variables and reconciles README/catalogue status. Eleven tooling and
+  seven ADR workflow cases pass locally under both invalid inherited Git settings
+  and the normal environment, with typecheck, lint, format and link checks clean.
+  The original four steps and five remediation steps retain their recorded
+  independent review rounds and verified fixes.
+- Read-only branch-protection verification confirms the same six required Actions
+  contexts and `strict: true`; no protection setting changes.
+
+All six required checks also pass in the
+[merge-commit run](https://github.com/HodeTech/LearnStack/actions/runs/37954123158).
+Independently downloaded merge-run TRX confirms the same 2,940 passing .NET cases
+with zero failures/skips. Frontend logs confirm the same 578 guarded cases and
+19 ingress controls. Both runs use the delivered Node 22.23.1 pin; the deferred
+Lighthouse job remains owned by P02d-7.
+
+**P02d-5 is closed.** The trusted native ingress, fair known-visitor accounting,
+bounded configured caller, live-host/locale entry, uncached rendering policy and
+source/runtime controls are delivered under ADR-0053/0054. No database migration,
+public API schema change or authentication/Hub flow is added by this packet.
+
+**Next: P02d-6 — Public renderer.** Its decision pass has not started. Re-verify
+G5's unavailable-band behavior, G12's page states, G16's rendering part, G20's
+subjects, G38(b,c) and G39–G43 against the delivered API and transport before
+implementation. The packet owns catalog, course-detail/outline and lesson pages,
+UI messages, ordered text-card rendering, safe theme injection, language/SEO
+metadata, page/error/empty/locked states and accessibility checks. Request-local
+bootstrap reuse and prefetch policy must also be settled before page consumers.
+
+P02d-7 owns `make demo`/stop behavior, the two-host browser/full-stack harness,
+Lighthouse activation and phase exit. Phase 11 owns production/distributed limits,
+load evidence, ingress topology, replay/key lifecycle and tracing participation.
+Phase 02d remains in progress; neither remaining packet nor Course Marketplace
+commerce is delivered by this closeout. Earlier dated records remain unchanged.
+
+**Documentation-only closeout validation.** Five local Release corpus cases and
+seven ADR lifecycle/workflow controls pass, with zero failures/skips. The eight
+changed Markdown files resolve 901 relative links and 393 fragments in the local
+audit; prose wrapping and diff checks pass. ADR-0053/0054 changes are insertion-only;
+earlier dated delivery records and P02d-1's decision/scope suffix are byte-preserved.
+This closeout changes no production code or accepted decision.
 
 ### P02d-1 decision pass (2026-09-14)
 

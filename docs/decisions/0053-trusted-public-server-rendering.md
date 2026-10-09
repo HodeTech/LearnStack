@@ -342,6 +342,15 @@ or local topology changes. The [remediation record](../roadmap/phase-02d-walking
 owns current status. Acceptance delivers no runtime correction or new test/CI
 result; each implementation step still owes validation and two independent reviews.
 
+### Amendment 8 — Merge closeout (2026-10-09)
+
+P02d-5 and its ADR-0054 remediation are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+owns the final head, merge verification and CI evidence. Original acceptance
+metadata and prior amendments remain historical. This delivery note changes no
+decision; P02d-6 product pages and P02d-7 browser/demo/Lighthouse remain separate.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

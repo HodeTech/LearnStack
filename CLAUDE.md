@@ -110,8 +110,11 @@ records final verification. P02d-5 delivers trusted public server rendering unde
 Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
 admission, the configured bounded server caller, live-host/locale entry and
 source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-is the current owner of implementation steps, independent reviews, validation and
-PR readiness. P02d-5 remains unmerged in [PR #26](https://github.com/HodeTech/LearnStack/pull/26).
+owns implementation steps, independent reviews and validation. **P02d-5 is complete
+and merged** through [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on
+2026-10-09. Its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+records final verification.
 Work stays on development. P02d-6's decision pass and product pages are next;
 P02d-7 owns the browser demo and Lighthouse. Neither packet is delivered by P5.
 

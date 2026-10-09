@@ -185,7 +185,7 @@ this launcher. Both processes read the same private root source; a web `.env.loc
 projection is optional and must match. No shell evaluates the values. Ordinary
 no-hop API startup remains supported outside this paired renderer recipe.
 
-**P02d-5 implements ingress, visitor budgets and public entry.** The web
+**P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default
 locales and refuses unavailable scope. The server caller enforces no-store,
 deadline/body limits and the closed authenticated hop. All four steps completed
