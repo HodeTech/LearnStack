@@ -3470,6 +3470,13 @@ targets; added prose wrapping and `git diff --check` pass. Existing Accepted ADR
 files are unchanged. These are proposal/document checks, not runtime remediation
 or new CI evidence.
 
+**Second independent proposal review — 2026-10-09.** Fresh GPT-6-sol xhigh design
+and GPT-6.1-sol high corpus reviewers approve `d8d540a` for maintainer decision
+approval with no remaining actionable findings. The design review independently
+checks zero-permit framework behavior and actual redirect value/order preservation.
+This closes the two proposal-review rounds; ADR-0054 remains Proposed and dependent
+implementation still requires the maintainer's explicit approval.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
