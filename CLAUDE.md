@@ -123,7 +123,7 @@ records the original four-step delivery. The maintainer accepted
 [ADR-0054](docs/decisions/0054-bounded-public-renderer-admission.md) and the
 [five-step remediation plan](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 on 2026-10-09. Remediation Step 1 implements coordinated anonymous accounting;
-independent review is pending. Steps 2–5 remain pending. Work continues on
+both independent review rounds passed. Steps 2–5 remain pending. Work continues on
 development. P02d-6's decision pass and public product pages
 are not started. P02d-7 still owns the browser demo and Lighthouse.
 

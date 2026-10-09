@@ -3722,7 +3722,7 @@ structural test proves — and what it does not.
   direct/SSR quotas, independent visitors, malformed/repeated metadata, rotation,
   pre-lookup novel-host bounds and the physical-peer ceiling. Positive public
   reads assert READ ONLY and the non-BYPASSRLS application role.
-- **Implemented replacement, independent review pending — 2026-10-09:**
+- **Implemented replacement, both review rounds passed — 2026-10-09:**
   ADR-0054 coordinated accounting is implemented by remediation Step 1.
   `AnonymousAdmissionTests` proves exhausted-known-visitor fairness, peer-gated
   allocation, last visitor/peer permit races, single creation, first-refusal

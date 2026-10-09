@@ -122,8 +122,8 @@ Internet
   [Phase 11](../roadmap/phase-11-production-hardening.md). Neither policy is
   per-tenant fairness: many client IPs can serve one tenant, while NAT users share
   an IP quota. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
-  accounting is **implemented — 2026-10-09; review pending**: remediation Step 1
-  owns visitor limiters under one process-local owner lock.
+  accounting is **implemented — 2026-10-09; both review rounds passed**. Remediation
+  Step 1 owns visitor limiters under one process-local owner lock.
   Exhausted known visitors refuse before peer debit; unknown visitor allocation
   remains peer-gated. The 600/min peer budget bounds successful peer acquisitions
   and new visitor allocations shared by visitors/tenants, not all attempts or

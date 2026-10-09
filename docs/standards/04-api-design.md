@@ -487,13 +487,13 @@ a limit, and the first version of this table was four of those.
 | URL length | 8 KiB | Kestrel (`MaxRequestLineSize`), server default |
 | Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
-| Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34 delivers both budgets. Fixed one-minute windows, no queue; no host/cookie partition. ADR-0054 coordinated accounting is implemented by remediation Step 1; independent review is pending. See below |
+| Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34 delivers both budgets. Fixed one-minute windows, no queue; no host/cookie partition. ADR-0054 coordinated accounting is implemented by remediation Step 1; both independent review rounds passed. See below |
 | Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 
 429 responses include `Retry-After`.
 
-**ADR-0054 accounting implemented — 2026-10-09; review pending.**
+**ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
 Remediation Step 1 probes an owned known visitor limiter with zero permits and returns
 its refusal before any peer debit. Successful peer acquisition gates unknown
 visitor allocation; the visitor is debited only after peer admission. The first

@@ -3326,7 +3326,7 @@ reads certificate/key files, resolved against the repository root.
 
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Remediation Step 1 is implemented with independent reviews pending;
+development. Remediation Step 1 is complete after both independent review rounds;
 Steps 2–5 remain pending. Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
@@ -3441,7 +3441,7 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: 1–5 pending implementation and review.** For each:
+development. **Current step status: Step 1 complete; Steps 2–5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3478,7 +3478,7 @@ after they actually run; implementation evidence belongs to the five steps above
 
 #### Remediation Step 1 — Coordinated anonymous admission
 
-**Implemented — 2026-10-09; independent reviews pending.** The API owns actual
+**Complete — 2026-10-09; both independent review rounds passed.** The API owns actual
 visitor fixed-window limiters, serialized acquisition and bounded periodic
 retirement. Exhausted known visitors return their unchanged refusal metadata
 before peer debit; peer refusal prevents unknown visitor allocation. Successful
@@ -3511,7 +3511,15 @@ test gap: eventual traversal did not constrain lock-batch size. The strengthened
 idle inspections, admits another request before release and verifies complete
 exact-once traversal. An actual `int.MaxValue` batch mutation fails the intended
 128-versus-300 assertion; restored-source focused tests pass 27/27 with zero
-skips. The production limiter is unchanged. Round 2 remains pending.
+skips. The production limiter is unchanged. The correction is committed as
+`a107df5`, following implementation commit `208d64f`.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve the corrected tree. Their independent runs pass
+56 focused unit cases and one endpoint-retry integration case, and 27 focused
+accounting/lifecycle cases plus the endpoint retry respectively, with zero skips.
+The remaining current-sequence status sentence is aligned in this closeout;
+no additional production change is needed. Step 1 is complete; Step 2 starts next.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
