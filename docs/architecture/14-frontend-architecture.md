@@ -72,7 +72,7 @@ frontend/
             sessions/
           api/                            # only thin BFF proxies, see "Data Fetching"
         components/
-          public/                         # P6 chrome/states; content views pending
+          public/                         # P6 chrome/states and catalog/course views
           blocks/                         # built-in primitive page blocks
           ui/                             # design-system primitives
         lib/

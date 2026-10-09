@@ -463,6 +463,13 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             restrictedSlug = restrictedTranslation?.Slug,
             restrictedTitle = restrictedTranslation?.Title,
             restrictedSummary = restrictedTranslation?.Summary,
+            restrictedCanaries = restricted?.Lessons.SelectMany(row => row.Translations.Where(item => item.Locale == locale))
+                .SelectMany(item =>
+                {
+                    using var content = JsonDocument.Parse(item.Body);
+                    return new[] { item.Title, item.Slug }.Concat(content.RootElement.EnumerateObject()
+                        .Select(field => field.Value.GetString()!)).ToArray();
+                }).Distinct(StringComparer.Ordinal).ToArray() ?? [],
             catalogEn,
             catalogDefault,
             hiddenEn = hidden.Select(row => row.Translations.Single(translation => translation.Locale == locale).Title).ToArray(),

@@ -401,6 +401,11 @@ function productDocument(response, tenant, locale, heading, path, direction = 'l
     'https://' + tenant.host + ':3000' + path,
     'Verified-host Open Graph URL',
   );
+  assert.equal(
+    doc.querySelector('link[rel="alternate"][hreflang="' + locale + '"]')?.getAttribute('href'),
+    'https://' + tenant.host + ':3000' + path,
+    'Eligible current locale has a canonical hreflang self-reference',
+  );
   assert.ok(doc.body.textContent.includes(tenant.name), 'Live tenant chrome');
   const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
   assert.equal(doc.body.textContent.includes(other.name), false, 'No opposite tenant chrome');
@@ -511,6 +516,18 @@ async function verifyFoundation(native, nextBin) {
   );
   assert.ok(yogaCourse.body.textContent.includes(second.courseSummary));
   assert.equal(
+    yogaCourse
+      .querySelector('link[rel="alternate"][hreflang="' + second.defaultLocale + '"]')
+      ?.getAttribute('href'),
+    'https://' +
+      second.host +
+      ':3000/' +
+      second.defaultLocale +
+      '/courses/' +
+      second.defaultCourseSlug,
+    'Other-locale hreflang uses its actual translated slug',
+  );
+  assert.equal(
     yogaCourse.querySelector(
       'ol.public-lesson-list a[href="' + course + '/lessons/' + second.lessonSlug + '"]',
     )?.textContent,
@@ -530,6 +547,11 @@ async function verifyFoundation(native, nextBin) {
   );
   assert.ok(turkishCourse.body.textContent.includes(second.defaultCourseSummary));
   assert.equal(
+    turkishCourse.querySelector('link[rel="alternate"][hreflang="en"]')?.getAttribute('href'),
+    'https://' + second.host + ':3000' + course,
+    'Translated course retains the eligible English reciprocal hreflang',
+  );
+  assert.equal(
     turkishCourse.querySelector(
       'ol.public-lesson-list a[href="' +
         turkishCoursePath +
@@ -544,8 +566,9 @@ async function verifyFoundation(native, nextBin) {
 
   stage = 'foundation restricted marketing';
   const restrictedPath = catalog + '/' + first.restrictedSlug;
+  const restrictedResponse = await request(first, restrictedPath);
   const restricted = productDocument(
-    await request(first, restrictedPath),
+    restrictedResponse,
     first,
     'en',
     first.restrictedTitle,
@@ -560,11 +583,13 @@ async function verifyFoundation(native, nextBin) {
     null,
     'Protected outline is absent',
   );
-  assert.equal(
-    restricted.body.textContent.includes('Giving reasons'),
-    false,
-    'Protected lesson title is absent',
-  );
+  assert.ok(first.restrictedCanaries.length > 0, 'Nonempty protected seed controls');
+  for (const canary of first.restrictedCanaries)
+    assert.equal(
+      restrictedResponse.body.includes(canary),
+      false,
+      'Protected value absent from HTML and Flight',
+    );
   await checkpoint('foundation-restricted');
 
   stage = 'foundation empty exact-locale catalog';

@@ -60,10 +60,7 @@ function course(): Extract<Resource, { kind: 'course' }> {
         level: null,
       },
       lessons: null,
-      alternates: [
-        { locale: 'tr', slug: 'temel' },
-        { locale: 'en', slug: 'foundation' },
-      ],
+      alternates: [{ locale: 'en', slug: 'foundation' }],
     },
   };
 }
@@ -109,6 +106,15 @@ describe('public metadata projection', () => {
     expect(metadata.openGraph).toMatchObject({ locale: 'tr', alternateLocale: ['en'] });
     expect(JSON.stringify(metadata)).not.toContain('/en/courses/temel');
     expect(JSON.stringify(metadata)).not.toContain('/ar/');
+  });
+
+  it('retains the eligible self-reference without API alternates or a supplied self alias', () => {
+    const resource = course();
+    resource.data.alternates = [];
+    const expected = { tr: 'https://school.example:3000/tr/courses/temel' };
+    expect(publicMetadata(resource, ui).alternates?.languages).toEqual(expected);
+    resource.data.alternates = [{ locale: 'tr', slug: 'wrong-current-slug' }];
+    expect(publicMetadata(resource, ui).alternates?.languages).toEqual(expected);
   });
 
   it.each([catalog, course])(

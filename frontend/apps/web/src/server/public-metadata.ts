@@ -80,9 +80,10 @@ export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
       : resource.data.alternates.map(
           ({ locale: language, slug }) => [language, coursePath(language, slug)] as const,
         );
-  const languages: Record<string, string> = {};
+  // Resource alternates intentionally exclude the current API locale.
+  const languages: Record<string, string> = { [locale]: canonical };
   for (const [language, alternatePath] of candidates) {
-    if (!site.enabledLocales.includes(language)) continue;
+    if (language === locale || !site.enabledLocales.includes(language)) continue;
     const alternate = publicUrl(context.host, alternatePath);
     if (alternate !== null) languages[language] = alternate;
   }

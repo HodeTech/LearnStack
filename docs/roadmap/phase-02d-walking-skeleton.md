@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) review rounds complete; [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) implemented, reviews pending; Steps 3–4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; Steps 3–4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4342,6 +4342,25 @@ path cases, fixture syntax and diff checks. Both traced adjacent admission and
 resource loaders, approved metadata/pagination boundaries and real fixture
 accounting. Neither started a build, server or Docker fixture; their pure checks
 supplement the implementation validation above. Round 2 remains pending.
+
+**Step 2 review round 2 — 2026-10-10.** Fresh GPT-6-astra xhigh runtime/security
+and GPT-6-sol xhigh proof/corpus agents reviewed `785c8c5..86f8ea1`. Both
+independently confirmed a missing course hreflang self-reference: the real API
+excludes the current locale from its alternate list, unlike the unit fixture.
+The fix explicitly uses the current validated canonical, preserves other eligible
+API slugs and refuses a supplied self alias. The corrected DTO fixture and actual
+production HTML assert self/translated/reciprocal URLs. Protected-content absence
+canaries now derive from seed lesson titles, slugs and values, with a nonempty
+control and full HTML/Flight checks. Two current architecture-tree comments now
+acknowledge delivered catalog/course views.
+
+Both reviewers inspected and approve the focused fixes, with no remaining
+concrete finding. The root passes 284 focused frontend cases, workspace typecheck,
+targeted lint, fixture syntax, scoped formatting and diff checks. All 17 focused
+Release production-rendering cases pass again, zero failures/skips, with the
+unchanged 52/18 call accounting and new real metadata/containment assertions.
+Local links/fragments and added prose checks pass. Step 2 is complete after both
+independent review rounds; Step 3 follows.
 
 ### P02d-1 decision pass (2026-09-14)
 

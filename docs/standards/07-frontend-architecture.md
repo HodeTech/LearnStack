@@ -44,7 +44,7 @@ frontend/
           layout.tsx           # root layout
         middleware.ts          # ingress verification and live locale/path admission
         components/
-          public/              # P6 Step 1 chrome/states; content views pending
+          public/              # P6 chrome/states and catalog/course views
         i18n/                  # ADR-0027 foundation implemented in P6 Step 1
           request.ts
           messages/
