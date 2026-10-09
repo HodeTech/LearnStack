@@ -4624,6 +4624,13 @@ actual screen-reader pass. The maintainer is asked to perform the remaining
 English/Turkish catalog → course → lesson screen-reader smoke. P6 and standards
 promotion remain pending that evidence; no production defect is demonstrated.
 
+The maintainer explicitly leaves the real screen-reader check pending on
+2026-10-10; this does not waive the accepted completion requirement. The
+temporary fixture stops cleanly with child exit 0, ports 3000/3011 are free and
+its disposable test container is gone. Existing developer services remain
+untouched. Resume this final check in a fresh manual fixture before packet
+closeout, standards promotion or the completed-implementation PR handoff.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
