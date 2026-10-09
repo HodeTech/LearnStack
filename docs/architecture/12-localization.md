@@ -215,8 +215,8 @@ Pattern B is cheaper for short fields where joining a translation table is overk
 [ADR-0008](../decisions/0008-localization-schema.md); the standard links here.
 [P02d-3's decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 records acceptance. Step 1 implements locale-carrying resolution; both review
-rounds passed. P02d-4 Step 3 supplies public response fields; language attributes
-remain P02d-6.
+rounds passed. P02d-4 Step 3 supplies public response fields; P02d-6 delivers
+language attributes.
 
 When the requested locale is unavailable:
 

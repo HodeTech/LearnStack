@@ -15,7 +15,7 @@ each with its own publication state and translation satellites; an ordered lesso
 list; and ADR-0051's bounded ordered plain-text lesson presentation (G18 in
 [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register)).
 P02d-4 delivers the public projection and P02d-5 its trusted transport; actual
-product pages remain P02d-6. Phase 05 adds the structure a real catalog needs:
+product pages are delivered by P02d-6. Phase 05 adds the structure a real catalog needs:
 programs, versioning, modules, lesson
 items, and tenant-defined item types.
 
@@ -60,8 +60,10 @@ public access from a new version or listing. This note claims no shipped column.
 
 **Current delivery — 2026-10-09.** P02d-2 delivered the policy column, restricted
 backfill and writers; P02d-4 delivered eligible public reads. Preserve those
-contracts through this phase's version/module migration. Renderer and browser
-proof remain P02d-6/7, not a prerequisite silently claimed as shipped here.
+contracts through this phase's version/module migration. P02d-6 delivers the
+bounded renderer and product/manual proofs; P02d-7 still owns the browser/demo
+harness. The [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records current implementation evidence.
 
 Phase 05 does not re-create these. Phase 02d's
 [delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
@@ -81,7 +83,7 @@ Each change follows [Database Standards § Migrations](../standards/05-database.
 | The customization definition read path — content types and taxonomies through the generation-keyed cache ([32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)) | The `TenantLessonItemType` read, the batched reference walk and the measured cost model |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
 
-**Accepted renderer inheritance — 2026-10-09; implementation pending.**
+**Accepted renderer inheritance — 2026-10-09; implemented by P02d-6.**
 The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 fixes exact-locale content, both opaque pagination surfaces, inert plain-text
 presentation and distinct restricted/empty/unavailable states. Its local 307→404

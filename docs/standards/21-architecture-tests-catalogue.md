@@ -6,7 +6,7 @@
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
 (accepted replacement proofs implemented),
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
-(P02d-6 rules Registered; complete proofs pending). The catalogue grows as
+(P02d-6 proofs implemented; manual smoke recorded). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -130,8 +130,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**160 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 53 are no less binding, and most could not live there. The table says where
+**165 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 58 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -4227,10 +4227,11 @@ verification pass; the delivery record owns execution evidence.
   semantics and retained rejected work. Planted strong maps, copied/value/caller
   keys, eager loads, rejection retries and exposed/additional collections fail.
   Its unit controls distinguish overlapping equal-header requests and subsequent
-  requests; this does not claim the pending complete P6 product-page proof.
+  requests; separate P6 modes below supply actual product-page proof.
   `PublicServerRenderingTests` proves cold/interleaved same-path HTML/RSC host
   isolation and next-request publication freshness as `learnstack_app`. It owns
-  disposable routes, not P6 product pages or P7 browser delivery.
+  disposable routes in transport mode and actual P6 product routes in separate
+  modes; P7 browser delivery remains outside this fixture.
 - **Phase:** 02d (P02d-5).
 
 ## P02d-6 public UI localization controls
@@ -4239,6 +4240,9 @@ The maintainer accepted ADR-0027 and the P6 decision package on 2026-10-09. The
 rules below are commitments before the first implementation; none is a passing
 test claim at acceptance. Existing P5 source/runtime controls remain mandatory,
 and P6 product proofs supplement the isolated synthetic transport fixture.
+P02d-6 implements the five rules below and completes its manual smoke on
+2026-10-10; the [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+owns execution, review and manual evidence.
 
 #### `Ui_Catalogues_Cover_Public_Call_Sites`
 
@@ -4249,7 +4253,8 @@ and P6 product proofs supplement the isolated synthetic transport fixture.
   fail. Public graphs include configuration and JSON catalogue dependencies.
 - **Source:** ADR-0027; Accepted P02d-6 G39.
 - **Type:** frontend catalogue/callsite + production build. **Kind:** structural.
-- **Status:** **Registered** — P02d-6 Step 1.
+- **Status:** **Implemented** — `frontend/apps/web/src/i18n/catalogues.test.ts`;
+  `PublicServerRenderingTests` production build, P02d-6.
 - **Phase:** 02d (P02d-6).
 
 #### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
@@ -4261,7 +4266,9 @@ and P6 product proofs supplement the isolated synthetic transport fixture.
   the real configuration without another authority carrier or bootstrap call.
 - **Source:** ADR-0027; Accepted P02d-6 G39 and G38(b,c).
 - **Type:** frontend mapping + actual production rendering. **Kind:** behavioural.
-- **Status:** **Registered** — P02d-6 Steps 1 and 4.
+- **Status:** **Implemented** — `PublicServerRenderingTests` actual foundation/
+  product-isolation modes, `frontend/apps/web/src/i18n/locale.test.ts` and
+  `frontend/apps/web/src/server/public-request.test.ts`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
 #### `Public_Theme_Emits_Only_Validated_Color_Tokens`
@@ -4272,7 +4279,9 @@ and P6 product proofs supplement the isolated synthetic transport fixture.
   Effective attribution alone controls the platform label, independently of theme.
 - **Source:** Accepted P02d-6 G16(g)/G42; Standards 07 § Tenant Branding.
 - **Type:** frontend pure mapping + rendered document. **Kind:** behavioural.
-- **Status:** **Registered** — P02d-6 Step 1.
+- **Status:** **Implemented** — `PublicServerRenderingTests` foundation/
+  product-isolation modes and
+  `frontend/apps/web/src/components/public/foundation.test.tsx`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
 #### `Public_Pages_Preserve_Approved_Response_States`
@@ -4284,7 +4293,9 @@ and P6 product proofs supplement the isolated synthetic transport fixture.
   tests observe actual status, visible HTML, call counts, freshness and no leaks.
 - **Source:** Accepted P02d-6 G40/G38(b,c); ADR-0053/0054.
 - **Type:** actual production Next/API/PostgreSQL. **Kind:** behavioural.
-- **Status:** **Registered** — P02d-6 Steps 1–4.
+- **Status:** **Implemented** — `PublicServerRenderingTests` foundation/pagination/
+  presentation/product-freshness modes and
+  `frontend/apps/web/src/server/public-resource.test.ts`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
 #### `Public_Pages_Expose_Localized_Accessible_Semantics`
@@ -4296,7 +4307,11 @@ and P6 product proofs supplement the isolated synthetic transport fixture.
   320 CSS px reflow, contrast and screen-reader evidence; they do not replace it.
 - **Source:** Accepted P02d-6 G43; Standards 16 § Testing.
 - **Type:** frontend lint/DOM + actual production HTML. **Kind:** structural.
-- **Status:** **Registered** — P02d-6 Steps 1–4; manual evidence remains separate.
+- **Status:** **Implemented** — `PublicServerRenderingTests` product-page HTML
+  assertions, `frontend/apps/web/src/test/accessibility-lint.test.ts` and
+  `frontend/apps/web/src/components/public/lesson.test.tsx`, P02d-6. Manual
+  keyboard/focus/reflow/contrast and maintainer VoiceOver evidence remain separate
+  in the packet closeout; these tests do not claim a full accessibility audit.
 - **Phase:** 02d (P02d-6).
 
 ## References

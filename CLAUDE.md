@@ -133,7 +133,11 @@ with actual-config planted controls. Its
 owns verification and review status. Step 4 adds concurrent host/locale, theme,
 freshness and content-fault product proofs; its
 [delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records both completed review rounds and the pending manual accessibility handoff.
+records both completed review rounds. **P02d-6 implementation is complete —
+2026-10-10, unmerged**: the
+[packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records passing manual browser checks and the maintainer's VoiceOver smoke.
+Maintainer PR review and merge remain pending.
 P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
 the full renderer/Studio expansion.
 

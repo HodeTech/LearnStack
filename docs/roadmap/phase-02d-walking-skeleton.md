@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation), [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages), [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) and [Step 4 product proof](#p02d-6-step-4-product-proof-and-accessibility-closeout) implemented with both review rounds complete; actual manual accessibility closeout pending |
+> | P02d-6 | Public renderer | ✅ implementation complete — 2026-10-10; all four steps and both review rounds per step complete; manual accessibility passed; [packet closeout](#p02d-6-packet-closeout-2026-10-10); maintainer PR review/merge pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -118,6 +118,13 @@ the local 307→404 URL change, HTTP 200/noindex content-failure states and four
 implementation steps. The acceptance commit closes its named gate parts and
 reconciles their carriers before code. Every step uses commits and two fresh
 independent review rounds. Development remains the working branch.
+
+**P02d-6 implementation complete — 2026-10-10, unmerged.** All four steps and
+both independent review rounds per step are complete. The
+[packet closeout](#p02d-6-packet-closeout-2026-10-10) records automated verification,
+manual browser observations and the maintainer's passing VoiceOver smoke.
+P02d-6 awaits maintainer PR review and merge. P02d-7's demo, browser/Lighthouse
+harness and phase-exit decision pass are next; they have not started.
 
 ## Goal
 
@@ -4452,7 +4459,7 @@ explicit.
 
 ### P02d-6 Step 4: Product proof and accessibility closeout
 
-**Implemented; manual closeout pending — 2026-10-10.** The unchanged product routes now
+**Complete — 2026-10-10.** The unchanged product routes now
 have dedicated `product-isolation` and `product-freshness` modes in
 `PublicServerRenderingTests` / `verify-public-rendering.mjs`. P5's synthetic
 transport mode and the foundation, pagination and presentation modes remain
@@ -4492,8 +4499,8 @@ foundation/pagination/presentation modes retain 52/18/46. Full backend regressio
 passes as recorded below; both review rounds are complete after their fixes.
 Automated checks do not establish manual accessibility. The dated walkthrough
 below records keyboard, focus, 320 CSS px reflow and contrast observations;
-the actual screen-reader pass remains pending. P6 completion and Accessibility
-promotion remain pending that final evidence.
+the maintainer's subsequent VoiceOver confirmation closes the remaining
+screen-reader check in the packet closeout below.
 
 #### Step 4 review round 1 (2026-10-10)
 
@@ -4630,6 +4637,52 @@ temporary fixture stops cleanly with child exit 0, ports 3000/3011 are free and
 its disposable test container is gone. Existing developer services remain
 untouched. Resume this final check in a fresh manual fixture before packet
 closeout, standards promotion or the completed-implementation PR handoff.
+
+#### P02d-6 packet closeout (2026-10-10)
+
+The preceding pending notes record earlier attempts. The manual fixture is
+restarted from unchanged production routes at `180dde0`, using the same
+Brave/macOS environment recorded above, real API/application role, read-only
+transactions and native HTTPS. The maintainer performs the actual VoiceOver
+smoke and explicitly confirms both checks:
+
+- English (`english.localhost:3000/en`): catalog → English foundations →
+  Present simple passes without an observed issue.
+- Yoga (`yoga.localhost:3000/tr-TR`): catalog → Stüdyo temelleri → Ağaç duruşu
+  passes without an observed issue.
+- On both flows, headings, links, skip navigation and lesson field label → value
+  order are understandable. The maintainer also confirms reading the missing-page
+  and invalid-link messages and following their catalog recovery links.
+
+This is maintainer-reported real VoiceOver evidence, separate from the agent's
+earlier keyboard, focus, 320 CSS px desktop reflow and calculated contrast checks.
+It does not claim a full WCAG audit, mobile-device test, zoom-conformance result
+or Arabic screen-reader pass. The owned fixture stops cleanly with child exit 0;
+ports 3000/3011 are free, its disposable container is removed and existing
+developer services remain untouched.
+
+All four implementation steps and both fresh review rounds per step are complete.
+The automated totals and scope remain those recorded above: 2,945 passing backend
+cases and 1,065 passing guarded frontend cases, zero failures/skips/todos.
+The manual closeout permits Accessibility Standards to become Active and the
+five P6 catalogue entries to become Implemented; the automated checks named by
+those entries are already present. The closure change updates documentation only.
+Final corpus/link validation and two fresh documentation reviews follow before
+the implementation PR is handed to the maintainer.
+
+Closeout validation passes all 198 Release architecture cases, including the
+corpus guards, with zero failures/skips, and all seven ADR-workflow tests. A local
+inline-link audit, excluding fenced and inline code, checks 2,217 relative links
+and 678 fragments in 34 Markdown files changed against `origin/main`; no file or
+fragment is missing. This remains a manual audit, not a new CI anchor check.
+Added prose and diff checks pass. No production code or test changes accompany
+this closeout.
+
+P02d-6 implementation is complete; PR review and merge remain separate. P02d-7
+owns `make demo`, the browser/full-stack CI harness, Lighthouse activation and the
+Phase 02d exit checks. Its decision pass must close G20/G33/G38/G44/G45's remaining
+parts before implementation. Full Playwright/axe and the expanded renderer/Studio
+remain Phase 06; no later packet is delivered by this closeout.
 
 ### P02d-1 decision pass (2026-09-14)
 

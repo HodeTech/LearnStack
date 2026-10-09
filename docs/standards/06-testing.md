@@ -202,7 +202,7 @@ read-only transactions, native HTTPS, closed hop headers and fixture containment
 Step 4 adds deterministic overlapping host/locale lanes, authored RTL content,
 whole-theme fallback, next-document freshness and one-shot content-failure modes.
 The [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-owns execution and review evidence; manual accessibility remains pending.
+owns execution, review evidence and the completed manual accessibility smoke.
 
 Assert visible HTML/DOM separately from Flight: status, `lang`/`dir`, headings,
 theme, attribution, both hosts/locales, cross-tenant absence, overlapping concurrent

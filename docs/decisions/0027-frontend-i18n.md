@@ -305,6 +305,22 @@ or historical amendment. Phase 04 consumes the implemented UI foundation;
 Phase 06 owns the full renderer/Studio and Playwright/axe expansion, and P02d-7
 owns the browser demo and Lighthouse activation.
 
+### Amendment 3 — P02d-6 manual accessibility closeout (2026-10-10)
+
+P02d-6 completes its four implementation steps and two independent review rounds
+per step. The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records keyboard, focus, 320 CSS px desktop reflow and calculated contrast
+observations, followed by the maintainer's passing real VoiceOver checks on the
+English and Turkish catalog → course → lesson flows and missing/invalid-link
+recovery views. The earlier pending amendments remain historical.
+
+Accessibility Standards becomes Active for delivered public-page enforcement;
+the five P6 catalogue entries become Implemented with named existing tests.
+Implementation is complete; maintainer PR review and merge remain separate.
+This delivery note changes no accepted decision and claims no full WCAG audit,
+Arabic screen-reader check or zoom-conformance result. P02d-7 still owns the
+browser demo/Lighthouse and Phase 06 owns full Playwright/axe expansion.
+
 ## References
 
 - [ADR-0008 — Localization Schema](0008-localization-schema.md)

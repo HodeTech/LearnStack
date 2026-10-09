@@ -30,9 +30,10 @@ Worth stating plainly, because a walking skeleton is easy to over-read:
 
 [Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. Its API
 and trusted server transport are delivered through P02d-5; three product pages
-(catalog, course-detail/outline and lesson) remain P02d-6, with browser/demo proof
-in P02d-7. There is no learner, enrollment, access grant, progress row or
-learner-side write path. The anonymous lesson has no "mark complete" control.
+(catalog, course-detail/outline and lesson) are delivered by P02d-6, with
+browser/demo proof in P02d-7. There is no learner, enrollment, access grant,
+progress row or learner-side write path. The anonymous lesson has no "mark complete"
+control.
 
 Manual enrollment, invitation enrollment, lesson progress and resume-learning are
 new construction in this phase. The portal shell belongs to
@@ -42,7 +43,7 @@ What Phase 07 inherits from 02d is narrow and read-side only: `Course` and
 host-based tenant and organization resolution works end to end, and the public content
 path exists to contrast the entitled one against.
 
-**Accepted UI inheritance — 2026-10-09; implementation pending in P02d-6.**
+**Accepted UI inheritance — 2026-10-09; implemented by P02d-6.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9
 and app-local `src/i18n/messages/<locale>/<namespace>.json`. Learner screens add
 feature UI namespaces through the Phase 06 portal shell, preserving complete

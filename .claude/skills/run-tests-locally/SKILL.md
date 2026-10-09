@@ -178,8 +178,8 @@ accessibility closeout remains required and P7 owns the browser demo.
 > Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
 > remains disabled. Accepted P02d-6/G43 requires failing applicable `jsx-a11y`
 > rules, localized page semantics and a real manual screen-reader smoke. These
-> lint and product-semantic controls are implemented. Actual manual evidence remains
-> pending in the P6 delivery record. P5's production HTML/RSC mode proves transport;
+> lint and product-semantic controls are implemented. Passing manual evidence is
+> recorded in the P6 delivery record. P5's production HTML/RSC mode proves transport;
 > P6's separate product modes still do not claim a browser/a11y audit.
 
 ### Step 7: Single-test focus

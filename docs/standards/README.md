@@ -80,8 +80,8 @@ loaders, chrome/states and atomic theme injection. Its
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation validation and review evidence. Steps 2–3 implement actual
 catalog/course/lesson views, pagination/metadata and blocking JSX accessibility
-controls. Step 4 implements automated product HTML/Flight proofs; manual
-accessibility closeout remains pending. P7 owns
+controls. Step 4 implements automated product HTML/Flight proofs and completes
+manual accessibility, including maintainer-reported VoiceOver. P7 owns
 demo/browser/Lighthouse. Acceptance alone promotes no standard or test status.
 
 **The documents and this table say the same thing, and a test holds them to it.**
@@ -109,7 +109,7 @@ included.
 | 13 | [Documentation](13-documentation.md) | **Active** | Governs this corpus; the CI link audit walks changed Markdown. |
 | 14 | [Git Workflow](14-git-workflow.md) | **Active** | Conventional Commits, hooks and required checks are live. Two branch-protection settings — `Require approvals` and `Do not allow bypassing` — are **deferred by maintainer decision (2026-08-10)** while the repository has one active contributor; the trigger and what activating them involves are recorded in [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md). P02d-1 repaired and re-read the live required-check list on 2026-09-14: all five active jobs, including the current meta name and Docker integration, are required with GitHub Actions attribution and strict up-to-date checking. P02d-4 activates the sixth `openapi diff` context after a successful real job and verifies every other setting unchanged. [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main) owns the current list; the [P02d-4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci) records activation verification. |
 | 15 | [Performance](15-performance.md) | **Adopted** | No budget is measured and no load test exists. Enforcement lands in [Phase 11](../roadmap/phase-11-production-hardening.md). Accepted P02d-5 G44 assigns Lighthouse activation to P02d-7 after P6 pages; P7 selects the harness and assertions. The job remains disabled. [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) owns the decision; any status promotion lands with its enforcement. |
-| 16 | [Accessibility](16-accessibility.md) | **Adopted** | P6 Steps 2–3 deliver catalog/course/lesson pages. Accepted G43 requires applicable jsx-a11y error rules with actual-config planted controls, actual-page semantic/language proofs and manual keyboard/focus/reflow/contrast/screen-reader evidence. Step 1 supplies chrome/state semantics; Steps 2–3 add catalog/course/lesson semantics. Step 3 blocks all 31 active recommended jsx-a11y rules with per-rule actual-config dirty/clean controls; Step 4 adds automated product HTML/Flight proofs and completes both review rounds. Actual manual evidence remains pending. Promotion occurs with enforcement. Full Playwright/axe remains [Phase 06](../roadmap/phase-06-renderer-admin-studio.md); Accepted G44 assigns Lighthouse to P02d-7 after P6. |
+| 16 | [Accessibility](16-accessibility.md) | **Active** | P6 delivers catalog/course/lesson and controlled-state semantics, all 31 active recommended jsx-a11y rules at error severity with per-rule actual-config dirty/clean controls, and real product HTML/Flight proofs. The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10) records keyboard/focus/reflow/contrast observations and the maintainer's passing VoiceOver smoke. This is enforcement for delivered public-page scope, not a full WCAG audit. Full Playwright/axe remains [Phase 06](../roadmap/phase-06-renderer-admin-studio.md); Accepted G44 assigns Lighthouse to P02d-7 after P6. |
 | 17 | [Code Review](17-code-review.md) | **Active** | Applied to every pull request merged so far; the zero-tolerance blocker list is in live use. |
 | 18 | [Audit Coverage](18-audit-coverage.md) | **Active** | Packet 9 lit the write path under [ADR-0033](../decisions/0033-audit-durability-model.md) and [ADR-0044](../decisions/0044-audit-write-path.md): classification at step 3, MUST rows on the business transaction before `COMMIT`, `audit_log` / `audit_config` with their append-only layers, and the catalogue ↔ matrix join enforced in both directions and per request type by `AuditCoverageTests`. Retention and partitioning are [Phase 11](../roadmap/phase-11-production-hardening.md)'s. |
 | 19 | [Permissions](19-permissions.md) | **Adopted** | No permission key, policy or role exists. Lands in [Phase 03](../roadmap/phase-03-identity-admin.md). |
@@ -126,12 +126,12 @@ Step 3 adds Education eligibility, scoped seek pages and bounded content/label
 projections with HTTP/database proof. Step 4 adds served/snapshot equality,
 recursive DTO guards, generated SDK/drift and breaking-policy CI controls.
 
-Nineteen `Active`, three `Adopted`. Packet 10 moved five: the frontend rules, the one-app
+Twenty `Active`, two `Adopted`. Packet 10 moved five: the frontend rules, the one-app
 rule, the locale invariants, the out-of-band setters and the port bans are all mechanical
 now, and a standard whose rules a test enforces is `Active` by this document's own
-definition. The three that remain are the honest ones — no budget is measured, there is no
-interface to audit, and no permission key exists — and each names the phase that will
-promote it. That split is far more useful to a reviewer than twenty-two identical labels.
+definition. P02d-6 promotes Accessibility with blocking lint/semantic controls and
+recorded manual evidence. Performance and Permissions remain Adopted: no budget is
+enforced and no permission key exists. Each names the phase that will promote it.
 
 ## Relationship to ADRs
 

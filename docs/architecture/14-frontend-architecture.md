@@ -38,7 +38,7 @@ independent opaque pagination and metadata. Step 3 adds ordered lesson fields,
 language attribution and eligible metadata. Step 4 adds concurrent host/locale,
 theme, freshness and content-fault product proofs. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-owns validation, review status and pending manual accessibility closeout.
+owns validation, completed reviews and passing manual accessibility closeout.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -430,8 +430,10 @@ harness and assertions. The decision is recorded in
   jsx-a11y error rules with planted controls. Manual keyboard, focus, reflow/zoom,
   contrast and real screen-reader evidence for catalog → course → lesson names
   commit, environment and both hosts/locales. Automated product proofs and blocking
-  lint controls are implemented; manual evidence and packet completion remain
-  pending. See
+  lint controls are implemented; the
+  [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+  records passing manual browser checks and maintainer-reported VoiceOver evidence.
+  See
   [Testing Standards](../standards/06-testing.md#frontend-test-types); HTTP/RSC
   proofs do not claim browser E2E or full Playwright/axe delivery.
 - Color contrast is verified for every branded theme, including the merged tenant and

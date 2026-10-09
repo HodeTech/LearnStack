@@ -314,7 +314,7 @@ UI independently; it neither rewrites the seed nor claims an Arabic UI catalogue
 Step 1 implements direction selection and labelled fallback chrome; Step 2
 proves an empty admitted Arabic catalog in production. Step 3 adds per-field
 label direction. Step 4 adds eligible authored RTL content with concurrent
-host/locale HTML/Flight proofs. Actual manual accessibility remains pending in
+host/locale HTML/Flight proofs. Passing manual accessibility is recorded in
 the [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout).
 
 ## Admin Studio UI

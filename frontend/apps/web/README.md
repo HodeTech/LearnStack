@@ -25,7 +25,8 @@ Exact scaffold roots continue only after bootstrap; enabled locale membership ta
 precedence. P02d-6 implements localized catalog/course/lesson pages, ordered
 plain-text presentation, safe four-color themes and G40 page states. Its
 [product closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records current verification and pending manual accessibility/review work.
+records completed verification, reviews and passing manual accessibility.
+P6 awaits maintainer PR review and merge.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),

@@ -96,7 +96,8 @@ required OpenAPI check is active, with all other live protection settings preser
 Trusted server rendering is delivered by P02d-5. P02d-6 implements localized
 catalog/course/lesson pages, ordered text fields, safe themes and metadata; its
 [product closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records completed automated verification/reviews and pending manual accessibility.
+records completed automated verification/reviews and passing manual accessibility.
+P02d-6 implementation is complete; maintainer PR review and merge remain pending.
 The browser demo remains P02d-7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
@@ -110,7 +111,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes and generated typed SDK | Public-page accessibility closeout in P02d-6; two-tenant browser demo in [P02d-7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Two-tenant browser demo and Lighthouse in [P02d-7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.

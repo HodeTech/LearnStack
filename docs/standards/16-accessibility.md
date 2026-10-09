@@ -1,6 +1,6 @@
 # 16 — Accessibility Standards
 
-**Status:** Adopted
+**Status:** Active
 **Derives from:** WCAG 2.2 AA (external authoritative standard), [00-principles.md](00-principles.md) § 6 (Foundation First).
 Public-page obligations also follow [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
@@ -108,12 +108,13 @@ clean controls through the actual app configuration in
 `src/test/accessibility-lint.test.ts`. Synchronous catalog/course/lesson and state
 views have semantic/language cases. Product-page HTML/DOM proofs now cover
 titles, languages, one main, one descriptive h1, sequential headings, semantic
-lists/definition lists and skip targets, including controlled states. Visible
-focus, logical layout and long-string wrapping still require actual manual
-observation. Acceptance does not promote this
-standard: it stays **Adopted** while actual manual proof is pending. Step 4's
+lists/definition lists and skip targets, including controlled states. Actual
+keyboard, focus, 320 CSS px reflow, long-string and contrast observations plus
+the maintainer's passing VoiceOver smoke complete P6's manual requirement on
+2026-10-10. Enforcement and recorded observation promote this standard to
+**Active** for delivered public-page scope. Step 4's
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-owns automated product execution and the remaining manual closeout.
+owns automated execution and manual evidence; this is not a full WCAG audit.
 
 Catalog → course → lesson is a critical flow requiring manual keyboard, focus,
 320 CSS px reflow/zoom, long-string, contrast and real screen-reader smoke evidence.

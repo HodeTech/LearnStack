@@ -782,7 +782,7 @@ arrives with the aggregate it edits, per [§ 12](#12-phasing).
 > P02d-4's accepted G16(f/g) contract applies baseline colors independently of plan;
 > effective `tenancy.white_label_branding` removes LearnStack attribution only.
 > Public theme/attribution projection is delivered by P02d-4 Step 2;
-> browser rendering remains P02d-6. Advanced Studio branding remains
+> browser rendering is delivered by P02d-6. Advanced Studio branding remains
 > Phase 06 scope, separate from the four-color contract.
 
 ## 11. Hard architectural invariants

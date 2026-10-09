@@ -245,7 +245,7 @@ loaders, chrome, state views and atomic theme injection. Step 2 adds catalog/cou
 views; Step 3 adds ordered lesson views. Step 4 adds concurrent host/locale, theme,
 freshness and failure-state product proofs. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-owns verification, review status and pending manual accessibility evidence.
+owns verification, completed reviews and passing manual accessibility evidence.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
 production routes exercise the real API. P6 product modes copy the actual public
 routes separately; the synthetic transport mode cannot shadow those pages.

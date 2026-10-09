@@ -40,4 +40,5 @@ remain explicit developer steps. Start `make public-api` in another terminal.
 The native ingress serves the configured tenant hosts over HTTPS on port 3000.
 Direct stock `next dev/start` is unsupported. P6 implements localized public
 catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-tracks remaining review/manual accessibility work. P7 owns the browser/demo harness.
+records completed reviews and passing manual accessibility. P7 owns the browser/demo
+harness; P6 awaits maintainer PR review and merge.

@@ -8,8 +8,8 @@ catalog pages, campaign pages, and tenant-defined page blocks.
 
 [Phase 02d](phase-02d-walking-skeleton.md) delivers the anonymous read API and trusted
 server transport through P02d-5. Catalog, course-detail/outline and lesson product
-pages remain P02d-6; the two-host browser/demo proof remains P02d-7. Its bounded
-renderer uses fixed section names and ADR-0051's ordered plain-text profile.
+pages are delivered by P02d-6; the two-host browser/demo proof remains P02d-7.
+Its bounded renderer uses fixed section names and ADR-0051's ordered plain-text profile.
 This phase adds an authored, versioned, localized content system that a tenant
 admin drives from Admin Studio, including the richer primitive field set.
 
@@ -39,8 +39,9 @@ this phase's responsibility. The
 [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 records accepted page/status behavior; its
 [Step 1 delivery record](phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
-owns foundation verification. Actual content pages and product proofs remain
-later P02d-6 steps.
+owns foundation verification. Steps 2–4 deliver actual content pages and product
+proofs; the [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records passing manual accessibility smoke.
 
 ## Scope
 

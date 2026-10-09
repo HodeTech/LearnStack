@@ -8,8 +8,8 @@ learner-facing and instructor-facing screen after this phase is built into.
 
 [Phase 02d](phase-02d-walking-skeleton.md) delivers the public read API and trusted
 server transport through P02d-5. P02d-6 owns catalog, course-detail/outline and
-lesson pages, now implemented with product proofs and manual accessibility
-closeout pending. P02d-7 owns the unbuilt browser/demo harness. This phase deepens
+lesson pages, now implemented with product proofs and passing manual accessibility
+smoke. P02d-7 owns the unbuilt browser/demo harness. This phase deepens
 that bounded path with authored navigation,
 tenant error pages, complete block composition and editing surfaces.
 
@@ -22,7 +22,7 @@ and a non-developer tenant admin can maintain it.
 
 ### What Phase 02d supplies
 
-Rows identify implemented P02d-6 scope; its closeout remains pending. Planned
+Rows identify implemented P02d-6 scope; its PR review and merge remain pending. Planned
 P02d-7 work is not current behavior.
 
 | Phase 02d foundation | Phase 06 adds |
