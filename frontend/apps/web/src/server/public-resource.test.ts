@@ -276,7 +276,7 @@ describe.each([
       }),
       target.includes('/lessons/') ? 'unavailable' : 'invalid_cursor',
     ],
-    ['failure', apiError(503, { code: 'validation_failed' }), 'unavailable'],
+    ['failure', apiError(503, { code: 'validation_failed', fieldErrors: {} }), 'unavailable'],
     [
       'failure',
       apiError(503, { code: 'dependency_unavailable', provider: 'private provider' }),

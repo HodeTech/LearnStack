@@ -4443,8 +4443,10 @@ The result matrix tests both boundaries without displaying backend diagnostics.
 This is a defensive case, not a reproduced admitted normal-path API failure.
 
 Both reviewers approve the focused mapping fix with no new concrete finding. The
-root passes 176 focused frontend cases, zero failures/skips/todos, workspace
-typecheck and diff checks. Both independent rounds are complete; Step 4 follows.
+root passes 176 focused frontend cases, zero failures/skips/todos. Final typecheck
+requires the negative test DTO's mandatory empty `fieldErrors`; it is corrected,
+and all 53 resource cases and workspace typecheck pass. Diff checks pass. Both
+independent rounds are complete; Step 4 follows.
 Actual product RTL/fault/concurrency and manual accessibility obligations remain
 explicit.
 
