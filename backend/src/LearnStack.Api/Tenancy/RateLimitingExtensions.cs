@@ -34,7 +34,9 @@ namespace LearnStack.Api.Tenancy;
 /// ADR-0053 / P02d-5 G34 uses a canonical visitor-IP budget shared by direct and
 /// authenticated-hop traffic, plus a physical-peer ceiling. Only a network-and-
 /// secret authenticated hop may state the visitor; invalid trusted metadata spends
-/// the peer fallback budget before masked refusal. Phase 02b owns token budgets.
+/// the peer fallback budget before masked refusal. ADR-0054 coordinates admission
+/// so known visitor refusals do not burn peer permits and new visitor allocation
+/// remains peer-gated. Total refusal work is not bounded. Phase 02b owns token budgets.
 /// </para>
 /// </remarks>
 public static class RateLimitingExtensions
@@ -60,11 +62,8 @@ public static class RateLimitingExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<AnonymousRequestIdentity>();
-        // DI owns shutdown. Neither RateLimiterOptions nor the chain owns members.
-        // Peer first: exhausted peers cannot mint additional visitor partitions.
-        services.AddSingleton(_ => new NoQueueAdmissionLimiter(
-            Budget(identity => identity.PeerKey, PeerPermitPerWindow),
-            Budget(identity => identity.VisitorKey, AnonymousPermitPerWindow)));
+        // DI owns the coordinated registry, periodic sweep and peer budget.
+        services.AddSingleton(_ => new NoQueueAdmissionLimiter(CreatePeerBudget()));
         services.AddOptions<RateLimiterOptions>().Configure<NoQueueAdmissionLimiter>(
             (options, limiter) => options.GlobalLimiter = limiter);
         services.AddRateLimiter(options =>
@@ -90,13 +89,13 @@ public static class RateLimitingExtensions
         return services;
     }
 
-    private static PartitionedRateLimiter<HttpContext> Budget(Func<AnonymousVisitor, string> key, int permits) =>
+    internal static PartitionedRateLimiter<HttpContext> CreatePeerBudget() =>
         PartitionedRateLimiter.Create<HttpContext, string>(context =>
             RateLimitPartition.GetFixedWindowLimiter(
-                key(context.RequestServices.GetRequiredService<AnonymousRequestIdentity>().For(context)),
+                context.RequestServices.GetRequiredService<AnonymousRequestIdentity>().For(context).PeerKey,
                 _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = permits,
+                    PermitLimit = PeerPermitPerWindow,
                     Window = Window,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,

@@ -3326,10 +3326,10 @@ reads certificate/key files, resolved against the repository root.
 
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Decision acceptance is recorded here; runtime implementation, step
-reviews and validation remain pending. No new passing suite count, runtime fix or
-merge readiness is claimed. Original delivery/proposal/review notes below remain
-historical; the five steps own new implementation evidence.
+development. Remediation Step 1 is implemented with independent reviews pending;
+Steps 2–5 remain pending. Original delivery/proposal/review notes below remain
+historical; the five steps own new implementation evidence. PR #26 remains
+unmerged and is not ready for final review.
 
 Review reports are evidence to verify. The triage below compares their claims with
 `07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
@@ -3475,6 +3475,34 @@ local work; do not rewrite the branch or merge PR #26.
 No remediation acceptance or passing-test count is inferred from the earlier
 `07016405` CI run. Preparation checks and independent document reviews are recorded
 after they actually run; implementation evidence belongs to the five steps above.
+
+#### Remediation Step 1 — Coordinated anonymous admission
+
+**Implemented — 2026-10-09; independent reviews pending.** The API owns actual
+visitor fixed-window limiters, serialized acquisition and bounded periodic
+retirement. Exhausted known visitors return their unchanged refusal metadata
+before peer debit; peer refusal prevents unknown visitor allocation. Successful
+and refused HTTP outcomes are copied into independent request-local leases,
+including ASP.NET's retry after an endpoint policy refuses. Teardown closes
+admission, joins active sweeping and disposes children outside the owner lock.
+
+Focused controls cover both final-permit races, single creation, both-budget
+Retry-After selection, cancellation, replay/lease independence, more than two
+sweep batches, non-overlap, full-quota idle retirement, actual .NET automatic
+replenishment and concurrent teardown. Real HTTP accounting freezes only test
+budget replenishment, retaining actual fixed-window implementations, so minute
+rollover cannot invalidate exact accounting. The application-role/read-only
+controls retain their original runtime path. No incoming-traffic or production
+throughput bound is claimed.
+
+**Validation — 2026-10-09.** Strict Release solution build passes with zero
+warnings/errors. All 2,922 .NET tests pass without failures/skips: 1,702 unit,
+198 architecture, four contract, 172 Docker-free integration and 846 Docker
+integration. The focused accounting/lifecycle set passes 27 cases; the real
+endpoint-retry proof and 17 trusted-visitor HTTP cases pass. TRX execution/zero-skip
+checks and changed-source format verification pass; the format workspace loader
+reports a warning without a formatting violation. Corpus consistency is rechecked
+at 5/5 after the status edits. Both fresh review rounds remain pending.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

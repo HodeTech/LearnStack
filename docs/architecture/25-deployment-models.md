@@ -121,15 +121,14 @@ Internet
   lands, which [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates to
   [Phase 11](../roadmap/phase-11-production-hardening.md). Neither policy is
   per-tenant fairness: many client IPs can serve one tenant, while NAT users share
-  an IP quota. Current peer-first accounting also charges requests later refused
-  by the visitor quota. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
-  is **Accepted, not implemented — 2026-10-09**: remediation Step 1 replaces that
-  accounting with owned visitor limiters under one process-local owner lock.
+  an IP quota. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
+  accounting is **implemented — 2026-10-09; review pending**: remediation Step 1
+  owns visitor limiters under one process-local owner lock.
   Exhausted known visitors refuse before peer debit; unknown visitor allocation
   remains peer-gated. The 600/min peer budget bounds successful peer acquisitions
   and new visitor allocations shared by visitors/tenants, not all attempts or
   refusal-response work. It is an allocation-rate bound, not a fixed global
-  cardinality cap. Neither current nor accepted accounting bounds total incoming
+  cardinality cap. This accounting does not bound total incoming
   network/refusal cost. [Security Standards](../standards/11-security.md#rate-limiting)
   own lifecycle, replay and Retry-After obligations; the
   [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)

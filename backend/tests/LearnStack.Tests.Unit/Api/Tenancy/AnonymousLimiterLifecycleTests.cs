@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using System.Threading.RateLimiting;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
@@ -35,18 +34,16 @@ public sealed class AnonymousLimiterLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task The_registered_owner_disposes_each_child_budget_once_on_both_paths(bool asynchronous)
+    public async Task Admission_owner_disposes_each_child_budget_once_on_both_paths(bool asynchronous)
     {
         using var provider = Provider();
         var peer = new TrackedBudget();
-        var visitor = new TrackedBudget();
-        // Exercise the actual registered owner without exposing an internal API
-        // merely for tests or relying on the framework's private timer fields.
-        var constructor = Global(provider).GetType().GetConstructor(
-            BindingFlags.Instance | BindingFlags.Public, [typeof(PartitionedRateLimiter<HttpContext>[])]);
-        constructor.Should().NotBeNull();
-        var owner = (PartitionedRateLimiter<HttpContext>)constructor!.Invoke(
-            [new PartitionedRateLimiter<HttpContext>[] { peer, visitor }]);
+        var visitor = new TrackedVisitorBudget();
+        var owner = new NoQueueAdmissionLimiter(peer, () => visitor, RateLimitingExtensions.Window, TimeProvider.System);
+        var context = new DefaultHttpContext { RequestServices = provider };
+        context.Connection.RemoteIpAddress = IPAddress.Loopback;
+        using var admitted = owner.AttemptAcquire(context);
+        admitted.IsAcquired.Should().BeTrue();
         if (asynchronous) await owner.DisposeAsync();
         else owner.Dispose();
         owner.Dispose();
@@ -74,9 +71,9 @@ public sealed class AnonymousLimiterLifecycleTests
         public int AsyncDisposals { get; private set; }
         public override RateLimiterStatistics? GetStatistics(HttpContext resource) => null;
         protected override RateLimitLease AttemptAcquireCore(HttpContext resource, int permitCount) =>
-            throw new InvalidOperationException("This probe observes ownership, not acquisitions.");
+            new AcquiredLease();
         protected override ValueTask<RateLimitLease> AcquireAsyncCore(HttpContext resource, int permitCount, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("This probe observes ownership, not acquisitions.");
+            ValueTask.FromResult<RateLimitLease>(new AcquiredLease());
         protected override void Dispose(bool disposing)
         {
             if (disposing) Disposals++;
@@ -87,6 +84,39 @@ public sealed class AnonymousLimiterLifecycleTests
             Disposals++;
             AsyncDisposals++;
             await base.DisposeAsyncCore();
+        }
+    }
+
+    private sealed class TrackedVisitorBudget : RateLimiter
+    {
+        public int Disposals { get; private set; }
+        public int AsyncDisposals { get; private set; }
+        public override TimeSpan? IdleDuration => null;
+        public override RateLimiterStatistics? GetStatistics() => null;
+        protected override RateLimitLease AttemptAcquireCore(int permitCount) => new AcquiredLease();
+        protected override ValueTask<RateLimitLease> AcquireAsyncCore(int permitCount, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<RateLimitLease>(new AcquiredLease());
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) Disposals++;
+            base.Dispose(disposing);
+        }
+        protected override async ValueTask DisposeAsyncCore()
+        {
+            Disposals++;
+            AsyncDisposals++;
+            await base.DisposeAsyncCore();
+        }
+    }
+
+    private sealed class AcquiredLease : RateLimitLease
+    {
+        public override bool IsAcquired => true;
+        public override IEnumerable<string> MetadataNames => [];
+        public override bool TryGetMetadata(string metadataName, out object? value)
+        {
+            value = null;
+            return false;
         }
     }
 }

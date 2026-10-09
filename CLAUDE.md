@@ -122,8 +122,9 @@ HTML/RSC controls; both independent review rounds and fix verification pass.
 records the original four-step delivery. The maintainer accepted
 [ADR-0054](docs/decisions/0054-bounded-public-renderer-admission.md) and the
 [five-step remediation plan](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-on 2026-10-09; implementation and its review/validation evidence remain pending.
-Work continues on development. P02d-6's decision pass and public product pages
+on 2026-10-09. Remediation Step 1 implements coordinated anonymous accounting;
+independent review is pending. Steps 2–5 remain pending. Work continues on
+development. P02d-6's decision pass and public product pages
 are not started. P02d-7 still owns the browser demo and Lighthouse.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

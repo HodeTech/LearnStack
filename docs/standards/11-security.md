@@ -480,12 +480,13 @@ and redirect/query rules. These are the ongoing security obligations:
 
 P02d-5 delivers this boundary, with verified remaining gaps tracked in the
 [external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
-ADR-0054 is Accepted, not implemented: remediation Step 1 replaces current
-peer-first accounting; Step 2 implements native method/upgrade and URL controls.
+ADR-0054 accounting is implemented by remediation Step 1, with independent
+review pending. Step 2 native method/upgrade and URL controls remain pending.
 Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
 production upgrades close and development retains only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
-for the accepted controls; existing runtime behavior remains until those steps.
+for the accepted native controls; their existing runtime behavior remains until
+Step 2.
 
 
 ## File Uploads
@@ -555,9 +556,8 @@ pre-lookup admission, with real-socket controls. This is local limiting, not
 distributed DDoS protection. NAT/local loopback callers share an IP quota; budgets
 count API calls.
 
-**ADR-0054 Accepted, not implemented — 2026-10-09.** Peer-first accounting
-remains current runtime behavior until remediation Step 1. The replacement owns
-the actual visitor limiters, with one process-local owner lock across all visitor
+**ADR-0054 accounting implemented — 2026-10-09; review pending.**
+Remediation Step 1 owns the actual visitor limiters, with one process-local owner lock across all visitor
 keys and physical peers. The lock serializes positive acquisition, creation and
 retirement; no network/database work, `await` or disposal runs under it. One-minute
 fixed windows, 60/min per canonical IP, 600/min per peer and no queue remain. No

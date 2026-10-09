@@ -265,6 +265,19 @@ Retain real HTTP/app-role integration evidence alongside deterministic accountin
 tests. Register final rule names with their enforcing implementation; claim delivery
 only after these tests and both independent review rounds pass.
 
+## Amendments
+
+### Amendment 1 — Accounting implementation (2026-10-09)
+
+**Delivery note; independent reviews pending.** P02d-5 remediation Step 1
+implements the anonymous-accounting portion of this Accepted decision, including
+owned visitor limiters, request-result snapshots, bounded idle sweeping and joined
+DI teardown. Native method/upgrade and URL controls remain pending Step 2. The
+original acceptance status records the state when accepted; implementation does
+not rewrite it. Concrete execution and review evidence lives in the
+[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-1--coordinated-anonymous-admission)
+and ongoing [catalogue entry](../standards/21-architecture-tests-catalogue.md#anonymous_requests_are_rate_limited_per_peer).
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

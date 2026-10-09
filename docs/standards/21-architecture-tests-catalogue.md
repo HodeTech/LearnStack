@@ -3722,19 +3722,22 @@ structural test proves — and what it does not.
   direct/SSR quotas, independent visitors, malformed/repeated metadata, rotation,
   pre-lookup novel-host bounds and the physical-peer ceiling. Positive public
   reads assert READ ONLY and the non-BYPASSRLS application role.
-- **Accepted replacement, proofs pending — 2026-10-09:** ADR-0054 replaces
-  peer-first accounting. Remediation Step 1 has not implemented or verified it;
-  prior P5 tests/counts remain historical evidence for the original policy.
-  Required replacement proofs cover exhausted-known-visitor refusal without peer
-  debit, unknown-allocation gating, shared direct/hop quota, parallel last-permit
-  admission, first-refusal Retry-After (including both exhausted), and successful/
-  refused same-request replay through real endpoint-policy retry. Deterministic
-  owner/sweep controls must prove bounded refusal work, cancellation, independent
-  lease disposal, whole-registry bounded sweeping, safe idle retirement and
-  acquisition/shutdown races with exact-once disposal on both DI paths. Retain
-  real HTTP/app-role and admitted-traffic peer-ceiling controls. Register final
-  enforcing names when implementation selects them; these obligations are not
-  new passing catalogue entries.
+- **Implemented replacement, independent review pending — 2026-10-09:**
+  ADR-0054 coordinated accounting is implemented by remediation Step 1.
+  `AnonymousAdmissionTests` proves exhausted-known-visitor fairness, peer-gated
+  allocation, last visitor/peer permit races, single creation, first-refusal
+  Retry-After, request-result replay, cancellation and independent leases. Its
+  sweep controls prove whole-registry bounded traversal, non-overlap, full-quota
+  idle retirement, real fixed-window replenishment and shutdown/acquisition safety.
+  `AnonymousLimiterLifecycleTests` retains both DI teardown paths and exact-once
+  child disposal. `AnonymousAdmissionRetryTests` exercises actual ASP.NET endpoint
+  refusal/retry with successful and refused global outcomes, without double debit.
+  `TrustedVisitorHttpTests` supplies
+  `Known_visitor_refusals_preserve_all_remaining_peer_permits_before_lookup`, which
+  replaces the old refusal-debit proof: 60 admissions and 270 refusals leave 540
+  peer permits. The independent physical-peer ceiling, direct/hop namespace and
+  real HTTP/app-role controls remain enforced. Historical counts describe their
+  original executions; remediation evidence belongs to the new delivery record.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 

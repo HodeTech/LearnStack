@@ -209,19 +209,22 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
     }
 
     [Fact]
-    public async Task Visitor_refusals_charge_the_peer_once_and_preserve_its_remaining_allowance()
+    public async Task Known_visitor_refusals_preserve_all_remaining_peer_permits_before_lookup()
     {
         using var host = new SocketHost(fixture);
         for (var index = 0; index < 330; index++)
         {
             using var response = await Send(host, "/healthz", "203.0.113.1", SeedData.English.Host);
-            response.StatusCode.Should().Be(index < 60 ? HttpStatusCode.OK : HttpStatusCode.TooManyRequests);
+            response.StatusCode.Should().Be(index < RateLimitingExtensions.AnonymousPermitPerWindow
+                ? HttpStatusCode.OK : HttpStatusCode.TooManyRequests);
         }
-        // 330 actual requests have spent 330 peer permits, including 270 IP refusals.
-        // Framework AttemptAcquire/AcquireAsync must not charge those refusals twice.
-        for (var index = 0; index < 270; index++)
+        // Only the 60 admitted requests spent peer permits. The 270 known-visitor
+        // refusals leave 540 permits, including ASP.NET's asynchronous retry.
+        var remaining = RateLimitingExtensions.PeerPermitPerWindow - RateLimitingExtensions.AnonymousPermitPerWindow;
+        for (var index = 0; index < remaining; index++)
         {
-            var visitor = "203.0.113." + (index / 60 + 2).ToString(CultureInfo.InvariantCulture);
+            var visitor = "203.0.113." + (index / RateLimitingExtensions.AnonymousPermitPerWindow + 2)
+                .ToString(CultureInfo.InvariantCulture);
             using var response = await Send(host, "/healthz", visitor, SeedData.English.Host);
             response.StatusCode.Should().Be(HttpStatusCode.OK, "request {0} is within the physical allowance", index + 331);
         }
@@ -258,6 +261,13 @@ public sealed class TrustedVisitorHttpTests(PublicReadFixture fixture)
                 }
                 builder.ConfigureTestServices(services =>
                 {
+                    // Keep the production fixed-window/no-queue limiters and quotas,
+                    // but freeze replenishment so socket-test duration cannot reset them.
+                    services.RemoveAll<NoQueueAdmissionLimiter>();
+                    services.AddSingleton(_ => new NoQueueAdmissionLimiter(
+                        FrozenAnonymousPeerBudget.Create(),
+                        () => NoQueueAdmissionLimiter.CreateVisitorBudget(autoReplenishment: false),
+                        RateLimitingExtensions.Window, TimeProvider.System));
                     services.RemoveAll<IHostToTenantResolver>();
                     services.RemoveAll<IHostResolutionInvalidator>();
                     services.AddSingleton<CachedHostToTenantResolver>();

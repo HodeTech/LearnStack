@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.Features;
 
 namespace LearnStack.Api.Tenancy;
 
-/// <summary>One request-local identity for ADR-0053's visitor and physical-peer budgets.</summary>
+/// <summary>One request-local identity for ADR-0053/0054's visitor and peer budgets.</summary>
 public sealed class AnonymousRequestIdentity(EffectiveHostAccessor hosts)
 {
     public const string VisitorHeaderName = "X-LearnStack-Visitor-Address";
@@ -21,7 +21,7 @@ public sealed class AnonymousRequestIdentity(EffectiveHostAccessor hosts)
         var stated = context.Request.Headers[VisitorHeaderName];
         var visitor = trusted && stated.Count == 1 ? ParseAddress(stated[0]) : null;
         var identity = new AnonymousVisitor(peerKey, visitor ?? peerKey, trusted && visitor is null);
-        // Both chained partitions and the pre-lookup refusal use the same capture.
+        // Coordinated admission and the pre-lookup refusal use the same capture.
         context.Features.Set(identity);
         return identity;
     }
