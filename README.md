@@ -192,7 +192,7 @@ deadline/body limits and the closed authenticated hop. All four steps completed
 both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
 [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-owns current review/CI evidence for unmerged PR #26. Public pages are P02d-6;
+owns current review/CI evidence. Public pages are P02d-6;
 the two-host browser demo with `make demo` is P02d-7. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.

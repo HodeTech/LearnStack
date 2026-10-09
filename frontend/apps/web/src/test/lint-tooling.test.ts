@@ -112,14 +112,17 @@ describe('shared CI and staged web lint subjects', () => {
       chmodSync(join(bin, 'leakwatch'), 0o700);
       mkdirSync(dirname(join(root, file)), { recursive: true });
       writeFileSync(join(root, file), 'export const probe = 1;\n');
-      execFileSync('git', ['init', '-q'], { cwd: root });
-      execFileSync('git', ['add', '.'], { cwd: root });
+      const gitEnvironment = { ...process.env };
+      for (const key of Object.keys(gitEnvironment))
+        if (key.startsWith('GIT_')) delete gitEnvironment[key];
+      execFileSync('git', ['init', '-q'], { cwd: root, env: gitEnvironment });
+      execFileSync('git', ['add', '.'], { cwd: root, env: gitEnvironment });
       expect(() =>
         execFileSync('bash', [join(repository, '.githooks/pre-commit')], {
           cwd: root,
           env: {
-            ...process.env,
-            PATH: bin + ':' + process.env.PATH,
+            ...gitEnvironment,
+            PATH: bin + ':' + gitEnvironment.PATH,
             LEARNSTACK_LINT_CONTROL_LOG: join(root, 'calls'),
           },
           stdio: 'pipe',

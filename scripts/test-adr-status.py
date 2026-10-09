@@ -56,8 +56,9 @@ class LifecycleTests(unittest.TestCase):
             (root / 'scripts/adr-status.py').write_text(SCRIPT.read_text())
             record = root / 'docs/decisions/0052-fixture.md'
             record.parent.mkdir(parents=True)
+            git_env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
             def git(*args):
-                return subprocess.check_output(['git', *args], cwd=root, text=True).strip()
+                return subprocess.check_output(['git', *args], cwd=root, env=git_env, text=True).strip()
             git('init', '-q')
             git('config', 'user.name', 'ADR fixture')
             git('config', 'user.email', 'fixture@example.invalid')
@@ -68,7 +69,7 @@ class LifecycleTests(unittest.TestCase):
             record.write_text(record.read_text().replace('Original.', 'Changed.'))
             git('add', '.')
             git('-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'Fixture edit')
-            env = {**os.environ, 'EVENT_NAME': 'push', 'PUSH_BEFORE_SHA': base}
+            env = {**git_env, 'EVENT_NAME': 'push', 'PUSH_BEFORE_SHA': base}
             result = subprocess.run(['bash', '-c', script], cwd=root, env=env, capture_output=True, text=True)
             self.assertEqual(1, result.returncode)
             self.assertIn('UNDISCLOSED: docs/decisions/0052-fixture.md', result.stdout)
