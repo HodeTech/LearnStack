@@ -3442,8 +3442,7 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Step 1 complete; Step 2 implemented/review
-pending; Steps 3–5 pending.** For each:
+development. **Current step status: Steps 1–2 complete; Steps 3–5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3525,7 +3524,7 @@ no additional production change is needed. Step 1 is complete; Step 2 starts nex
 
 #### Remediation Step 2 — Native ingress and URL boundary
 
-**Implemented — 2026-10-09; independent reviews pending.** Native HTTP admission
+**Complete — 2026-10-09; both independent review rounds passed.** Native HTTP admission
 accepts GET/HEAD before Next on every callback path; other callback methods receive
 masked no-store 404. Node retains parser-level refusals, including TRACK, and no
 CONNECT tunnel is admitted. Production closes every upgrade. Development permits
@@ -3552,7 +3551,7 @@ production build passes. The real API/PostgreSQL production-rendering case passe
 trace, freshness and containment. The actual native TLS fixture passes all-path
 method/HEAD, matcher, query, production closure, DEBUG and retained development
 HMR controls; its original planted cleanup control also passes. Corpus consistency
-passes 5/5 and diff checks are clean. Both fresh review rounds remain pending.
+passes 5/5 and diff checks are clean.
 
 The DEBUG canary caught a pinned-library detail during implementation: an empty
 DEBUG is deleted by debug initialization. The final nonempty `-*` exclusion is set
@@ -3561,7 +3560,18 @@ process and dotenv canaries. Next development route discovery also requires a
 fixture-owned source copy, whereas production uses its existing compiled output.
 These are verified fixture/runtime corrections, not new product contracts.
 
-Fixture ownership/containment and source/tooling remediation remain Steps 3–4.
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve implementation commit `458a1dd` without verified
+findings. Independent focused runs pass 257 and 218 frontend cases respectively;
+the runtime reviewer also compares ten targets with the installed Next adapter.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve the same tree without verified findings. Focused
+runs pass 125 and 218 frontend cases; the latter also passes all five corpus
+consistency cases. These reviewers inspect the committed fixed-port fixture
+proofs without rerunning them. Step 2 is complete; no corrective runtime commit
+is required. Fixture ownership/containment and source/tooling remediation remain
+Steps 3–4.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

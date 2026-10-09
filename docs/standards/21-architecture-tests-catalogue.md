@@ -4139,7 +4139,7 @@ of structural detection.
 
 ## P02d-5 public server rendering controls
 
-**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
+**ADR-0054 native/URL controls complete — 2026-10-09; both reviews passed.**
 Remediation Step 2 extends the rules below. `verify-ingress.mjs` exercises the
 real native launcher over TLS: GET/HEAD on ordinary, scaffold and matcher-exempt
 health/assets; unsupported callback methods never reaching Next/bootstrap;

@@ -103,7 +103,7 @@ flowchart TD
 
 ## Native Admission and URL Identity
 
-**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
+**ADR-0054 native/URL controls complete — 2026-10-09; both reviews passed.**
 Remediation Step 2 implements these controls. Concrete execution and review
 evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
 
