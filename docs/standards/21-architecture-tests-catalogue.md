@@ -4153,8 +4153,8 @@ refusal of suffix aliases and inert ordered redirect query data. The real-API
 `PublicServerRenderingTests` fixture verifies restored Flight protocol inputs
 through the pinned Next adapter, with five GET probes and HEAD causing exactly six
 live bootstrap calls. The delivery record owns execution and independent review
-results. Step 3 implements fixture reliability/containment with reviews pending;
-source-guard remediation remains Step 4.
+results. Step 3 completes fixture reliability/containment after both review rounds
+and verified fixes; source-guard remediation remains Step 4.
 
 `fixture-support.test.ts` exercises positive environment construction, sticky
 split/early output verdicts, exact EOF boundaries, retained trees after cleanup

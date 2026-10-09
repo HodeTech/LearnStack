@@ -3326,9 +3326,8 @@ reads certificate/key files, resolved against the repository root.
 
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Remediation Steps 1–2 are complete after both independent review
-rounds. Step 3 implements fixture reliability/containment with independent reviews
-pending; Steps 4–5 remain pending.
+development. Remediation Steps 1–3 are complete after both independent review
+rounds and verified fixes. Steps 4–5 remain pending.
 Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
@@ -3443,8 +3442,7 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Steps 1–2 complete; Step 3 implemented with
-reviews pending; Steps 4–5 pending.** For each:
+development. **Current step status: Steps 1–3 complete; Steps 4–5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3628,7 +3626,14 @@ prove the fixes; the early-output control now includes an actual delimiter.
 Focused helpers pass 31/31, the real ingress matrix passes 19/19 and the guarded
 frontend runner passes 495 cases (435 web, 60 SDK), with zero skips/todos.
 Changed-source lint passes. The original implementation counts above remain
-historical. Fresh round 2 is pending; Steps 4–5 remain pending.
+historical. The real API/PostgreSQL renderer rerun also passes 15/15.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve `131a933` without actionable findings. The runtime
+reviewer independently passes 31 helper/process-group cases, the normal real
+native ingress and all 19 source-mutant controls. The proof reviewer independently
+passes 31 helpers and five Release corpus cases. Step 3 is complete after both
+rounds and verified fixes. Source/tooling and final closeout remain Steps 4–5.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
