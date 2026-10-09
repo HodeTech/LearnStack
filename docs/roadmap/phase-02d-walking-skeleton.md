@@ -3447,8 +3447,8 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Steps 1–3 complete; Step 4 implemented with reviews
-pending; Step 5 pending.** For each:
+development. The current status above and per-step records below own progress.
+For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3752,6 +3752,14 @@ prefetch decisions and accessibility; P7 owns the browser/demo/Lighthouse harnes
 Phase 11 owns distributed/edge limits, contention/load evidence, production
 topology, replay/key lifecycle and tracing participation. These corrections add no
 API schema, database migration, tenant resolver, authentication flow or Hub crossing.
+
+**Review round 1.** Fresh GPT-6-astra xhigh corpus/governance and GPT-6.1-sol high
+DX/evidence reviewers verify `2b5b6ac` against current source and actual reports.
+One confirmed Minor finding is fixed: a second mutable step-status sentence still
+said Step 4 reviews/Step 5 were pending. It now points to the section's current
+status and per-step records. Whole-PR added-prose verification also wraps two
+long standard/catalogue lines. Both reviewers approve after the verified
+correction; no production change is needed. Round 2 and exact-head CI remain pending.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

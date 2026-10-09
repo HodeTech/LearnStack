@@ -4177,7 +4177,8 @@ actual staged hook invocations; `frontend-runner.test.ts` refuses symlinked pack
 and test sources. `scripts/test-adr-status.py` exercises the lifecycle parser and
 actual CI disclosure block against an Accepted record with a delivery banner.
 `TrustedVisitorHttpTests` includes
-`Repeated_raw_secret_headers_spend_the_exhausted_direct_fallback_budget`; it observes two real Kestrel secret fields before proving fallback refusal and a fresh
+`Repeated_raw_secret_headers_spend_the_exhausted_direct_fallback_budget`;
+it observes two real Kestrel secret fields before proving fallback refusal and a fresh
 single-field positive control. `PublicLocalLaunchTests` launches the actual local
 API script with app credentials and an isolated empty user-secret root, without a
 PlatformAdmin credential. Mapped-peer and strict dotted-tail unit controls pin

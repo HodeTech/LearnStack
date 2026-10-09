@@ -556,7 +556,8 @@ count API calls.
 
 **ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
 Remediation Step 1 owns the actual visitor limiters, with one process-local owner
-lock across all visitor keys and physical peers. The lock serializes positive acquisition, creation and
+lock across all visitor keys and physical peers. The lock serializes positive
+acquisition, creation and
 retirement; no network/database work, `await` or disposal runs under it. One-minute
 fixed windows, 60/min per canonical IP, 600/min per peer and no queue remain. No
 request retains a limiter removed by retirement.
