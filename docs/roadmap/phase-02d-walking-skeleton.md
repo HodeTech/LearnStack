@@ -3339,10 +3339,15 @@ replaces only these ADR-0053 contracts if the maintainer accepts it:
    creation peer-gated. Own the actual visitor limiters and coordinate acquisition,
    idle retirement and request-result replay. Preserve 60/IP, 600/peer, fixed
    windows, no queue, the direct/hop shared namespace and pre-lookup enforcement.
+   Retain a 600-per-window peer-debit/allocation cap, not a total refusal-traffic
+   cap. One process-local owner lock serializes acquisition and bounded cleanup
+   batches; Phase 11 owns contention measurement and upstream protection.
 2. Admit GET/HEAD on the current native public/scaffold surface; give other methods
    masked no-store `404` before Next. Close all production upgrades; development
    retains only required validated HMR. Future BFF/auth routes require explicit
    admission in Phase 02b. No public API method or authentication rule changes.
+   The native rule covers every HTTP path, including middleware-exempt health and
+   assets; future Phase 06 Server Actions/write routes need their own admission.
 3. Preserve inert query values, duplicates and ordering in redirects, allowing the
    supported serializer's equivalent percent encoding. Stop promising identical
    raw query bytes. Keep raw signed route identity and pinned framework projection.
@@ -3363,7 +3368,7 @@ production trust/distribution evidence, owned by Phase 11.
 
 | Finding group | Verified result | Action in this PR |
 |---|---|---|
-| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement ADR-0054 only after approval; prove refusal fairness and peer-gated allocation independently. Retain the intentional aggregate cap |
+| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement ADR-0054 only after approval; prove refusal fairness, bounded work per refusal and peer-gated allocation independently. Retain the admitted-call/allocation cap; total refusal traffic is outside it |
 | Framework endpoint retry | Current global-only wiring charges once. Adding an endpoint policy reproduces a second global debit after success | Save successful and refused request outcomes in the new owner; test actual endpoint-policy retry now |
 | Next URL projection, M1 | Valid query values ending `.rsc` are changed by the adapter's full-URL normalization and rejected by the current verifier | Mirror pinned adapter processing, while retaining the signed raw target for route/locale identity. Test query cases and unrelated routes; add no suffix aliases |
 | Proxy header sanitation, M2 | Native parsed/raw headers retain `x-real-ip`, bare `x-forwarded` and vendor authority spellings. Current downstream/API allowlists prevent authority escalation | Strip the explicit forwarding/authority carrier set from both collections; prove mixed-case controls and unchanged signed socket identity |
@@ -3436,7 +3441,10 @@ local work; do not rewrite the branch or merge PR #26.
 
 1. **Coordinated anonymous admission.** Implement the owned visitor limiter and
    cleanup/retry semantics; deterministic accounting, parallel last-permit/creation,
-   safe retirement, endpoint-retry, cancellation/disposal and real HTTP controls.
+   safe retirement, endpoint-retry, selected Retry-After, cancellation/disposal and
+   real HTTP controls. Replace the named peer-refusal accounting test identified in
+   ADR-0054, retain admitted-traffic controls, and prove bounded per-refusal work,
+   non-overlapping/eventually complete sweeps and shutdown/acquisition safety.
 2. **Native ingress and URL boundary.** Fix pinned projection, header sanitation,
    debug containment, method/upgrade admission, query wording/Location proof,
    powered-by and exact matcher. Retain real HTML/RSC, valid TLS and development HMR
@@ -3476,6 +3484,21 @@ approval with no remaining actionable findings. The design review independently
 checks zero-permit framework behavior and actual redirect value/order preservation.
 This closes the two proposal-review rounds; ADR-0054 remains Proposed and dependent
 implementation still requires the maintainer's explicit approval.
+
+**External ADR review clarification — 2026-10-09.** All six findings are verified
+against the current limiter, HTTP tests, native launcher and app route census.
+ADR-0054 now distinguishes the admitted-call/allocation budget from total refusal
+traffic, names the test whose peer-debit expectation must change, and specifies
+the process-wide lock, refusal metadata precedence and lifecycle proof obligations.
+It records native admission across middleware exemptions, separate identification
+control and the missing carrier/reference links. The app currently has GET health
+and no POST handler or Server Action; real launcher controls remain implementation
+obligations. Prior reviews/counts remain historical. ADR-0054 stays Proposed;
+these documentation clarifications accept no decision and deliver no runtime fix.
+Release `CorpusConsistencyTests` pass 5/5, with zero failures/skips. The two changed
+Markdown files resolve 456 relative links and 283 fragment targets in a manual
+audit; added prose wrapping and `git diff --check` pass. All phase text outside
+this remediation section and every Accepted ADR file remain unchanged.
 
 ### P02d-1 decision pass (2026-09-14)
 

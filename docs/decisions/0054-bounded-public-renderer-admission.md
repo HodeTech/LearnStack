@@ -4,9 +4,12 @@
 
 Proposed — maintainer approval required before implementing the changed contracts.
 ADR-0053 remains Accepted; this proposal closes no gate and claims no delivery.
+The Decision below defines the proposed contract, binding only on acceptance.
 
 **Date:** 2026-10-09
 **Deciders:** @cemil
+**Proposed supersession:** ADR-0053, limited to accounting, native method/upgrade
+admission and redirect-query wording; effective only if this proposal is Accepted.
 
 ## Decision Drivers
 
@@ -39,8 +42,6 @@ public web listener accepts GET/HEAD and closes unsupported production upgrades.
 Redirects retain inert query values and ordering through the supported URL
 serializer, without promising byte-identical percent encoding.
 
-The following contracts become binding only if this proposal is Accepted.
-
 ### Anonymous accounting
 
 Keep 60 calls/minute per canonical visitor IP and 600 calls/minute per physical peer,
@@ -49,8 +50,10 @@ authenticated-hop traffic retain one visitor namespace. Invalid trusted visitor
 metadata retains the current peer-IP fallback and masked refusal behavior.
 
 The admission owner holds the actual visitor limiter instances, rather than a
-parallel cache of guessed membership. Serialize positive acquisition, creation and
-retirement through the same short in-process critical section:
+parallel cache of guessed membership. One process-local owner lock, shared across
+all visitor keys and physical peers, serializes positive acquisition, creation and
+retirement. No network/database work, `await` or limiter disposal runs under this
+lock; it introduces no rate-limit waiting queue. The acquisition order is:
 
 1. For an existing visitor, make a zero-permit availability probe. If it refuses,
    return its refusal/Retry-After without acquiring a peer permit.
@@ -59,6 +62,10 @@ retirement through the same short in-process critical section:
 3. For a new visitor, create its limiter only now. Acquire one visitor permit.
    No competing positive visitor debit or retirement can occur between the probe
    and this debit; replenishment can only increase availability.
+
+Use the selected refusal's Retry-After unchanged: the visitor probe's value when
+it refuses, otherwise the peer refusal's value. If both budgets are exhausted,
+the visitor refusal wins; do not combine their metadata or probe the peer for it.
 
 Do not debit a visitor merely to obtain failure metadata after a statistics check;
 replenishment can race that check. Do not call an opaque partition lookup to test
@@ -80,18 +87,41 @@ limiters in one peer window. It is not a fixed global cardinality cap; retained
 state depends on active peers/windows and is reclaimed when idle. Do not introduce
 an unbounded second identity registry or claim distributed memory/DDoS protection.
 
-The 600-call peer ceiling remains an aggregate capacity limit. Ten legitimate
-visitors can exhaust it; NAT users still share an IP quota. The correction prevents
-already-exhausted visitors from spending the remaining peer budget. Budgets count
-API calls: middleware bootstrap consumes one call per admitted HTTP request,
-including prefetch; product-page calls consume additional permits.
+The peer budget allows at most 600 successful peer acquisitions and new visitor
+allocations per peer window. Only requests eligible for visitor admission spend
+peer permits; the budget does not bound all attempts or refusal-response work.
+An exhausted known visitor can generate arbitrarily many 429 responses without
+spending peer permits. Each still costs transport parsing, identity verification,
+lock/probe work and response generation. Its admission path performs no registry
+sweep, new limiter allocation or host/database lookup. Background sweep batches
+are bounded; dispose removed instances outside the lock. Neither the old nor the
+proposed limiter bounds incoming network traffic or the total cost of refusals.
+Phase 11 owns upstream transport/edge protection and contention/load measurement;
+this local correction supplies neither total-work protection nor measured throughput.
+
+Ten legitimate visitors can exhaust the peer budget; NAT users still share an IP
+quota. Budgets count API calls: middleware bootstrap consumes one call per admitted
+HTTP request, including prefetch; product-page calls consume additional permits.
 
 ### Native method and upgrade admission
 
-Before Next dispatch, admit only GET/HEAD for the current public/scaffold surface.
-Other methods receive the existing masked `404` with `Cache-Control: no-store`,
-and never reach bootstrap or Next's Fetch-backed method conversion. HEAD emits no
-body. Disable framework identification via `poweredByHeader: false`.
+Apply GET/HEAD admission to every HTTP path reaching the native listener callback,
+before Next dispatch and independently of middleware matcher exemptions. This
+includes health, assets and scaffolds: OPTIONS, POST and other methods receive
+the existing masked `404` with `Cache-Control: no-store`, and never reach bootstrap
+or Next's Fetch-backed method conversion. HEAD emits no body. Node's HTTP parser
+still owns malformed protocol input before the callback.
+
+The current app route census has one explicit method handler, GET health, and no
+POST handlers or Server Actions. Prove supported RSC/prefetch GET/HEAD and asset/
+health behavior against the real launcher. Development HMR is a separately
+validated GET upgrade, not a POST exemption. Future Server Actions/write routes
+need an explicit admission decision in their owning Phase 02b BFF/auth or Phase 06
+admin-studio work before a consumer ships.
+
+Disable `poweredByHeader` separately to suppress framework identification on
+framework-generated fallback responses as well as ordinary responses. This is
+an identification control; it grants no admission or tenant authority.
 
 Production has no WebSocket consumer: close every upgrade before delegation.
 Development retains only Next's required, validated HMR upgrade path; refuse other
@@ -168,7 +198,11 @@ reuse and P6 prefetch/page choices cannot be claimed as delivered by this propos
 ### Negative
 
 - The limiter owns synchronization, idle retirement and outcome replay explicitly.
-- The aggregate peer cap and fixed-window/NAT tradeoffs remain visible limitations.
+- Known exhausted visitors' refusal traffic is outside the peer budget; total
+  refusal CPU/network work remains unbounded by this limiter.
+- The single owner lock serializes anonymous admission and bounded sweep batches
+  across peers; contention is a throughput cost to measure in Phase 11.
+- The admitted-call peer cap and fixed-window/NAT tradeoffs remain limitations.
 - Exact redirect-query bytes are no longer guaranteed where URL encoding differs.
 
 ### Neutral
@@ -182,17 +216,49 @@ P02d-5's [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-exte
 owns implementation and review steps. On acceptance, append a dated bounded
 supersession/navigation note to ADR-0053 for accounting, web method/upgrade admission
 and redirect-query wording; preserve its original body and delivery history.
+Append dated navigation to [ADR-0036 Amendment 10](0036-tenant-resolution-trusted-inputs.md#2026-10-08--amendment-10-trusted-public-renderer-decision-navigation)
+that identifies this decision replacement and its accounting scope. Do not rewrite
+Amendment 10 or its ADR-0041 wording; host normalization, trusted-input resolution
+and assertion-only tenant authority remain unchanged.
 Update ongoing Standards 04/07/11, Architecture 14/25, phase/route guidance and
-catalogue entries with their concrete enforcing tests. Existing G34/G36 acceptance
+catalogue entries with their concrete enforcing tests. Existing
+[G34/G36 acceptance](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
 is historical; record this replacement explicitly rather than reopening it silently.
+
+In [TrustedVisitorHttpTests](../../backend/tests/LearnStack.Tests.Integration/Database/TrustedVisitorHttpTests.cs),
+replace `Visitor_refusals_charge_the_peer_once_and_preserve_its_remaining_allowance`:
+its current 330 requests spend 330 peer permits, including 270 visitor refusals.
+The replacement must prove those refusals spend no peer permits, leaving 540
+after the first 60 admitted calls, and that later framework retries charge neither
+outcome again. Retain the independent admitted-traffic ceiling proof in
+`Physical_peer_ceiling_bounds_rotating_trusted_visitors_before_lookup`.
+Adapt [AnonymousLimiterLifecycleTests](../../backend/tests/LearnStack.Tests.Unit/Api/Tenancy/AnonymousLimiterLifecycleTests.cs)
+to the new owned registry while retaining both DI teardown paths and exact-once
+child disposal. Update the catalogue's
+[`Anonymous_Requests_Are_Rate_Limited_Per_Peer`](../standards/21-architecture-tests-catalogue.md#anonymous_requests_are_rate_limited_per_peer)
+extension with actual replacement proofs. Prior delivery counts and CI runs remain
+historical; only new executions establish remediation evidence.
 
 ## Architecture Tests
 
-Proposed obligations, not registered or passing tests: exhausted visitor then fresh
-visitor; unknown-identity allocation after peer exhaustion; direct/hop shared quota;
-parallel last-permit admission; expiry/replenishment without quota reset; same-request
-framework/endpoint retry; cancellation/disposal; rejected method/upgrade before Next;
-valid query `.rsc` normalization without route aliasing; inert redirect query encoding.
+Proposed obligations, not registered or passing tests:
+
+- Exhausted visitor then fresh visitor; no unknown-identity allocation after peer
+  exhaustion; direct/hop shared quota; parallel last-permit admission/creation.
+- Bounded work per known-visitor refusal: no host/database lookup, registry scan
+  or new limiter allocation; peer allowance unchanged after repeated refusals.
+  This proves local work bounds, not a bound on total refusal traffic or CPU.
+- Visitor-first Retry-After selection with distinct refusal values, including
+  both budgets exhausted; same-request successful/refused outcome replay through
+  actual framework/endpoint retry; cancellation and independent lease disposal.
+- Non-overlapping bounded sweep batches with eventual whole-registry coverage;
+  idle retirement/expiry/replenishment without restoring unexpired quota;
+  acquisition/retirement/shutdown races and exact-once disposal on both DI paths.
+- Rejected methods on exempt and ordinary paths before Next; bodyless HEAD;
+  production upgrade closure and retained development HMR with real sockets.
+- Valid query `.rsc` normalization without route aliasing; inert redirect query
+  encoding; framework identification suppressed on fallback responses.
+
 Retain real HTTP/app-role integration evidence alongside deterministic accounting
 tests. Register final rule names when implementation is selected; claim delivery
 only after these tests and both independent review rounds pass.
@@ -201,8 +267,14 @@ only after these tests and both independent review rounds pass.
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)
 - [ADR-0052 — Anonymous Public Read Boundary](0052-anonymous-public-read-boundary.md)
+- [ADR-0036 — Tenant Resolution Trusted Inputs](0036-tenant-resolution-trusted-inputs.md)
 - [ADR-0035 — Demand-Gated Infrastructure](0035-demand-gated-infrastructure.md)
 - [Documentation Standards](../standards/13-documentation.md#correcting-and-amending-adrs)
 - [Frontend Architecture](../architecture/14-frontend-architecture.md)
+- [Deployment Models](../architecture/25-deployment-models.md)
+- [API Design Standards](../standards/04-api-design.md)
+- [Frontend Architecture Standards](../standards/07-frontend-architecture.md)
 - [Security Standards](../standards/11-security.md#rate-limiting)
+- [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)
+- [Frontend Route Workflow](../../.claude/skills/add-frontend-route/SKILL.md)
 - [Phase 11](../roadmap/phase-11-production-hardening.md)
