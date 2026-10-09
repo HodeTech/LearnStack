@@ -4154,7 +4154,7 @@ refusal of suffix aliases and inert ordered redirect query data. The real-API
 through the pinned Next adapter, with five GET probes and HEAD causing exactly six
 live bootstrap calls. The delivery record owns execution and independent review
 results. Step 3 completes fixture reliability/containment after both review rounds
-and verified fixes; source-guard remediation remains Step 4.
+and verified fixes; Step 4 completes source/tooling proof after both review rounds.
 
 `fixture-support.test.ts` exercises positive environment construction, sticky
 split/early output verdicts, exact EOF boundaries, retained trees after cleanup
@@ -4181,7 +4181,8 @@ actual CI disclosure block against an Accepted record with a delivery banner.
 single-field positive control. `PublicLocalLaunchTests` launches the actual local
 API script with app credentials and an isolated empty user-secret root, without a
 PlatformAdmin credential. Mapped-peer and strict dotted-tail unit controls pin
-current framework behavior. Independent Step 4 reviews remain pending.
+current framework behavior. Both independent Step 4 reviews and focused fix
+verification pass; the delivery record owns execution evidence.
 
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
 

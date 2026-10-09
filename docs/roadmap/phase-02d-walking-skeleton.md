@@ -3326,9 +3326,8 @@ reads certificate/key files, resolved against the repository root.
 
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Remediation Steps 1–3 are complete after both independent review
-rounds and verified fixes. Step 4 implements source/runner/tooling proof with
-reviews pending; Step 5 remains pending.
+development. Remediation Steps 1–4 are complete after both independent review
+rounds and verified fixes. Step 5 corpus/CI/PR closeout is in progress.
 Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
@@ -3639,7 +3638,7 @@ rounds and verified fixes. Source/tooling and final closeout remain Steps 4–5.
 
 #### Remediation Step 4 — Source, runner and tooling proof
 
-**Implemented — 2026-10-09; independent reviews pending.** Bounded AST tracking
+**Complete — 2026-10-09; both independent review rounds passed.** Bounded AST tracking
 covers global Headers constructors, converted records, constant aliases,
 destructuring and converted-record spread, with named clean/dirty controls and
 real public-entry mutations. Plain WHATWG Headers spread stays inert. Effective
@@ -3701,7 +3700,10 @@ the old shadowed-constructor false positive. All 178 focused boundary cases and
 578 guarded frontend cases (518 web, 60 SDK) pass afterward with zero skips/todos;
 workspace typecheck/lint pass. Fresh GPT-6.1-sol high tooling/backend review
 approves after seven lifecycle, 39 tooling/runner, 45 unit and 18 real integration
-cases, web lint and diff checks. Focused source-fix verification remains pending.
+cases, web lint and diff checks. The source reviewer independently verifies
+`ced7911`: all three setter escapes change from missed to flagged, shadowed/inert
+controls stay clean and all 178 boundary cases pass. Step 4 is complete after both
+rounds and verified fixes; Step 5 owns final corpus/CI/PR closeout.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
