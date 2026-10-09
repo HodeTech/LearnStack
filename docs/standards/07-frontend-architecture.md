@@ -211,8 +211,8 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 - Each route group has its own `layout.tsx`, `loading.tsx`, `error.tsx`.
 
 **Accepted P02d-6 G40 — 2026-10-09.** Step 1 implements shared resource admission,
-controlled state views and the fixed status page; actual content pages remain
-Steps 2 and 3. Keep the three
+controlled state views and the fixed status page. Step 2 implements catalog/course
+pages and their pagination/metadata; lesson presentation remains Step 3. Keep the three
 `/{locale}/courses` list/course/lesson routes and minimal tenant chrome. Use plain
 same-host relative anchors, including opaque catalog and outline pagination;
 disable automatic prefetch. A new document request re-reads API state.
@@ -240,9 +240,9 @@ routes render dynamically with no-store API transport. No ISR, positive
 cache is permitted. Request-local reuse is isolated to one incoming request.
 Freshness is the next new server/document request, not client Router Cache history.
 Disable local Server Component HMR caching. P02d-6 Step 1 implements document
-loaders, chrome, state views and atomic theme injection. Accepted G41 content
-components remain Steps 2 and 3. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+loaders, chrome, state views and atomic theme injection. Step 2 adds catalog/course
+views; lesson presentation remains Step 3. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
 owns verification and review status.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
 production routes exercise the real API; P6 public pages are not delivered by them.

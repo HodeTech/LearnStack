@@ -46,8 +46,9 @@ fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 [ADR-0027](../decisions/0027-frontend-i18n.md) supplies next-intl and one app-local
 catalogue home, with UI-language fallback separate from content admission. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
-owns validation; actual content pages remain Steps 2 and 3. Phase 04 inherits this
-foundation for CMS/Studio coverage.
+owns foundation validation. Step 2 adds catalog/course views with actual resolved
+label languages and exact-locale metadata; lesson presentation remains Step 3.
+Phase 04 inherits this foundation for CMS/Studio coverage.
 
 ## URL Strategy
 

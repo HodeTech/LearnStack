@@ -23,8 +23,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
 /// Production Next/native TLS/SDK/API/PostgreSQL proof. The disposable renderer
-/// separates the P5 transport probe from the actual P6 document/status foundation.
-/// Its content consumer is test-owned until product routes land; no diagnostic route ships.
+/// separates the P5 transport probe from unchanged P6 catalog/course routes.
+/// The larger pagination inventory exists only during its own fixture mode.
 /// </summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -36,6 +36,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
     [Theory]
     [InlineData("transport")]
     [InlineData("foundation")]
+    [InlineData("foundation-pagination")]
     public async Task Production_rendering_is_host_isolated_fresh_and_private_through_the_real_public_API(string mode)
     {
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -80,6 +81,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var verified = false;
         var foundationPosition = 0;
         var foundationLocales = false;
+        var paginationRows = false;
         var tracePosition = 0;
         var beforeProtocol = -1;
         var beforeStock = -1;
@@ -94,6 +96,11 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 await fixture.ExecuteAsync(SeedData.English,
                     "INSERT INTO tenant_locales(tenant_id,locale,is_default,is_enabled,sort) VALUES(@tenant,'ar',false,true,8),(@tenant,'tr-TR',false,true,9),(@tenant,'tr',false,true,10)");
                 foundationLocales = true;
+            }
+            if (mode == "foundation-pagination")
+            {
+                await AddPaginationRowsAsync(firstCourse);
+                paginationRows = true;
             }
             started = process.Start();
             started.Should().BeTrue();
@@ -169,6 +176,40 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                             .Locale.Should().Be(locale, "UI configuration cannot change the exact content API locale");
                         foundationPosition = observed.Requests.Length;
                         break;
+                    case "foundation-catalog-english":
+                    case "foundation-catalog-yoga":
+                    case "foundation-catalog-turkish":
+                    case "foundation-course-yoga":
+                    case "foundation-course-turkish":
+                    case "foundation-restricted":
+                    case "foundation-empty":
+                    case "pagination-catalog-first":
+                    case "pagination-catalog-next":
+                    case "pagination-catalog-restart":
+                    case "pagination-outline-first":
+                    case "pagination-outline-next":
+                    case "pagination-outline-restart":
+                        var productRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        productRequests.Should().HaveCount(3, "an unchanged page uses one shared content operation");
+                        productRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
+                        productRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
+                        productRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
+                            .Locale.Should().Be(checkpoint switch
+                            {
+                                "foundation-catalog-turkish" or "foundation-course-turkish" =>
+                                    SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale,
+                                "foundation-empty" => "ar",
+                                _ => locale
+                            }, "only the admitted content locale reaches Education");
+                        foundationPosition = observed.Requests.Length;
+                        break;
+                    case "foundation-cross-tenant":
+                        var crossTenantRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        crossTenantRequests.Should().HaveCount(5, "missing cross-tenant detail and followed status use the approved redirect chain");
+                        crossTenantRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
+                        crossTenantRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
+                        foundationPosition = observed.Requests.Length;
+                        break;
                     case "foundation-status":
                     case "foundation-head":
                     case "foundation-refused":
@@ -199,8 +240,18 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             process.ExitCode.Should().Be(0, errorOutput);
             verified.Should().BeTrue("the production fixture must execute every scenario");
             if (mode == "transport") checkpoints.Should().Equal("build-complete", "trace-supplied", "trace-missing", "trace-malformed", "protocol-before", "protocol-after", "stock-before", "stock-after", "make-draft", "restore-published", "verified");
-            else checkpoints.Should().Equal("build-complete", "foundation-normal", "foundation-repeat", "foundation-missing",
+            else if (mode == "foundation") checkpoints.Should().Equal("build-complete", "foundation-normal", "foundation-repeat",
+                "foundation-catalog-english", "foundation-catalog-yoga", "foundation-catalog-turkish",
+                "foundation-course-yoga", "foundation-course-turkish",
+                "foundation-restricted", "foundation-empty", "foundation-cross-tenant", "foundation-missing",
                 "foundation-status", "foundation-head", "foundation-refused", "foundation-canonical", "stock-before", "stock-after", "verified");
+            else checkpoints.Should().Equal("build-complete", "pagination-catalog-first", "pagination-catalog-next",
+                "pagination-catalog-restart", "pagination-outline-first", "pagination-outline-next",
+                "pagination-outline-restart", "verified");
+            if (mode == "foundation") observed.Requests.Should().HaveCount(52,
+                "normal/repeat, both hosts and languages, restricted/empty/cross-tenant, status and refusal checks fit one visitor window");
+            if (mode == "foundation-pagination") observed.Requests.Should().HaveCount(18,
+                "six actual catalog/outline documents each make exactly three API calls");
             observed.Requests.Length.Should().BeInRange(1, 59, "the fixture stays within one real anonymous visitor budget");
             observed.Requests.Should().OnlyContain(request => request.ValidHop, "the real caller uses the closed authenticated hop");
             observed.Logs.Should().BeGreaterThan(0, "API log containment needs a nonempty real logging subject");
@@ -226,6 +277,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 if (foundationLocales)
                     await fixture.ExecuteAsync(SeedData.English,
                         "DELETE FROM tenant_locales WHERE tenant_id=@tenant AND locale IN ('ar','tr-TR','tr')");
+                if (paginationRows) await RemovePaginationRowsAsync(firstCourse);
             }
         }
     }
@@ -330,20 +382,91 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         "UPDATE courses SET status=@status WHERE tenant_id=@tenant AND id=@id",
         new Dictionary<string, object> { ["id"] = course.Id, ["status"] = status.ToLowerInvariant() });
 
+    private Task AddPaginationRowsAsync(SeedCourse course)
+    {
+        var lesson = course.Lessons.First(row => row.Status == "Published");
+        return fixture.ExecuteOwnerFixtureAsync(SeedData.English,
+            """
+        INSERT INTO courses(id,tenant_id,organization_id,slug_key,content_access,status,created_at,created_by)
+        SELECT md5('p6-fixture-course-' || n)::uuid,@tenant,NULL,'p6-fixture-course-' || n,
+               'public','published',now() + n * interval '1 millisecond',@actor
+        FROM generate_series(1,21) AS n;
+        INSERT INTO course_translations(course_id,tenant_id,organization_id,locale,title,summary,slug)
+        SELECT md5('p6-fixture-course-' || n)::uuid,@tenant,NULL,'en',
+               'Fixture course ' || lpad(n::text,2,'0'),'Fixture catalog continuation',
+               'p6-fixture-course-' || n
+        FROM generate_series(1,21) AS n;
+        INSERT INTO lessons(id,tenant_id,organization_id,course_id,sort,content_type_key,
+                            content_type_schema_version,status,created_at,created_by)
+        SELECT md5('p6-fixture-lesson-' || n)::uuid,@tenant,NULL,@course,1000+n,
+               @contentType,@contentVersion,'published',now(),@actor
+        FROM generate_series(1,21) AS n;
+        INSERT INTO lesson_translations(lesson_id,tenant_id,organization_id,locale,title,slug,body)
+        SELECT md5('p6-fixture-lesson-' || n)::uuid,@tenant,NULL,'en',
+               'Fixture lesson ' || lpad(n::text,2,'0'),'p6-fixture-lesson-' || n,
+               CAST(@body AS jsonb)
+        FROM generate_series(1,21) AS n;
+        """,
+            new Dictionary<string, object>
+            {
+                ["course"] = course.Id,
+                ["contentType"] = lesson.ContentTypeKey,
+                ["contentVersion"] = lesson.ContentTypeSchemaVersion,
+                ["body"] = lesson.Translations.Single(row => row.Locale == "en").Body
+            });
+    }
+
+    private Task RemovePaginationRowsAsync(SeedCourse course) => fixture.ExecuteOwnerFixtureAsync(
+        SeedData.English,
+        """
+        DELETE FROM lesson_translations WHERE tenant_id=@tenant AND slug LIKE 'p6-fixture-lesson-%';
+        DELETE FROM lessons WHERE tenant_id=@tenant AND course_id=@course
+            AND id IN (SELECT md5('p6-fixture-lesson-' || n)::uuid FROM generate_series(1,21) AS n);
+        DELETE FROM course_translations WHERE tenant_id=@tenant AND slug LIKE 'p6-fixture-course-%';
+        DELETE FROM courses WHERE tenant_id=@tenant AND slug_key LIKE 'p6-fixture-course-%';
+        """,
+        new Dictionary<string, object> { ["course"] = course.Id });
+
     private static object TenantInput(SeedTenant tenant, SeedCourse course, string locale)
     {
         var lesson = course.Lessons.First(row => row.Status == "Published");
         var translation = lesson.Translations.Single(row => row.Locale == locale);
+        var defaultLocale = tenant.Curriculum!.Locales.Single(row => row.IsDefault).Locale;
+        var defaultCourse = course.Translations.Single(row => row.Locale == defaultLocale);
+        var defaultLesson = lesson.Translations.Single(row => row.Locale == defaultLocale);
+        var visible = tenant.Curriculum.Courses.Where(row => row.Status == "Published"
+            && (row.OrganizationId is null || (tenant.MapHostToDefaultOrganization
+                && row.OrganizationId == tenant.DefaultOrganization.OrganizationId))).ToArray();
+        var hidden = tenant.Curriculum.Courses.Except(visible).ToArray();
+        var restricted = visible.FirstOrDefault(row => row.ContentAccess == "enrollment_required");
+        var restrictedTranslation = restricted?.Translations.Single(row => row.Locale == locale);
+        var catalogEn = visible.Select(row => row.Translations.Single(translation => translation.Locale == locale))
+            .Select(row => new { row.Title, row.Slug }).ToArray();
+        var catalogDefault = visible.Select(row => row.Translations.Single(translation => translation.Locale == defaultLocale))
+            .Select(row => new { row.Title, row.Slug }).ToArray();
         using var body = JsonDocument.Parse(translation.Body);
         return new
         {
             host = tenant.Host,
             name = tenant.DisplayName,
             courseTitle = course.Translations.Single(row => row.Locale == locale).Title,
+            courseSummary = course.Translations.Single(row => row.Locale == locale).Summary,
             lessonSlug = translation.Slug,
             lessonTitle = translation.Title,
             lessonText = body.RootElement.EnumerateObject().First().Value.GetString(),
-            defaultLocale = tenant.Curriculum!.Locales.Single(row => row.IsDefault).Locale
+            defaultLocale,
+            defaultCourseSlug = defaultCourse.Slug,
+            defaultCourseTitle = defaultCourse.Title,
+            defaultCourseSummary = defaultCourse.Summary,
+            defaultLessonSlug = defaultLesson.Slug,
+            defaultLessonTitle = defaultLesson.Title,
+            restrictedSlug = restrictedTranslation?.Slug,
+            restrictedTitle = restrictedTranslation?.Title,
+            restrictedSummary = restrictedTranslation?.Summary,
+            catalogEn,
+            catalogDefault,
+            hiddenEn = hidden.Select(row => row.Translations.Single(translation => translation.Locale == locale).Title).ToArray(),
+            hiddenDefault = hidden.Select(row => row.Translations.Single(translation => translation.Locale == defaultLocale).Title).ToArray()
         };
     }
 

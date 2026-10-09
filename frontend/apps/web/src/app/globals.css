@@ -92,3 +92,41 @@
     transform: translateY(0);
   }
 }
+
+@layer components {
+  .public-catalog,
+  .public-course,
+  .public-outline {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .public-course-list {
+    display: grid;
+    gap: 1.5rem;
+    list-style: disc;
+    padding-inline-start: 1.5rem;
+  }
+  .public-course-card {
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--ls-muted);
+  }
+  .public-course-card > * + * {
+    margin-block-start: 0.75rem;
+  }
+  .public-summary {
+    max-width: 65ch;
+    white-space: pre-wrap;
+  }
+  .public-lesson-list {
+    display: grid;
+    gap: 1rem;
+    list-style: decimal;
+    padding-inline-start: 1.75rem;
+  }
+  .public-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    padding-block: 0.75rem;
+  }
+}

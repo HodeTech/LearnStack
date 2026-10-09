@@ -123,8 +123,11 @@ Step 1 implements the pinned i18n and document foundation, verified request-loca
 admission/content loaders, atomic color theming, chrome and controlled status/error/
 loading components. Its
 [delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
-owns current validation and review evidence. Catalog/course and lesson pages
-remain Steps 2 and 3. P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
+owns its validation and review evidence. Step 2 adds actual catalog/course pages,
+independent pagination and metadata from the shared resource loader. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
+owns current verification and review status. Lesson presentation remains Step 3.
+P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
 the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

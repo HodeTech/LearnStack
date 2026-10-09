@@ -323,37 +323,6 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 }
 `;
 
-// Step 1 proves the resource-loader foundation with a deliberately test-owned
-// consumer. The actual root, public layout and status page stay byte-for-byte
-// copied from production. Step 2 replaces this probe with unchanged product pages.
-function installFoundationConsumer(coursesDirectory) {
-  const fixturePage = join(coursesDirectory, '[slug]/page.tsx');
-  assert.equal(
-    existsSync(coursesDirectory),
-    false,
-    'Foundation probe cannot shadow product routes',
-  );
-  mkdirSync(dirname(fixturePage), { recursive: true });
-  writeFileSync(
-    fixturePage,
-    `import { getTranslations } from 'next-intl/server';
-import { requirePublicResource } from '@/server/public-resource';
-
-export async function generateMetadata() {
-  await getTranslations('public');
-  const resource = await requirePublicResource();
-  return { title: resource.kind === 'course' ? resource.data.course.title : 'Foundation fixture' };
-}
-export default async function FoundationFixturePage() {
-  const resource = await requirePublicResource();
-  const t = await getTranslations('public');
-  if (resource.kind !== 'course') throw new Error('Foundation fixture expected a course');
-  return <section data-foundation-fixture="shared-resource"><h1>{resource.data.course.title}</h1><p>{t('catalog.title')}</p></section>;
-}
-`,
-  );
-}
-
 function document(response) {
   const dom = new JSDOM(response.body);
   // Assertions below inspect the rendered document, never strings embedded in
@@ -413,23 +382,221 @@ function statusDocument(response, tenant, locale, uiLocale) {
   return doc;
 }
 
+function productDocument(response, tenant, locale, heading, path, direction = 'ltr') {
+  safeResponse(response, 200);
+  const doc = document(response);
+  assert.equal(doc.documentElement.lang, locale, 'Admitted document language');
+  assert.equal(doc.documentElement.dir, direction, 'Admitted document direction');
+  assert.equal(doc.querySelectorAll('main').length, 1, 'One product main landmark');
+  assert.equal(doc.querySelectorAll('h1').length, 1, 'One visible product heading');
+  assert.equal(doc.querySelector('h1').textContent, heading, 'Visible product heading');
+  assert.ok(doc.title.includes(heading), 'Product metadata title');
+  assert.equal(
+    doc.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+    'https://' + tenant.host + ':3000' + path,
+    'Verified-host canonical',
+  );
+  assert.equal(
+    doc.querySelector('meta[property="og:url"]')?.getAttribute('content'),
+    'https://' + tenant.host + ':3000' + path,
+    'Verified-host Open Graph URL',
+  );
+  assert.ok(doc.body.textContent.includes(tenant.name), 'Live tenant chrome');
+  const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
+  assert.equal(doc.body.textContent.includes(other.name), false, 'No opposite tenant chrome');
+  assert.equal(
+    doc.body.textContent.includes(other.courseTitle),
+    false,
+    'No opposite tenant course',
+  );
+  return doc;
+}
+
+function paginationLink(doc, label, base, limitName, cursorName) {
+  const link = [...doc.querySelectorAll('nav.public-pagination a')].find(
+    (candidate) => candidate.textContent === label,
+  );
+  assert.ok(link, 'Visible pagination anchor');
+  const target = new URL(link.getAttribute('href'), 'https://fixture.invalid');
+  assert.equal(target.pathname, base, 'Same-locale pagination path');
+  assert.deepEqual(
+    [...target.searchParams.keys()].sort(),
+    [cursorName, limitName].sort(),
+    'Only owned pagination query names',
+  );
+  assert.equal(target.searchParams.get(limitName), '20', 'Default page size preserved');
+  assert.match(
+    target.searchParams.get(cursorName),
+    /^[A-Za-z0-9_-]+$/,
+    'Opaque continuation carried unchanged',
+  );
+  return link.getAttribute('href');
+}
+
+function seededCatalog(doc, locale, expected, excluded) {
+  assert.equal(
+    doc.querySelectorAll('ul.public-course-list > li').length,
+    expected.length,
+    'Only host-visible published courses are listed',
+  );
+  for (const { title, slug } of expected) {
+    const link = doc.querySelector(
+      'ul.public-course-list a[href="/' + locale + '/courses/' + slug + '"]',
+    );
+    assert.equal(link?.textContent, title, 'Visible course uses its exact-locale title and slug');
+  }
+  for (const title of excluded)
+    assert.equal(
+      doc.body.textContent.includes(title),
+      false,
+      'Draft or sibling-organization course is absent',
+    );
+  assert.equal(
+    doc.querySelector('nav.public-pagination'),
+    null,
+    'Seed inventory fits the default page',
+  );
+}
+
 async function verifyFoundation(native, nextBin) {
   const [first, second] = configuration.tenants;
   const course = '/' + configuration.locale + '/courses/' + configuration.courseSlug;
+  const catalog = '/' + configuration.locale + '/courses';
   const request = (tenant, path, method = 'GET') =>
     call(true, 3000, path, { Host: tenant.host + ':3000' }, method);
 
   for (const checkpointName of ['foundation-normal', 'foundation-repeat']) {
     stage = checkpointName;
     const response = await request(first, course);
-    safeResponse(response, 200);
-    const doc = document(response);
-    assert.equal(doc.documentElement.lang, configuration.locale);
-    assert.equal(doc.querySelector('h1').textContent, first.courseTitle);
-    assert.equal(doc.querySelectorAll('[data-foundation-fixture="shared-resource"]').length, 1);
-    assert.ok(doc.title.includes(first.courseTitle), 'Metadata consumes the same resource');
+    const doc = productDocument(response, first, configuration.locale, first.courseTitle, course);
+    assert.ok(doc.body.textContent.includes(first.courseSummary), 'Actual course summary');
+    assert.ok(
+      doc.querySelector(
+        'ol.public-lesson-list a[href="' + course + '/lessons/' + first.lessonSlug + '"]',
+      ),
+      'Actual public outline link',
+    );
     await checkpoint(checkpointName);
   }
+
+  stage = 'foundation catalog English';
+  const english = productDocument(await request(first, catalog), first, 'en', 'Courses', catalog);
+  seededCatalog(english, 'en', first.catalogEn, first.hiddenEn);
+  await checkpoint('foundation-catalog-english');
+
+  stage = 'foundation catalog Yoga English';
+  const yoga = productDocument(await request(second, catalog), second, 'en', 'Courses', catalog);
+  seededCatalog(yoga, 'en', second.catalogEn, second.hiddenEn);
+  await checkpoint('foundation-catalog-yoga');
+
+  stage = 'foundation catalog Yoga Turkish';
+  const turkishPath = '/' + second.defaultLocale + '/courses';
+  const turkish = productDocument(
+    await request(second, turkishPath),
+    second,
+    second.defaultLocale,
+    'Kurslar',
+    turkishPath,
+  );
+  seededCatalog(turkish, second.defaultLocale, second.catalogDefault, second.hiddenDefault);
+  await checkpoint('foundation-catalog-turkish');
+
+  stage = 'foundation Yoga English course';
+  const yogaCourse = productDocument(
+    await request(second, course),
+    second,
+    'en',
+    second.courseTitle,
+    course,
+  );
+  assert.ok(yogaCourse.body.textContent.includes(second.courseSummary));
+  assert.equal(
+    yogaCourse.querySelector(
+      'ol.public-lesson-list a[href="' + course + '/lessons/' + second.lessonSlug + '"]',
+    )?.textContent,
+    second.lessonTitle,
+    'Studio host sees its own English outline',
+  );
+  await checkpoint('foundation-course-yoga');
+
+  stage = 'foundation Yoga Turkish course';
+  const turkishCoursePath = turkishPath + '/' + second.defaultCourseSlug;
+  const turkishCourse = productDocument(
+    await request(second, turkishCoursePath),
+    second,
+    second.defaultLocale,
+    second.defaultCourseTitle,
+    turkishCoursePath,
+  );
+  assert.ok(turkishCourse.body.textContent.includes(second.defaultCourseSummary));
+  assert.equal(
+    turkishCourse.querySelector(
+      'ol.public-lesson-list a[href="' +
+        turkishCoursePath +
+        '/lessons/' +
+        second.defaultLessonSlug +
+        '"]',
+    )?.textContent,
+    second.defaultLessonTitle,
+    'Studio host sees its own Turkish outline',
+  );
+  await checkpoint('foundation-course-turkish');
+
+  stage = 'foundation restricted marketing';
+  const restrictedPath = catalog + '/' + first.restrictedSlug;
+  const restricted = productDocument(
+    await request(first, restrictedPath),
+    first,
+    'en',
+    first.restrictedTitle,
+    restrictedPath,
+  );
+  assert.ok(restricted.body.textContent.includes(first.restrictedSummary));
+  assert.ok(
+    restricted.body.textContent.includes('The lessons in this course are not publicly available.'),
+  );
+  assert.equal(
+    restricted.querySelector('ol.public-lesson-list'),
+    null,
+    'Protected outline is absent',
+  );
+  assert.equal(
+    restricted.body.textContent.includes('Giving reasons'),
+    false,
+    'Protected lesson title is absent',
+  );
+  await checkpoint('foundation-restricted');
+
+  stage = 'foundation empty exact-locale catalog';
+  const emptyPath = '/ar/courses';
+  const empty = productDocument(
+    await request(first, emptyPath),
+    first,
+    'ar',
+    'Courses',
+    emptyPath,
+    'rtl',
+  );
+  assert.equal(
+    empty.querySelector('ul.public-course-list'),
+    null,
+    'Empty catalog differs from a list',
+  );
+  assert.ok(empty.body.textContent.includes('No courses are available in this language yet.'));
+  assert.equal(
+    empty.querySelector('h1').closest('[lang]').getAttribute('lang'),
+    'en',
+    'English UI fallback is labelled separately from Arabic content locale',
+  );
+  await checkpoint('foundation-empty');
+
+  stage = 'foundation cross-tenant detail refusal';
+  const hidden = await request(first, '/en/courses/shared-practice');
+  safeResponse(hidden, 307);
+  assert.equal(hidden.headers.location, '/en/status/not-found');
+  statusDocument(await request(first, '/en/status/not-found'), first, 'en', 'en');
+  assert.equal(hidden.body.includes(second.courseTitle), false);
+  await checkpoint('foundation-cross-tenant');
 
   stage = 'foundation-missing';
   const missing = await request(
@@ -527,6 +694,129 @@ async function verifyFoundation(native, nextBin) {
   assert.equal(native.exitCode, null, 'Foundation checks use one native process');
 }
 
+async function verifyPagination(native) {
+  const first = configuration.tenants[0];
+  const catalog = '/en/courses';
+  const course = catalog + '/' + configuration.courseSlug;
+  const request = (path) => call(true, 3000, path, { Host: first.host + ':3000' });
+
+  stage = 'pagination catalog default first page';
+  const firstCatalog = productDocument(await request(catalog), first, 'en', 'Courses', catalog);
+  assert.equal(
+    firstCatalog.querySelectorAll('ul.public-course-list > li').length,
+    20,
+    'The default twenty-item catalog page is full',
+  );
+  assert.ok(firstCatalog.querySelector('a[href="' + course + '"]'));
+  assert.equal(
+    firstCatalog.querySelectorAll('nav.public-pagination a').length,
+    1,
+    'First page has next without invented previous cursor',
+  );
+  const nextCatalog = paginationLink(firstCatalog, 'Next courses', catalog, 'limit', 'cursor');
+  await checkpoint('pagination-catalog-first');
+
+  stage = 'pagination catalog continuation';
+  const continuedCatalog = productDocument(
+    await request(nextCatalog),
+    first,
+    'en',
+    'Courses',
+    catalog,
+  );
+  assert.equal(continuedCatalog.querySelectorAll('ul.public-course-list > li').length, 3);
+  assert.equal(
+    continuedCatalog.querySelector('a[href="' + course + '"]'),
+    null,
+    'Seek continuation does not repeat the first course',
+  );
+  assert.ok(continuedCatalog.querySelector('meta[name="robots"]')?.content.includes('noindex'));
+  assert.equal(
+    continuedCatalog.querySelectorAll('nav.public-pagination a').length,
+    1,
+    'Last page has only restart',
+  );
+  const catalogRestart = continuedCatalog
+    .querySelector('nav.public-pagination a')
+    .getAttribute('href');
+  assert.equal(catalogRestart, catalog + '?limit=20');
+  await checkpoint('pagination-catalog-next');
+
+  stage = 'pagination catalog restart';
+  const catalogAgain = productDocument(
+    await request(catalogRestart),
+    first,
+    'en',
+    'Courses',
+    catalog,
+  );
+  assert.equal(catalogAgain.querySelectorAll('ul.public-course-list > li').length, 20);
+  assert.ok(catalogAgain.querySelector('a[href="' + course + '"]'));
+  await checkpoint('pagination-catalog-restart');
+
+  stage = 'pagination outline default first page';
+  const firstOutline = productDocument(
+    await request(course),
+    first,
+    'en',
+    first.courseTitle,
+    course,
+  );
+  assert.equal(
+    firstOutline.querySelectorAll('ol.public-lesson-list > li').length,
+    20,
+    'The default twenty-item outline page is full',
+  );
+  assert.ok(
+    firstOutline.querySelector('a[href="' + course + '/lessons/' + first.lessonSlug + '"]'),
+  );
+  const nextOutline = paginationLink(
+    firstOutline,
+    'Next lessons',
+    course,
+    'lessonLimit',
+    'lessonCursor',
+  );
+  await checkpoint('pagination-outline-first');
+
+  stage = 'pagination outline continuation';
+  const continuedOutline = productDocument(
+    await request(nextOutline),
+    first,
+    'en',
+    first.courseTitle,
+    course,
+  );
+  assert.equal(continuedOutline.querySelectorAll('ol.public-lesson-list > li').length, 2);
+  assert.equal(
+    continuedOutline.querySelector('a[href="' + course + '/lessons/' + first.lessonSlug + '"]'),
+    null,
+    'Seek continuation does not repeat the first lesson',
+  );
+  assert.ok(continuedOutline.querySelector('meta[name="robots"]')?.content.includes('noindex'));
+  assert.equal(continuedOutline.querySelectorAll('nav.public-pagination a').length, 1);
+  const outlineRestart = continuedOutline
+    .querySelector('nav.public-pagination a')
+    .getAttribute('href');
+  assert.equal(outlineRestart, course + '?lessonLimit=20');
+  await checkpoint('pagination-outline-next');
+
+  stage = 'pagination outline restart';
+  const outlineAgain = productDocument(
+    await request(outlineRestart),
+    first,
+    'en',
+    first.courseTitle,
+    course,
+  );
+  assert.equal(outlineAgain.querySelectorAll('ol.public-lesson-list > li').length, 20);
+  assert.ok(
+    outlineAgain.querySelector('a[href="' + course + '/lessons/' + first.lessonSlug + '"]'),
+  );
+  await checkpoint('pagination-outline-restart');
+  assert.equal(native.exitCode, null, 'Pagination checks use one native process');
+}
+
 // The real Next adapter removes Flight inputs before user middleware, then
 // restores them after its request-header override. Observe that final request
 // through a disposable admitted route, without exposing any header values.
@@ -551,7 +841,9 @@ try {
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.match(configuration.secret, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(configuration.tenants.length, 2);
-  const foundation = configuration.mode === 'foundation';
+  const foundation =
+    configuration.mode === 'foundation' || configuration.mode === 'foundation-pagination';
+  const pagination = configuration.mode === 'foundation-pagination';
   if (foundation) {
     catalogueCanaries = ['en', 'tr'].map(
       (locale) =>
@@ -592,7 +884,8 @@ try {
   const coursesDirectory = join(app, 'src/app/(public)/[locale]/courses');
   let fixtureClient;
   if (foundation) {
-    installFoundationConsumer(coursesDirectory);
+    assert.ok(existsSync(join(coursesDirectory, 'page.tsx')), 'Copied product catalog route');
+    assert.ok(existsSync(join(coursesDirectory, '[slug]/page.tsx')), 'Copied product course route');
   } else {
     rmSync(join(app, 'src/app/(public)/[locale]'), { recursive: true, force: true });
     // The original transport probe predates product Suspense/error boundaries.
@@ -699,7 +992,9 @@ try {
   const catalog = '/' + configuration.locale + '/courses';
   const course = catalog + '/' + configuration.courseSlug;
 
-  if (foundation) {
+  if (pagination) {
+    await verifyPagination(native);
+  } else if (foundation) {
     await verifyFoundation(native, nextBin);
   } else {
     stage = 'cold and interleaved host representations';

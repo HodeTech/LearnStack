@@ -27,15 +27,15 @@ native method/upgrade admission and pinned URL controls. The remediation record
 owns execution and independent review evidence; the ongoing rules live in
 [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
-**P02d-6 decisions Accepted — 2026-10-09; Step 1 foundation implemented.**
+**P02d-6 decisions Accepted — 2026-10-09; Steps 1–2 implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects the UI foundation; the
 [decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 selects pages, status/navigation, safe theme and product/accessibility proofs.
 Step 1 installs the pinned runtime and supplies shared request-local loaders,
 document language/direction, atomic theme injection, chrome and controlled
-status/error/loading components. Actual catalog/course/lesson pages remain Steps 2
-and 3. The
-[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+status/error/loading components. Step 2 adds actual catalog/course pages,
+independent opaque pagination and metadata. Lesson presentation remains Step 3. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
 owns current validation and review evidence.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
@@ -94,7 +94,8 @@ frontend/
 
 > **Phase 02d ownership.** Accepted G41 places synchronous plain-string views in
 > `apps/web/src/components/public/`; G39 selects the app-local i18n home above.
-> Step 1 implements i18n and chrome/state views; content views remain Steps 2/3.
+> Step 1 implements i18n and chrome/state views; Step 2 adds catalog/course views.
+> Lesson presentation remains Step 3.
 > P02d-5/G36 delivers Node middleware in
 > `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).

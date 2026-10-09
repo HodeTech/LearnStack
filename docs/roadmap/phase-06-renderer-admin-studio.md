@@ -26,12 +26,12 @@ Rows identify their delivery packet; planned P02d-6/7 work is not current behavi
 | Phase 02d foundation | Phase 06 adds |
 |---|---|
 | Host-based tenant + organization resolution, end to end | Per-organization branding override on the resolved context |
-| Three anonymous `(public)` Server Component pages over the typed SDK, planned P02d-6 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
+| Anonymous `(public)` catalog/course Server Component pages delivered P02d-6 Step 2; lesson page planned Step 3 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
 | ADR-0051 ordered plain-text lesson presentation, API projection delivered P02d-4 and renderer planned P02d-6 | The complete two-tier block registry with safe-render placeholders |
-| Four-color public theme projection delivered P02d-4; safe document injection planned P02d-6 | The branding configuration surface, additional tokens and organization override |
+| Four-color public theme projection delivered P02d-4; safe document injection delivered P02d-6 Step 1 | The branding configuration surface, additional tokens and organization override |
 | The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 
-**Accepted P02d-6 inheritance — 2026-10-09; implementation pending.**
+**P02d-6 inheritance — Accepted 2026-10-09; Step 1 foundation delivered.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9,
 app-local `src/i18n/messages/<locale>/<namespace>.json` and complete `en`/`tr`
 `public` messages. This phase extends its namespaces for full Studio/portal and

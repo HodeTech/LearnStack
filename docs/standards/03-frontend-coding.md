@@ -129,8 +129,9 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 
 P02d-2 accepts and implements G16's theme value grammar; P02d-4 delivers its public
 projection. [Tenant Branding](07-frontend-architecture.md#tenant-branding) owns that
-contract. P02d-6's Accepted G42 selects safe server-rendered token injection;
-implementation and proof remain pending.
+contract. P02d-6 Step 1 implements G42's atomic server-rendered color injection;
+the [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns verification and the remaining product/manual accessibility proof boundary.
 
 ## Server Actions
 
@@ -177,13 +178,13 @@ Accepted G35 assigns the browser logger, Sentry and web-vitals to Phase 11;
 P02d-5 provides the bounded server caller and trace propagation, with no browser
 observability hook. See
 [Frontend Observability](10-observability.md#frontend-observability).
-P02d-6's Accepted G40 selects public error/loading placement and localized states;
-implementation remains pending. [Standards 07](07-frontend-architecture.md#routing)
+P02d-6 Step 1 implements public error/loading placement and localized state views.
+[Standards 07](07-frontend-architecture.md#routing)
 owns the approved status-route behavior.
 
 ## UI Messages
 
-**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+**P02d-6 G39 foundation delivered — Step 1, 2026-10-10.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects server-first `next-intl`
 4.14.9 and `apps/web/src/i18n/messages/{en,tr}/public.json`. General UI identifiers
 use lowercase dotted feature namespaces with snake_case segments, for example
@@ -244,7 +245,7 @@ features/<feature>/
   types.ts
 ```
 
-**Accepted P02d-6 placement — 2026-10-09; implementation pending.** G39 uses
+**P02d-6 placement — Accepted 2026-10-09.** Step 1 implements G39 in
 `apps/web/src/i18n/request.ts` and the app-local message home above; no
 `packages/i18n` is created. G41 uses synchronous public views under
 `apps/web/src/components/public/` for ordered plain-string `default-card` fields

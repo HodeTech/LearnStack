@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1 foundation delivered](#p02d-6-step-1-localization-and-document-foundation), both review rounds complete; Steps 2–4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) review rounds complete; [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) implemented, reviews pending; Steps 3–4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4294,6 +4294,46 @@ Both report zero failures/skips;
 neither reruns native/Docker fixtures or claims browser/manual accessibility.
 The root checks all 30 relative links/fragments in the two changed skills and
 `git diff --check`. Both independent rounds are complete; Step 2 follows.
+
+### P02d-6 Step 2: Catalog and course pages
+
+**Implementation — 2026-10-10.** The actual catalog and course routes consume the
+shared verified resource loader independently in page and metadata. The obsolete
+platform placeholder is removed; live middleware retains default-locale entry.
+Synchronous server views expose semantic course/outline lists, distinct empty and
+restricted states, actual label language and independent opaque next/restart links.
+Restricted marketing never emits lesson counts, links or access-purchase controls.
+
+Canonical/Open Graph URLs use the verified live host, fixed HTTPS listener and
+validated local segments. Course alternates use actual eligible translated slugs;
+catalog alternates use enabled locales. Cursor pages are noindex with first-page
+canonicals; controlled failures are localized noindex states without resource
+alternates. No metadata/page consumer adds another content read or client cache.
+
+The foundation fixture now copies actual catalog/course routes unchanged and
+keeps the isolated P5 transport probe. A separate pagination mode uses test-owned
+inventory above 20 items and a fresh unchanged visitor budget; historical seed
+declarations stay unchanged. Lesson presentation remains Step 3; full product and
+manual accessibility closeout remains Step 4.
+
+**Validation — 2026-10-10.** The root passes 981 guarded frontend cases (921 web,
+60 SDK), zero failures/skips/todos, workspace typecheck/lint and production build.
+Both product routes are dynamic; the build reports about 103 kB First Load JS,
+which is a local build observation, not a Lighthouse or production performance
+claim. All 198 Release architecture cases and seven ADR workflow controls pass,
+with zero failures/skips. The solution Release build has zero warnings/errors.
+Native ingress verification passes TLS, method/HEAD admission, redirects,
+production closure, DEBUG containment and development HMR.
+
+All 17 focused Release `PublicServerRenderingTests` cases pass, zero failures/skips.
+The actual foundation mode observes exactly 52 API calls; the independent default-
+pagination mode observes 18. Both stay within a fresh unchanged 60-call visitor
+budget. Positive host-scope assertions derive from the seed declaration: Yoga's
+mapped host includes tenant-wide and its own organization's published marketing,
+while excluding the other organization. These are HTTP/RSC proofs, not browser
+or manual accessibility evidence. Formatting, local links/fragments, added prose
+and diff checks pass. Both independent review rounds have not started; commit
+and review closeout precede Step 3.
 
 ### P02d-1 decision pass (2026-09-14)
 
