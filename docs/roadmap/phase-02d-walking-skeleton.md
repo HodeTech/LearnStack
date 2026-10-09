@@ -3680,6 +3680,19 @@ backend units pass 45/45; trusted visitor and real local-launch integration pass
 owned backend formatting and diff checks pass. Both fresh review rounds remain
 pending; final full regression, real CI and PR closeout belong to Step 5.
 
+**Review round 1.** Fresh GPT-6-astra xhigh source/security review identifies two
+confirmed static-alias gaps: destructured global constructors and separately
+bound header iterators escaped the authority guard. Fresh GPT-6.1-sol high
+tooling/backend review approves its scope after seven lifecycle controls,
+39 tooling/runner cases, 45 unit cases, two real integration cases and web lint.
+The correction follows verified global destructuring and gives header iterators
+a distinct origin, consumed only by conversion/clone operations. Four planted
+violations fail before the fix; named shadowed/inert/iterator controls and both
+real render-helper mutations pass afterward. All 171 focused boundary cases and
+571 guarded frontend cases (511 web, 60 SDK) pass with zero skips/todos;
+workspace typecheck/lint pass. No production consumer exploits either gap.
+Round 2 remains pending.
+
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
 Confirmed wording/header/ownership corrections are applied. Release

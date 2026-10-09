@@ -853,10 +853,30 @@ describe('remediation bounded header conversions', () => {
     ['Headers clone', 'new Headers(request.headers).get("host");'],
     ['qualified constructor', 'new globalThis["Headers"](request.headers).get("x-forwarded-for");'],
     ['constructor alias', 'const Copy = Headers; new Copy(request.headers).get("host");'],
+    [
+      'bound global constructor',
+      'const { Headers: Copy } = globalThis; new Copy(request.headers).get("host");',
+    ],
+    [
+      'bound aliased global constructor',
+      'const root = globalThis; const { Headers: Copy } = root; new Copy(request.headers).get("host");',
+    ],
     ['entries record', 'Object.fromEntries(request.headers).host;'],
     ['entries iterator', 'Object.fromEntries(request.headers.entries()).host;'],
+    [
+      'aliased entries iterator',
+      'const entries = request.headers.entries(); Object.fromEntries(entries).host;',
+    ],
+    [
+      'aliased iterator clone',
+      'const entries = request.headers.entries(); const copy = entries; new Headers(copy).get("host");',
+    ],
     ['conversion alias', 'const convert = Object.fromEntries; convert(request.headers).host;'],
     ['bound conversion', 'const { fromEntries: convert } = Object; convert(request.headers).host;'],
+    [
+      'bound global conversion owner',
+      'const { Object: Obj } = globalThis; Obj.fromEntries(request.headers).host;',
+    ],
     [
       'computed conversion',
       'const key = "fromEntries"; globalThis.Object[key](request.headers)["host"];',
@@ -892,6 +912,28 @@ describe('remediation bounded header conversions', () => {
     ['inert clone read', 'new Headers(request.headers).get("accept");'],
     ['inert converted read', 'Object.fromEntries(request.headers)["accept"];'],
     ['ordinary entries', 'Object.fromEntries([["host", "fixed.invalid"]]).host;'],
+    [
+      'inert bound global constructor',
+      'const { Headers: Copy } = globalThis; new Copy(request.headers).get("accept");',
+    ],
+    [
+      'inert aliased entries iterator',
+      'const entries = request.headers.entries(); Object.fromEntries(entries).accept;',
+    ],
+    ['iterator has no host property', 'const entries = request.headers.entries(); entries.host;'],
+    ['plain iterator spread', 'const entries = request.headers.entries(); ({ ...entries }).host;'],
+    [
+      'aliased ordinary iterator',
+      'const entries = new Map([["host", "fixed.invalid"]]).entries(); Object.fromEntries(entries).host;',
+    ],
+    [
+      'shadowed bound global constructor',
+      'function read(globalThis: { Headers: Function }) { const { Headers: Copy } = globalThis; return new Copy(request.headers).get("host"); }',
+    ],
+    [
+      'shadowed bound conversion owner',
+      'function read(globalThis: { Object: { fromEntries: Function } }) { const { Object: Obj } = globalThis; return Obj.fromEntries(request.headers).host; }',
+    ],
     ['plain Headers spread', '({ ...request.headers }).host;'],
     ['cloned Headers spread', '({ ...new Headers(request.headers) }).host;'],
     [
@@ -921,6 +963,14 @@ describe('remediation bounded header conversions', () => {
     ['clone', 'new Headers(request.headers).get("host")'],
     ['conversion', 'Object.fromEntries(request.headers).host'],
     ['converted spread', '({ ...Object.fromEntries(request.headers) }).host'],
+    [
+      'bound global constructor',
+      '(() => { const { Headers: Copy } = globalThis; return new Copy(request.headers).get("host"); })()',
+    ],
+    [
+      'aliased iterator',
+      '(() => { const entries = request.headers.entries(); return Object.fromEntries(entries).host; })()',
+    ],
   ])('finds the %s mutation in the real public-entry render closure', (_name, expression) => {
     const helper = 'apps/web/src/server/public-entry.ts';
     const graph = graphWith(

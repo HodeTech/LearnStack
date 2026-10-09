@@ -1012,18 +1012,20 @@ function globalBuiltin(
   return declarations(node, checker).some((declaration) => {
     if (ts.isVariableDeclaration(declaration) && declaration.initializer)
       return globalBuiltin(declaration.initializer, name, checker, new Set(visited));
-    if (ts.isBindingElement(declaration) && dot >= 0) {
+    if (ts.isBindingElement(declaration)) {
       const binding = objectBinding(declaration, checker);
       return (
         binding?.name === name.slice(dot + 1) &&
-        globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited))
+        (dot < 0
+          ? globalObject(binding.receiver, checker)
+          : globalBuiltin(binding.receiver, name.slice(0, dot), checker, new Set(visited)))
       );
     }
     return false;
   });
 }
 
-type HeaderOrigin = 'headers' | 'record' | undefined;
+type HeaderOrigin = 'headers' | 'iterator' | 'record' | undefined;
 
 function headerOrigin(
   node: ts.Node | undefined,
@@ -1045,21 +1047,20 @@ function headerOrigin(
   if (ts.isIdentifier(node) && node.text === 'headers' && declarations(node, checker).length === 0)
     return 'headers';
   if (
+    ts.isCallExpression(node) &&
+    memberName(node.expression, checker) === 'entries' &&
+    headerOrigin(memberReceiver(node.expression), graph, new Set(visited)) === 'headers'
+  )
+    return 'iterator';
+  if (
     ts.isNewExpression(node) &&
     globalBuiltin(node.expression, 'Headers', checker) &&
     headerOrigin(node.arguments?.[0], graph, new Set(visited))
   )
     return 'headers';
   if (ts.isCallExpression(node) && globalBuiltin(node.expression, 'Object.fromEntries', checker)) {
-    const input = node.arguments[0] ? unwrapped(node.arguments[0]) : undefined;
-    if (
-      input &&
-      (headerOrigin(input, graph, new Set(visited)) === 'headers' ||
-        (ts.isCallExpression(input) &&
-          memberName(input.expression, checker) === 'entries' &&
-          headerOrigin(memberReceiver(input.expression), graph, new Set(visited)) === 'headers'))
-    )
-      return 'record';
+    const origin = headerOrigin(node.arguments[0], graph, new Set(visited));
+    if (origin === 'headers' || origin === 'iterator') return 'record';
   }
   // A Headers instance has no enumerable string host property. Only converted
   // records propagate through object spread; plain {...request.headers} stays inert.
@@ -1095,7 +1096,8 @@ function headerOrigin(
 }
 
 function headerCollection(node: ts.Node | undefined, graph: SourceGraph): boolean {
-  return headerOrigin(node, graph) !== undefined;
+  const origin = headerOrigin(node, graph);
+  return origin === 'headers' || origin === 'record';
 }
 
 export function rawAuthorityFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {
