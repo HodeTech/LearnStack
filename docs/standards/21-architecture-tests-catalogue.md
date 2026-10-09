@@ -4157,11 +4157,14 @@ results. Step 3 implements fixture reliability/containment with reviews pending;
 source-guard remediation remains Step 4.
 
 `fixture-support.test.ts` exercises positive environment construction, sticky
-split/early output verdicts and shared owner cancellation/disposal. Controls for
+split/early output verdicts, exact EOF boundaries, retained trees after cleanup
+refusal and shared owner cancellation/disposal. Controls for
 surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
 `verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
 upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`
-remains its independent clean socket/framework control. `PublicServerRenderingTests`
+remains its independent clean socket/framework control. The shutdown-only leak
+mutant requires a final verdict after stopped-child output drains.
+`PublicServerRenderingTests`
 uses actual stdin/EPIPE failures and structured-log positive/negative controls;
 its real production build checks configured private values against nonempty client
 assets and rejects a successfully compiled leaking Client Component.

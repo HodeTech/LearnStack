@@ -96,6 +96,8 @@ function start(command, args) {
     scanners.push(scanner);
     output.push(scanner);
     stream.on('data', (chunk) => scanner.push(chunk));
+    stream.once('end', () => scanner.finish());
+    stream.once('close', () => scanner.finish());
   }
   Object.defineProperty(child, 'output', { get: () => output.map((scan) => scan.tail).join('\n') });
   return child;

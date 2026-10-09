@@ -3619,8 +3619,16 @@ Each intended failure is checked by its own oracle; cleanup rescue runs only
 after the absence verdict and never re-signals a saved PID after confirmed absence.
 Independent normal native/TLS/HMR verification remains the clean control.
 
-Both fresh review rounds are pending. Source/tooling remediation and final PR
-closeout remain Steps 4–5.
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers inspect `e2f92b7`. Three verified findings are corrected:
+failed child cleanup now retains the private tree, final child output drains
+before shutdown containment, and token boundaries at chunk ends wait for a real
+delimiter or EOF. A shutdown-only source mutant and split malformed-MAC controls
+prove the fixes; the early-output control now includes an actual delimiter.
+Focused helpers pass 31/31, the real ingress matrix passes 19/19 and the guarded
+frontend runner passes 495 cases (435 web, 60 SDK), with zero skips/todos.
+Changed-source lint passes. The original implementation counts above remain
+historical. Fresh round 2 is pending; Steps 4–5 remain pending.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

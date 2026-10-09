@@ -28,8 +28,16 @@ export function createPrivateScanner(secrets = []) {
     contains,
     push(chunk) {
       const combined = tail + chunk.toString();
-      leaked ||= contains(combined);
+      // A chunk ending is not a token boundary: the next chunk may extend the
+      // MAC or add forbidden padding. Exact secrets/carriers need no boundary.
+      leaked ||=
+        /x-learnstack-/i.test(combined) ||
+        secrets.some((secret) => combined.includes(secret)) ||
+        PRIVATE_TOKEN.test(combined + '_');
       tail = combined.slice(-OUTPUT_BOUND);
+    },
+    finish() {
+      leaked ||= contains(tail);
     },
     get leaked() {
       return leaked;
@@ -98,18 +106,44 @@ export function createFixtureOwner({ exit = (code) => process.exit(code) } = {})
       }
     });
   }
+  async function drainOutput(child) {
+    await Promise.all(
+      [child.stdout, child.stderr].filter(Boolean).map((stream) => {
+        if (stream.closed || stream.readableEnded || stream.destroyed) return;
+        return new Promise((resolve, reject) => {
+          const done = (error) => {
+            clearTimeout(timer);
+            stream.removeListener('end', ended);
+            stream.removeListener('close', ended);
+            stream.removeListener('error', done);
+            if (error) reject(error);
+            else resolve();
+          };
+          const ended = () => done();
+          const timer = setTimeout(() => done(new Error('Fixture output cleanup deadline')), 5000);
+          stream.once('end', ended);
+          stream.once('close', ended);
+          stream.once('error', done);
+        });
+      }),
+    );
+  }
   function dispose() {
     closed = true;
     cleanup ??= (async () => {
       const results = await Promise.allSettled([
-        ...[...children].map((child) => Promise.resolve().then(() => stopTestChild(child))),
+        ...[...children].map(async (child) => {
+          await stopTestChild(child);
+          await drainOutput(child);
+        }),
         ...[...servers].map(closeServer),
       ]);
       const failures = results
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
-      // Every resource gets an attempt even if another cleanup failed.
-      for (const root of roots) {
+      // Preserve the tree if a child/listener cannot be confirmed stopped.
+      // Every resource still gets an attempt, and incomplete cleanup fails.
+      for (const root of failures.length ? [] : roots) {
         try {
           rmSync(root, { recursive: true, force: true });
         } catch (error) {

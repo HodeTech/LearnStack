@@ -160,6 +160,9 @@ child environments, explicit TLS verification and sticky bounded private-output
 scanning. Setup and termination share one owner; SIGINT/SIGTERM, explicit control
 closure and EPIPE must stop owned children before removing private files. Fixed
 port collisions fail; a healthy response alone cannot establish owned readiness.
+Cleanup joins final child output before its containment verdict. An unresolved
+process/listener cleanup retains the private tree and fails; it cannot claim
+confirmed teardown. Envelope boundaries at chunk ends require a delimiter or EOF.
 
 Controls must fail for omitted cleanup, early split leaks followed by large output,
 disabled trust verification, stale listeners and unclosed upgrades. Healthy builds

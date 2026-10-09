@@ -5,6 +5,7 @@ import type { Server } from 'node:net';
 export function createPrivateScanner(secrets?: string[]): {
   push(chunk: string | Buffer): void;
   contains(value: string): boolean;
+  finish(): void;
   readonly leaked: boolean;
   readonly tail: string;
 };

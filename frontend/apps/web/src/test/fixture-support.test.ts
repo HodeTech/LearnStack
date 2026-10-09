@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +33,8 @@ describe('fixture private-output scanner', () => {
   ])('remembers an early %s after bounded output rolls over', (_name, privateValue) => {
     const scanner = createPrivateScanner([secret]);
     scanner.push(privateValue);
-    scanner.push('safe output\n'.repeat(7000));
+    scanner.push('\nsafe output\n'.repeat(7000));
+    scanner.finish();
     expect(scanner.leaked).toBe(true);
     expect(scanner.tail.length).toBe(65536);
     expect(scanner.tail.includes(privateValue)).toBe(false);
@@ -54,6 +55,7 @@ describe('fixture private-output scanner', () => {
       const scanner = createPrivateScanner([secret]);
       scanner.push(privateValue.slice(0, split));
       scanner.push(privateValue.slice(split));
+      scanner.finish();
       expect(scanner.leaked, `split ${split}`).toBe(true);
     }
   });
@@ -69,6 +71,26 @@ describe('fixture private-output scanner', () => {
     expect(scanner.contains('v1.payload.' + 'A'.repeat(43))).toBe(true);
     expect(scanner.leaked).toBe(false); // A pure response check does not change log state.
     expect(scanner.tail.length).toBe(65536);
+  });
+
+  it.each(['m', '='])('keeps split malformed MAC suffix %s clean', (suffix) => {
+    const scanner = createPrivateScanner();
+    scanner.push('v1.payload.' + 'm'.repeat(43));
+    expect(scanner.leaked).toBe(false);
+    scanner.push(suffix);
+    scanner.finish();
+    expect(scanner.leaked).toBe(false);
+  });
+
+  it('finalizes an exact envelope at EOF and detects a real delimiter immediately', () => {
+    const scanner = createPrivateScanner();
+    scanner.push('v1.payload.' + 'm'.repeat(43));
+    expect(scanner.leaked).toBe(false);
+    scanner.finish();
+    expect(scanner.leaked).toBe(true);
+    const delimited = createPrivateScanner();
+    delimited.push('v1.payload.' + 'm'.repeat(43) + '\n');
+    expect(delimited.leaked).toBe(true);
   });
 
   it('refuses empty or unbounded secret scanner inputs', () => {
@@ -155,7 +177,7 @@ describe('fixture resource ownership', () => {
     expect(stopTestChild).toHaveBeenCalledTimes(1);
   });
 
-  it('attempts every resource and propagates failures after tree removal', async () => {
+  it('attempts every resource and retains files if a child cannot be confirmed stopped', async () => {
     const owner = createFixtureOwner();
     const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-failure-')));
     owner.ownChild({} as ChildProcess);
@@ -171,6 +193,27 @@ describe('fixture resource ownership', () => {
     expect(stopTestChild).toHaveBeenCalledTimes(2);
     expect(closeAllConnections).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
+    expect(existsSync(root)).toBe(true);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('waits for final child output before removing files', async () => {
+    const owner = createFixtureOwner();
+    const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-drain-')));
+    const output = Object.assign(new EventEmitter(), { closed: false, readableEnded: false });
+    const scanner = createPrivateScanner(['shutdown-secret']);
+    output.on('data', (chunk) => scanner.push(chunk));
+    output.on('end', () => scanner.finish());
+    owner.ownChild({ stdout: output } as unknown as ChildProcess);
+    vi.mocked(stopTestChild).mockResolvedValue(undefined);
+    const pending = owner.dispose();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(existsSync(root)).toBe(true);
+    output.emit('data', 'shutdown-secret');
+    output.emit('end');
+    await pending;
+    expect(scanner.leaked).toBe(true);
     expect(existsSync(root)).toBe(false);
   });
 

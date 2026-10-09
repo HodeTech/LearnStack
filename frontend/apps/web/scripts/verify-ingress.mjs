@@ -39,6 +39,7 @@ let api;
 let WebSocket;
 const secret = randomBytes(32).toString('base64url');
 const scanners = [];
+let verificationFailed = false;
 const responseScanner = createPrivateScanner([secret]);
 const diagnosticsLeaked = () => scanners.some((scanner) => scanner.leaked);
 const diagnosticIncludes = (value) => scanners.some((scanner) => scanner.tail.includes(value));
@@ -246,8 +247,13 @@ try {
 
   await checkpoint('setup');
   await run();
+} catch (error) {
+  verificationFailed = true;
+  throw error;
 } finally {
   await owner.dispose();
+  if (!verificationFailed)
+    assert.equal(diagnosticsLeaked(), false, 'Private material entered shutdown diagnostics');
 }
 
 function start(argv, dev = false) {
@@ -276,6 +282,8 @@ function start(argv, dev = false) {
   for (const [index, stream] of [child.stdout, child.stderr].entries()) {
     const scanner = createPrivateScanner([secret]);
     scanners.push(scanner);
+    stream.once('end', () => scanner.finish());
+    stream.once('close', () => scanner.finish());
     let overlap = '';
     stream.on('data', (chunk) => {
       scanner.push(chunk);

@@ -347,6 +347,22 @@ try {
     { expectedMessage: 'Private material entered diagnostics' },
   );
 
+  const shutdownLauncher = replaceOne(
+    readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8'),
+    'const configuration = publicServerConfiguration(values, root);',
+    'const configuration = publicServerConfiguration(values, root);\n' +
+      "  process.prependOnceListener('SIGTERM', () => process.stderr.write(configuration.secret + '\\n'));",
+  );
+  await runCase(
+    'shutdown-only secret mutant',
+    replaceOne(
+      shortTls,
+      "const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');",
+      'const launcher = ' + JSON.stringify(shutdownLauncher) + ';',
+    ),
+    { expectedMessage: 'Private material entered shutdown diagnostics' },
+  );
+
   // A stale healthy listener must be left alone and must never satisfy readiness.
   const foreign = owner.ownServer(
     createServer((socket) => {
