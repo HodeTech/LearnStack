@@ -33,8 +33,8 @@ the backend runs today calls them, so `make dev` starts 7 services and
 - You need to exercise one of the five real deployment-mode values locally:
   `Development`, `SaaS`, `Dedicated`, `SelfHostedOnline`, or
   `SelfHostedAirGapped`.
-- You want to reproduce a Hub-backed (`SaaS` / `Dedicated`) scenario by pointing
-  at a local Hub stack from the `learnstack-hub` repo.
+- You want to inspect the current deployment-mode composition paths. The Hub
+  entitlement adapter is Phase 02c work, not a current local mode dependency.
 
 ## When not to use
 
@@ -210,7 +210,7 @@ open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 curl -fsS https://localhost:3000/api/healthz
 ```
 
-Step 1 provides ingress/TLS only; Step 3 adds live-host bootstrap and locale entry.
+P02d-5 delivers native ingress/TLS, live-host bootstrap and enabled-locale entry.
 P02d-6 owns public page composition and P02d-7 owns the two-host browser harness.
 TLS socket tests with isolated trust roots do not claim a workstation browser run.
 
@@ -256,7 +256,7 @@ dotnet run --project backend/src/LearnStack.Api
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
-| Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
+| A non-Development mode fails startup | Check that mode's required Sentry/telemetry configuration and [current readiness](../../../docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam). Every mode currently uses `NullEntitlementProvider`; starting Hub does not supply the Phase 02c adapter. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |
 
 ### Step 8: Tear-down
@@ -287,9 +287,10 @@ own the accepted host/TLS/transport contract. `make demo` remains P02d-7/G45.
 
 ## Common pitfalls
 
-- **Mixing local Postgres + Testcontainers Postgres.** Both bind 5432 by default.
-  Use distinct ports or shut down the dev Postgres before running integration
-  tests.
+- **Confusing compose and test ports.** The dev compose stack publishes loopback
+  5432; Testcontainers chooses a random host port. They can coexist. P5's native
+  renderer fixtures instead require free 3000/3011 and fail on collision without
+  stopping an existing developer process.
 - **Editing `.env.example`.** That file is the **template**; commit changes only
   if the project's default really should change. Your local overrides go in
   `.env` (gitignored).

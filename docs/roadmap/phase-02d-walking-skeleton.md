@@ -93,6 +93,11 @@ committed. The [packet closeout](#p02d-5-packet-closeout-2026-10-09) records the
 local verification and scope. P02d-5 awaits maintainer PR review and merge. P02d-6's
 public-renderer decision pass is next; no P6/P7 gate is closed by this delivery.
 
+**External-review remediation — 2026-10-09.** ADR-0054 is Accepted and its runtime
+and proof corrections are delivered. The [current remediation record](#p02d-5-external-review-remediation-2026-10-09)
+owns the five steps, their reviews and final PR/CI readiness. Earlier delivery
+notes remain historical; PR #26 is not merged.
+
 ## Goal
 
 Put a working education site in a browser — twice, on two hosts, for two tenants in
@@ -3704,6 +3709,49 @@ cases, web lint and diff checks. The source reviewer independently verifies
 `ced7911`: all three setter escapes change from missed to flagged, shadowed/inert
 controls stay clean and all 178 boundary cases pass. Step 4 is complete after both
 rounds and verified fixes; Step 5 owns final corpus/CI/PR closeout.
+
+#### Remediation Step 5 — Corpus and PR closeout
+
+**Implemented — 2026-10-09; independent reviews and exact-head CI pending.**
+Current architecture/security prose and Phase 02b G14 now reflect delivered
+ADR-0054 behavior. CLAUDE, README and the ADR/roadmap indexes link this current
+record instead of maintaining separate remediation-step status lists. Original
+Accepted ADR bodies and dated delivery evidence remain unchanged; ADR-0054's
+new delivery navigation points here.
+
+Route guidance identifies the API as tenant/organization authority and marks the
+Keycloak/session example as Phase 02b work requiring explicit ingress admission.
+Seed output points to manual hosts/CA/leaf preparation and the paired public
+launchers, without claiming P6 pages or P7's demo. Setup/test guidance distinguishes
+random Testcontainers PostgreSQL ports from fixed renderer ports, and current
+deployment-mode defaults from the Phase 02c Hub adapter. The seed-role diagnostic
+correctly distinguishes FORCE RLS ownership from a privileged bypass credential.
+
+**Final local validation — 2026-10-09.** Strict Release solution build reports
+zero warnings/errors. All 2,940 .NET cases pass: 1,705 unit, 198 architecture,
+four contract, 172 Docker-free integration and 861 Docker integration, with zero
+failures/skips. Actual TRX counters and the nonempty/no-skip runner are checked.
+All 578 guarded frontend cases pass (518 web, 60 SDK), with zero skips/todos.
+Workspace typecheck/lint/build and regenerated SDK drift checks pass. Native
+HTTPS/Next verification and all 19 independent failure controls pass; the full
+Docker suite includes real production HTML/RSC, configured-build containment,
+parent-pipe cleanup and the actual app-only API launcher.
+
+Seven ADR lifecycle/workflow and 14 OpenAPI CI controls pass. Both compose
+projections validate with and without the gated profile using the public example
+configuration. Full backend format verification passes with a workspace-loader
+warning and no formatting violation. Post-acceptance ADR changes are insertion-only.
+The strict commit hook, changed-document relative links/fragments, added-prose
+wrapping, corpus consistency and diff checks are rechecked after this closeout.
+Fragment verification is a manual local audit; CI's link job checks file existence.
+All six live required checks and strict protection remain configured; their
+successful execution on the new PR head is still a separate pending obligation.
+
+Remaining scope is unchanged: P6 owns product pages, request-local bootstrap reuse,
+prefetch decisions and accessibility; P7 owns the browser/demo/Lighthouse harness.
+Phase 11 owns distributed/edge limits, contention/load evidence, production
+topology, replay/key lifecycle and tracing participation. These corrections add no
+API schema, database migration, tenant resolver, authentication flow or Hub crossing.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

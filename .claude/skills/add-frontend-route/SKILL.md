@@ -15,9 +15,9 @@ description: >
 
 ## Purpose
 
-Land a new route in `frontend/apps/web` that respects route-group conventions, tenant + org
-resolution at the edge, Server-Component-first rendering, and the typed SDK
-contract per
+Land a new route in `frontend/apps/web` that respects route-group conventions,
+API-owned tenant/organization resolution, Server Component rendering and the typed
+SDK contract per
 [14-frontend-architecture.md](../../../docs/architecture/14-frontend-architecture.md)
 + [07-frontend-architecture.md](../../../docs/standards/07-frontend-architecture.md).
 
@@ -124,13 +124,13 @@ no locale header, cookie or query supplies authority. The API remains the only
 tenant/organization owner. Continue the request-local validated `traceparent`
 through bootstrap and the configured caller; Phase 11 owns participation/sampling.
 
-**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
+**ADR-0054 native/URL controls delivered — 2026-10-09.**
 [The replacement contract](../../../docs/decisions/0054-bounded-public-renderer-admission.md)
 requires native GET/HEAD admission on every HTTP callback path, including
 middleware-exempt health/assets/scaffolds, with masked no-store refusal of other
 methods and bodyless HEAD. Production upgrades close; development retains only
-validated GET HMR. Remediation Step 2 implements these native/URL controls;
-its delivery record owns validation and independent review evidence. Do not add
+validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary)
+owns validation and both independent review rounds. Do not add
 Server Actions/write routes or WebSocket consumers without an explicit owning
 Phase 02b/Phase 06
 admission decision. Preserve signed raw-target route/locale authority when
@@ -140,10 +140,15 @@ accepted HTTPS port and local path select the destination.
 
 ### Step 5: Authentication + permission gating
 
-For `(studio)` and `(portal)` routes:
+Authentication below is the Phase 02b target, not current scaffold behavior.
+Today's exact `/studio` and `/portal` roots pass only after public host bootstrap;
+no sign-in/session helper is implemented. Phase 02b must explicitly admit its
+login/callback namespace before adding authenticated routes.
 
-- The middleware redirects unauthenticated requests to the Keycloak login.
-- Permission check happens at the page level via the `auth()` helper:
+For those future `(studio)` and `(portal)` routes:
+
+- Unauthenticated requests redirect through the accepted BFF/Keycloak sign-in flow.
+- A page-level permission check uses the future `auth()` helper:
 
 ```tsx
 import { auth } from "@learnstack/auth/server"; // illustrative: no such package exists yet; Phase 02b's session work owns the real helper

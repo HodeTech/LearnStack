@@ -64,8 +64,8 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
   records final verification. P02d-5's decision package and ADR-0053 are Accepted
   — 2026-10-08. All four steps and both fresh review rounds per step are complete.
-  The [packet closeout](phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
-  records final verification; P02d-5 awaits maintainer PR review and merge.
+  The [remediation and closeout record](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+  owns current delivery, review and CI evidence; P02d-5 remains unmerged in PR #26.
   P02d-6's public-renderer decision pass is next; the P7 browser demo remains later.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

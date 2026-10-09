@@ -307,6 +307,15 @@ The [catalogue](../standards/21-architecture-tests-catalogue.md#p02d-5-public-se
 names enforcing controls; the [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-4--source-runner-and-tooling-proof)
 owns execution/review evidence. Final corpus/CI/PR closeout remains Step 5.
 
+### Amendment 5 — Remediation delivery navigation (2026-10-09)
+
+**Delivery note.** All four runtime/proof remediation steps are delivered after
+both independent review rounds and verified corrections. The original acceptance
+and earlier delivery notes remain historical. Current implementation, validation,
+reviews and unmerged PR readiness live in the [five-step remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09),
+including its [corpus/PR closeout](../roadmap/phase-02d-walking-skeleton.md#remediation-step-5--corpus-and-pr-closeout).
+This adds delivery navigation, not a new decision or a claim that PR #26 is merged.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

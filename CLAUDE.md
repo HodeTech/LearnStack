@@ -106,29 +106,14 @@ and fresh fix verification pass. All six real CI jobs pass; the approved sixth
 required check is active with all other live settings preserved. **P02d-4 is complete
 and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
 2026-10-08; its [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
-records final verification. P02d-5
-[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
-and ADR-0053 are Accepted — 2026-10-08. The approved four-step implementation and
-two-round review loop now run on development. Step 1 implements native ingress,
-private local topology and TLS/socket controls; both independent review rounds
-and fix verification pass. Step 2 implements authenticated visitor admission and
-dual API budgets; both independent review rounds and fix verification pass.
-Step 3 implements the configured server caller and membership-first public entry;
-both independent review rounds and fix verification pass. Step 4 implements
-frontend source fences, a nonempty/no-skip workspace runner and real-API production
-HTML/RSC controls; both independent review rounds and fix verification pass.
-**P02d-5 is unmerged and external-review remediation is in progress.** Its
-[packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-packet-closeout-2026-10-09)
-records the original four-step delivery. The maintainer accepted
-[ADR-0054](docs/decisions/0054-bounded-public-renderer-admission.md) and the
-[five-step remediation plan](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-on 2026-10-09. Remediation Step 1 implements coordinated anonymous accounting;
-both independent review rounds passed. Step 2 completes native admission and URL
-controls after both fresh review rounds. Step 3 completes owned fixture cleanup
-and containment after both independent review rounds and verified fixes.
-Step 4 completes source/runner/tooling proof after both independent review rounds
-and verified fixes; Step 5 corpus/CI/PR closeout is in progress. Work continues on development. P02d-6's decision pass and public product pages
-are not started. P02d-7 still owns the browser demo and Lighthouse.
+records final verification. P02d-5 delivers trusted public server rendering under
+Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
+admission, the configured bounded server caller, live-host/locale entry and
+source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+is the current owner of implementation steps, independent reviews, validation and
+PR readiness. P02d-5 remains unmerged in [PR #26](https://github.com/HodeTech/LearnStack/pull/26).
+Work stays on development. P02d-6's decision pass and product pages are next;
+P02d-7 owns the browser demo and Lighthouse. Neither packet is delivered by P5.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

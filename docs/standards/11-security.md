@@ -478,11 +478,9 @@ and redirect/query rules. These are the ongoing security obligations:
   decoded-body bound, with no retries or redirects. Rendering and responses remain
   dynamic/no-store. The injected SDK owns no host, secret or global fetch default.
 
-P02d-5 delivers this boundary, with verified remaining gaps tracked in the
-[external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
-ADR-0054 accounting is implemented by remediation Step 1; both independent
-review rounds passed. Step 2 native method/upgrade and URL controls are implemented,
-with independent reviews pending.
+P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
+URL controls. The [remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+owns execution, independent reviews and PR closeout evidence.
 Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
 production upgrades close and development retains only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)

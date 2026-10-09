@@ -22,10 +22,10 @@ independent apps when warranted.
 
 The [P02d-5 external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 tracks verified gaps. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
-is **Accepted — 2026-10-09**. Remediation Step 1 implements coordinated anonymous
-accounting and passes both independent review rounds. Step 2 implements native
-method/upgrade and URL controls; its independent reviews remain pending. The
-remediation record owns concrete execution evidence.
+is **Accepted — 2026-10-09**. P02d-5 delivers coordinated anonymous accounting,
+native method/upgrade admission and pinned URL controls. The remediation record
+owns execution and independent review evidence; the ongoing rules live in
+[Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.

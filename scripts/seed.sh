@@ -244,9 +244,9 @@ seed_redacted=$(printf '%s' "$seed_cs" | awk -f scripts/connection-string.awk -v
 if [[ "$seed_role" != "learnstack_app" ]]; then
     red "seed: ConnectionStrings__Default names Username='$seed_role', not learnstack_app:"
     red "  $seed_redacted"
-    red "Seeding runs through the runtime role on purpose. As learnstack_migration"
-    red "or learnstack_platform every policy is bypassed, the seed succeeds without"
-    red "proving anything, and the first real request is where you find out."
+    red "Seeding requires learnstack_app so runtime grants and RLS are exercised."
+    red "A privileged bypass role makes isolation proof invalid; the migration owner"
+    red "is still subject to FORCE RLS but is not the supported runtime credential."
     exit 1
 fi
 
@@ -265,20 +265,27 @@ fi
 
 green "  ✓ demo-english and demo-yoga present."
 
-# Open in Phase 02d. The hostnames below mirror SeedData. Whether they stay, and the
-# step a browser needs to reach them, is G32; what `make demo` prints is G45. The pass
-# that closes each gate edits this block with its answer. Both gates are in
-# docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register
+# Accepted P02d-5/G32 keeps these SeedData hosts and manual local HTTPS setup.
+# P02d-6 owns product pages; P02d-7/G45 owns make demo and the browser harness.
+# README Quickstart owns the complete host/CA/leaf preparation instructions.
 cat <<'HOSTS'
 
-  Both tenants resolve by host. Add them to /etc/hosts to reach either in a
-  browser — Phase 02d is what renders them:
+  Both tenants resolve by host. Manually add these entries to your hosts file:
 
     127.0.0.1  demo-english.learnstack.local
     127.0.0.1  demo-yoga.learnstack.local
 
   demo-english's host maps to the tenant as a whole; demo-yoga's maps to its
   default organization, so both live host classifications are exercised.
+
+  Follow README Quickstart for manual mkcert trust and leaf certificates, then:
+    make public-env
+    make public-api    (terminal 1)
+    make public-web    (terminal 2)
+
+  Web readiness: https://localhost:3000/api/healthz
+  Seed alone does not supply product pages (P02d-6) or make demo (P02d-7).
+  These commands never edit hosts or install system trust.
 
 HOSTS
 

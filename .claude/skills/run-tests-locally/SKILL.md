@@ -146,7 +146,7 @@ Common failure shapes:
 | Test passes locally, fails in CI | Race condition; check `await` chains. |
 | Empty result where rows should exist | No `app.tenant_id` on this transaction, or the wrong one — RLS working as designed. Set it with `SchemaQueries.SetTenantAsync` as the transaction's first statement. |
 | `relation "<table>" does not exist` | Migration didn't apply; check the module's `Persistence/Migrations`. |
-| Docker container fails to start | Port collision on 5432 — stop a local Postgres. Testcontainers maps a random host port, so this only bites when something else already holds the container port. |
+| Docker container fails to start | Check Docker connectivity, image availability and the fixture's startup error. Testcontainers maps PostgreSQL to a random host port; a separate local 5432 listener is not a collision. |
 | `password authentication failed` | The four roles are provisioned by the fixture from `infra/compose/postgres-init/02-create-roles.sql`; a failure there fails the fixture, not one test. |
 
 ### Step 6: Run frontend tests
@@ -270,7 +270,8 @@ The entry decision does not provide a Lighthouse command or passing audit.
 
 - The relevant suite passes locally with the same `dotnet --version` and
   `pnpm --version` CI uses.
-- For integration suites, Docker is running and nothing else holds 5432.
+- For integration suites, Docker is running; PostgreSQL uses random host ports.
+  The P5 native renderer fixtures require free 3000/3011 and fail on collisions.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
   The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
@@ -286,9 +287,9 @@ The entry decision does not provide a Lighthouse command or passing audit.
   change — the lockfile must match.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
-- **Port collisions.** A local Postgres on 5432 collides with the fixture's
-  container. Stop it, or let Testcontainers pick the host port (it does) and stop
-  publishing 5432 from `make dev`.
+- **Port collisions.** Testcontainers PostgreSQL uses a random host port and can
+  coexist with `make dev` on 5432. Stop your own web process before P5's native
+  renderer fixtures: they require free 3000/3011 and never kill a foreign listener.
 - **`--no-build` after a source change.** Drop the flag — the test would run
   against stale binaries.
 - **Assuming an accessibility gate exists.**

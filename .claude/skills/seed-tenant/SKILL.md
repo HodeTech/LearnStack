@@ -156,9 +156,9 @@ The existing names remain under `*.learnstack.local`. P02d-5/G32 accepts manual
 hosts aliases and local HTTPS; Step 1 supplies the native launcher and private
 shared-source configuration. Follow [README Quickstart](../../../README.md#3-prepare-local-https-and-start-the-applications)
 for explicit CA trust/leaf creation and `make public-api` / `make public-web`.
-Repository scripts never edit hosts or system trust. P02d-5 Step 3 owns entry,
-P02d-6 owns pages, and P02d-7 owns the two-site browser demo. No browser render is
-supplied by seeding alone.
+Repository scripts never edit hosts or system trust. P02d-5 delivers live-host
+bootstrap and locale entry; P02d-6 owns pages, and P02d-7 owns the two-site browser
+demo. No browser render is supplied by seeding alone.
 
 ### 7. Reset only an explicitly disposable development environment
 
