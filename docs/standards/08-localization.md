@@ -41,6 +41,12 @@ uses exact enabled query locale; display-only Pattern B values carry authored
 `{value,locale}`. Neither fallback nor headers authorize a content locale. Internal
 fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 
+**Proposed P02d-6 UI foundation — 2026-10-09.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) proposes next-intl and one app-local
+catalogue home, with UI-language fallback separate from content admission. It is
+not yet accepted or implemented; G39 and the existing Phase 04 exit commitment
+remain open until approval reconciles their carriers.
+
 ## URL Strategy
 
 Public URLs:

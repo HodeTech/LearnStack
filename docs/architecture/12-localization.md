@@ -14,9 +14,14 @@ Localisation covers:
 - **System messages** — Problem Details `title`/`detail` for human-facing errors.
 - **Slugs and routes** — locale-specific URLs (`/tr/kurslar/...`, `/en/courses/...`).
 
-Out of scope for the initial implementation:
+Initial renderer scope:
 
-- RTL languages (Arabic, Hebrew). The schema supports them but layout-level RTL is deferred until a tenant requires it.
+- Document direction and logical layout properties apply from the first public
+  renderer, including an enabled RTL locale; they are not deferred until a tenant
+  requests a redesign. P02d-6 G39/G43 selects the runtime mapping and its proofs.
+- P02d-6 proposes initial English and Turkish platform UI catalogues in
+  [ADR-0027](../decisions/0027-frontend-i18n.md). Additional UI translations are
+  added when authored; their absence must not narrow enabled content locales.
 - Plural forms beyond ICU MessageFormat defaults (Turkish has different rules than English; ICU handles both).
 
 ## Locale Identifiers
@@ -307,9 +312,11 @@ apps/web/locales/
 ```
 
 Keys are dotted, namespaced by feature, ICU MessageFormat for plural/select. The
-frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the choice
-is ADR-0027, reserved and not yet made — see
-[the decisions index](../decisions/README.md#open-adr-drafts).
+frontend uses a lightweight i18n library (e.g. `next-intl` or `react-intl`); the
+choice is now drafted in
+[Proposed ADR-0027](../decisions/0027-frontend-i18n.md). No library is installed or
+accepted yet. The tree above remains an unimplemented sketch until G39 accepts
+one catalogue home; the proposal selects an app-local server-first foundation.
 
 > **Open in Phase 02d.** Where the catalogue lives — this tree,
 > [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code)

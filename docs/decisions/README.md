@@ -74,6 +74,7 @@ an amendment is not a lifecycle status change.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
+| 0027 | [Frontend UI Localization with next-intl](0027-frontend-i18n.md) | Proposed server-first UI runtime and one catalogue home; G39 remains open | Proposed first consumer P02d-6, approval before implementation; existing Phase 04 exit SLA remains until acceptance |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
@@ -137,13 +138,16 @@ table records the phase commitment so reviewers can flag late drafts.
 |---|---|---|---|
 | 0025 | Scoring + completion DSL sandbox engine (CEL vs restricted Lua vs custom; sandbox boundary; allowed function set) | **Phase 05** — `TenantCompletionRule` runtime evaluator lights up here; Phase 08a's assessment scoring depends on it | [ADR-0018](0018-tenant-driven-customization-model.md), [phase-05-education-learning-content.md](../roadmap/phase-05-education-learning-content.md), [phase-08a-assessment-notifications.md](../roadmap/phase-08a-assessment-notifications.md) |
 | 0026 | Release-tag scheme (`vYYYY.MM.DD.<n>` vs SemVer; SaaS continuous-deploy reconciliation; Self-Hosted release cadence) | **Phase 11** — production hardening checklist owns this | [14-git-workflow.md § Tagging and Releases](../standards/14-git-workflow.md) |
-| 0027 | Frontend i18n library pick (`next-intl` vs `react-intl` vs `lingui`) | **Phase 04** — the first CMS / page-builder surface ships locale-aware copy | [12-localization.md](../architecture/12-localization.md), [08-localization.md](../standards/08-localization.md) |
 | 0046 | Event delivery, the inbox, and the subscriber failure contract (inbox table identity and deduplication key; the dead-letter store; who claims a delivery; per-subscription attempts, terminal state and replay as one state machine) | **Phase 02b** — the consumer packet cannot start without it, and two committed designs currently contradict each other | [phase-02b-events-auth.md](../roadmap/phase-02b-events-auth.md), [15-event-and-outbox.md](../architecture/15-event-and-outbox.md), [ADR-0006](0006-events-and-outbox.md) |
 | 0047 | Background job runtime (storage under the closed four-role model; the single tenant-context writer; the job frame's transaction owner; the enqueue-site rule; the retry and dead-letter contract; the ADR-0035 classification; the queue grammar; package pins and licence verdict) | **Phase 02b** — Hangfire is attributed to ADR-0002 and ADR-0006, neither of which mentions it, and no compliant first boot exists today | [phase-02b-events-auth.md](../roadmap/phase-02b-events-auth.md), [20-infrastructure-stack.md § Background Jobs and Hangfire](../standards/20-infrastructure-stack.md), [09-tenant-isolation.md](../architecture/09-tenant-isolation.md) |
 
 **Reservation rule:** the numbers above are *reserved but not yet drafted*. When a
 draft lands, take its reserved number; do not let another ADR claim it. If the
 decision is dropped, leave the number unused — never recycle.
+
+ADR-0027 is now drafted in Proposed ADRs. Its proposed first consumer is P02d-6;
+only maintainer acceptance moves the existing Phase 04 commitment to that packet.
+The draft itself neither installs a dependency nor closes G39.
 
 **SLA:** any draft whose target phase is currently in progress without an Accepted ADR
 is a blocker on the phase exit checklist for that phase. The roadmap's Phase Exit

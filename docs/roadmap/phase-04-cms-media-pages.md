@@ -6,13 +6,12 @@ Turn LearnStack into an education-aware headless CMS and page-composition platfo
 merely a course-management system. This phase enables landing pages, blog content,
 catalog pages, campaign pages, and tenant-defined page blocks.
 
-[Phase 02d](phase-02d-walking-skeleton.md) already renders two tenants' catalog and
-lesson pages from customization data. It does so with hard-coded route segments, and
-draws lesson bodies through their content type's composite over the subset of primitives
-that phase implements. This phase replaces that with an authored, versioned, localized
-content system that a tenant admin drives from Admin Studio — and it is the phase where
-four long-standing modelling conflicts in the corpus get an answer, because every one of
-them becomes load-bearing the moment content is authored rather than seeded.
+[Phase 02d](phase-02d-walking-skeleton.md) delivers the anonymous read API and trusted
+server transport through P02d-5. Catalog, course-detail/outline and lesson product
+pages remain P02d-6; the two-host browser/demo proof remains P02d-7. Its bounded
+renderer uses fixed section names and ADR-0051's ordered plain-text profile.
+This phase adds an authored, versioned, localized content system that a tenant
+admin drives from Admin Studio, including the richer primitive field set.
 
 Decisions consumed in this phase:
 
@@ -31,9 +30,10 @@ Decisions consumed in this phase:
   needs a code branch per tenant.
 
 Decision required **before this phase exits**:
-[ADR-0027 — frontend i18n library pick](../decisions/README.md) (`next-intl` vs
-`react-intl` vs `lingui`), reserved against this phase in the decisions README's open
-drafts table.
+[ADR-0027 — frontend UI localization](../decisions/0027-frontend-i18n.md) is Proposed
+for P02d-6's first UI strings. If accepted there, this phase consumes its installed
+foundation and adds CMS/Studio message coverage. Until acceptance, this phase's
+existing decision-and-wiring exit requirement remains in force.
 
 ## Scope
 
@@ -66,12 +66,11 @@ The Content module keeps the half that is genuinely its own:
   through Mechanism #1 — an application contract in
   `Customization.Application.Contracts` that resolves a `(tenant_id, key,
   schema_version)` tuple to its JSON Schema and reports whether the revision is still
-  publishable. [Phase 02d](phase-02d-walking-skeleton.md)'s lesson writer calls this
-  contract first, so whether it resolves an exact revision or binds the Active one for
-  a key, whether it is an interface or a query, and which revisions a writer may bind
-  are G12 in
-  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
-  P02d-2's decision pass closes that part of G12 and edits this bullet with its answer.
+  publishable. P02d-2's lesson writer already consumes the uncached exact-revision
+  application interface: new bindings require Active; existing-pin writes permit
+  Active or Deprecated. P02d-3 supplies the separate generation-keyed display
+  projection. These accepted G12 contracts are owned by the
+  [Customization module](../modules/customization/README.md).
 - Referential integrity is therefore enforced in the application, and the failure mode
   is explicit: deleting a schema revision requires a zero-instance count across the
   tenant, per [ADR-0013](../decisions/0013-page-block-schema-versioning.md).

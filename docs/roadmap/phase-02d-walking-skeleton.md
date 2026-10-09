@@ -105,6 +105,13 @@ milestones. P02d-5 is now closed through
 verification and merge. Phase 02d remains in progress. P02d-6's public-renderer
 decision pass is next; P6/P7 implementation has not started.
 
+**P02d-6 preparation — 2026-10-09.** The
+[decision package](#p02d-6-decision-package-2026-10-09) and
+[Proposed ADR-0027](../decisions/0027-frontend-i18n.md) are ready for maintainer
+review. All P6 gate parts remain unaccepted. The package explicitly proposes the
+404 navigation/status tradeoff exposed by the pinned framework experiment;
+implementation waits for approval, not an assumed framework guarantee.
+
 ## Goal
 
 Put a working education site in a browser — twice, on two hosts, for two tenants in
@@ -339,7 +346,8 @@ Decisions made or referenced in this phase:
   (lesson-body validation on the command path; no compiled-validator cache)
 - [ADR-0045 Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
   (`tenancy.white_label_branding`, whose meaning G16 asks)
-- The reserved, undrafted **ADR-0027** — the frontend i18n library, target Phase 04 in
+- **Proposed [ADR-0027](../decisions/0027-frontend-i18n.md)** — the frontend i18n
+  library; proposed first consumer P02d-6, existing Phase 04 exit SLA in
   [decisions/README § Open ADR Drafts](../decisions/README.md#open-adr-drafts); G39 asks
   whether this phase's renderer Accepts it
 
@@ -3880,6 +3888,264 @@ audit; prose wrapping and diff checks pass. ADR-0053/0054 changes are insertion-
 earlier dated delivery records and P02d-1's decision/scope suffix are byte-preserved.
 This closeout changes no production code or accepted decision.
 
+### P02d-6 decision package (2026-10-09)
+
+**Proposed — approval pending, verified against `848b333`.** P02d-1–5 are
+complete and merged. This package proposes the remaining renderer decisions;
+it accepts no gate, installs no dependency and claims no product-page delivery.
+The new [ADR-0027](../decisions/0027-frontend-i18n.md) requires maintainer approval
+before implementation. Earlier delivery records remain historical.
+
+#### Reviewed inputs and verified premises
+
+The documentation pass covers the platform vision and MVP boundary; Principles;
+the glossary and decisions index; ADR-0008/0009/0018/0035/0036/0040/0042/0043/
+0050/0051/0052/0053/0054; Localization, Frontend Architecture and Tenant
+Customization Model; Standards 03/06/07/08/11/13/15/16/21; Phase 02d and its
+Phase 04/05/06/07 consumers. The `implement-task`, `add-frontend-route`,
+`add-i18n-key`, `write-adr` and commit workflows are included.
+
+Code verification covers the public SDK DTOs/results, native ingress and verified
+entry, configured caller, middleware, root/public layouts, CSS tokens, renderer
+registry, frontend source fences, guarded runner and real API/Next fixture.
+In particular:
+
+- Four public GET operations and their eligible alternates already exist. Pages
+  need no new endpoint, write method, entity, migration, tenant id or Hub call.
+- The only implemented lesson presentation is ADR-0051's ordered plain-string
+  `default-card`. The larger registry does not implement additional renderers.
+- Public theme DTO validation currently checks string shape, not color grammar.
+  Safe HTML injection must validate the complete four-token value again.
+- Middleware consumes and discards live site bootstrap. `React.cache` can share
+  RSC work within a render, not between middleware and RSC execution.
+- The production fixture currently injects a disposable transport-probe page.
+  It proves P5 transport, not the actual P6 product pages.
+- Root HTML still has fixed English/platform metadata. No UI catalogue/runtime
+  is installed. Existing seed inventory does not fill a normal 20-item page.
+
+The pass corrects current mutable carriers that prematurely claim product pages,
+leave the delivered G12 interface open, or require an outbound URL sink in this
+plain-text packet. Accepted ADR bodies and shipped delivery records are unchanged.
+
+#### Proposed gate answers
+
+| Gate / part | Proposed answer |
+|---|---|
+| G5, G12 page states | Preserve public DTO eligibility and exact pins. Omit a null level; localize an unavailable level. Unavailable content has a bounded placeholder, never raw JSON or another revision. Distinguish empty catalog, empty public outline, restricted outline, empty ready content and unavailable content. |
+| G16(g) | Render the complete safe tenant palette independently of plan. The effective `showPlatformAttribution` value alone controls platform attribution; no plan inference in the renderer. |
+| G20 subjects | Census production frontend TS/JS and JSON, including renderer/message values, against the exact decoded seed identity literals from G20(a). Preserve the accepted platform-built-in and development/test exemptions, without a blanket catalogue exemption. P7 implements the existing registered rule across backend and frontend. |
+| G38(b,c) | Vitest covers synchronous views and pure mappings; real production HTML/RSC tests cover async pages. Extend the existing required Docker integration fixture to unchanged product pages while preserving the isolated P5 transport probe. P7 still owns shared demo/browser/Lighthouse activation. |
+| G39 | Accept ADR-0027 at first use: exact next-intl 4.14.9, server-first configuration, app-local `src/i18n/messages/{en,tr}/public.json`, one checked ICU catalogue contract. No i18n routing middleware or preference cookie. |
+| G40 | Three fixed content routes, minimal tenant chrome, both opaque pagination surfaces, exact-locale metadata and explicit page states. The status/navigation choice below requires separate explicit approval with this package. |
+| G41 | Render only the API's ordered plain-string fields through app-local synchronous components in `apps/web/src/components/public/`. Unsupported renderer or unresolved presentation renders the bounded fallback. No HTML, Markdown, linkification, authored URL sink or new primitive. |
+| G42 | Emit a server-generated style element containing only four fixed `--ls-*` color properties after atomic `#rrggbb` validation. Null or malformed theme retains the entire existing CSS default palette. No per-token merge, style attribute, URL, font or organization override. |
+| G43 | Enforce applicable jsx-a11y rules at error severity with actual-config planted controls; assert visible semantics/languages/titles. Catalog → course → lesson is a critical flow requiring keyboard, focus, reflow, contrast and a real screen-reader smoke record. Status promotion occurs with enforcement, not this proposal. |
+
+UI catalogue fallback is not content fallback. An enabled language without an
+authored UI catalogue remains admissible; UI groups and API-resolved labels carry
+their actual language. Document language/direction follow the admitted route as
+specified by ADR-0027. No tenant identity selects markup, translations or fields.
+
+#### G40 status and navigation decision
+
+Pinned Next **15.5.18** was exercised in an owned disposable production fixture,
+without modifying this repository. These are planning experiments, not passing
+product tests:
+
+| Strategy | Observed initial document |
+|---|---|
+| `notFound()` below a loading boundary | Streamed HTTP 200 with not-found digest |
+| Await resource outside child loading, then `notFound()` | HTTP 404, but generic error HTML without visible localized fallback or root `lang`/`dir`; fallback text exists only in Flight |
+| Remove loading entirely | The same generic HTTP 404 error document |
+| Local Suspense / access-fallback boundary | Visible fallback with HTTP 200, not a hard 404 |
+| Await lookup, redirect to an explicitly admitted fixed error page; middleware supplies its 404 status | Local HTTP 307 followed by visible localized HTML 404 with root language/direction and no-store; HEAD is bodyless |
+
+The recommended choice is the last strategy, **subject to explicit approval of
+the URL/status tradeoff**. Root/route admission awaits the request-cached resource
+before emitting a document shell. A missing/hidden resource redirects to the
+same host's fixed `/{locale}/status/not-found` page, which middleware admits only
+after live host/locale validation and marks HTTP 404. That page is ordinary
+server rendering, not a thrown `notFound()`. It echoes no original slug, query,
+cursor or failure detail. Its title/robots are localized and noindex; it has a
+catalog recovery link and the same safe theme/chrome. It never queries Education.
+
+The original request is **307, followed by 404**, and the browser URL changes.
+This is not a claim that the original document returns a direct 404. Acceptance
+must update G40's completion criterion to name that exact chain and add this
+error namespace to the entry matrix and route skill. Middleware's existing masked
+unknown-host/provenance refusals remain direct, neutral responses. No new signed
+data carrier, shared bootstrap cache or outbound header is introduced.
+
+Returning a localized HTTP 200 error as though it were a 404 is rejected. A
+middleware content preflight followed by another content read is also rejected:
+it costs a fourth call on every success and still races the later read. A new
+authenticated DTO-transfer protocol is not justified for this packet. Preserving
+the original URL with a branded direct 404 would require a separately designed
+response-ownership change; it is not silently promised by this proposal.
+
+Metadata, layout and page use the same request-local resource loader. Layouts do
+not serialize child execution, so each page honors the loader result itself.
+Required `loading.tsx`/`error.tsx` files remain, but no loading boundary may flush
+the document before redirect admission. Loading UI is not promised during that
+initial pre-admission wait. Unexpected framework errors retain the framework's
+pre-stream 500 / post-stream 200 behavior; `error.tsx` cannot set arbitrary status.
+
+Known content-call failures use controlled, translated, noindex page states:
+invalid cursor → explanation and a relative reset link; 429 → retry-later state;
+transport/invalid response/unavailable API → unavailable state. These are ordinary
+HTTP 200 representations, not claimed HTTP 400/429/503 responses. Bootstrap
+refusals retain middleware's real 404/429/503 and bounded Retry-After. A fresh
+bootstrap failure on the error-route request remains that neutral refusal rather
+than inventing a tenant theme or configuration. No raw Problem Details is shown.
+
+#### Routes, pagination, metadata and chrome
+
+- Keep `/{locale}/courses`, `/{locale}/courses/{slug}` and
+  `/{locale}/courses/{slug}/lessons/{lessonSlug}`. Fixed section names remain until
+  Phase 06; the platform placeholder leaves the public product path. Existing
+  exact `/studio` and `/portal` scaffolds remain without invented authentication.
+- Use ordinary same-host relative anchors for product navigation, including
+  pagination: no automatic prefetch and no reliance on retained client Router
+  Cache. A new document request re-reads current API state.
+- Parse only owned pagination parameters from the verified raw signed target;
+  observed Next `searchParams` is not their authority. Refuse duplicate, empty,
+  malformed or oversized owned values. Cursors stay opaque and are never decoded
+  by the renderer. Catalog uses `cursor`/`limit`; outline uses
+  `lessonCursor`/`lessonLimit`, with the API's bounds and a default page size 20.
+- Show restart/next links as applicable; do not fabricate a previous cursor.
+  A test-owned inventory above the page bound proves both pagination surfaces;
+  do not reduce the product page size or rewrite the historical seed inventory.
+- A restricted course shows marketing metadata and a translated access notice,
+  with no lesson count, lesson link, purchase/login/enrollment control or body.
+  An empty public outline is distinct. Missing optional text is omitted.
+- Minimal chrome contains tenant display name, catalog navigation, skip link and
+  conditional platform attribution. Full menus, logo/media, authored errors,
+  preview, organization theme overrides and Studio editing remain Phase 06.
+- Canonical and Open Graph URLs use only the verified live host, existing HTTPS
+  listener convention and validated local segments. Course/lesson hreflang uses
+  the API's actual eligible alternate slugs, never the current slug substituted
+  into another locale. Catalog uses enabled locales. Paginated views are noindex
+  with the cursor-free first-page canonical; error states are noindex with no
+  misleading resource alternates. Metadata shares the same data read as the page.
+
+#### Rendering, theme and accessibility detail
+
+Course lists use semantic lists; ordered outlines use ordered lists; field cards
+use definition lists with authored order and language-bearing labels. Each page
+state has one main, one descriptive h1, sequential headings, a skip target and
+visible keyboard focus. Long unbroken strings wrap and logical CSS supports RTL.
+
+Strings resembling scripts, HTML, `javascript:`, `data:` or HTTP URLs remain
+escaped, inert text. Absent optional fields render nothing. Unknown composites
+and unavailable content emit only bounded placeholders and at most one diagnostic
+per request containing a count/state, not field values, keys or private context.
+The original G41 candidate's integer/boolean/enum/taxonomy expansion is not
+authorized by ADR-0051; those richer primitives remain Phase 04/05 and Phase 06.
+
+The theme emitter admits the complete four-color grammar before producing fixed
+CSS. Foreground/muted text retains its 4.5:1 background requirement. Primary has
+only a 3:1 background guarantee, so normal text links use foreground plus an
+underline; do not assume white text on primary is accessible. Primary may supply
+non-text focus/border accents where its contrast is sufficient. CSP delivery
+remains Phase 11; output must be safe without it.
+
+Manual evidence names commit, environment, both hosts/locales, keyboard path,
+focus, 320 CSS px reflow/zoom, long strings, contrast and the screen reader used.
+DOM assertions do not replace that assistive-technology smoke. If it cannot be
+performed, the record stays pending and packet completion is not claimed.
+Full Playwright/axe remains Phase 06; Lighthouse activation remains P02d-7.
+
+#### Request accounting and validation
+
+Normal content document: middleware bootstrap + request-local RSC bootstrap +
+one shared content operation = **three API calls**. A missing document followed
+to the proposed error page adds two bootstrap calls = **five total**. Repeated
+metadata/layout/page consumers must not add calls; the next incoming document
+must re-read. No retry or shared validated-DTO cache is added.
+
+The existing 60-call visitor and 600-call peer windows therefore give theoretical
+ceilings of 20/200 successful three-call documents before other calls, not page
+throughput promises. No limiter number, deadline, byte cap or partition changes.
+Phase 11 owns production/distributed capacity and measured optimization triggers.
+
+The actual-page fixture must retain learnstack_app, RLS/read-only transactions,
+native HTTPS ingress, closed hop headers and existing containment/failure controls.
+Keep the synthetic P5 probe in a separate mode so its catch-all cannot shadow
+product routes. Assert visible HTML/DOM separately from Flight strings: status,
+language/direction, headings, theme, attribution, both hosts/locales, cross-tenant
+absence, overlapping concurrent requests across both hosts/locales, freshness in
+one process, controlled failures, pagination, exact schema swaps and inert values.
+Verify the 307→404 chain and no direct internal bypass.
+These HTTP/RSC proofs are not a browser end-to-end claim.
+
+#### Implementation steps after approval
+
+0. **Decision commit.** Accept approved ADR/gate parts; reconcile every normative
+   carrier and the changed G40 status criterion before writing implementation.
+1. **Localization and document foundation.** Install/pin i18n, author complete
+   catalogues and ICU controls; verified request-local loaders, language/direction,
+   safe theme/chrome and controlled state components. Establish status-route
+   admission with production regression, preserving all P5 controls.
+2. **Catalog and course.** Implement actual list/detail/outline pages, both
+   pagination surfaces, restricted/empty states and metadata from shared loaders.
+3. **Lesson presentation.** Implement ordered default-card fields, unavailable
+   fallbacks, language attribution, schema-swap and inert-value proofs; complete
+   semantic/focus/lint controls across all page states.
+4. **Product proof and closeout.** Complete the real product fixture, no-leak and
+   request-count/freshness controls, manual accessibility evidence and all carrier
+   updates. Validate, then open the implementation PR for maintainer review.
+
+Every numbered implementation step is committed, then reviewed by fresh agents
+in two independent rounds. Verify each finding against current code, commit
+confirmed fixes, rerun affected checks and only then advance. Reviewer model and
+effort follow criticality; security/runtime and proof integrity have separate
+review lines. No branch/worktree change; all commits remain on `development`.
+
+Validation comprises the guarded frontend suite, typecheck, lint, production
+build/native verification, relevant Release backend architecture/contract/unit and
+real Docker integration suites, formatting, diff checks and relative-link/anchor
+audits. Record actual passing counts only after execution. Browser/assistive
+technology observations are reported separately from automated test evidence.
+
+#### Approval boundary and acceptance carriers
+
+The maintainer is asked to approve these together:
+
+1. ADR-0027's library, pin, catalogue home and UI/content-locale separation.
+2. G40's explicit local 307→404 error-route behavior and URL change, three-call
+   normal path/five-call missing path, plain-anchor navigation and controlled
+   HTTP 200 noindex API-failure states. The original direct-404 wording is not
+   claimed as implemented by this plan.
+3. The remaining gate answers, four implementation steps and mandatory manual
+   accessibility proof above.
+
+On approval, update the decisions index; Standards 03/06/07/08/16/21 and index;
+Localization/Frontend/Customization architecture; Phase 04/05/06/07 inheritance;
+glossary terms where introduced; the two frontend skills; and this register,
+renderer scope/completion criteria and decision record. Only implemented tests
+may be labelled Implemented. Accepted ADR-0053/0054 remain unchanged: this selects
+their delegated page composition, without another authority carrier or budget.
+If review finds an Accepted decision must change, draft its replacement and seek
+approval before dependent code. P02d-7 and Phase 11 ownership remains unchanged.
+
+#### Preparation review and validation
+
+Two independent draft-review rounds complete: GPT-6-astra high and
+GPT-6.1-sol high review runtime/corpus first; fresh GPT-6-sol high and
+GPT-6.1-sol high review the corrected package second. The separate i18n review
+also checks the pinned package evidence. Confirmed fixes add a complete message
+key example, ICU formatting in the selected UI language, callsite-to-catalogue
+coverage with planted controls, and overlapping host/locale request proofs.
+Both final round-two reviews report no actionable issue; maintainer acceptance
+is still required.
+
+Documentation-only validation: five Release corpus cases and seven ADR
+lifecycle/workflow cases pass, zero failures/skips. Local relative-file/fragment
+audits, added-prose wrapping and `git diff --check` pass across the ten changed
+Markdown files. ADR-0027 parses as Proposed. No Accepted ADR file or production
+code is changed; no frontend/product, browser or accessibility test is claimed
+passing by this preparation record.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
@@ -4376,10 +4642,11 @@ language and direction follow the route's locale per
 layout's fixed `lang="en"` and platform `<title>` do not survive this phase. What
 evidence fails a build is **G43**; the language of fallback-resolved fields is **G24**.
 
-Open here, each a register row: the UI strings and the i18n library (**G39**); route
-files, page states, catalog pagination and chrome (**G40**); the rendering mode
-(**G37**); whether the path sets cookies or loads cross-origin subresources (**G21**);
-and the test set (**G38**).
+Open here, each a register row: UI strings and the i18n library (**G39**); route
+files, page states, pagination and chrome (**G40**); bounded presentation (**G41**),
+theme injection (**G42**), accessibility (**G43**) and renderer tests (**G38 b,c**).
+P02d-5 already delivers **G37**'s dynamic/no-store rendering and **G21**'s
+cookie-free, no-cross-origin-subresource contract; pages must preserve them.
 
 ### Host-based tenant resolution, end to end
 
@@ -4619,7 +4886,9 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
   rendering from customization data, with link navigation from catalog to lesson.
 - The lesson-body renderer: the composite **G18** chooses, registered in `composites.ts`
   under the containment rule; primitive components for the implemented subset, in the
-  home **G41** chooses; the render-time outbound URL check.
+  home **G41** chooses; inert-text and active-sink refusal proofs. This packet
+  introduces no authored URL sink; media/URL handling remains Phase 04/05 and the
+  broader renderer's Phase 06 contract.
 - Theming token injection in the `(public)` layout per **G42**, emitting only the
   `--ls-*` vocabulary.
 - The UI message layer and catalogue at the location **G39** records.

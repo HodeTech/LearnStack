@@ -6,26 +6,29 @@ Turn CMS and education catalog data into real product experiences: a complete pu
 tenant site renderer, a usable Admin Studio, and the portal shell that every
 learner-facing and instructor-facing screen after this phase is built into.
 
-[Phase 02d](phase-02d-walking-skeleton.md) already put a site in a browser — a catalog
-page and a lesson page, on two hosts, for two tenants. That skeleton proved the request
-path. It is not a website: it has no navigation, no full SEO treatment, no
-tenant-authored error pages, no block registry beyond the primitive subset its lesson
-composites draw, and no editing surface.
-Phase 06 **deepens** it into something a tenant can publish.
+[Phase 02d](phase-02d-walking-skeleton.md) delivers the public read API and trusted
+server transport through P02d-5. P02d-6 owns catalog, course-detail/outline and
+lesson pages; P02d-7 owns the browser/demo harness. Neither remaining packet is
+delivered yet. This phase deepens that bounded path with authored navigation,
+tenant error pages, complete block composition and editing surfaces.
 
 After this phase, LearnStack publishes a simple but real education website for a tenant,
 and a non-developer tenant admin can maintain it.
 
 ## Scope
 
-### What Phase 02d already shipped
+<a id="what-phase-02d-already-shipped"></a>
 
-| Already exists | Phase 06 adds |
+### What Phase 02d supplies
+
+Rows identify their delivery packet; planned P02d-6/7 work is not current behavior.
+
+| Phase 02d foundation | Phase 06 adds |
 |---|---|
 | Host-based tenant + organization resolution, end to end | Per-organization branding override on the resolved context |
-| The anonymous `(public)` pages listed in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer), Server Components over the typed SDK | Navigation, SEO metadata beyond what G40 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) settles, tenant-authored error pages, redirect handling, full page composition |
-| Lesson bodies drawn through their content type's composite, over the primitive subset [Phase 02d](phase-02d-walking-skeleton.md) implements | The complete two-tier block registry with safe-render placeholders |
-| Branding tokens read from `TenantSetting` | The branding configuration surface that writes them |
+| Three anonymous `(public)` Server Component pages over the typed SDK, planned P02d-6 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
+| ADR-0051 ordered plain-text lesson presentation, API projection delivered P02d-4 and renderer planned P02d-6 | The complete two-tier block registry with safe-render placeholders |
+| Four-color public theme projection delivered P02d-4; safe document injection planned P02d-6 | The branding configuration surface, additional tokens and organization override |
 | The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
 
 ### Public site renderer

@@ -68,10 +68,11 @@ bookkeeping pass.
 ### Honest status today
 
 The table below describes the implementation as of 2026-10-09:
-[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–4 are complete and
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–5 are complete and
 merged. P02d-5's ingress, configured server caller, dynamic entry and frontend
-guards are implemented in the open PR; its external-review remediation is recorded
-in the [current packet](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
+guards are delivered through PR #26; the
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+owns its final review and CI evidence.
 P6 product pages and P7's demo/browser/Lighthouse work remain pending. Each packet's
 delivery record owns its review and validation evidence.
 
