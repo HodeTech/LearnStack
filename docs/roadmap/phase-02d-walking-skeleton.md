@@ -3329,13 +3329,13 @@ reads certificate/key files, resolved against the repository root.
 
 ### P02d-5 external-review remediation (2026-10-09)
 
-**Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
-approved ADR-0054 and all five correction steps, authorizing continued work on
-development. Remediation Steps 1–4 are complete after both independent review
-rounds and verified fixes. Step 5 corpus/CI/PR closeout is in progress.
-Original delivery/proposal/review notes below remain
-historical; the five steps own new implementation evidence. PR #26 remains
-unmerged and is not ready for final review.
+**Current status — Implementation and reviews complete (2026-10-09).** The
+maintainer approved ADR-0054 and all five correction steps on development.
+Runtime, proof and corpus corrections complete both fresh independent review
+rounds and verified fixes. Step 5 records full local validation. [PR #26](https://github.com/HodeTech/LearnStack/pull/26)
+owns exact published-head CI results and final maintainer review readiness;
+local results never substitute for those six required checks. Original delivery,
+proposal and review notes below remain historical. PR #26 is unmerged.
 
 Review reports are evidence to verify. The triage below compares their claims with
 `07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
@@ -3712,7 +3712,7 @@ rounds and verified fixes; Step 5 owns final corpus/CI/PR closeout.
 
 #### Remediation Step 5 — Corpus and PR closeout
 
-**Implemented — 2026-10-09; independent reviews and exact-head CI pending.**
+**Local closeout complete — 2026-10-09; both independent review rounds passed.**
 Current architecture/security prose and Phase 02b G14 now reflect delivered
 ADR-0054 behavior. CLAUDE, README and the ADR/roadmap indexes link this current
 record instead of maintaining separate remediation-step status lists. Original
@@ -3742,10 +3742,11 @@ projections validate with and without the gated profile using the public example
 configuration. Full backend format verification passes with a workspace-loader
 warning and no formatting violation. Post-acceptance ADR changes are insertion-only.
 The strict commit hook, changed-document relative links/fragments, added-prose
-wrapping, corpus consistency and diff checks are rechecked after this closeout.
+wrapping, corpus consistency and diff checks pass after the closeout edits.
 Fragment verification is a manual local audit; CI's link job checks file existence.
-All six live required checks and strict protection remain configured; their
-successful execution on the new PR head is still a separate pending obligation.
+All six live required checks and strict protection remain configured. [PR #26](https://github.com/HodeTech/LearnStack/pull/26)
+records their execution on the final published head and the final PR description;
+these local checks do not imply a successful remote run.
 
 Remaining scope is unchanged: P6 owns product pages, request-local bootstrap reuse,
 prefetch decisions and accessibility; P7 owns the browser/demo/Lighthouse harness.
@@ -3760,6 +3761,16 @@ said Step 4 reviews/Step 5 were pending. It now points to the section's current
 status and per-step records. Whole-PR added-prose verification also wraps two
 long standard/catalogue lines. Both reviewers approve after the verified
 correction; no production change is needed. Round 2 and exact-head CI remain pending.
+
+**Review round 2.** Fresh GPT-6-sol high corpus/governance and GPT-6.1-sol high
+DX/evidence reviewers approve `869145e` without actionable findings. They
+independently confirm the real TRX/frontend/native-control results, append-only
+ADR history, current API authority, local TLS/port behavior and P6/P7/Phase 11
+ownership. Link/fragment, prose, strict commit and diff checks pass; the five
+Release corpus cases pass with zero skips. The later 578-case workspace report
+is the frontend evidence; the earlier 557-case run remains historical.
+Both rounds and verified corrections are complete. Development is the only
+working branch; PR #26's final head/checks and description own remote closeout.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
