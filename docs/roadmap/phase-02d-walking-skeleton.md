@@ -4490,10 +4490,10 @@ production-rendering cases pass, zero failures/skips.
 The new isolation/freshness modes observe exactly 43/52 API calls; the earlier
 foundation/pagination/presentation modes retain 52/18/46. Full backend regression
 passes as recorded below; both review rounds are complete after their fixes.
-Manual accessibility closeout remains pending. No browser or screen-reader pass
-is claimed here.
-P6 completion and Accessibility promotion remain pending until actual keyboard,
-focus, 320 CSS px reflow, contrast and screen-reader evidence exists.
+Automated checks do not establish manual accessibility. The dated walkthrough
+below records keyboard, focus, 320 CSS px reflow and contrast observations;
+the actual screen-reader pass remains pending. P6 completion and Accessibility
+promotion remain pending that final evidence.
 
 #### Step 4 review round 1 (2026-10-10)
 
@@ -4570,6 +4570,59 @@ Resume the actual manual walkthrough after the browser handoff, record its
 commit/environment/hosts/locales/assistive technology and fix any observed issue
 before closing P6 or promoting Accessibility and the five registered P6 rules.
 The packet remains in progress; P02d-7 and its Lighthouse job have not started.
+
+#### Manual browser observations and remaining AT check (2026-10-10)
+
+The fixture is restarted and both product pages load after the user handles the
+temporary certificate interstitial. The tested production routes are unchanged
+at `180dde0`; the disposable fixture adds Arabic translations and a 240-character
+unbroken `W` value. Observation uses Brave 154.1.96.61 on macOS 27.0.1, with the
+real API/application role and native HTTPS ingress. The manual fixture uses the
+default entitlement provider; the distinct attribution branches are proved by
+the automated product-isolation mode, not by this walkthrough.
+The tested hosts are `english.localhost:3000` (`en`, `ar`) and
+`yoga.localhost:3000` (`tr-TR`, `ar`).
+
+- Keyboard-only English catalog → English foundations → Present simple and
+  Turkish Yoga catalog → Stüdyo temelleri → Ağaç duruşu navigation succeeds.
+  The skip link becomes visible on first Tab, Enter moves to main content and
+  subsequent links follow content order. Blue/green focus outlines are visible.
+- DevTools explicitly reports a 320 CSS px viewport. English and Turkish
+  catalogs, the Turkish course and lesson, and both hosts' Arabic lessons reflow
+  without observed horizontal clipping or overlapping text. The long unbroken
+  value wraps; scrolling reaches the subsequent labelled fields. Arabic authored
+  content remains right-to-left while fallback UI/definition labels remain
+  left-to-right. This is a desktop responsive-viewport observation, not a mobile
+  device or zoom-conformance claim.
+- At 320 CSS px, the English invalid-cursor view has readable status text and a
+  visible focused reset link; Enter opens the query-free catalog. A missing Yoga
+  lesson arrives at `/tr-TR/status/not-found`; the Turkish branded status and
+  focused catalog recovery link fit, and Enter returns to the catalog. HTTP
+  status/noindex assertions remain automated evidence.
+
+Contrast is calculated from the exact four-color palettes separately from the
+visual observations, using WCAG relative luminance. Ratios against each theme's
+background are:
+
+| Palette | Foreground | Muted text | Primary focus outline |
+|---|---|---|---|
+| English | 17.740:1 | 7.557:1 | 6.702:1 |
+| Yoga | 14.628:1 | 7.357:1 | 6.876:1 |
+| Local defaults | 17.853:1 | 4.759:1 | 4.634:1 |
+
+These exceed 4.5:1 for the text pairs and 3:1 for the focus pair. They do not
+constitute a full WCAG audit. Normal viewport/zoom are restored after observation.
+
+**Real screen-reader evidence is still pending.** VoiceOver is initially off;
+its caption-panel preference is already on. Enabling VoiceOver through System
+Settings changes the switch to on, but the native app inventory still reports
+VoiceOver as not running; no speech or caption output is observed. Direct
+VoiceOver app access times out; VO navigation produces no observed output.
+The switch is restored to off without changing the caption preference.
+Accessibility-tree inspection is not substituted for an
+actual screen-reader pass. The maintainer is asked to perform the remaining
+English/Turkish catalog → course → lesson screen-reader smoke. P6 and standards
+promotion remain pending that evidence; no production defect is demonstrated.
 
 ### P02d-1 decision pass (2026-09-14)
 
