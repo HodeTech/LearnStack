@@ -491,11 +491,7 @@ export function transportFindings(graph: SourceGraph): Finding[] {
       )
         key = constantString(node.arguments[0], graph.checker);
       // Headers' iterable initializer is another ordinary setter spelling.
-      if (
-        ts.isNewExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === 'Headers'
-      ) {
+      if (ts.isNewExpression(node) && globalBuiltin(node.expression, 'Headers', graph.checker)) {
         const pairs = node.arguments?.[0];
         if (pairs && ts.isArrayLiteralExpression(pairs))
           for (const pair of pairs.elements)

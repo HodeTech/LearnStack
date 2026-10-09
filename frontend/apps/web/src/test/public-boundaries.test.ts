@@ -290,6 +290,45 @@ describe('public transport fence planted controls', () => {
   });
 });
 
+describe('transport constructor aliases', () => {
+  it.each([
+    'new globalThis.Headers([["X-LearnStack-Hop-Secret", secret]]);',
+    'const Copy = Headers; new Copy([["X-LearnStack-Hop-Secret", secret]]);',
+    'const { Headers: Copy } = globalThis; new Copy([["X-LearnStack-Hop-Secret", secret]]);',
+  ])('refuses the named hop setter outside the adapter: %s', (source) => {
+    expect(transportFindings(buildSourceGraph({ [probe]: source }))).toEqual([
+      expect.objectContaining({
+        file: probe,
+        reason: 'Fix: construct API-hop headers only in the configured adapter.',
+      }),
+    ]);
+  });
+  it.each([
+    'new globalThis.Headers([["accept", "application/json"]]);',
+    'function read(Headers: Function) { return new Headers([["X-LearnStack-Hop-Secret", secret]]); }',
+    'function read(globalThis: { Headers: Function }) { const { Headers: Copy } = globalThis; return new Copy([["X-LearnStack-Hop-Secret", secret]]); }',
+  ])('keeps inert or shadowed constructors clean: %s', (source) => {
+    clean(transportFindings(buildSourceGraph({ [probe]: source })), 'Only real hop setters fail.');
+  });
+  it('catches a constructor mutation in the real render helper and preserves the adapter exemption', () => {
+    const source =
+      '\nexport const setterControl = (secret: string) => new globalThis.Headers([["X-LearnStack-Hop-Secret", secret]]);\n';
+    const helper = 'apps/web/src/server/public-entry.ts';
+    const graph = graphWith(helper, sources[helper]! + source);
+    expect(reachable(graph, renderRoots)).toContain(helper);
+    expect(transportFindings(graph)).toEqual([
+      expect.objectContaining({
+        file: helper,
+        reason: 'Fix: construct API-hop headers only in the configured adapter.',
+      }),
+    ]);
+    clean(
+      transportFindings(graphWith(ADAPTER, sources[ADAPTER]! + source)),
+      'The adapter owns hop setters.',
+    );
+  });
+});
+
 describe('server boundary planted controls', () => {
   it('refuses a deleted or type-only server marker', () => {
     expect(

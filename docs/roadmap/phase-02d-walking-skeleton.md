@@ -3691,7 +3691,17 @@ violations fail before the fix; named shadowed/inert/iterator controls and both
 real render-helper mutations pass afterward. All 171 focused boundary cases and
 571 guarded frontend cases (511 web, 60 SDK) pass with zero skips/todos;
 workspace typecheck/lint pass. No production consumer exploits either gap.
-Round 2 remains pending.
+**Review round 2.** Fresh GPT-6-sol xhigh source/security review confirms the
+first-round fixes, then identifies the same static-constructor gap in the
+separate API-hop-header setter fence. The correction reuses the verified global
+constructor predicate; qualified/aliased/bound setters and a real helper mutation
+are refused, while inert/shadowed constructors and the adapter exemption stay
+clean. The before-fix run exposes all three setter escapes, the helper escape and
+the old shadowed-constructor false positive. All 178 focused boundary cases and
+578 guarded frontend cases (518 web, 60 SDK) pass afterward with zero skips/todos;
+workspace typecheck/lint pass. Fresh GPT-6.1-sol high tooling/backend review
+approves after seven lifecycle, 39 tooling/runner, 45 unit and 18 real integration
+cases, web lint and diff checks. Focused source-fix verification remains pending.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
