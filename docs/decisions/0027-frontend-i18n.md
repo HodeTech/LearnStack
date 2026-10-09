@@ -21,8 +21,8 @@ owns the page plan and approval boundary.
   catalogue or a provider to every browser.
 - Tenant-enabled content locales and the smaller set of translated UI catalogues
   have different owners. UI support must not narrow content admission.
-- Three catalogue paths are currently documented. The first consumer needs one
-  location, key grammar and mechanically checked translation contract.
+- Competing unimplemented catalogue sketches need one location, key grammar and
+  mechanically checked translation contract at the first consumer.
 - Host/locale admission, exact content locale and trusted transport are already
   accepted in ADR-0052/0053/0054. An i18n library must not replace those boundaries.
 - Air-gapped rendering must use bundled messages and runtime locale data, without
@@ -68,9 +68,10 @@ delivers membership-first entry through mandatory native ingress. P02d-6 is the
 first consumer that needs translated platform copy, earlier than the original
 Phase 04 reservation.
 
-The documentation currently names `packages/i18n`, `apps/web/locales` and
-`apps/web/src/i18n/<locale>/<namespace>.json`. None exists as an implemented
-catalogue. The proposed single home is:
+The documentation currently sketches `packages/i18n`, `apps/web/locales` and
+`apps/web/src/i18n/<locale>/<namespace>.json`, with differing namespace layouts in
+the frontend skills. None exists as an implemented catalogue. The proposed single
+home is:
 
 ```text
 frontend/apps/web/src/i18n/
@@ -88,6 +89,7 @@ measured duplication trigger; an empty `packages/i18n` is not created.
 
 Pin `next-intl` **4.14.9** exactly in the web app and commit the lockfile. The npm
 metadata checked on 2026-10-09 declares **MIT**, Next 15 and React 19 peer support.
+Those ranges include the repository's exact **Next 15.5.18 / React 19.0.0** pins.
 That is compatibility evidence, not a passing build; installation, licence-file
 inspection, type checking and a production build are implementation obligations.
 No paid service or network runtime is introduced.
@@ -99,6 +101,24 @@ translated labels its interaction needs, never the full catalogue by default.
 The error boundary's retry control is such a bounded consumer; a provider is not
 required merely to render static translated text.
 
+`src/i18n/request.ts` calls a server-only, request-cached admission loader. That
+loader re-verifies the existing ingress envelope, takes the canonical route locale
+from its signed target, and checks live site enabled-locale membership. It is the
+same loader used by document/layout/page consumers; it neither imports next-intl
+nor reads messages, avoiding a configuration cycle or another bootstrap call.
+After admission, a pure selector chooses the UI catalogue and the configuration
+returns its locale and `{public: messages}`. The callback does not read next-intl's
+middleware-derived `requestLocale` or use a callsite locale override as authority.
+It adds no locale header, i18n middleware, rewrite, cookie or `Accept-Language`
+selection. Route params and observed query data cannot replace the signed source.
+
+The proposed `/{locale}/status/not-found` namespace uses that same live admission;
+it never loads Education content. Admitted `/studio` and `/portal` scaffolds have
+no content locale and retain platform English until Phase 06 supplies their UI.
+A failed admission cannot select a tenant document through English fallback.
+Production tests prove this integration without next-intl routing middleware,
+including concurrent hosts/locales and configuration use before page rendering.
+
 ### Content locale, UI messages and document language
 
 The verified route locale remains the exact locale sent to the Education API.
@@ -109,8 +129,9 @@ For platform UI copy, select an authored catalogue by exact canonical tag, then
 remove one rightmost subtag at a time, then use the platform `en` catalogue.
 P02d-6 supplies complete `en` and `tr` catalogues. A tenant-enabled `ar` or `tr-TR`
 route remains admissible even when only fallback UI copy exists. Do not redirect
-it or substitute the content language. Missing required keys in a bundled
-catalogue are a build failure, not a request-time fallback to raw keys.
+it or substitute the content language. Fallback selects a whole UI catalogue when
+that UI language is absent; a missing required key within any supported bundled
+catalogue is a build failure, never per-key fallback or a raw-key response.
 
 ICU formatting uses the selected catalogue's locale: English fallback copy uses
 English plural rules even on a `zh` content route. The API locale and document
@@ -125,23 +146,33 @@ Pattern A titles, summaries and bodies do not gain cross-locale fallback.
 
 ### Message and test contract
 
-Platform message identifiers retain the `lockey_` prefix, grouped under the
-feature namespace. For example, `en/public.json` contains:
+General platform UI identifiers use lowercase dotted feature namespaces and
+snake_case segments, without `lockey_`. For example, `en/public.json` contains:
 
 ```json
 {
-  "lockey_catalog": {
+  "catalog": {
     "course_count": "{count, plural, one {# course} other {# courses}}"
   }
 }
 ```
 
-The request configuration mounts that file under `public`. Its translator
-resolves `lockey_catalog.course_count` with `{count}`. JSON nesting supplies the
-dot separator; leaves use snake_case.
+The request configuration mounts that file under `public`. The `public`
+translator resolves `catalog.course_count` with `{count}`; the full identifier is
+`public.catalog.course_count`. JSON nesting supplies the dot separators.
 Values use ICU MessageFormat; dynamic content enters as plain
 text parameters. Do not use rich-text translation callbacks, HTML messages,
 authored URL attributes or client input as a message identifier.
+
+Backend `LocalizedMessage.Key` and Problem Details `messageKey` retain their
+`lockey_` wire contract, including backend error-localization resources. They are
+distinct from general UI identifiers. The SDK validates those payloads and maps
+known machine codes to `AppError`; it owns no translated resources. P02d-6's web
+app maps supported page outcomes to explicitly owned feature UI keys. It never
+uses arbitrary backend message keys, titles, field errors or parameters as lookup
+identifiers or visible copy; unknown outcomes select the bounded unavailable
+state. This does not remove the backend-message localization contract for future
+form consumers, whose UI owns its supported error resources.
 
 The frontend suite checks a nonempty catalogue, equal key sets across supported
 UI languages and valid ICU messages, including matching argument names/types.
@@ -153,9 +184,12 @@ must fail. Override library error/fallback behavior so a formatter failure yield
 a bounded translated unavailable state, never a raw identifier, namespace,
 parameter value or library diagnostic in the document or logs; exercise that path.
 Request tests distinguish route locale, UI fallback and resolved label locale,
-including region/script tags, unsupported-but-enabled languages and RTL. The
-production fixture proves document/visible-text language and that catalogues and
-server configuration do not cross into an unnecessary client payload.
+including region/script tags, unsupported-but-enabled languages and RTL. A
+test-owned enabled `ar` locale and eligible content exercise `lang="ar"` /
+`dir="rtl"`, with English fallback UI labelled `lang="en"` / `dir="ltr"`.
+Do not rewrite the historical seed or claim an Arabic UI catalogue. The production
+fixture proves document/visible-text language and that catalogues and server
+configuration do not cross into an unnecessary client payload.
 
 ## Consequences
 
@@ -185,10 +219,25 @@ server configuration do not cross into an unnecessary client payload.
 ## Implementation Notes
 
 Acceptance moves ADR-0027 to Active ADRs with P02d-6 as its first-consumer gate.
-The same decision commit reconciles Localization Standards, Localization
-architecture, the frontend trees, the standards index, Phase 04 and the
-`add-i18n-key` / `add-frontend-route` skills. Phase 04 consumes the installed
-foundation and still owns its CMS/Studio message coverage.
+The same decision commit reconciles these carriers:
+
+- [Standards 03](../standards/03-frontend-coding.md) for UI keys/checks,
+  [07](../standards/07-frontend-architecture.md) for the `packages/i18n` sketch and
+  [08](../standards/08-localization.md#strings-in-code) for its
+  `packages/i18n/locales/{locale}.json` sketch.
+- [Standards 09](../standards/09-error-handling.md#mapping-problem-details--ui)
+  and the [glossary](../glossary.md#cross-cutting-concerns) for backend wire keys,
+  SDK normalization and UI-owned message resolution.
+- [Localization architecture](../architecture/12-localization.md),
+  [Frontend architecture](../architecture/14-frontend-architecture.md),
+  the [standards index](../standards/README.md) and
+  [Phase 04](../roadmap/phase-04-cms-media-pages.md) for location and ownership.
+- The [add-i18n-key](../../.claude/skills/add-i18n-key/SKILL.md) and
+  [add-frontend-route](../../.claude/skills/add-frontend-route/SKILL.md) skills
+  for the same catalogue home, namespace grammar and server request integration.
+
+Phase 04 consumes the installed foundation and still owns its CMS/Studio message
+coverage. Proposed status does not make these installation or acceptance claims.
 
 P02d-6 implements catalogues, server configuration, bounded interactive labels and
 the checks above. Each implementation step follows the packet's commit and two
@@ -197,9 +246,13 @@ independent review rounds. This Proposed file changes no Accepted ADR body.
 ## Architecture Tests
 
 The obligations above are proposed proof requirements, not registered or passing
-test names. Implementation registers the actual non-skippable rule names in
-Standards 21 with planted controls. Existing public source-boundary and guarded
-frontend-runner checks remain mandatory; no second skip-refusal rule is created.
+test names. The acceptance commit registers their non-skippable names and planted
+controls in a new **P02d-6 public UI localization controls** section of
+[Standards 21](../standards/21-architecture-tests-catalogue.md#how-to-add-an-entry),
+before implementation. Status becomes Implemented only with the actual checks.
+Existing [public source-boundary controls](../standards/21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
+and [No_Architecture_Test_Is_Skippable](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)
+remain mandatory; no second skip-refusal rule is created.
 
 ## References
 

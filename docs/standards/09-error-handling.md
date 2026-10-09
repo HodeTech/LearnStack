@@ -73,13 +73,16 @@ public readonly record struct None { public static None Value { get; } }
 ```
 
 The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
-rejects any key that does not start with `lockey_`. Frontend translation
-catalogues are keyed by the same prefix; backend code never returns raw
-English. `Error.Code` is a **stable, unprefixed** projection of
+rejects any key that does not start with `lockey_`. Resources used to resolve
+backend messages retain that prefix; it is not a prefix requirement for general
+frontend UI copy. Backend code never returns raw English.
+`Error.Code` is a **stable, unprefixed** projection of
 `Message.Key` (the `lockey_` prefix is stripped). Routing logic
 (`Result.ToActionResult()`, Problem Details writers) reads `Code`; the
-frontend reads `Message.Key` for locale resolution — two surfaces in
-sync by construction. Per
+consumer resolving a backend message reads `Message.Key` — two wire surfaces in
+sync by construction. This does not claim a shipped frontend message catalogue.
+See [Frontend Error Handling](#mapping-problem-details--ui) for current SDK
+normalization and the Proposed public UI mapping. Per
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
 [ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -304,15 +307,16 @@ Rules:
   `internal_error` is reserved for 5xx, which is what the same method returns
   there.
 - `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
-  the frontend resolves against its i18n catalogue. The legacy
+  identifying a backend message for a consumer's supported error resources;
+  it is not an arbitrary UI lookup instruction. The legacy
   `detail` field is omitted — backend never returns raw English.
 - `instance` is the request path.
 - `correlationId` is the full W3C traceparent (`Activity.Current.Id`),
   which embeds the trace id; falls back to the request id when no trace is
   active.
 - `errors` is field-level detail, each entry a `LocalizedMessage` payload
-  (`key` + optional `params`) so the frontend resolves field-level messages
-  through the same path as the top-level one.
+  (`key` + optional `params`), using the same backend-message contract as the
+  top-level one. The frontend feature owns any supported field-message resources.
 
 ## Validation Errors
 
@@ -320,8 +324,8 @@ Rules:
 - Always include all failures, not just the first one.
 - Field names match the request shape (`camelCase`).
 - Messages are localizable because they travel as keys: `messageKey` and each `errors`
-  entry are `LocalizedMessage` payloads (`key` + optional `params`) the frontend
-  resolves against its i18n catalogue, as [§ API Surface](#api-surface) states. The API
+  entry are `LocalizedMessage` payloads (`key` + optional `params`) for a consumer's
+  supported error resources, as [§ API Surface](#api-surface) states. The API
   returns no message text today; locale negotiation from `Accept-Language` for any
   message text the API composes later is
   [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s.
@@ -416,6 +420,15 @@ type AppError =
 ```
 
 The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
+It validates/preserves backend message keys as data and owns no translated
+resources. A feature that displays backend messages owns its supported error
+resources; general UI copy has its own feature identifiers.
+
+[Proposed ADR-0027](../decisions/0027-frontend-i18n.md#message-and-test-contract)
+specifies P02d-6's closed page-outcome mapping to owned UI keys, with unknown
+outcomes mapped to the bounded unavailable state. It does not authorize arbitrary
+Problem Details keys, titles, field errors or parameters as UI lookup identifiers
+or visible copy. This public-page mapping is not implemented or Accepted yet.
 
 ### User-Facing Copy
 

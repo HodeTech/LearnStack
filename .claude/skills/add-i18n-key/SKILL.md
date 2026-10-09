@@ -22,11 +22,11 @@ Manage user-facing translations in `apps/web` consistently per
 > **Open in Phase 02d.** None of the machinery below exists today: no
 > `frontend/apps/web/src/i18n/` tree, no i18n library, no `pnpm lint:i18n` task, no
 > `no-literal-strings` rule, no `_deprecated.json`, and no screenshot or `axe-core`
-> test. Where the one UI string catalogue lives — this skill, Localization Standards
-> and Localization architecture name three different paths — and whether ADR-0027
-> picks the library in Phase 02d are G39 in
+> test. The competing catalogue sketches and library choice are G39 in
 > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits this skill.
+> [Proposed ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects their
+> replacement, pending approval. The pass that accepts it edits this skill's
+> catalogue paths and implementation workflow.
 
 ## When to use
 
@@ -37,7 +37,9 @@ Manage user-facing translations in `apps/web` consistently per
 ## When not to use
 
 - Backend `LocalizedMessage` keys returned by the API. Those have their own
-  `lockey_*` namespace (the SDK maps API codes to client-side resources).
+  `lockey_*` namespace. The SDK normalizes API codes to `AppError`; it has no
+  translation resource map. A UI feature owns any supported backend-message
+  resources separately from general UI copy.
 - Notification template content. Lives in `TenantTemplateLibrary` rows (data, not
   code).
 - Debug-only strings or developer error messages.
@@ -96,8 +98,11 @@ Rules:
 - Lowercase, dotted, snake_case for multi-word segments.
 - Feature-namespaced — `auth.signin.errors.invalid_credentials`, not
   `errors.invalid_credentials` (no global error namespace).
-- API error codes are **not** repeated here — the SDK has its own resource map
-  for `LocalizedMessage` keys.
+- General UI copy does not copy the backend `lockey_*` namespace. The SDK returns
+  normalized outcomes and message keys as data, not translations.
+  [Proposed ADR-0027](../../../docs/decisions/0027-frontend-i18n.md#message-and-test-contract)
+  assigns P02d-6 page-outcome-to-UI-key mapping to the web app; arbitrary backend
+  message keys never become general UI lookup identifiers.
 
 ### Step 2: Add the key in every locale
 
@@ -205,12 +210,14 @@ I18n: enrollment.list.empty_state.title, enrollment.list.empty_state.cta_label
   to a translation key.
 - **Per-locale branching.** If you find yourself doing
   `if (locale === "tr") ...`, encode the behaviour as data via ICU.
-- **Missing translation for non-default locale.** The build falls back to the
-  default locale — and the user sees mixed languages. Tests catch this.
+- **Confusing language fallback with a missing key.** Proposed ADR-0027 selects a
+  whole fallback catalogue only for an unauthored UI language; missing keys in
+  supported bundled catalogues must fail validation, not mix languages per key.
 - **Renaming without deprecation window.** Stale references break the build for
   every consumer.
-- **Putting backend `LocalizedMessage` keys here.** Those have their own
-  `lockey_*` prefix and live with the API contract, not the i18n bundle.
+- **Mixing backend keys with general UI copy.** `LocalizedMessage` keys retain
+  their `lockey_*` API contract. A feature rendering them owns explicit supported
+  error resources; the SDK does not supply translations.
 - **Long keys.** A key over ~80 chars is a sign the namespace is wrong. Split.
 - **`I18n:` trailer missing.** Without it, `git log --grep` for translation
   changes is broken.

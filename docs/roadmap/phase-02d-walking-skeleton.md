@@ -3901,7 +3901,7 @@ before implementation. Earlier delivery records remain historical.
 The documentation pass covers the platform vision and MVP boundary; Principles;
 the glossary and decisions index; ADR-0008/0009/0018/0035/0036/0040/0042/0043/
 0050/0051/0052/0053/0054; Localization, Frontend Architecture and Tenant
-Customization Model; Standards 03/06/07/08/11/13/15/16/21; Phase 02d and its
+Customization Model; Standards 03/06/07/08/09/11/13/15/16/21; Phase 02d and its
 Phase 04/05/06/07 consumers. The `implement-task`, `add-frontend-route`,
 `add-i18n-key`, `write-adr` and commit workflows are included.
 
@@ -3935,7 +3935,7 @@ plain-text packet. Accepted ADR bodies and shipped delivery records are unchange
 | G16(g) | Render the complete safe tenant palette independently of plan. The effective `showPlatformAttribution` value alone controls platform attribution; no plan inference in the renderer. |
 | G20 subjects | Census production frontend TS/JS and JSON, including renderer/message values, against the exact decoded seed identity literals from G20(a). Preserve the accepted platform-built-in and development/test exemptions, without a blanket catalogue exemption. P7 implements the existing registered rule across backend and frontend. |
 | G38(b,c) | Vitest covers synchronous views and pure mappings; real production HTML/RSC tests cover async pages. Extend the existing required Docker integration fixture to unchanged product pages while preserving the isolated P5 transport probe. P7 still owns shared demo/browser/Lighthouse activation. |
-| G39 | Accept ADR-0027 at first use: exact next-intl 4.14.9, server-first configuration, app-local `src/i18n/messages/{en,tr}/public.json`, one checked ICU catalogue contract. No i18n routing middleware or preference cookie. |
+| G39 | Accept ADR-0027 at first use: exact next-intl 4.14.9, server-first configuration using shared verified request admission, app-local `src/i18n/messages/{en,tr}/public.json`, dotted feature UI keys and one checked ICU catalogue contract. Backend `lockey_*` remains a separate wire namespace; the web app owns closed page-outcome mapping, not the SDK. No i18n routing middleware or preference cookie. |
 | G40 | Three fixed content routes, minimal tenant chrome, both opaque pagination surfaces, exact-locale metadata and explicit page states. The status/navigation choice below requires separate explicit approval with this package. |
 | G41 | Render only the API's ordered plain-string fields through app-local synchronous components in `apps/web/src/components/public/`. Unsupported renderer or unresolved presentation renders the bounded fallback. No HTML, Markdown, linkification, authored URL sink or new primitive. |
 | G42 | Emit a server-generated style element containing only four fixed `--ls-*` color properties after atomic `#rrggbb` validation. Null or malformed theme retains the entire existing CSS default palette. No per-token merge, style attribute, URL, font or organization override. |
@@ -3944,7 +3944,10 @@ plain-text packet. Accepted ADR bodies and shipped delivery records are unchange
 UI catalogue fallback is not content fallback. An enabled language without an
 authored UI catalogue remains admissible; UI groups and API-resolved labels carry
 their actual language. Document language/direction follow the admitted route as
-specified by ADR-0027. No tenant identity selects markup, translations or fields.
+specified by ADR-0027. A test-owned enabled RTL locale and eligible content prove
+document direction and English UI fallback language independently, without
+rewriting the historical seed or promising an Arabic UI catalogue. No tenant
+identity selects markup, translations or fields.
 
 #### G40 status and navigation decision
 
@@ -3996,7 +3999,10 @@ transport/invalid response/unavailable API → unavailable state. These are ordi
 HTTP 200 representations, not claimed HTTP 400/429/503 responses. Bootstrap
 refusals retain middleware's real 404/429/503 and bounded Retry-After. A fresh
 bootstrap failure on the error-route request remains that neutral refusal rather
-than inventing a tenant theme or configuration. No raw Problem Details is shown.
+than inventing a tenant theme or configuration. A closed mapping selects owned UI
+keys for supported outcomes; unknown codes/failures use the unavailable state.
+No Problem Details message key, title, field error or parameter becomes a lookup
+identifier or visible copy.
 
 #### Routes, pagination, metadata and chrome
 
@@ -4119,7 +4125,7 @@ The maintainer is asked to approve these together:
 3. The remaining gate answers, four implementation steps and mandatory manual
    accessibility proof above.
 
-On approval, update the decisions index; Standards 03/06/07/08/16/21 and index;
+On approval, update the decisions index; Standards 03/06/07/08/09/16/21 and index;
 Localization/Frontend/Customization architecture; Phase 04/05/06/07 inheritance;
 glossary terms where introduced; the two frontend skills; and this register,
 renderer scope/completion criteria and decision record. Only implemented tests
@@ -4145,6 +4151,30 @@ audits, added-prose wrapping and `git diff --check` pass across the ten changed
 Markdown files. ADR-0027 parses as Proposed. No Accepted ADR file or production
 code is changed; no frontend/product, browser or accessibility test is claimed
 passing by this preparation record.
+
+#### External i18n draft review reconciliation (2026-10-09)
+
+The review of `64eefe8` is checked against the SDK, current entry/caller and
+mutable documentation. Its six finding groups are addressed: general UI keys
+use dotted feature names in the proposal; backend `lockey_*` resources remain
+intact; the false SDK translation-map claim is removed. Standards 09, the glossary
+and the key skill now distinguish wire-message data from consumer-owned copy.
+Acceptance explicitly reconciles Standards 03/07/08/09 and the catalogue sketches.
+
+ADR-0027 now names the shared verified admission source for request configuration,
+whole-catalogue fallback versus missing-key build failure, the future Standards 21
+section, actual repository dependency pins and test-owned RTL inventory. The
+review's prefix claim is qualified: `lockey_` is a backend invariant, not a blanket
+ban on frontend error resources. No Accepted backend localization contract is
+removed. No gate is accepted and no implementation or dependency is added.
+
+Fresh first-round runtime/corpus reviews use GPT-6-astra high and GPT-6.1-sol
+high; an independent second round uses GPT-6-sol high. All report no actionable
+finding in the corrected proposal. Maintainer acceptance remains required.
+
+Five Release corpus cases and seven ADR workflow cases pass with zero failures or
+skips. Relative-file/fragment, added-prose wrapping and diff checks pass. These are
+documentation checks; no product-runtime or accessibility proof is claimed.
 
 ### P02d-1 decision pass (2026-09-14)
 
