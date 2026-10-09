@@ -56,6 +56,9 @@ describe('public locale grammar and route-only identity', () => {
     ['/tr/courses/../foundation', null],
     ['/tr/courses/%2fadmin', null],
     ['/tr//courses', null],
+    ['/tr/courses.rsc', null],
+    ['/tr/courses.prefetch.rsc', null],
+    ['/tr/courses/foundation.rsc', null],
   ])(
     'derives Education locale exclusively from a supported canonical route: %s',
     (target, locale) => {
@@ -112,6 +115,10 @@ describe('membership-first public entry', () => {
     '/tr/courses/foundation/other',
     '/tr/courses/foundation/lessons/intro/extra',
     '/tr/courses/UPPER',
+    '/tr/courses.rsc',
+    '/tr/courses.prefetch.rsc',
+    '/tr/courses/foundation.rsc',
+    '/tr/courses/foundation/lessons/intro.rsc',
     '/tr/courses/550e8400-e29b-41d4-a716-446655440000',
     '/tr/courses/%2e%2e',
     '/tr/../courses',
@@ -176,8 +183,10 @@ describe('membership-first public entry', () => {
     '?x',
     '?x=%41',
     '?_rsc=raw',
+    "?x='&x=%27&empty=&blank",
+    '?x=tail.rsc',
     '?locale=en&next=https://evil.example',
-  ])('preserves authenticated raw query bytes as inert data: %s', (query) => {
+  ])('retains signed query data until framework URL serialization: %s', (query) => {
     expect(publicEntry('/courses' + query, site())).toEqual({
       kind: 'redirect',
       status: 307,

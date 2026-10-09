@@ -88,6 +88,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var draft = false;
         var verified = false;
         var tracePosition = 0;
+        var beforeProtocol = -1;
         var beforeStock = -1;
         var beforeStockReads = -1;
         var checkpoints = new List<string>();
@@ -124,6 +125,15 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         else requests[0].TraceId.Should().NotBe(SuppliedTrace.Substring(3, 32), "missing/malformed contexts get a fresh trace");
                         tracePosition += requests.Length;
                         break;
+                    case "protocol-before":
+                        beforeProtocol = observed.Requests.Length;
+                        break;
+                    case "protocol-after":
+                        observed.Requests.Skip(beforeProtocol).Should().HaveCount(6,
+                            "five protocol GET probes and HEAD each run the real middleware bootstrap once");
+                        observed.Requests.Skip(beforeProtocol).Should().OnlyContain(request => request.Path == "/api/v1/public/site",
+                            "the test-owned protocol route makes no page/content API calls");
+                        break;
                     case "stock-before":
                         beforeStock = observed.Requests.Length;
                         beforeStockReads = fixture.Observation.Reads;
@@ -154,7 +164,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             var errorOutput = await errors;
             process.ExitCode.Should().Be(0, errorOutput);
             verified.Should().BeTrue("the production fixture must execute every scenario");
-            checkpoints.Should().Equal("build-complete", "trace-supplied", "trace-missing", "trace-malformed", "stock-before", "stock-after", "make-draft", "restore-published", "verified");
+            checkpoints.Should().Equal("build-complete", "trace-supplied", "trace-missing", "trace-malformed", "protocol-before", "protocol-after", "stock-before", "stock-after", "make-draft", "restore-published", "verified");
             observed.Requests.Length.Should().BeInRange(1, 59, "the fixture stays within one real anonymous visitor budget");
             observed.Requests.Should().OnlyContain(request => request.ValidHop, "the real caller uses the closed authenticated hop");
             observed.Logs.Should().BeGreaterThan(0, "API log containment needs a nonempty real logging subject");

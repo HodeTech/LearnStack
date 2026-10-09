@@ -56,19 +56,12 @@ export async function middleware(request: NextRequest) {
       response.headers.set('cache-control', 'no-store');
       return response;
     }
-    // Framework RSC/navigation inputs are protocol data, not host/peer authority.
-    // Rebuild request headers; never spread client cookies or internal overrides.
+    // Next's pinned adapter hides Flight headers here and restores them after
+    // middleware. Rebuild ordinary headers; protocol restoration is proved by
+    // the real production fixture, not by forwarding authority or client cookies.
     const downstream = new Headers();
-    for (const name of [
-      'accept',
-      'rsc',
-      'next-router-state-tree',
-      'next-router-prefetch',
-      'next-router-segment-prefetch',
-    ]) {
-      const value = request.headers.get(name);
-      if (value !== null) downstream.set(name, value);
-    }
+    const accept = request.headers.get('accept');
+    if (accept !== null) downstream.set('accept', accept);
     downstream.set(INGRESS_HEADER, envelope!); // Verified above; the caller verifies again.
     downstream.set('traceparent', traceparent);
     const response = NextResponse.next({ request: { headers: downstream } });
@@ -82,5 +75,5 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   runtime: 'nodejs',
-  matcher: ['/((?!_next/|api/healthz$|favicon.ico$).*)'],
+  matcher: ['/((?!_next/|api/healthz$|favicon\\.ico$).*)'],
 };

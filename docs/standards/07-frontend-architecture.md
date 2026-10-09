@@ -103,9 +103,9 @@ flowchart TD
 
 ## Native Admission and URL Identity
 
-**ADR-0054 Accepted, not implemented — 2026-10-09.** Remediation Step 2
-implements these native/URL controls; the existing launcher and middleware remain
-current behavior until that step is verified.
+**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
+Remediation Step 2 implements these controls. Concrete execution and review
+evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
 
 - Admit GET/HEAD on every HTTP path reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.

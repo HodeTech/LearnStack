@@ -154,7 +154,7 @@ async function vacant(port) {
   );
 }
 
-function call(tls, port, path, headers = {}) {
+function call(tls, port, path, headers = {}, method = 'GET') {
   return new Promise((resolve, reject) => {
     const send = tls ? httpsRequest : httpRequest;
     const request = send(
@@ -163,6 +163,7 @@ function call(tls, port, path, headers = {}) {
         port,
         path,
         headers,
+        method,
         ...(tls ? { ca: certificate, servername: headers.Host?.split(':')[0] ?? 'localhost' } : {}),
         timeout: 15_000,
       },
@@ -202,15 +203,20 @@ async function ready(child, tls, port) {
   throw new Error('Readiness deadline');
 }
 
-function safeResponse(response, status, rsc = false) {
+function safeResponse(
+  response,
+  status,
+  rsc = false,
+  contentType = rsc ? /^text\/x-component/ : /^text\/html/,
+) {
   if (response.status !== status) stage += ` (status ${response.status}, expected ${status})`;
   assert.equal(response.status, status, 'Public response status');
   assert.match(response.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
   assert.equal(response.headers.etag, undefined);
   assert.equal(response.headers['set-cookie'], undefined);
+  assert.equal(response.headers['x-powered-by'], undefined);
   assert.equal(checkPrivate(JSON.stringify(response)), false, 'Response private-data containment');
-  if (status === 200)
-    assert.match(response.headers['content-type'], rsc ? /^text\/x-component/ : /^text\/html/);
+  if (status === 200) assert.match(response.headers['content-type'], contentType);
 }
 
 async function representation(tenant, path, rsc = false, extra = {}, status = 200) {
@@ -272,6 +278,22 @@ export default async function FixturePage({ params }: {
 }
 `;
 
+// The real Next adapter removes Flight inputs before user middleware, then
+// restores them after its request-header override. Observe that final request
+// through a disposable admitted route, without exposing any header values.
+const protocolProbe = `export const dynamic = 'force-dynamic';
+
+export function GET(request: Request) {
+  return Response.json({
+    rsc: request.headers.get('rsc') === '1',
+    stateTree: request.headers.get('next-router-state-tree') === '%5B%22%22%2C%7B%7D%5D',
+    routerPrefetch: request.headers.get('next-router-prefetch') === '1',
+    segmentPrefetch: request.headers.get('next-router-segment-prefetch') === '/_tree',
+    hmrRefresh: request.headers.get('next-hmr-refresh') === '1',
+  }, { headers: { 'cache-control': 'no-store' } });
+}
+`;
+
 try {
   configuration = JSON.parse(await line());
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
@@ -304,6 +326,9 @@ try {
   const fixturePage = join(app, 'src/app/(public)/[locale]/courses/[[...segments]]/page.tsx');
   mkdirSync(dirname(fixturePage), { recursive: true });
   writeFileSync(fixturePage, page);
+  const fixtureProbe = join(app, 'src/app/(public)/[locale]/courses/protocol-probe/route.ts');
+  mkdirSync(dirname(fixtureProbe), { recursive: true });
+  writeFileSync(fixtureProbe, protocolProbe);
 
   stage = 'client import rejection';
   const mutant = join(app, 'src/app/client-import-probe/page.tsx');
@@ -403,6 +428,54 @@ try {
     redirect.headers.location,
     'https://' + second.host + ':3000/' + second.defaultLocale + '/courses',
   );
+
+  stage = 'real adapter Flight header preservation';
+  await checkpoint('protocol-before');
+  const absentProtocol = {
+    rsc: false,
+    stateTree: false,
+    routerPrefetch: false,
+    segmentPrefetch: false,
+    hmrRefresh: false,
+  };
+  const navigationHeaders = {
+    RSC: '1',
+    'Next-Router-State-Tree': '%5B%22%22%2C%7B%7D%5D',
+  };
+  for (const [headers, expected] of [
+    [{}, absentProtocol],
+    [navigationHeaders, { ...absentProtocol, rsc: true, stateTree: true }],
+    [
+      { ...navigationHeaders, 'Next-Router-Prefetch': '1' },
+      { ...absentProtocol, rsc: true, stateTree: true, routerPrefetch: true },
+    ],
+    [
+      { RSC: '1', 'Next-Router-Segment-Prefetch': '/_tree' },
+      { ...absentProtocol, rsc: true, segmentPrefetch: true },
+    ],
+    [
+      { RSC: '1', 'Next-Hmr-Refresh': '1' },
+      { ...absentProtocol, rsc: true, hmrRefresh: true },
+    ],
+  ]) {
+    const response = await call(true, 3000, catalog + '/protocol-probe', {
+      Host: first.host + ':3000',
+      ...headers,
+    });
+    safeResponse(response, 200, false, /^application\/json/);
+    assert.deepEqual(JSON.parse(response.body), expected, 'Final route protocol inputs');
+  }
+  stage = 'real adapter bodyless HEAD';
+  const head = await call(
+    true,
+    3000,
+    catalog + '/protocol-probe',
+    { Host: first.host + ':3000', ...navigationHeaders },
+    'HEAD',
+  );
+  safeResponse(head, 200, false, /^application\/json/);
+  assert.equal(head.body, '', 'Supported HEAD has no response body');
+  await checkpoint('protocol-after');
 
   stage = 'stock launcher forgery before bootstrap';
   const stock = start(

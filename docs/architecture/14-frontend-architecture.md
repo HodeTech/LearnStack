@@ -22,10 +22,10 @@ independent apps when warranted.
 
 The [P02d-5 external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 tracks verified gaps. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
-is **Accepted, not implemented — 2026-10-09**: remediation Step 1 replaces
-current peer-first accounting with coordinated owned visitor limiters; Step 2
-implements native method/upgrade and URL controls. Acceptance changes the contract,
-not the runtime delivery record.
+is **Accepted — 2026-10-09**. Remediation Step 1 implements coordinated anonymous
+accounting and passes both independent review rounds. Step 2 implements native
+method/upgrade and URL controls; its independent reviews remain pending. The
+remediation record owns concrete execution evidence.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -147,7 +147,8 @@ provenance, a server-only configured transport and uncached institution renderin
 Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
 records all four completed steps and both independent review rounds per step.
 Frontend fences, no-skip outcomes and real-API production HTML/RSC proofs pass;
-P02d-5 awaits maintainer PR review and merge. P02d-6 owns public page consumers.
+P02d-5 remains unmerged while external-review remediation continues. P02d-6 owns
+public page consumers.
 
 ADR-0054 retains API-owned tenant authority and membership-first locale entry.
 Its accepted native boundary admits GET/HEAD on every callback path, including
@@ -155,7 +156,7 @@ matcher-exempt health/assets; production upgrades close and development retains
 only validated GET HMR. Signed raw targets remain route/locale authority; redirects
 preserve inert query values, duplicates and ordering with equivalent encoding.
 [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity)
-own the detailed controls and pending implementation boundary. Coordinated API
+own the detailed controls and implementation/review boundary. Coordinated API
 admission refuses an exhausted known visitor before peer debit while peer-gating
 unknown visitor allocation; the peer quota bounds successful acquisitions and
 allocations, not total refusal work. Lifecycle and Retry-After/replay obligations

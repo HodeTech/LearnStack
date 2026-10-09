@@ -172,9 +172,9 @@ export function verifyProvenance(
 }
 
 /**
- * Next 15.5.18's web adapter always deletes `_rsc`, serializing URLSearchParams
- * even when absent. Bind that exact projection, while retaining the signed raw
- * target for inert query preservation. The generic verifier stays byte-exact.
+ * Next 15.5.18 normalizes `.rsc` on the full URL before parsing, then deletes
+ * `_rsc`, serializing URLSearchParams even when absent. Retain the signed raw
+ * target for route identity and inert query data; this grants no suffix aliases.
  */
 export function verifyNextProvenance(
   envelope: string | null,
@@ -183,13 +183,15 @@ export function verifyNextProvenance(
 ): IngressContext | null {
   const context = verifyProvenance(envelope, secret);
   if (!context || context.method !== observed.method) return null;
-  const projected = new URL(context.target, 'https://ingress.invalid');
+  const projected = new URL(
+    ('https://ingress.invalid' + context.target).replace(/\.rsc($|\?)/, '$1'),
+  );
   projected.searchParams.delete('_rsc');
   return projected.pathname + projected.search === observed.target ? context : null;
 }
 
 function privateInboundHeader(name: string): boolean {
-  return /^(?:forwarded|x-forwarded-.*|x-learnstack-.*|x-tenant-id|x-organization-id|x-locale|x-middleware-.*|x-invoke-.*|x-nextjs-.*|x-matched-path|x-now-route-matches|x-next-resume-state-length|next-url|next-resume|x-prerender-revalidate(?:-if-generated)?)$/i.test(
+  return /^(?:forwarded|x-forwarded(?:-.*)?|x-real-ip|x-client-ip|x-cluster-client-ip|true-client-ip|cf-connecting-ip|x-vercel(?:-.*)?|x-original-url|x-scheme|x-host|x-learnstack-.*|x-tenant-id|x-organization-id|x-locale|x-middleware-.*|x-invoke-.*|x-nextjs-.*|x-matched-path|x-now-route-matches|x-next-resume-state-length|next-url|next-resume|x-prerender-revalidate(?:-if-generated)?)$/i.test(
     name,
   );
 }
@@ -205,7 +207,8 @@ export function admitIncomingRequest(request: IncomingMessage, secret: string): 
   const peer = canonicalAddress(request.socket.remoteAddress ?? '');
   const method = request.method ?? '';
   const target = request.url ?? '';
-  if (!host || !peer || !/^[A-Z]{1,20}$/.test(method) || !validTarget(target)) return false;
+  if (!host || !peer || (method !== 'GET' && method !== 'HEAD') || !validTarget(target))
+    return false;
   for (const name of Object.keys(request.headers)) {
     if (privateInboundHeader(name)) delete request.headers[name];
   }
@@ -225,7 +228,7 @@ export function admitIncomingRequest(request: IncomingMessage, secret: string): 
 
 export function refuseIngress(response: ServerResponse): void {
   response.writeHead(404, { 'cache-control': 'no-store', 'content-type': 'text/plain' });
-  response.end('Not found');
+  response.end(response.req.method === 'HEAD' ? undefined : 'Not found');
 }
 
 /** No eval, interpolation or shell parsing; malformed/duplicate keys fail closed. */

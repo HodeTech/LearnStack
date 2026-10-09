@@ -481,12 +481,12 @@ and redirect/query rules. These are the ongoing security obligations:
 P02d-5 delivers this boundary, with verified remaining gaps tracked in the
 [external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
 ADR-0054 accounting is implemented by remediation Step 1; both independent
-review rounds passed. Step 2 native method/upgrade and URL controls remain pending.
+review rounds passed. Step 2 native method/upgrade and URL controls are implemented,
+with independent reviews pending.
 Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
 production upgrades close and development retains only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
-for the accepted native controls; their existing runtime behavior remains until
-Step 2.
+for the native controls and their delivery/review boundary.
 
 
 ## File Uploads

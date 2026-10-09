@@ -4139,17 +4139,21 @@ of structural detection.
 
 ## P02d-5 public server rendering controls
 
-**ADR-0054 Accepted, new proofs pending — 2026-10-09.** The implemented rules
-below retain their existing scope; they do not establish remediation Step 2's new
-native/URL contracts. Required real-launcher/socket proofs cover GET/HEAD on
-ordinary and matcher-exempt health/assets/scaffold paths, native refusal of other
-methods before Next/bootstrap, no-store and bodyless HEAD, every production
-upgrade closing, and retained validated development GET HMR. URL controls must
-prove pinned Next full-URL RSC/`_rsc` projection without raw-route aliases, inert
-query value/duplicate/order preservation under equivalent encoding, and framework
-identification suppression on fallback responses. Final enforcing names are
-registered with implementation and new executions; no passing names or delivery
-counts are claimed by acceptance.
+**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
+Remediation Step 2 extends the rules below. `verify-ingress.mjs` exercises the
+real native launcher over TLS: GET/HEAD on ordinary, scaffold and matcher-exempt
+health/assets; unsupported callback methods never reaching Next/bootstrap;
+bodyless HEAD, no-store refusal, exact favicon matcher and no framework
+identification. Production upgrades close at the server; development retains a
+real HMR 101/frame beyond its handshake deadline. `development-hmr.test.ts` proves
+bounded handshake ownership and failed/ignored delegation closure.
+`ingress.test.ts` covers signed raw context, full-URL RSC/`_rsc` projection and
+parsed/raw forwarding-header removal. Middleware/entry controls retain raw-route
+refusal of suffix aliases and inert ordered redirect query data. The real-API
+`PublicServerRenderingTests` fixture verifies restored Flight protocol inputs
+through the pinned Next adapter, with five GET probes and HEAD causing exactly six
+live bootstrap calls. The delivery record owns execution and independent review
+results; future fixture/source-guard remediation remains Steps 3–4.
 
 #### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
 

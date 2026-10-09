@@ -3,8 +3,7 @@ import { createServer as createUpgradeSink } from 'node:http';
 import { createServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 
-import next from 'next';
-
+import { delegateDevelopmentHmr } from './development-hmr.mjs';
 import {
   admitIncomingRequest,
   loadLocalEnvironment,
@@ -15,6 +14,10 @@ import {
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 try {
+  // A nonempty exclusion survives debug initialization and prevents later dotenv
+  // loading from restoring diagnostics. Apply it before importing any Next code.
+  process.env.DEBUG = '-*';
+  const { default: next } = await import('next');
   const values = loadLocalEnvironment(root, process.env);
   const configuration = publicServerConfiguration(values, root);
   // Next reads the same values; root/projection conflicts were refused before prepare.
@@ -44,10 +47,10 @@ try {
     },
   );
   server.on('upgrade', (request, socket, head) => {
-    if (!admitIncomingRequest(request, configuration.secret)) return socket.destroy();
-    // Before Next has registered its handler, close rather than bypass admission.
-    if (!upgradeSink.emit('upgrade', request, socket, head)) socket.destroy();
+    if (!dev || !admitIncomingRequest(request, configuration.secret)) return socket.destroy();
+    delegateDevelopmentHmr(request, socket, head, upgradeSink);
   });
+  server.on('connect', (_request, socket) => socket.destroy());
   server.on('error', () => {
     console.error('Public HTTPS listener failed');
     process.exit(1);

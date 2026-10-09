@@ -124,14 +124,15 @@ no locale header, cookie or query supplies authority. The API remains the only
 tenant/organization owner. Continue the request-local validated `traceparent`
 through bootstrap and the configured caller; Phase 11 owns participation/sampling.
 
-**ADR-0054 Accepted, not implemented — 2026-10-09.**
+**ADR-0054 native/URL controls implemented — 2026-10-09; review pending.**
 [The replacement contract](../../../docs/decisions/0054-bounded-public-renderer-admission.md)
 requires native GET/HEAD admission on every HTTP callback path, including
 middleware-exempt health/assets/scaffolds, with masked no-store refusal of other
 methods and bodyless HEAD. Production upgrades close; development retains only
 validated GET HMR. Remediation Step 2 implements these native/URL controls;
-existing runtime behavior remains until then. Do not add Server Actions/write
-routes or WebSocket consumers without an explicit owning Phase 02b/Phase 06
+its delivery record owns validation and independent review evidence. Do not add
+Server Actions/write routes or WebSocket consumers without an explicit owning
+Phase 02b/Phase 06
 admission decision. Preserve signed raw-target route/locale authority when
 accounting for pinned Next's URL projection. Redirects retain inert query values,
 duplicates and order with equivalent percent encoding; only verified live host,

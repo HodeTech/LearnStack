@@ -56,8 +56,8 @@ function incoming(target: string, stamp: 'valid' | 'missing' | 'forged' = 'valid
             secret,
           ),
     );
-  // The pinned Next adapter serializes searchParams while removing _rsc.
-  const observed = new URL(target, 'https://substituted.invalid');
+  // Pinned Next normalizes the full URL before parsing, then removes _rsc.
+  const observed = new URL(('https://substituted.invalid' + target).replace(/\.rsc($|\?)/, '$1'));
   observed.searchParams.delete('_rsc');
   return new NextRequest(observed, { headers });
 }
@@ -113,11 +113,19 @@ describe('Node public middleware', () => {
     '?x',
     '?x=%41',
     '?_rsc=raw',
+    "?x='&x=%27&empty=&blank&x=tail.rsc",
+    '?x=tail.rsc?extra=1',
+    '?x=tail.rsc&_rsc=a&_rsc=b',
     '?locale=en&next=https://evil.example',
-  ])('redirects on verified host/default preserving raw query %s', async (query) => {
+  ])('redirects on verified host/default retaining ordered inert query data %s', async (query) => {
     const response = await middleware(incoming('/courses' + query));
     expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toBe('https://tenant.example:3000/tr/courses' + query);
+    const destination = new URL(response.headers.get('location') ?? '');
+    expect(destination.origin).toBe('https://tenant.example:3000');
+    expect(destination.pathname).toBe('/tr/courses');
+    expect([...destination.searchParams]).toEqual([
+      ...new URL('/courses' + query, 'https://inert.invalid').searchParams,
+    ]);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('set-cookie')).toBeNull();
   });
@@ -133,14 +141,12 @@ describe('Node public middleware', () => {
 
   it('rebuilds downstream request headers, retaining the envelope only as framework request context', async () => {
     const request = incoming('/tr/courses?locale=en');
-    request.headers.set('rsc', '1');
-    request.headers.set('next-router-prefetch', '1');
+    // The actual Node adapter hides Flight inputs before invoking middleware.
+    // Their later restoration is covered by the real production fixture.
     const response = await middleware(request);
     expect(response.headers.get('x-middleware-next')).toBe('1');
     const overrides = response.headers.get('x-middleware-override-headers')!.split(',');
-    expect(new Set(overrides)).toEqual(
-      new Set(['accept', 'rsc', 'next-router-prefetch', 'traceparent', INGRESS_HEADER]),
-    );
+    expect(new Set(overrides)).toEqual(new Set(['accept', 'traceparent', INGRESS_HEADER]));
     expect(response.headers.get('x-middleware-request-' + INGRESS_HEADER)).toBe(
       request.headers.get(INGRESS_HEADER),
     );
@@ -155,6 +161,14 @@ describe('Node public middleware', () => {
     });
     expect(bootstrap).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['/tr/courses.rsc', '/tr/courses.prefetch.rsc', '/tr/courses/foundation.rsc'])(
+    'refuses raw suffix route aliases despite their framework projection: %s',
+    async (target) => {
+      expect((await middleware(incoming(target))).status).toBe(404);
+      expect(bootstrap).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each([null, 'invalid', trace.replace('-01', '-xyz')])(
     'shares a fresh request-local trace between bootstrap and rendering for %s',

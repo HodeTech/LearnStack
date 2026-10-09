@@ -278,6 +278,16 @@ not rewrite it. Concrete execution and review evidence lives in the
 [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-1--coordinated-anonymous-admission)
 and ongoing [catalogue entry](../standards/21-architecture-tests-catalogue.md#anonymous_requests_are_rate_limited_per_peer).
 
+### Amendment 2 — Native and URL implementation (2026-10-09)
+
+**Delivery note; independent reviews pending.** Remediation Step 2 implements the
+native method/upgrade and URL portions of this decision. Current enforcement and
+concrete execution/review evidence live in [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity)
+and the [Step 2 record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
+Step 1's accounting implementation has completed both independent review rounds.
+The accepted decision and prior delivery notes remain unchanged; fixture/tooling
+remediation and final PR closeout remain Steps 3–5.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

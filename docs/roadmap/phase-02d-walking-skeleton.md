@@ -3327,7 +3327,8 @@ reads certificate/key files, resolved against the repository root.
 **Current status — Accepted, remediation in progress (2026-10-09).** The maintainer
 approved ADR-0054 and all five correction steps, authorizing continued work on
 development. Remediation Step 1 is complete after both independent review rounds;
-Steps 2–5 remain pending. Original delivery/proposal/review notes below remain
+Step 2 is implemented with independent reviews pending; Steps 3–5 remain pending.
+Original delivery/proposal/review notes below remain
 historical; the five steps own new implementation evidence. PR #26 remains
 unmerged and is not ready for final review.
 
@@ -3441,7 +3442,8 @@ required check or protection weakening is proposed.
 #### Implementation and review sequence
 
 Maintainer approval on 2026-10-09 authorizes these five correction steps on
-development. **Current step status: Step 1 complete; Steps 2–5 pending.** For each:
+development. **Current step status: Step 1 complete; Step 2 implemented/review
+pending; Steps 3–5 pending.** For each:
 implement and validate, commit, run two fresh independent review rounds, validate
 and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
 local work; do not rewrite the branch or merge PR #26.
@@ -3520,6 +3522,46 @@ proof/corpus reviewers approve the corrected tree. Their independent runs pass
 accounting/lifecycle cases plus the endpoint retry respectively, with zero skips.
 The remaining current-sequence status sentence is aligned in this closeout;
 no additional production change is needed. Step 1 is complete; Step 2 starts next.
+
+#### Remediation Step 2 — Native ingress and URL boundary
+
+**Implemented — 2026-10-09; independent reviews pending.** Native HTTP admission
+accepts GET/HEAD before Next on every callback path; other callback methods receive
+masked no-store 404. Node retains parser-level refusals, including TRACK, and no
+CONNECT tunnel is admitted. Production closes every upgrade. Development permits
+only exact validated GET HMR, bounds its initial 101 handshake and closes missing,
+failed or ignored delegation while retaining established HMR connections.
+
+The launcher disables framework DEBUG before importing Next, including later
+framework dotenv loading. Forwarding/authority carriers are removed from both
+parsed and raw headers. `poweredByHeader` is disabled; the favicon matcher uses a
+literal dot. URL verification applies pinned Next's full-URL `.rsc` normalization
+before parsing and `_rsc` removal, then returns the signed raw context. Route and
+locale admission still refuse suffix aliases. Redirect proofs compare actual
+Location authority, path and ordered decoded query pairs, including apostrophes.
+
+Flight protocol preservation is tested through the real adapter and middleware;
+the direct middleware mock no longer claims to exercise adapter-hidden headers.
+The disposable route emits only named booleans, and its five GET probes plus HEAD
+must produce exactly six live API bootstrap calls. No product route is introduced.
+
+**Validation — 2026-10-09.** All 469 frontend cases pass through the workspace
+outcome guard (409 web, 60 SDK), with zero skips/todos. Lint and typecheck pass;
+production build passes. The real API/PostgreSQL production-rendering case passes
+1/1, including the six protocol/bootstrap calls and existing tenant isolation,
+trace, freshness and containment. The actual native TLS fixture passes all-path
+method/HEAD, matcher, query, production closure, DEBUG and retained development
+HMR controls; its original planted cleanup control also passes. Corpus consistency
+passes 5/5 and diff checks are clean. Both fresh review rounds remain pending.
+
+The DEBUG canary caught a pinned-library detail during implementation: an empty
+DEBUG is deleted by debug initialization. The final nonempty `-*` exclusion is set
+before importing Next, survives initialization/dotenv and is exercised with enabled
+process and dotenv canaries. Next development route discovery also requires a
+fixture-owned source copy, whereas production uses its existing compiled output.
+These are verified fixture/runtime corrections, not new product contracts.
+
+Fixture ownership/containment and source/tooling remediation remain Steps 3–4.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

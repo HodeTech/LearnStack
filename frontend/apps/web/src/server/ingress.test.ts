@@ -141,7 +141,15 @@ describe('pinned Next target projection', () => {
     ['?_rsc=abc', ''],
     ['?x=1&x=2', '?x=1&x=2'],
     ['?x=%20&_rsc=abc', '?x=+'],
-  ])('accepts Next processing and preserves raw bytes: %s', (raw, next) => {
+    ['?x=tail.rsc', '?x=tail'],
+    ['?x=tail.rsc?extra=1', '?x=tail%3Fextra%3D1'],
+    ['?x=tail.rsc&y=1', '?x=tail.rsc&y=1'],
+    ['?x=tail%2Ersc', '?x=tail.rsc'],
+    ['?x=tail.rsc&_rsc=z', '?x=tail.rsc'],
+    ['?x=tail.rsc.rsc', '?x=tail.rsc'],
+    ['?x=tail.RSC', '?x=tail.RSC'],
+    ['?_rsc=a&x=tail.rsc&_rsc=b', '?x=tail.rsc'],
+  ])('accepts pinned Next processing and returns the signed raw context: %s', (raw, next) => {
     const captured = { ...context, target: '/en/courses' + raw };
     const envelope = mintProvenance(captured, secret);
     expect(
@@ -234,6 +242,21 @@ describe('private local configuration', () => {
 });
 
 describe('real TLS socket boundary', () => {
+  const authorityCarriers = [
+    'Forwarded',
+    'X-Forwarded',
+    'X-Forwarded-For',
+    'x-ReAl-Ip',
+    'X-Client-IP',
+    'X-Cluster-Client-IP',
+    'True-Client-IP',
+    'CF-Connecting-IP',
+    'X-Vercel-Forwarded-For',
+    'X-Original-URL',
+    'X-Scheme',
+    'X-Host',
+  ];
+  const traceparent = '00-1234567890abcdef1234567890abcdef-1234567890abcdef-01';
   const directory = mkdtempSync(join(tmpdir(), 'learnstack-ingress-tls-'));
   writeFileSync(
     join(directory, 'certificate.cnf'),
@@ -267,6 +290,16 @@ describe('real TLS socket boundary', () => {
       if (!admitIncomingRequest(incoming, secret)) return refuseIngress(response);
       const proof = verifyProvenance(String(incoming.headers[INGRESS_HEADER]), secret);
       expect(proof?.peer).toBe('127.0.0.1');
+      expect(proof?.host).toBe('tenant.example:3000');
+      const rawNames = incoming.rawHeaders
+        .filter((_value, index) => index % 2 === 0)
+        .map((name) => name.toLowerCase());
+      for (const name of authorityCarriers) {
+        expect(incoming.headers[name.toLowerCase()]).toBeUndefined();
+        expect(rawNames).not.toContain(name.toLowerCase());
+      }
+      expect(rawNames.filter((name) => name === INGRESS_HEADER)).toHaveLength(1);
+      expect(incoming.headers.traceparent).toBe(traceparent);
       expect(incoming.headers['x-forwarded-for']).toBeUndefined();
       expect(incoming.headers['x-tenant-id']).toBeUndefined();
       expect(incoming.headers['x-middleware-subrequest']).toBeUndefined();
@@ -314,7 +347,8 @@ describe('real TLS socket boundary', () => {
             path: '/en/courses',
             headers: {
               Host: 'tenant.example:3000',
-              'X-Forwarded-For': 'attacker',
+              ...Object.fromEntries(authorityCarriers.map((name) => [name, 'attacker'])),
+              traceparent,
               'X-Tenant-Id': 'attacker',
               'X-Middleware-Subrequest': 'attacker',
               'X-Matched-Path': 'attacker',
@@ -365,6 +399,79 @@ describe('real TLS socket boundary', () => {
         outgoing.end();
       }),
     ).rejects.toThrow();
+  });
+
+  it.each(['POST', 'OPTIONS', 'TRACE', 'PUT', 'DELETE'])(
+    'refuses %s before the admitted TLS handler',
+    async (method) => {
+      const port = await listening;
+      const result = await new Promise<{ status: number; body: string; cache: string | undefined }>(
+        (resolve, reject) => {
+          const outgoing = request(
+            {
+              hostname: '127.0.0.1',
+              port,
+              servername: 'localhost',
+              ca: certificate,
+              method,
+              path: '/api/healthz',
+              headers: { Host: 'tenant.example:3000' },
+            },
+            (response) => {
+              let body = '';
+              response.on('data', (chunk: Buffer) => {
+                body += chunk.toString();
+              });
+              response.on('end', () =>
+                resolve({
+                  status: response.statusCode ?? 0,
+                  body,
+                  cache: response.headers['cache-control'],
+                }),
+              );
+            },
+          );
+          outgoing.on('error', reject);
+          outgoing.end();
+        },
+      );
+      expect(result).toEqual({ status: 404, body: 'Not found', cache: 'no-store' });
+    },
+  );
+
+  it('keeps native HEAD refusals bodyless', async () => {
+    const port = await listening;
+    const result = await new Promise<{ status: number; bytes: number; cache: string | undefined }>(
+      (resolve, reject) => {
+        const outgoing = request(
+          {
+            hostname: '127.0.0.1',
+            port,
+            servername: 'localhost',
+            ca: certificate,
+            method: 'HEAD',
+            path: '/en/courses',
+            headers: { Host: 'bad@host' },
+          },
+          (response) => {
+            let bytes = 0;
+            response.on('data', (chunk: Buffer) => {
+              bytes += chunk.length;
+            });
+            response.on('end', () =>
+              resolve({
+                status: response.statusCode ?? 0,
+                bytes,
+                cache: response.headers['cache-control'],
+              }),
+            );
+          },
+        );
+        outgoing.on('error', reject);
+        outgoing.end();
+      },
+    );
+    expect(result).toEqual({ status: 404, bytes: 0, cache: 'no-store' });
   });
 
   it.each([
