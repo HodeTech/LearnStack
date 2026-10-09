@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { createConfiguredPublicClient, publicTraceparent } from '@/server/configured-public-client';
 import { INGRESS_HEADER, verifyNextProvenance } from '@/server/ingress';
-import { publicEntry, publicRedirect } from '@/server/public-entry';
+import { isPublicStatusTarget, publicEntry, publicRedirect } from '@/server/public-entry';
 
 function refusal(status: 404 | 429 | 503, retryAfter?: number): NextResponse {
   return new NextResponse(
@@ -64,7 +64,10 @@ export async function middleware(request: NextRequest) {
     if (accept !== null) downstream.set('accept', accept);
     downstream.set(INGRESS_HEADER, envelope!); // Verified above; the caller verifies again.
     downstream.set('traceparent', traceparent);
-    const response = NextResponse.next({ request: { headers: downstream } });
+    const response = NextResponse.next({
+      status: isPublicStatusTarget(context.target) ? 404 : 200,
+      request: { headers: downstream },
+    });
     response.headers.set('cache-control', 'no-store');
     return response;
   } catch {

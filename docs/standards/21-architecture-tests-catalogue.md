@@ -6,7 +6,7 @@
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
 (accepted replacement proofs implemented),
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
-(P02d-6 rules Registered; implementation pending). The catalogue grows as
+(P02d-6 rules Registered; complete proofs pending). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -4198,7 +4198,10 @@ verification pass; the delivery record owns execution evidence.
 - **Status:** **Implemented** — `public-boundaries.test.ts` names this rule and
   pins the nonempty production TypeScript graph, marker, direct/global/aliased
   fetches, hop setters and transitive Client Component dependencies. Clean/planted
-  controls cover imports, reexports and literal dynamic imports. Arbitrary eval,
+  controls cover imports, reexports and literal dynamic imports. P02d-6 Step 1
+  includes server configuration and bundled JSON catalogues in the graph and
+  plants direct Client Component imports of each bundle; ordinary public JSON
+  remains admissible. Arbitrary eval,
   runtime reassignment, external package bodies and native MJS are outside the
   source scan; production socket/TLS and `PublicServerRenderingTests` prove the
   runtime boundary, actual client-import rejection and private-value containment.
@@ -4215,7 +4218,13 @@ verification pass; the delivery record owns execution evidence.
 - **Status:** **Implemented** — `public-boundaries.test.ts` names this rule, checks
   the public layout policy and follows public/helper imports for shared storage,
   forbidden Next cache APIs and static/revalidation overrides. Clean/planted
-  controls accompany it; request-local React cache remains allowed.
+  controls accompany it; request-local React cache remains allowed. P02d-6 Step 1
+  also constrains the complete AST shape of `request-memo.ts`: a private weak map
+  keyed only by Next's exact request-store headers object, publish-before-load
+  semantics and retained rejected work. Planted strong maps, copied/value/caller
+  keys, eager loads, rejection retries and exposed/additional collections fail.
+  Its unit controls distinguish overlapping equal-header requests and subsequent
+  requests; this does not claim the pending complete P6 product-page proof.
   `PublicServerRenderingTests` proves cold/interleaved same-path HTML/RSC host
   isolation and next-request publication freshness as `learnstack_app`. It owns
   disposable routes, not P6 product pages or P7 browser delivery.

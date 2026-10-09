@@ -19,7 +19,8 @@ Initial renderer scope:
 - Document direction and logical layout properties apply from the first public
   renderer, including an enabled RTL locale; they are not deferred until a tenant
   requests a redesign. Accepted P02d-6 G39/G43 selects the mapping and proofs;
-  implementation remains pending.
+  Step 1 implements direction selection and fallback chrome; actual content-page
+  language proofs remain later P02d-6 steps.
 - P02d-6 accepts initial English and Turkish platform UI catalogues in
   [ADR-0027](../decisions/0027-frontend-i18n.md). Additional UI translations are
   added when authored; their absence must not narrow enabled content locales.
@@ -298,7 +299,7 @@ The routing consequences follow directly, and are behaviour rather than defects:
 
 ## UI String Catalogue
 
-**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+**P02d-6 Step 1 G39 foundation implemented — 2026-10-10.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects server-first `next-intl`
 4.14.9 and one app-local catalogue home:
 
@@ -337,9 +338,12 @@ when undescribed. UI groups carry their actual selected language/direction, and
 Pattern B labels carry their resolved locale. A test-owned enabled `ar` route
 proves RTL content with English fallback UI, without altering seed inventory or
 claiming an Arabic catalogue. Pattern A content never gains cross-locale fallback.
-The dependency, catalogues, runtime and proofs are not installed/delivered by this
-acceptance. Phase 04 inherits the foundation for CMS/Studio; Phase 06 owns the full
-Studio/portal consumers.
+Step 1 implements the pinned dependency/plugin, catalogues, request runtime and
+key/ICU/callsite controls. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns current verification and review evidence. Actual content-page proofs
+remain later P02d-6 steps. Phase 04 inherits the foundation for CMS/Studio; Phase 06
+owns the full Studio/portal consumers.
 
 API error codes remain stable machine identifiers. Problem Details carries
 backend `lockey_*` message data, not translated text; supported consumer resources

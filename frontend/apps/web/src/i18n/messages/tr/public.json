@@ -1,0 +1,57 @@
+{
+  "chrome": {
+    "skip_to_content": "İçeriğe geç",
+    "catalog": "Kurs kataloğu",
+    "attribution": "LearnStack altyapısıyla"
+  },
+  "catalog": {
+    "title": "Kurslar",
+    "course_count": "{count, plural, one {# kurs} other {# kurs}}",
+    "empty": "Bu dilde henüz sunulan bir kurs yok.",
+    "next": "Sonraki kurslar",
+    "restart": "İlk kurslara dön",
+    "level_unavailable": "Seviye bilgisi mevcut değil"
+  },
+  "course": {
+    "outline": "Kurs içeriği",
+    "lesson_count": "{count, plural, one {# ders} other {# ders}}",
+    "empty_outline": "Bu kursta henüz herkese açık bir ders yok.",
+    "restricted_outline": "Bu kursun dersleri herkese açık değildir.",
+    "next": "Sonraki dersler",
+    "restart": "İlk derslere dön",
+    "level_unavailable": "Seviye bilgisi mevcut değil"
+  },
+  "lesson": {
+    "unavailable": "Bu dersin içeriği şu anda kullanılamıyor.",
+    "empty": "Bu derste henüz görüntülenecek içerik yok."
+  },
+  "page": {
+    "missing": {
+      "title": "Sayfa bulunamadı",
+      "description": "Bu sayfa mevcut değil. Devam etmek için kurs kataloğuna göz atın."
+    },
+    "invalid_cursor": {
+      "title": "Bu sayfa bağlantısı artık geçerli değil",
+      "description": "Göz atmaya devam etmek için ilk sayfaya dönün.",
+      "reset": "İlk sayfaya dön"
+    },
+    "rate_limited": {
+      "title": "Lütfen daha sonra tekrar deneyin",
+      "description": "Çok fazla istek alındı. Tekrar denemeden önce biraz bekleyin."
+    },
+    "unavailable": {
+      "title": "İçerik kullanılamıyor",
+      "description": "İçerik geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin."
+    },
+    "loading": {
+      "title": "İçerik yükleniyor",
+      "description": "İçerik yüklenirken lütfen bekleyin."
+    },
+    "error": {
+      "title": "Bir sorun oluştu",
+      "description": "Bu sayfa görüntülenemedi. Lütfen tekrar deneyin.",
+      "retry": "Tekrar dene"
+    },
+    "recovery": "Kurslara göz at"
+  }
+}

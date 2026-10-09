@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -13,6 +14,7 @@ import {
 } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -26,6 +28,7 @@ import {
 } from './fixture-support.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
+const { JSDOM } = createRequire(join(sourceApp, 'package.json'))('jsdom');
 const owner = createFixtureOwner();
 const scanners = [];
 let fixtureRoot;
@@ -36,6 +39,7 @@ let stage = 'configuration';
 let configuration;
 let certificate;
 let privateScanner;
+let catalogueCanaries = [];
 
 function checkPrivate(value) {
   return privateScanner.contains(value);
@@ -155,6 +159,7 @@ function call(tls, port, path, headers = {}, method = 'GET') {
         timeout: 15_000,
       },
       (response) => {
+        response.setEncoding('utf8');
         let body = '';
         response.on('data', (chunk) => {
           body += chunk.toString();
@@ -205,14 +210,20 @@ function safeResponse(
   rsc = false,
   contentType = rsc ? /^text\/x-component/ : /^text\/html/,
 ) {
+  const phase = stage;
   if (response.status !== status) stage += ` (status ${response.status}, expected ${status})`;
   assert.equal(response.status, status, 'Public response status');
+  stage = phase + ' cache-control';
   assert.match(response.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
+  stage = phase + ' forbidden headers';
   assert.equal(response.headers.etag, undefined);
   assert.equal(response.headers['set-cookie'], undefined);
   assert.equal(response.headers['x-powered-by'], undefined);
+  stage = phase + ' private containment';
   assert.equal(checkPrivate(JSON.stringify(response)), false, 'Response private-data containment');
+  stage = phase + ' content-type';
   if (status === 200) assert.match(response.headers['content-type'], contentType);
+  stage = phase;
 }
 
 async function representation(tenant, path, rsc = false, extra = {}, status = 200) {
@@ -248,6 +259,11 @@ function scanClientAssets(directory, expectedMarker = false) {
         marker ||= content.includes(clientMarker);
       }
       assert.equal(checkPrivate(content), false, 'Static client private-data containment');
+      assert.equal(
+        catalogueCanaries.some((value) => content.includes(value)),
+        false,
+        'Complete UI catalogue cannot enter browser assets',
+      );
     }
   }
   if (expectedMarker) assert.equal(marker, true, 'Built public Client Component marker');
@@ -289,6 +305,228 @@ export default async function FixturePage({ params }: {
 }
 `;
 
+// P5 deliberately keeps its own neutral document and independent SDK calls.
+// Replacing only this disposable copy prevents later product layouts from adding
+// reads to the transport proof or its synthetic catch-all shadowing product pages.
+const transportRoot = `import type { ReactNode } from 'react';
+import './globals.css';
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return <html lang="en"><body>{children}</body></html>;
+}
+`;
+const transportLayout = `import type { ReactNode } from 'react';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export default function PublicLayout({ children }: { children: ReactNode }) {
+  return <main>{children}</main>;
+}
+`;
+
+// Step 1 proves the resource-loader foundation with a deliberately test-owned
+// consumer. The actual root, public layout and status page stay byte-for-byte
+// copied from production. Step 2 replaces this probe with unchanged product pages.
+function installFoundationConsumer(coursesDirectory) {
+  const fixturePage = join(coursesDirectory, '[slug]/page.tsx');
+  assert.equal(
+    existsSync(coursesDirectory),
+    false,
+    'Foundation probe cannot shadow product routes',
+  );
+  mkdirSync(dirname(fixturePage), { recursive: true });
+  writeFileSync(
+    fixturePage,
+    `import { getTranslations } from 'next-intl/server';
+import { requirePublicResource } from '@/server/public-resource';
+
+export async function generateMetadata() {
+  await getTranslations('public');
+  const resource = await requirePublicResource();
+  return { title: resource.kind === 'course' ? resource.data.course.title : 'Foundation fixture' };
+}
+export default async function FoundationFixturePage() {
+  const resource = await requirePublicResource();
+  const t = await getTranslations('public');
+  if (resource.kind !== 'course') throw new Error('Foundation fixture expected a course');
+  return <section data-foundation-fixture="shared-resource"><h1>{resource.data.course.title}</h1><p>{t('catalog.title')}</p></section>;
+}
+`,
+  );
+}
+
+function document(response) {
+  const dom = new JSDOM(response.body);
+  // Assertions below inspect the rendered document, never strings embedded in
+  // Flight/bootstrap scripts that may describe UI absent from visible HTML.
+  dom.window.document
+    .querySelectorAll('script, template, [hidden]')
+    .forEach((node) => node.remove());
+  return dom.window.document;
+}
+
+function statusDocument(response, tenant, locale, uiLocale) {
+  const phase = stage;
+  stage = phase + ' status headers';
+  safeResponse(response, 404);
+  stage = phase + ' HTML content-type';
+  assert.match(response.headers['content-type'], /^text\/html/);
+  stage = phase + ' catalogue containment';
+  assert.equal(
+    catalogueCanaries.some((value) => response.body.includes(value)),
+    false,
+    'Complete UI catalogue cannot enter Flight payload',
+  );
+  const doc = document(response);
+  stage = phase + ' document locale';
+  assert.equal(doc.documentElement.lang, locale, 'Document retains admitted content locale');
+  assert.equal(doc.documentElement.dir, locale === 'ar' ? 'rtl' : 'ltr');
+  stage = phase + ' visible heading';
+  const heading = doc.querySelector('h1');
+  assert.equal(doc.querySelectorAll('h1').length, 1, 'One visible localized status heading');
+  assert.equal(doc.querySelectorAll('main').length, 1, 'One main landmark');
+  const title = uiLocale === 'tr' ? 'Sayfa bulunamadı' : 'Page not found';
+  assert.equal(heading.textContent, title, 'Visible status translation');
+  stage = phase + ' localized metadata';
+  if (!doc.title.includes(title)) {
+    const original = new JSDOM(response.body).window.document;
+    const titleNode = original.querySelector('title');
+    stage += titleNode?.closest('[hidden]') ? ' hidden' : titleNode ? ' unmatched' : ' absent';
+  }
+  assert.ok(doc.title.includes(title), 'Localized document title');
+  stage = phase + ' UI locale';
+  assert.equal(heading.closest('[lang]').getAttribute('lang'), uiLocale, 'UI fallback language');
+  assert.equal(heading.closest('[dir]').getAttribute('dir'), 'ltr', 'UI fallback direction');
+  stage = phase + ' robots recovery';
+  assert.ok(doc.querySelector('meta[name="robots"]').content.includes('noindex'));
+  assert.ok(doc.querySelector('a[href="/' + locale + '/courses"]'), 'Same-locale recovery');
+  stage = phase + ' tenant chrome';
+  assert.ok(doc.body.textContent.includes(tenant.name), 'Actual tenant chrome');
+  const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
+  assert.equal(doc.body.textContent.includes(other.name), false, 'No opposite tenant chrome');
+  assert.equal(
+    response.body.includes('missing-foundation-course'),
+    false,
+    'No original resource echo',
+  );
+  assert.equal(response.body.includes('private-query-value'), false, 'No original query echo');
+  stage = phase;
+  return doc;
+}
+
+async function verifyFoundation(native, nextBin) {
+  const [first, second] = configuration.tenants;
+  const course = '/' + configuration.locale + '/courses/' + configuration.courseSlug;
+  const request = (tenant, path, method = 'GET') =>
+    call(true, 3000, path, { Host: tenant.host + ':3000' }, method);
+
+  for (const checkpointName of ['foundation-normal', 'foundation-repeat']) {
+    stage = checkpointName;
+    const response = await request(first, course);
+    safeResponse(response, 200);
+    const doc = document(response);
+    assert.equal(doc.documentElement.lang, configuration.locale);
+    assert.equal(doc.querySelector('h1').textContent, first.courseTitle);
+    assert.equal(doc.querySelectorAll('[data-foundation-fixture="shared-resource"]').length, 1);
+    assert.ok(doc.title.includes(first.courseTitle), 'Metadata consumes the same resource');
+    await checkpoint(checkpointName);
+  }
+
+  stage = 'foundation-missing';
+  const missing = await request(
+    first,
+    '/' + configuration.locale + '/courses/missing-foundation-course?cursor=private-query-value',
+  );
+  safeResponse(missing, 307);
+  const statusPath = '/' + configuration.locale + '/status/not-found';
+  stage = 'foundation missing redirect location';
+  assert.equal(missing.headers.location, statusPath, 'Fixed relative missing-resource redirect');
+  stage = 'foundation missing follow';
+  statusDocument(await request(first, statusPath), first, configuration.locale, 'en');
+  await checkpoint('foundation-missing');
+
+  stage = 'foundation-status';
+  // Concurrent different hosts and catalogue languages exercise request config
+  // isolation; Arabic and exact Turkish are test-owned live memberships.
+  const concurrentFailures = await Promise.all(
+    [
+      [first, 'en', 'en'],
+      [second, second.defaultLocale, 'tr'],
+      [first, 'ar', 'en'],
+      [first, 'tr', 'tr'],
+    ].map(async ([tenant, locale, uiLocale]) => {
+      try {
+        const response = await request(tenant, '/' + locale + '/status/not-found');
+        stage = 'foundation status ' + locale;
+        statusDocument(response, tenant, locale, uiLocale);
+        return null;
+      } catch {
+        // Freeze the bounded diagnostic before another concurrent check changes
+        // the shared stage. Wait for every request before reporting a failure.
+        return stage;
+      }
+    }),
+  );
+  const failedStage = concurrentFailures.find((failure) => failure !== null);
+  if (failedStage) {
+    stage = failedStage;
+    throw new Error('Concurrent status assertion failed');
+  }
+  await checkpoint('foundation-status');
+
+  stage = 'foundation-head';
+  const head = await request(first, '/ar/status/not-found', 'HEAD');
+  safeResponse(head, 404);
+  assert.equal(head.body, '', 'Localized status HEAD is bodyless');
+  await checkpoint('foundation-head');
+
+  stage = 'foundation-refused';
+  for (const path of ['/fr/status/not-found', '/ar/status/unknown']) {
+    const refused = await request(first, path);
+    safeResponse(refused, 404);
+    assert.equal(refused.body.includes(first.name), false, 'Admission failure has neutral output');
+    assert.equal(
+      refused.body.includes('Page not found'),
+      false,
+      'UI fallback cannot admit a locale',
+    );
+  }
+  await checkpoint('foundation-refused');
+
+  stage = 'foundation-canonical';
+  const canonical = await request(first, '/TR-tr/status/not-found');
+  safeResponse(canonical, 308);
+  assert.equal(
+    canonical.headers.location,
+    'https://' + first.host + ':3000/tr-TR/status/not-found',
+  );
+  statusDocument(await request(first, '/tr-TR/status/not-found'), first, 'tr-TR', 'tr');
+  await checkpoint('foundation-canonical');
+
+  stage = 'foundation stock bypass';
+  const stock = start(process.execPath, [
+    nextBin,
+    'start',
+    '--hostname',
+    '127.0.0.1',
+    '--port',
+    '3011',
+  ]);
+  await ready(stock, false, 3011);
+  await checkpoint('stock-before');
+  for (const rsc of [false, true]) {
+    const response = await call(false, 3011, '/ar/status/not-found', {
+      Host: first.host + ':3000',
+      ...(rsc ? { RSC: '1' } : {}),
+      'X-LearnStack-Ingress-Provenance': 'forged',
+      'X-Middleware-Subrequest': 'middleware:middleware:middleware:middleware:middleware',
+    });
+    safeResponse(response, 404);
+    assert.equal(response.body.includes(first.name), false);
+  }
+  await checkpoint('stock-after');
+  assert.equal(native.exitCode, null, 'Foundation checks use one native process');
+}
+
 // The real Next adapter removes Flight inputs before user middleware, then
 // restores them after its request-header override. Observe that final request
 // through a disposable admitted route, without exposing any header values.
@@ -313,6 +551,15 @@ try {
   assert.match(configuration.apiOrigin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.match(configuration.secret, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(configuration.tenants.length, 2);
+  const foundation = configuration.mode === 'foundation';
+  if (foundation) {
+    catalogueCanaries = ['en', 'tr'].map(
+      (locale) =>
+        JSON.parse(
+          readFileSync(join(sourceApp, 'src/i18n/messages', locale, 'public.json'), 'utf8'),
+        ).catalog.course_count,
+    );
+  }
   privateScanner = createPrivateScanner([configuration.secret]);
   owner.assertActive();
   fixtureRoot = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-public-rendering-')));
@@ -342,55 +589,69 @@ try {
     });
   }
   symlinkSync(join(sourceApp, 'node_modules'), join(app, 'node_modules'), 'dir');
-  const fixturePage = join(app, 'src/app/(public)/[locale]/courses/[[...segments]]/page.tsx');
-  mkdirSync(dirname(fixturePage), { recursive: true });
-  writeFileSync(fixturePage, page);
-  const fixtureClient = join(dirname(fixturePage), 'fixture-client.tsx');
-  writeFileSync(fixtureClient, clientComponent);
-  const fixtureProbe = join(app, 'src/app/(public)/[locale]/courses/protocol-probe/route.ts');
-  mkdirSync(dirname(fixtureProbe), { recursive: true });
-  writeFileSync(fixtureProbe, protocolProbe);
-
-  stage = 'client import rejection';
-  const mutant = join(app, 'src/app/client-import-probe/page.tsx');
-  mkdirSync(dirname(mutant), { recursive: true });
-  writeFileSync(
-    mutant,
-    "'use client';\n" +
-      "import { createConfiguredPublicClient } from '@/server/configured-public-client';\n" +
-      'export default function Probe() { return <p>{String(createConfiguredPublicClient(null))}</p>; }\n',
-  );
+  const coursesDirectory = join(app, 'src/app/(public)/[locale]/courses');
+  let fixtureClient;
+  if (foundation) {
+    installFoundationConsumer(coursesDirectory);
+  } else {
+    rmSync(join(app, 'src/app/(public)/[locale]'), { recursive: true, force: true });
+    // The original transport probe predates product Suspense/error boundaries.
+    for (const name of ['loading.tsx', 'error.tsx'])
+      rmSync(join(app, 'src/app/(public)', name), { force: true });
+    writeFileSync(join(app, 'src/app/layout.tsx'), transportRoot);
+    writeFileSync(join(app, 'src/app/(public)/layout.tsx'), transportLayout);
+    const fixturePage = join(coursesDirectory, '[[...segments]]/page.tsx');
+    mkdirSync(dirname(fixturePage), { recursive: true });
+    writeFileSync(fixturePage, page);
+    fixtureClient = join(dirname(fixturePage), 'fixture-client.tsx');
+    writeFileSync(fixtureClient, clientComponent);
+    const fixtureProbe = join(coursesDirectory, 'protocol-probe/route.ts');
+    mkdirSync(dirname(fixtureProbe), { recursive: true });
+    writeFileSync(fixtureProbe, protocolProbe);
+  }
   const nextBin = join(sourceApp, 'node_modules/next/dist/bin/next');
-  const rejected = start(process.execPath, [nextBin, 'build']);
-  assert.notEqual(
-    await completion(rejected),
-    0,
-    'Client import mutant must fail a real production build',
-  );
-  assert.match(rejected.output, /server-only/);
-  assert.match(rejected.output, /client-import-probe\/page\.tsx/);
-  rmSync(dirname(mutant), { recursive: true });
-  rmSync(join(app, '.next'), { recursive: true, force: true });
 
-  stage = 'built client canary rejection';
-  // This mutant must compile successfully. Only scanning real emitted browser
-  // assets can reject it; source fences or an import failure prove another seam.
-  writeFileSync(
-    fixtureClient,
-    clientComponent.replace(
-      '{displayName}</p>',
-      '{displayName}{' + JSON.stringify(configuration.secret) + '}</p>',
-    ),
-  );
-  const canary = start(process.execPath, [nextBin, 'build']);
-  assert.equal(await completion(canary), 0, 'Client canary builds successfully');
-  assert.throws(
-    () => scanClientAssets(join(app, '.next/static'), true),
-    /Static client private-data containment/,
-    'The emitted client canary must be rejected by asset scanning',
-  );
-  writeFileSync(fixtureClient, clientComponent);
-  rmSync(join(app, '.next'), { recursive: true, force: true });
+  if (!foundation) {
+    stage = 'client import rejection';
+    const mutant = join(app, 'src/app/client-import-probe/page.tsx');
+    mkdirSync(dirname(mutant), { recursive: true });
+    writeFileSync(
+      mutant,
+      "'use client';\n" +
+        "import { createConfiguredPublicClient } from '@/server/configured-public-client';\n" +
+        'export default function Probe() { return <p>{String(createConfiguredPublicClient(null))}</p>; }\n',
+    );
+    const rejected = start(process.execPath, [nextBin, 'build']);
+    assert.notEqual(
+      await completion(rejected),
+      0,
+      'Client import mutant must fail a real production build',
+    );
+    assert.match(rejected.output, /server-only/);
+    assert.match(rejected.output, /client-import-probe\/page\.tsx/);
+    rmSync(dirname(mutant), { recursive: true });
+    rmSync(join(app, '.next'), { recursive: true, force: true });
+
+    stage = 'built client canary rejection';
+    // This mutant must compile successfully. Only scanning real emitted browser
+    // assets can reject it; source fences or an import failure prove another seam.
+    writeFileSync(
+      fixtureClient,
+      clientComponent.replace(
+        '{displayName}</p>',
+        '{displayName}{' + JSON.stringify(configuration.secret) + '}</p>',
+      ),
+    );
+    const canary = start(process.execPath, [nextBin, 'build']);
+    assert.equal(await completion(canary), 0, 'Client canary builds successfully');
+    assert.throws(
+      () => scanClientAssets(join(app, '.next/static'), true),
+      /Static client private-data containment/,
+      'The emitted client canary must be rejected by asset scanning',
+    );
+    writeFileSync(fixtureClient, clientComponent);
+    rmSync(join(app, '.next'), { recursive: true, force: true });
+  }
 
   stage = 'healthy production build';
   const ingress = start(process.execPath, [
@@ -402,7 +663,7 @@ try {
   const build = start(process.execPath, [nextBin, 'build']);
   assert.equal(await completion(build), 0, 'Healthy production build');
   assert.ok(
-    scanClientAssets(join(app, '.next/static'), true).files > 0,
+    scanClientAssets(join(app, '.next/static'), !foundation).files > 0,
     'Nonempty production client assets',
   );
   await checkpoint('build-complete');
@@ -438,150 +699,158 @@ try {
   const catalog = '/' + configuration.locale + '/courses';
   const course = catalog + '/' + configuration.courseSlug;
 
-  stage = 'cold and interleaved host representations';
-  const firstCatalog = await representation(first, catalog, false, {
-    traceparent: configuration.traceparent,
-    'X-LearnStack-Ingress-Provenance': 'forged',
-    'X-LearnStack-Host': second.host,
-    'X-Forwarded-For': '203.0.113.99',
-    Cookie: 'locale=invalid',
-  });
-  assert.ok(firstCatalog.body.includes(first.courseTitle));
-  await checkpoint('trace-supplied');
-  assert.ok((await representation(second, catalog)).body.includes(second.courseTitle));
-  await checkpoint('trace-missing');
-  assert.ok(
-    (await representation(first, course, false, { traceparent: 'malformed' })).body.includes(
-      first.courseTitle,
-    ),
-  );
-  await checkpoint('trace-malformed');
-  assert.ok((await representation(second, course)).body.includes(second.courseTitle));
-  for (const path of [catalog, course])
-    for (const tenant of configuration.tenants) {
-      assert.ok((await representation(tenant, path, true)).body.includes(tenant.courseTitle));
-    }
-  for (const tenant of configuration.tenants) {
-    const lesson = await representation(tenant, course + '/lessons/' + tenant.lessonSlug);
-    assert.ok(lesson.body.includes(tenant.lessonTitle), 'Real SDK lesson body');
-    assert.ok(lesson.body.includes(tenant.lessonText), 'Public projected field');
-  }
-  const redirect = await call(true, 3000, '/', { Host: second.host + ':3000' });
-  safeResponse(redirect, 307);
-  assert.equal(
-    redirect.headers.location,
-    'https://' + second.host + ':3000/' + second.defaultLocale + '/courses',
-  );
-
-  stage = 'real adapter Flight header preservation';
-  await checkpoint('protocol-before');
-  const absentProtocol = {
-    rsc: false,
-    stateTree: false,
-    routerPrefetch: false,
-    segmentPrefetch: false,
-    hmrRefresh: false,
-  };
-  const navigationHeaders = {
-    RSC: '1',
-    'Next-Router-State-Tree': '%5B%22%22%2C%7B%7D%5D',
-  };
-  for (const [headers, expected] of [
-    [{}, absentProtocol],
-    [navigationHeaders, { ...absentProtocol, rsc: true, stateTree: true }],
-    [
-      { ...navigationHeaders, 'Next-Router-Prefetch': '1' },
-      { ...absentProtocol, rsc: true, stateTree: true, routerPrefetch: true },
-    ],
-    [
-      { RSC: '1', 'Next-Router-Segment-Prefetch': '/_tree' },
-      { ...absentProtocol, rsc: true, segmentPrefetch: true },
-    ],
-    [
-      { RSC: '1', 'Next-Hmr-Refresh': '1' },
-      { ...absentProtocol, rsc: true, hmrRefresh: true },
-    ],
-  ]) {
-    const response = await call(true, 3000, catalog + '/protocol-probe', {
-      Host: first.host + ':3000',
-      ...headers,
-    });
-    safeResponse(response, 200, false, /^application\/json/);
-    assert.deepEqual(JSON.parse(response.body), expected, 'Final route protocol inputs');
-  }
-  stage = 'real adapter bodyless HEAD';
-  const head = await call(
-    true,
-    3000,
-    catalog + '/protocol-probe',
-    { Host: first.host + ':3000', ...navigationHeaders },
-    'HEAD',
-  );
-  safeResponse(head, 200, false, /^application\/json/);
-  assert.equal(head.body, '', 'Supported HEAD has no response body');
-  await checkpoint('protocol-after');
-
-  stage = 'stock launcher forgery before bootstrap';
-  const stock = start(process.execPath, [
-    nextBin,
-    'start',
-    '--hostname',
-    '127.0.0.1',
-    '--port',
-    '3011',
-  ]);
-  await ready(stock, false, 3011);
-  await checkpoint('stock-before');
-  for (const rsc of [false, true]) {
-    const bypass = await call(false, 3011, course, {
-      Host: first.host + ':3000',
-      ...(rsc ? { RSC: '1' } : {}),
+  if (foundation) {
+    await verifyFoundation(native, nextBin);
+  } else {
+    stage = 'cold and interleaved host representations';
+    const firstCatalog = await representation(first, catalog, false, {
+      traceparent: configuration.traceparent,
       'X-LearnStack-Ingress-Provenance': 'forged',
-      'X-LearnStack-Host': first.host,
-      'X-LearnStack-Visitor-Address': '203.0.113.99',
-      'X-Middleware-Subrequest': 'middleware:middleware:middleware:middleware:middleware',
-      'X-Middleware-Subrequest-Id': 'attacker',
+      'X-LearnStack-Host': second.host,
+      'X-Forwarded-For': '203.0.113.99',
+      Cookie: 'locale=invalid',
     });
-    safeResponse(bypass, 404);
-    assert.equal(bypass.body.includes(first.name), false);
-  }
-  await checkpoint('stock-after');
-
-  stage = 'same process publication freshness';
-  const nativePid = native.pid;
-  await checkpoint('make-draft');
-  for (const rsc of [false, true]) {
-    stage = rsc ? 'draft RSC catalog' : 'draft HTML catalog';
-    const fresh = await representation(first, catalog, rsc);
-    assert.equal(fresh.body.includes(first.courseTitle), false, 'Draft vanished from catalog');
-    stage = rsc ? 'draft RSC detail refusal' : 'draft HTML detail refusal';
-    // Next's streamed RSC refusal carries its not-found digest after HTTP 200;
-    // the document is 404. Both must discard the previously rendered body.
-    const hidden = rsc
-      ? await call(true, 3000, course, { Host: first.host + ':3000', RSC: '1' })
-      : await representation(first, course, false, {}, 404);
-    if (rsc) {
-      safeResponse(hidden, 200, true);
-      assert.ok(hidden.body.includes('NEXT_HTTP_ERROR_FALLBACK;404'), 'RSC not-found digest');
-      assert.equal(
-        hidden.body.includes(first.name),
-        false,
-        'Refused RSC has no tenant representation',
-      );
-      assert.equal(hidden.body.includes(second.name), false, 'Refused RSC has no opposite tenant');
+    assert.ok(firstCatalog.body.includes(first.courseTitle));
+    await checkpoint('trace-supplied');
+    assert.ok((await representation(second, catalog)).body.includes(second.courseTitle));
+    await checkpoint('trace-missing');
+    assert.ok(
+      (await representation(first, course, false, { traceparent: 'malformed' })).body.includes(
+        first.courseTitle,
+      ),
+    );
+    await checkpoint('trace-malformed');
+    assert.ok((await representation(second, course)).body.includes(second.courseTitle));
+    for (const path of [catalog, course])
+      for (const tenant of configuration.tenants) {
+        assert.ok((await representation(tenant, path, true)).body.includes(tenant.courseTitle));
+      }
+    for (const tenant of configuration.tenants) {
+      const lesson = await representation(tenant, course + '/lessons/' + tenant.lessonSlug);
+      assert.ok(lesson.body.includes(tenant.lessonTitle), 'Real SDK lesson body');
+      assert.ok(lesson.body.includes(tenant.lessonText), 'Public projected field');
     }
-    assert.equal(hidden.body.includes(first.courseTitle), false, 'Draft course is hidden');
+    const redirect = await call(true, 3000, '/', { Host: second.host + ':3000' });
+    safeResponse(redirect, 307);
+    assert.equal(
+      redirect.headers.location,
+      'https://' + second.host + ':3000/' + second.defaultLocale + '/courses',
+    );
+
+    stage = 'real adapter Flight header preservation';
+    await checkpoint('protocol-before');
+    const absentProtocol = {
+      rsc: false,
+      stateTree: false,
+      routerPrefetch: false,
+      segmentPrefetch: false,
+      hmrRefresh: false,
+    };
+    const navigationHeaders = {
+      RSC: '1',
+      'Next-Router-State-Tree': '%5B%22%22%2C%7B%7D%5D',
+    };
+    for (const [headers, expected] of [
+      [{}, absentProtocol],
+      [navigationHeaders, { ...absentProtocol, rsc: true, stateTree: true }],
+      [
+        { ...navigationHeaders, 'Next-Router-Prefetch': '1' },
+        { ...absentProtocol, rsc: true, stateTree: true, routerPrefetch: true },
+      ],
+      [
+        { RSC: '1', 'Next-Router-Segment-Prefetch': '/_tree' },
+        { ...absentProtocol, rsc: true, segmentPrefetch: true },
+      ],
+      [
+        { RSC: '1', 'Next-Hmr-Refresh': '1' },
+        { ...absentProtocol, rsc: true, hmrRefresh: true },
+      ],
+    ]) {
+      const response = await call(true, 3000, catalog + '/protocol-probe', {
+        Host: first.host + ':3000',
+        ...headers,
+      });
+      safeResponse(response, 200, false, /^application\/json/);
+      assert.deepEqual(JSON.parse(response.body), expected, 'Final route protocol inputs');
+    }
+    stage = 'real adapter bodyless HEAD';
+    const head = await call(
+      true,
+      3000,
+      catalog + '/protocol-probe',
+      { Host: first.host + ':3000', ...navigationHeaders },
+      'HEAD',
+    );
+    safeResponse(head, 200, false, /^application\/json/);
+    assert.equal(head.body, '', 'Supported HEAD has no response body');
+    await checkpoint('protocol-after');
+
+    stage = 'stock launcher forgery before bootstrap';
+    const stock = start(process.execPath, [
+      nextBin,
+      'start',
+      '--hostname',
+      '127.0.0.1',
+      '--port',
+      '3011',
+    ]);
+    await ready(stock, false, 3011);
+    await checkpoint('stock-before');
+    for (const rsc of [false, true]) {
+      const bypass = await call(false, 3011, course, {
+        Host: first.host + ':3000',
+        ...(rsc ? { RSC: '1' } : {}),
+        'X-LearnStack-Ingress-Provenance': 'forged',
+        'X-LearnStack-Host': first.host,
+        'X-LearnStack-Visitor-Address': '203.0.113.99',
+        'X-Middleware-Subrequest': 'middleware:middleware:middleware:middleware:middleware',
+        'X-Middleware-Subrequest-Id': 'attacker',
+      });
+      safeResponse(bypass, 404);
+      assert.equal(bypass.body.includes(first.name), false);
+    }
+    await checkpoint('stock-after');
+
+    stage = 'same process publication freshness';
+    const nativePid = native.pid;
+    await checkpoint('make-draft');
+    for (const rsc of [false, true]) {
+      stage = rsc ? 'draft RSC catalog' : 'draft HTML catalog';
+      const fresh = await representation(first, catalog, rsc);
+      assert.equal(fresh.body.includes(first.courseTitle), false, 'Draft vanished from catalog');
+      stage = rsc ? 'draft RSC detail refusal' : 'draft HTML detail refusal';
+      // Next's streamed RSC refusal carries its not-found digest after HTTP 200;
+      // the document is 404. Both must discard the previously rendered body.
+      const hidden = rsc
+        ? await call(true, 3000, course, { Host: first.host + ':3000', RSC: '1' })
+        : await representation(first, course, false, {}, 404);
+      if (rsc) {
+        safeResponse(hidden, 200, true);
+        assert.ok(hidden.body.includes('NEXT_HTTP_ERROR_FALLBACK;404'), 'RSC not-found digest');
+        assert.equal(
+          hidden.body.includes(first.name),
+          false,
+          'Refused RSC has no tenant representation',
+        );
+        assert.equal(
+          hidden.body.includes(second.name),
+          false,
+          'Refused RSC has no opposite tenant',
+        );
+      }
+      assert.equal(hidden.body.includes(first.courseTitle), false, 'Draft course is hidden');
+    }
+    stage = 'unaffected tenant after draft';
+    assert.ok((await representation(second, course)).body.includes(second.courseTitle));
+    assert.equal(native.pid, nativePid);
+    assert.equal(native.exitCode, null, 'Freshness used the same live native process');
+    await checkpoint('restore-published');
+    stage = 'restored publication';
+    assert.ok(
+      (await representation(first, course)).body.includes(first.courseTitle),
+      'Restored row is fresh too',
+    );
   }
-  stage = 'unaffected tenant after draft';
-  assert.ok((await representation(second, course)).body.includes(second.courseTitle));
-  assert.equal(native.pid, nativePid);
-  assert.equal(native.exitCode, null, 'Freshness used the same live native process');
-  await checkpoint('restore-published');
-  stage = 'restored publication';
-  assert.ok(
-    (await representation(first, course)).body.includes(first.courseTitle),
-    'Restored row is fresh too',
-  );
 
   stage = 'private output containment';
   assert.equal(
@@ -589,7 +858,7 @@ try {
     false,
     'Private data entered child logs',
   );
-  assert.ok(scanClientAssets(join(app, '.next/static'), true).files > 0);
+  assert.ok(scanClientAssets(join(app, '.next/static'), !foundation).files > 0);
   await checkpoint('verified');
 } catch {
   // Assertions and compiler/provider errors may contain private values. Report

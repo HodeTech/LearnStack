@@ -1,4 +1,5 @@
-import { rmSync } from 'node:fs';
+import { realpathSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { stopTestChild } from './stop-test-child.mjs';
 
@@ -57,6 +58,9 @@ export function fixtureEnvironment({
 }) {
   const env = {
     TMPDIR: root,
+    // SWC's native carrier rejects symlink ancestors (including macOS /var).
+    // Canonicalize the owned root instead of inheriting a user's cache or HOME.
+    SWC_NATIVE_BINDING_CACHE: join(realpathSync(root), 'swc-native-cache'),
     NODE_ENV: nodeEnv,
     NODE_TLS_REJECT_UNAUTHORIZED: '1',
     NEXT_TELEMETRY_DISABLED: '1',

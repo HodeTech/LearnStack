@@ -529,9 +529,9 @@ async function run() {
     ['/faviconXico', 404, 1],
     ['/favicon.ico/extra', 404, 1],
     ['/nested/favicon.ico', 404, 1],
-    ['/en/courses', 404, 1],
-    ['/studio', 200, 1],
-    ['/portal', 200, 1],
+    ['/en/status/not-found', 404, 2],
+    ['/studio', 200, 2],
+    ['/portal', 200, 2],
   ]) {
     for (const method of ['GET', 'HEAD']) {
       const before = bootstrapCalls;
@@ -573,15 +573,15 @@ async function run() {
   assert.equal((await observe(native)).nextCalls, beforeHead.nextCalls);
 
   const beforePositive = bootstrapCalls;
-  const positive = await call(true, 3000, '/en/courses?next=https%3A%2F%2Fevil.example', {
+  const positive = await call(true, 3000, '/en/status/not-found?next=https%3A%2F%2Fevil.example', {
     Host: 'tenant.example:3000',
     'X-LearnStack-Ingress-Provenance': 'forged',
     'X-Forwarded-For': 'attacker',
     'X-Middleware-Subrequest': 'middleware:middleware:middleware',
   });
   assert.equal(listenerFailed, false, 'Bootstrap fixture refused the hop');
-  assert.equal(positive.status, 404); // P6 pages are absent; verified bootstrap still ran.
-  assert.equal(bootstrapCalls, beforePositive + 1);
+  assert.equal(positive.status, 404); // Actual branded status route is admitted without Education.
+  assert.equal(bootstrapCalls, beforePositive + 2); // Middleware and request-local RSC bootstrap.
   assert.match(positive.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
   for (const query of [
     '?',

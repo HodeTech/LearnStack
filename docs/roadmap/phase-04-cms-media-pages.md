@@ -29,7 +29,7 @@ Decisions consumed in this phase:
   directly here: presentation and content shape are inside it, so nothing in this phase
   needs a code branch per tenant.
 
-**Accepted foundation — 2026-10-09; implementation pending in P02d-6.**
+**P02d-6 Step 1 foundation implemented — 2026-10-10.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) closes G39 at the first public UI
 consumer: exact `next-intl` 4.14.9, server-first request configuration and app-local
 `src/i18n/messages/<locale>/<namespace>.json` catalogues. This phase consumes that
@@ -37,7 +37,10 @@ foundation and adds CMS/Studio message coverage; it does not reselect the librar
 or own its initial installation. Tenant-authored content localization remains
 this phase's responsibility. The
 [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
-records accepted page/status behavior and distinguishes it from delivery.
+records accepted page/status behavior; its
+[Step 1 delivery record](phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns foundation verification. Actual content pages and product proofs remain
+later P02d-6 steps.
 
 ## Scope
 

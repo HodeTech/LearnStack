@@ -22,6 +22,8 @@ export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
 export const INGRESS = 'apps/web/src/server/ingress.ts';
 export const MIDDLEWARE = 'apps/web/src/middleware.ts';
 export const PUBLIC_LAYOUT = 'apps/web/src/app/(public)/layout.tsx';
+export const I18N_REQUEST = 'apps/web/src/i18n/request.ts';
+export const REQUEST_MEMO = 'apps/web/src/server/request-memo.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
 const HOP_HEADERS = new Set([
   'x-learnstack-host',
@@ -38,6 +40,9 @@ const RAW_AUTHORITY_HEADERS = new Set([
 ]);
 
 export function walk(node: ts.Node, visitor: (node: ts.Node) => void): void {
+  // JSON is a graph leaf, not executable syntax. buildSourceGraph separately
+  // validates every JSON source strictly, so malformed data cannot evade census.
+  if (ts.isSourceFile(node) && node.flags & ts.NodeFlags.JsonFile) return;
   visitor(node);
   ts.forEachChild(node, (child) => walk(child, visitor));
 }
@@ -292,6 +297,19 @@ export function unsupportedSourceFindings(names: readonly string[]): Finding[] {
 }
 
 export function buildSourceGraph(sources: SourceCensus): SourceGraph {
+  const unresolved: Finding[] = [];
+  for (const [file, source] of Object.entries(sources)) {
+    if (!file.endsWith('.json')) continue;
+    try {
+      JSON.parse(source);
+    } catch {
+      unresolved.push({
+        file,
+        line: 1,
+        reason: 'Malformed JSON module: use strict inert JSON in the production census.',
+      });
+    }
+  }
   const files = new Map(
     Object.entries(sources).map(([name, source]) => [
       name,
@@ -300,7 +318,11 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
         source,
         ts.ScriptTarget.ES2022,
         true,
-        name.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+        name.endsWith('.json')
+          ? ts.ScriptKind.JSON
+          : name.endsWith('.tsx')
+            ? ts.ScriptKind.TSX
+            : ts.ScriptKind.TS,
       ),
     ]),
   );
@@ -319,6 +341,7 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
   };
   const options: ts.CompilerOptions = {
     noLib: true,
+    resolveJsonModule: true,
     target: ts.ScriptTarget.ES2022,
     jsx: ts.JsxEmit.Preserve,
   };
@@ -341,7 +364,6 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
   };
   const checker = ts.createProgram([...files.keys()], options, host).getTypeChecker();
   const edges = new Map<string, string[]>();
-  const unresolved: Finding[] = [];
   for (const [name, file] of files) {
     const targets: string[] = [];
     const add = (expression: ts.Node | undefined, node: ts.Node) => {
@@ -402,6 +424,7 @@ export function reachable(graph: SourceGraph, roots: readonly string[]): string[
 }
 
 export function hasDirective(file: ts.SourceFile, directive: string): boolean {
+  if (file.flags & ts.NodeFlags.JsonFile) return false;
   for (const statement of file.statements) {
     if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) break;
     if (statement.expression.text === directive) return true;
@@ -557,7 +580,12 @@ function environmentCollection(
 export function privateServerFiles(graph: SourceGraph): string[] {
   return [...graph.files]
     .filter(([name, file]) => {
-      if (name.includes('/src/server/') || name === SDK_SERVER || hasServerOnlyMarker(file))
+      if (
+        name.includes('/src/server/') ||
+        (name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json')) ||
+        name === SDK_SERVER ||
+        hasServerOnlyMarker(file)
+      )
         return true;
       let privateEnvironment = false;
       walk(file, (node) => {
@@ -853,11 +881,63 @@ function globalCollection(
   );
 }
 
+/** Ignore formatting/comments while retaining every executable and type-bearing node. */
+function syntaxShape(node: ts.Node): unknown {
+  const children: unknown[] = [];
+  ts.forEachChild(node, (child) => {
+    children.push(syntaxShape(child));
+  });
+  const value = ts.isIdentifier(node) || ts.isLiteralExpression(node) ? node.text : undefined;
+  const declarationKind = ts.isVariableDeclarationList(node)
+    ? node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)
+    : undefined;
+  return [node.kind, value, declarationKind, children];
+}
+
+// This narrowly audited primitive is intentionally syntax-constrained. The map
+// lives across renders, so ordinary function-local allocation alone cannot prove
+// its lifetime. Derivation from Next's exact request object, private weak keys,
+// publication before load, and rejection retention must all remain intact.
+// A change to this mechanism owes new controls, not a filename exemption.
+const requestMemoContract = syntaxShape(
+  ts.createSourceFile(
+    REQUEST_MEMO,
+    `import 'server-only';
+   import { headers } from 'next/headers';
+   export function requestMemo<T>(
+     load: (incoming: Awaited<ReturnType<typeof headers>>) => Promise<T>,
+   ): () => Promise<T> {
+     const requests = new WeakMap<Awaited<ReturnType<typeof headers>>, Promise<T>>();
+     return async () => {
+       const incoming = await headers();
+       let pending = requests.get(incoming);
+       if (!pending) {
+         pending = Promise.resolve().then(() => load(incoming));
+         requests.set(incoming, pending);
+       }
+       return pending;
+     };
+   }`,
+    ts.ScriptTarget.ES2022,
+    true,
+  ),
+);
+
 export function cacheFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {
   const findings: Finding[] = [];
   for (const name of subjects) {
     const file = graph.files.get(name);
     if (!file) continue;
+    if (
+      name === REQUEST_MEMO &&
+      JSON.stringify(syntaxShape(file)) !== JSON.stringify(requestMemoContract)
+    )
+      findings.push(
+        finding(
+          file,
+          'Fix: preserve the audited exact-header, private WeakMap request memo mechanism.',
+        ),
+      );
     walk(file, (node) => {
       if (
         (ts.isVariableDeclaration(node) &&

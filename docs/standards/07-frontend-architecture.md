@@ -44,8 +44,8 @@ frontend/
           layout.tsx           # root layout
         middleware.ts          # ingress verification and live locale/path admission
         components/
-          public/              # Accepted P6 synchronous views; implementation pending
-        i18n/                  # Accepted ADR-0027 home; implementation pending
+          public/              # P6 Step 1 chrome/states; content views pending
+        i18n/                  # ADR-0027 foundation implemented in P6 Step 1
           request.ts
           messages/
             en/public.json
@@ -146,15 +146,20 @@ public-site URL canonicalization and header transport remain P02d-5.
   An unavailable/no-locale site supplies no synthesized `en` default.
 - Client-side locale switching navigates to the new locale path.
 
-**Accepted P02d-6 G39 — 2026-10-09; implementation pending.** `next-intl`
-request configuration uses the same server-only request-cached admission loader
+**P02d-6 Step 1 foundation implemented — 2026-10-10.** `next-intl`
+request configuration uses the same server-only request-local admission loader
 as document/layout/page consumers. That loader re-verifies the ingress envelope,
 takes the canonical locale from its signed target and checks live enabled
 membership before selecting messages. It imports neither next-intl nor messages;
 configuration adds no bootstrap call or cycle. No i18n routing middleware,
 `requestLocale`, callsite locale override, cookie or `Accept-Language` replaces
-this authority. [Standards 08](08-localization.md#strings-in-code) owns catalogue
-fallback and language attributes.
+this authority. The private identity memo keys admission/content work only by
+Next's exact request-store headers object, retaining same-request work across
+framework error rendering. It never keys a cache by header values, host or
+envelope. `getPublicUi` uses React cache for selected messages/translators inside
+an RSC render; it does not deduplicate admission/content reads.
+[Standards 08](08-localization.md#strings-in-code) owns catalogue fallback and
+language attributes.
 
 ## SDK
 
@@ -205,7 +210,9 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
   target; observed `params`/`searchParams` do not replace it.
 - Each route group has its own `layout.tsx`, `loading.tsx`, `error.tsx`.
 
-**Accepted P02d-6 G40 — 2026-10-09; implementation pending.** Keep the three
+**Accepted P02d-6 G40 — 2026-10-09.** Step 1 implements shared resource admission,
+controlled state views and the fixed status page; actual content pages remain
+Steps 2 and 3. Keep the three
 `/{locale}/courses` list/course/lesson routes and minimal tenant chrome. Use plain
 same-host relative anchors, including opaque catalog and outline pagination;
 disable automatic prefetch. A new document request re-reads API state.
@@ -232,8 +239,11 @@ routes render dynamically with no-store API transport. No ISR, positive
 `revalidate`, `generateStaticParams`, `unstable_cache` or shared bootstrap/data/route
 cache is permitted. Request-local reuse is isolated to one incoming request.
 Freshness is the next new server/document request, not client Router Cache history.
-Disable local Server Component HMR caching. Accepted P02d-6/G41 selects components;
-implementation remains pending.
+Disable local Server Component HMR caching. P02d-6 Step 1 implements document
+loaders, chrome, state views and atomic theme injection. Accepted G41 content
+components remain Steps 2 and 3. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns verification and review status.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
 production routes exercise the real API; P6 public pages are not delivered by them.
 
@@ -285,8 +295,8 @@ names the controls; the remediation record owns execution evidence.
 **G16(a–e)/G21 writer contract delivered in P02d-2 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects one whole-theme color document, contrast refusal, no organization override
-and no font/logo/URL/layout value. Accepted G42 selects document injection below;
-implementation remains pending.
+and no font/logo/URL/layout value. P02d-6 Step 1 implements the accepted G42
+atomic document injection below.
 P02d-4 accepts complete typed theme or null and attribution-only entitlement;
 Step 2 delivers that public projection.
 

@@ -57,6 +57,12 @@ function contentPath(parts: readonly string[]): boolean {
   );
 }
 
+/** Fixed error namespace; it grants no Education-route authority. */
+export function isPublicStatusTarget(target: string): boolean {
+  const parts = (target.split('?')[0] ?? '').slice(1).split('/');
+  return parts.length === 3 && parts[1] === 'status' && parts[2] === 'not-found';
+}
+
 /** The configured caller uses only a canonical locale from a supported signed route. */
 export function canonicalRouteLocale(target: string): string | null {
   if (!validTarget(target)) return null;
@@ -88,7 +94,8 @@ export function publicEntry(target: string, site: PublicSite): PublicEntry {
   const canonical = canonicalLocale(prefix);
   if (canonical !== null && enabled.includes(canonical)) {
     const root = parts.length === 1 || (parts.length === 2 && parts[1] === '');
-    if (!root && !contentPath(parts.slice(1))) return { kind: 'refuse', status: 404 };
+    if (!root && !contentPath(parts.slice(1)) && !isPublicStatusTarget(target))
+      return { kind: 'refuse', status: 404 };
     if (canonical !== prefix)
       return {
         kind: 'redirect',

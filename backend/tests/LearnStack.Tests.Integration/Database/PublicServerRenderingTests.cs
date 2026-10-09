@@ -23,7 +23,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
 /// Production Next/native TLS/SDK/API/PostgreSQL proof. The disposable renderer
-/// owns its route; no diagnostic page is added to the shipped application.
+/// separates the P5 transport probe from the actual P6 document/status foundation.
+/// Its content consumer is test-owned until product routes land; no diagnostic route ships.
 /// </summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -32,8 +33,10 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
     private const string SuppliedTrace = "00-1234567890abcdef1234567890abcdef-1234567890abcdef-01";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    [Fact]
-    public async Task Production_rendering_is_host_isolated_fresh_and_private_through_the_real_public_API()
+    [Theory]
+    [InlineData("transport")]
+    [InlineData("foundation")]
+    public async Task Production_rendering_is_host_isolated_fresh_and_private_through_the_real_public_API(string mode)
     {
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var observed = new RenderingObservation(secret);
@@ -75,6 +78,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var started = false;
         var draft = false;
         var verified = false;
+        var foundationPosition = 0;
+        var foundationLocales = false;
         var tracePosition = 0;
         var beforeProtocol = -1;
         var beforeStock = -1;
@@ -82,11 +87,20 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var checkpoints = new List<string>();
         try
         {
+            if (mode == "foundation")
+            {
+                // Test-owned membership extends only this scenario. Product reads
+                // still execute as learnstack_app through the real read-only API.
+                await fixture.ExecuteAsync(SeedData.English,
+                    "INSERT INTO tenant_locales(tenant_id,locale,is_default,is_enabled,sort) VALUES(@tenant,'ar',false,true,8),(@tenant,'tr-TR',false,true,9),(@tenant,'tr',false,true,10)");
+                foundationLocales = true;
+            }
             started = process.Start();
             started.Should().BeTrue();
             var errors = BoundedErrorsAsync(process.StandardError, deadline.Token);
             await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
             {
+                mode,
                 apiOrigin = origin,
                 secret,
                 locale,
@@ -142,6 +156,35 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         await SetStatusAsync(firstCourse, firstCourse.Status);
                         draft = false;
                         break;
+                    case "foundation-normal":
+                    case "foundation-repeat":
+                    case "foundation-missing":
+                        var foundationRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        foundationRequests.Should().HaveCount(checkpoint == "foundation-missing" ? 5 : 3,
+                            "metadata, document/layout and page share one request-local admission and content operation");
+                        foundationRequests.Count(request => request.Path == "/api/v1/public/site").Should()
+                            .Be(checkpoint == "foundation-missing" ? 4 : 2);
+                        foundationRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
+                        foundationRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
+                            .Locale.Should().Be(locale, "UI configuration cannot change the exact content API locale");
+                        foundationPosition = observed.Requests.Length;
+                        break;
+                    case "foundation-status":
+                    case "foundation-head":
+                    case "foundation-refused":
+                    case "foundation-canonical":
+                        var statusRequests = observed.Requests.Skip(foundationPosition).ToArray();
+                        statusRequests.Should().HaveCount(checkpoint switch
+                        {
+                            "foundation-status" => 8,
+                            "foundation-head" => 2,
+                            "foundation-canonical" => 3,
+                            _ => 2
+                        });
+                        statusRequests.Should().OnlyContain(request => request.Path == "/api/v1/public/site",
+                            "status pages and admission refusals must never query Education");
+                        foundationPosition = observed.Requests.Length;
+                        break;
                     case "verified":
                         verified = true;
                         break;
@@ -155,7 +198,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             var errorOutput = await errors;
             process.ExitCode.Should().Be(0, errorOutput);
             verified.Should().BeTrue("the production fixture must execute every scenario");
-            checkpoints.Should().Equal("build-complete", "trace-supplied", "trace-missing", "trace-malformed", "protocol-before", "protocol-after", "stock-before", "stock-after", "make-draft", "restore-published", "verified");
+            if (mode == "transport") checkpoints.Should().Equal("build-complete", "trace-supplied", "trace-missing", "trace-malformed", "protocol-before", "protocol-after", "stock-before", "stock-after", "make-draft", "restore-published", "verified");
+            else checkpoints.Should().Equal("build-complete", "foundation-normal", "foundation-repeat", "foundation-missing",
+                "foundation-status", "foundation-head", "foundation-refused", "foundation-canonical", "stock-before", "stock-after", "verified");
             observed.Requests.Length.Should().BeInRange(1, 59, "the fixture stays within one real anonymous visitor budget");
             observed.Requests.Should().OnlyContain(request => request.ValidHop, "the real caller uses the closed authenticated hop");
             observed.Logs.Should().BeGreaterThan(0, "API log containment needs a nonempty real logging subject");
@@ -175,7 +220,13 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     catch (OperationCanceledException) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(CancellationToken.None); }
                 }
             }
-            finally { if (draft) await SetStatusAsync(firstCourse, firstCourse.Status); }
+            finally
+            {
+                if (draft) await SetStatusAsync(firstCourse, firstCourse.Status);
+                if (foundationLocales)
+                    await fixture.ExecuteAsync(SeedData.English,
+                        "DELETE FROM tenant_locales WHERE tenant_id=@tenant AND locale IN ('ar','tr-TR','tr')");
+            }
         }
     }
 
@@ -339,7 +390,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
             ? result.ToString() : "Production rendering fixture exited unexpectedly.";
     }
 
-    private sealed record ObservedRequest(string Path, string TraceId, bool ValidHop);
+    private sealed record ObservedRequest(string Path, string Locale, string TraceId, bool ValidHop);
 
     /// <summary>Observes the real Kestrel request without changing API resolution or transactions.</summary>
     private sealed class RenderingObservation(string secret) : IStartupFilter, ILogEventSink
@@ -386,7 +437,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         && !headers.ContainsKey("Authorization") && !headers.ContainsKey("Cookie")
                         && !headers.ContainsKey("X-Tenant-Id") && !headers.ContainsKey("X-Organization-Id")
                         && !headers.ContainsKey("X-Locale") && !headers.ContainsKey("X-Forwarded-For");
-                    _requests.Enqueue(new(context.Request.Path.Value!, Activity.Current?.TraceId.ToHexString() ?? "", validHop));
+                    _requests.Enqueue(new(context.Request.Path.Value!, context.Request.Query["locale"].ToString(), Activity.Current?.TraceId.ToHexString() ?? "", validHop));
                 }
                 await continuation();
             });

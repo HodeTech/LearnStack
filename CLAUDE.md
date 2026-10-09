@@ -119,8 +119,13 @@ Work stays on development. **P02d-6's decision pass is Accepted — 2026-10-09**
 [ADR-0027](docs/decisions/0027-frontend-i18n.md) and its
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 authorize four implementation steps and two independent review rounds per step.
-The decision commit delivers no product pages. P02d-7 owns the browser demo and
-Lighthouse; Phase 06 retains the full renderer/Studio expansion.
+Step 1 implements the pinned i18n and document foundation, verified request-local
+admission/content loaders, atomic color theming, chrome and controlled status/error/
+loading components. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns current validation and review evidence. Catalog/course and lesson pages
+remain Steps 2 and 3. P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
+the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

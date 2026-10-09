@@ -27,11 +27,16 @@ native method/upgrade admission and pinned URL controls. The remediation record
 owns execution and independent review evidence; the ongoing rules live in
 [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
-**P02d-6 decisions Accepted — 2026-10-09; implementation pending.**
+**P02d-6 decisions Accepted — 2026-10-09; Step 1 foundation implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects the UI foundation; the
 [decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
 selects pages, status/navigation, safe theme and product/accessibility proofs.
-Acceptance installs no dependency and delivers no product page or passing proof.
+Step 1 installs the pinned runtime and supplies shared request-local loaders,
+document language/direction, atomic theme injection, chrome and controlled
+status/error/loading components. Actual catalog/course/lesson pages remain Steps 2
+and 3. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns current validation and review evidence.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -67,14 +72,14 @@ frontend/
             sessions/
           api/                            # only thin BFF proxies, see "Data Fetching"
         components/
-          public/                         # Accepted P6 plain-string views; pending
+          public/                         # P6 chrome/states; content views pending
           blocks/                         # built-in primitive page blocks
           ui/                             # design-system primitives
         lib/
           api/
           auth/
           tenant/
-        i18n/                             # Accepted ADR-0027 home; pending
+        i18n/                             # ADR-0027 foundation implemented in P6 Step 1
           request.ts
           messages/
             en/public.json
@@ -89,7 +94,8 @@ frontend/
 
 > **Phase 02d ownership.** Accepted G41 places synchronous plain-string views in
 > `apps/web/src/components/public/`; G39 selects the app-local i18n home above.
-> Both remain implementation-pending. P02d-5/G36 delivers Node middleware in
+> Step 1 implements i18n and chrome/state views; content views remain Steps 2/3.
+> P02d-5/G36 delivers Node middleware in
 > `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 > The tree above is the earlier target layout, not a shipped-directory census.
@@ -215,7 +221,11 @@ URL sink, HTML, Markdown, linkification or richer primitive is introduced. Full
 menus, media, preview, authored error pages and Studio remain Phase 06.
 
 UI configuration shares verified request-local admission without i18n routing
-middleware or another locale authority. UI fallback does not change API content
+middleware or another locale authority. Admission/content loaders use a private
+weak memo keyed by Next's exact request-store headers object, including error
+rendering; header values never key shared representations. `getPublicUi` uses
+React cache only for selected messages/translators inside an RSC render. UI fallback
+does not change API content
 locale; document/UI/label language and RTL rules live in
 [Localization](12-localization.md#ui-string-catalogue).
 
@@ -226,11 +236,11 @@ only the whole typed four-color theme or null; frontend safe CSS defaults remain
 owned here, without backend duplication. Baseline colors apply independently of
 plan. Effective WhiteLabelBranding removes LearnStack attribution only. Public
 responses expose no setting keys, raw/partial JSON or organization merge. Accepted
-G42 selects document injection in P02d-6; implementation remains pending.
+G42 document injection is implemented in P02d-6 Step 1.
 
 **P02d-2/3 delivered foundation — 2026-10-03.** The theme writer and typed settings
-accessor are implemented. Step 2 delivers the anonymous projection; renderer
-injection remains P02d-6. The
+accessor are implemented. P02d-4 Step 2 delivers the anonymous projection;
+P02d-6 Step 1 implements renderer injection. The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
 logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
@@ -255,8 +265,8 @@ and that organization has a
 `BrandingOverride`, the override merges on top of the tenant defaults before injection —
 the merged token set is the source of truth for the SSR'd page.
 
-P02d-6's target is a themed first paint through safe SSR injection; no renderer
-injection is implemented yet.
+P02d-6 Step 1 implements safe SSR injection for themed first paint; the delivery
+record owns production verification and review evidence.
 
 Logo/font assets and uploads are Phase 06 targets, requiring safe media and
 subresource contracts before their writers or consumers. P02d-2's accepted color-only

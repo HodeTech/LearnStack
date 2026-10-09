@@ -4202,6 +4202,69 @@ Five Release corpus cases and seven ADR workflow cases pass with zero failures o
 skips. Relative-file/fragment, added-prose wrapping and diff checks pass. These are
 documentation checks; no product-runtime or accessibility proof is claimed.
 
+### P02d-6 Step 1: Localization and document foundation
+
+**Implementation in progress — 2026-10-10; both independent review rounds not
+started.** Work stays on `development`. This record covers the foundation only;
+actual catalog/course pages remain Step 2 and lesson presentation remains Step 3.
+It does not close P02d-6 or any product/manual accessibility criterion.
+
+#### Delivered foundation
+
+- Exact `next-intl` 4.14.9 dependency/lockfile, App Router plugin and server-only
+  request configuration, with complete app-local English/Turkish `public`
+  catalogues. ICU/key/argument and production-callsite census controls include
+  planted missing-key, absent-from-all, misspelled-callsite, malformed-ICU and
+  argument-mismatch failures. Formatter failures select bounded translated copy.
+- Shared server-only request-local admission and content loaders re-verify ingress,
+  read live site configuration and take content locale/route/pagination identity
+  from the signed target. The request loader imports neither next-intl nor
+  messages. UI fallback and runtime direction selection preserve content identity.
+  A private weak identity memo keyed only by Next's exact request-store headers
+  object retains same-request admission/content work across error rendering; no
+  header value, host or envelope keys a representation cache. `getPublicUi` uses
+  React cache only to reuse selected messages/translators inside an RSC render;
+  it does not own admission or content-read deduplication.
+- Root document language/direction, atomic validation of all four color slots
+  before fixed style-element emission, and tenant chrome with one main/skip
+  target, catalog anchor and effective conditional platform attribution. Null or
+  malformed themes retain the entire existing CSS default palette.
+- Closed translated state views, loading and unexpected-error boundaries. The
+  interactive retry boundary receives bounded labels only. The admitted fixed
+  status page supplies localized title/noindex metadata and a catalog recovery
+  link, echoes no original target and performs no Education read. Shared resource
+  admission selects the approved local 307→404 path for missing content.
+
+The production fixture adds a separate foundation-consumer mode while retaining
+P5's isolated transport probe. The temporary consumer exercises foundation code;
+it does not deliver or prove unchanged catalog/course/lesson product pages.
+The real production fixture verifies three API calls for a normal document,
+three again on its next request and five across the missing-resource redirect
+chain. Parallel status requests, bodyless HEAD, renewed host/locale refusals and
+canonical redirects pass. Enabled `ar`, `tr` and `tr-TR` coverage checks visible
+localized status HTML/metadata, content direction and labelled English fallback
+without an Education read. The historical seed remains unchanged.
+
+#### Verification and review boundary
+
+The guarded frontend run passes **817 tests: 757 web and 60 SDK**, with zero
+skips/todos. All **198 Release architecture cases** pass. The production build
+passes with the dynamic status route and root language/theme injection; the real
+fixture checks that building performs no API prerender calls. Workspace lint and
+typecheck pass. The focused real-API production integration run passes **16 cases,
+zero failures/skips**, retaining the separate P5 transport and cleanup controls.
+Native ingress regression verification passes TLS, method/upgrade admission,
+query redirects, production containment and development HMR. Missing static assets
+are refused before tenant bootstrap even when Next invokes the root fallback.
+No unchanged content-page,
+browser E2E, Lighthouse or manual accessibility pass is claimed here.
+
+All five P02d-6 architecture-test rules remain **Registered** until their complete
+named proof obligations are verified; a foundation test alone does not promote the
+broader page-state or accessibility rule. Accessibility remains **Adopted**.
+Round 1 and Round 2 have not started. Commit, both independent rounds and affected
+revalidation precede Step 2 under the accepted implementation loop.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

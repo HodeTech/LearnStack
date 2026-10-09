@@ -42,10 +42,12 @@ uses exact enabled query locale; display-only Pattern B values carry authored
 `{value,locale}`. Neither fallback nor headers authorize a content locale. Internal
 fallback remains the delivered P02d-3 contract; language attributes are P02d-6.
 
-**Accepted P02d-6 UI foundation — 2026-10-09; implementation pending.**
-[ADR-0027](../decisions/0027-frontend-i18n.md) selects next-intl and one app-local
-catalogue home, with UI-language fallback separate from content admission. P6 is
-the first consumer; Phase 04 inherits this foundation for CMS/Studio coverage.
+**P02d-6 Step 1 UI foundation implemented — 2026-10-10.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) supplies next-intl and one app-local
+catalogue home, with UI-language fallback separate from content admission. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns validation; actual content pages remain Steps 2 and 3. Phase 04 inherits this
+foundation for CMS/Studio coverage.
 
 ## URL Strategy
 
@@ -221,8 +223,9 @@ applying the fallback chain.
 
 - Frontend: server-first `next-intl` **4.14.9**, with app-local
   `apps/web/src/i18n/messages/{en,tr}/public.json` and `src/i18n/request.ts`.
-  This is Accepted in P02d-6; dependency installation, catalogues and checks remain
-  pending. No shared i18n package is created without ADR-0009's duplication trigger.
+  P02d-6 Step 1 implements the dependency/plugin, complete catalogues and key/ICU/
+  argument/callsite controls. No shared i18n package is created without
+  ADR-0009's duplication trigger.
 - Backend: localized strings live in resource files under each module.
 - Strings are referenced by key, never duplicated:
 
@@ -306,7 +309,8 @@ runtime internationalization data; an undescribed admitted tag falls back to
 `ltr`, never refusal. UI fallback groups retain their own direction. Test-owned
 enabled `ar` content proves `lang="ar"`/`dir="rtl"` and labelled English fallback
 UI independently; it neither rewrites the seed nor claims an Arabic UI catalogue.
-These renderer controls remain implementation obligations.
+Step 1 implements direction selection and labelled fallback chrome; actual
+content-page and production RTL evidence remains a later P02d-6 obligation.
 
 ## Admin Studio UI
 

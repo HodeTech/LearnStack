@@ -16,6 +16,7 @@ import {
   clientBoundaryFindings,
   hasDirective,
   hasServerOnlyMarker,
+  I18N_REQUEST,
   INGRESS,
   MIDDLEWARE,
   privateServerFiles,
@@ -23,6 +24,7 @@ import {
   PUBLIC_LAYOUT,
   rawAuthorityFindings,
   reachable,
+  REQUEST_MEMO,
   resolutionCensusFindings,
   SDK_SERVER,
   transportFindings,
@@ -53,7 +55,10 @@ function productionSources(): SourceCensus {
       if (entry.isDirectory()) {
         // Runtime/test fixtures never enter the production graph.
         if (!['test', '__tests__', '__fixtures__', 'fixtures'].includes(entry.name)) visit(path);
-      } else if (/\.tsx?$/.test(entry.name) && !/\.(?:test|spec|d)\.tsx?$/.test(entry.name)) {
+      } else if (
+        /\.(?:tsx?|json)$/.test(entry.name) &&
+        !/\.(?:test|spec|d)\.(?:tsx?|json)$/.test(entry.name)
+      ) {
         sources[relative(frontend, path).split('\\').join('/')] = readFileSync(path, 'utf8');
       } else
         extensionFindings.push(
@@ -71,9 +76,10 @@ function productionSources(): SourceCensus {
 const sources = productionSources();
 const production = buildSourceGraph(sources);
 const publicRoots = [...production.files.keys()].filter((name) => name.includes('/app/(public)/'));
-// P5 middleware supplies bootstrap; public page composition remains P6.
 const ROOT_LAYOUT = 'apps/web/src/app/layout.tsx';
-const renderRoots = [...publicRoots, ROOT_LAYOUT, MIDDLEWARE];
+// next-intl loads this configuration through its plugin, outside static imports.
+const renderRoots = [...publicRoots, ROOT_LAYOUT, MIDDLEWARE, I18N_REQUEST];
+const catalogues = ['en', 'tr'].map((locale) => `apps/web/src/i18n/messages/${locale}/public.json`);
 const publicGraph = reachable(production, renderRoots);
 const clean = (findings: readonly Finding[], fix: string) =>
   expect(findings, fix + '\n' + JSON.stringify(findings, null, 2)).toEqual([]);
@@ -135,6 +141,7 @@ describe('ADR-0053 production public boundaries', () => {
       expect.arrayContaining([
         ADAPTER,
         INGRESS,
+        I18N_REQUEST,
         MIDDLEWARE,
         PUBLIC_LAYOUT,
         ROOT_LAYOUT,
@@ -143,11 +150,28 @@ describe('ADR-0053 production public boundaries', () => {
         'packages/sdk/src/response-policy.ts',
         'packages/ui/src/index.ts',
         'apps/web/src/server/public-entry.ts',
+        'apps/web/src/server/public-request.ts',
+        ...catalogues,
       ]),
     );
     expect(publicRoots).toContain(PUBLIC_LAYOUT);
+    expect(renderRoots).toContain(I18N_REQUEST);
+    expect(reachable(production, [I18N_REQUEST])).toEqual(
+      expect.arrayContaining([
+        I18N_REQUEST,
+        'apps/web/src/server/public-request.ts',
+        ADAPTER,
+        ...catalogues,
+      ]),
+    );
     expect(privateServerFiles(production)).toEqual(
-      expect.arrayContaining([ADAPTER, INGRESS, SDK_SERVER]),
+      expect.arrayContaining([
+        ADAPTER,
+        INGRESS,
+        SDK_SERVER,
+        I18N_REQUEST,
+        'apps/web/src/server/public-request.ts',
+      ]),
     );
     expect(reachable(production, [MIDDLEWARE])).toEqual(
       expect.arrayContaining([
@@ -230,7 +254,7 @@ describe('ADR-0053 production public boundaries', () => {
   });
   it('the actual public render closure contains no shared cache', () => {
     expect(publicGraph).toEqual(
-      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, ADAPTER, SDK_SERVER]),
+      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, I18N_REQUEST, ADAPTER, SDK_SERVER]),
     );
     clean(
       cacheFindings(production, publicGraph),
@@ -240,7 +264,13 @@ describe('ADR-0053 production public boundaries', () => {
   it('public pages and their transitive helpers do not read raw authority', () => {
     const helpers = publicGraph.filter((name) => name !== INGRESS);
     expect(helpers).toEqual(
-      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, 'apps/web/src/server/public-entry.ts']),
+      expect.arrayContaining([
+        PUBLIC_LAYOUT,
+        MIDDLEWARE,
+        I18N_REQUEST,
+        'apps/web/src/server/public-entry.ts',
+        'apps/web/src/server/public-request.ts',
+      ]),
     );
     clean(rawAuthorityFindings(production, helpers), 'Fix: use verified ingress host/peer.');
   });
@@ -463,6 +493,33 @@ describe('server boundary planted controls', () => {
     });
     expect(clientBoundaryFindings(graph)).toHaveLength(1);
   });
+  it('refuses a direct client import of each bundled UI catalogue', () => {
+    const catalogues = Object.keys(sources).filter(
+      (name) => name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json'),
+    );
+    expect(catalogues.length).toBeGreaterThan(0);
+    for (const catalogue of catalogues) {
+      const graph = buildSourceGraph({
+        ...sources,
+        [probe]: `"use client"; import messages from "@/${catalogue.slice('apps/web/src/'.length)}"; export const leaked = messages;`,
+      });
+      expect(clientBoundaryFindings(graph)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ file: probe, reason: expect.stringContaining(catalogue) }),
+        ]),
+      );
+    }
+  });
+  it('permits ordinary public JSON data in a client graph', () => {
+    const data = 'apps/web/src/lib/public-options.json';
+    const graph = buildSourceGraph({
+      [probe]: '"use client"; import options from "@/lib/public-options.json"; export { options };',
+      [data]: '{"sizes":[10,20]}',
+    });
+    expect(reachable(graph, [probe])).toContain(data);
+    expect(privateServerFiles(graph)).not.toContain(data);
+    expect(clientBoundaryFindings(graph)).toEqual([]);
+  });
   it('permits UI-only imports and erased type imports/re-exports', () => {
     const graph = buildSourceGraph({
       ...sources,
@@ -481,6 +538,60 @@ describe('server boundary planted controls', () => {
 });
 
 describe('public cache fence planted controls', () => {
+  it('permits the audited request-identity memo independent of formatting and comments', () => {
+    const original = sources[REQUEST_MEMO]!;
+    expect(original).toContain('export function requestMemo');
+    const graph = graphWith(
+      REQUEST_MEMO,
+      original.replace('const incoming', '/* same key */ const   incoming'),
+    );
+    expect(cacheFindings(graph, [REQUEST_MEMO])).toEqual([]);
+  });
+  it.each([
+    ['strong key retention', 'new WeakMap<', 'new Map<'],
+    ['header value key', 'requests.get(incoming)', "requests.get(incoming.get('host'))"],
+    [
+      'changed insertion key',
+      'requests.set(incoming, pending)',
+      'requests.set(new Headers(), pending)',
+    ],
+    [
+      'copied request identity',
+      'const incoming = await headers()',
+      'const incoming = new Headers(await headers())',
+    ],
+    ['caller-selected key', 'return async () =>', 'return async (incoming) =>'],
+    [
+      'eager loader before publication',
+      'Promise.resolve().then(() => load(incoming))',
+      'load(incoming)',
+    ],
+    [
+      'retry after rejection',
+      'return pending;',
+      'return pending.finally(() => requests.delete(incoming));',
+    ],
+    ['exposed collection', 'return pending;', 'return requests;'],
+    ['untyped value', 'Promise<T>>();', 'Promise<unknown>>();'],
+  ])('refuses mutated request memo mechanism: %s', (_name, before, after) => {
+    const original = sources[REQUEST_MEMO]!;
+    expect(original).toContain(before);
+    const mutated = original.replace(before, after);
+    expect(mutated).not.toBe(original);
+    expect(cacheFindings(graphWith(REQUEST_MEMO, mutated), [REQUEST_MEMO])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: REQUEST_MEMO })]),
+    );
+  });
+  it.each([
+    'const shared = new Map();',
+    'const shared = new WeakMap();',
+    'export const leaked = new Map();',
+  ])('the request helper is not exempt from additional shared collections: %s', (added) => {
+    const graph = graphWith(REQUEST_MEMO, sources[REQUEST_MEMO]! + '\n' + added);
+    expect(cacheFindings(graph, [REQUEST_MEMO])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: REQUEST_MEMO })]),
+    );
+  });
   it('the layout policy detector refuses missing or weakened actual production declarations', () => {
     const withoutDynamic = graphWith(
       PUBLIC_LAYOUT,
@@ -1042,6 +1153,79 @@ describe('remediation bounded header conversions', () => {
 });
 
 describe('remediation source resolution census controls', () => {
+  it.each([
+    'import messages from "@/lib/control.json";',
+    'export { default as messages } from "@/lib/control.json";',
+    'const messages = import("@/lib/control.json");',
+    'const messages = require("@/lib/control.json");',
+  ])('includes valid JSON as an inert graph leaf: %s', (source) => {
+    const json = 'apps/web/src/lib/control.json';
+    const graph = buildSourceGraph({
+      [probe]: source,
+      [json]: JSON.stringify({
+        cache: 'force-cache',
+        'x-learnstack-host': 'An inert message key',
+        body: 'import("./missing"); fetch("/api");',
+      }),
+    });
+    clean(graph.unresolved, 'Existing strict JSON resolves like other local modules.');
+    expect(reachable(graph, [probe])).toEqual([probe, json].sort());
+    expect(graph.edges.get(json)).toEqual([]);
+    clean(
+      [...transportFindings(graph), ...cacheFindings(graph, reachable(graph, [probe]))],
+      'JSON property names and text are data, not executable transport or cache configuration.',
+    );
+  });
+  it('rejects an absent JSON import instead of exempting its extension', () => {
+    const graph = buildSourceGraph({ [probe]: 'import messages from "@/lib/missing.json";' });
+    expect(graph.unresolved).toEqual([
+      expect.objectContaining({
+        file: probe,
+        reason: expect.stringContaining('Unresolved local module @/lib/missing.json'),
+      }),
+    ]);
+  });
+  it.each(['{"message":', '{"message": "hello",}', '/* comment */ {}', 'fetch("/api");'])(
+    'rejects malformed JSON in the census: %s',
+    (source) => {
+      const json = 'apps/web/src/lib/control.json';
+      const graph = buildSourceGraph({
+        [probe]: 'import messages from "@/lib/control.json";',
+        [json]: source,
+      });
+      expect(reachable(graph, [probe])).toContain(json);
+      expect(graph.unresolved).toEqual([
+        {
+          file: json,
+          line: 1,
+          reason: 'Malformed JSON module: use strict inert JSON in the production census.',
+        },
+      ]);
+    },
+  );
+  it('does not treat a top-level JSON string as a client directive', () => {
+    const json = 'apps/web/src/lib/control.json';
+    const graph = buildSourceGraph({ [json]: '"use client"' });
+    clean(graph.unresolved, 'A JSON string is valid inert data.');
+    expect(hasDirective(graph.files.get(json)!, 'use client')).toBe(false);
+  });
+  it('keeps the plugin-loaded request configuration inside authority and cache fences', () => {
+    const graph = graphWith(
+      I18N_REQUEST,
+      sources[I18N_REQUEST]! +
+        '\nimport { headers as unsafeHeaders } from "next/headers";\n' +
+        'export async function dirty() { return (await unsafeHeaders()).get("host"); }\n' +
+        'export const dynamic = "force-static";',
+    );
+    const subjects = reachable(graph, renderRoots);
+    expect(subjects).toContain(I18N_REQUEST);
+    expect(rawAuthorityFindings(graph, subjects)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: I18N_REQUEST })]),
+    );
+    expect(cacheFindings(graph, subjects)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: I18N_REQUEST })]),
+    );
+  });
   it.each([
     [
       'new local alias',

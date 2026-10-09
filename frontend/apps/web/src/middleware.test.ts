@@ -70,6 +70,20 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('Node public middleware', () => {
+  it('continues only the exact admitted status namespace with a no-store 404', async () => {
+    const response = await middleware(incoming('/tr/status/not-found?slug=private'));
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+    for (const path of ['/fr/status/not-found', '/tr/status/other', '/tr/status/not-found/extra']) {
+      const refused = await middleware(incoming(path));
+      expect(refused.status).toBe(404);
+      expect(refused.headers.get('x-middleware-next')).toBeNull();
+    }
+  });
+
   it.each(['missing', 'forged'] as const)(
     'refuses %s provenance before bootstrap',
     async (stamp) => {

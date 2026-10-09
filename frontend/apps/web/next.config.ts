@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -9,4 +10,4 @@ const nextConfig: NextConfig = {
   experimental: { serverComponentsHmrCache: false },
 };
 
-export default nextConfig;
+export default createNextIntlPlugin('./src/i18n/request.ts')(nextConfig);

@@ -262,6 +262,30 @@ Existing [public source-boundary controls](../standards/21-architecture-tests-ca
 and [No_Architecture_Test_Is_Skippable](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)
 remain mandatory; no second skip-refusal rule is created.
 
+## Amendments
+
+### Amendment 1 — P02d-6 document foundation delivery (2026-10-10)
+
+P02d-6 Step 1 implements the exact next-intl 4.14.9 dependency/lockfile and App
+Router plugin, complete app-local English/Turkish `public` catalogues, server-only
+request configuration and key/ICU/argument/callsite controls with planted failures.
+UI fallback preserves content locale; formatter failures select bounded copy.
+
+Admission/content loaders use a private weak identity memo keyed only by Next's
+exact request-store headers object to retain same-request work across framework
+error rendering. Header values, host, locale and the ingress envelope are not
+cache keys; no representation crosses incoming requests or gains a new authority
+carrier. `getPublicUi` uses React cache for selected messages/translators within
+an RSC render, separately from admission/content-read deduplication.
+
+Step 1 also supplies document language/direction, atomic four-color style-element
+injection, tenant chrome, bounded interactive error labels, loading/state views
+and the live-admitted fixed status page, which performs no Education read.
+Catalog/course pages remain Step 2; lesson presentation remains Step 3. The
+[Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns current validation, review and product/accessibility proof status. The
+Decision, Status, Date and Deciders remain unchanged.
+
 ## References
 
 - [ADR-0008 — Localization Schema](0008-localization-schema.md)

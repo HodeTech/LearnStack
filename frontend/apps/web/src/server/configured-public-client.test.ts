@@ -165,20 +165,25 @@ describe('configured public authority and operation boundary', () => {
     ]);
   });
 
-  it.each(['/', '/courses', '/tr-tr/courses', '/%74r-TR/courses', '/tr_TR/courses', '/studio'])(
-    'refuses Education calls without a canonical content route: %s',
-    async (target) => {
-      const transport = stubResponse();
-      const configured = client({}, target);
-      expect(await configured.getCourses()).toEqual({ kind: 'invalid-request' });
-      expect(await configured.getCourse({ slug: 'intro' })).toEqual({ kind: 'invalid-request' });
-      expect(await configured.getLesson({ slug: 'intro', lessonSlug: 'first' })).toEqual({
-        kind: 'invalid-request',
-      });
-      expect(transport).not.toHaveBeenCalled();
-      expect((await configured.getSite()).kind).toBe('success');
-    },
-  );
+  it.each([
+    '/',
+    '/courses',
+    '/tr-tr/courses',
+    '/%74r-TR/courses',
+    '/tr_TR/courses',
+    '/studio',
+    '/tr/status/not-found',
+  ])('refuses Education calls without a canonical content route: %s', async (target) => {
+    const transport = stubResponse();
+    const configured = client({}, target);
+    expect(await configured.getCourses()).toEqual({ kind: 'invalid-request' });
+    expect(await configured.getCourse({ slug: 'intro' })).toEqual({ kind: 'invalid-request' });
+    expect(await configured.getLesson({ slug: 'intro', lessonSlug: 'first' })).toEqual({
+      kind: 'invalid-request',
+    });
+    expect(transport).not.toHaveBeenCalled();
+    expect((await configured.getSite()).kind).toBe('success');
+  });
 
   it('preserves SDK dot-segment rejection and contains encoded slug values on the private origin', async () => {
     const transport = stubResponse();
