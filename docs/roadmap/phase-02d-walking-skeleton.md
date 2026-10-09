@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) implemented, review pending; Step 4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1](#p02d-6-step-1-localization-and-document-foundation) and [Step 2 catalog/course](#p02d-6-step-2-catalog-and-course-pages) review rounds complete; [Step 3 lesson](#p02d-6-step-3-ordered-lesson-presentation) review rounds complete; Step 4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4364,7 +4364,7 @@ independent review rounds; Step 3 follows.
 
 ### P02d-6 Step 3: Ordered lesson presentation
 
-**Implementation — 2026-10-10; independent review rounds pending.** The actual
+**Implementation — 2026-10-10; both independent review rounds complete.** The actual
 lesson route consumes the shared verified resource loader in page and metadata,
 without a separate content read. Its synchronous view renders the API's ordered
 plain-string fields as definition pairs, preserves present empty strings, and
@@ -4430,6 +4430,23 @@ frontend cases, zero failures/skips; neither runs native/Docker or manual checks
 The root passes 167 focused frontend cases, five Release corpus cases, workspace
 typecheck and diff checks after the fixes. A fresh second round follows before
 Step 4.
+
+#### Step 3 review round 2 (2026-10-10)
+
+Fresh GPT-6-astra xhigh runtime/security and GPT-6-sol xhigh proof/corpus agents
+review `c250677..3ac4ee1` independently. Runtime approves with no actionable issue
+and passes 173 focused frontend cases. Proof/corpus confirms one defensive recovery
+edge: a lesson API validation failure selects cursor reset although lessons have
+no cursor. The closed mapping now reserves cursor failure for HTTP 400 catalog/
+course reads; lesson and other-status validation failures select unavailable.
+The result matrix tests both boundaries without displaying backend diagnostics.
+This is a defensive case, not a reproduced admitted normal-path API failure.
+
+Both reviewers approve the focused mapping fix with no new concrete finding. The
+root passes 176 focused frontend cases, zero failures/skips/todos, workspace
+typecheck and diff checks. Both independent rounds are complete; Step 4 follows.
+Actual product RTL/fault/concurrency and manual accessibility obligations remain
+explicit.
 
 ### P02d-1 decision pass (2026-09-14)
 

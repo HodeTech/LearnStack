@@ -274,8 +274,9 @@ describe.each([
         code: 'validation_failed',
         fieldErrors: { private: ['private diagnostic'] },
       }),
-      'invalid_cursor',
+      target.includes('/lessons/') ? 'unavailable' : 'invalid_cursor',
     ],
+    ['failure', apiError(503, { code: 'validation_failed' }), 'unavailable'],
     [
       'failure',
       apiError(503, { code: 'dependency_unavailable', provider: 'private provider' }),

@@ -45,7 +45,11 @@ function failure<T>(
   if (result.kind === 'api-error') {
     if (result.status === 404) return { kind: 'missing', request };
     if (result.status === 429) return { kind: 'failure', request, state: 'rate_limited' };
-    if (result.error.code === 'validation_failed')
+    if (
+      result.status === 400 &&
+      result.error.code === 'validation_failed' &&
+      (request.route.kind === 'catalog' || request.route.kind === 'course')
+    )
       return { kind: 'failure', request, state: 'invalid_cursor' };
   }
   return { kind: 'failure', request, state: 'unavailable' };
