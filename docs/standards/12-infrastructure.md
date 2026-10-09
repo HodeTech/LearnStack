@@ -89,12 +89,12 @@ otel-collector          # Phase 11 (Production hardening — observability stack
 - `infra/apisix/config.yaml` is the canonical APISIX standalone config; routes / plugins
   hot-reload on file change.
 
-> **Open in Phase 02d.** Where the API and the web app run when a browser renders both
-> seed tenants — on the workstation loopback, in containers or behind the gated APISIX —
-> how one trusted-hop secret reaches both processes, and what `make demo` starts, are
-> G33 and G45 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The passes that close them edit this section with their answers.
+P02d-5 delivers G33's loopback API/native TLS web ingress and paired private local
+configuration under [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+Follow the [local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
+for explicit hosts and certificate trust preparation; neither is installed by scripts.
+P02d-7 owns G45's `make demo` lifecycle and browser/TLS evidence, plus the remaining
+G44 Lighthouse harness/assertions after P6. APISIX remains Phase 11.
 
 ### Healthchecks and the readiness gate
 

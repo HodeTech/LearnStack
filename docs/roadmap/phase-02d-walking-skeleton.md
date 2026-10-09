@@ -13,7 +13,7 @@
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
-> | P02d-5 | Server-rendering path | ✅ implementation-complete, unmerged — 2026-10-09; all four steps and both review rounds complete; [packet closeout](#p02d-5-packet-closeout-2026-10-09) |
+> | P02d-5 | Server-rendering path | Original four steps delivered and reviewed, unmerged; external-review remediation in progress; [approval package](#p02d-5-external-review-remediation-2026-10-09) |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
@@ -2770,12 +2770,12 @@ renderer decisions G39–43 are inputs, not accepted by this package.
 | G20: exemptions | Demo identity literals only in `SeedData`, seed/development launch/configuration, operational docs and test-owned assertions/fixtures. No host/domain-specific branch in middleware, transport, renderer or modules; a generic host normalizer is not a demo exemption. P6 decides renderer subjects, P7 implements the complete Registered guard |
 | G21: cookies | Public entry neither sets nor uses cookies; no Authorization/session forwarding. Preserve P2's no new remote subresource contract. Phase 02b owns session cookies; Secure-cookie TLS proof here is a test-owned transport control, not authentication implementation |
 | G30: headers | Native ingress verifies captured host/peer provenance; middleware rebuilds private context; one configured server adapter emits the closed API-hop set in ADR-0053. Education locale is query-only; no tenant/organization assertions |
-| G32 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local hosts and TLS |
-| G33 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local topology, shared source and ingress |
-| G34 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): authenticated visitor and peer budgets |
-| G35 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): configured caller, deadlines and observability owners |
-| G36 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): membership-first entry and redirects |
-| G37 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): dynamic no-store renderer policy |
+| G32 | [Accepted — 2026-10-08](#local-setup-and-ingress-details): local hosts and TLS |
+| G33 | [Accepted — 2026-10-08](#local-setup-and-ingress-details): local topology, shared source and ingress |
+| G34 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#api-hop-and-anonymous-budgets): authenticated visitor and peer budgets |
+| G35 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#configured-caller-and-rendering): configured caller/deadlines; [Frontend Observability](../standards/10-observability.md#frontend-observability) owns Phase 11 logger/Sentry/web-vitals |
+| G36 | [Accepted — 2026-10-08](#public-entry-matrix): membership-first entry and redirects |
+| G37 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#configured-caller-and-rendering): dynamic no-store renderer policy |
 | G38(a) | Vitest covers normalization/stamps/header stripping, locale/entry matrix, configured origin/header construction, errors, deadlines/body/cancellation and tracing; production-build/socket fixtures cover runtime boundaries. SDK tests remain inherited |
 | G38(d) | Extend existing non-skippability rule to tested frontend workspaces. Fail skipped/todo, empty/unreadable reports and discovered test packages without an execution script; planted actual runner cases prove failure |
 | G44: whether | Activate full-stack Lighthouse in P02d-7, after P6 pages and G45's shared demo harness. P5 updates live deferred-job ownership carriers; it does not audit placeholders. P7 still selects tools, URLs, assertions/budgets and status promotions before harness code |
@@ -3321,6 +3321,154 @@ and the configured caller exposes only those reads; a blanket web-method rule
 would also govern scaffold and future Phase 02b BFF/auth paths. The caller consumes
 only API origin and secret, never its computed TLS paths; the native launcher alone
 reads certificate/key files, resolved against the repository root.
+
+### P02d-5 external-review remediation (2026-10-09)
+
+**Preparation complete; decision approval pending.** Review reports are evidence
+to verify, not instructions to execute. The triage below compares their claims with
+`07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
+No production remediation, new passing suite count or merge readiness is claimed
+by this preparation. The original four-step delivery records remain historical.
+
+#### Decision package
+
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) is Proposed. It
+replaces only these ADR-0053 contracts if the maintainer accepts it:
+
+1. Refuse an exhausted known visitor before peer debit; keep unknown visitor
+   creation peer-gated. Own the actual visitor limiters and coordinate acquisition,
+   idle retirement and request-result replay. Preserve 60/IP, 600/peer, fixed
+   windows, no queue, the direct/hop shared namespace and pre-lookup enforcement.
+2. Admit GET/HEAD on the current native public/scaffold surface; give other methods
+   masked no-store `404` before Next. Close all production upgrades; development
+   retains only required validated HMR. Future BFF/auth routes require explicit
+   admission in Phase 02b. No public API method or authentication rule changes.
+3. Preserve inert query values, duplicates and ordering in redirects, allowing the
+   supported serializer's equivalent percent encoding. Stop promising identical
+   raw query bytes. Keep raw signed route identity and pinned framework projection.
+
+The current peer-first order is explicit in ADR-0053 Amendment 3, so this is a
+bounded supersession, not a false-when-written correction. Acceptance appends dated
+navigation to ADR-0053 and records G34/G36's replacement here; it does not silently
+reopen their original accepted answers. No new global quota, distributed limiter,
+database migration, transport-suffix route alias or schema/API contract is proposed.
+
+Keep existing valid traceparent continuation. Sampling participation, IPv6-prefix
+aggregation and production tracing policy remain Phase 11; they are not tenant
+authority. Keep the existing local HMAC key distribution/wire format. Fix diagnostic
+containment now; freshness/nonces or a process-specific key require separate
+production trust/distribution evidence, owned by Phase 11.
+
+#### Verified current findings and actions
+
+| Finding group | Verified result | Action in this PR |
+|---|---|---|
+| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement ADR-0054 only after approval; prove refusal fairness and peer-gated allocation independently. Retain the intentional aggregate cap |
+| Framework endpoint retry | Current global-only wiring charges once. Adding an endpoint policy reproduces a second global debit after success | Save successful and refused request outcomes in the new owner; test actual endpoint-policy retry now |
+| Next URL projection, M1 | Valid query values ending `.rsc` are changed by the adapter's full-URL normalization and rejected by the current verifier | Mirror pinned adapter processing, while retaining the signed raw target for route/locale identity. Test query cases and unrelated routes; add no suffix aliases |
+| Proxy header sanitation, M2 | Native parsed/raw headers retain `x-real-ip`, bare `x-forwarded` and vendor authority spellings. Current downstream/API allowlists prevent authority escalation | Strip the explicit forwarding/authority carrier set from both collections; prove mixed-case controls and unchanged signed socket identity |
+| Framework debug output | Installed Next logs full request headers under `DEBUG=next:*`, including the signed envelope | Refuse/suppress unsafe framework diagnostic configuration before request handling; prove containment with an enabled-debug canary |
+| Methods/upgrades | TRACE/TRACK can fail before user middleware. Unmatched production upgrades can remain open because Next expects another WS consumer | Apply the proposed native GET/HEAD and production upgrade rule; retain proven development HMR, no-store and bodyless HEAD |
+| Redirect bytes | Literal apostrophe query values become `%27`; meaning is retained | Apply the proposed equivalent-encoding contract; test actual runtime Location, not only the helper |
+| Authority/source guard, M4 | `new Headers(request.headers)` and `Object.fromEntries(request.headers)` reads escape tracking, including spread of the converted object | Add bounded constructor/conversion tracking, named planted/clean controls and a census of supported tsconfig aliases; fail unsupported local mappings |
+| Compiler evidence, M7 | Existing tests measure tsc verbatim emission. Installed Next SWC erases inline type-only imports/reexports | Keep the conservative graph policy; label the tsc proof accurately and add pinned SWC evidence with value/mixed-edge positive controls |
+| Ingress fixture lifecycle, M6 | Setup occurs before try/finally; interruption leaves detached children/temp material | Put setup under one idempotent resource owner; cover setup failure, SIGINT/SIGTERM and parent/control-pipe closure |
+| Fixture readiness | Ingress readiness can accept a stale 3011 listener; the real-API fixture already preflights its ports | Preflight both owned fixed ports, require owned-child bind/readiness and child liveness. Fail clearly on collision; do not attach to or kill an existing server |
+| Fixture TLS/log proof | Ingress inherits TLS/debug overrides and can forget a leak after 64 KiB of later output | Allowlist child environment, explicitly verify TLS, and scan before truncation with chunk overlap and sticky verdicts |
+| Renderer cleanup | Broken stdout can raise unhandled EPIPE before finally; ordinary stdin/signal cancellation is already handled | Route output-pipe errors through idempotent cleanup; prove an owned broken-pipe case |
+| Upgrade/build containment evidence | Client-side timeout can masquerade as server closure; IPC is not synchronized. Secretless build only proves its declared secretless path | Make timeout fail, await owned IPC observations, add actual closure controls and a nonempty configured-build canary for private asset/diagnostic exclusion |
+| Fixed-window tests | Exact accounting over 600 sequential HTTP requests assumes no minute rollover | Add deterministic owner/factory/sweep seams and barrier controls, plus retained real-framework/HTTP proof. Keep production window/limits unchanged |
+| Hook/CI/DX | Hook omits `.mts/.cts`; SDK lint claim exceeds invocation; root config/generated-file selection differs; `.server` is formatted | Align explicit lint subjects/parser handling, cover SDK lint, exclude generated output, and add representative failure controls |
+| Runtime support | Node 20 is EOL; CI still pins 20.11.0, while local P5 evidence uses 22.23.1 | Pin supported Node 22.23.1 across current tool/configuration carriers, then rerun actual CI. Historical Node 20 evidence stays historical |
+| Narrow evidence/consistency | HttpClient merges repeated secrets; `v1.` substring is overly broad; favicon matcher has an unescaped dot; some guard assertions are only nonempty | Add raw-wire repeated-secret and mapped-peer controls, structural token matching, exact favicon matching and named guard assertions |
+| Corpus and workflows, M3 | Current owner/status prose and route/seed launch guidance lag delivered G31–38/G44 | Align current documents and skills with accepted ownership; preserve P6/P7 open parts and immutable records |
+| ADR disclosure guard | First nonempty Status line is a blockquote in ADR-0052, so CI's current awk misses its Accepted lifecycle | Parse the lifecycle line within Status, ignoring banners; plant Accepted-with-banner controls. Preserve original status/history |
+
+The Node support finding is verified against the
+[official release schedule](https://github.com/nodejs/Release#release-schedule):
+20.x reached EOL on 2026-04-30; 22.x remains Maintenance LTS through 2027-04-30.
+The [22.23.1 archive](https://nodejs.org/en/download/archive/v22.23.1) identifies
+the selected local-tested patch. No particular HTTP-parser CVE/exploit is claimed.
+
+Ongoing corpus fixes in this preparation cover Architecture 04/05/14/25,
+Standards 03/06/07/11/12/15/index, glossary placement and frontend entry READMEs.
+G32–37 answer links now point to their actual detail owners. Security Standards
+carry the accepted private carrier, five API-hop headers, 10-second/8-MiB bounds,
+secret/client/log exclusions and the narrow local Node configuration exception.
+Remaining route-skill/seed/hook/CI edits ship with their corresponding code/tests.
+
+#### Rejected, qualified and later-owned claims
+
+| Claim | Disposition and reason |
+|---|---|
+| IPv4-mapped peers fail `IPNetwork.Contains` | Refuted on current .NET 10; the loopback IPv4 network contains mapped loopback. Add a pinning test, no parser workaround |
+| Invalid visitor metadata violates an “only 600” rule | Refuted: existing policy specifies two budgets and peer-IP fallback. Clarify both debits; the proposal changes only exhausted-visitor accounting |
+| Direct `.rsc`/segment paths must become public aliases | Not established for the supported non-minimal Node mode; segment cache is not enabled. Fix the valid query bug without broadening route identity |
+| Plain `{...request.headers}.host` is a Next authority escape | Refuted for WHATWG Headers; it does not create a string host property. Converted plain-object spread remains a real guard gap |
+| TRACE's ordinary framework 500 lacks no-store | Refuted by installed Next error rendering. Native refusal still avoids unsupported-method framework dispatch |
+| Fixed 3000 is an accidental product port | Refuted: Accepted local topology. Test collision must fail rather than reuse a foreign listener. Phase 11 owns production topology |
+| `make demo` is falsely claimed shipped | Refuted: README assigns it to P7. Do not add P7's target as a P5 repair |
+| OpenSSL is undocumented; every PEM needs a global ignore | Refuted/scoped: prerequisites name OpenSSL and `.data/` protects accepted private certificate paths. Broad PEM ignores could hide public fixtures |
+| All parent-death cleanup/TLS/log scanning is absent | Overstated: the real-API harness already watches stdin/signals, allowlists environment and scans before truncation. Fix its verified EPIPE path and the separate ingress deficiencies |
+| Slowloris waits forever | Not reproduced; default Node timeout closes the reported case. Keep production timeout/topology tuning in Phase 11; enforce bounded fixture waits now |
+| PID reuse warrants skipping every exited group leader | Rejected fix: surviving descendants require group cleanup. Reduce stale handles after confirmed group absence and retain the surviving-descendant control; no unrelated-group kill was reproduced |
+| Envelope has no replay expiry | True protocol fact, not a supported-listener replay bypass. Submitted envelopes are replaced; Step 2 addresses the verified debug leakage. Phase 11 owns production replay/key lifecycle |
+| Restart every visitor trace, change sampling, aggregate IPv6 prefixes | New observability/rate policies, not demonstrated P5 defects. Preserve accepted continuation; Phase 11 owns these choices |
+| New static/auth/robots/sitemap paths must already bypass admission | P6/G40 and Phase 02b own their explicit namespaces. Existing exact exclusions remain; correct only the favicon regex defect now |
+| Bootstrap reuse / Link prefetch already required in P5 | No current product pages exist. P6 owns request-local consumption/prefetch choices before page code, including call-count evidence; no caching or shared bootstrap is authorized |
+| SDK response-parser/body/Retry-After notes | SDK is inherited from P4 and outside this PR's changed transport. P5's configured caller already bounds decoded bytes/deadline; re-verify SDK contracts with P6 consumers rather than change them speculatively |
+| PlatformAdmin is required by `make public-api` | Refuted: optional credential is copied only when present; composition registers its lazy guarded source and boots without it. Public reads use the app role. Prove launch without it; do not grant public paths bypass access |
+| Merge versus squash blocks remediation | Neither changes the code contract. Maintainer chooses merge mode; dated source/CI references remain scoped evidence, not a demand for a merge strategy |
+| CLAUDE status length / model diversity proves a runtime bug | No. Keep task-specific current state honest and evidence scoped; broad guidance restructuring and unsupported transcript claims are not corrective production changes |
+
+Historical ADR-0053 delivery amendments remain intact. On acceptance, append the
+bounded supersession note; clarify ADR-0036's existing navigation wording through
+dated navigation rather than rewriting old text. CI currently checks relative
+file targets, not anchors; keep manual anchor evidence labeled honestly. No new
+required check or protection weakening is proposed.
+
+#### Implementation and review sequence
+
+After explicit approval, use these five correction steps on development. For each:
+implement and validate, commit, run two fresh independent review rounds, validate
+and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
+local work; do not rewrite the branch or merge PR #26.
+
+1. **Coordinated anonymous admission.** Implement the owned visitor limiter and
+   cleanup/retry semantics; deterministic accounting, parallel last-permit/creation,
+   safe retirement, endpoint-retry, cancellation/disposal and real HTTP controls.
+2. **Native ingress and URL boundary.** Fix pinned projection, header sanitation,
+   debug containment, method/upgrade admission, query wording/Location proof,
+   powered-by and exact matcher. Retain real HTML/RSC, valid TLS and development HMR
+   controls; verify protocol headers through the actual middleware path.
+3. **Fixture reliability and containment.** Resource-own setup/termination/EPIPE,
+   synchronize owned readiness/upgrades, enforce TLS/env allowlists and sticky
+   scanning, add configured-build canary and structural-token controls. Mutants for
+   omitted cleanup, early leaks, disabled TLS checks, stale listeners and unclosed
+   upgrades must fail with an independent clean control.
+4. **Source/runner/tooling proof.** Close constructor/conversion and alias gaps,
+   make compiler claims exact, align lint/hook/formatter subjects and Node pins,
+   fix lifecycle parsing and strengthen narrow evidence controls. Keep every guard
+   falsifiable; an empty production client-component census is not bundle evidence.
+5. **Corpus and PR closeout.** Update current skills/seed/setup/standards/catalogue
+   and ADR navigation with actual enforcement. Run applicable full Release suites,
+   lint/typecheck/build, production socket/TLS/rendering fixtures, SDK drift,
+   Markdown links/anchors/width, immutable-history and strict commit checks. Push
+   development, verify all six required checks on the exact new head and update
+   PR #26's description/evidence for maintainer review.
+
+No remediation acceptance or passing-test count is inferred from the earlier
+`07016405` CI run. Preparation checks and independent document reviews are recorded
+after they actually run; implementation evidence belongs to the five steps above.
+
+**Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
+and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
+Confirmed wording/header/ownership corrections are applied. Release
+`CorpusConsistencyTests` pass 5/5, with zero failures/skips. Manual inspection of
+all 18 changed/new Markdown files resolves 1,226 relative links and 441 fragment
+targets; added prose wrapping and `git diff --check` pass. Existing Accepted ADR
+files are unchanged. These are proposal/document checks, not runtime remediation
+or new CI evidence.
 
 ### P02d-1 decision pass (2026-09-14)
 
@@ -4037,8 +4185,10 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
 - The two seed host rows Phase 02a Packet 7 wrote, reachable from a browser and from
   `make demo` over the hostnames and transport **G32** records, with every committed
   carrier of the seed host names moved in the same packet if G32 moves them.
-- The server SDK transport in `frontend/packages/sdk/src/server.ts`, stating the
-  visitor's host over the trusted hop (**G35**).
+- The server-only configured transport in
+  `frontend/apps/web/src/server/configured-public-client.ts`, stating the verified
+  visitor's host over the trusted hop (**G35**). The injected GET wrappers in
+  `frontend/packages/sdk/src/server.ts` remain authority-free.
 - `frontend/apps/web/src/middleware.ts` no longer answering the scaffold's `503`,
   writing the raw host as a tenant id or carrying TODOs that assign the work to Phase
   02a; what it carries, removes and answers follows **G36**.

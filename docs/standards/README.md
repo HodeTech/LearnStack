@@ -68,10 +68,12 @@ bookkeeping pass.
 ### Honest status today
 
 The table below describes the implementation as of 2026-10-09:
-[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) Packets 0–3, 3b and 4–10
-shipped; P02d-1's Education domain, schema and live required-check repairs are
-implemented and verified. Both agent review rounds per step and all five required PR
-checks are complete; P02d-1's delivery record carries the evidence.
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–4 are complete and
+merged. P02d-5's ingress, configured server caller, dynamic entry and frontend
+guards are implemented in the open PR; its external-review remediation is recorded
+in the [current packet](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
+P6 product pages and P7's demo/browser/Lighthouse work remain pending. Each packet's
+delivery record owns its review and validation evidence.
 
 **The documents and this table say the same thing, and a test holds them to it.**
 [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) reconciled the twenty-two
@@ -103,7 +105,7 @@ included.
 | 18 | [Audit Coverage](18-audit-coverage.md) | **Active** | Packet 9 lit the write path under [ADR-0033](../decisions/0033-audit-durability-model.md) and [ADR-0044](../decisions/0044-audit-write-path.md): classification at step 3, MUST rows on the business transaction before `COMMIT`, `audit_log` / `audit_config` with their append-only layers, and the catalogue ↔ matrix join enforced in both directions and per request type by `AuditCoverageTests`. Retention and partitioning are [Phase 11](../roadmap/phase-11-production-hardening.md)'s. |
 | 19 | [Permissions](19-permissions.md) | **Adopted** | No permission key, policy or role exists. Lands in [Phase 03](../roadmap/phase-03-identity-admin.md). |
 | 20 | [Infrastructure Stack](20-infrastructure-stack.md) | **Active** | `ISecretProvider` shipped in Packet 3, the foundation ports and their defaults in Packet 5, and the entitlement socket in Packet 9; `DeploymentMode` branching happens once, at the composition root. Packet 10 made the bans this document states mechanical: no module reaches a cache client, a Hub namespace, `audit_log` or `platform_entitlement_cache`, and every entitlement key a call site names is a registry member. The adapters themselves — Dapr, Kafka, Valkey, Vault, APISIX — arrive on [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s triggers, which is the model rather than a gap in it. |
-| 21 | [Architecture Tests Catalogue](21-architecture-tests-catalogue.md) | **Active** | The catalogue's own § Implemented today carries the counts, and `The_Catalogue_Counts_Its_Own_Rules` recomputes them, so this row does not keep a third copy. Rules run in the architecture assembly and beside it in the unit, integration and frontend suites — each where it can actually fail, against an applied schema, a real host or a real ESLint configuration. `Every_Implemented_Rule_Names_A_Test_That_Exists` holds each Implemented entry to a method of that name, and `No_Architecture_Test_Is_Skippable` to the policy that none of them can be turned off — in the backend suites today; the frontend Vitest run is outside that check until it is closed, which is G38 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register). |
+| 21 | [Architecture Tests Catalogue](21-architecture-tests-catalogue.md) | **Active** | The catalogue's own § Implemented today carries the counts, and `The_Catalogue_Counts_Its_Own_Rules` recomputes them, so this row does not keep a third copy. Rules run in the architecture assembly and beside it in the unit, integration and frontend suites — each where it can actually fail, against an applied schema, a real host or a real ESLint configuration. `Every_Implemented_Rule_Names_A_Test_That_Exists` holds each Implemented entry to a method of that name. `No_Architecture_Test_Is_Skippable` governs backend suites; P02d-5 delivers G38(d)'s guarded frontend runner and planted skip/todo, empty-report and omitted-workspace controls. |
 
 P02d-4's [accepted decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-4-accepted-answers)
 adds bootstrap, exact locale/public response, read-only mode, SDK and OpenAPI proof

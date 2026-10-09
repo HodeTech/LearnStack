@@ -235,14 +235,13 @@ since [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Phase 10 is therefo
 customization aggregate against one real tenant, proving the customization surface is
 complete. Genericity is already proven, and re-proven on every CI run.
 
-> **Open in Phase 02d.** No CI job renders either site today. Whether one re-proves
-> after Phase 02d exits that each host renders its own tenant — an HTTP smoke against
-> `next start`, a narrow browser smoke, or a dated manual record instead — is G38 (c);
-> whether the Lighthouse job runs over both hosts is G44; and what mechanically backs
-> "no production code branches on which tenant it serves" is G20, all in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The passes that close those gates edit this paragraph with their answers, and
-> Phase 02d's exit re-verifies it against what shipped.
+P02d-5's required integration check renders two hosts through the production ingress,
+middleware and configured caller against the real API and PostgreSQL. Its explicitly
+test-owned pages prove the transport boundary, not P6's product pages or P7's browser
+demo. P02d-6 owns G38(c)'s page cases; P02d-7 owns G20's production genericity guard,
+G45's demo/browser evidence and G44's Lighthouse activation after P6. The remaining
+harness and assertion decisions stay in the
+[Phase 02d decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Deferred
 

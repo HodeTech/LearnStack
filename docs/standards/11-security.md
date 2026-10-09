@@ -20,7 +20,9 @@ model, and session-variable placement**),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
+ingress/caller and anonymous visitor budgets derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -433,9 +435,9 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 
 ## Secrets and Configuration
 
-- Every secret read goes through **`ISecretProvider`**. The registered implementation is
-  `ConfigurationSecretProvider` until Vault's trigger fires — a production secret must
-  rotate without a redeploy, or more than one operator needs access to production
+- Backend secret reads go through **`ISecretProvider`**. The registered implementation
+  is `ConfigurationSecretProvider` until Vault's trigger fires — a production secret
+  must rotate without a redeploy, or more than one operator needs access to production
   secrets — at which point
   `DaprSecretProvider` → Vault takes over per
   [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) and
@@ -446,6 +448,37 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 - Production secrets rotated at least every 90 days where rotation is feasible (DB
   passwords, provider API keys, Hub HMAC shared secret, mTLS client certs).
 - Secret access via `ISecretProvider` is logged.
+
+ADR-0053's local Node launcher is a bounded exception to the .NET provider interface:
+the paired private local configuration supplies the ingress/API-hop secret without
+shell evaluation. It is never a `NEXT_PUBLIC_*` value, browser input or SDK default.
+This exception does not authorize a production secret-store adapter; Phase 11 owns
+the production ingress/secret lifecycle. See
+[Infrastructure Standards](12-infrastructure.md#local-infrastructure-docker-compose).
+
+### Private public-rendering boundary
+
+ADR-0053 owns the protocol; these are its ongoing security obligations:
+
+- Only the native listener captures host/socket provenance. Strip client tenancy,
+  forwarding, internal and framework-override carriers before Next; validate the
+  signed envelope again before bootstrap and before the configured API caller.
+- The envelope, hop secret and visitor address never enter responses, client assets,
+  retained logs or audit data. Framework debug output and test diagnostics are part
+  of that exclusion. A marker or imported server-only module grants no tenant scope.
+- The configured caller uses its private loopback origin and builds exactly five
+  application headers: `Accept`, `X-LearnStack-Host`, `X-LearnStack-Hop-Secret`,
+  `X-LearnStack-Visitor-Address` and `traceparent`. The HTTP Host remains the API
+  origin.
+  Rebuild that set from verified context; never forward browser cookies,
+  Authorization, tenant/organization assertions or proxy headers.
+- The complete headers/body operation has one 10-second deadline and an 8 MiB
+  decoded-body bound, with no retries or redirects. Rendering and responses remain
+  dynamic/no-store. The injected SDK owns no host, secret or global fetch default.
+
+P02d-5 delivers this boundary, with verified remaining gaps tracked in the
+[external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09).
+That proposal changes no Accepted rule before approval.
 
 
 ## File Uploads

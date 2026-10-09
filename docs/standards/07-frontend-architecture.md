@@ -7,7 +7,9 @@
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
 `operator-portal` lives in the separate `learnstack-hub` repository).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); private ingress,
+configured caller and dynamic rendering derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -36,7 +38,7 @@ frontend/
             layout.tsx
           api/                 # thin BFF route handlers
           layout.tsx           # root layout
-        middleware.ts          # tenant + organization resolution edge middleware
+        middleware.ts          # ingress verification and live locale/path admission
         components/
         lib/
 

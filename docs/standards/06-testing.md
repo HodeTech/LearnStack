@@ -145,13 +145,11 @@ frontend tooling table below.
   surfaces, puts two tenants in a browser and gates on a human opening them, not on a
   Playwright run.
 
-> **Open in Phase 02d.** Whether automated evidence re-proves the page-level two-host
-> claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke
-> pulled forward from Phase 06, or a dated manual record — is G38 (c), and what
-> discharges ADR-0036's "Phase 02d's browser test" is G33, both in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The decision pass that closes either gate edits this section only if its answer moves
-> a browser smoke or the Playwright ownership into Phase 02d, citing the row.
+P02d-5's required integration suite proves two-host production HTML/RSC transport
+against the real API, using explicitly test-owned pages. G33's local topology is
+delivered; its browser/TLS evidence remains P02d-7's G45 obligation. P02d-6 owns
+G38(c)'s product-page cases. P02d-7 selects the demo/browser harness and Lighthouse
+assertions after P6; Phase 06 retains the broader Playwright/axe golden-flow suite.
 
 ## Frontend Test Types
 
@@ -170,12 +168,12 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
-> **Open in Phase 02d.** Phase 02d ships the platform's first public pages. The frontend
-> case set for its code is G38, and which accessibility checks on those pages fail a
-> build — including axe under jsdom rather than through Playwright, where the table
-> above places it — is G43, both in
+> **Open in P02d-6.** G38(b/c)'s product-page cases and G43's accessibility checks
+> remain in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes either gate edits this section where its answer departs from it.
+> P02d-5 already delivers G38(a)'s transport cases and G38(d)'s guarded Vitest runner;
+> neither is an open page-testing decision. The P6 pass records whether axe under
+> jsdom or another page check supplements the later Playwright suite.
 
 ## Tenant Isolation Tests
 

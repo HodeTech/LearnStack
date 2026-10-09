@@ -19,11 +19,11 @@ don't collide at `/`:
 | `(portal)/portal/` | `/portal`  | Learner + instructor portal                      | 07                     |
 | `api/`             | `/api/*`   | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                   |
 
-> **Open in Phase 02d.** Which `(public)` pages ship first, what becomes of the platform
-> placeholder at `(public)/page.tsx`, and what `/studio` and `/portal` answer on a
-> tenant host are G25 and G40 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The decision passes of P02d-4 and P02d-6 edit this section with their answers.
+P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
+entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
+Exact scaffold roots continue only after bootstrap; enabled locale membership takes
+precedence. P02d-6 still owns G40's product pages and page-state behavior in the
+[decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
@@ -42,11 +42,15 @@ primitives or ask LearnStack to add a new composite.
 ## Local Run
 
 ```bash
-# from /frontend
-pnpm install
-pnpm --filter @learnstack/web dev
+# from the repository root, after the documented hosts/certificate preparation
+make public-env
+make public-api    # keep running in its own terminal
+make public-web    # run in a second terminal
 ```
 
-The app boots on http://localhost:3000. The Next.js BFF healthcheck is at
-`/api/healthz`. The .NET API serves its own `/healthz` on http://localhost:5080
-during local dev.
+Follow the root [HTTPS Quickstart](../../../README.md#quickstart) for dependencies,
+manual host/CA trust steps and leaf certificate paths. The native ingress binds
+IPv4 loopback port 3000 and serves configured hosts over HTTPS. `/api/healthz` is
+the exact web health path. The paired API origin comes from private local
+configuration, never from the visitor's URL. Direct stock `next dev/start` does
+not establish trusted provenance and is unsupported.

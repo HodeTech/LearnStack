@@ -3,7 +3,9 @@
 **Status:** Adopted
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (initial budgets in [04-technical-architecture.md § Performance Budgets](../architecture/04-technical-architecture.md)), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md) (classroom join + bandwidth budgets).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); P02d-5's bounded
+caller and dynamic/no-store policy derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
 

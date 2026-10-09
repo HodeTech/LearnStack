@@ -15,10 +15,15 @@ LearnStack ships **two independent Next.js applications**:
   dependency. The operator portal scope lives in
   [24-learnstack-hub.md §6](24-learnstack-hub.md) and is not duplicated here.
 
-This document covers `apps/web`: app shape, tenant resolution at the edge, theming with
+This document covers `apps/web`: app shape, API-owned tenant resolution, theming with
 optional per-organization override, rendering strategies, data fetching, the tenant-driven
 block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
 independent apps when warranted.
+
+The [P02d-5 external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+tracks verified gaps. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
+proposes bounded admission/accounting changes; it is not Accepted and changes no
+current contract before maintainer approval.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
