@@ -3502,7 +3502,16 @@ integration. The focused accounting/lifecycle set passes 27 cases; the real
 endpoint-retry proof and 17 trusted-visitor HTTP cases pass. TRX execution/zero-skip
 checks and changed-source format verification pass; the format workspace loader
 reports a warning without a formatting violation. Corpus consistency is rechecked
-at 5/5 after the status edits. Both fresh review rounds remain pending.
+at 5/5 after the status edits.
+
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security review approves the
+implementation; fresh GPT-6.1-sol high proof/corpus review identifies one confirmed
+test gap: eventual traversal did not constrain lock-batch size. The strengthened
+300-entry control blocks the first outside-lock disposal, observes exactly 128
+idle inspections, admits another request before release and verifies complete
+exact-once traversal. An actual `int.MaxValue` batch mutation fails the intended
+128-versus-300 assertion; restored-source focused tests pass 27/27 with zero
+skips. The production limiter is unchanged. Round 2 remains pending.
 
 **Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
 and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.

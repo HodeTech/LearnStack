@@ -314,22 +314,48 @@ public sealed class AnonymousAdmissionTests
     }
 
     [Fact]
-    public void Sweep_RegistryLargerThanTwoBatches_VisitsTheWholeCensusInOneTick()
+    public async Task Sweep_RegistryLargerThanTwoBatches_VisitsTheWholeCensusInOneTick()
     {
         using var fixture = new AdmissionFixture(visitorPermits: 1);
         for (var index = 0; index < 300; index++)
         {
             using var lease = fixture.Owner.AttemptAcquire(fixture.Request($"visitor-{index}"));
         }
-        foreach (var visitor in fixture.Visitors) visitor.Replenish();
+        var original = fixture.Visitors.ToArray();
+        foreach (var visitor in original) visitor.Replenish();
         fixture.Clock.Advance(Window);
+        using var release = new ManualResetEventSlim();
+        var entered = Completion();
+        original[0].OnDispose = () =>
+        {
+            entered.TrySetResult();
+            release.Wait(Timeout).Should().BeTrue();
+        };
+        var sweep = Task.Run(fixture.Timer.Fire);
+        try
+        {
+            await entered.Task.WaitAsync(Timeout);
+            original.Sum(visitor => visitor.IdleReads).Should().Be(128,
+                "the first bounded lock batch must end before retired children are disposed");
+            var acquire = Task.Run(() =>
+            {
+                using var lease = fixture.Owner.AttemptAcquire(fixture.Request("between-batches"));
+                return lease.IsAcquired;
+            });
+            (await acquire.WaitAsync(Timeout)).Should().BeTrue(
+                "new admission must progress while the first batch is disposed outside the lock");
+            original.Sum(visitor => visitor.IdleReads).Should().Be(128);
+        }
+        finally
+        {
+            release.Set();
+            await sweep.WaitAsync(Timeout);
+        }
 
+        original.Should().HaveCount(300);
+        original.Should().OnlyContain(visitor => visitor.IdleReads == 1 && visitor.Disposals == 1);
         fixture.Timer.Fire();
-
-        fixture.Visitors.Should().HaveCount(300);
-        fixture.Visitors.Should().OnlyContain(visitor => visitor.IdleReads == 1 && visitor.Disposals == 1);
-        fixture.Timer.Fire();
-        fixture.Visitors.Should().OnlyContain(visitor => visitor.Disposals == 1);
+        original.Should().OnlyContain(visitor => visitor.Disposals == 1);
     }
 
     [Fact]
