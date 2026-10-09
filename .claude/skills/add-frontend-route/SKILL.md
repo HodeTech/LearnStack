@@ -187,16 +187,17 @@ Hide, don't disable. The hook reads the entitlement projection. See
 
 ### Step 7: Localisation
 
-**Accepted P02d-6 G39 — 2026-10-09; implementation pending.**
+**P02d-6 G39 foundation delivered — Step 1, 2026-10-10.**
 [ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact `next-intl`
-4.14.9. The target async Server Component pattern is:
+4.14.9, now installed with complete English/Turkish catalogues. The async Server
+Component pattern is:
 
 ```tsx
-import { getTranslations } from "next-intl/server";
+import { getPublicUi } from "@/server/public-ui";
 
 export default async function CoursesPage() {
-  const t = await getTranslations("public.catalog");
-  return <h1>{t("title")}</h1>;
+  const { t } = await getPublicUi();
+  return <h1>{t("catalog.title")}</h1>;
 }
 ```
 
@@ -215,8 +216,10 @@ authority. Only whole-catalogue fallback is allowed for unauthored UI languages;
 missing used keys in supported catalogues fail validation. Preserve exact content
 locale, document language and actual resolved-label language.
 
-Acceptance supplies no installed runtime, catalogue, `lint:i18n` command or
-screenshot/axe tooling. Implement and prove the registered contract in P02d-6.
+The guarded frontend suite supplies ICU, argument and callsite checks. No
+`lint:i18n` command or screenshot/axe tooling exists. The
+[Step 1 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns validation; product-page and manual accessibility proof remains Steps 2–4.
 
 ### Step 8: Public-site SSR caching
 
@@ -229,7 +232,7 @@ is disabled. A new server/document request rechecks eligibility; client history 
 not a revocation guarantee. Use the configured server caller; never derive tenancy
 from a page header or add hop options to the injected SDK.
 
-**Accepted P02d-6 G40 — 2026-10-09; implementation pending.** Use ordinary
+**Accepted P02d-6 G40 — 2026-10-09; foundation delivered in Step 1.** Use ordinary
 same-host relative anchors for public navigation and pagination, without automatic
 prefetch or reliance on retained client Router Cache. Request-local metadata,
 layout and page share verified admission and resource loaders; each page honors

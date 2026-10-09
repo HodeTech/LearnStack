@@ -20,13 +20,14 @@ Manage user-facing translations in `apps/web` consistently per
 [08-localization.md](../../../docs/standards/08-localization.md) +
 [ADR-0008 Localization Schema](../../../docs/decisions/0008-localization-schema.md).
 
-> **Accepted G39 — 2026-10-09; implementation pending.**
+> **G39 foundation delivered — P02d-6 Step 1, 2026-10-10.**
 > [ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact
-> `next-intl` 4.14.9 and the catalogue home below for P02d-6. Acceptance installs
-> no runtime, catalogue or tooling. No `pnpm lint:i18n`, `no-literal-strings`,
-> `_deprecated.json`, screenshot or `axe-core` task exists today. Use the packet's
-> registered proof obligations; do not claim these commands or checks run until
-> implementation supplies them.
+> `next-intl` 4.14.9 and the catalogue home below. Step 1 installs the runtime,
+> complete English/Turkish catalogues and guarded ICU/callsite checks. Its
+> [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+> owns validation and the remaining product/accessibility proof boundary. No
+> `pnpm lint:i18n`, `no-literal-strings`, `_deprecated.json`, screenshot or
+> `axe-core` task exists today; do not claim those checks run.
 
 ## When to use
 

@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1 foundation delivered](#p02d-6-step-1-localization-and-document-foundation), reviews in progress; Steps 2–4 pending |
+> | P02d-6 | Public renderer | in progress — decision pass Accepted 2026-10-09; [decision package](#p02d-6-decision-package-2026-10-09); [Step 1 foundation delivered](#p02d-6-step-1-localization-and-document-foundation), both review rounds complete; Steps 2–4 pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4276,7 +4276,24 @@ cases; the proof reviewer also reruns all 817 guarded frontend cases with zero
 skips/todos. Both reviewers approve the Step 1 scope. They inspect the production
 fixture but do not rerun its native/Docker execution; the root's validation above
 owns that evidence. Product/manual accessibility work remains Steps 2–4.
-Round 2 has not started. Both rounds and affected revalidation precede Step 2.
+
+#### Step 1 review round 2 (2026-10-10)
+
+Fresh GPT-6-astra xhigh and GPT-6.1-sol xhigh sessions independently review
+`c14ecf2..73b9d53`. Runtime/security has no confirmed finding. Proof/corpus review
+confirms two Minor workflow-document issues: stale installation status in the
+i18n/route skills, and a route example whose narrowed translator namespace does
+not match the implemented callsite census. Both are corrected against the shipped
+foundation; the reviewer verifies the resulting skill diff. No production code
+change is needed.
+
+The runtime reviewer passes 374 focused cases across ten files and verifies the
+pinned Next/React CSS ordering with a no-port render. The proof reviewer passes
+269 focused cases, five Release corpus cases and seven ADR workflow cases.
+Both report zero failures/skips;
+neither reruns native/Docker fixtures or claims browser/manual accessibility.
+The root checks all 30 relative links/fragments in the two changed skills and
+`git diff --check`. Both independent rounds are complete; Step 2 follows.
 
 ### P02d-1 decision pass (2026-09-14)
 
