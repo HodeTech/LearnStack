@@ -5,14 +5,14 @@
   "description": "LearnStack tenant-facing frontend monorepo (single Next.js app per ADR-0009).",
   "packageManager": "pnpm@9.12.3",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.23.1"
   },
   "scripts": {
     "dev": "pnpm --filter @learnstack/web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "node ../scripts/run-frontend-tests.mjs"
   },
   "devDependencies": {
     "typescript": "5.6.3",

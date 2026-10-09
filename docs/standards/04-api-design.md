@@ -4,7 +4,8 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0024 — API Versioning Policy](../decisions/0024-api-versioning-policy.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md), [ADR 0037 — What an Idempotency Key Identifies, Owns, and Replays](../decisions/0037-idempotency-key-contract.md),
 [ADR 0039 — The Optimistic Concurrency Token](../decisions/0039-optimistic-concurrency-token.md).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); anonymous accounting derives from
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -486,11 +487,24 @@ a limit, and the first version of this table was four of those.
 | URL length | 8 KiB | Kestrel (`MaxRequestLineSize`), server default |
 | Multipart upload (excluding files) | — | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
-| Rate limit (anonymous) | 60 req/min per peer | `AddLearnStackRateLimiting`. A request over the trusted hop is partitioned on its socket peer like any other, so every visitor of the server-rendered pages shares one partition; whether the hop changes the key or the budget is G34 in [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the decision pass that closes it edits this row with its answer |
+| Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34 delivers both budgets. Fixed one-minute windows, no queue; no host/cookie partition. ADR-0054 coordinated accounting is implemented by remediation Step 1; both independent review rounds passed. See below |
 | Rate limit (authenticated) | 600 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | Rate limit (write endpoints) | 60 req/min per token | No token to key on yet; [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 
 429 responses include `Retry-After`.
+
+**ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
+Remediation Step 1 probes an owned known visitor limiter with zero permits and returns
+its refusal before any peer debit. Successful peer acquisition gates unknown
+visitor allocation; the visitor is debited only after peer admission. The first
+refusal supplies unchanged Retry-After, including visitor precedence when both
+budgets are exhausted. The 600/min budget bounds successful peer acquisitions and
+new visitor allocations, not all attempts or refusal-response work.
+Authenticated-hop visitor metadata supplies the canonical IP; direct/untrusted
+traffic uses its socket peer. Invalid trusted metadata retains peer-IP fallback
+quota and masked refusal before host/database lookup. Shared direct/hop quotas,
+request-outcome replay and limiter lifecycle obligations are defined in
+[Security Standards § Rate Limiting](11-security.md#rate-limiting).
 
 **The body bound is middleware, not only a Kestrel option.** `TestServer` — what
 the integration suite runs on — implements neither

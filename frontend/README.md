@@ -13,7 +13,7 @@ frontend/
     web/                       # @learnstack/web (Next.js 15, App Router)
   packages/
     config/                    # eslint + tsconfig + tailwind presets
-    sdk/                       # generated typed API client (placeholder)
+    sdk/                       # generated types + four injected public GET wrappers
     ui/                        # design-system primitives (placeholder)
 ```
 
@@ -21,15 +21,22 @@ There is **no `extensions/` folder** — ADR-0018 model is data, not code.
 
 ## Prerequisites
 
-- Node ≥ 20.11 (see [.nvmrc](.nvmrc)).
+- Node 22.23.1 (see [.nvmrc](.nvmrc)).
 - pnpm 9.x — bootstrap via `corepack enable && corepack prepare pnpm@9.12.3 --activate`.
 
 ## Common Commands
 
 ```bash
 pnpm install                                  # install workspace deps
-pnpm --filter @learnstack/web dev             # run app on http://localhost:3000
+pnpm --filter @learnstack/web dev             # native HTTPS ingress; prepare TLS first
 pnpm lint                                     # eslint across the workspace
 pnpm typecheck                                # tsc --noEmit across the workspace
-pnpm test                                     # vitest across the workspace
+pnpm test                                     # guarded Vitest workspace runner
 ```
+
+Before starting web, follow the root [HTTPS Quickstart](../README.md#quickstart):
+`make public-env` prepares the paired private configuration; hosts and mkcert trust
+remain explicit developer steps. Start `make public-api` in another terminal.
+The native ingress serves the configured tenant hosts over HTTPS on port 3000.
+Direct stock `next dev/start` is unsupported; P6 product pages and P7's browser/demo
+harness remain pending.

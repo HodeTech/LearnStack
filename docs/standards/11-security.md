@@ -20,7 +20,10 @@ model, and session-variable placement**),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
+ingress/caller and anonymous visitor budgets derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); coordinated accounting,
+native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
@@ -433,9 +436,9 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 
 ## Secrets and Configuration
 
-- Every secret read goes through **`ISecretProvider`**. The registered implementation is
-  `ConfigurationSecretProvider` until Vault's trigger fires — a production secret must
-  rotate without a redeploy, or more than one operator needs access to production
+- Backend secret reads go through **`ISecretProvider`**. The registered implementation
+  is `ConfigurationSecretProvider` until Vault's trigger fires — a production secret
+  must rotate without a redeploy, or more than one operator needs access to production
   secrets — at which point
   `DaprSecretProvider` → Vault takes over per
   [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) and
@@ -446,6 +449,42 @@ policy is inert. Isolation tests connect as `learnstack_app`; the suite is a
 - Production secrets rotated at least every 90 days where rotation is feasible (DB
   passwords, provider API keys, Hub HMAC shared secret, mTLS client certs).
 - Secret access via `ISecretProvider` is logged.
+
+ADR-0053's local Node launcher is a bounded exception to the .NET provider interface:
+the paired private local configuration supplies the ingress/API-hop secret without
+shell evaluation. It is never a `NEXT_PUBLIC_*` value, browser input or SDK default.
+This exception does not authorize a production secret-store adapter; Phase 11 owns
+the production ingress/secret lifecycle. See
+[Infrastructure Standards](12-infrastructure.md#local-infrastructure-docker-compose).
+
+### Private public-rendering boundary
+
+ADR-0053 owns the protocol; ADR-0054 replaces its accounting, native admission
+and redirect/query rules. These are the ongoing security obligations:
+
+- Only the native listener captures host/socket provenance. Strip client tenancy,
+  forwarding, internal and framework-override carriers before Next; validate the
+  signed envelope again before bootstrap and before the configured API caller.
+- The envelope, hop secret and visitor address never enter responses, client assets,
+  retained logs or audit data. Framework debug output and test diagnostics are part
+  of that exclusion. A marker or imported server-only module grants no tenant scope.
+- The configured caller uses its private loopback origin and builds exactly five
+  application headers: `Accept`, `X-LearnStack-Host`, `X-LearnStack-Hop-Secret`,
+  `X-LearnStack-Visitor-Address` and `traceparent`. The HTTP Host remains the API
+  origin.
+  Rebuild that set from verified context; never forward browser cookies,
+  Authorization, tenant/organization assertions or proxy headers.
+- The complete headers/body operation has one 10-second deadline and an 8 MiB
+  decoded-body bound, with no retries or redirects. Rendering and responses remain
+  dynamic/no-store. The injected SDK owns no host, secret or global fetch default.
+
+P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
+URL controls. The [remediation record](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+owns execution, independent reviews and PR closeout evidence.
+Every native HTTP path, including matcher exemptions, admits GET/HEAD only;
+production upgrades close and development retains only validated GET HMR. See
+[Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
+for the native controls and their delivery/review boundary.
 
 
 ## File Uploads
@@ -504,23 +543,52 @@ which is why the edge cannot own these rows. A request passes both layers or
 neither.
 
 Until the gateway fronts the app ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
-gates it to [Phase 11](../roadmap/phase-11-production-hardening.md)), only the
-anonymous row is enforced, in process, keyed on the socket peer — see
-[Standards 04 § Request and Response Limits](04-api-design.md) for what enforces
-which row today.
+gates it to Phase 11), the application enforces anonymous limits in process.
+**Accepted P02d-5 policy — 2026-10-08. Derives from:**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md). Use one canonical-IP
+quota for direct socket peers and authenticated-hop visitor addresses, plus a
+separate physical-peer ceiling. Neither forwarded headers nor a host/cookie creates
+a visitor partition. Trusted malformed visitor metadata spends the fallback budget,
+then receives masked `404` before lookup. P5 Step 2 implements both budgets and
+pre-lookup admission, with real-socket controls. This is local limiting, not
+distributed DDoS protection. NAT/local loopback callers share an IP quota; budgets
+count API calls.
 
-> **Open in Phase 02d.** Its server-rendered pages call the API from the renderer's
-> peer, so every visitor of both seed tenants shares that peer's anonymous partition.
-> How the limiter treats a request arriving over the authenticated trusted hop — the
-> partition key, the budget, and any visitor address the renderer states — is G34 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits the anonymous row and the paragraph above with its
-> answer.
+**ADR-0054 accounting implemented — 2026-10-09; both review rounds passed.**
+Remediation Step 1 owns the actual visitor limiters, with one process-local owner
+lock across all visitor keys and physical peers. The lock serializes positive
+acquisition, creation and
+retirement; no network/database work, `await` or disposal runs under it. One-minute
+fixed windows, 60/min per canonical IP, 600/min per peer and no queue remain. No
+request retains a limiter removed by retirement.
+
+- Probe an existing visitor with zero permits. Its refusal returns unchanged
+  Retry-After before any peer acquisition. Otherwise acquire the peer permit;
+  peer refusal neither debits the visitor nor creates an unknown visitor limiter.
+  Create an unknown visitor only after peer admission, then acquire one visitor
+  permit. No competing debit/retirement separates the known-visitor probe and debit.
+- First refusal wins, including the visitor when both budgets are exhausted. Do
+  not combine metadata, debit to obtain failure metadata, or use a partition
+  lookup that allocates merely to check membership. Reuse successful and refused
+  outcomes on framework retry of the same HTTP request; returned leases have
+  independent lifetimes. Cancellation, Retry-After and disposal need explicit proofs.
+- Retire only after full-quota idle state lasts a complete window. One
+  non-overlapping sweep visits the whole registry in bounded batches; removal
+  shares the acquisition lock and disposal occurs outside it. Recreated state
+  never restores unexpired quota. DI shutdown closes admission, joins the sweep
+  and disposes every remaining limiter exactly once on both teardown paths.
+- The 600/min peer budget bounds successful peer acquisitions and new visitor
+  allocations. It is not a fixed global cardinality cap or a bound on all
+  attempts/refusal work. Known exhausted visitors can generate arbitrarily many
+  429 responses without spending peer permits; their path performs no registry
+  sweep, new limiter allocation or host/database lookup. No unbounded parallel
+  identity registry is permitted. Phase 11 owns upstream transport/edge protection
+  and contention/load measurement; no measured throughput is claimed here.
 
 | Surface | Limit |
 |---------|-------|
 | `/api/v1/auth/*` (login, password reset, register) | 5 req/min per IP |
-| Anonymous API | 60 req/min per IP |
+| Anonymous API | 60 req/min per canonical IP + 600 req/min per physical peer (P5 Step 2) |
 | Authenticated API | 600 req/min per token |
 | Write endpoints | 60 req/min per token |
 | Webhook endpoints | 1000 req/min per provider |

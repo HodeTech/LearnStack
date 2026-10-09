@@ -2,7 +2,8 @@
 
 **Derives from:** [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0019](../decisions/0019-learnstack-hub.md),
-[ADR-0035](../decisions/0035-demand-gated-infrastructure.md).
+[ADR-0035](../decisions/0035-demand-gated-infrastructure.md),
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 LearnStack targets three deployment models from **one codebase, one Helm chart, one set
 of container images**. The differentiator across modes is configuration + component
@@ -112,22 +113,26 @@ Internet
   connection, saturate the pool, and degrade every other tenant on the instance while
   every isolation test stays green.
 
-  What exists today: the API's own anonymous limiter, which runs before host
-  classification and partitions every request on its socket peer
+  What exists today: the API's own anonymous limiter runs before host
+  classification. P02d-5 uses a shared 60/min canonical-IP quota for direct peers
+  and authenticated-hop visitors, plus a 600/min physical-peer ceiling
   ([API Standards § Request and Response Limits](../standards/04-api-design.md#request-and-response-limits)).
   APISIX's `limit-req`, keyed on `remote_addr`, fronts the API only once the gateway
   lands, which [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) gates to
-  [Phase 11](../roadmap/phase-11-production-hardening.md). Each keys on the client, so
-  each throttles a noisy client but not a noisy tenant — one tenant behind many IPs is
-  unaffected, and many tenants behind one NAT are punished together. A server-side
-  renderer is such a NAT: every visitor it renders for, of every tenant, reaches the API
-  from one peer.
-
-  > **Open in Phase 02d.** How the anonymous limiter treats a request arriving over the
-  > trusted hop is G34 in
-  > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-  > It is answered in the decision pass of the packet that ships the server-rendering
-  > path, and that pass edits this paragraph with its answer.
+  [Phase 11](../roadmap/phase-11-production-hardening.md). Neither policy is
+  per-tenant fairness: many client IPs can serve one tenant, while NAT users share
+  an IP quota. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
+  accounting is **implemented — 2026-10-09; both review rounds passed**. Remediation
+  Step 1 owns visitor limiters under one process-local owner lock.
+  Exhausted known visitors refuse before peer debit; unknown visitor allocation
+  remains peer-gated. The 600/min peer budget bounds successful peer acquisitions
+  and new visitor allocations shared by visitors/tenants, not all attempts or
+  refusal-response work. It is an allocation-rate bound, not a fixed global
+  cardinality cap. This accounting does not bound total incoming
+  network/refusal cost. [Security Standards](../standards/11-security.md#rate-limiting)
+  own lifecycle, replay and Retry-After obligations; the
+  [remediation plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+  owns implementation evidence.
 
   What is required, and where it lives: **resource fairness is
   [Phase 11](../roadmap/phase-11-production-hardening.md)** — `statement_timeout` per

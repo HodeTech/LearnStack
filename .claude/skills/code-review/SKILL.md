@@ -128,7 +128,7 @@ Each finding → severity (Blocker / Major / Minor) + concrete fix.
 | **Bundle size (FE)** | Large dependency imported into a public-route Client Component. Lighthouse JS budget violated. |
 | **Re-render storm (FE)** | Context value computed inline in the provider — every consumer re-renders on every render. |
 | **Suspense boundary missing** | Server Component awaits slow data on the critical path; missing `<Suspense>` for streaming. |
-| **Per-tenant SSR cardinality** | Cache key includes tenant + org + locale + slug; reviewer can confirm memory budget. Whether a `(public)` route may hold rendered output or fetched data in a Next.js cache at all is G37 in [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register); until it closes, [add-frontend-route § Step 8](../add-frontend-route/SKILL.md#step-8-public-site-ssr-caching) bars `revalidate`, `generateStaticParams` and `unstable_cache` there, and the pass that closes it edits this row. |
+| **Public SSR freshness** | ADR-0053 / Accepted P02d-5 G37 requires dynamic/no-store institution rendering: no shared data/route/ISR/bootstrap cache, positive revalidation, static params or Next unstable cache. Request-local reuse is allowed. Verify source fences plus production same-path/different-host and next-request eligibility controls; P6 supplies page consumers. |
 
 ### Step 6 — Refactor / Clean Code lens
 
@@ -161,16 +161,15 @@ This is the lens that generic reviewers miss. Walk:
   There is no `IModule` type in `backend/src`; a diff that names one is writing
   against a contract nobody has built.
 - `docs/modules/<m>/audit.md` / `permissions.md` updated.
-- For frontend changes: route group is correct, SDK is the only API path,
-  middleware-resolved `x-tenant-id` / `x-organization-id` honoured, no
-  hand-rolled `fetch('/v1/...')`. The API treats an `X-Tenant-Id` or `X-Organization-Id`
-  it receives as an assertion, never a source: it validates the header against its own
-  resolution and answers a mismatch with `404`
-  ([ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#one-header-names-a-host-and-it-is-still-not-a-source)).
-  Whether the frontend holds a tenant or organization id at all, and what the middleware
-  carries inward, is G25 and G36 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes them edits this item.
+- For frontend changes: route group is correct; the injected SDK and one configured
+  server-only adapter are the API path. Under ADR-0052/0053 and Accepted P02d-4/5,
+  native ingress supplies verified host/peer provenance, middleware applies live
+  membership-first locale entry, and the API alone resolves tenant/organization.
+  No tenant/organization IDs or assertion headers enter public representations or
+  caller options; no raw host/forwarded address selects public scope. API assertions
+  remain refusal-only under
+  [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#one-header-names-a-host-and-it-is-still-not-a-source).
+  Check private carrier/secret exclusion and the real Client Component import control.
 - For customization changes: data-only, no domain term in core code.
 
 If the change is doc-only, the equivalent checks: no `docs/analysis/` refs,
@@ -186,7 +185,7 @@ change.
 | Outbox round-trip test for new integration event | Always |
 | Permission denied test for every new permission key | Always |
 | Boundary tests for every DSL band threshold | Scoring / completion rules |
-| Lighthouse / axe-core for public-route changes | Frontend — Lighthouse **from Phase 02d**, axe-core **from Phase 06**; neither is wired today, so do not raise a Blocker for a missing run. Whether Lighthouse activates in Phase 02d is G44 in [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register), and the pass that closes it edits this row |
+| Lighthouse / axe-core for public-route changes | Accepted P02d-5 G44 assigns Lighthouse activation to P02d-7/G44/G45 after P6 pages. It is still a disabled placeholder; no passing audit is claimed. P02d-6/G43 selects the skeleton's accessibility gate; the broader axe/Playwright suite belongs to Phase 06. |
 
 A change without tests is incomplete; flag as Blocker unless the user
 explicitly deferred the test.

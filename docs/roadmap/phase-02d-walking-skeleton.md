@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-04).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-09).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -12,8 +12,8 @@
 > | P02d-1 | Education schema and database-level isolation | ✅ complete and merged — 2026-09-14; [merge closeout](#merge-and-closeout-2026-09-14) |
 > | P02d-2 | Writers and seed | ✅ complete and merged — 2026-10-02; [merge closeout](#p02d-2-merge-and-closeout-2026-10-02) |
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
-> | P02d-4 | Public read API and contract checks | ✅ implementation, review loops and live check rollout complete — 2026-10-04; [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review and merge; [delivery](#p02d-4-step-4-contract-sdk-and-ci) |
-> | P02d-5 | Server-rendering path | not started |
+> | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
+> | P02d-5 | Server-rendering path | Original four steps delivered and reviewed, unmerged; external-review remediation in progress; [approval package](#p02d-5-external-review-remediation-2026-10-09) |
 > | P02d-6 | Public renderer | not started |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
@@ -69,6 +69,34 @@ their two independent review rounds are complete. The
 verified activation of the sixth required check.
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) awaits maintainer review
 and merge. P02d-5 is next; its decision pass has not started.
+
+**P02d-4 merge complete — 2026-10-08.** The preceding notes record pre-merge
+milestones. P02d-4 is now closed through
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25); its
+[merge closeout](#p02d-4-merge-and-closeout-2026-10-08) records final verification.
+Phase 02d remains in progress. P02d-5 is next; its decision pass has not started.
+
+**P02d-5 preparation — 2026-10-08.** The
+[decision package](#p02d-5-decision-package-2026-10-08) and
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md) are Proposed after
+baseline review. The preceding merge note records the state at closeout. No P5
+gate is Accepted, no implementation is started and maintainer approval is pending.
+
+**P02d-5 acceptance — 2026-10-08.** The maintainer approved ADR-0053 and the
+[decision package](#p02d-5-decision-package-2026-10-08) after the external-review
+corrections. Its named gate parts close; implementation starts on development,
+with four steps and two fresh review rounds per step. P6/P7 gates remain open.
+
+**P02d-5 implementation complete — 2026-10-09, unmerged.** All four steps and
+their two independent review rounds are complete; confirmed fixes are verified and
+committed. The [packet closeout](#p02d-5-packet-closeout-2026-10-09) records the final
+local verification and scope. P02d-5 awaits maintainer PR review and merge. P02d-6's
+public-renderer decision pass is next; no P6/P7 gate is closed by this delivery.
+
+**External-review remediation — 2026-10-09.** ADR-0054 is Accepted and its runtime
+and proof corrections are delivered. The [current remediation record](#p02d-5-external-review-remediation-2026-10-09)
+owns the five steps, their reviews and final PR/CI readiness. Earlier delivery
+notes remain historical; PR #26 is not merged.
 
 ## Goal
 
@@ -354,7 +382,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G3 | Which of `courses` and `lessons` carry a publication state, with which values and transitions, and what does "published" mean to an anonymous reader — publicly readable, or only listed? Which command sets it, which states does the seed write, and may a course with no lessons, or untranslated in an enabled locale, be published? And for any transition or deletion this phase does not ship (unpublishing a course or lesson, deleting either), which phase owns it? | `courses` `draft` / `published`, meaning publicly readable (Phase 05 adds catalog visibility as its own concept); lessons carry a state and show only when both are published; draft → published only; an empty course may be published, since publish validation is Phase 05's. One review leaned "listed in the catalog" | Contract: a new ADR, or a dated phase-doc statement recording why a two-value, one-transition column is not the state machine Decision Timing reserves for a decision record; no Accepted ADR decides publication ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md) reserves the lifecycle to LearnStack). Detail: the `CHECK` ([Database Standards § Constraints](../standards/05-database.md#constraints)), the Education spec's state diagram, the publish row [Audit Coverage Standards](../standards/18-audit-coverage.md) makes MUST | P02d-1 (column presence and value set), P02d-2 (publishing commands and seeded states; transition contract closed in P02d-1) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): commands and seed states; independent lifecycle retained. Anonymous access superseded by [ADR-0050 / dated G3 record](#g3-supersession-2026-10-02); original P02d-1 answer retained as history |
 | G4 | Where does a lesson body's binding to the content-type key and `schema_version` it was validated against live — on `lessons` or on each translation row — and where does the body live: its column, type, per-locale placement, and how non-translatable field values are carried? May a constraint cross into the Customization chain? What becomes of Localization Standards' `isLocalized` marker, which nothing implements? | A value pin `(content_type_key, schema_version)` on `lessons`, as Phase 04 plans for `ContentEntry`, with no foreign key; the field document per locale in `lesson_translations`, every locale validated against the one pin, duplicated non-translatable values accepted until Phase 05's lesson items retire them; the marker removed or given its introducing phase | Detail: this document's § Localization schema, the Education spec, [Localization Standards § Pattern A](../standards/08-localization.md#pattern-a--side-translation-table-default-for-content-shaped-entities) in the same diff. Contract: a dated ADR-0043 amendment if a localization keyword enters the schema profile; its own ADR or amendment if a cross-chain foreign key is chosen, as ADR-0044 § 9 did, with Phase 04 and [Database Standards § Migrations](../standards/05-database.md#migrations) in the same diff | P02d-1 (the first `lessons` and `lesson_translations` DDL; a pin added later needs a backfill that guesses between two Active content types) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G4 |
 | G5 | Before Phase 05's `Level` exists, how does a course or lesson carry the level band criterion 1 shows? Does the reference pin a taxonomy revision, how is a band validated on write, and what renders when the resolved revision no longer declares the stored band? | The reviews split: (a) a nullable, non-translatable `(taxonomy_key, band_key)` on `courses`, resolved against the live revision, because the criterion names the catalog; (b) a revision-pinned triple; (c) no column, the band shown through a lesson-page `x-taxonomy` field, with the criterion reworded. No shipped path validates a band value under any of them | Detail: a phase-doc statement, the Education spec, and a Phase 05 inherited row if a reference ships. Contract: a dated ADR-0010 amendment or a new ADR if an Education table takes a foreign key into Customization | P02d-1 (whether and where a column exists), P02d-2 (validation, seeded references), P02d-4 and P02d-6 (the unresolved-band state) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): column; [Accepted — 2026-10-02](#p02d-2-accepted-answers): validation and seeded references; [Accepted — 2026-10-03](#p02d-4-accepted-answers): unresolved public-band response. Renderer behavior remains P02d-6 |
-| G6 | Locale identity on the content path. (a) What spelling and column type do the satellites' `locale` columns store, and which rule replaces Localization Standards' "Lowercase", which the shipped `LocaleTag` does not follow? (b) Is the `locale` parameter canonicalized before lookup, the membership check and every cache or cursor key, or is a non-canonical spelling refused? (c) What does a non-canonical `/{locale}/` segment get? | (a) `LocaleTag`'s canonical case (`tr-TR`, `zh-Hans`) in `varchar(35)`, as `tenant_locales` stores it — [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)'s 2026-09-04 amendment already makes case variants one locale; (b) well-formedness, then canonicalization, then lookup; (c) a redirect to the canonical segment, decided with G36 | Detail: [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes) and the Database Standards satellite fence in the same diff. No ADR: ADR-0008 states no casing rule | P02d-1 (a: the first stored rows), P02d-4 (b: validators, cursor binding), P02d-5 (c, with G36) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): (a); [Accepted — 2026-10-03](#p02d-4-accepted-answers): (b); URL-segment redirects (c) remain P02d-5 |
+| G6 | Locale identity on the content path. (a) What spelling and column type do the satellites' `locale` columns store, and which rule replaces Localization Standards' "Lowercase", which the shipped `LocaleTag` does not follow? (b) Is the `locale` parameter canonicalized before lookup, the membership check and every cache or cursor key, or is a non-canonical spelling refused? (c) What does a non-canonical `/{locale}/` segment get? | (a) `LocaleTag`'s canonical case (`tr-TR`, `zh-Hans`) in `varchar(35)`, as `tenant_locales` stores it — [ADR-0018](../decisions/0018-tenant-driven-customization-model.md)'s 2026-09-04 amendment already makes case variants one locale; (b) well-formedness, then canonicalization, then lookup; (c) a redirect to the canonical segment, decided with G36 | Detail: [Localization Standards § Locale Codes](../standards/08-localization.md#locale-codes) and the Database Standards satellite fence in the same diff. No ADR: ADR-0008 states no casing rule | P02d-1 (a: the first stored rows), P02d-4 (b: validators, cursor binding), P02d-5 (c, with G36) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): (a); [Accepted — 2026-10-03](#p02d-4-accepted-answers): (b); URL-segment redirects (c) remain P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): (c) URL redirects; prior (a,b) answers retained |
 | G7 | Organization write scope. (1) Does a lesson carry its course's organization scope? (2) What forces a satellite's — and a lesson's — mirrored `organization_id` to equal its parent's at insert: writer derivation alone, or that plus a database backstop, and which? (3) May an organization-scoped session `INSERT` a tenant-wide row through the `organization_id IS NULL` arm of `WITH CHECK`, which [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)'s Amendment 5 and Database Standards say it cannot and which it can at `HEAD`? | (1) Identical scope for a course, its lessons and every translation. (2) Writers derive the child's organization from the authorised parent; the reviews split on the backstop — a stored generated scope column with an organization-inclusive composite key, which structural sweeps can see, or a `BEFORE INSERT` trigger reading the parent under the caller's policies — and one review requires database enforcement. A nullable three-column key is already excluded, because `MATCH SIMPLE` skips the check. (3) Tighten, after the pass confirms no audit writer composes a null-organization row under an announced organization | Contract: one dated ADR-0003 amendment for (2) and (3), with an ADR-0041 erratum beside any sentence the pass finds false when it entered the record; the template replaced in place in [Database Standards](../standards/05-database.md) with its disclosure; forward migrations for `tenant_settings` and `audit_log` if (3) tightens. Detail: [Database Standards § Translation satellite tables](../standards/05-database.md#translation-satellite-tables); a catalogue row with a planted offender if a database mechanism is chosen | P02d-1 (policy SQL, the generated column or trigger, aggregate factories), P02d-2 (child derivation in the commands) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): database controls and factory derivation; [Accepted — 2026-10-02](#p02d-2-accepted-answers): command derivation |
 | G8 | Which structural guards does the Education chain register, so its tables cannot regress with the suite green: every foreign key between two tables carrying `tenant_id` includes it; every table carrying `organization_id` has the immutability trigger (and how `audit_log`'s append-only guard counts); the Pattern A rule, which would make [ADR-0008](../decisions/0008-localization-schema.md)'s "the migration linter rejects ad-hoc per-locale columns" true? And how does `fn_organization_id_immutable` — which reads `OLD.id` and is declared only in the Tenancy chain — serve satellites that have no `id`? | Three rows, each with a planted-offender companion; the function replaced by a Tenancy-chain migration that reports `OLD.organization_id` or reads the row key through `to_jsonb(OLD)`, which (as in the audit append-only guard's row comparison) never names a column the table may lack, with the cross-chain dependency recorded under Database Standards § Migrations | Detail: Standards 21 rows Registered and Implemented in the packet; the Database Standards immutability fence and § Migrations; `MigrationRollbackTests`. Contract, only if ADR-0008's sentence is left untrue: an ADR-0041 erratum if it was false when entered, otherwise a dated amendment | P02d-1 (a guard shipped with its first new subject is the only point its companion is written against real tables) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G8 |
 | G9 | Education schema detail: the content slug's character shape, normalization, width and database backstop — including whether a GUID-shaped slug is refused, which G26's shared-slot path needs; whether an Education table holds a foreign key into `tenants`, `organizations` or `tenant_locales`; and each runtime role's privileges on the four tables | `UrlSlug`'s shape with its own width constant and a `ck_<satellite>_slug_format` backstop, since restrictive now is the reversible choice (ASCII-only slugs exclude native-script URLs, a product choice); no foreign key into Tenancy; `learnstack_app` `SELECT, INSERT` plus exactly what G11's commands need, `learnstack_platform` `SELECT` | Detail: Localization Standards § Pattern A for the shape; the Database Standards satellite fence and [§ GRANT matrix](../standards/05-database.md#grant-matrix); § Migrations only if a cross-chain key is chosen | P02d-1 (the creating migration writes the `CHECK` and the grants; the grants couple with G11) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): G9 |
@@ -368,8 +396,8 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G17 | Does `TenantSetting.Value` carry `[PiiSensitive]`? [Phase 03](phase-03-identity-admin.md) sequences the decision before the first command writing `tenant_settings`, and this phase ships that command | Not marked, provided `tenancy.setting.write` admits only G16's closed key set, so the answer cannot stretch to keys a tenant invents; modelling a sensitive part as its own property stays open to Phase 03 | Contract: a dated phase-doc statement, reflected in `TenantSetting.cs`, the Tenancy spec and `audit.md`. Whole-value redaction of `jsonb` is settled by [ADR-0044](../decisions/0044-audit-write-path.md) Amendment 4 § 1 | P02d-2 (the first MUST-class settings audit row is written by the seed, and rows cannot be redacted retroactively); closes with G16 (a) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): generic whole-value PII redaction before the writer |
 | G18 | How is a tenant content type presented? `json_schema` is `jsonb`, which keeps no key order, and the schema profile collects only `x-renderer`, `x-taxonomy` and `x-language`. How are field order, a label per enabled locale and a composite's field roles carried; which registered composite draws a lesson for each seeded type; which primitives does this phase implement, and does `markdown` render; how do types with no primitive row (`integer`, `number`, `boolean`, enums) map; may a rendered type declare a field outside the subset; and is a presentation entry naming a missing property refused at save? | A LearnStack extension — `x-order` and `x-label`, or one ordered `x-fields` list — carrying Pattern B labels, resolved at write like `x-taxonomy`; one composite already in both registries; the reviews split on the subset — `text`, `list` and `link`, with `markdown` without raw HTML, or a placeholder until Phase 05's sanitiser; the seed uses only the subset | Contract: a dated ADR-0043 amendment for a keyword or a save-time refusal; a dated ADR-0018 amendment for a presentation column; a phase-doc statement for `title` plus `required`, which cannot carry two locales. Detail: [Tenant Customization Model § 2](../architecture/32-tenant-customization-model.md) and § 8.1, the Customization spec, the profile's extension and reference-graph skip lists, `composites.ts` | P02d-2 (the seed publishes both content types as `schema_version` 1 with their renderer keys and field kinds; a later answer needs successor revisions) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): ADR-0051 profile and first-render subset. Component placement/fallback remains G41 |
 | G19 | URL and markup policy for tenant-authored values on an anonymous page: which schemes (`https` only, or `http` too), credentials and `target`, which media origins, whether the rule is enforced on write — in the Education command, or as a validation gate Phase 04's entries share — whether the public API filters too, and whether URLs inside markdown fall under it. The write-time check constrains structure, not schemes: `format: uri` admits `javascript:` and `data:` | The reviews split on `http`; all refuse `javascript:`, dangerous `data:` and credentials; checked on write by a LearnStack rule and again on render; no third-party media in the seed | Detail: one home for the scheme list — [Security Standards § XSS & Output Encoding](../standards/11-security.md#xss--output-encoding) or [Frontend Architecture Standards § Security](../standards/07-frontend-architecture.md#security), not both; the Education spec's write rules; Tenant Customization Model § 8.1 if checked on write. Contract: a dated ADR-0043 amendment if it becomes a shared validation gate | P02d-2 (the lesson command's validation and the seed values; the render-time check reuses the answer) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no active sink in the seeded text profile; future URL/markup contracts precede Phase 04/05 sinks |
-| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. Subjects, exemptions and behavioral proof remain open for P02d-5/6/7 |
-| G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): subresources. Cookies remain open for P02d-5 |
+| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. Subjects, exemptions and behavioral proof remain open for P02d-5/6/7; [Accepted — 2026-10-08](#p02d-5-accepted-answers): (c) exemptions; (b,d) stay P6/P7 |
+| G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): subresources. Cookies remain open for P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): cookies; prior subresource answer retained |
 | G22 | How does the customization definition projection load and stay correct? In the request's ambient transaction, or as a ninth out-of-band tenant-context setter (ADR-0040's set is closed at eight)? In what order are the generation and the rows read; what does an absent generation row mean; how is a cache filled inside a transaction that bumped and rolled back kept unreachable, when the bump is an upsert increment that can reissue a number; what does an absent definition set return; which families are registered, and how does the adapter's exact-tuple `cache.name` mapping match generation-embedded names; what do the TTLs bound; and is the contract batched so a public read issues a bounded number of statements? | Load in the ambient transaction; read the generation first, then the rows; fill only from non-bumping transactions; treat cache faults as misses; restate the module's cache-hit budget; a batched contract, with statement-count assertions cold and warm | Contract: the Customization spec § Primary read flow and a [Tenant Customization Model § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy) statement on how a request learns the generation; a dated ADR-0040 amendment and a setters row only if the loader is out-of-band. Detail: the [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) cache table, the `cache.name` mapping, the Observability Standards metrics family list | P02d-3 | [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02) |
 | G23 | The typed settings accessor and its freshness. With no `learnstack.tenancy.settings` event until Phase 02b and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound until 02b, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event row and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no settings cache in P02d-2/3. [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): typed ambient accessor/scoped merge |
 | G24 | Display fallback. Which document owns the chain — [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules) or [Localization Standards § Locale Model](../standards/08-localization.md#locale-model), which state different chains, while the shipped `LocalizedText.Resolve` narrows one subtag at a time and ends at the first authored value? What is the terminal state of a nullable Pattern A field and of a Pattern B label? Does a response say which locale a fallback value resolved in, so the page can mark its language (WCAG 3.1.2)? | Localization architecture owns the chain and Localization Standards links it, both recording the shipped narrowing and the first-authored terminal for labels; a nullable Pattern A field renders absent; each fallback-capable field reports its resolved locale | Detail: Localization Standards § Locale Model linking its owner, reconciled with `LocalizedText` in the same diff; the Customization contract's signature; the response schema under G26. No ADR | P02d-3 (the first caller that passes a fallback chain), P02d-4 (response fields) | [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): internal fallback; [Accepted — 2026-10-03](#p02d-4-accepted-answers): public response locale fields; renderer language attributes remain P02d-6 |
@@ -378,21 +406,21 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G27 | The cache posture of public reads. What directive do anonymous responses carry — the `200`s, the Problem Details `400`s and `404`s, the tenancy edge's unmapped-host `404` — what freshness do a newly published or unpublished course and a not-found have, and do anonymous reads emit an `ETag` and honour `If-None-Match`? [API Standards § Optimistic Concurrency](../standards/04-api-design.md#optimistic-concurrency) says mutable resources expose an `ETag`, and [ADR-0039](../decisions/0039-optimistic-concurrency-token.md) fixes one derivation, which a composite read cannot use without publishing `row_version` | An explicit `Cache-Control: no-store`, asserted by a test, and no `ETag` on anonymous reads — a response without explicit freshness may be cached heuristically by a shared cache. One review proposed no directive, stated | Contract: a phase-doc statement. Detail: API Standards — the directive, and a § Optimistic Concurrency sentence on anonymous read contracts, owed under either answer. A dated ADR-0039 amendment if a body-hash validator ships; [Performance Standards § Caching](../standards/15-performance.md#caching) if the answer caches | P02d-4 (the header-setting code and the headers the snapshot documents) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): no-store without response validators |
 | G28 | Public-surface controls. (a) What audit class do `[PublicSurface]` requests register, and does a rule make `Off` the only permitted one? (b) `GET` only, or `GET` and `HEAD`, and what does the catalogue's permitted-methods leg compare a row against? (c) What mechanically stops a marked request from writing — a `READ ONLY` unit of work, a structural scan, or both? (d) What control beyond review keeps a controller dispatching only through `ISender` — a controller taking a module `DbContext` fails loudly, SQL on `IUnitOfWork.Connection` reads zero rows, and code that announces the tenant itself reads real rows? | (a) `Off` for every marked type — a SHOULD or MAY class would make every anonymous `GET` a best-effort write a caller controls — with a sibling rule and companion; (b) one review `GET` only, one the standard's `GET` / `HEAD`; (c) a `READ ONLY` transaction for marked requests, which three shipped setters already open before announcing, and which refuses any in-transaction MUST write, so it is checked against (a); (d) a type-reference rule over controller bodies with a planted offender | Detail: the API Standards § Public surface rows; Standards 21 rows and companions, including the two legs of `PublicSurface_Marker_Set_Is_Enumerated` not yet implemented; an [Error Handling Standards § Controller Mapping](../standards/09-error-handling.md#controller-mapping--resultt--iactionresult) sentence for (d). Contract: a dated ADR-0040 amendment if the unit of work gains a read-only mode | P02d-4 (the first marked query's registration, method attributes and handler; if P02d-3 writes on the read path, (c) closes there) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): Off, GET/HEAD, mandatory dispatch and read-only controls |
 | G29 | Which rows do the anonymous reads serve, and what does every hidden row answer? The rule covers course state, lesson state (G3), the lesson's membership in the course its URL names — lesson slugs are unique per tenant, so a lesson resolves without its course segment unless the read checks — and soft deletion. Does every hidden cause (draft, deleted, wrong course, untranslated, other tenant, sibling organization, nonexistent) answer one `not_found` body with no per-cause detail, compared with `instance` and `correlationId` masked? | One eligibility rule used by every read; a lesson resolves only under its eligible parent, only when it belongs to it, only in the requested locale; lists show only eligible entries; deleted rows excluded now; one masked-equal body | Contract: a phase-doc statement whose single record is the Education spec. Detail: the failure constant. Settled and linked: a cross-tenant row is a `404` ([Security Standards § Error Messages](../standards/11-security.md#error-messages)), and an organization-scoped row is served only on its own organization's host ([Localization § Slugs and URLs](../architecture/12-localization.md#slugs-and-urls)) | P02d-4 (handlers, the failure constant, documented `404`s); the fixture rows close with G14 in P02d-2 if they live in the seed | [Accepted — 2026-10-03](#p02d-4-accepted-answers): explicit eligible reads and uniform masking |
-| G30 | The locale error matrix and transport. On each read, what answers an empty, repeated, malformed, over-length, non-canonical, not-enabled or enabled-but-untranslated locale? Does a not-enabled locale answer the Active `unsupported_locale` `400` or the not-found body? Is `X-Locale`, which [Frontend Architecture Standards § Locale Resolution](../standards/07-frontend-architecture.md#locale-resolution) still names as the API carrier, withdrawn, so that locale reaches the API only as the query parameter? | Missing or malformed → `400` `validation_failed` naming `locale`; untranslated → an empty catalog page; the query parameter only. The reviews split on not-enabled — not-found, amending the Error Handling row, or the Active `400`; a uniform answer after the enabled check hides pre-launch rows under either | Detail: a phase-doc statement; the [Error Handling Standards](../standards/09-error-handling.md) table only if not-found; Standards 07 § Locale Resolution; the Frontend Architecture SDK sketch; the API Standards § Pagination example gains `locale` | P02d-4 (validators, OpenAPI parameters and responses), P02d-5 (the server SDK's header set) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): query/error matrix; trusted server header transport remains P02d-5 |
+| G30 | The locale error matrix and transport. On each read, what answers an empty, repeated, malformed, over-length, non-canonical, not-enabled or enabled-but-untranslated locale? Does a not-enabled locale answer the Active `unsupported_locale` `400` or the not-found body? Is `X-Locale`, which [Frontend Architecture Standards § Locale Resolution](../standards/07-frontend-architecture.md#locale-resolution) still names as the API carrier, withdrawn, so that locale reaches the API only as the query parameter? | Missing or malformed → `400` `validation_failed` naming `locale`; untranslated → an empty catalog page; the query parameter only. The reviews split on not-enabled — not-found, amending the Error Handling row, or the Active `400`; a uniform answer after the enabled check hides pre-launch rows under either | Detail: a phase-doc statement; the [Error Handling Standards](../standards/09-error-handling.md) table only if not-found; Standards 07 § Locale Resolution; the Frontend Architecture SDK sketch; the API Standards § Pagination example gains `locale` | P02d-4 (validators, OpenAPI parameters and responses), P02d-5 (the server SDK's header set) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): query/error matrix; trusted server header transport remains P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): header transport; prior API query-locale answer retained |
 | G31 | Contract checks and the SDK surface. The committed OpenAPI snapshot's path, and how the contract suite proves it equals the served document; how the base copy is read; how the first run behaves; which `oasdiff` version and fail level, and which ADR-0024 rows that level detects (a tightened validator or a changed status may be invisible to any diff); what is uploaded on failure. The drift gate's source — the committed snapshot through `LEARNSTACK_OPENAPI`, or a running API — and its job. Whether an activated deferred job keeps its `if: vars.ENABLE_*` condition, given that GitHub treats a skipped required job as passing, or loses it as the integration job's did. And what the SDK surface becomes when regeneration makes `paths` non-empty: a hand-written transport over `paths` or a typed client library, the fate of `createClientSdk`, and whether the package root keeps re-exporting the server entry | A committed snapshot the contract suite asserts equal, diffed against the base ref's copy with `oasdiff` pinned; drift generated from the snapshot in the required `frontend` job; the condition removed on activation; a thin hand-written transport, and no root re-export of the server entry | Detail: [Testing Standards § API Contract Tests](../standards/06-testing.md#api-contract-tests), the API Standards § OpenAPI links, `ci.yml`, [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main) (its activation procedure follows the answer), [Frontend Architecture Standards § SDK](../standards/07-frontend-architecture.md#sdk); a package pin with its licence verdict if a client library is chosen | P02d-4 (the first operation, its snapshot and assertion, the drift gate, and the regenerated types the factories must compile against) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): snapshot, SDK, diff/drift and approved required-check activation |
-| G32 | **The development-transport part of [Phase 02b](phase-02b-events-auth.md#the-decision-register)'s G12.** Which development hostnames and transport serve the two seed tenants — keep `*.learnstack.local`, with a hosts-file step and local TLS with a trust step, or move the seed hosts under `*.localhost`? What does a reviewer do between a clean checkout and both sites, and which carriers move, including host rows already on warm databases, where the host is the primary key and the seeder removes no mapping? | `*.localhost` over HTTP, provided the pass verifies in each browser the team uses and in CI's Chrome that both hosts resolve with no hosts entry and that a `Secure` cookie set on them is stored and returned; otherwise `*.learnstack.local` with local TLS and a named trust step. Tenants are never told apart by port: the effective host strips it | Detail: a dated phase-doc statement in [§ Host-based tenant resolution, end to end](#host-based-tenant-resolution-end-to-end), with `SeedData`, `scripts/seed.sh`, the README Quickstart, the `seed-tenant` and `local-dev-setup` skills and `apps/web`'s dev script and Next configuration in the same packet; Infrastructure Standards only if a TLS proxy publishes a port. No ADR | P02d-5 (the development transport, and the hop configuration a TLS proxy would change), or the first earlier packet that writes a seed-host literal outside `SeedData` | Open |
-| G33 | The server-rendering topology and its evidence. Where do Next.js and the API run relative to each other — the workstation loopback, containers, gated APISIX; which networks are trusted; how does one hop secret reach both processes; what is the server-only API origin — and the same for the CI job that renders the pages? What evidence discharges ADR-0036's "Phase 02d's browser test" and its matrix rows "a direct socket bypassing the hop" and "the Phase 02d anonymous two-host browser render", given that Testing Standards gate this phase on a human? And ADR-0036 § Consequences says the root refuses to start outside Development when the secret list is empty or short, while the shipped rule, in every mode, refuses a half-configured hop, a network entry that is not CIDR and a blank secret or one under 32 characters (characters, not bytes), and admits both lists empty: is that recorded or restored, and is non-development hop configuration this phase's or Phase 11's? | Both processes on the loopback, networks `127.0.0.1/32` and `::1/128`, one generated secret from a single source and never under `NEXT_PUBLIC_`, with networks and secrets arriving together (committing networks without secrets breaks every Development-environment fixture); the API called directly; a per-run secret in CI. Evidence: request-level hop tests as `learnstack_app` — no `X-Tenant-Id`, a non-hop peer, a wrong secret, a repeated header — beside the human walkthrough, with one review adding an automated browser smoke. Record the shipped startup rule; non-development hop configuration is Phase 11's | Contract: one dated [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) amendment if the evidence departs from the ADR's words, recording the startup rule, and carrying G34 if G34 changes the key or budget. Detail: `.env.example`, `apps/web/.env.local.example`, `appsettings.Development.json` or the demo recipe; a Standards 21 row for the hop runtime test; a Testing Standards § End-to-End Tests sentence only if ownership moves; a Phase 11 scope row | P02d-5 (the hop configuration and the fixture shape — in-process test hosts have no socket peer), P02d-7 (the CI part) | Open |
-| G34 | How does the pre-classification anonymous limiter treat a request arriving over the authenticated trusted hop? Every server-rendered call reaches the API from the renderer's peer, so every visitor of both tenants shares one partition, and one client sending random `Host` values through the renderer can starve both sites. The partition key, the budget and how the renderer derives any visitor identity it states — while unknown-host floods stay bounded before database work, and a direct peer is still limited per peer | The reviews differ: a visitor address stated over the hop, in a dedicated single-valued header or through `X-Forwarded-For` with the peer captured first, as ADR-0036 anticipates; a separate hop budget with limiting in the renderer; or an explicitly sized shared quota. A per-host ceiling as the only backstop multiplies under a random-`Host` flood | Contract: a dated ADR-0036 amendment if the hop changes the key or the budget, stating the new input's trust rule and whether it may be logged or audited; otherwise a phase-doc statement. Detail: API Standards § Request and Response Limits, [Security Standards § Rate Limiting](../standards/11-security.md#rate-limiting), the catalogue's per-peer rule. `P02b-0` re-verifies Phase 02b's G14 against the answer | P02d-5 | Open |
-| G35 | The server SDK transport. Its options — visitor host, locale, an optional assertion, never a tenant id as selector; where the host comes from; how the API origin is configured; the server-only guard, timeouts and cancellation; and whether it forwards W3C `traceparent`. With it: which parts of [Observability Standards § Frontend Observability](../standards/10-observability.md#frontend-observability) — Next.js error capture, web vitals — ship here, and which phase owns the rest, since no phase names them | Host and locale plus an optional assertion; hop headers and origin from server configuration, never from request input; a `server-only` guard; Problem Details mapped to the `AppError` union [Error Handling Standards](../standards/09-error-handling.md) already fixes; `traceparent` forwarded; Next.js error capture and web vitals assigned to Phase 11, whose § Observability lists error tracking | Detail: Frontend Architecture Standards § SDK and the Frontend Architecture SDK sketch; a pin and licence verdict if a guard package is added; an exclusion row naming frontend observability's owner, with an Observability Standards sentence | P02d-5 (the transport's headers and configuration read); the ownership half closes by exit, because a deferral names its phase | Open |
-| G36 | The edge middleware and entry behaviour. Does the middleware resolve anything (with G25)? What does it carry inward, and under which header name — the Frontend Architecture sketch reuses `x-learnstack-host`, the hop header's own name? Which inbound internal headers are removed or overwritten, including `x-organization-id` when resolution has none — a deny-strip or an allowlist rebuild? What does the matcher exclude? What do `/` and a locale-less path answer, with which status, target and default-locale source; what do a disabled, malformed or non-canonical locale segment (G6 c), a platform host and an unknown host answer; does this run in middleware or the route tree, and may an i18n library own the middleware? Does this phase build the locale-less redirect [Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy) requires, or keep the standards index's i18n-runtime carve-out while Phase 06 claims redirect handling? | Normalise the host; strip every client-supplied `x-tenant-id`, `x-organization-id`, `x-locale` and `x-learnstack-*`; drop the scaffold's `503` guard and TODOs; `/` redirects to the tenant's default locale; a disabled locale is a `404` before any content call; a platform or unknown host gets a `404` with no platform text; the redirect built minimally here, with Phase 06's rows reworded to "deepens" | Detail: a phase-doc statement; the Standards 07 § Tenant Resolution flowchart and the Frontend Architecture middleware sketch; Phase 06's rows in the same diff; if less is built, a dated narrowing of the standards index row for Localization Standards naming the owning phase | P02d-5 (the middleware replacement rewrites the scaffold's locale fallback, so every placement answer changes it first) | Open |
-| G37 | How do tenant-varying `(public)` routes render, and which Next.js caches may hold tenant data — the full-route cache, the fetch data cache, `unstable_cache`, `generateStaticParams` — so one host's page is never served on the other? A public URL carries no tenant, and both tenants send the same request line over the hop, so a path-keyed cache leaks. What freshness does a page have after a customization or content write? | All three reviews: dynamic rendering with uncached SDK fetches — no `revalidate`, no `generateStaticParams`, no `unstable_cache` — relying on the API's generation-keyed cache; no ISR here | Detail: [Frontend Architecture Standards § Public Site Renderer](../standards/07-frontend-architecture.md#public-site-renderer), which prescribes `revalidate` today, and [Frontend Architecture § Rendering Strategies](../architecture/14-frontend-architecture.md#rendering-strategies), rewritten with the `add-frontend-route` skill; [Performance Standards § Caching](../standards/15-performance.md#caching) if the answer caches; an ADR if the pass judges the Standards 07 change non-trivial | P02d-5 (one mechanism: a host-bearing rewrite target is middleware code and fetch cache options are transport code, both written before the renderer) | Open |
-| G38 | The frontend test set. (a) Which predicates of the middleware and the server SDK does Vitest cover, and in which packages — `pnpm -r test` runs only packages with a test script, which `packages/sdk` lacks? (b) How are async Server Component pages and field components covered below the browser, given vendor guidance that Vitest does not render async Server Components? (c) What automated evidence, if any, re-proves the page-level two-host claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke pulled forward from Phase 06, or a dated manual record? (d) By what mechanism does the `frontend` job refuse skipped and todo cases, which it does not today, since `No_Architecture_Test_Is_Skippable`'s runner leg reads only the backend `.trx` files? | (a) host normalization and header stripping, locale parsing and entry answers, hop headers with no tenant selector, `not_found` mapping — each with an inversion companion; (b) async pages covered through their synchronous children; (c) the reviews split three ways; (d) a reporter-output check or a lint ban on disabled tests, failing also on a package with tests and no script, proven with a planted skip | Detail: a phase-doc statement; the test files; the Standards 21 entry `No_Architecture_Test_Is_Skippable` extended rather than a second name; `ci.yml`. Contract for (c) only if a browser smoke moves: a Testing Standards § End-to-End Tests edit citing this row, with its carriers | P02d-5 (a; d at the latest), P02d-6 (b, c), P02d-7 (c's job) | Open |
+| G32 | **The development-transport part of [Phase 02b](phase-02b-events-auth.md#the-decision-register)'s G12.** Which development hostnames and transport serve the two seed tenants — keep `*.learnstack.local`, with a hosts-file step and local TLS with a trust step, or move the seed hosts under `*.localhost`? What does a reviewer do between a clean checkout and both sites, and which carriers move, including host rows already on warm databases, where the host is the primary key and the seeder removes no mapping? | `*.localhost` over HTTP, provided the pass verifies in each browser the team uses and in CI's Chrome that both hosts resolve with no hosts entry and that a `Secure` cookie set on them is stored and returned; otherwise `*.learnstack.local` with local TLS and a named trust step. Tenants are never told apart by port: the effective host strips it | Detail: a dated phase-doc statement in [§ Host-based tenant resolution, end to end](#host-based-tenant-resolution-end-to-end), with `SeedData`, `scripts/seed.sh`, the README Quickstart, the `seed-tenant` and `local-dev-setup` skills and `apps/web`'s dev script and Next configuration in the same packet; Infrastructure Standards only if a TLS proxy publishes a port. No ADR | P02d-5 (the development transport, and the hop configuration a TLS proxy would change), or the first earlier packet that writes a seed-host literal outside `SeedData` | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local hosts and TLS |
+| G33 | The server-rendering topology and its evidence. Where do Next.js and the API run relative to each other — the workstation loopback, containers, gated APISIX; which networks are trusted; how does one hop secret reach both processes; what is the server-only API origin — and the same for the CI job that renders the pages? What evidence discharges ADR-0036's "Phase 02d's browser test" and its matrix rows "a direct socket bypassing the hop" and "the Phase 02d anonymous two-host browser render", given that Testing Standards gate this phase on a human? And ADR-0036 § Consequences says the root refuses to start outside Development when the secret list is empty or short, while the shipped rule, in every mode, refuses a half-configured hop, a network entry that is not CIDR and a blank secret or one under 32 characters (characters, not bytes), and admits both lists empty: is that recorded or restored, and is non-development hop configuration this phase's or Phase 11's? | Both processes on the loopback, networks `127.0.0.1/32` and `::1/128`, one generated secret from a single source and never under `NEXT_PUBLIC_`, with networks and secrets arriving together (committing networks without secrets breaks every Development-environment fixture); the API called directly; a per-run secret in CI. Evidence: request-level hop tests as `learnstack_app` — no `X-Tenant-Id`, a non-hop peer, a wrong secret, a repeated header — beside the human walkthrough, with one review adding an automated browser smoke. Record the shipped startup rule; non-development hop configuration is Phase 11's | Contract: one dated [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) amendment if the evidence departs from the ADR's words, recording the startup rule, and carrying G34 if G34 changes the key or budget. Detail: `.env.example`, `apps/web/.env.local.example`, `appsettings.Development.json` or the demo recipe; a Standards 21 row for the hop runtime test; a Testing Standards § End-to-End Tests sentence only if ownership moves; a Phase 11 scope row | P02d-5 (the hop configuration and the fixture shape — in-process test hosts have no socket peer), P02d-7 (the CI part) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local topology, shared source and ingress |
+| G34 | How does the pre-classification anonymous limiter treat a request arriving over the authenticated trusted hop? Every server-rendered call reaches the API from the renderer's peer, so every visitor of both tenants shares one partition, and one client sending random `Host` values through the renderer can starve both sites. The partition key, the budget and how the renderer derives any visitor identity it states — while unknown-host floods stay bounded before database work, and a direct peer is still limited per peer | The reviews differ: a visitor address stated over the hop, in a dedicated single-valued header or through `X-Forwarded-For` with the peer captured first, as ADR-0036 anticipates; a separate hop budget with limiting in the renderer; or an explicitly sized shared quota. A per-host ceiling as the only backstop multiplies under a random-`Host` flood | Contract: a dated ADR-0036 amendment if the hop changes the key or the budget, stating the new input's trust rule and whether it may be logged or audited; otherwise a phase-doc statement. Detail: API Standards § Request and Response Limits, [Security Standards § Rate Limiting](../standards/11-security.md#rate-limiting), the catalogue's per-peer rule. `P02b-0` re-verifies Phase 02b's G14 against the answer | P02d-5 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): authenticated visitor and peer budgets |
+| G35 | The server SDK transport. Its options — visitor host, locale, an optional assertion, never a tenant id as selector; where the host comes from; how the API origin is configured; the server-only guard, timeouts and cancellation; and whether it forwards W3C `traceparent`. With it: which parts of [Observability Standards § Frontend Observability](../standards/10-observability.md#frontend-observability) — Next.js error capture, web vitals — ship here, and which phase owns the rest, since no phase names them | Host and locale plus an optional assertion; hop headers and origin from server configuration, never from request input; a `server-only` guard; Problem Details mapped to the `AppError` union [Error Handling Standards](../standards/09-error-handling.md) already fixes; `traceparent` forwarded; Next.js error capture and web vitals assigned to Phase 11, whose § Observability lists error tracking | Detail: Frontend Architecture Standards § SDK and the Frontend Architecture SDK sketch; a pin and licence verdict if a guard package is added; an exclusion row naming frontend observability's owner, with an Observability Standards sentence | P02d-5 (the transport's headers and configuration read); the ownership half closes by exit, because a deferral names its phase | [Accepted — 2026-10-08](#p02d-5-accepted-answers): configured caller, deadlines and observability owners |
+| G36 | The edge middleware and entry behaviour. Does the middleware resolve anything (with G25)? What does it carry inward, and under which header name — the Frontend Architecture sketch reuses `x-learnstack-host`, the hop header's own name? Which inbound internal headers are removed or overwritten, including `x-organization-id` when resolution has none — a deny-strip or an allowlist rebuild? What does the matcher exclude? What do `/` and a locale-less path answer, with which status, target and default-locale source; what do a disabled, malformed or non-canonical locale segment (G6 c), a platform host and an unknown host answer; does this run in middleware or the route tree, and may an i18n library own the middleware? Does this phase build the locale-less redirect [Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy) requires, or keep the standards index's i18n-runtime carve-out while Phase 06 claims redirect handling? | Normalise the host; strip every client-supplied `x-tenant-id`, `x-organization-id`, `x-locale` and `x-learnstack-*`; drop the scaffold's `503` guard and TODOs; `/` redirects to the tenant's default locale; a disabled locale is a `404` before any content call; a platform or unknown host gets a `404` with no platform text; the redirect built minimally here, with Phase 06's rows reworded to "deepens" | Detail: a phase-doc statement; the Standards 07 § Tenant Resolution flowchart and the Frontend Architecture middleware sketch; Phase 06's rows in the same diff; if less is built, a dated narrowing of the standards index row for Localization Standards naming the owning phase | P02d-5 (the middleware replacement rewrites the scaffold's locale fallback, so every placement answer changes it first) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): membership-first entry and redirects |
+| G37 | How do tenant-varying `(public)` routes render, and which Next.js caches may hold tenant data — the full-route cache, the fetch data cache, `unstable_cache`, `generateStaticParams` — so one host's page is never served on the other? A public URL carries no tenant, and both tenants send the same request line over the hop, so a path-keyed cache leaks. What freshness does a page have after a customization or content write? | All three reviews: dynamic rendering with uncached SDK fetches — no `revalidate`, no `generateStaticParams`, no `unstable_cache` — relying on the API's generation-keyed cache; no ISR here | Detail: [Frontend Architecture Standards § Public Site Renderer](../standards/07-frontend-architecture.md#public-site-renderer), which prescribes `revalidate` today, and [Frontend Architecture § Rendering Strategies](../architecture/14-frontend-architecture.md#rendering-strategies), rewritten with the `add-frontend-route` skill; [Performance Standards § Caching](../standards/15-performance.md#caching) if the answer caches; an ADR if the pass judges the Standards 07 change non-trivial | P02d-5 (one mechanism: a host-bearing rewrite target is middleware code and fetch cache options are transport code, both written before the renderer) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): dynamic no-store renderer policy |
+| G38 | The frontend test set. (a) Which predicates of the middleware and the server SDK does Vitest cover, and in which packages — `pnpm -r test` runs only packages with a test script, which `packages/sdk` lacks? (b) How are async Server Component pages and field components covered below the browser, given vendor guidance that Vitest does not render async Server Components? (c) What automated evidence, if any, re-proves the page-level two-host claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke pulled forward from Phase 06, or a dated manual record? (d) By what mechanism does the `frontend` job refuse skipped and todo cases, which it does not today, since `No_Architecture_Test_Is_Skippable`'s runner leg reads only the backend `.trx` files? | (a) host normalization and header stripping, locale parsing and entry answers, hop headers with no tenant selector, `not_found` mapping — each with an inversion companion; (b) async pages covered through their synchronous children; (c) the reviews split three ways; (d) a reporter-output check or a lint ban on disabled tests, failing also on a package with tests and no script, proven with a planted skip | Detail: a phase-doc statement; the test files; the Standards 21 entry `No_Architecture_Test_Is_Skippable` extended rather than a second name; `ci.yml`. Contract for (c) only if a browser smoke moves: a Testing Standards § End-to-End Tests edit citing this row, with its carriers | P02d-5 (a; d at the latest), P02d-6 (b, c), P02d-7 (c's job) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): (a,d) tests and non-skippability; (b,c) stay P6 |
 | G39 | Is [ADR-0027](../decisions/README.md#open-adr-drafts), the frontend i18n library, Accepted in this phase rather than Phase 04, or do this phase's pages meet a library-neutral message contract under the standards index's carve-out? Where does the one UI string catalogue live — the carriers name three paths? | The reviews differ: Accept at first use (`next-intl` composed with the tenant middleware, with its pin and licence verdict), or move only the minimum slice — catalogue loading, lookup, layout locale, `lang`. A third option, no platform-authored text, is hard for a skip link or a not-found page | Contract: ADR-0027 Accepted, with the decisions index row, Phase 04's ADR-0027 lines and the standards index row in the same diff — which, under [the decisions index SLA](../decisions/README.md#open-adr-drafts), makes it an exit blocker here — or a narrowed carve-out plus a phase-doc statement. Detail: [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code), [Localization § UI String Catalogue](../architecture/12-localization.md#ui-string-catalogue), the `add-i18n-key` and `add-frontend-route` skills | P02d-6 (the first platform string, message loading and catalogue files) | Open |
 | G40 | Route files, page states and site chrome. What happens to `(public)/page.tsx`'s platform placeholder, and to `/studio` and `/portal` on tenant hosts; is the `courses` segment fixed, and which phase owns localized section names? Does this phase ship `(public)` loading, error and not-found files — [Frontend Architecture Standards § Routing](../standards/07-frontend-architecture.md#routing) requires `loading.tsx` and `error.tsx` per route group, and a not-found page is this phase's own choice; how do SDK `not_found`, a cursor `validation_failed`, unavailable and `429` map to page states; what do an empty catalog and a course with no eligible lesson show; does the catalog render a next-page link? Does a minimal chrome ship? Are `hreflang`, canonical and `og:locale`, which [Localization Standards § SEO](../standards/08-localization.md#seo) requires on translated public pages, built here or carved out? | The placeholder leaves the public tree; a fixed `courses` segment with the section-name owner named; minimal state files in tenant tokens; `not_found` → an HTTP `404` page; unavailable or `429` → the route group's error page without disclosure; an explicit empty state; a next-page link over enough seeded courses; in-page links rather than chrome, keeping Phase 06's navigation rows true | Detail: a phase-doc statement; Phase 06's § What Phase 02d already shipped rows reworded; a dated carve-out in the standards index row for Frontend Architecture Standards or Localization Standards, naming the owning phase, for whatever this phase builds less of | P02d-6 | Open |
 | G41 | How does the lesson page draw what the subset does not implement — an out-of-subset `x-renderer`, a missing optional field, an array of objects, a stored value whose type differs from its declaration, an `x-taxonomy` value and its missing band? And where do composite and primitive components live — Frontend Architecture Standards names `packages/blocks`, Frontend Architecture names `components/blocks/`, and the registry sits in `apps/web/src/lib/customization/`? | A safe placeholder, never an exception and never raw JSON; a missing optional field renders nothing; `integer`, `boolean` and enums as text; an `x-taxonomy` value as the band's display name in the requested locale. No review addresses the component home | Detail: Tenant Customization Model § 2 (the implemented subset, not a second list) and § 8.1; Frontend Architecture Standards § Public Site Renderer and the Frontend Architecture tree. A new primitive would be an ADR-0018 release, which this row must not assume, since Phase 04 owns the field-type set | P02d-6 | Open |
 | G42 | How do validated branding tokens reach the server-rendered HTML — a `style` attribute on the root element, which needs `unsafe-inline` or `unsafe-hashes`; a nonce-compatible `<style>` element built from validated values; or a per-tenant stylesheet route — without constraining [Security Standards § HTTP Headers](../standards/11-security.md#http-headers)' nonce-based target before Phase 11 documents it per surface? | A `<style>` element built only from registry-validated values, emitting only the `--ls-*` vocabulary, never a `style` attribute; a nonce would force dynamic rendering (G37) | Detail: Frontend Architecture Standards § Tenant Branding for the mechanism; Frontend Architecture § Theming | P02d-6 (the layout's token injection; closes with G37's answer and G16's grammar) | Open |
 | G43 | Which accessibility checks on this phase's pages fail a build — route tests asserting `lang`, one `<main>`, the heading outline, a skip link and a descriptive title; `jsx-a11y` at error severity, where most of the shipped config's rules warn; or jsdom axe, which Testing Standards puts through Playwright in Phase 06? Is catalog → lesson a critical flow that needs [Accessibility Standards § Testing](../standards/16-accessibility.md#testing)' screen-reader smoke test? | Route tests in the `frontend` job for the checkable semantics; keyboard, focus and 320 CSS px reflow in the manual record; failing `jsx-a11y` with a planted companion. No review addresses the screen-reader question | Detail: a phase-doc statement; [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) if lint severity or component axe becomes a rule; the lint configuration. Whether failing lint enforces the standard couples with G44; its index row changes only in the enforcing pull request | P02d-6 (page components and their tests) | Open |
-| G44 | The Lighthouse job. Does it activate in this phase, and on what full-stack harness — a migrated stack, a seed written as `learnstack_app`, the API as a process over the hop with a per-run secret, `next start` on a production build, both seed hosts reachable from CI's browser, a readiness and tenant-marker check before the audit — or does activation move to the phase that brings a browser harness? What does it assert: the URL set and which [Performance Standards](../standards/15-performance.md) row each page answers to (its LCP row names a landing page this phase does not ship); which rows, under which throttling preset; the 200 KB budget or the 250 KB forbidden line; hard or warning, run count and aggregation; categories, including the accessibility audit [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) requires; the runtime ceiling, tool install and report destination; and what the standards index rows for Performance and Accessibility say afterwards? | Activate here, reusing the `make demo` entrypoint; catalog, course and lesson on both hosts plus the bilingual tenant's second locale; hard assertions on deterministic audits (script transfer size, CLS, the accessibility category or contrast over both palettes) and median-of-N timings as warnings, with TBT rather than a lab INP; tooling from the lockfile; reports to workflow artifacts only; Accessibility promoted if asserted hard, Performance kept Adopted as a pre-baseline check unless a hard budget makes it Active for what ships. The budget authority is settled: [Frontend Architecture Standards § Performance](../standards/07-frontend-architecture.md#performance) names Performance Standards | Contract: a phase-doc statement plus a committed Lighthouse configuration. Detail: `ci.yml`, CONTRIBUTING's activation edits, the `run-tests-locally` skill; Performance Standards only if a number or lab profile changes; the standards index rows and status headers in the enforcing pull request. Moving activation edits `ci.yml`, CONTRIBUTING and the skills, and leaves Phase 01's and 02a's records as written | P02d-5 (whether it activates, as an input to G32: the hosts must work in CI's browser), P02d-7 (the harness and assertions) | Open |
+| G44 | The Lighthouse job. Does it activate in this phase, and on what full-stack harness — a migrated stack, a seed written as `learnstack_app`, the API as a process over the hop with a per-run secret, `next start` on a production build, both seed hosts reachable from CI's browser, a readiness and tenant-marker check before the audit — or does activation move to the phase that brings a browser harness? What does it assert: the URL set and which [Performance Standards](../standards/15-performance.md) row each page answers to (its LCP row names a landing page this phase does not ship); which rows, under which throttling preset; the 200 KB budget or the 250 KB forbidden line; hard or warning, run count and aggregation; categories, including the accessibility audit [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) requires; the runtime ceiling, tool install and report destination; and what the standards index rows for Performance and Accessibility say afterwards? | Activate here, reusing the `make demo` entrypoint; catalog, course and lesson on both hosts plus the bilingual tenant's second locale; hard assertions on deterministic audits (script transfer size, CLS, the accessibility category or contrast over both palettes) and median-of-N timings as warnings, with TBT rather than a lab INP; tooling from the lockfile; reports to workflow artifacts only; Accessibility promoted if asserted hard, Performance kept Adopted as a pre-baseline check unless a hard budget makes it Active for what ships. The budget authority is settled: [Frontend Architecture Standards § Performance](../standards/07-frontend-architecture.md#performance) names Performance Standards | Contract: a phase-doc statement plus a committed Lighthouse configuration. Detail: `ci.yml`, CONTRIBUTING's activation edits, the `run-tests-locally` skill; Performance Standards only if a number or lab profile changes; the standards index rows and status headers in the enforcing pull request. Moving activation edits `ci.yml`, CONTRIBUTING and the skills, and leaves Phase 01's and 02a's records as written | P02d-5 (whether it activates, as an input to G32: the hosts must work in CI's browser), P02d-7 (the harness and assertions) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): whether: activate in P7; harness details stay P7 |
 | G45 | What does `make demo` start and guarantee on a clean checkout? The process model — a foreground supervisor over detached compose, or detached processes with a stop target; the web app's mode; how environment reaches host processes, given `dotnet run` reads no `.env` and nothing creates `apps/web/.env.local`; readiness waits before Phase 11's `/readyz`; stale-`.env` detection; re-run and stop behaviour; whether its seed step keeps `make seed`'s wait on every default-profile service and both Keycloak realms; and what it prints, including the bilingual tenant's second-locale URLs | The reviews differ on attached versus detached processes; both reject a destructive reset, wait on both processes, keep re-runs idempotent and have CI reuse the entrypoint | Detail: the `Makefile` targets with help lines and a dated phase-doc statement; README § Quickstart, `scripts/seed.sh`'s closing output and the `local-dev-setup` and `seed-tenant` skills in the same packet; Infrastructure Standards § Healthchecks if the seed's gate narrows. No ADR | P02d-7 (with G44, whose job invokes the same entrypoint; if G44's harness moves earlier, this row moves with it) | Open |
 
 Gates that define one mechanism are answered against each other. Where their parts shape
@@ -2639,6 +2667,1149 @@ delivery claims, phase ownership and all 590 relative links/anchors in the six
 changed Markdown files. The complete local regression above verifies the code
 fix; this closeout adds delivery evidence only.
 
+### P02d-4 merge and closeout (2026-10-08)
+
+The maintainer merged [PR #25](https://github.com/HodeTech/LearnStack/pull/25) at
+2026-10-08 15:25:18 UTC. GitHub records final PR head
+`f8adb110ff7fca2a15bbd3f87c1546c62852dc4c` and merge commit
+`b83175538cf6f9c5415294a8f77dadd9c82588dd`. The merge's second parent is that
+head, and both commits have the identical tree. Development remains the working
+branch; the fetched main ref verifies the merge without changing branches.
+
+- All six required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/37794924088).
+  Downloaded TRX artifacts confirm **2847 passed, zero failed or skipped**:
+  1646 unit, 198 architecture, four contract, 171 Docker-free integration and
+  828 Docker integration. Frontend CI passes typecheck, lint, build, SDK drift
+  verification and **73 tests** (60 SDK, thirteen web).
+- All six required checks also pass in the
+  [merge-commit run](https://github.com/HodeTech/LearnStack/actions/runs/37800631591).
+  Independently downloaded merge-run TRX confirms the same 2847 passing cases
+  and zero failures/skips. Its OpenAPI artifact matches the merge SHA and
+  snapshot hash. Read-only protection verification confirms all six Actions
+  contexts with `app_id=15368` and `strict: true`; no setting is changed.
+- OpenAPI artifacts match the final head, verified base and committed snapshot
+  hash. All **60 policy controls** pass (39 breaking, 21 compatible). The final
+  workflow correction adds six actual-event selection controls to the eight
+  admission/bootstrap controls: **14 Python tests** pass locally and in CI.
+  Four local selector mutants fail. Zero-before pushes select the head's parent;
+  ordinary push, PR and manual refs retain their existing contracts.
+- The final review corrections retain unchanged ADR decisions and align delivery
+  navigation. Two fresh focused reviewers approve each final follow-up
+  (`7e07613..7ad4b91` and `7ad4b91..f8adb11`). CodeRabbit succeeds at the final
+  head; all five inline threads are resolved. The four implementation steps'
+  two-round review records above remain unchanged.
+
+**P02d-4 is closed.** Host-scoped anonymous site/catalog/course/lesson GET/HEAD,
+physical read-only frames, exact enabled-locale/access eligibility, bounded public
+projections and cursors, the served OpenAPI baseline, typed SDK and compatibility
+gate are delivered. No database migration is added by P02d-4.
+
+**Next: P02d-5 — Server-rendering path.** Its implementation and decision pass
+have not started. The [packet gate table](#packets-and-decision-gates) owns its
+complete prerequisites; the [decision register](#the-decision-register) still
+leaves development transport/hosts, trusted-hop topology and rate limiting,
+server SDK transport, middleware/locale entry, rendering/cache policy and the
+frontend test/skip fence open. P02d-4 supplies the completed API prerequisite;
+it does not accept those later decisions.
+
+P02d-6 owns the three public pages, text-card renderer, safe theme injection,
+language attributes and accessibility. P02d-7 owns `make demo`, the two-host
+full-stack evidence and phase exit. G44 retains the Lighthouse activation
+decision. Phase 02d remains in progress; no browser delivery, authenticated
+learner grants or Course Marketplace commerce is claimed by this closeout.
+
+**Documentation-only closeout validation.** Five local corpus-consistency tests
+pass with zero failures/skips. The seven changed Markdown files pass the local
+relative-link/fragment audit (825 link occurrences, 342 fragments), added-prose
+width and diff checks. ADR-0052 changes are insertion-only; previous P02d-4
+delivery notes and the P02d-1 suffix remain byte-identical. No production code
+changes or new decisions are introduced.
+
+### P02d-5 decision package (2026-10-08)
+
+**Accepted — 2026-10-08, verified against development `88f52c4`.** The maintainer
+approved ADR-0053 and this package before implementation. P02d-4 is merged;
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md) owns the bounded
+replacement rules. Only the named P5 gate parts below close; delivery remains
+separate from acceptance.
+
+#### Baseline and document review
+
+The preparation baseline is development `88f52c4`. Three independent read-only
+reviews cover trust/topology/limiting, frontend/runtime semantics and governance.
+Their conclusions are checked against source, not accepted as instructions.
+
+- P02d-4 supplies bootstrap, Education GET/HEAD, public DTOs, READ ONLY, no-store,
+  cursors, a served snapshot, typed injected SDK and required diff/drift checks.
+- SDK Vitest tests and AppError parsing are already delivered. G38(a)'s older
+  missing-script premise and G35's implied missing parser are historical premises.
+- Middleware still forwards client headers, writes host into `x-tenant-id`, invents
+  `en` and refuses production requests with `503`; no configured caller exists.
+- Installed Next 15.5.18 preserves a supplied `x-forwarded-for` when adding socket
+  metadata. Middleware cannot turn it into reliable visitor identity.
+- API limiting is 60 calls/minute per socket peer. Forwarded-header middleware is
+  unwired; reading the connection feature alone does not protect a mutated peer.
+- API startup permits both hop lists empty in every mode, refuses partial lists,
+  invalid CIDRs and blank/secrets shorter than 32 characters. ADR-0053 explicitly
+  adopts that policy in place of ADR-0036's older non-Development/byte wording;
+  a dated ADR-0036 Amendment discloses it without rewriting the Accepted body.
+- Standards 07's delivered injected SDK contradicts ADR-0036's older exact file
+  chosen to set hop headers. The new decision must disclose its replacement.
+- Standards 07 and Architecture 14 still prescribe cached public rendering under
+  open G37; a changed ongoing rule requires an ADR, not a quiet code exemption.
+- The route skill's obsolete P4 stub description is corrected during preparation.
+  Frozen P1–P4 delivery records and Accepted ADR bodies remain unchanged.
+
+The reviewed carrier families are CLAUDE/README, vision/MVP, roadmap timing and this
+phase; ADR-0009/0035/0036/0040/0050/0051/0052 and the ADR index; architecture
+09/12/14/30; standards 03/04/06/07/08/09/10/11/12/13/15/16/20/21; the route,
+local-dev, seed and test workflows; current API/SDK/web/compose/CI source. Future
+renderer decisions G39–43 are inputs, not accepted by this package.
+
+#### P02d-5 accepted answers
+
+| Gate part | Accepted answer and authority |
+|---|---|
+| G6(c) | Canonical enabled locale prefixes; `308` for enabled noncanonical spelling, `307` for default-locale entry, masked `404` for malformed/disabled/unknown prefixes. Exact matrix below |
+| G20: exemptions | Demo identity literals only in `SeedData`, seed/development launch/configuration, operational docs and test-owned assertions/fixtures. No host/domain-specific branch in middleware, transport, renderer or modules; a generic host normalizer is not a demo exemption. P6 decides renderer subjects, P7 implements the complete Registered guard |
+| G21: cookies | Public entry neither sets nor uses cookies; no Authorization/session forwarding. Preserve P2's no new remote subresource contract. Phase 02b owns session cookies; Secure-cookie TLS proof here is a test-owned transport control, not authentication implementation |
+| G30: headers | Native ingress verifies captured host/peer provenance; middleware rebuilds private context; one configured server adapter emits the closed API-hop set in ADR-0053. Education locale is query-only; no tenant/organization assertions |
+| G32 | [Accepted — 2026-10-08](#local-setup-and-ingress-details): local hosts and TLS |
+| G33 | [Accepted — 2026-10-08](#local-setup-and-ingress-details): local topology, shared source and ingress |
+| G34 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#api-hop-and-anonymous-budgets): authenticated visitor and peer budgets |
+| G35 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#configured-caller-and-rendering): configured caller/deadlines; [Frontend Observability](../standards/10-observability.md#frontend-observability) owns Phase 11 logger/Sentry/web-vitals |
+| G36 | [Accepted — 2026-10-08](#public-entry-matrix): membership-first entry and redirects |
+| G37 | [Accepted — 2026-10-08](../decisions/0053-trusted-public-server-rendering.md#configured-caller-and-rendering): dynamic no-store renderer policy |
+| G38(a) | Vitest covers normalization/stamps/header stripping, locale/entry matrix, configured origin/header construction, errors, deadlines/body/cancellation and tracing; production-build/socket fixtures cover runtime boundaries. SDK tests remain inherited |
+| G38(d) | Extend existing non-skippability rule to tested frontend workspaces. Fail skipped/todo, empty/unreadable reports and discovered test packages without an execution script; planted actual runner cases prove failure |
+| G44: whether | Activate full-stack Lighthouse in P02d-7, after P6 pages and G45's shared demo harness. P5 updates live deferred-job ownership carriers; it does not audit placeholders. P7 still selects tools, URLs, assertions/budgets and status promotions before harness code |
+
+This acceptance closes only the named P5 parts. G38(b,c), G39–43, G44's harness
+details and G45 remain with P6/P7. No market, auth, CMS, media or grant decision moves.
+
+#### Local setup and ingress details
+
+Keep the two hosts already declared in `SeedData`; do not create a second hardcoded
+host registry in production code. The explicit workstation step adds those names
+to `127.0.0.1` in the hosts file and creates a leaf certificate with their exact SANs
+and `localhost` for readiness. The documented tool is mkcert (BSD-3-Clause); its CA
+trust/install step is performed explicitly by the developer. No script edits hosts,
+installs system trust, ignores TLS errors or shares the CA private key. Leaf/key
+paths live under gitignored `.data/`; examples contain paths, never key material.
+
+The ingress owns port 3000 on IPv4 loopback and delegates requests/upgrades to Next's
+supported custom-server interface. It strips inbound forwarding/internal/framework
+override headers before minting the single provenance envelope specified by
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md#ingress-and-provenance).
+Middleware verifies it before bootstrap, rebuilds downstream request headers from
+the allowlist, and the server caller verifies it again before SDK use. Direct stock
+`next dev/start` is unsupported and must fail closed if callers forge plain carriers;
+a valid production-build control proves the supported launcher actually works.
+
+One ignored local source provides a freshly generated 32-byte random ASCII-encoded
+hop secret to both processes. API networks and secret list arrive together through
+launch configuration; do not commit a network-only Development default. The native
+launcher/Next caller use the same private source for domain-separated ingress MACs.
+`.env.example` owns the variable vocabulary; the web example documents its narrow
+projection and matching/conflict checks. The loader must not shell-evaluate env
+values or echo credentials. Empty/malformed renderer configuration refuses startup;
+ordinary no-hop API startup and existing Development fixtures continue to work.
+
+P5 tests use isolated certificates and trusted test roots, never disabled certificate
+verification. Browser TLS/Secure-cookie checks are evidence to obtain, not claims
+already proved on this workstation. P7's CI harness uses isolated per-run roots,
+host resolution and secrets; it never installs a permanent developer CA.
+
+#### Public entry matrix
+
+The fixed public section name is `courses`; section-name localization remains
+Phase 06. After bootstrap, enabled-locale membership takes precedence over every
+shorthand or scaffold name. No locale is rejected just because its grammar-valid
+name is `courses`, `studio` or `portal`.
+For a well-formed request, bootstrap runs before locale/redirect decisions. Unknown
+or platform host, unavailable live scope and valid empty locale configuration return
+masked `404`. Dependency/invalid stored configuration or transport failure returns
+bounded `503`; API `429` remains `429` with validated Retry-After. No body embeds
+provider errors, host IDs or internal headers. P6 owns localized page-state rendering.
+
+| Input on a bootstrapped live host | Answer |
+|---|---|
+| `/` | `307` to `/{defaultLocale}/courses` |
+| `/courses`, `/courses/{slug}`, `/courses/{slug}/lessons/{lessonSlug}`, when `courses` is not an enabled locale | `307` to the same path with the configured default prefix |
+| `/{enabledCanonicalLocale}` or its one trailing slash | `307` to `/{locale}/courses` |
+| Enabled noncanonical locale prefix on a supported public path | `308` to its canonical prefix; only after enabled membership succeeds |
+| Canonical enabled prefix on a supported public content path | Continue with verified host/peer and canonical route locale; P6 supplies pages |
+| Exact current `/studio` or `/portal` scaffold root on a live host, when that name is not an enabled locale | Continue to the existing scaffold without a public locale or authentication claim; no prefix-wide exemption |
+| Malformed, disabled, unknown or overlength locale prefix; unknown section/path | Masked `404`, no fallback and no content request |
+| Malformed/missing Host, socket provenance or ingress signature | Refuse before bootstrap; never use a forwarded/default host |
+
+Locale parsing matches the shipped LocaleTag grammar, canonicalization and
+35-character bound without trimming. First validate/canonicalize the first segment
+and check enabled membership; only on a nonmember consider the exact scaffold
+roots or the `courses` shorthand. Otherwise it is an unsupported/malformed prefix,
+so `en_US` never becomes a default-locale resource path. Percent-encoded locale
+prefixes are refused rather than decoded into another locale identity. No
+`Accept-Language`, cookie or `?locale=` overrides the path. Explicit query locale on
+Education calls always comes from that path.
+
+When `courses` is enabled, `/courses` is its locale root and `/courses/courses` its
+catalog; `/courses/{slug}` shorthand is intentionally unavailable on that host.
+Its full localized `/{locale}/courses/{slug}` path remains available. Default and
+nondefault `courses`/`studio`/`portal` fixtures must prove terminal redirects and
+normal localized admission. P6/Phase 02b's future static/auth routes must preserve
+these public paths rather than shadow them; those packets own their distinct UI
+namespaces. No known-locale registry or locale-writer restriction is introduced.
+
+Redirects use the successfully bootstrapped normalized visitor host with the
+configured HTTPS scheme/ingress port and a local computed path. They never use
+`request.url`'s possibly substituted origin, forwarding headers or a query redirect
+target. Preserve query bytes as inert query data; bound/validate request targets,
+reject authority/encoded separator or traversal ambiguities and test those cases.
+Disable implicit pre-middleware slash/URL redirects where they bypass this policy.
+Every tenant-bearing redirect/refusal is no-store; no cookies are emitted.
+
+The matcher excludes Next assets/HMR, exact `/api/healthz` and favicon. It does not
+exclude `studio`/`portal` prefixes: enabled locale paths need normal admission.
+Health remains live without a tenant bootstrap; native ingress sanitation still
+applies. The exact scaffold-root continuation above requires successful live-host
+bootstrap and grants no API or authentication authority. Platform/unknown hosts
+still receive `404`. Future BFF/auth routes require their own Phase 02b contract;
+P6/G40 decides the product behavior of the remaining scaffold screens.
+
+#### P02d-5 implementation plan
+
+The first commit accepts this package and ADR-0053, records the bounded ADR-0036
+replacement/navigation and updates the ongoing carriers below.
+Then every implementation step is committed, reviewed by fresh agents twice, and
+each confirmed correction is validated/committed before the next step.
+
+1. **Native ingress and local topology.** Implement the mandatory launcher, private
+   configuration/stamp protocol, TLS path/readiness, fixed loopback bindings and
+   shared-source launch recipe. Update web scripts/config, environment examples,
+   README/local-dev/seed workflows. Prove missing/forged/bypassed ingress refusal,
+   valid production-build startup, no-env API startup, TLS and secret containment.
+2. **API visitor admission and budgets.** Add strict trusted visitor metadata,
+   canonical IP partitioning, peer ceiling and pre-lookup refusal. Keep network
+   plus secret checks and forwarded-header ban. Add actual socket and HTTP/Postgres
+   positive/negative/flood controls as `learnstack_app`, preserving no-store/DTOs.
+3. **Configured caller and public entry.** Implement the single server-only
+   transport, narrowly scoped fetch-lint exemption, Node middleware/bootstrap,
+   locale matrix, origin-safe redirects and dynamic/no-store policy. Prove slow
+   bodies, decoded-size bounds, cancellation, redirect secret containment,
+   trace-ID agreement and every
+   malformed/disabled/noncanonical entry case with a non-English default.
+4. **Mechanical frontend fences and closeout.** Enforce server/cache/header
+   boundaries and frontend skip/todo refusal with clean/planted controls. Complete
+   production-build integration evidence, update all current carriers, run relevant
+   suites and both final reviews; open the P5 PR for maintainer review.
+
+P5 production-build fixtures use test-owned routes importing the real ingress,
+middleware and caller against the real public API; no diagnostic route enters the
+shipped app. Entry/bootstrap runtime evidence is distinct from P6's catalog/course/
+lesson UI and P7's two-host browser demo. Where a phase-level criterion requires
+those pages, its evidence owner stays P6/P7; P5 cannot mark it complete with a fake
+transport. API-only proofs remain named separately.
+
+#### Acceptance carriers and validation
+
+Acceptance updates ongoing rules; delivery updates each owner with its enforcing
+implementation:
+
+- ADR index and current packet register/navigation; append-only ADR-0036 note for
+  the bounded limiter/setter replacements and mode-independent startup policy.
+  Name it a dated Amendment under ADR-0041/Standards 13, with source/history evidence
+  and carrier disclosure; the new ADR owns changed rules, not an in-place correction.
+- Standards 04/11 rate limits; 07/15 dynamic rendering/caller; 08 path entry; 10 and
+  Phase 11 frontend observability ownership; Architecture 09/12/14/30 as applicable.
+- Existing Standards 21 hop/peer/non-skippability entries, plus Registered proof
+  names only when selected; claims become Implemented with actual enforcing tests.
+- Route/local-dev/seed/test skills; root/web environment examples; web scripts,
+  Next configuration, README Quickstart and Makefile launch help where introduced.
+- Phase 02b G12/G14 re-verification handoff; Phase 06 redirect/cache inheritance;
+  CI/CONTRIBUTING/test-skill Lighthouse ownership explicitly P02d-7/G44. Historical
+  shipped records are not rewritten to disguise the transition.
+
+Validation includes Release/format, architecture/unit/contract and relevant Docker
+integration suites; all frontend workspace typecheck/lint/build/tests and SDK drift;
+real production-build/socket/TLS cases; actual skip/todo/import/cache mutants; changed
+Markdown relative links/anchors, width/residual checks and ADR-history preservation.
+No test count, browser observation or CI success is claimed until it is run.
+
+**Preparation verification — 2026-10-08.** Two fresh proposal-review rounds
+checked security/runtime and corpus/decision completeness. The confirmed locale
+name collision was corrected with membership-first entry; both second-round
+reviewers approve the revised proposal. Two fresh focused reviewers also approve
+the external-review corrections to secret cardinality, provenance carriers and
+Amendment/standard ownership. The existing `CorpusConsistencyTests` pass 5/5,
+with zero failures/skips. The six preparation files have 683 relative link
+occurrences and 321 fragment targets, all resolving; added prose wrapping,
+`git diff --check` and Accepted-ADR/historical-body preservation checks pass.
+These are document-preparation results, not P5 implementation or browser evidence.
+
+#### Approval boundary
+
+The maintainer approved the exact ADR/package on 2026-10-08: the native custom
+launcher, existing names with manual local TLS, dynamic public rendering and the
+explicit 60/IP plus 600/peer API budgets. Automatic trust-store modification is not
+authorized. Implementation now proceeds on development through the four steps and
+two fresh review rounds per step; acceptance alone marks no delivery criterion done.
+
+### P02d-5 delivery record
+
+#### P02d-5 Step 1 — Native ingress and local topology
+
+**Implementation delivered — 2026-10-08; review rounds pending.** The mandatory
+native Node launcher binds HTTPS to `127.0.0.1:3000`, validates the private source
+and delegates requests/upgrades to Next 15.5.18. It captures the real socket peer,
+canonicalizes IP identities, validates exactly one Host and bounded request target,
+strips incoming private/forwarding/framework carriers, then mints the HMAC envelope.
+Verification binds host, peer, method and raw target and refuses forged/repeated or
+noncanonical envelopes. No ingress code resolves tenant/organization authority.
+
+`make public-env` generates an ignored 32-byte random ASCII-encoded secret without
+hosts/trust changes. `make public-api` supplies only runtime database credentials,
+fixed loopback network and matching secret; `make public-web` and `pnpm dev/start`
+use the native launcher. Root/web environment examples and README/local-dev/seed
+workflows describe explicit mkcert trust, leaf creation and manual hosts aliases.
+The API's ordinary no-hop startup remains unchanged.
+
+The old middleware's tenant-header placeholder and invented `en` fallback are
+removed. Its interim Node admission returns no-store `503` after valid provenance
+and masked `404` otherwise. Health/assets are excluded from tenant entry, but all
+requests pass native sanitation. Step 3 replaces the interim refusal with real
+bootstrap and locale entry. Next implicit URL/slash redirects and Server Component
+HMR caching are disabled. P6 pages and P7's demo remain separate delivery scopes.
+
+**Validation.** The frontend suites pass 128 cases (60 SDK, 68 web), including 55
+ingress/config/socket cases; workspace lint, typecheck and production build pass.
+The production companion verifies test-root TLS readiness, private-header stripping,
+no carrier/secret in responses or retained fixture diagnostics, and stock-Next
+forged-carrier refusal. Existing API hop-configuration tests pass 5/5 with zero
+failures/skips, preserving empty-hop mode-independent startup. TLS controls use
+isolated trusted roots and a test-only Secure-cookie response header; no browser
+cookie acceptance or local CA installation is claimed.
+
+**Step 1 round 1 — confirmed corrections (2026-10-08).** Independent security
+and quality reviewers identify two boundary failures in the committed foundation.
+The production companion reproduces a valid raw query returning `404` because Next
+serializes its search parameters and removes `_rsc`; it also reproduces an interior
+repeated slash causing a pre-middleware redirect. The fix preserves the signed raw
+target, compares only its explicit pinned-Next projection at middleware admission,
+and rejects repeated pathname slashes before delegation. Ten focused cases and
+production controls cover query rewriting, terminal `?`, RSC query stripping,
+method/path/query substitutions and no-store refusal without an implicit redirect.
+OpenSSL prerequisites and the paired/API-only restart guidance are clarified.
+The corrected frontend suite passes 138 cases with zero failures/skips;
+production TLS/query/bypass controls, typecheck, build, native/config lint and
+changed-link/history checks pass. Second-round review remains pending.
+
+**Step 1 round 2 — closeout (2026-10-08).** Fresh GPT-6-astra xhigh and
+GPT-6.1-sol xhigh reviewers inspect the cumulative implementation. Confirmed
+corrections remove all pinned-Next internal routing/resumption/revalidation
+headers at native admission and prevent Next's automatic upgrade listener from
+receiving rejected inputs. The supported `httpServer` option registers that
+listener on a non-listening sink; native TLS admission alone delegates upgrades.
+Real production controls reject duplicate Host before Next, admit one sanitized
+upgrade, and fail when the sink option is removed. An isolated development fixture
+receives `101` for admitted HMR and no delegation for its rejected control.
+
+The companion also recognizes children already terminated by signal, observes
+exit before signaling and bounds forced cleanup. Real already-exited, running and
+SIGTERM-resistant controls pass. The corrected 138 frontend cases, production
+TLS/query/upgrade/bypass controls, production build, typecheck and lint pass with
+zero failed/skipped cases. Both reviewers approve the corrected scope; Step 1 is
+complete and Step 2 follows. No workstation-browser proof or P6 page is claimed.
+
+#### P02d-5 Step 2 — API visitor admission and budgets
+
+**Implemented — 2026-10-08; independent reviews pending.** The API captures one
+request-local visitor identity through the existing network-and-secret hop
+predicate. Its bounded IP parser rejects abbreviated/integer IPv4, ports, lists,
+zones and whitespace; IPv4-mapped IPv6 shares the direct IPv4 namespace. Unknown
+peers retain one fixed fallback partition. No header selects a tenant.
+
+Chained fixed-window limiters apply 600 calls/minute per physical peer first,
+then 60 calls/minute per canonical visitor IP, without queues. This ordering
+prevents exhausted peers from creating additional visitor partitions. Missing,
+malformed and repeated trusted metadata consumes fallback quota, then receives
+masked `404` before host classification; untrusted forwarding metadata is ignored.
+Existing `429` Problem Details and `Retry-After` remain authoritative.
+
+**Validation.** The 28 new identity cases and 18 existing hop/configuration cases
+pass. Fifteen new real-Kestrel/PostgreSQL cases and both existing anonymous HTTP
+controls pass, with zero failures/skips. Positive public reads reach the production
+reader as `learnstack_app`, with READ ONLY and no superuser/BYPASSRLS privileges.
+Controls cover shared direct/hop quotas, independent visitors, canonical IPv6,
+rotation, repeated raw headers, novel-host bounds and both budget ceilings.
+Invalid metadata and over-budget requests do not call the host resolver. The
+initial API Release build passes with zero warnings/errors. Steps 3–4 remain open.
+
+**Step 2 round 1 — confirmed corrections (2026-10-08).** Independent
+GPT-6-astra xhigh and GPT-6.1-sol xhigh reviews identify premature physical-peer
+exhaustion and a quota-test oracle gap. ASP.NET retries a refused synchronous
+acquisition asynchronously; re-running the peer-first fixed-window chain charges
+its earlier peer permit twice. A real-Kestrel regression fails on request 331
+after 60 accepted and 270 refused calls. A request-local no-queue wrapper preserves
+the first refusal and its metadata without repeating the acquisition; each
+framework attempt owns a separate lease. Peer-first ordering remains unchanged.
+
+The corrected mixed-traffic control admits the remaining allowance through actual
+request 600 and refuses 601 before lookup. Independent assertions fix the accepted
+60/IP, 600/peer and one-minute values. All 18 focused HTTP controls and 47
+identity/hop/configuration cases pass with zero failures/skips. The pre-correction
+full regression passed 2,890 cases but did not cover this newly reproduced boundary;
+it is not evidence for the corrected head. Second-round review follows.
+
+**Step 2 round 2 — lifecycle correction (2026-10-08).** Fresh GPT-6-astra
+xhigh and GPT-6.1-sol xhigh reviewers confirm the corrected quota behavior and
+identify incomplete limiter shutdown. The framework chain does not own its child
+budgets; the wrapper's asynchronous path and the options registration also lacked
+ownership. DI now owns the wrapper, which disposes both budgets exactly once on
+synchronous and asynchronous shutdown. Four focused lifecycle cases pass.
+Both reviewers independently verify the correction, including actual provider
+shutdown, completed child timers and refusal after disposal, and approve.
+
+The independent security probes also confirm that rotating visitor metadata after
+peer exhaustion creates no further visitor partitions, while an already-cancelled
+acquisition creates none. These are test-owned probes, not production telemetry.
+Both review rounds are complete. The final corrected Release build has zero
+warnings/errors; **2,896 backend cases** pass: 1,679 unit, 198 architecture,
+four contract and 1,015 integration, with zero failures/skips. The nonempty-run
+check covers all four assemblies. The two changed Markdown files pass the local
+link/fragment audit (552 links, 295 fragments), added-prose width and diff checks.
+Frozen P1–P4 history and Accepted ADR bodies remain unchanged. Step 2 is complete;
+Steps 3–4 follow automatically under the approved plan.
+
+#### P02d-5 Step 3 — Configured caller and public entry
+
+**Complete after both review rounds — 2026-10-08.** One server-only
+adapter supplies the four injected SDK GETs with private origin and a closed
+authenticated hop. It re-verifies the envelope and derives locale only from the
+canonical signed route. Redirects are refused; caller cancellation is distinct
+from the ten-second total header/body deadline. Decoded response bytes are counted
+while consuming, up to 8 MiB; oversize is a transport failure without truncation.
+Cleanup does not wait indefinitely for stream cancellation or late fetches.
+
+Node middleware verifies before request-local live bootstrap, then applies the
+accepted membership-first entry matrix. Non-English default, disabled/malformed
+prefixes and default/nondefault `courses`/`studio`/`portal` locale collisions are
+covered. Redirect authority comes from the bootstrapped captured host and fixed
+HTTPS port, preserving signed raw query bytes. Continuation rebuilds request
+headers and emits no cookie or ordinary provenance response header. The public
+layout is dynamic with zero revalidation and force-no-store fetches.
+
+**Validation.** All **280 frontend cases** pass: 220 web and 60 SDK, zero
+failures/skips. The 39 adapter controls include real loopback HTTP gzip expansion,
+exact decoded size, redirect credential containment, caller cancellation and a
+ten-second deadline spanning delayed headers and body. Eighty-two entry and 21
+middleware cases cover admission, raw queries, error mapping and request isolation.
+Workspace lint/typecheck and the production build pass. The production TLS
+companion exercises the real middleware/caller against a test-owned bootstrap
+server, proving live redirects, raw-query retention and stock-Next refusal before
+bootstrap. It does not replace Step 4's real-API integration or P6 pages.
+The real-Kestrel/PostgreSQL trace control also passes: the API's Problem Details
+uses its own span with the adapter's propagated trace identifier. The HTTP test
+disables the test HttpClient's ambient trace injection so it observes the intended
+wire header; the production caller itself remains unchanged.
+
+**Step 3 round 1 — harness failure cleanup (2026-10-08).** Independent
+GPT-6-astra xhigh approves the security/runtime boundary. GPT-6.1-sol xhigh
+reproduces an asynchronous fixture-listener assertion bypassing the outer cleanup,
+leaving a Next child and temporary tree alive. The listener now records refusal
+without printing credential values; the awaited outer flow raises the failure
+where cleanup owns all resources. A source-planted wrong-path control runs the
+real production harness, exits red and verifies its child and tree are gone.
+The unmodified production TLS companion also passes. No API/entry policy changes.
+
+
+**Step 3 round 2 and closeout (2026-10-08).** Fresh GPT-6-astra xhigh
+approves security and runtime behavior, including both production companions and
+no-store scaffold continuation. Fresh GPT-6.1-sol xhigh reproduces a test-oracle
+gap: a 36-letter locale already fails primary-subtag grammar, so removing only
+the 35-character guard leaves the entry suite green. Grammar-valid 35/36-character
+controls now isolate the bound; the reviewer verifies all 84 cases pass and the
+removed-guard mutant fails exactly the 36-character case. Production policy is
+unchanged. Both independent rounds and fix verification pass; Step 4 follows.
+
+
+#### P02d-5 Step 4 — Frontend fences and production integration
+
+**Implemented — 2026-10-09; independent reviews pending.** Two reserved frontend
+rules now name actual Vitest assertions with a nonempty production TypeScript
+census. AST analysis follows runtime imports/reexports and constant dynamic imports,
+with alias/computed fetch and header, server-only, raw-authority, layout-policy and
+cache controls. Request-local React cache remains allowed. Arbitrary eval, runtime
+reassignment and external implementation bodies are outside the structural claim;
+actual production/socket proofs remain separate.
+
+The root frontend runner discovers test packages from the workspace declaration,
+including ones pnpm would otherwise skip. It refuses missing scripts, missing or
+invalid/empty reports, failures, skipped/todo cases and omitted discovered files.
+Actual isolated Vitest clean/skip/todo/missing-script/report/omission controls prove
+refusal. The existing frontend CI context uses this runner and executes the native
+production TLS/failed-listener cleanup companions after build.
+
+`PublicServerRenderingTests` compiles a disposable app with test-owned routes that
+import the real ingress/middleware/caller and SDK against real Kestrel/PostgreSQL.
+Both seed hosts render the same locale/slug in cold/interleaved HTML and RSC without
+cross-host values. The fixture proves exact lesson projection, non-English default
+redirect, stock-Next forgery refusal before any API/database bootstrap, nonempty
+client asset and native/API log containment, and next-request publication freshness
+in the same native process. Its real API reads use `learnstack_app`, physical READ
+ONLY frames and the existing isolation observer. Only test setup mutates owner rows,
+with restoration in `finally`; it is not the role used to prove isolation.
+
+A real Client Component import of the configured caller fails with the server-only
+diagnostic; deleting that test-owned route yields a clean production build. Private
+runtime configuration is supplied only after compilation. Bootstrap/page reads
+share one valid trace identifier for supplied, missing and malformed incoming
+contexts; the middleware creates a request-local context before either caller.
+No trace or private carrier is emitted to the browser.
+
+Pinned Next streams RSC not-found with HTTP 200 and its exact
+`NEXT_HTTP_ERROR_FALLBACK;404` digest, while the document response is 404. The
+fixture requires the real API's parsed 404, the digest and absence of previous
+content; other API/transport failures fail the proof. It stays below the existing
+60-call visitor budget and owns only isolated ports/certificates/build trees.
+Backend integration CI receives Node/pnpm and frozen frontend dependencies; no
+required check name or branch-protection setting changes.
+
+Test-owned routes are P5 transport/runtime evidence. Public catalog/course/lesson
+product UI is P6; browser demo and Lighthouse remain P7/G44/G45. This step adds no
+production diagnostic route, page UX, auth, CMS or database migration.
+
+
+**Step 4 pre-review verification (2026-10-09).** Release build has zero
+warnings/errors; format verification passes. All **2,898 backend cases** pass:
+1,679 unit, 198 architecture, four contract and 1,017 integration, with zero
+failures/skips. Every assembly passes the nonempty-run checker and direct TRX
+counter comparison. The complete guarded frontend run passes **381 cases**:
+321 web and 60 SDK, zero failures/skips/todos. Workspace lint/typecheck and the
+production build pass. Focused production integration also passes independently;
+normal native TLS and planted listener-cleanup controls pass. Both `pnpm test`
+and `make test-frontend` route through the guarded runner. SDK snapshot drift and
+the final per-step review evidence are recorded below when complete.
+
+**Step 4 round 1 — proof repairs (2026-10-09).** Independent GPT-6-astra
+xhigh runtime/security review approves the production boundary. It reruns the real
+API fixture and verifies that compiled shared-result and credential-log mutants
+fail their intended isolation/containment assertions; owned listeners and build
+trees are cleaned on failure. GPT-6.1-sol xhigh quality/standards review identifies
+three proof gaps: the missing-report control fails before reaching report parsing,
+namespace aliases can hide Next caching, and destructured headers can hide raw
+authority reads. Each gap is independently reproduced before repair.
+
+The report control now runs a successful script without a report and requires
+`ENOENT`; empty and unreadable reports have separate reason assertions. Source
+analysis follows namespace variable/import/reexport aliases and object-binding
+headers, including a transitive barrel control. All 77 source controls and 26
+runner controls pass, and the complete guarded frontend run passes **388 cases**:
+328 web and 60 SDK, with zero failures/skips/todos. Web typecheck/lint pass. Three
+workflow skills now describe Accepted G25/G36/G37/G44 instead of their prior open
+questions; no accepted decision or production behavior changes in these repairs.
+The quality reviewer independently confirms all three fixes and passes 127 focused
+source/runner/middleware cases. Both first-round reviewers approve the corrected
+tree; second-round review remains pending.
+
+**Step 4 round 2 — source and cleanup repairs (2026-10-09).** Fresh
+GPT-6-astra xhigh security/runtime and GPT-6.1-sol xhigh quality/standards reviewers
+verify the current implementation independently. The confirmed source gaps are
+awaited header collections, named/default/star/namespace export aliases, private
+environment bindings and exported global fetch. Reused constant expressions need
+path-local cycle detection, and explicit runtime exports must shadow star exports.
+All original counterexamples fail before their fixes; dirty and clean controls now
+separate these cases without interpreting function bodies or runtime reassignment.
+
+The final source suite passes **104 cases**. The quality reviewer independently
+executes 28 additional in-memory controls over the production census: all 20 dirty
+cases are detected and all eight clean cases are accepted. The complete guarded
+frontend run passes **420 cases**: 360 web and 60 SDK, with zero failures/skips/todos.
+Workspace lint/typecheck pass. Focused-test instructions use the package command;
+the guarded root runner deliberately accepts no filters. Stale App Shape, SSR risk
+and text-card projection status clauses are synchronized without changing decisions.
+
+Owned test process groups can outlive their leader, so both native fixtures share
+bounded group cleanup. Only an absent group closes the proof; transient Darwin
+`EPERM` counts as present, and persistent refusal fails at the deadline. Five clean
+and planted cleanup cases pass. The security reviewer independently passes four
+consecutive native runs, the failed-listener companion and the real-API production
+rendering fact in Release with `CI=true`, with zero failures/skips. The helper's ESM
+declaration uses the existing shared typed ESLint parser. No production trust rule
+changes in this round. Both second-round reviewers approve the corrected tree;
+Step 4's two independent rounds and fix verification are complete.
+
+#### P02d-5 packet closeout (2026-10-09)
+
+**Implementation-complete, unmerged.** All four planned steps and two fresh
+independent review rounds per step are complete. Confirmed findings are repaired
+and committed; no verified P5 issue or maintainer decision remains open. The native
+ingress, authenticated visitor budgets, configured server caller, live locale entry,
+dynamic/no-store policy and their mechanical/runtime proof surfaces are delivered.
+
+Local verification:
+
+- Release build: zero warnings/errors; format verification passes.
+- All **2,898 backend cases** pass: 1,679 unit, 198 architecture, four contract and
+  1,017 integration, with zero failures/skips; direct TRX counters and the nonempty
+  assembly checks agree. After the final cleanup repair, the independent security
+  reviewer reruns the real-API production rendering fact successfully. The final
+  architecture rerun also passes 198/198.
+- The final guarded frontend run passes **420 cases**: 360 web and 60 SDK across two
+  tested packages, with zero failures/skips/todos. Workspace typecheck/lint,
+  production build and regenerated SDK snapshot drift checks pass.
+- Native socket/TLS, failed-listener cleanup, actual skipped/todo/missing-report
+  controls and production Client Component import refusal pass. HTML/RSC separation,
+  eligibility freshness, trace continuity and secret containment use the real API;
+  they are transport evidence, not a shipped product-page or browser-demo claim.
+- Manual changed-document file/fragment validation, added-prose wrapping,
+  `git diff --check`, strict commit messages and Accepted-ADR/P02d-1–4 history
+  preservation pass. CI's existing link check covers files, not fragment targets.
+
+These local runs use Node 22.23.1 and .NET SDK 10.0.302; they do not claim the pinned
+CI Node 20.11.0/.NET SDK 10.0.112 run. The P5 PR's actual checks establish that
+separate evidence before maintainer handoff. No live protection setting or required
+check name changes. This packet adds no database migration or public OpenAPI/SDK
+contract change.
+
+**Next: P02d-6 — Public renderer.** Re-verify G5/G12/G16/G20/G38/G39–G43 against
+the delivered transport, then accept its page/state, text-card, theme and
+accessibility contracts before implementation. P6 consumes the configured SDK and
+preserves uncached rendering and live eligibility. P7 still owns `make demo`, the
+two-host browser harness, Lighthouse and phase exit. Phase 02d remains in progress;
+P5 does not complete the full walking skeleton or deliver authentication, CMS,
+enrollment grants, commerce or production ingress/distributed quotas.
+
+**CI lint preflight correction (2026-10-09).** The first P5 PR run exposes a
+clean-checkout dependency: native launcher lint resolves generated
+`.server/ingress.js` before the later build step emits it. Existing local output
+hid this ordering gap. Removing that owned output reproduces the precise import
+refusal; the web lint command now compiles ingress first, then retains all lint
+rules. The staged-web hook follows the same preflight. Full workspace lint passes
+from absent generated output; no runtime policy or test count changes.
+Two fresh GPT-6.1-sol high reviewers independently approve this narrow correction;
+shell syntax, failure propagation, ignored output and staged-file isolation pass.
+
+**PR handoff — 2026-10-09.**
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26) proposes development into
+main for maintainer review. Main synchronization uses a normal merge on development
+and preserves the validated tree; no branch switch or history rewrite occurs.
+The PR's actual required-check rollup owns pinned CI evidence separately from the
+local runs above. P02d-5 remains unmerged; P6/P7 delivery is not claimed.
+
+**Review evidence clarification — 2026-10-09.** The Step 4 and packet-closeout
+counts above describe `e580444f0dbaf11151bf008a06a75688f2bd6e4a`: 104 source cases
+and 420 frontend cases (360 web + 60 SDK), confirmed by
+[CI run 37852875524](https://github.com/HodeTech/LearnStack/actions/runs/37852875524).
+The subsequent `5db8daedfd93f816ef23e545b8741ee54395e2f8` remediation adds four
+compiler-erasure controls: inline type-only imports/reexports retain runtime edges,
+while declaration-level type-only forms are erased. Both inline controls fail
+before the guard fix. Two fresh independent reviewers approve the correction.
+That tree passes 108 source cases and **424 frontend cases** (364 web + 60 SDK),
+with zero failures/skips/todos. All six required checks pass in
+[CI run 37855253417](https://github.com/HodeTech/LearnStack/actions/runs/37855253417);
+TRX counters confirm 2,898 backend passes, including 846 Docker cases and the
+real-API production renderer. These named runs qualify the earlier dated evidence;
+they do not rewrite it as a claim about every later commit.
+
+**Review sanitation correction — 2026-10-09.** Client-supplied `next-url` is
+removed from both native header collections and the middleware's downstream
+allowlist under ADR-0053's existing client-carrier sanitation boundary. The
+middleware control first reproduces its prior forwarding; the real TLS control
+checks parsed/raw header removal while retaining successful native admission.
+Next uses this carrier for interception routes, which P5 does not implement;
+normal RSC/navigation protocol headers remain available.
+
+The other suggestions do not identify current failures. Port 3000 is the Accepted
+local topology; Phase 11 owns its replacement. ADR-0052 limits the API to GET/HEAD,
+and the configured caller exposes only those reads; a blanket web-method rule
+would also govern scaffold and future Phase 02b BFF/auth paths. The caller consumes
+only API origin and secret, never its computed TLS paths; the native launcher alone
+reads certificate/key files, resolved against the repository root.
+
+### P02d-5 external-review remediation (2026-10-09)
+
+**Current status — Implementation and reviews complete (2026-10-09).** The
+maintainer approved ADR-0054 and all five correction steps on development.
+Runtime, proof and corpus corrections complete both fresh independent review
+rounds and verified fixes. Step 5 records full local validation. [PR #26](https://github.com/HodeTech/LearnStack/pull/26)
+owns exact published-head CI results and final maintainer review readiness;
+local results never substitute for those six required checks. Original delivery,
+proposal and review notes below remain historical. PR #26 is unmerged.
+
+Review reports are evidence to verify. The triage below compares their claims with
+`07016405`, installed Next 15.5.18/.NET 10 behavior and owned isolated reproductions.
+
+#### Decision package
+
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) is Accepted —
+2026-10-09. It replaces only these ADR-0053 contracts:
+
+1. Refuse an exhausted known visitor before peer debit; keep unknown visitor
+   creation peer-gated. Own the actual visitor limiters and coordinate acquisition,
+   idle retirement and request-result replay. Preserve 60/IP, 600/peer, fixed
+   windows, no queue, the direct/hop shared namespace and pre-lookup enforcement.
+   Retain a 600-per-window peer-debit/allocation cap, not a total refusal-traffic
+   cap. One process-local owner lock serializes acquisition and bounded cleanup
+   batches; Phase 11 owns contention measurement and upstream protection.
+2. Admit GET/HEAD on the current native public/scaffold surface; give other methods
+   masked no-store `404` before Next. Close all production upgrades; development
+   retains only required validated HMR. Future BFF/auth routes require explicit
+   admission in Phase 02b. No public API method or authentication rule changes.
+   The native rule covers every HTTP path, including middleware-exempt health and
+   assets; future Phase 06 Server Actions/write routes need their own admission.
+3. Preserve inert query values, duplicates and ordering in redirects, allowing the
+   supported serializer's equivalent percent encoding. Stop promising identical
+   raw query bytes. Keep raw signed route identity and pinned framework projection.
+
+The current peer-first order is explicit in ADR-0053 Amendment 3, so this is a
+bounded supersession, not a false-when-written correction. Dated navigation is
+appended to ADR-0053/0036; this record explicitly replaces G34's accounting order
+and G36's query-byte promise only. Their original accepted answers remain
+historical; membership-first precedence and P6/P7 open parts remain unchanged. No
+new global quota, distributed limiter, database migration, transport-suffix route
+alias or schema/API contract is introduced.
+
+Keep existing valid traceparent continuation. Sampling participation, IPv6-prefix
+aggregation and production tracing policy remain Phase 11; they are not tenant
+authority. Keep the existing local HMAC key distribution/wire format. Fix diagnostic
+containment now; freshness/nonces or a process-specific key require separate
+production trust/distribution evidence, owned by Phase 11.
+
+#### Verified current findings and actions
+
+| Finding group | Verified result | Action in this PR |
+|---|---|---|
+| Shared peer budget, B1 | One visitor's 600 requests admit 60 and refuse 540 while exhausting the peer; a fresh visitor is then refused. Bare reversal allocates unknown visitors after peer exhaustion | Implement Accepted ADR-0054; prove refusal fairness, bounded work per refusal and peer-gated allocation independently. Retain the admitted-call/allocation cap; total refusal traffic is outside it |
+| Framework endpoint retry | Current global-only wiring charges once. Adding an endpoint policy reproduces a second global debit after success | Save successful and refused request outcomes in the new owner; test actual endpoint-policy retry now |
+| Next URL projection, M1 | Valid query values ending `.rsc` are changed by the adapter's full-URL normalization and rejected by the current verifier | Mirror pinned adapter processing, while retaining the signed raw target for route/locale identity. Test query cases and unrelated routes; add no suffix aliases |
+| Proxy header sanitation, M2 | Native parsed/raw headers retain `x-real-ip`, bare `x-forwarded` and vendor authority spellings. Current downstream/API allowlists prevent authority escalation | Strip the explicit forwarding/authority carrier set from both collections; prove mixed-case controls and unchanged signed socket identity |
+| Framework debug output | Installed Next logs full request headers under `DEBUG=next:*`, including the signed envelope | Refuse/suppress unsafe framework diagnostic configuration before request handling; prove containment with an enabled-debug canary |
+| Methods/upgrades | TRACE/TRACK can fail before user middleware. Unmatched production upgrades can remain open because Next expects another WS consumer | Apply the Accepted native GET/HEAD and production upgrade rule; retain proven development HMR, no-store and bodyless HEAD |
+| Redirect bytes | Literal apostrophe query values become `%27`; meaning is retained | Apply the Accepted equivalent-encoding contract; test actual runtime Location, not only the helper |
+| Authority/source guard, M4 | `new Headers(request.headers)` and `Object.fromEntries(request.headers)` reads escape tracking, including spread of the converted object | Add bounded constructor/conversion tracking, named planted/clean controls and a census of supported tsconfig aliases; fail unsupported local mappings |
+| Compiler evidence, M7 | Existing tests measure tsc verbatim emission. Installed Next SWC erases inline type-only imports/reexports | Keep the conservative graph policy; label the tsc proof accurately and add pinned SWC evidence with value/mixed-edge positive controls |
+| Ingress fixture lifecycle, M6 | Setup occurs before try/finally; interruption leaves detached children/temp material | Put setup under one idempotent resource owner; cover setup failure, SIGINT/SIGTERM and parent/control-pipe closure |
+| Fixture readiness | Ingress readiness can accept a stale 3011 listener; the real-API fixture already preflights its ports | Preflight both owned fixed ports, require owned-child bind/readiness and child liveness. Fail clearly on collision; do not attach to or kill an existing server |
+| Fixture TLS/log proof | Ingress inherits TLS/debug overrides and can forget a leak after 64 KiB of later output | Allowlist child environment, explicitly verify TLS, and scan before truncation with chunk overlap and sticky verdicts |
+| Renderer cleanup | Broken stdout can raise unhandled EPIPE before finally; ordinary stdin/signal cancellation is already handled | Route output-pipe errors through idempotent cleanup; prove an owned broken-pipe case |
+| Upgrade/build containment evidence | Client-side timeout can masquerade as server closure; IPC is not synchronized. Secretless build only proves its declared secretless path | Make timeout fail, await owned IPC observations, add actual closure controls and a nonempty configured-build canary for private asset/diagnostic exclusion |
+| Fixed-window tests | Exact accounting over 600 sequential HTTP requests assumes no minute rollover | Add deterministic owner/factory/sweep seams and barrier controls, plus retained real-framework/HTTP proof. Keep production window/limits unchanged |
+| Hook/CI/DX | Hook omits `.mts/.cts`; SDK lint claim exceeds invocation; root config/generated-file selection differs; `.server` is formatted | Align explicit lint subjects/parser handling, cover SDK lint, exclude generated output, and add representative failure controls |
+| Runtime support | Node 20 is EOL; CI still pins 20.11.0, while local P5 evidence uses 22.23.1 | Pin supported Node 22.23.1 across current tool/configuration carriers, then rerun actual CI. Historical Node 20 evidence stays historical |
+| Narrow evidence/consistency | HttpClient merges repeated secrets; `v1.` substring is overly broad; favicon matcher has an unescaped dot; some guard assertions are only nonempty | Add raw-wire repeated-secret and mapped-peer controls, structural token matching, exact favicon matching and named guard assertions |
+| Corpus and workflows, M3 | Current owner/status prose and route/seed launch guidance lag delivered G31–38/G44 | Align current documents and skills with accepted ownership; preserve P6/P7 open parts and immutable records |
+| ADR disclosure guard | First nonempty Status line is a blockquote in ADR-0052, so CI's current awk misses its Accepted lifecycle | Parse the lifecycle line within Status, ignoring banners; plant Accepted-with-banner controls. Preserve original status/history |
+
+The Node support finding is verified against the
+[official release schedule](https://github.com/nodejs/Release#release-schedule):
+20.x reached EOL on 2026-04-30; 22.x remains Maintenance LTS through 2027-04-30.
+The [22.23.1 archive](https://nodejs.org/en/download/archive/v22.23.1) identifies
+the selected local-tested patch. No particular HTTP-parser CVE/exploit is claimed.
+
+Ongoing corpus fixes in this preparation cover Architecture 04/05/14/25,
+Standards 03/06/07/11/12/15/index, glossary placement and frontend entry READMEs.
+G32–37 answer links now point to their actual detail owners. Security Standards
+carry the accepted private carrier, five API-hop headers, 10-second/8-MiB bounds,
+secret/client/log exclusions and the narrow local Node configuration exception.
+Remaining route-skill/seed/hook/CI edits ship with their corresponding code/tests.
+
+#### Rejected, qualified and later-owned claims
+
+| Claim | Disposition and reason |
+|---|---|
+| IPv4-mapped peers fail `IPNetwork.Contains` | Refuted on current .NET 10; the loopback IPv4 network contains mapped loopback. Add a pinning test, no parser workaround |
+| Invalid visitor metadata violates an “only 600” rule | Refuted: existing policy specifies two budgets and peer-IP fallback. Clarify both debits; the proposal changes only exhausted-visitor accounting |
+| Direct `.rsc`/segment paths must become public aliases | Not established for the supported non-minimal Node mode; segment cache is not enabled. Fix the valid query bug without broadening route identity |
+| Plain `{...request.headers}.host` is a Next authority escape | Refuted for WHATWG Headers; it does not create a string host property. Converted plain-object spread remains a real guard gap |
+| TRACE's ordinary framework 500 lacks no-store | Refuted by installed Next error rendering. Native refusal still avoids unsupported-method framework dispatch |
+| Fixed 3000 is an accidental product port | Refuted: Accepted local topology. Test collision must fail rather than reuse a foreign listener. Phase 11 owns production topology |
+| `make demo` is falsely claimed shipped | Refuted: README assigns it to P7. Do not add P7's target as a P5 repair |
+| OpenSSL is undocumented; every PEM needs a global ignore | Refuted/scoped: prerequisites name OpenSSL and `.data/` protects accepted private certificate paths. Broad PEM ignores could hide public fixtures |
+| All parent-death cleanup/TLS/log scanning is absent | Overstated: the real-API harness already watches stdin/signals, allowlists environment and scans before truncation. Fix its verified EPIPE path and the separate ingress deficiencies |
+| Slowloris waits forever | Not reproduced; default Node timeout closes the reported case. Keep production timeout/topology tuning in Phase 11; enforce bounded fixture waits now |
+| PID reuse warrants skipping every exited group leader | Rejected fix: surviving descendants require group cleanup. Reduce stale handles after confirmed group absence and retain the surviving-descendant control; no unrelated-group kill was reproduced |
+| Envelope has no replay expiry | True protocol fact, not a supported-listener replay bypass. Submitted envelopes are replaced; Step 2 addresses the verified debug leakage. Phase 11 owns production replay/key lifecycle |
+| Restart every visitor trace, change sampling, aggregate IPv6 prefixes | New observability/rate policies, not demonstrated P5 defects. Preserve accepted continuation; Phase 11 owns these choices |
+| New static/auth/robots/sitemap paths must already bypass admission | P6/G40 and Phase 02b own their explicit namespaces. Existing exact exclusions remain; correct only the favicon regex defect now |
+| Bootstrap reuse / Link prefetch already required in P5 | No current product pages exist. P6 owns request-local consumption/prefetch choices before page code, including call-count evidence; no caching or shared bootstrap is authorized |
+| SDK response-parser/body/Retry-After notes | SDK is inherited from P4 and outside this PR's changed transport. P5's configured caller already bounds decoded bytes/deadline; re-verify SDK contracts with P6 consumers rather than change them speculatively |
+| PlatformAdmin is required by `make public-api` | Refuted: optional credential is copied only when present; composition registers its lazy guarded source and boots without it. Public reads use the app role. Prove launch without it; do not grant public paths bypass access |
+| Merge versus squash blocks remediation | Neither changes the code contract. Maintainer chooses merge mode; dated source/CI references remain scoped evidence, not a demand for a merge strategy |
+| CLAUDE status length / model diversity proves a runtime bug | No. Keep task-specific current state honest and evidence scoped; broad guidance restructuring and unsupported transcript claims are not corrective production changes |
+
+Historical ADR-0053 delivery amendments remain intact. Acceptance appends the
+bounded supersession note and clarifies ADR-0036's existing navigation wording
+through dated navigation, preserving old text. CI currently checks relative
+file targets, not anchors; keep manual anchor evidence labeled honestly. No new
+required check or protection weakening is proposed.
+
+#### Implementation and review sequence
+
+Maintainer approval on 2026-10-09 authorizes these five correction steps on
+development. The current status above and per-step records below own progress.
+For each:
+implement and validate, commit, run two fresh independent review rounds, validate
+and commit confirmed fixes, then proceed automatically. Preserve main and unrelated
+local work; do not rewrite the branch or merge PR #26.
+
+1. **Coordinated anonymous admission.** Implement the owned visitor limiter and
+   cleanup/retry semantics; deterministic accounting, parallel last-permit/creation,
+   safe retirement, endpoint-retry, selected Retry-After, cancellation/disposal and
+   real HTTP controls. Replace the named peer-refusal accounting test identified in
+   ADR-0054, retain admitted-traffic controls, and prove bounded per-refusal work,
+   non-overlapping/eventually complete sweeps and shutdown/acquisition safety.
+2. **Native ingress and URL boundary.** Fix pinned projection, header sanitation,
+   debug containment, method/upgrade admission, query wording/Location proof,
+   powered-by and exact matcher. Retain real HTML/RSC, valid TLS and development HMR
+   controls; verify protocol headers through the actual middleware path.
+3. **Fixture reliability and containment.** Resource-own setup/termination/EPIPE,
+   synchronize owned readiness/upgrades, enforce TLS/env allowlists and sticky
+   scanning, add configured-build canary and structural-token controls. Mutants for
+   omitted cleanup, early leaks, disabled TLS checks, stale listeners and unclosed
+   upgrades must fail with an independent clean control.
+4. **Source/runner/tooling proof.** Close constructor/conversion and alias gaps,
+   make compiler claims exact, align lint/hook/formatter subjects and Node pins,
+   fix lifecycle parsing and strengthen narrow evidence controls. Keep every guard
+   falsifiable; an empty production client-component census is not bundle evidence.
+5. **Corpus and PR closeout.** Update current skills/seed/setup/standards/catalogue
+   and ADR navigation with actual enforcement. Run applicable full Release suites,
+   lint/typecheck/build, production socket/TLS/rendering fixtures, SDK drift,
+   Markdown links/anchors/width, immutable-history and strict commit checks. Push
+   development, verify all six required checks on the exact new head and update
+   PR #26's description/evidence for maintainer review.
+
+No remediation acceptance or passing-test count is inferred from the earlier
+`07016405` CI run. Preparation checks and independent document reviews are recorded
+after they actually run; implementation evidence belongs to the five steps above.
+
+#### Remediation Step 1 — Coordinated anonymous admission
+
+**Complete — 2026-10-09; both independent review rounds passed.** The API owns actual
+visitor fixed-window limiters, serialized acquisition and bounded periodic
+retirement. Exhausted known visitors return their unchanged refusal metadata
+before peer debit; peer refusal prevents unknown visitor allocation. Successful
+and refused HTTP outcomes are copied into independent request-local leases,
+including ASP.NET's retry after an endpoint policy refuses. Teardown closes
+admission, joins active sweeping and disposes children outside the owner lock.
+
+Focused controls cover both final-permit races, single creation, both-budget
+Retry-After selection, cancellation, replay/lease independence, more than two
+sweep batches, non-overlap, full-quota idle retirement, actual .NET automatic
+replenishment and concurrent teardown. Real HTTP accounting freezes only test
+budget replenishment, retaining actual fixed-window implementations, so minute
+rollover cannot invalidate exact accounting. The application-role/read-only
+controls retain their original runtime path. No incoming-traffic or production
+throughput bound is claimed.
+
+**Validation — 2026-10-09.** Strict Release solution build passes with zero
+warnings/errors. All 2,922 .NET tests pass without failures/skips: 1,702 unit,
+198 architecture, four contract, 172 Docker-free integration and 846 Docker
+integration. The focused accounting/lifecycle set passes 27 cases; the real
+endpoint-retry proof and 17 trusted-visitor HTTP cases pass. TRX execution/zero-skip
+checks and changed-source format verification pass; the format workspace loader
+reports a warning without a formatting violation. Corpus consistency is rechecked
+at 5/5 after the status edits.
+
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security review approves the
+implementation; fresh GPT-6.1-sol high proof/corpus review identifies one confirmed
+test gap: eventual traversal did not constrain lock-batch size. The strengthened
+300-entry control blocks the first outside-lock disposal, observes exactly 128
+idle inspections, admits another request before release and verifies complete
+exact-once traversal. An actual `int.MaxValue` batch mutation fails the intended
+128-versus-300 assertion; restored-source focused tests pass 27/27 with zero
+skips. The production limiter is unchanged. The correction is committed as
+`a107df5`, following implementation commit `208d64f`.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve the corrected tree. Their independent runs pass
+56 focused unit cases and one endpoint-retry integration case, and 27 focused
+accounting/lifecycle cases plus the endpoint retry respectively, with zero skips.
+The remaining current-sequence status sentence is aligned in this closeout;
+no additional production change is needed. Step 1 is complete; Step 2 starts next.
+
+#### Remediation Step 2 — Native ingress and URL boundary
+
+**Complete — 2026-10-09; both independent review rounds passed.** Native HTTP admission
+accepts GET/HEAD before Next on every callback path; other callback methods receive
+masked no-store 404. Node retains parser-level refusals, including TRACK, and no
+CONNECT tunnel is admitted. Production closes every upgrade. Development permits
+only exact validated GET HMR, bounds its initial 101 handshake and closes missing,
+failed or ignored delegation while retaining established HMR connections.
+
+The launcher disables framework DEBUG before importing Next, including later
+framework dotenv loading. Forwarding/authority carriers are removed from both
+parsed and raw headers. `poweredByHeader` is disabled; the favicon matcher uses a
+literal dot. URL verification applies pinned Next's full-URL `.rsc` normalization
+before parsing and `_rsc` removal, then returns the signed raw context. Route and
+locale admission still refuse suffix aliases. Redirect proofs compare actual
+Location authority, path and ordered decoded query pairs, including apostrophes.
+
+Flight protocol preservation is tested through the real adapter and middleware;
+the direct middleware mock no longer claims to exercise adapter-hidden headers.
+The disposable route emits only named booleans, and its five GET probes plus HEAD
+must produce exactly six live API bootstrap calls. No product route is introduced.
+
+**Validation — 2026-10-09.** All 469 frontend cases pass through the workspace
+outcome guard (409 web, 60 SDK), with zero skips/todos. Lint and typecheck pass;
+production build passes. The real API/PostgreSQL production-rendering case passes
+1/1, including the six protocol/bootstrap calls and existing tenant isolation,
+trace, freshness and containment. The actual native TLS fixture passes all-path
+method/HEAD, matcher, query, production closure, DEBUG and retained development
+HMR controls; its original planted cleanup control also passes. Corpus consistency
+passes 5/5 and diff checks are clean.
+
+The DEBUG canary caught a pinned-library detail during implementation: an empty
+DEBUG is deleted by debug initialization. The final nonempty `-*` exclusion is set
+before importing Next, survives initialization/dotenv and is exercised with enabled
+process and dotenv canaries. Next development route discovery also requires a
+fixture-owned source copy, whereas production uses its existing compiled output.
+These are verified fixture/runtime corrections, not new product contracts.
+
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve implementation commit `458a1dd` without verified
+findings. Independent focused runs pass 257 and 218 frontend cases respectively;
+the runtime reviewer also compares ten targets with the installed Next adapter.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve the same tree without verified findings. Focused
+runs pass 125 and 218 frontend cases; the latter also passes all five corpus
+consistency cases. These reviewers inspect the committed fixed-port fixture
+proofs without rerunning them. Step 2 is complete; no corrective runtime commit
+is required. Fixture ownership/containment and source/tooling remediation remain
+Steps 3–4.
+
+#### Remediation Step 3 — Fixture reliability and containment
+
+**Implemented — 2026-10-09; independent reviews pending.** Test fixtures share
+resource ownership, positive environment construction and bounded sticky output
+scanning. Setup occurs inside cleanup ownership; signals, explicit parent control
+closure and broken output pipes join the same cleanup before exit. Children stop
+before private trees are removed. Process handles coalesce repeated cleanup and
+retire permanently after confirmed absence; exited leaders still require cleanup
+of surviving descendants. This narrows stale-handle exposure without claiming an
+atomic POSIX process-identity signalling API.
+
+Both fixed ports are preflighted. Readiness requires evidence from the actual
+owned child before accepting a healthy response; a foreign listener is neither
+reused nor stopped. HTTPS, raw TLS and WebSocket clients explicitly verify trust.
+Wrong-CA and wrong-name controls fail before bootstrap. Private-output verdicts
+remain sticky after truncation and across chunk boundaries; structural envelope
+checks distinguish ordinary API/version text from private wire values.
+
+The real renderer builds with nonempty private configuration and an actual
+public-only Client Component. A successfully compiled secret-leaking component
+fails emitted-asset scanning; the restored component builds cleanly with nonempty
+client output. The API observes no request during compilation. Existing SDK,
+host/trace isolation, six Flight/bootstrap calls, same-process freshness and stock
+launcher refusal remain covered. Actual stdin closure and EPIPE controls require
+exit 1 and removal of the owned temporary build tree.
+
+**Validation — 2026-10-09.** The guarded frontend runner passes 491 cases
+(431 web, 60 SDK), with zero skips/todos; workspace lint and typecheck pass.
+`PublicServerRenderingTests` passes 15/15: the real production path, twelve
+structured-log controls and two actual parent-pipe cleanup cases. The strengthened
+pipe controls also pass a focused rerun. Release integration build reports zero
+warnings/errors; changed-source format verification passes with a workspace-load
+warning. The shared scanner/environment/owner and process-handle controls pass
+27/27. Corpus consistency passes 5/5 with zero failures/skips, and ADR-0054's
+change is insertion-only.
+
+The real ingress source-mutant matrix passes 18/18: early OpenSSL failure,
+asynchronous bootstrap refusal, setup/omitted cleanup, both signals, explicit IPC
+closure, EPIPE, secure environment/TLS and disabled-TLS rejection, benign large
+output and early split leaks, stale/bind failures, and upgrade closure/refusal.
+Each intended failure is checked by its own oracle; cleanup rescue runs only
+after the absence verdict and never re-signals a saved PID after confirmed absence.
+Independent normal native/TLS/HMR verification remains the clean control.
+
+**Review round 1.** Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers inspect `e2f92b7`. Three verified findings are corrected:
+failed child cleanup now retains the private tree, final child output drains
+before shutdown containment, and token boundaries at chunk ends wait for a real
+delimiter or EOF. A shutdown-only source mutant and split malformed-MAC controls
+prove the fixes; the early-output control now includes an actual delimiter.
+Focused helpers pass 31/31, the real ingress matrix passes 19/19 and the guarded
+frontend runner passes 495 cases (435 web, 60 SDK), with zero skips/todos.
+Changed-source lint passes. The original implementation counts above remain
+historical. The real API/PostgreSQL renderer rerun also passes 15/15.
+
+**Review round 2.** Fresh GPT-6-sol xhigh runtime/security and GPT-6.1-sol high
+proof/corpus reviewers approve `131a933` without actionable findings. The runtime
+reviewer independently passes 31 helper/process-group cases, the normal real
+native ingress and all 19 source-mutant controls. The proof reviewer independently
+passes 31 helpers and five Release corpus cases. Step 3 is complete after both
+rounds and verified fixes. Source/tooling and final closeout remain Steps 4–5.
+
+#### Remediation Step 4 — Source, runner and tooling proof
+
+**Complete — 2026-10-09; both independent review rounds passed.** Bounded AST tracking
+covers global Headers constructors, converted records, constant aliases,
+destructuring and converted-record spread, with named clean/dirty controls and
+real public-entry mutations. Plain WHATWG Headers spread stays inert. Effective
+inherited tsconfig paths and workspace exports are checked against the resolver;
+unsupported production module extensions fail explicitly. Real pinned Next SWC
+and TypeScript verbatim emission are separate proofs; the conservative graph
+keeps inline type-only edges even where SWC erases them. No production Client
+Component is invented to make the census appear nonempty.
+
+Web CI and staged lint share one source/script/root-config census, with generated
+output/declarations excluded explicitly. Native `.mts`/`.cts` parsing is explicit;
+the hook also invokes SDK/UI lint. Root Tailwind configuration now participates
+in typecheck; its shared preset declares the existing Tailwind peer dependency.
+The lock changes only that importer, without changing a resolved package version.
+CI, `.nvmrc`, engine minimum and current setup guidance use Node 22.23.1. Generated
+`.server` output is excluded from Prettier. Test discovery refuses symlinked
+workspace packages or sources rather than silently skipping them.
+
+The ADR disclosure job reads the lifecycle declaration inside Status, ignoring
+banners and consuming the complete input. A real workflow-block control rejects
+an undisclosed Accepted-with-banner edit and accepts its dated disclosure. The
+original Accepted ADR status/body/history remains unchanged.
+
+Raw HTTP proves two actual secret fields reach Kestrel, spend the exhausted
+socket-IP fallback and bypass no lookup; one valid field then admits a fresh
+visitor. Mapped-peer and noncanonical dotted-tail controls pin .NET behavior.
+The actual public-local API launcher starts with only the application credential,
+an empty owned user-secret root and no local env fallback, then serves both seeded
+hosts through the trusted hop without PlatformAdmin. It uses a dynamic API port;
+the accepted fixed renderer topology is unchanged.
+
+**Validation — 2026-10-09.** The guarded frontend run passes 557 cases (497 web,
+60 SDK), with zero skips/todos. Focused source-boundary cases pass 157/157;
+lint-tooling/runner controls pass 39/39. Workspace typecheck/lint and frozen offline
+installation pass. Seven Python lifecycle/workflow controls pass. The focused
+backend units pass 45/45; trusted visitor and real local-launch integration pass
+18/18, with zero skips. Release solution build reports zero warnings/errors;
+owned backend formatting and diff checks pass. Both fresh review rounds remain
+pending; final full regression, real CI and PR closeout belong to Step 5.
+
+**Review round 1.** Fresh GPT-6-astra xhigh source/security review identifies two
+confirmed static-alias gaps: destructured global constructors and separately
+bound header iterators escaped the authority guard. Fresh GPT-6.1-sol high
+tooling/backend review approves its scope after seven lifecycle controls,
+39 tooling/runner cases, 45 unit cases, two real integration cases and web lint.
+The correction follows verified global destructuring and gives header iterators
+a distinct origin, consumed only by conversion/clone operations. Four planted
+violations fail before the fix; named shadowed/inert/iterator controls and both
+real render-helper mutations pass afterward. All 171 focused boundary cases and
+571 guarded frontend cases (511 web, 60 SDK) pass with zero skips/todos;
+workspace typecheck/lint pass. No production consumer exploits either gap.
+**Review round 2.** Fresh GPT-6-sol xhigh source/security review confirms the
+first-round fixes, then identifies the same static-constructor gap in the
+separate API-hop-header setter fence. The correction reuses the verified global
+constructor predicate; qualified/aliased/bound setters and a real helper mutation
+are refused, while inert/shadowed constructors and the adapter exemption stay
+clean. The before-fix run exposes all three setter escapes, the helper escape and
+the old shadowed-constructor false positive. All 178 focused boundary cases and
+578 guarded frontend cases (518 web, 60 SDK) pass afterward with zero skips/todos;
+workspace typecheck/lint pass. Fresh GPT-6.1-sol high tooling/backend review
+approves after seven lifecycle, 39 tooling/runner, 45 unit and 18 real integration
+cases, web lint and diff checks. The source reviewer independently verifies
+`ced7911`: all three setter escapes change from missed to flagged, shadowed/inert
+controls stay clean and all 178 boundary cases pass. Step 4 is complete after both
+rounds and verified fixes; Step 5 owns final corpus/CI/PR closeout.
+
+#### Remediation Step 5 — Corpus and PR closeout
+
+**Local closeout complete — 2026-10-09; both independent review rounds passed.**
+Current architecture/security prose and Phase 02b G14 now reflect delivered
+ADR-0054 behavior. CLAUDE, README and the ADR/roadmap indexes link this current
+record instead of maintaining separate remediation-step status lists. Original
+Accepted ADR bodies and dated delivery evidence remain unchanged; ADR-0054's
+new delivery navigation points here.
+
+Route guidance identifies the API as tenant/organization authority and marks the
+Keycloak/session example as Phase 02b work requiring explicit ingress admission.
+Seed output points to manual hosts/CA/leaf preparation and the paired public
+launchers, without claiming P6 pages or P7's demo. Setup/test guidance distinguishes
+random Testcontainers PostgreSQL ports from fixed renderer ports, and current
+deployment-mode defaults from the Phase 02c Hub adapter. The seed-role diagnostic
+correctly distinguishes FORCE RLS ownership from a privileged bypass credential.
+
+**Final local validation — 2026-10-09.** Strict Release solution build reports
+zero warnings/errors. All 2,940 .NET cases pass: 1,705 unit, 198 architecture,
+four contract, 172 Docker-free integration and 861 Docker integration, with zero
+failures/skips. Actual TRX counters and the nonempty/no-skip runner are checked.
+All 578 guarded frontend cases pass (518 web, 60 SDK), with zero skips/todos.
+Workspace typecheck/lint/build and regenerated SDK drift checks pass. Native
+HTTPS/Next verification and all 19 independent failure controls pass; the full
+Docker suite includes real production HTML/RSC, configured-build containment,
+parent-pipe cleanup and the actual app-only API launcher.
+
+Seven ADR lifecycle/workflow and 14 OpenAPI CI controls pass. Both compose
+projections validate with and without the gated profile using the public example
+configuration. Full backend format verification passes with a workspace-loader
+warning and no formatting violation. Post-acceptance ADR changes are insertion-only.
+The strict commit hook, changed-document relative links/fragments, added-prose
+wrapping, corpus consistency and diff checks pass after the closeout edits.
+Fragment verification is a manual local audit; CI's link job checks file existence.
+All six live required checks and strict protection remain configured. [PR #26](https://github.com/HodeTech/LearnStack/pull/26)
+records their execution on the final published head and the final PR description;
+these local checks do not imply a successful remote run.
+
+Remaining scope is unchanged: P6 owns product pages, request-local bootstrap reuse,
+prefetch decisions and accessibility; P7 owns the browser/demo/Lighthouse harness.
+Phase 11 owns distributed/edge limits, contention/load evidence, production
+topology, replay/key lifecycle and tracing participation. These corrections add no
+API schema, database migration, tenant resolver, authentication flow or Hub crossing.
+
+**Review round 1.** Fresh GPT-6-astra xhigh corpus/governance and GPT-6.1-sol high
+DX/evidence reviewers verify `2b5b6ac` against current source and actual reports.
+One confirmed Minor finding is fixed: a second mutable step-status sentence still
+said Step 4 reviews/Step 5 were pending. It now points to the section's current
+status and per-step records. Whole-PR added-prose verification also wraps two
+long standard/catalogue lines. Both reviewers approve after the verified
+correction; no production change is needed. Round 2 and exact-head CI remain pending.
+
+**Review round 2.** Fresh GPT-6-sol high corpus/governance and GPT-6.1-sol high
+DX/evidence reviewers approve `869145e` without actionable findings. They
+independently confirm the real TRX/frontend/native-control results, append-only
+ADR history, current API authority, local TLS/port behavior and P6/P7/Phase 11
+ownership. Link/fragment, prose, strict commit and diff checks pass; the five
+Release corpus cases pass with zero skips. The later 578-case workspace report
+is the frontend evidence; the earlier 557-case run remains historical.
+Both rounds and verified corrections are complete. Development is the only
+working branch; PR #26's final head/checks and description own remote closeout.
+
+**Preparation verification — 2026-10-09.** Independent GPT-6-astra xhigh security
+and GPT-6.1-sol xhigh corpus reviews find no remaining major issue in the proposal.
+Confirmed wording/header/ownership corrections are applied. Release
+`CorpusConsistencyTests` pass 5/5, with zero failures/skips. Manual inspection of
+all 18 changed/new Markdown files resolves 1,226 relative links and 441 fragment
+targets; added prose wrapping and `git diff --check` pass. Existing Accepted ADR
+files are unchanged. These are proposal/document checks, not runtime remediation
+or new CI evidence.
+
+**Second independent proposal review — 2026-10-09.** Fresh GPT-6-sol xhigh design
+and GPT-6.1-sol high corpus reviewers approve `d8d540a` for maintainer decision
+approval with no remaining actionable findings. The design review independently
+checks zero-permit framework behavior and actual redirect value/order preservation.
+This closes the two proposal-review rounds; ADR-0054 remains Proposed and dependent
+implementation still requires the maintainer's explicit approval.
+
+**External ADR review clarification — 2026-10-09.** All six findings are verified
+against the current limiter, HTTP tests, native launcher and app route census.
+ADR-0054 now distinguishes the admitted-call/allocation budget from total refusal
+traffic, names the test whose peer-debit expectation must change, and specifies
+the process-wide lock, refusal metadata precedence and lifecycle proof obligations.
+It records native admission across middleware exemptions, separate identification
+control and the missing carrier/reference links. The app currently has GET health
+and no POST handler or Server Action; real launcher controls remain implementation
+obligations. Prior reviews/counts remain historical. ADR-0054 stays Proposed;
+these documentation clarifications accept no decision and deliver no runtime fix.
+Release `CorpusConsistencyTests` pass 5/5, with zero failures/skips. The two changed
+Markdown files resolve 456 relative links and 283 fragment targets in a manual
+audit; added prose wrapping and `git diff --check` pass. All phase text outside
+this remediation section and every Accepted ADR file remain unchanged.
+
+**Clarification review closeout — 2026-10-09.** Two fresh independent rounds review
+`1a7c6fd`: GPT-6-astra xhigh / GPT-6.1-sol high first, then GPT-6-sol xhigh /
+GPT-6.1-sol high. Both rounds report no actionable design or corpus findings after
+checking the changed contract against source, existing tests and pinned framework
+behavior. This approves the revised proposal for maintainer decision review;
+it does not accept ADR-0054 or establish runtime remediation/CI evidence.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
@@ -3354,8 +4525,10 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
 - The two seed host rows Phase 02a Packet 7 wrote, reachable from a browser and from
   `make demo` over the hostnames and transport **G32** records, with every committed
   carrier of the seed host names moved in the same packet if G32 moves them.
-- The server SDK transport in `frontend/packages/sdk/src/server.ts`, stating the
-  visitor's host over the trusted hop (**G35**).
+- The server-only configured transport in
+  `frontend/apps/web/src/server/configured-public-client.ts`, stating the verified
+  visitor's host over the trusted hop (**G35**). The injected GET wrappers in
+  `frontend/packages/sdk/src/server.ts` remain authority-free.
 - `frontend/apps/web/src/middleware.ts` no longer answering the scaffold's `503`,
   writing the raw host as a tenant id or carrying TODOs that assign the work to Phase
   02a; what it carries, removes and answers follows **G36**.
@@ -3729,25 +4902,29 @@ otherwise
   request-level hop tests in `backend integration` and the manual walkthrough, plus any
   automated smoke G38 adopts.
 - Neither the built client assets nor rendered HTML contain the hop secret value, and no
-  `NEXT_PUBLIC_` variable carries it; only `frontend/packages/sdk/src/server.ts` sets
-  the hop headers on a request to the API, and importing the server entry from a Client
-  Component fails the build or lint; the server SDK's API origin comes from server
-  configuration, never from the inbound `Host` or any request header (`frontend` job,
+  `NEXT_PUBLIC_` variable carries it. Only
+  `frontend/apps/web/src/server/configured-public-client.ts` sets hop headers on
+  an API request; a real Client Component import of that configured caller fails
+  the production build. The SDK retains its injected transport seam.
+  The configured API origin comes from server configuration, never from inbound
+  `Host` or any request header (`frontend` job,
   each with a failing companion; **G35**).
 - Client-supplied `x-tenant-id`, `x-organization-id`, `x-locale`, `x-learnstack-host`
   and `x-learnstack-hop-secret` never reach an SDK call's outbound headers unchanged;
-  under `next build && next start`, no `(public)` route and not `/api/healthz` answers
-  the scaffold's `503`; `/` and a locale-less path, a disabled or malformed locale
-  segment, and a platform or unknown host answer as **G36** records — on a seed tenant
+  under the production build and mandatory native launcher, public entry and
+  `/api/healthz` do not answer the old unwired scaffold `503`; product content pages
+  remain P6. Stock `next start` bypass is refused before bootstrap; `/` and a
+  locale-less path, a disabled or malformed locale segment, and a platform or
+  unknown host answer as **G36** records — on a seed tenant
   whose default locale is not `en`, never `en` (`frontend` job). Once `P02d-5` merges,
   no comment under `frontend/apps/web/src` assigns unbuilt host wiring to Phase 02a or
   cites a `resolve-host` endpoint
   (`git grep -nE "resolve-host|(wired|lands|plug in) in Phase 02a|Phase 02a (wires|resolves|resolution)" frontend/apps/web/src`
   is empty, recorded in that packet's delivery record).
-- With the development hop configuration committed, the API starts under the committed
-  Development configuration with no `.env` present, and every Development-environment
-  fixture stays green (`backend`, `backend integration`); every hop variable is listed
-  in `.env.example`.
+- With private hop configuration kept outside version control, ordinary no-hop API
+  startup works under committed Development settings with no `.env` present, and
+  every Development-environment fixture stays green (`backend`, `backend integration`);
+  every hop variable is listed in `.env.example`.
 - A non-hop peer is still limited per socket peer, getting `429` with `Retry-After` over
   budget, and rotating `X-Forwarded-For` or any header **G34** introduces buys it
   nothing (`RateLimitingHttpTests`). Through the whole middleware chain and one
@@ -3755,7 +4932,7 @@ otherwise
   single source sending novel `Host` values through the hop is refused before more
   resolver lookups than G34's budget, with the unknown-host cache within its cap.
 - If **G35** places it here, a server-to-API call carries a `traceparent` whose trace id
-  matches the API's Problem Details `correlationId`.
+  matches the API's Problem Details `traceId`.
 - On a production build, one `(public)` path requested on host A, then B, then A returns
   each tenant's own markers every time; the build reports every tenant-varying
   `(public)` route in the rendering mode **G37** decides, and the frontend source holds

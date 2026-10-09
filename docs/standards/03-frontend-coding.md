@@ -13,6 +13,16 @@ TypeScript, React, and Next.js coding conventions. Frontend *architecture* (App 
 - `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes`, `strictPropertyInitialization` all on.
 - `verbatimModuleSyntax: true` to make `type` imports explicit.
 
+### Current toolchain and lint subjects
+
+[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) remediation pins
+Node 22.23.1 in CI and `frontend/.nvmrc`; the workspace declares the same minimum.
+Web CI and staged lint share `scripts/lint-web.mjs` inside the app: source, scripts
+and root JS/TS configurations, including `.mts`/`.cts`. Generated `next-env.d.ts`,
+`.next` and `.server` are excluded. Native ESM/CJS TypeScript helpers use an explicit
+syntax parser outside the Next typecheck program. SDK/UI changes also run their
+workspace lint in the hook. Generated native output is excluded from Prettier.
+
 ## Naming
 
 | Element | Convention |
@@ -116,10 +126,9 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 - No inline `style={{}}` except for runtime-computed values (e.g. progress bar width).
 - `clsx` / `tailwind-merge` for conditional class composition.
 
-> **Open in Phase 02d.** Which tenant tokens exist and the value each accepts is G16;
-> how they reach the server-rendered HTML is G42. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each gate edits this section with its answer.
+P02d-2 accepts and implements G16's theme value grammar; P02d-4 delivers its public
+projection. [Tenant Branding](07-frontend-architecture.md#tenant-branding) owns that
+contract. P02d-6 still owns G42's server-rendered token injection and its proof.
 
 ## Server Actions
 
@@ -162,14 +171,11 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 - Never `alert()`. Use toast or modal system.
 - Error boundaries at route-group level for graceful fallbacks.
 
-> **Open in Phase 02d.** `apps/web` has no `logger` wrapper and no Sentry client yet.
-> Which parts of
-> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability)
-> ship in Phase 02d, the wrapper's Sentry capture among them, and which phase owns the
-> rest are G35. Whether the `(public)` route group ships its own error, loading and
-> not-found files in Phase 02d is G40. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each gate edits this section with its answer.
+Accepted G35 assigns the browser logger, Sentry and web-vitals to Phase 11;
+P02d-5 provides the bounded server caller and trace propagation, with no browser
+observability hook. See
+[Frontend Observability](10-observability.md#frontend-observability).
+P02d-6 still owns G40's public error/loading/not-found placement and localized states.
 
 ## Forbidden
 
@@ -217,7 +223,7 @@ features/<feature>/
   types.ts
 ```
 
-> **Open in Phase 02d.** Two questions these trees answer are open for the public
+> **Open in P02d-6.** Two questions these trees answer are open for the public
 > renderer. Where the UI string catalogue lives is G39: `packages/i18n/` is one of
 > several homes the corpus names, and `frontend/packages` holds no such package.
 > G31 is Accepted: `packages/sdk` exports generated types and four injected public

@@ -33,8 +33,8 @@ the backend runs today calls them, so `make dev` starts 7 services and
 - You need to exercise one of the five real deployment-mode values locally:
   `Development`, `SaaS`, `Dedicated`, `SelfHostedOnline`, or
   `SelfHostedAirGapped`.
-- You want to reproduce a Hub-backed (`SaaS` / `Dedicated`) scenario by pointing
-  at a local Hub stack from the `learnstack-hub` repo.
+- You want to inspect the current deployment-mode composition paths. The Hub
+  entitlement adapter is Phase 02c work, not a current local mode dependency.
 
 ## When not to use
 
@@ -50,7 +50,8 @@ the backend runs today calls them, so `make dev` starts 7 services and
 |-------|----------|-------------|
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
-| Node >=20.11.0 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `20.11.0`. |
+| OpenSSL CLI | Yes for frontend tests | Isolated TLS fixtures generate temporary certificates without installing trust. |
+| Node >=22.23.1 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `22.23.1`. |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | `.env` (gitignored) | Optional | Local overrides; `.env.example` is the source of truth. |
 
@@ -60,7 +61,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 
 ```bash
 dotnet --version       # 10.0.x
-node --version         # >=20.11.0
+node --version         # >=22.23.1
 pnpm --version
 docker info >/dev/null && echo "docker OK"
 ```
@@ -68,8 +69,8 @@ docker info >/dev/null && echo "docker OK"
 If any of these is missing, install:
 
 - .NET 10 SDK: <https://dotnet.microsoft.com/download>
-- Node: use Volta or fnm; `frontend/package.json` requires `>=20.11.0` and CI
-  pins `20.11.0`.
+- Node: use Volta or fnm; `frontend/package.json` requires `>=22.23.1` and CI
+  pins `22.23.1`.
 - pnpm: `corepack enable`; `frontend/package.json` pins `pnpm@9.12.3`.
 - Docker Desktop: <https://www.docker.com/products/docker-desktop>.
 
@@ -93,48 +94,28 @@ make dev        # the daily loop: 7 services, the ones the backend can call
 make dev-gated  # all 14, including Valkey, Kafka, kafka-ui, Vault, APISIX and Dapr
 ```
 
-`make dev` is `docker compose up -d` plus a status line. It does **not** start
-the API or the web app, and it does not run migrations or seeds; those are
-separate commands you run yourself:
+`make dev` starts infrastructure only. Apply migrations and seed first:
 
 ```bash
-make migrate                                       # apply both migration chains
-dotnet run --project backend/src/LearnStack.Api    # API on 5080
-pnpm --filter @learnstack/web dev                  # web on 3000
-make seed                                          # health gate + demo credentials
+make seed
 ```
 
-**`dotnet run` needs `ConnectionStrings:Default`, and nothing hands it over.**
-`.env` reaches Compose (through `--env-file`) and `make migrate` (which reads it
-key by key), but not a host you start yourself: there is no `ConnectionStrings`
-section in `appsettings*.json` and no `.env` loader in `backend/src`. Since Packet
-6 the composition root builds the application data source from that key, so
-without it the first request that touches the database fails with a message
-naming it. Two ways to supply it, and the second survives a new shell:
+P02d-5 Step 1 supplies the paired loopback launcher. Follow
+[README Quickstart](../../../README.md#3-prepare-local-https-and-start-the-applications)
+for `make public-env`, explicit mkcert trust/leaf creation and manual hosts aliases.
+Then run `make public-api` and `make public-web` in separate terminals. The API
+helper loads only runtime database credentials and the paired hop network/secret;
+the web launcher captures native socket provenance before Next. Neither script
+shell-evaluates `.env`, edits hosts or installs trust. The optional web projection
+must match the root private source.
 
-```bash
-# Per shell. Read one key at a time — a connection string contains semicolons,
-# so `. ./.env` parses them as statement separators, and .env.example quotes the
-# value.
-export ConnectionStrings__Default=$(sed -n "s/^ConnectionStrings__Default=//p" .env \
-  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
-
-# Or once, into the user-secrets store the API project already declares
-# (UserSecretsId learnstack-api-dev) — kept outside the repository, so it cannot
-# be committed. Reads .env itself rather than the variable above, so it works in
-# a shell that never ran the export, and refuses to store an empty value.
-default_cs=$(sed -n "s/^ConnectionStrings__Default=//p" .env \
-  | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
-[ -n "$default_cs" ] || { echo "ConnectionStrings__Default missing from .env"; exit 1; }
-dotnet user-secrets --project backend/src/LearnStack.Api \
-  set "ConnectionStrings:Default" "$default_cs"
-```
-
-The value names **`learnstack_app`** and the composition root refuses anything
-else — by name, and then by asking the server whether the role it connected as
-bypasses row security. Pointing it at `ConnectionStrings__Migration` or either
-`BYPASSRLS` role makes every policy in the database inert, which is why it is
-checked rather than assumed.
+**Ordinary API startup is unchanged.** `dotnet run` still does not load `.env`.
+For an API-only session, supply `ConnectionStrings:Default` through environment or
+the project's `learnstack-api-dev` user-secrets store. Both empty hop lists remain
+valid in every mode; a network-only or secret-only configuration is refused.
+The application connection must name `learnstack_app`; the data-source guard also
+refuses direct or transitive BYPASSRLS/superuser access. Migration credentials
+never enter either application launch recipe.
 
 **`make migrate` runs as `learnstack_migration`, not as the API's role.** From
 Phase 02a Packet 6 the stack provisions four database roles on the first boot of
@@ -185,8 +166,8 @@ Three properties of that inventory matter while you are setting up:
   silently leaves them running, which is why every teardown target carries
   `--profile '*'`.
 - **Neither application host is a compose service.** `LearnStack.Api` runs on
-  the workstation via `dotnet run` on the launch profile's `applicationUrl`
-  (5080), and `apps/web` runs via `pnpm dev` on 3000.
+  loopback HTTP through `make public-api` (5080), and the native web listener runs
+  on loopback HTTPS through `make public-web` (3000).
 
 To read the resolved truth rather than any document, ask the stack:
 
@@ -200,37 +181,13 @@ docker compose --env-file .env -f infra/compose/dev.yml config --format json
 checks the two Keycloak realms, and — since Phase 02a Packet 7 — writes the two
 demo tenants. One command from a clean checkout.
 
-What it writes today:
-
-1. `demo-english` ("English Hero") and `demo-yoga` ("Anatolia Yoga"), each with a
-   default organization and a second one, through `ProvisionTenantCommand` and
-   `CreateOrganizationCommand`.
-2. One `platform_host_to_tenant` row per tenant —
-   `demo-english.learnstack.local` mapping to the tenant, and
-   `demo-yoga.learnstack.local` to its default organization, so both live host
-   classifications exist in the seed.
-
-What it does not write yet, and which phase owns each:
-
-3. Keycloak realm users beyond the ones the realm JSON imports at compose boot —
-   the `users` table arrives with
-   [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md)'s Identity
-   migration, and Packet 7 creates none.
-4. Each tenant's **own** content type, level taxonomy and branding token values, and
-   the customization aggregates that have no schema yet (`TenantPageBlock`, …). The
-   built-in `card` content type and `plain` taxonomy are already written for both
-   tenants, since
-   [Phase 02a Packet 8](../../../docs/roadmap/phase-02a-kernel-tenancy.md). Which phase
-   adds each of the rest is in
-   [seed-tenant § Step 4: What a later phase adds](../seed-tenant/SKILL.md#step-4-what-a-later-phase-adds).
-5. SeaweedFS buckets and Meilisearch indexes — both adapters are demand-gated to
-   [Phase 11](../../../docs/roadmap/phase-11-production-hardening.md) under
-   [ADR-0035](../../../docs/decisions/0035-demand-gated-infrastructure.md).
-
-The seed is idempotent: a second run recognises its own first by the uniqueness
-refusal and exits 0. There is no separate reset target — for fresh local data use
-the destructive `make clean`, then `make seed`, which re-applies the migrations on
-its way through.
+[SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the exact
+inventory. P02d-2 supplies the two tenants, organizations/host mappings, locales,
+built-in and tenant-authored definitions, branding and Course/Lesson content.
+[seed-tenant](../seed-tenant/SKILL.md) owns convergence, mismatch handling and future
+data scope. A completed rerun is write/audit-neutral; a divergent run fails without
+overwriting or resetting authored state. Public reads are delivered by P02d-4;
+seed alone does not deliver pages.
 
 ### Step 5: Verify
 
@@ -249,19 +206,20 @@ open http://localhost:8080/realms/learnstack-hub/account
 # SeaweedFS filer UI (replaces the MinIO console of the prior stack)
 open http://localhost:9001       # S3 access: learnstack / learnstack-dev-secret
 
-# Web app (after `pnpm --filter @learnstack/web dev`): the scaffold page only.
-# `localhost` is a platform host (Tenancy:PlatformHosts in
-# appsettings.Development.json) and never resolves a tenant. No tenant-rendered
-# page exists on any host yet: browsing the two demo tenants, and the host step
-# it needs, arrive with Phase 02d (docs/roadmap/phase-02d-walking-skeleton.md
-# § Host-based tenant resolution, end to end).
-open http://localhost:3000
+# Web HTTPS readiness after the paired launcher and explicit CA trust.
+curl -fsS https://localhost:3000/api/healthz
 ```
+
+P02d-5 delivers native ingress/TLS, live-host bootstrap and enabled-locale entry.
+P02d-6 owns public page composition and P02d-7 owns the two-host browser harness.
+TLS socket tests with isolated trust roots do not claim a workstation browser run.
 
 ### Step 6: Switch deployment modes locally
 
-Set `Deployment__Mode` in the shell that runs `dotnet run`, or `Deployment:Mode` in the
-user-secrets store Step 3 uses, to flip the mode. Editing `.env` does nothing: it has no
+For an API-only run, set `Deployment__Mode` in the shell that runs `dotnet run`,
+or `Deployment:Mode` in its user-secrets store, to flip the mode. The paired
+`make public-api` recipe explicitly selects Development; it is not a deployment
+mode switch. Editing `.env` does nothing: it has no
 mode key, and `dotnet run` reads no `.env` (Step 3). The committed value is
 `Development`, under `Deployment:Mode` in `appsettings.Development.json`, and the
 composition root refuses to start without the key rather than defaulting it. The mode
@@ -281,7 +239,9 @@ For **every** value today, the three demand-gated ports still resolve to
 `ConfigurationSecretProvider`. `DaprEventBus`, `DaprCacheService`, and
 `DaprSecretProvider` land in Phase 11 only after their ADR-0035 triggers fire.
 
-After changing the mode, stop and rerun the API process:
+After changing the mode for an API-only run, stop and rerun that process. Keep its
+separately configured runtime credential. For the paired renderer workflow, restart
+with `make public-api` so its child-only database and hop configuration is retained:
 
 ```bash
 # In the terminal running `dotnet run`, press Ctrl+C, then:
@@ -296,7 +256,7 @@ dotnet run --project backend/src/LearnStack.Api
 | `relation "tenants" does not exist` | The owning Tenancy migrations have not landed or were not applied; check the active phase plan before adding an ad-hoc target. |
 | `unable to read app.tenant_id` | The `DbCommandInterceptor` tenant-context guard is unwired, or `TransactionBehavior` did not issue the `SET LOCAL` pair. It is deliberately **not** a connection-checkout interceptor — checkout precedes `BEGIN`. |
 | Keycloak realm not found | Recreate local data with destructive `make clean`, then `make seed`. The realms are imported at compose boot from `infra/keycloak/realms/`, not by the seeder. |
-| Hub-backed mode hangs | The `learnstack-hub` repo's stack isn't up; start it or switch to `Development`. |
+| A non-Development mode fails startup | Check that mode's required Sentry/telemetry configuration and [current readiness](../../../docs/architecture/25-deployment-models.md#supported-today-versus-prepared-seam). Every mode currently uses `NullEntitlementProvider`; starting Hub does not supply the Phase 02c adapter. |
 | LiveKit join fails with TURN error | coturn not reachable from the browser; check firewall + container network. |
 
 ### Step 8: Tear-down
@@ -311,16 +271,15 @@ state.
 
 ## Validation
 
-> **Open in Phase 02d.** Which hostnames serve the two demo tenants, and the step a
-> browser needs to reach them, is G32; what `make demo` starts and guarantees is G45.
-> Both are in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes each adds its check to this list with its answer.
+[ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md)
+and the [P5 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
+own the accepted host/TLS/transport contract. `make demo` remains P02d-7/G45.
 
 - `make dev` exits 0; after starting the API separately, `/healthz` responds 200.
 - After `make dev-gated` and with that API running, APISIX forwards `/healthz`.
-- The web app serves the scaffold page on `http://localhost:3000` (Step 5); no tenant
-  page renders on either demo host yet.
+- After explicit local trust/leaf setup, the native HTTPS `/api/healthz` returns 200.
+- Direct stock Next cannot authenticate forged ingress carriers; ordinary
+  `pnpm dev/start` use the mandatory launcher.
 - Keycloak login works for both realms.
 - `dotnet test backend/tests/LearnStack.Tests.Integration` passes against the
   same containers (the Testcontainers fixture is independent; this is just a
@@ -328,9 +287,10 @@ state.
 
 ## Common pitfalls
 
-- **Mixing local Postgres + Testcontainers Postgres.** Both bind 5432 by default.
-  Use distinct ports or shut down the dev Postgres before running integration
-  tests.
+- **Confusing compose and test ports.** The dev compose stack publishes loopback
+  5432; Testcontainers chooses a random host port. They can coexist. P5's native
+  renderer fixtures instead require free 3000/3011 and fail on collision without
+  stopping an existing developer process.
 - **Editing `.env.example`.** That file is the **template**; commit changes only
   if the project's default really should change. Your local overrides go in
   `.env` (gitignored).

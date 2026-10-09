@@ -85,26 +85,29 @@ generation caching and scope-safe bypass; both review rounds passed.
 [PR #24](https://github.com/HodeTech/LearnStack/pull/24) on 2026-10-03; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-3-merge-and-closeout-2026-10-03)
 records final verification.
-**P02d-4 is implementation-complete** in
-[PR #25](https://github.com/HodeTech/LearnStack/pull/25), awaiting review and merge.
+**P02d-4 is complete and merged** through
+[PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+records final verification.
 Its four steps deliver the read-only host boundary, anonymous site/Education
 GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
 rounds; final fix verification and all six real required CI jobs pass. The sixth
 required OpenAPI check is active, with all other live protection settings preserved.
-Browser rendering follows
-in P02d-5–7. The
+Trusted server rendering is delivered by P02d-5; public product pages and the
+browser demo remain P02d-6–7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
-are complete; server rendering and browser delivery remain P02d-5/6.
+are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
+page consumers and P02d-7 the two-host browser demo.
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Trusted server consumer in [P02d-5](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Public page consumers in [P02d-6](docs/roadmap/phase-02d-walking-skeleton.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Next.js route scaffolds and generated typed SDK with injected transport | First two-tenant browser demo in [P02d-5–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, route scaffolds and generated typed SDK | Public pages and two-tenant browser demo in [P02d-6–7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -124,12 +127,13 @@ The [roadmap dependency map](docs/roadmap/README.md) owns the order: **02d runs 
 
 ### 1. Prepare the tools
 
-Use Docker with **Compose V2**, Git, Make, Bash, Python 3 and curl, plus:
+Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
+(the TLS test fixtures require its CLI), plus:
 
 | Tool | Repository requirement |
 |---|---|
 | .NET SDK | `10.0.112` with the roll-forward policy in [backend/global.json](backend/global.json) |
-| Node.js | `>=20.11.0`, as declared in [frontend/package.json](frontend/package.json) |
+| Node.js | `>=22.23.1`, as declared in [frontend/package.json](frontend/package.json) |
 | pnpm | `9.12.3`, pinned in [frontend/package.json](frontend/package.json) |
 
 ### 2. Bootstrap from the repository root
@@ -145,36 +149,53 @@ and eight scoped courses, ten lessons and twenty-seven translations. It uses the
 ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 
-### 3. Start the applications in separate terminals
-
-`make seed` starts infrastructure. The API and web app run separately on your host.
-The API needs the application connection string from `.env`; it does not load that
-file automatically. From the repository root:
+### 3. Prepare local HTTPS and start the applications
 
 ```bash
-# Terminal 1 — read only the application credential, then start the API.
-export ConnectionStrings__Default="$(sed -n 's/^ConnectionStrings__Default=//p' .env \
-  | tail -1 | tr -d '\r' | sed "s/^['\"]//; s/['\"]$//")"
-(cd backend && dotnet run --project src/LearnStack.Api)
+make public-env   # generate a private 32-byte hop secret in the ignored root .env
+```
+
+Install mkcert using its [official instructions](https://github.com/FiloSottile/mkcert).
+Run its trust step yourself, then create the local leaf certificate:
+
+```bash
+mkcert -install
+mkdir -p .data/tls
+mkcert -cert-file .data/tls/public.pem -key-file .data/tls/public-key.pem \
+  localhost demo-english.learnstack.local demo-yoga.learnstack.local
+```
+
+Manually map the two seeded names to `127.0.0.1` in your hosts file. Repository
+commands never edit that file or install trust. Keep the CA private key local;
+only the ignored leaf/key paths belong in `.env`.
+
+```bash
+# Terminal 1 — loopback API with runtime credentials and network + hop secret.
+make public-api
 ```
 
 ```bash
-# Terminal 2 — start the frontend.
-(cd frontend && pnpm dev)
+# Terminal 2 — the mandatory native HTTPS launcher, then Next.js.
+make public-web
 ```
 
-The API's liveness endpoint is <http://localhost:5080/healthz>; the frontend scaffold
-is at <http://localhost:3000>. The application connection uses `learnstack_app`;
-`make migrate` manages the separate migration credential. See
-[local setup](.claude/skills/local-dev-setup/SKILL.md) for the persistent user-secrets
-alternative and [Compose documentation](infra/compose/README.md) for service endpoints
-and troubleshooting.
+Readiness is <http://127.0.0.1:5080/healthz> for the API and
+<https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
+this launcher. Both processes read the same private root source; a web `.env.local`
+projection is optional and must match. No shell evaluates the values. Ordinary
+no-hop API startup remains supported outside this paired renderer recipe.
 
-> **The two-site browser demo is not available yet.** The seed currently registers
-> `demo-english.learnstack.local` and `demo-yoga.learnstack.local`.
-> [Phase 02d gates G32 and G45](docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-> own the final host setup and demo command. The frontend's production tenant-resolution
-> guard currently returns `503`; a successful build is not a production-ready site.
+**P02d-5 implements ingress, visitor budgets and public entry.** The web
+bootstraps the captured host through the API, redirects using enabled/default
+locales and refuses unavailable scope. The server caller enforces no-store,
+deadline/body limits and the closed authenticated hop. All four steps completed
+both independent review rounds and fix verification. Source fences, the no-skip
+test runner and real-API production HTML/RSC proofs pass. The
+[remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+owns current review/CI evidence. Public pages are P02d-6;
+the two-host browser demo with `make demo` is P02d-7. See
+[local setup](.claude/skills/local-dev-setup/SKILL.md) and
+[Compose documentation](infra/compose/README.md) for troubleshooting.
 
 ### Everyday commands
 

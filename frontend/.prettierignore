@@ -11,3 +11,6 @@ packages/sdk/src/generated/
 # commas — measured, 3761 lines of pure churn with all 596 integrity hashes
 # unchanged. That noise buries a real dependency change in any future review.
 pnpm-lock.yaml
+
+# Generated native ingress output; format its TypeScript source.
+apps/web/.server/

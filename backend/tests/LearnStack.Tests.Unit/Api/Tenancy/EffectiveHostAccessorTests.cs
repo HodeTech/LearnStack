@@ -44,6 +44,17 @@ public sealed class EffectiveHostAccessorTests
         Accessor().IsTrustedHop(Request(peer: "10.0.0.5", secret: Secret)).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("::ffff:127.0.0.1", true)]
+    [InlineData("::ffff:203.0.113.9", false)]
+    public void IPv4_network_membership_handles_mapped_socket_peers(string peer, bool trusted)
+    {
+        IPNetwork.Parse("127.0.0.1/32").Contains(IPAddress.Parse(peer)).Should().Be(trusted,
+            "the .NET network predicate already handles mapped peers without a parser workaround");
+        Accessor(networks: ["127.0.0.1/32"])
+            .IsTrustedHop(Request(peer: peer, secret: Secret)).Should().Be(trusted);
+    }
+
     [Fact]
     public void The_Right_Peer_With_The_Wrong_Secret_Is_Not()
     {

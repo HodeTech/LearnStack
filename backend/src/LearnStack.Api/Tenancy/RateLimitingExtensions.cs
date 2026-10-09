@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,25 +31,21 @@ namespace LearnStack.Api.Tenancy;
 /// Postgres transaction and a cache entry, on a pre-auth surface.
 /// </para>
 /// <para>
-/// Partitioned on the socket peer, and <b>only</b> the socket peer. There is no
-/// authenticated partition yet because there is no authentication yet — Phase
-/// 02b adds the token-keyed budgets Standards 04 also fixes, and adding a
-/// partition key that is constant-null today would be a partition in name only.
-/// </para>
-/// <para>
-/// <b>Open in Phase 02d.</b> A server-rendered page reaches the API from the
-/// renderer's peer, so under this key every visitor of such a page would share the
-/// renderer's partition. How a request arriving over the trusted hop is keyed and
-/// budgeted is G34 in
-/// <see href="../../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register">Phase
-/// 02d's decision register</see>; the pass that closes it edits this class and these
-/// remarks with its answer.
+/// ADR-0053 / P02d-5 G34 uses a canonical visitor-IP budget shared by direct and
+/// authenticated-hop traffic, plus a physical-peer ceiling. Only a network-and-
+/// secret authenticated hop may state the visitor; invalid trusted metadata spends
+/// the peer fallback budget before masked refusal. ADR-0054 coordinates admission
+/// so known visitor refusals do not burn peer permits and new visitor allocation
+/// remains peer-gated. Total refusal work is not bounded. Phase 02b owns token budgets.
 /// </para>
 /// </remarks>
 public static class RateLimitingExtensions
 {
     /// <summary>The anonymous budget from Standards 04: 60 requests a minute per IP.</summary>
     public const int AnonymousPermitPerWindow = 60;
+
+    /// <summary>The separate physical-peer backstop accepted in ADR-0053.</summary>
+    public const int PeerPermitPerWindow = 600;
 
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
 
@@ -66,25 +61,14 @@ public static class RateLimitingExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddSingleton<AnonymousRequestIdentity>();
+        // DI owns the coordinated registry, periodic sweep and peer budget.
+        services.AddSingleton(_ => new NoQueueAdmissionLimiter(CreatePeerBudget()));
+        services.AddOptions<RateLimiterOptions>().Configure<NoQueueAdmissionLimiter>(
+            (options, limiter) => options.GlobalLimiter = limiter);
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
-                context => RateLimitPartition.GetFixedWindowLimiter(
-                    PartitionKeyFor(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = AnonymousPermitPerWindow,
-                        Window = Window,
-
-                        // No queue. Queuing a request that is over budget spends
-                        // the server's memory to delay an answer the client is
-                        // going to get anyway, and under a flood the queue is
-                        // the thing that falls over.
-                        QueueLimit = 0,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    }));
 
             options.OnRejected = (context, cancellationToken) =>
             {
@@ -105,19 +89,30 @@ public static class RateLimitingExtensions
         return services;
     }
 
-    /// <summary>
-    /// Reads the socket peer, with the same caveat as the trusted hop:
-    /// <see cref="IHttpConnectionFeature"/> is the storage
-    /// <c>UseForwardedHeaders</c> mutates, so if that middleware ever ran ahead of
-    /// this one, the key would become whatever address a forwarded header states —
-    /// a partition the caller mints for itself unless only a trusted proxy may
-    /// state it. The remarks on <c>RefuseAmbientForwardedHeaders</c> record the
-    /// measurement: zero rejections under a rotating <c>X-Forwarded-For</c>. In
-    /// the shipped state, with no such middleware, every request arriving through
-    /// one proxy shares that proxy's partition. <c>Forwarded_Headers_Are_Not_Wired</c>
-    /// is the tripwire for this key and the hop alike.
-    /// </summary>
-    private static string PartitionKeyFor(HttpContext context) =>
-        context.Features.Get<IHttpConnectionFeature>()?.RemoteIpAddress?.ToString()
-            ?? UnknownPeerPartition;
+    internal static PartitionedRateLimiter<HttpContext> CreatePeerBudget() =>
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.RequestServices.GetRequiredService<AnonymousRequestIdentity>().For(context).PeerKey,
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = PeerPermitPerWindow,
+                    Window = Window,
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                }));
+
+    /// <summary>Runs after both budgets, before host classification or any database lookup.</summary>
+    public static IApplicationBuilder UseLearnStackVisitorAdmission(this IApplicationBuilder app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        return app.Use(async (context, next) =>
+        {
+            if (context.RequestServices.GetRequiredService<AnonymousRequestIdentity>().For(context).Refuse)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            await next(context);
+        });
+    }
 }

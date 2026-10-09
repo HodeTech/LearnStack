@@ -1040,6 +1040,50 @@ and the [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4
 own the implementation and evidence. Amendment 8 remains historical; the
 reconciliation matrix and trusted-input contract are unchanged.
 
+### 2026-10-08 — Amendment 10: trusted public renderer decision navigation
+
+[ADR-0053](0053-trusted-public-server-rendering.md) is Accepted with the
+[P02d-5 package](../roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08).
+It owns three bounded replacements: authenticated visitor-IP limiting with a peer
+ceiling; a server-only configured header setter outside the injected SDK; and the
+mode-independent no-hop startup policy/minimum of 32 characters. All other host
+normalization, reconciliation and assertion-only tenancy rules remain unchanged.
+The original body and prior amendments remain intact; this note is navigation and
+disclosure under ADR-0041, not an in-place fact correction or a changed Decision.
+
+Source/history evidence: `TrustedHopOptions.Secrets` permits overlapping rotation;
+`EffectiveHostAccessor.SecretMatches` requires one presented value and compares all
+configured secrets. `AddLearnStackTenancyEdge` permits both lists empty and refuses
+partial configuration in every mode; commit `b499dc8` records the 2026-08-20 change.
+`TrustedHopOptions.Validate` measures secret length in characters. ADR-0053 explicitly
+adopts that shipped behavior rather than inferring policy from stale wording.
+
+Acceptance carriers: ADR index/0053; CLAUDE and Phase 02d; Frontend Architecture;
+Standards 04/07/11/15/21; the route skill. Other ongoing owner/launch/environment/CI
+carriers are updated before or with their enforcing P5 step, as enumerated in the
+package. No P5 runtime proof is claimed by this decision commit.
+
+### 2026-10-09 — Amendment 11: bounded admission and amendment navigation
+
+The maintainer accepted [ADR-0054](0054-bounded-public-renderer-admission.md) with
+P02d-5's five-step remediation plan on 2026-10-09. Its
+[anonymous accounting](0054-bounded-public-renderer-admission.md#anonymous-accounting)
+replaces ADR-0053 Amendment 3's peer-first debit while preserving authenticated
+visitor inputs, direct/hop shared identity, numeric windows and peer-gated new
+allocation. [ADR-0053 Amendment 7](0053-trusted-public-server-rendering.md#amendment-7--bounded-admission-supersession-2026-10-09)
+records its bounded native-admission and redirect-query supersession. No change
+is made to this ADR's host normalization, reconciliation or assertion-only tenant
+authority. Implementation and its evidence remain pending.
+
+Amendment 10's phrase “navigation and disclosure under ADR-0041” is imprecise.
+[ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md) bounds correction
+of statements false when written; it does not authorize changed decisions.
+ADR-0053 and now ADR-0054 are the new decision vehicles for their bounded
+replacements. These dated notes provide navigation under
+[Documentation Standards § Correcting and Amending ADRs](../standards/13-documentation.md#correcting-and-amending-adrs),
+without applying either false-when-written correction mechanism. Amendment 10,
+the original body, metadata and all earlier amendments are preserved verbatim.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in

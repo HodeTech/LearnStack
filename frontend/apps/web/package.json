@@ -5,19 +5,22 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/ensure-routes-stub.mjs",
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000",
-    "lint": "next lint",
+    "dev": "pnpm build:ingress && node scripts/public-server.mjs --dev",
+    "build:ingress": "tsc --project tsconfig.server.json",
+    "build": "pnpm build:ingress && next build",
+    "start": "pnpm build:ingress && node scripts/public-server.mjs",
+    "lint": "pnpm build:ingress && node scripts/lint-web.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:staged": "pnpm build:ingress && node scripts/lint-web.mjs --fix"
   },
   "dependencies": {
     "@learnstack/sdk": "workspace:*",
     "@learnstack/ui": "workspace:*",
     "next": "15.5.18",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@learnstack/config": "workspace:*",

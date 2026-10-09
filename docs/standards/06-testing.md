@@ -3,7 +3,9 @@
 **Status:** Active
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
+controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
+and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -145,13 +147,30 @@ frontend tooling table below.
   surfaces, puts two tenants in a browser and gates on a human opening them, not on a
   Playwright run.
 
-> **Open in Phase 02d.** Whether automated evidence re-proves the page-level two-host
-> claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke
-> pulled forward from Phase 06, or a dated manual record — is G38 (c), and what
-> discharges ADR-0036's "Phase 02d's browser test" is G33, both in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The decision pass that closes either gate edits this section only if its answer moves
-> a browser smoke or the Playwright ownership into Phase 02d, citing the row.
+P02d-5's required integration suite proves two-host production HTML/RSC transport
+against the real API, using explicitly test-owned pages. G33's local topology is
+delivered; its browser/TLS evidence remains P02d-7's G45 obligation. P02d-6 owns
+G38(c)'s product-page cases. P02d-7 selects the demo/browser harness and Lighthouse
+assertions after P6; Phase 06 retains the broader Playwright/axe golden-flow suite.
+
+### Public renderer fixture ownership
+
+P02d-5 remediation Step 3 implements test-owned process/tree cleanup, positive
+child environments, explicit TLS verification and sticky bounded private-output
+scanning. Setup and termination share one owner; SIGINT/SIGTERM, explicit control
+closure and EPIPE must stop owned children before removing private files. Fixed
+port collisions fail; a healthy response alone cannot establish owned readiness.
+Cleanup joins final child output before its containment verdict. An unresolved
+process/listener cleanup retains the private tree and fails; it cannot claim
+confirmed teardown. Envelope boundaries at chunk ends require a delimiter or EOF.
+
+Controls must fail for omitted cleanup, early split leaks followed by large output,
+disabled trust verification, stale listeners and unclosed upgrades. Healthy builds
+receive nonempty private configuration; a real public-only Client Component and a
+successfully built leaking mutant make emitted-asset containment falsifiable.
+The [remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-3--fixture-reliability-and-containment)
+owns execution/review evidence. These are socket/build controls, not P7 browser
+or Lighthouse delivery.
 
 ## Frontend Test Types
 
@@ -170,12 +189,12 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
-> **Open in Phase 02d.** Phase 02d ships the platform's first public pages. The frontend
-> case set for its code is G38, and which accessibility checks on those pages fail a
-> build — including axe under jsdom rather than through Playwright, where the table
-> above places it — is G43, both in
+> **Open in P02d-6.** G38(b/c)'s product-page cases and G43's accessibility checks
+> remain in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes either gate edits this section where its answer departs from it.
+> P02d-5 already delivers G38(a)'s transport cases and G38(d)'s guarded Vitest runner;
+> neither is an open page-testing decision. The P6 pass records whether axe under
+> jsdom or another page check supplements the later Playwright suite.
 
 ## Tenant Isolation Tests
 
@@ -240,8 +259,12 @@ If a test gets slow, fix the test before the suite.
 - A `Skip` fails CI: `scripts/assert-tests-ran.py` refuses any backend run whose results
   report a case that did not run
   ([`No_Architecture_Test_Is_Skippable`](21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)).
-  The frontend Vitest run is not yet checked; closing that is G38 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  P02d-5 G38(d) extends the runner to frontend workspaces: `pnpm test` from
+  `frontend/` discovers test packages and checks actual nonempty Vitest JSON
+  outcomes, rejecting failures, skipped/todo cases, missing scripts/reports and
+  omitted discovered files. Symlinked workspace packages and test sources fail
+explicitly rather than disappearing from discovery. Real clean/planted runner
+controls prove refusal.
 
 ## Live Classroom Testing
 

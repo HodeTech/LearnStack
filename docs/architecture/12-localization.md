@@ -237,8 +237,9 @@ Slugs are **per locale**. Two patterns:
 - **Locale-by-host**: `english.learnstack.io` always English, `ingilizce.learnstack.io` always Turkish. Available as a tenant-level configuration.
 
 The accepted P02d-4 bootstrap supplies host-resolved public locale configuration
-without exposing tenant or organization ids. P02d-5 selects the Next.js placement,
-transport and locale redirect (G36); P02d-6 implements the pages. No frontend host
+without exposing tenant or organization ids. Accepted P02d-5/ADR-0053 chooses Node
+middleware behind authenticated native ingress and membership-first redirects;
+Step 3 implements entry/transport. P02d-6 implements the pages. No frontend host
 registry lookup is prescribed. See
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 

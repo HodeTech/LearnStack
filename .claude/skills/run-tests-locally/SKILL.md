@@ -44,7 +44,7 @@ flags, and a triage map for the most common failure shapes.
 ```bash
 # Required toolchain
 dotnet --version    # 10.0.x
-node --version      # 20+ for the frontend
+node --version      # 22.23.1 (frontend/.nvmrc)
 pnpm --version
 
 # Restore — from the directories that hold the solution and the workspace.
@@ -71,10 +71,9 @@ backend/tests/
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
 frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
-                                   # arrive in Phase 06. Whether CI's deferred
-                                   # `lighthouse budget` job activates in Phase 02d
-                                   # is G44 in that phase's decision register; the
-                                   # pass that closes it edits this comment.
+                                   # arrive in Phase 06. Accepted P02d-5 G44 assigns
+                                   # the deferred Lighthouse job to P02d-7/G44/G45
+                                   # after P6 pages; it remains disabled today.
 ```
 
 ### Step 3: Run unit tests
@@ -147,27 +146,35 @@ Common failure shapes:
 | Test passes locally, fails in CI | Race condition; check `await` chains. |
 | Empty result where rows should exist | No `app.tenant_id` on this transaction, or the wrong one — RLS working as designed. Set it with `SchemaQueries.SetTenantAsync` as the transaction's first statement. |
 | `relation "<table>" does not exist` | Migration didn't apply; check the module's `Persistence/Migrations`. |
-| Docker container fails to start | Port collision on 5432 — stop a local Postgres. Testcontainers maps a random host port, so this only bites when something else already holds the container port. |
+| Docker container fails to start | Check Docker connectivity, image availability and the fixture's startup error. Testcontainers maps PostgreSQL to a random host port; a separate local 5432 listener is not a collision. |
 | `password authentication failed` | The four roles are provisioned by the fixture from `infra/compose/postgres-init/02-create-roles.sql`; a failure there fails the fixture, not one test. |
 
 ### Step 6: Run frontend tests
 
 ```bash
-cd frontend/apps/web
-pnpm test                # vitest
-pnpm typecheck           # tsc --noEmit
-pnpm lint                # next lint — what `pnpm -r lint` runs in CI
+cd frontend
+pnpm test                # all discovered test packages; nonempty, zero skips/todos
+pnpm typecheck           # workspace tsc --noEmit
+pnpm lint                # workspace lint, including next lint
 ```
+
+
+The root frontend runner reads actual Vitest reports, compares discovered files,
+and refuses missing scripts, unreadable/empty reports, failures, skipped or todo
+cases. Use `pnpm --filter @learnstack/web test <path>` only for focused development;
+packet/PR validation uses the guarded workspace command. Backend Docker integration
+also runs P5's disposable production Next/TLS fixture against the real API and
+PostgreSQL; Node, pnpm, installed frontend dependencies and OpenSSL are required.
+It owns ports 3000/3011 while running and refuses occupied ports without stopping
+an existing user process. Product-page browser/a11y tests remain P6/P7.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
-> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md). Whether
-> CI's deferred `lighthouse budget` job activates earlier, in Phase 02d, is G44, and
-> which accessibility checks fail a build on that phase's pages is G43;
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register)
-> holds both, and the pass that closes each edits this note. Today there is no
-> accessibility or end-to-end gate to run.
+> [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
+> Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
+> remains disabled. P02d-6/G43 selects the skeleton's accessibility gate. P5's
+> production HTML/RSC fixture proves transport, not a browser/a11y audit.
 
 ### Step 7: Single-test focus
 
@@ -187,8 +194,9 @@ dotnet test --filter "Requires=Docker"
 `vitest`:
 
 ```bash
-pnpm test usage-meter             # path filter
-pnpm test -t "shows danger tone"  # name filter
+# From frontend/; the guarded workspace runner accepts no filters.
+pnpm --filter @learnstack/web test usage-meter             # path filter
+pnpm --filter @learnstack/web test -t "shows danger tone"  # name filter
 ```
 
 ### Step 8: Coverage (optional)
@@ -254,15 +262,20 @@ For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 dotnet test --blame-hang --blame-hang-timeout 5min
 ```
 
+**Lighthouse ownership — Accepted P02d-5, 2026-10-08.** P02d-7/G44/G45
+activates the full-stack job after P6 pages; it remains a disabled placeholder.
+The entry decision does not provide a Lighthouse command or passing audit.
+
 ## Validation
 
 - The relevant suite passes locally with the same `dotnet --version` and
   `pnpm --version` CI uses.
-- For integration suites, Docker is running and nothing else holds 5432.
+- For integration suites, Docker is running; PostgreSQL uses random host ports.
+  The P5 native renderer fixtures require free 3000/3011 and fail on collisions.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
   The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
-  findings fail a build earlier, on Phase 02d's pages, is G43 in
+  findings fail a build on Phase 02d's pages is P02d-6/G43 in
   [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
   and the pass that closes it edits this line.
 
@@ -274,9 +287,9 @@ dotnet test --blame-hang --blame-hang-timeout 5min
   change — the lockfile must match.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
-- **Port collisions.** A local Postgres on 5432 collides with the fixture's
-  container. Stop it, or let Testcontainers pick the host port (it does) and stop
-  publishing 5432 from `make dev`.
+- **Port collisions.** Testcontainers PostgreSQL uses a random host port and can
+  coexist with `make dev` on 5432. Stop your own web process before P5's native
+  renderer fixtures: they require free 3000/3011 and never kill a foreign listener.
 - **`--no-build` after a source change.** Drop the flag — the test would run
   against stale binaries.
 - **Assuming an accessibility gate exists.**

@@ -1,56 +1,79 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-/**
- * Tenant + locale resolution at the edge — the only place a host maps to a
- * tenant. The real `IHostToTenantResolver` lookup is wired in Phase 02a; this
- * scaffold propagates `x-tenant-id` and `x-locale` only. The third documented
- * header `x-organization-id` is intentionally OMITTED here — it lights up once
- * Phase 02a resolves an organization context from the host or JWT claim. See
- * [docs/architecture/14-frontend-architecture.md](../../../../docs/architecture/14-frontend-architecture.md)
- * § Tenant + Organization Resolution for the full shape.
- *
- * Headers MUST be written to the request (via `NextResponse.next({ request })`)
- * — writing only to the response makes them visible to the browser but not to
- * downstream `headers()` calls in RSC. Real Phase 02a resolution will plug in
- * here; until then, the `x-tenant-id` value is a placeholder so layouts can be
- * authored against the final shape today.
- */
-export function middleware(request: NextRequest) {
-  // Loud guard: the placeholder below trusts the client-supplied Host header.
-  // If this scaffold were ever deployed before Phase 02a wires real host →
-  // tenant resolution, tenant isolation would be decided by the caller — fail
-  // closed instead of silently degrading.
-  if (process.env.NODE_ENV === 'production') {
-    return new NextResponse('tenant resolution scaffold; production wiring lands in Phase 02a', {
-      status: 503,
-    });
-  }
+import { createConfiguredPublicClient, publicTraceparent } from '@/server/configured-public-client';
+import { INGRESS_HEADER, verifyNextProvenance } from '@/server/ingress';
+import { publicEntry, publicRedirect } from '@/server/public-entry';
 
-  const url = new URL(request.url);
-  const host = request.headers.get('host') ?? 'localhost';
-
-  const requestHeaders = new Headers(request.headers);
-  // TODO(2026-05-19, @platform): replace placeholders once `IHostToTenantResolver`
-  // is wired and the `/v1/tenants/resolve-host` endpoint exists (Phase 02a).
-  // When the real resolver lands, drop the production guard above.
-  requestHeaders.set('x-tenant-id', host);
-  requestHeaders.set('x-locale', extractLocaleOrDefault(url.pathname));
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
+function refusal(status: 404 | 429 | 503, retryAfter?: number): NextResponse {
+  return new NextResponse(
+    status === 404 ? 'Not found' : status === 429 ? 'Too many requests' : 'Service unavailable',
+    {
+      status,
+      headers: {
+        'cache-control': 'no-store',
+        'content-type': 'text/plain; charset=utf-8',
+        ...(retryAfter === undefined ? {} : { 'retry-after': String(retryAfter) }),
+      },
+    },
+  );
 }
 
-// TODO(2026-05-19, @platform): drive the supported-locale set from
-// `Tenant.SupportedLocales` once tenant resolution lands. Right now the
-// regex matches any ISO-like locale and falls back to `en`.
-function extractLocaleOrDefault(pathname: string): string {
-  const segments = pathname.split('/').filter(Boolean);
-  const first = segments[0];
-  if (first && /^[a-z]{2}(-[A-Z]{2})?$/.test(first)) {
-    return first;
+/** Bootstrap is request-local; only the API resolves the captured visitor host. */
+export async function middleware(request: NextRequest) {
+  const url = new URL(request.url);
+  const envelope = request.headers.get(INGRESS_HEADER);
+  const context = verifyNextProvenance(envelope, process.env.LEARNSTACK_PUBLIC_HOP_SECRET, {
+    method: request.method,
+    target: `${url.pathname}${url.search}`,
+  });
+  if (!context) return refusal(404);
+  try {
+    const traceparent = publicTraceparent(request.headers.get('traceparent'));
+    const client = createConfiguredPublicClient(envelope, {
+      traceparent,
+      signal: request.signal,
+    });
+    if (!client) return refusal(404);
+    const bootstrap = await client.getSite();
+    if (bootstrap.kind !== 'success') {
+      if (bootstrap.kind === 'api-error') {
+        if (bootstrap.status === 404) return refusal(404);
+        if (bootstrap.status === 429)
+          return refusal(
+            429,
+            bootstrap.error.code === 'rate_limited' ? bootstrap.error.retryAfter : undefined,
+          );
+      }
+      return refusal(503);
+    }
+    const entry = publicEntry(context.target, bootstrap.data);
+    if (entry.kind === 'refuse') return refusal(entry.status);
+    if (entry.kind === 'redirect') {
+      const response = NextResponse.redirect(
+        publicRedirect(context.host, entry.path),
+        entry.status,
+      );
+      response.headers.set('cache-control', 'no-store');
+      return response;
+    }
+    // Next's pinned adapter hides Flight headers here and restores them after
+    // middleware. Rebuild ordinary headers; protocol restoration is proved by
+    // the real production fixture, not by forwarding authority or client cookies.
+    const downstream = new Headers();
+    const accept = request.headers.get('accept');
+    if (accept !== null) downstream.set('accept', accept);
+    downstream.set(INGRESS_HEADER, envelope!); // Verified above; the caller verifies again.
+    downstream.set('traceparent', traceparent);
+    const response = NextResponse.next({ request: { headers: downstream } });
+    response.headers.set('cache-control', 'no-store');
+    return response;
+  } catch {
+    // No provider/request/configuration details become HTML, headers or logs.
+    return refusal(503);
   }
-  return 'en';
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  runtime: 'nodejs',
+  matcher: ['/((?!_next/|api/healthz$|favicon\\.ico$).*)'],
 };

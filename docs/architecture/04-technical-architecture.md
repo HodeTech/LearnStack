@@ -196,16 +196,15 @@ Full details: [Events & Outbox](15-event-and-outbox.md).
 
 - Next.js (App Router) for public site, admin studio, learner portal, instructor portal.
 - Server Components by default; Client Components only where interactivity needs it.
-- Tenant resolution at the edge / middleware layer; tenant context propagated via header into RSC and route handlers.
-- Typed API client generated from OpenAPI.
+- The API resolves tenant/organization scope from the verified host. Web middleware
+  admits public paths using live bootstrap; it carries no tenant/organization ids.
+- Generated OpenAPI types back four injected SDK GET wrappers. The web app's private
+  configured caller owns the trusted API hop.
 
-> **Open in Phase 02d.** For what Phase 02d builds, whether the edge resolves a tenant
-> at all and whether the frontend ever holds a tenant or organization id are G25, what
-> the middleware carries inward and under which header is G36, and whether the SDK is
-> a hand-written transport over the generated `paths` or a typed client library is
-> G31 — all in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The passes that close them edit these bullets with their answers.
+P02d-4 delivers G25/G31's public API and SDK boundary; P02d-5 delivers G35/G36's
+configured caller and middleware admission under
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+[Frontend Architecture](14-frontend-architecture.md) owns their detailed contracts.
 
 Detailed conventions: [Frontend Architecture](14-frontend-architecture.md) and [Frontend Architecture Standards](../standards/07-frontend-architecture.md).
 
@@ -230,12 +229,11 @@ the two Dapr containers ([ADR-0035](../decisions/0035-demand-gated-infrastructur
 
 Application projects run **outside** containers during active development for fast iteration. CI runs identical container versions.
 
-> **Open in Phase 02d.** Where the API and the web app run relative to each other, on a
-> workstation and in the CI job that renders the pages, is G33; what `make demo` starts
-> and waits on over this stack is G45. Both are in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> They are answered in the decision passes of the packets they block, and those passes
-> edit this section with their answers.
+P02d-5 delivers G33's paired loopback API and native TLS web ingress, with isolated
+real-API production-rendering fixtures. The
+[accepted local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
+owns host, certificate and private configuration preparation. P02d-7 owns G45's
+`make demo` lifecycle and browser evidence; that gate remains open.
 
 ## Observability
 

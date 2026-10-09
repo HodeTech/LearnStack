@@ -64,6 +64,18 @@ help: ## Show this help, listing every target and its one-line description.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_.-]+:.*?## / {printf "  $(CYAN)%-18s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ─── Dev infrastructure ───────────────────────────────────────────────────
+.PHONY: public-env public-api public-web
+public-env: .env ## Generate the private local renderer secret (no hosts/trust edits).
+	(cd frontend && pnpm --filter @learnstack/web build:ingress)
+	node scripts/public-local.mjs prepare
+
+public-api: ## Start the loopback API with the paired trusted-hop configuration.
+	(cd frontend && pnpm --filter @learnstack/web build:ingress)
+	node scripts/public-local.mjs api
+
+public-web: ## Start the native HTTPS renderer (manual local certificate required).
+	cd frontend && pnpm --filter @learnstack/web dev
+
 .PHONY: dev dev-gated
 dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 	$(COMPOSE_DEV) up -d
@@ -257,8 +269,8 @@ test-integration: ## Just the LearnStack.Tests.Integration assembly (a subset of
 	(cd backend && dotnet test tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj --nologo)
 
 .PHONY: test-frontend
-test-frontend: ## `pnpm -r test` (Vitest component + lib tests).
-	(cd frontend && pnpm -r test)
+test-frontend: ## Guarded workspace Vitest run (nonempty, zero skips/todos).
+	(cd frontend && pnpm test)
 
 # ─── Lint / format ────────────────────────────────────────────────────────
 .PHONY: lint
@@ -300,7 +312,7 @@ install: .env hooks ## Restore backend NuGet + frontend pnpm deps + activate git
 .PHONY: hooks
 hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).
 	@git config core.hooksPath .githooks
-	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format *.cs | prettier frontend/ | next lint frontend/apps/web | leakwatch if present)$(RESET)\n"
+	@printf "$(CYAN)git hooks → .githooks/ (pre-commit: dotnet format *.cs | prettier frontend/ | web staged lint + SDK/UI lint | leakwatch if present)$(RESET)\n"
 
 # ─── Env scaffolding ──────────────────────────────────────────────────────
 # `.env` is gitignored; this rule copies `.env.example` on first run so the

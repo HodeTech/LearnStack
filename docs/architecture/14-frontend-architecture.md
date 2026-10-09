@@ -15,10 +15,17 @@ LearnStack ships **two independent Next.js applications**:
   dependency. The operator portal scope lives in
   [24-learnstack-hub.md §6](24-learnstack-hub.md) and is not duplicated here.
 
-This document covers `apps/web`: app shape, tenant resolution at the edge, theming with
+This document covers `apps/web`: app shape, API-owned tenant resolution, theming with
 optional per-organization override, rendering strategies, data fetching, the tenant-driven
 block resolver, entitlement-aware UI, custom-domain handling, and the path to extracting
 independent apps when warranted.
+
+The [P02d-5 external-review remediation](../roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+tracks verified gaps. [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md)
+is **Accepted — 2026-10-09**. P02d-5 delivers coordinated anonymous accounting,
+native method/upgrade admission and pinned URL controls. The remediation record
+owns execution and independent review evidence; the ongoing rules live in
+[Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -61,7 +68,7 @@ frontend/
           auth/
           tenant/
           i18n/
-        middleware.ts                     # tenant + organization + locale resolution
+        middleware.ts                     # ingress verification + locale entry
         extensions/                       # client-side block resolver, see Page Builder
   packages/
     ui/                                   # extracted only once duplication is real
@@ -69,11 +76,11 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
-> **Open in Phase 02d.** Where composite and primitive components live (G41), where the
-> UI string catalogue lives (G39) and middleware placement (G36) are open
-> in
+> **Phase 02d ownership.** Component placement (G41) and the UI string catalogue
+> (G39) remain P02d-6 decisions. P02d-5/G36 delivers Node middleware in
+> `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The tree records the plan written before them.
+> The tree above is the earlier target layout, not a shipped-directory census.
 
 The operator portal (`operator-portal`) is a **separate Next.js application in the
 separate `learnstack-hub` repository**; nothing about it lives under this `frontend/`
@@ -89,12 +96,12 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 ## Tenant + Organization Resolution at the Edge
 
 **Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
-server transport and consumers remain P02d-5/6. The frontend
+P02d-5 Step 3 delivers server transport; page consumers remain P02d-6. The frontend
 uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
 [Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)
-owns the ongoing frontend rule. P02d-5/G35/G36 still owns transport and middleware
-placement, and P02d-6 owns public page consumers.
+owns the ongoing frontend rule. P02d-5/G35/G36 delivers the configured transport
+and Node middleware entry; P02d-6 owns public page consumers.
 
 The API computes the effective host once under ADR-0036's direct/trusted-hop rules,
 resolves its existing mapping and preserves a factory host ceiling. The configured
@@ -123,7 +130,8 @@ For text renderers:
    effective attribution, without tenant/organization IDs or raw settings.
 5. Education calls use explicit query locale; headers never select content.
 6. P02d-6 renders the bounded DTOs. No site/Education representation cache or edge
-   lookup cache is part of this API contract; renderer-cache choices remain G37.
+   lookup cache is part of this API contract; ADR-0053 also forbids shared Next
+   representation caches.
 
 The API host resolver's own cache remains unchanged and never calls Hub. Existing
 custom-domain push and invalidation contracts remain under their named phases;
@@ -133,16 +141,32 @@ so a claim cannot enlarge what the host serves.
 
 ## Rendering Strategies
 
-> **Open in Phase 02d.** How tenant-varying `(public)` routes render, and which caches
-> may hold tenant data, is G37 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The `(public)` row below records the plan written before it; that pass rewrites it.
+**P02d-5 Accepted — 2026-10-08.**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md) accepts native socket
+provenance, a server-only configured transport and uncached institution rendering.
+Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
+records all four completed steps and both independent review rounds per step.
+Frontend fences, no-skip outcomes and real-API production HTML/RSC proofs pass;
+P02d-5 remains unmerged while external-review remediation continues. P02d-6 owns
+public page consumers.
+
+ADR-0054 retains API-owned tenant authority and membership-first locale entry.
+Its accepted native boundary admits GET/HEAD on every callback path, including
+matcher-exempt health/assets; production upgrades close and development retains
+only validated GET HMR. Signed raw targets remain route/locale authority; redirects
+preserve inert query values, duplicates and ordering with equivalent encoding.
+[Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity)
+own the detailed controls and implementation/review boundary. Coordinated API
+admission refuses an exhausted known visitor before peer debit while peer-gating
+unknown visitor allocation; the peer quota bounds successful acquisitions and
+allocations, not total refusal work. Lifecycle and Retry-After/replay obligations
+live in [Security Standards](../standards/11-security.md#rate-limiting).
 
 Per segment:
 
 | Segment | Strategy | Notes |
 |---|---|---|
-| `(public)` | SSR with cache (ISR-like) | Pages built on demand, cached by tenant+slug+locale. Revalidated by webhook on publish. |
+| `(public)` | Dynamic SSR, no-store | ADR-0053: no shared Next data/route/ISR cache; fresh API eligibility on each new server request. |
 | `(studio)` | SSR, no cache | Always fresh; authentication required at the edge. |
 | `(portal)` | SSR for lesson shell, CSR for player | Player benefits from client-side state; shell needs SEO/auth. |
 
@@ -327,9 +351,9 @@ This document does not restate them.
 
 Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
 
-CI's Lighthouse job over representative public pages is scaffolded and not yet active.
-Whether it activates in [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), and what
-it asserts, is G44 in
+CI's Lighthouse job over representative public pages remains a disabled placeholder.
+Accepted P02d-5 G44 assigns activation to P02d-7 after P6 pages; P7 selects the
+harness and assertions. The decision is recorded in
 [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 
 ## Accessibility
@@ -367,13 +391,13 @@ mechanical.
 
 ## Risks
 
-> **Remaining Phase 02d decision.** Public route caching and its key remain G37 in
-> [the phase register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> G16(d) now requires contrast refusal, not a warning-only save. Neither decision
-> claims implemented transport or rendering.
+> **Accepted P02d-5.** ADR-0053 / G37 requires dynamic/no-store public rendering;
+> request-local reuse is allowed. P5 delivers transport and its runtime proofs;
+> P6 owns product pages. G16(d) requires contrast refusal before a branding save.
 
-- **Per-tenant SSR cost** — caching is per `(tenantId, organizationId?, locale, slug)`.
-  Cardinality is bounded; budget memory headroom.
+- **Per-request SSR cost** — bootstrap and content reads consume latency and API
+  quota on each request. Measure that cost; only request-local reuse is allowed
+  under [the public rendering policy](../standards/07-frontend-architecture.md#public-site-renderer).
 - **Cookie domain scoping** — tenants on custom domains complicate auth cookies. Use
   SameSite-Lax + explicit `Domain=` per host; do not share auth cookies across tenants.
   Domain registration and TLS flow:

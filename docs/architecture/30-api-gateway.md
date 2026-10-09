@@ -35,6 +35,13 @@ the LearnStack core API and the LearnStack Hub API.
 > so [Phase 03](../roadmap/phase-03-identity-admin.md) delivers authorization in ASP.NET
 > middleware and corrects this route table, but does not stand APISIX up in front of it.
 
+**Accepted P02d-5 local topology — 2026-10-08.**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md) uses native loopback
+HTTPS Next ingress and loopback HTTP API with authenticated host/visitor metadata.
+Step 2 replaces socket-only anonymous partitioning with canonical-IP and peer
+budgets. APISIX remains Phase 11's gated adapter; the topology below is that target,
+not a prerequisite or delivery claim for the walking skeleton.
+
 ## 1. Topology
 
 ```mermaid

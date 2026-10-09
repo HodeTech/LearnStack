@@ -22,6 +22,7 @@ TestResults/
 # Node
 node_modules/
 .next/
+.server/
 dist/
 build/
 coverage/
@@ -47,4 +48,3 @@ valkey-data/
 
 # Local-only analyses (not shared via git)
 docs/analysis/
-

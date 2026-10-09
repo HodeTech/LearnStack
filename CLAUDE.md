@@ -103,9 +103,17 @@ marketing/content projections and scoped seek cursors; both independent review
 rounds pass. Step 4 implements served/snapshot contract controls, the injected typed
 SDK and always-running OpenAPI compatibility CI. Both independent review rounds
 and fresh fix verification pass. All six real CI jobs pass; the approved sixth
-required check is active with all other live settings preserved. P02d-4 is
-implementation-complete in [PR #25](https://github.com/HodeTech/LearnStack/pull/25),
-awaiting maintainer review and merge. P02d-5 is next; its decision pass is not started.
+required check is active with all other live settings preserved. **P02d-4 is complete
+and merged** through [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on
+2026-10-08; its [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-merge-and-closeout-2026-10-08)
+records final verification. P02d-5 delivers trusted public server rendering under
+Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
+admission, the configured bounded server caller, live-host/locale entry and
+source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
+is the current owner of implementation steps, independent reviews, validation and
+PR readiness. P02d-5 remains unmerged in [PR #26](https://github.com/HodeTech/LearnStack/pull/26).
+Work stays on development. P02d-6's decision pass and product pages are next;
+P02d-7 owns the browser demo and Lighthouse. Neither packet is delivered by P5.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

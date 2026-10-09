@@ -2,7 +2,9 @@
 
 **Status:** Active
 **Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
-(ships the first batch of catalogue entries). The catalogue grows as
+(ships the first batch of catalogue entries),
+[ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
+(accepted replacement proofs implemented). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -126,8 +128,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**157 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 50 are no less binding, and most could not live there. The table says where
+**159 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 52 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -490,7 +492,8 @@ otherwise).
   Public descriptors are projected only after P02d-4 content eligibility.
 - **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
 - **Type:** frontend component and public-boundary tests. **Kind:** behavioural.
-- **Status:** **Registered**; the renderer and public projection are not delivered.
+- **Status:** **Registered**; P02d-4 delivers the eligible public projection;
+  the P02d-6 renderer is not delivered.
 - **Phase:** 02d (P02d-4/P02d-6).
 
 #### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
@@ -727,10 +730,12 @@ otherwise).
 
 - **Asserts:** no test in the architecture assembly carries a `Skip` on its `[Fact]` or
   `[Theory]`, and — at the runner, where the rule itself cannot see — no backend suite's
-  `.trx` reports a case that did not run. The `frontend` job's Vitest run is not read: a
-  skipped or todo case there, including one in `lint-rules.test.ts`, exits 0 today, and
-  closing that gap is G38 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+  `.trx` reports a case that did not run. P02d-5 G38(d) extends the runner to
+  frontend workspaces: `scripts/run-frontend-tests.mjs` discovers test packages and
+  reads nonempty Vitest JSON outcomes, refusing failures, skipped/todo cases,
+  missing scripts/reports and omitted discovered files. Real clean/planted runs in
+  `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
+  refusals; CLI success alone cannot close the rule.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -3692,7 +3697,11 @@ structural test proves — and what it does not.
 
 #### `Anonymous_Requests_Are_Rate_Limited_Per_Peer`
 
-- **Asserts:** the anonymous budget is spent per socket peer, a request over it is **429** with `Retry-After` and the one Problem Details shape, and the partition key never comes from a header. architecture/30 has promised this middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres round trip on a pre-auth surface.
+- **Asserts:** the shipped direct anonymous budget is spent per socket peer, a request
+  over it is **429** with `Retry-After` and the one Problem Details shape, and an
+  untrusted header never creates its partition. architecture/30 has promised this
+  middleware since Phase 01; from Packet 7 every novel `Host` value buys a Postgres
+  round trip on a pre-auth surface.
 - **Source:** Standards 04 § Request and Response Limits; ADR-0036.
 - **Type:** xUnit + HTTP. **Kind:** behavioural.
 - **Status:** **Implemented** (`RateLimitingHttpTests`, two cases: the budget and
@@ -3703,14 +3712,32 @@ structural test proves — and what it does not.
   header produced **zero** rejections against eleven without it, and the
   composition root refuses to start in that configuration now.
 - **Phase:** 02a (Packet 4).
-- **Note:** the partition key is open for one class of request.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md)'s server-rendered reads reach
-  the API over the authenticated trusted hop from the renderer's peer, so every visitor
-  of both seed tenants shares one partition. How the limiter keys and budgets such a
-  request is G34 in
-  [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-  An answer keyed on a visitor address the renderer states changes the "never comes from
-  a header" clause above, and the pass that closes G34 edits this entry.
+- **Accepted extension — 2026-10-08:** ADR-0053 / P02d-5 G34 replaces socket-only
+  partitioning for authenticated renderer traffic with one canonical-IP quota and a
+  separate peer ceiling. Untrusted forwarding metadata remains ineffective; trusted
+  malformed visitor metadata is bounded and refused before lookup. Existing direct
+  socket controls remain Implemented. P5 Step 2 implements the extension, with
+  `AnonymousRequestIdentityTests` covering strict bounded IP identity and hop
+  admission, and `TrustedVisitorHttpTests` covering real Kestrel sockets, shared
+  direct/SSR quotas, independent visitors, malformed/repeated metadata, rotation,
+  pre-lookup novel-host bounds and the physical-peer ceiling. Positive public
+  reads assert READ ONLY and the non-BYPASSRLS application role.
+- **Implemented replacement, both review rounds passed — 2026-10-09:**
+  ADR-0054 coordinated accounting is implemented by remediation Step 1.
+  `AnonymousAdmissionTests` proves exhausted-known-visitor fairness, peer-gated
+  allocation, last visitor/peer permit races, single creation, first-refusal
+  Retry-After, request-result replay, cancellation and independent leases. Its
+  sweep controls prove whole-registry bounded traversal, non-overlap, full-quota
+  idle retirement, real fixed-window replenishment and shutdown/acquisition safety.
+  `AnonymousLimiterLifecycleTests` retains both DI teardown paths and exact-once
+  child disposal. `AnonymousAdmissionRetryTests` exercises actual ASP.NET endpoint
+  refusal/retry with successful and refused global outcomes, without double debit.
+  `TrustedVisitorHttpTests` supplies
+  `Known_visitor_refusals_preserve_all_remaining_peer_permits_before_lookup`, which
+  replaces the old refusal-debit proof: 60 admissions and 270 refusals leave 540
+  peer permits. The independent physical-peer ceiling, direct/hop namespace and
+  real HTTP/app-role controls remain enforced. Historical counts describe their
+  original executions; remediation evidence belongs to the new delivery record.
 
 #### `Tenant_Headers_Are_Never_A_Resolution_Source`
 
@@ -4109,6 +4136,88 @@ of structural detection.
   structural.
 - **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); eight-operation, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
 - **Phase:** 02d (P02d-4 Step 4).
+
+## P02d-5 public server rendering controls
+
+**ADR-0054 native/URL controls complete — 2026-10-09; both reviews passed.**
+Remediation Step 2 extends the rules below. `verify-ingress.mjs` exercises the
+real native launcher over TLS: GET/HEAD on ordinary, scaffold and matcher-exempt
+health/assets; unsupported callback methods never reaching Next/bootstrap;
+bodyless HEAD, no-store refusal, exact favicon matcher and no framework
+identification. Production upgrades close at the server; development retains a
+real HMR 101/frame beyond its handshake deadline. `development-hmr.test.ts` proves
+bounded handshake ownership and failed/ignored delegation closure.
+`ingress.test.ts` covers signed raw context, full-URL RSC/`_rsc` projection and
+parsed/raw forwarding-header removal. Middleware/entry controls retain raw-route
+refusal of suffix aliases and inert ordered redirect query data. The real-API
+`PublicServerRenderingTests` fixture verifies restored Flight protocol inputs
+through the pinned Next adapter, with five GET probes and HEAD causing exactly six
+live bootstrap calls. The delivery record owns execution and independent review
+results. Step 3 completes fixture reliability/containment after both review rounds
+and verified fixes; Step 4 completes source/tooling proof after both review rounds.
+
+`fixture-support.test.ts` exercises positive environment construction, sticky
+split/early output verdicts, exact EOF boundaries, retained trees after cleanup
+refusal and shared owner cancellation/disposal. Controls for
+surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
+`verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
+upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`
+remains its independent clean socket/framework control. The shutdown-only leak
+mutant requires a final verdict after stopped-child output drains.
+`PublicServerRenderingTests`
+uses actual stdin/EPIPE failures and structured-log positive/negative controls;
+its real production build checks configured private values against nonempty client
+assets and rejects a successfully compiled leaking Client Component.
+
+Step 4 extends `public-boundaries.test.ts` with named constructor/conversion,
+converted-record spread/destructure, inherited alias/export and real render-helper
+mutants, plus actual pinned Next SWC and separate TypeScript verbatim controls.
+`lint-tooling.test.ts` exercises the shared real subject census/configuration and
+actual staged hook invocations; `frontend-runner.test.ts` refuses symlinked packages
+and test sources. `scripts/test-adr-status.py` exercises the lifecycle parser and
+actual CI disclosure block against an Accepted record with a delivery banner.
+`TrustedVisitorHttpTests` includes
+`Repeated_raw_secret_headers_spend_the_exhausted_direct_fallback_budget`;
+it observes two real Kestrel secret fields before proving fallback refusal and a fresh
+single-field positive control. `PublicLocalLaunchTests` launches the actual local
+API script with app credentials and an isolated empty user-secret root, without a
+PlatformAdmin credential. Mapped-peer and strict dotted-tail unit controls pin
+current framework behavior. Both independent Step 4 reviews and focused fix
+verification pass; the delivery record owns execution evidence.
+
+#### `Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport`
+
+- **Asserts:** every public caller derives provenance from the native socket ingress;
+  only one server-only adapter constructs API-hop headers, never client assets or
+  the SDK package. Real sockets, forged/bypassed controls and import/header plants
+  accompany the structural census; no empty subject can satisfy the rule.
+- **Source:** ADR-0053; Accepted P02d-5 G30/G33/G35.
+- **Type:** frontend structural + socket/runtime. **Kind:** structural.
+- **Status:** **Implemented** — `public-boundaries.test.ts` names this rule and
+  pins the nonempty production TypeScript graph, marker, direct/global/aliased
+  fetches, hop setters and transitive Client Component dependencies. Clean/planted
+  controls cover imports, reexports and literal dynamic imports. Arbitrary eval,
+  runtime reassignment, external package bodies and native MJS are outside the
+  source scan; production socket/TLS and `PublicServerRenderingTests` prove the
+  runtime boundary, actual client-import rejection and private-value containment.
+- **Phase:** 02d (P02d-5).
+
+#### `Public_Renderer_Does_Not_Share_Tenant_Representations`
+
+- **Asserts:** institution public paths use dynamic/no-store transport and no shared
+  route/data/ISR/bootstrap cache; request-local reuse never crosses an incoming
+  request. Production-build controls prove same-path/different-host isolation.
+- **Source:** ADR-0053; Accepted P02d-5 G37.
+- **Type:** frontend AST + actual production Next/API/PostgreSQL. **Kind:**
+  structural + behavioural.
+- **Status:** **Implemented** — `public-boundaries.test.ts` names this rule, checks
+  the public layout policy and follows public/helper imports for shared storage,
+  forbidden Next cache APIs and static/revalidation overrides. Clean/planted
+  controls accompany it; request-local React cache remains allowed.
+  `PublicServerRenderingTests` proves cold/interleaved same-path HTML/RSC host
+  isolation and next-request publication freshness as `learnstack_app`. It owns
+  disposable routes, not P6 product pages or P7 browser delivery.
+- **Phase:** 02d (P02d-5).
 
 ## References
 

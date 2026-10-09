@@ -264,6 +264,10 @@ template. The prompt must:
 Deliver the prompt as a code-fence in the response so the user can copy and
 dispatch it.
 
+**Lighthouse ownership — Accepted P02d-5, 2026-10-08.** P02d-7/G44/G45
+activates the full-stack job after P6 pages; it remains a disabled placeholder.
+The entry decision does not provide a Lighthouse command or passing audit.
+
 ## Validation (Definition of Done)
 
 The task is **not** done until every box below is checked:

@@ -61,9 +61,16 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
-  - `lighthouse budget (deferred to Phase 02d)` remains behind its unset
-    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. P02d-6/G44 owns activation,
-    pages, harness and assertions; its rename also needs live registration.
+  - P02d-5 keeps the existing check names. The frontend job uses the guarded
+    workspace test runner and native production/cleanup controls. Backend
+    integration also builds a disposable Next app against the real API/PostgreSQL;
+    Node 22.23.1/pnpm, frozen frontend dependencies and OpenSSL are required by
+    both that job and the frontend native-ingress proof.
+    Its test-owned HTML/RSC routes do not claim P6 pages or a browser audit.
+  - `lighthouse budget (deferred to P02d-7)` remains behind its unset
+    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. Accepted P02d-5 G44 assigns
+    activation to P02d-7/G44/G45 after P6 pages. It remains optional and disabled;
+    P7 selects the harness/assertions and any live required-check registration.
 
     GitHub matches required checks **by name**. The
     [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
@@ -121,9 +128,11 @@ exactly what CI's `backend` job runs.
 
 The pre-commit hook (activated by `make install`) runs, on staged files only:
 `dotnet format` on `*.cs`; prettier on JS / TS / JSON / Markdown **under
-`frontend/`**; `next lint --fix` on JS / TS under `frontend/apps/web` — the one
-workspace with a `lint` script, so this is exactly what `pnpm -r lint` covers in
-CI; and, when the binary is on PATH, `leakwatch scan fs <staged-file>`. So the
+`frontend/`**; shared-subject `next lint --fix` on web JS/TS (including `.mts` and
+`.cts`); SDK/UI workspace lint when their JS/TS changes; and, when the binary is
+on PATH, `leakwatch scan fs <staged-file>`. Web source, scripts and root configs
+share one subject census with CI; generated `next-env.d.ts`, `.next` and `.server`
+are excluded deliberately. So the
 three commands above are mostly a sanity check. There is deliberately no
 `make secret-scan` to pair with them — the hook and CI are the scanner's only
 runners, and CI re-runs every check as a hard gate, so a bypassed local commit

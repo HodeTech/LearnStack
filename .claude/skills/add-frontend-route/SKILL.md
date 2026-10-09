@@ -15,9 +15,9 @@ description: >
 
 ## Purpose
 
-Land a new route in `frontend/apps/web` that respects route-group conventions, tenant + org
-resolution at the edge, Server-Component-first rendering, and the typed SDK
-contract per
+Land a new route in `frontend/apps/web` that respects route-group conventions,
+API-owned tenant/organization resolution, Server Component rendering and the typed
+SDK contract per
 [14-frontend-architecture.md](../../../docs/architecture/14-frontend-architecture.md)
 + [07-frontend-architecture.md](../../../docs/standards/07-frontend-architecture.md).
 
@@ -53,7 +53,7 @@ contract per
 
 | Group | Purpose | Auth | Default render |
 |-------|---------|------|----------------|
-| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | SSR + ISR-like cache per `(tenantId, organizationId?, locale, slug)` (under an open gate — see Step 8). |
+| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | Dynamic SSR, no-store per ADR-0053; see Step 8. |
 | `(studio)` | Tenant admin Studio. | Tenant-admin or org-admin. Required at the edge. | SSR, no cache (always fresh). |
 | `(portal)` | Learner / instructor portal. | Membership in the resolved tenant. | SSR shell + Client Component for interactivity. |
 
@@ -76,22 +76,23 @@ unless the screen genuinely needs one.
 
 ```tsx
 // page.tsx (Server Component by default)
-import { sdk } from "@learnstack/sdk/server";
-import { UsersTable } from "./_components/users-table";
+import { createConfiguredPublicClient } from '@/server/configured-public-client';
 
-export default async function UsersPage({ searchParams }: { searchParams: { q?: string } }) {
-  const users = await sdk.identity.listUsers({ query: searchParams.q });
-  return <UsersTable initialUsers={users.items} />;
+// The configured server caller supplies this transport; never a tenant-ID option.
+export function loadCourses(envelope: string | null) {
+  const client = createConfiguredPublicClient(envelope);
+  if (!client) throw new Error('Invalid public ingress');
+  return client.getCourses(); // Locale comes from the authenticated route.
 }
 ```
 
-> **Open in Phase 02d.** The call shape above is illustrative. At HEAD
-> `@learnstack/sdk/server` exports `createServerSdk(options)`, a typed stub that takes
-> a `tenantId` and a `locale` and returns `{}`; no `sdk` object and no module namespace
-> exist. What the SDK surface becomes once regeneration makes `paths` non-empty is G31,
-> and the server transport's options are G35, in
+> **P02d-4 delivered.** `@learnstack/sdk/server` exports an injected
+> `createServerSdk(transport)` with four typed public GET wrappers; no global `sdk`
+> object, tenant-ID option or module namespace exists. The example is a loader,
+> not a complete route. P02d-5/G35 delivers the configured trusted transport in
 > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the passes that close them edit this step.
+> that caller precedes P02d-6 public page consumers. Read the verified envelope
+> from request-local `headers()`; never create or expose a provenance stamp in a page.
 
 Rules:
 
@@ -106,20 +107,48 @@ Rules:
 
 The API resolves tenant and organization from the host
 ([ADR-0036 § Effective host and the trusted hop](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
-The frontend never calls `IHostToTenantResolver`, and ADR-0036 makes
-`frontend/packages/sdk/src/server.ts` the only frontend place that sets the hop
-headers. At HEAD that file is a typed stub, and `src/middleware.ts` is a scaffold
-that copies the raw host into `x-tenant-id` and sets `x-locale`; it sets no
-`x-organization-id`. Their replacement is recorded as G35 and G36 in
+The frontend never calls `IHostToTenantResolver`. P02d-4's SDK is a pure injected
+transport contract and sets no hop headers. ADR-0053 replaces ADR-0036's older
+exact setter
+path with one server-only adapter in apps/web. P02d-5 Step 3's Node middleware
+verifies the native envelope, bootstraps the live host and applies enabled-locale
+entry before rebuilding downstream request headers. The caller verifies the
+envelope again. G35 and G36 are recorded in
 [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-Don't read `host` directly inside a page.
+Don't read `host` directly inside a page. The
+[public entry matrix](../../../docs/roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+is authoritative: bootstrap the live host before locale/redirect decisions;
+enabled-locale membership precedes `courses` shorthand and exact `/studio` or
+`/portal` scaffold handling. Disabled/malformed/unknown prefixes fail closed;
+no locale header, cookie or query supplies authority. The API remains the only
+tenant/organization owner. Continue the request-local validated `traceparent`
+through bootstrap and the configured caller; Phase 11 owns participation/sampling.
+
+**ADR-0054 native/URL controls delivered — 2026-10-09.**
+[The replacement contract](../../../docs/decisions/0054-bounded-public-renderer-admission.md)
+requires native GET/HEAD admission on every HTTP callback path, including
+middleware-exempt health/assets/scaffolds, with masked no-store refusal of other
+methods and bodyless HEAD. Production upgrades close; development retains only
+validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary)
+owns validation and both independent review rounds. Do not add
+Server Actions/write routes or WebSocket consumers without an explicit owning
+Phase 02b/Phase 06
+admission decision. Preserve signed raw-target route/locale authority when
+accounting for pinned Next's URL projection. Redirects retain inert query values,
+duplicates and order with equivalent percent encoding; only verified live host,
+accepted HTTPS port and local path select the destination.
 
 ### Step 5: Authentication + permission gating
 
-For `(studio)` and `(portal)` routes:
+Authentication below is the Phase 02b target, not current scaffold behavior.
+Today's exact `/studio` and `/portal` roots pass only after public host bootstrap;
+no sign-in/session helper is implemented. Phase 02b must explicitly admit its
+login/callback namespace before adding authenticated routes.
 
-- The middleware redirects unauthenticated requests to the Keycloak login.
-- Permission check happens at the page level via the `auth()` helper:
+For those future `(studio)` and `(portal)` routes:
+
+- Unauthenticated requests redirect through the accepted BFF/Keycloak sign-in flow.
+- A page-level permission check uses the future `auth()` helper:
 
 ```tsx
 import { auth } from "@learnstack/auth/server"; // illustrative: no such package exists yet; Phase 02b's session work owns the real helper
@@ -178,17 +207,14 @@ See [add-i18n-key](../add-i18n-key/SKILL.md).
 
 ### Step 8: Public-site SSR caching
 
-This step is under an open gate. How `(public)` routes render, and which Next.js
-caches they may use, is G37 in
-[Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-The step is rewritten when that gate closes; until then add no `revalidate`,
-`generateStaticParams` or `unstable_cache` to a `(public)` route. The cache key is
-**not** tenant-bearing automatically. A statically rendered route, which is what
-`revalidate` produces when the page reads no request data, is cached by path, and a
-public URL carries no tenant
-([Frontend Architecture Standards](../../../docs/standards/07-frontend-architecture.md)).
-Every cache key carries the tenant, the organization where applicable, and the locale
-([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](../../../docs/standards/11-security.md#multi-tenant--organization-isolation-review-checklist)).
+**Accepted P02d-5 G37 — 2026-10-08.** Follow
+[ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md): dynamic
+public rendering and no-store API transport; no positive `revalidate`, ISR,
+`generateStaticParams`, `unstable_cache` or shared bootstrap/data/route cache.
+Request-local reuse is isolated to one incoming request. Server Component HMR caching
+is disabled. A new server/document request rechecks eligibility; client history is
+not a revocation guarantee. Use the configured server caller; never derive tenancy
+from a page header or add hop options to the injected SDK. P6 owns page consumers.
 
 ### Step 9: Loading + error boundaries
 
@@ -213,8 +239,8 @@ Every route ships its own:
   recorded in the PR description. The phase that ships a route names its test set in
   its decision register.
 - Lighthouse budget check on representative public routes — CI's `lighthouse budget`
-  job is a deferred placeholder, so judge by reading. Whether Phase 02d activates it
-  is G44 in its
+  job remains deferred until P02d-7/G44/G45 after P6 pages; judge by reading until
+  that harness is implemented. Its remaining details are in the
   [decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
   the pass that closes it rewrites this bullet.
 
@@ -234,17 +260,13 @@ Every route ships its own:
 
 ## Common pitfalls
 
-- **Mounting under the wrong route group.** `(public)` SSR + ISR is wrong for a
-  Studio screen — caching across users is a leak. How a `(public)` route renders, and
-  which Next.js caches it may use, is G37 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  held open in [Step 8](#step-8-public-site-ssr-caching); the pass that closes it
-  edits this pitfall.
-- **Hand-rolled `fetch`.** The ESLint rule rejects it; use the SDK.
-- **Reading `host` inside a page.** The middleware is the only legal resolver.
-  Whether the middleware resolves anything, and what it carries, is G25 and G36 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes them edits this pitfall.
+- **Mounting under the wrong route group.** Public institution routes are dynamic
+  and no-store under ADR-0053; Studio/Portal authentication remains Phase 02b.
+- **Hand-rolled `fetch`.** Only the configured server adapter has an API transport
+  exemption. Page consumers call its SDK; no second header setter is permitted.
+- **Reading `host` inside a page.** The API resolves authority. The native ingress
+  authenticates connection provenance; middleware only bootstraps and selects the
+  enabled route locale. Plain internal headers are not authority.
 - **Client Component by default.** Default to Server. Don't sprinkle
   `"use client"` to avoid thinking about boundaries; that's how INP regresses.
 - **Trusting frontend permission check.** Hidden buttons are not security; the

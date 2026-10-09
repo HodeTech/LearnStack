@@ -3,7 +3,9 @@
 **Status:** Adopted
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (initial budgets in [04-technical-architecture.md § Performance Budgets](../architecture/04-technical-architecture.md)), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md) (classroom join + bandwidth budgets).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); P02d-5's bounded
+caller and dynamic/no-store policy derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
 
@@ -60,7 +62,9 @@ app-role query plans and local HTTP samples in its delivery record. Every
 No site/Education representation cache, ETag, Last-Modified or 304 is introduced;
 internal generation-keyed definitions remain independent. Record actual app-role
 consumer query plans and representative local cold/warm measurements without a
-production p95 claim. Renderer caches remain P02d-5/G37.
+production p95 claim. P02d-5/G37 accepts dynamic/no-store public rendering under
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); no shared Next
+representation cache is introduced. Internal definition caches remain independent.
 [The accepted package](../roadmap/phase-02d-walking-skeleton.md#branding-entitlement-and-cache-boundary)
 owns that boundary under ADR-0052.
 
@@ -125,11 +129,11 @@ owns that boundary under ADR-0052.
 - Dashboards track LCP, INP, CLS, FCP per route.
 - Regression on a critical route is a Sev-2 issue.
 
-> **Open in Phase 02d.** Whether web-vitals reporting ships with that phase's public
-> pages, and which phase owns it if not, is G35 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes it edits this section with its answer, together with
-> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability).
+> **Accepted P02d-5 G35.** Web-vitals reporting belongs to
+> [Phase 11](../roadmap/phase-11-production-hardening.md); P02d-5 provides no hook,
+> per [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
+> [Observability Standards § Frontend Observability](10-observability.md#frontend-observability)
+> records that ownership.
 
 ## Live Classroom
 

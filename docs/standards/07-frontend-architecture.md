@@ -7,7 +7,10 @@
 [ADR-0019 LearnStack Hub](../decisions/0019-learnstack-hub.md) (the operator portal
 `operator-portal` lives in the separate `learnstack-hub` repository).
 Public-read additions derive from
-[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+[ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); private ingress,
+configured caller and dynamic rendering derive from
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md); native admission and
+redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -36,7 +39,7 @@ frontend/
             layout.tsx
           api/                 # thin BFF route handlers
           layout.tsx           # root layout
-        middleware.ts          # tenant + organization resolution edge middleware
+        middleware.ts          # ingress verification and live locale/path admission
         components/
         lib/
 
@@ -88,9 +91,39 @@ flowchart TD
   origin, headers and transport configuration are P02d-5/G35, not client authority.
 - Public URLs carry locale and content slugs, never tenant identifiers.
 - The approved bootstrap creates no edge tenant registry or resolver endpoint.
-- Middleware placement, URL canonicalization and cookies remain P02d-5/G36/G21.
+- ADR-0053 accepts native ingress provenance, Node middleware bootstrap and the
+  server-only configured caller in P02d-5. The
+  [accepted entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix)
+  owns membership-first redirects. Anonymous entry neither sets nor uses cookies.
+  P02d-5 Steps 1–3 deliver native ingress, visitor budgets, Node bootstrap/entry
+  and the configured caller; Step 4 implements frontend fences and real-API
+  production HTML/RSC proofs. Public page composition remains P02d-6.
 - Studio/Portal tenant switching is separate authenticated functionality; its
   validated claim/cookie contract does not select institution public content.
+
+## Native Admission and URL Identity
+
+**ADR-0054 native/URL controls complete — 2026-10-09; both reviews passed.**
+Remediation Step 2 implements these controls. Concrete execution and review
+evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.md#remediation-step-2--native-ingress-and-url-boundary).
+
+- Admit GET/HEAD on every HTTP path reaching the native listener callback before
+  Next dispatch, including matcher-exempt health/assets and exact scaffolds.
+  Other methods receive masked `404`, `Cache-Control: no-store`, without bootstrap
+  or Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
+- Close every production WebSocket upgrade. Development admits only the validated
+  GET HMR upgrade path and closes failed/unhandled delegation. Health/asset
+  exemptions grant no method, provenance or tenant authority.
+- Future Server Actions/write routes and WebSocket consumers require an explicit
+  admission decision in their owning Phase 02b BFF/auth or Phase 06 admin work.
+  Disable `poweredByHeader` independently, including framework fallback responses.
+- Signed raw targets select route/locale identity. Match observed middleware URLs
+  only against pinned Next 15.5.18's explicit full-URL RSC/`_rsc` projection; do
+  not introduce suffix aliases or select another lesson after normalization.
+- Redirects retain inert query values, duplicates and ordering; equivalent percent
+  encoding is allowed. Only the verified live host, accepted HTTPS port and local
+  path select the destination. Membership-first precedence and redirect statuses
+  remain those of the [entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix).
 
 ## Locale Resolution
 
@@ -108,8 +141,8 @@ public-site URL canonicalization and header transport remain P02d-5.
 ## SDK
 
 The SDK is the frontend API boundary. **P02d-4 Step 4 delivers** generated
-types and an injected public GET transport; the configured server caller remains
-P02d-5.
+types and an injected public GET transport. P02d-5 Step 3 delivers the configured
+server caller in `apps/web/src/server/configured-public-client.ts`.
 
 - Generate from committed `backend/openapi/v1.json` through `LEARNSTACK_OPENAPI`
   using locked `openapi-typescript` 7.13.0 into checked-in `schema.d.ts`.
@@ -125,8 +158,15 @@ P02d-5.
   strings, matching Standards 09's carrier. Transport failure, malformed JSON,
   invalid local path input and caller cancellation remain distinct from a valid
   API error; cancellation precedes URL construction.
-- P02d-5/G35 supplies the configured trusted server caller. P02d-6 supplies all
+- P02d-5/G35 delivers the configured trusted server caller. P02d-6 supplies all
   public page consumers. HEAD is the HTTP companion, not a browser JSON wrapper.
+
+The `server-only` marker is pinned to **0.0.1**, MIT (compatible with the project's
+permissive dependency policy); the installed package metadata and lockfile are
+the version/license evidence. [Next's server/client guidance](https://nextjs.org/docs/app/getting-started/server-and-client-components#preventing-environment-poisoning)
+explains the import guard. Vitest aliases the marker only in server tests. The
+P5 production fixture proves a real client import fails with the marker diagnostic
+before rebuilding a clean server route against the real API.
 
 The [accepted contract/CI plan](../roadmap/phase-02d-walking-skeleton.md#openapi-sdk-and-required-check-plan)
 owns the source, pin, diff policy, bootstrap exception and required-check rollout.
@@ -152,16 +192,34 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 
 ## Public Site Renderer
 
-> **Open in Phase 02d.** How tenant-varying `(public)` routes render and which caches
-> may hold tenant data (G37), and where composite and primitive components live (G41),
-> are open in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
-> The pass that closes each edits this section with its answer.
+**Accepted P02d-5 policy — 2026-10-08. Derives from:**
+[ADR-0053](../decisions/0053-trusted-public-server-rendering.md). Public institution
+routes render dynamically with no-store API transport. No ISR, positive
+`revalidate`, `generateStaticParams`, `unstable_cache` or shared bootstrap/data/route
+cache is permitted. Request-local reuse is isolated to one incoming request.
+Freshness is the next new server/document request, not client Router Cache history.
+Disable local Server Component HMR caching. P02d-6/G41 still owns components.
+P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
+production routes exercise the real API; P6 public pages are not delivered by them.
 
 - Renders **published** pages, courses, blog content.
-- Server-side rendering with `revalidate` based on tenant + content type.
+- Institution public SSR uses ADR-0053's dynamic/no-store policy.
 - Block rendering pulls from a block registry (`packages/blocks`); blocks register a React component plus a JSON schema.
 - Preview tokens enable draft rendering for editors.
+
+### Public source fence scope
+
+P02d-5 remediation Step 4 follows header constructors and converted records through
+bounded declaration aliases. Inherited tsconfig paths and workspace exports must
+match the resolver census; unsupported production `.mts`/`.cts` extensions fail
+until the census/resolver supports them. Declaration-level `import type` and
+`export type` edges are erased. Inline type-only specifiers remain conservative
+source edges: TypeScript verbatim emission retains them; pinned Next 15.5.18 SWC
+erases them. Separate real compiler controls establish that distinction.
+An empty production Client Component census is source information; the configured
+production-build canary supplies independent asset containment evidence.
+[The catalogue](21-architecture-tests-catalogue.md#p02d-5-public-server-rendering-controls)
+names the controls; the remediation record owns execution evidence.
 
 ## Admin Studio
 

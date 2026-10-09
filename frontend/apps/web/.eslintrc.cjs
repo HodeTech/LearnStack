@@ -14,4 +14,30 @@ module.exports = {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,
   },
+  ignorePatterns: ['.next/', '.server/', 'next-env.d.ts'],
+  overrides: [
+    {
+      // Native ESM/CJS TypeScript helpers are outside the Next TS program.
+      // Parse their syntax explicitly, without relying on parser leniency.
+      files: ['**/*.mts', '**/*.cts'],
+      parserOptions: { project: null },
+      parser: require.resolve('@typescript-eslint/parser', {
+        paths: [require.resolve('@learnstack/config/eslint')],
+      }),
+    },
+    {
+      // ADR-0053: this is the sole configured API transport; pages use its SDK.
+      files: ['src/server/configured-public-client.ts'],
+      rules: { 'no-restricted-globals': 'off' },
+    },
+    {
+      files: ['**/*.mjs', '**/*.cjs'],
+      env: { node: true, es2022: true },
+      // Native Node launch/test scripts are JavaScript, outside the TS program.
+      // Keep the ordinary security/import rules; only the TS type-import rule
+      // requires a parser service these files cannot supply.
+      parserOptions: { project: null },
+      rules: { '@typescript-eslint/consistent-type-imports': 'off' },
+    },
+  ],
 };
