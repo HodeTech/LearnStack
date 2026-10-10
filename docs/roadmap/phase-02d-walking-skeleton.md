@@ -5157,6 +5157,17 @@ This supports feasibility of the proposed same-process design only. ADR-0055
 remains Proposed; dependent production implementation still requires approval
 and all named production proofs.
 
+**Independent feasibility review — two rounds.** GPT-6-astra (xhigh) checks
+the fixture/driver, retained diagnostics and root replay. It verifies one wording
+gap: the RSC context-error paragraph also covered expected post-finish HEAD work.
+Commit `5b5f5a9` limits that paragraph to active requests; the reviewer rechecks
+and approves the narrow feasibility claim without remaining findings. It does
+not characterize observation-only summary fields as comprehensive mutation tests.
+GPT-6.1-sol (high) then independently reviews `22a9775..5b5f5a9`, confirms the
+matrix and active/late distinction, and approves without findings. Both reviews
+inspect evidence rather than run another build. The root's separate replay passes
+the same matrix and both negative controls. No review constitutes ADR acceptance.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
