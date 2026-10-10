@@ -11,6 +11,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADAPTER,
+  ADMISSION_RUNTIME,
+  ADMISSION_FACADE,
+  admissionBoundaryFindings,
   buildSourceGraph,
   cacheFindings,
   clientBoundaryFindings,
@@ -146,6 +149,8 @@ describe('ADR-0053 production public boundaries', () => {
     expect([...production.files.keys()]).toEqual(
       expect.arrayContaining([
         ADAPTER,
+        ADMISSION_RUNTIME,
+        ADMISSION_FACADE,
         INGRESS,
         I18N_REQUEST,
         MIDDLEWARE,
@@ -222,6 +227,42 @@ describe('ADR-0053 production public boundaries', () => {
           directory + '/' + value.slice(2),
         );
       }
+  });
+  it('keeps the native admission owner outside every bundled runtime edge', () => {
+    expect(production.files.has(ADMISSION_RUNTIME)).toBe(true);
+    expect(production.files.has(ADMISSION_FACADE)).toBe(true);
+    expect(production.resolveModule('./public-admission-runtime.js', ADMISSION_FACADE)).toBe(
+      ADMISSION_RUNTIME,
+    );
+    clean(admissionBoundaryFindings(production), 'Fix: preserve native-only admission ownership.');
+    expect(reachable(production, renderRoots)).not.toContain(ADMISSION_RUNTIME);
+    const imported = graphWith(
+      ADMISSION_FACADE,
+      sources[ADMISSION_FACADE]! +
+        '\nimport { createPublicAdmissionRuntime } from "./public-admission-runtime.js"; createPublicAdmissionRuntime();',
+    );
+    expect(admissionBoundaryFindings(imported)).not.toEqual([]);
+    for (const mutation of [
+      sources[ADMISSION_FACADE]!.replace("import 'server-only';", ''),
+      sources[ADMISSION_FACADE]! +
+        '\nimport { AsyncLocalStorage } from "node:async_hooks"; new AsyncLocalStorage();',
+      sources[ADMISSION_FACADE]! +
+        '\nObject.defineProperty(globalThis, Symbol.for("fallback"), {value: {}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst install = Object.defineProperty; install(globalThis, Symbol.for("fallback"), {value: {}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst {defineProperties: install} = Object; install(globalThis, {fallback: {value: {}}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst target = globalThis; Object.assign(target, {fallback: {}});',
+    ])
+      expect(admissionBoundaryFindings(graphWith(ADMISSION_FACADE, mutation))).not.toEqual([]);
+    for (const file of [ADMISSION_RUNTIME, ADMISSION_FACADE]) {
+      const graph = graphWith(
+        probe,
+        `'use client'; import * as admission from ${JSON.stringify('@/server/' + file.split('/').at(-1)!.replace(/\.ts$/, ''))}; export const value = admission;`,
+      );
+      expect(clientBoundaryFindings(graph).some((item) => item.file === probe)).toBe(true);
+    }
   });
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)

@@ -25,7 +25,57 @@ export const MIDDLEWARE = 'apps/web/src/middleware.ts';
 export const PUBLIC_LAYOUT = 'apps/web/src/app/(public)/layout.tsx';
 export const I18N_REQUEST = 'apps/web/src/i18n/request.ts';
 export const REQUEST_MEMO = 'apps/web/src/server/request-memo.ts';
+export const ADMISSION_RUNTIME = 'apps/web/src/server/public-admission-runtime.ts';
+export const ADMISSION_FACADE = 'apps/web/src/server/public-admission.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
+
+/** Native ownership is not a cache exception in the bundled rendering graph. */
+export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
+  const findings: Finding[] = [];
+  for (const [name, targets] of graph.edges) {
+    if (targets.includes(ADMISSION_RUNTIME))
+      findings.push({
+        file: name,
+        line: 1,
+        reason: 'Fix: only the native launcher imports the admission owner at runtime.',
+      });
+  }
+  const facade = graph.files.get(ADMISSION_FACADE);
+  if (!facade)
+    return [
+      ...findings,
+      {
+        file: ADMISSION_FACADE,
+        line: 1,
+        reason: 'Fix: retain the passive server-only admission facade.',
+      },
+    ];
+  if (!hasServerOnlyMarker(facade))
+    findings.push(finding(facade, 'Fix: mark the admission facade server-only.'));
+  walk(facade, (node) => {
+    if (
+      (ts.isImportDeclaration(node) &&
+        runtimeImport(node) &&
+        constantString(node.moduleSpecifier, graph.checker) !== 'server-only') ||
+      (ts.isNewExpression(node) && !globalBuiltin(node.expression, 'Error', graph.checker)) ||
+      (ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) && node.expression.text === 'require') ||
+          globalBuiltin(node.expression, 'Object.defineProperty', graph.checker) ||
+          globalBuiltin(node.expression, 'Object.defineProperties', graph.checker) ||
+          (globalBuiltin(node.expression, 'Object.assign', graph.checker) &&
+            node.arguments[0] !== undefined &&
+            globalObject(node.arguments[0], graph.checker))))
+    )
+      findings.push(
+        finding(
+          node,
+          'Fix: retrieve the native holder lazily; the facade cannot construct or install state.',
+        ),
+      );
+  });
+  return [...findings, ...cacheFindings(graph, [ADMISSION_FACADE])];
+}
 const HOP_HEADERS = new Set([
   'x-learnstack-host',
   'x-learnstack-hop-secret',
@@ -344,9 +394,14 @@ export function buildSourceGraph(sources: SourceCensus): SourceGraph {
       const [pkg, ...path] = specifier.slice('@learnstack/'.length).split('/');
       base = `packages/${pkg}/src/${path.length === 0 ? 'index' : path.join('/')}`;
     } else return undefined;
-    return [base, base + '.ts', base + '.tsx', base + '/index.ts', base + '/index.tsx'].find(
-      (name) => files.has(name),
-    );
+    return [
+      base,
+      ...(base.endsWith('.js') ? [base.slice(0, -3) + '.ts'] : []),
+      base + '.ts',
+      base + '.tsx',
+      base + '/index.ts',
+      base + '/index.tsx',
+    ].find((name) => files.has(name));
   };
   const options: ts.CompilerOptions = {
     noLib: true,

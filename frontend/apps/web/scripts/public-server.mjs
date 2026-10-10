@@ -8,9 +8,12 @@ import {
   admitIncomingRequest,
   loadLocalEnvironment,
   PUBLIC_ENV_KEYS,
+  INGRESS_HEADER,
   publicServerConfiguration,
   refuseIngress,
+  verifyProvenance,
 } from '../.server/ingress.js';
+import { installPublicAdmissionRuntime } from '../.server/public-admission-runtime.js';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 try {
@@ -20,6 +23,7 @@ try {
   const { default: next } = await import('next');
   const values = loadLocalEnvironment(root, process.env);
   const configuration = publicServerConfiguration(values, root);
+  const admission = installPublicAdmissionRuntime();
   // Next reads the same values; root/projection conflicts were refused before prepare.
   for (const key of PUBLIC_ENV_KEYS) process.env[key] = values[key];
   const dev = process.argv.includes('--dev');
@@ -37,13 +41,17 @@ try {
     },
     (request, response) => {
       if (!admitIncomingRequest(request, configuration.secret)) return refuseIngress(response);
+      const binding = verifyProvenance(request.headers[INGRESS_HEADER], configuration.secret);
+      if (!binding) return refuseIngress(response);
       // No request, credential or provider-error values enter launcher diagnostics.
-      Promise.resolve(handle(request, response)).catch(() => {
-        if (!response.headersSent) {
-          response.writeHead(503, { 'cache-control': 'no-store' });
-          response.end('Service unavailable');
-        } else response.destroy();
-      });
+      Promise.resolve()
+        .then(() => admission.run(binding, request, response, () => handle(request, response)))
+        .catch(() => {
+          if (!response.headersSent) {
+            response.writeHead(503, { 'cache-control': 'no-store' });
+            response.end('Service unavailable');
+          } else response.destroy();
+        });
     },
   );
   server.on('upgrade', (request, socket, head) => {
@@ -52,9 +60,18 @@ try {
   });
   server.on('connect', (_request, socket) => socket.destroy());
   server.on('error', () => {
+    admission.shutdown();
     console.error('Public HTTPS listener failed');
     process.exit(1);
   });
+  const shutdown = () => {
+    admission.shutdown();
+    server.close();
+    server.closeAllConnections();
+    void app.close().catch(() => console.error('Public server shutdown failed'));
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
   server.listen(3000, '127.0.0.1', () => {
     console.warn('Public HTTPS listener ready on 127.0.0.1:3000');
   });

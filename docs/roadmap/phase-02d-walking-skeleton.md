@@ -5236,6 +5236,34 @@ unapproved response owner; a required architectural change returns for a new
 decision. P02d-7 and Phase 06/11 retain their named browser/accessibility/hardening
 work. No new manual browser/VoiceOver result is implied by this approval.
 
+###### ADR-0055 Step 1 — Native request context and lifecycle
+
+**Implemented — 2026-10-10; independent review rounds pending.** The native
+launcher installs the sole versioned ALS holder before Next preparation and wraps
+each admitted HTTP delegation in a fresh verified binding. Server-only consumers
+retrieve the existing holder lazily; no bundled runtime constructs a replacement.
+The holder copies only the closed public Site fields, bounds the copied snapshot
+to the existing decoded-response ceiling and freezes its nested values. Refusal,
+finish, close, abort and shutdown prevent later publication/use and release the
+holder's snapshot reference and owned listeners. Request-input `close` and handler
+promise resolution do not terminate the response lifetime.
+
+Forty-eight focused unit cases cover state/binding conflicts, source mutation,
+the inclusive UTF-8 byte ceiling, eight overlapping identical requests, escaped
+handles, singleton descriptor checks and completed HEAD/late work. Source fences
+refuse runtime imports of the native owner, facade fallback construction and
+Client Component access, with dirty/clean controls. The shared transport limits
+retain the existing ten-second and 8 MiB values.
+
+The guarded frontend run passes **1,284** cases: **1,224 web and 60 SDK**, with zero
+skips/todos. Typecheck, lint, production build and all **198 architecture cases**
+pass. Native ingress verification and all **19 setup/cleanup controls** pass,
+including production upgrades, development HMR, signal/IPC/EPIPE and owned
+fixture cleanup. These unit/native-foundation results do not claim the complete actual
+middleware-to-RSC handoff: Step 2 still owns publication/consumption and removal
+of the second bootstrap; Step 3 owns actual product integration and lifecycle
+proofs. The five new catalogue rules remain Registered until that proof closes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
