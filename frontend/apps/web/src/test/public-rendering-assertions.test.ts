@@ -7,6 +7,7 @@ import {
   absentFromSerializedText,
   absentFromWholeResponse,
   documentViewport,
+  documentOpenGraphLocales,
   productContainment,
   productTheme,
   statusDocument,
@@ -205,6 +206,39 @@ describe('emitted product viewport metadata', () => {
     expect(() =>
       documentViewport(
         themeDoc('<meta name="viewport" content="width=device-width, initial-scale=1">'),
+      ),
+    ).not.toThrow();
+  });
+});
+
+const graphLocaleDoc = (head: string) =>
+  new JSDOM(`<html><head>${head}</head></html>`).window.document;
+const graphEligible =
+  '<link rel="alternate" hreflang="en" href="/en/courses"><link rel="alternate" hreflang="tr-TR" href="/tr-TR/courses">';
+const graphAlternate = '<meta property="og:locale:alternate" content="tr_TR">';
+
+describe('production Open Graph locale assertion controls', () => {
+  it.each([
+    graphEligible,
+    '<link rel="alternate" hreflang="en" href="/en/courses">' + graphAlternate,
+    graphEligible + graphAlternate + graphAlternate,
+    graphEligible + '<meta property="og:locale:alternate" content="tr-TR">',
+    graphEligible + graphAlternate + '<meta property="og:locale" content="en_US">',
+  ])('rejects missing, ineligible, duplicate or invented locales: %s', (head) => {
+    expect(() => documentOpenGraphLocales(graphLocaleDoc(head), 'en')).toThrow('Open Graph');
+    expect(() =>
+      documentOpenGraphLocales(graphLocaleDoc(graphEligible + graphAlternate), 'en'),
+    ).not.toThrow();
+  });
+
+  it('requires the explicit current territory and omits unrepresentable alternates', () => {
+    const links =
+      graphEligible + '<link rel="alternate" hreflang="zh-Hans-CN" href="/zh-Hans-CN/courses">';
+    expect(() => documentOpenGraphLocales(graphLocaleDoc(links), 'tr-TR')).toThrow('locale');
+    expect(() =>
+      documentOpenGraphLocales(
+        graphLocaleDoc(links + '<meta property="og:locale" content="tr_TR">'),
+        'tr-TR',
       ),
     ).not.toThrow();
   });

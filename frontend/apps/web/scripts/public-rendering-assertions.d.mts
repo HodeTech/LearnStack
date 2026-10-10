@@ -25,6 +25,7 @@ export function absentFromWholeResponse(
 ): void;
 export function visibleDocument(response: Pick<Response, 'body'>): Document;
 export function documentViewport(doc: Document): void;
+export function documentOpenGraphLocales(doc: Document, locale: string): void;
 export function statusDocument(
   response: Response,
   tenant: Tenant,

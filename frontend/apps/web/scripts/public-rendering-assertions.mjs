@@ -77,6 +77,25 @@ export function documentViewport(doc) {
   );
 }
 
+/** Compare complete serialized OG locale arrays with the eligible hreflang set. */
+export function documentOpenGraphLocales(doc, locale) {
+  const project = (value) => (/^[a-z]{2,3}-[A-Z]{2}$/.test(value) ? [value.replace('-', '_')] : []);
+  assert.deepEqual(
+    [...doc.querySelectorAll('meta[property="og:locale"]')].map((node) => node.content),
+    project(locale),
+    'Exact representable Open Graph locale',
+  );
+  const expected = [...doc.querySelectorAll('link[rel="alternate"][hreflang]')]
+    .map((node) => node.hreflang)
+    .filter((language) => language !== locale)
+    .flatMap(project);
+  assert.deepEqual(
+    [...doc.querySelectorAll('meta[property="og:locale:alternate"]')].map((node) => node.content),
+    expected,
+    'Exact eligible Open Graph alternates',
+  );
+}
+
 export function statusDocument(response, tenant, locale, uiLocale, options) {
   const { tenants, catalogueSentinels = [], mark = () => {} } = options;
   mark('status headers');

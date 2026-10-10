@@ -30,6 +30,7 @@ import {
   absentFromSerializedText,
   absentFromWholeResponse as assertAbsentFromWholeResponse,
   documentViewport,
+  documentOpenGraphLocales,
   productContainment as assertProductContainment,
   productTheme as assertProductTheme,
   statusDocument as assertStatusDocument,
@@ -367,15 +368,7 @@ function productDocument(response, tenant, locale, heading, path, direction = 'l
     'https://' + tenant.host + ':3000' + path,
     'Eligible current locale has a canonical hreflang self-reference',
   );
-  assert.equal(
-    doc.querySelector('meta[property="og:locale"]')?.getAttribute('content') ?? null,
-    locale === 'tr-TR' ? 'tr_TR' : null,
-    'Open Graph retains an explicit territory, never inventing one for bare fixture locales',
-  );
-  for (const alternate of doc.querySelectorAll('meta[property="og:locale:alternate"]')) {
-    assert.equal(alternate.content, 'tr_TR', 'Only the representable fixture alternate is emitted');
-    assert.notEqual(locale, 'tr-TR', 'The current locale cannot also be an Open Graph alternate');
-  }
+  documentOpenGraphLocales(doc, locale);
   assert.ok(doc.body.textContent.includes(tenant.name), 'Live tenant chrome');
   const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
   assert.equal(doc.body.textContent.includes(other.name), false, 'No opposite tenant chrome');

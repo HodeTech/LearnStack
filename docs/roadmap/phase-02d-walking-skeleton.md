@@ -4947,6 +4947,77 @@ fixture-alternate expectation, corrected before this passing run. The production
 build passes. Two independent review rounds follow the implementation commit.
 ADR-0055 remains Proposed and has no dependent code in this group.
 
+
+
+**Round 1 — independent review of `ca03942..75c3e61`.** GPT-6.1-sol (high)
+independently passed 61 metadata cases and web typecheck. It found no production
+projection error, but verified that the runtime alternate loop accepted missing
+and ineligible serialized alternates. The corrected shared predicate compares
+complete current/alternate arrays against the representable eligible hreflang
+set. Six committed dirty/clean controls cover missing, ineligible, duplicate,
+malformed and invented territory output. All 103 metadata/response-helper cases
+pass. The second fresh review and repeated actual production check follow.
+
+##### Remediation group 3 — approved security maintenance
+
+**Implementation and replacement proofs in progress — 2026-10-10.** The approved
+paired Next/eslint-config-next 15.5.27 update disables unused image optimization.
+Compatible lockfile patches cover PostCSS 8.5.23, sharp 0.35.5, js-yaml 4.3.2,
+brace-expansion's existing major lines, nanoid 3.3.18, source-map-js 1.2.2,
+browserslist 4.28.7, baseline-browser-mapping 2.11.0 and selector-parser 6.1.3.
+Next pins an older PostCSS exactly, so only its dependency edge has a permanent
+8.5.23 override. Redocly core 1.34.20 remains within the SDK's existing range and
+updates its exact js-yaml dependency. Normal and frozen installation pass.
+
+Comparable fresh audits distinguish deployment from development tooling:
+
+| Scope | Before maintenance | After compatible patches |
+|---|---|---|
+| Production | 46 findings: 2 critical / 28 high / 15 moderate / 1 low | 2 findings: 1 high / 1 moderate |
+| Full workspace | 59 findings: 5 critical / 32 high / 21 moderate / 1 low | 11 package/advisory records: 3 critical / 2 high / 6 moderate; 10 distinct GHSAs |
+
+The original 46-finding report was production scope. The full baseline uses the
+pre-maintenance committed manifests/lockfile in a disposable directory. Neither
+comparison claims every advisory is a reachable public flaw or a clean audit.
+Current residual input paths and dispositions are:
+
+| Advisory | Current input and disposition |
+|---|---|
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/micromatch/braces/issues/70) | Braces processes checked-in build/lint/watch globs through Tailwind/Next ESLint. No fixed release exists; retain visibility and reassess upstream or any request-supplied glob use. |
+| [GHSA-rj75-hqrm-r3gf](https://github.com/postcss/postcss-selector-parser/security/advisories/GHSA-rj75-hqrm-r3gf) | Selector-parser 6.x processes checked-in CSS through Tailwind/PostCSS Nested. Fix 7.1.6 exceeds their declared range; no request-time selector input is identified. Track an upstream backport or separate compatible parent migration. |
+| [GHSA-67mh-4wv8-2f99](https://github.com/evanw/esbuild/security/advisories/GHSA-67mh-4wv8-2f99) | Esbuild's serving feature through Vite/Vitest is not used by repository scripts. Proposed test-toolchain migration below removes the affected branch. |
+| [GHSA-4w7w-66w2-5vf9](https://github.com/vitejs/vite/security/advisories/GHSA-4w7w-66w2-5vf9), [GHSA-v6wh-96g9-6wx3](https://github.com/vitejs/vite/security/advisories/GHSA-v6wh-96g9-6wx3), [GHSA-fx2h-pf6j-xcff](https://github.com/vitejs/vite/security/advisories/GHSA-fx2h-pf6j-xcff) | Vite development HTTP/editor/file-serving paths; repository scripts expose no Vite dev-server workflow. Windows-specific prerequisites are not a blanket exemption. Migration below replaces Vite 5. |
+| [GHSA-5xrq-8626-4rwp](https://github.com/vitest-dev/vitest/security/advisories/GHSA-5xrq-8626-4rwp), [GHSA-82fw-gwwq-j7x9](https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9) | Vitest UI/API/mocker paths; scripts use run mode without UI/API/browser configuration or public mocker exports. These remain reported findings; migration below replaces both Vitest/mocker branches. |
+| [GHSA-5gmw-xhrv-c9v3](https://github.com/tinylibs/tinypool/security/advisories/GHSA-5gmw-xhrv-c9v3), [GHSA-85c8-ppgw-ccpr](https://github.com/tinylibs/tinypool/security/advisories/GHSA-85c8-ppgw-ccpr) | Test-worker construction/options need prior prototype pollution and applicable attacker-controlled loading input; none is identified. Migration below removes tinypool rather than forcing an incompatible major into Vitest 2. |
+
+The P02d-6 remediation owns this triage and the approval request below. The
+maintainer owns any remaining backport/parent-migration decision; applicable
+Security Standards patch deadlines remain unchanged. No test-toolchain major is
+silently included in the already approved compatible-patch package.
+
+###### Proposed test-toolchain migration — approval pending
+
+The separately reviewable candidate pins Vitest **4.1.11** and Vite **6.4.3** in
+both web and SDK, resolving esbuild **0.25.12** within Vite's range. Vitest 4 removes
+tinypool; no tinypool major override is proposed. React plugin 4.7.0, jsdom 26.1.0,
+Node 22.23.1, TypeScript 5.6.3 and React 19 remain. Narrow compatible resolution
+pins may keep Vitest on Vite 6 and Vite on the selected esbuild patch; Vite 8 must
+not appear as an accidental second tree.
+
+The [official migration](https://v4.vitest.dev/guide/migration) changes pool and
+mock-constructor behavior. The existing arrow `Intl.Locale` constructor mock
+must become a constructible function/class and still prove its intended error.
+Inspect mock cleanup; retain explicit Testing Library cleanup and `globals:false`.
+The JSON reporter keeps the counters/status/file fields consumed by the guarded
+runner; all its skip/todo/missing/omitted-file negative controls must still fail.
+
+Before completion: frozen install, resolved graph/advisory audit, guarded full
+frontend suite, lint, typecheck and production build; two independent review
+rounds and verified fixes. Preserve package/control deadlines and all existing
+proof gates. This candidate has not been installed or implemented and accepts no
+new architecture/ADR contract. Approval is requested because it exceeds the
+compatible-transitive scope already approved.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
