@@ -5295,7 +5295,7 @@ is complete; no second-bootstrap removal or full product proof is claimed here.
 
 ###### ADR-0055 Step 2 — Single bootstrap publication and checked consumers
 
-**Implemented — 2026-10-10; independent review rounds pending.** Middleware
+**Implemented — 2026-10-10; both independent review rounds complete.** Middleware
 requires the matching active native context before transport, performs the sole
 site call and publishes only after successful route admission and response
 construction. Redirects and refusals terminalize without a snapshot. Controlled
@@ -5319,6 +5319,20 @@ DEBUG, HMR and signal controls. Focused tests include 88 middleware/admission an
 18 actual-memo resource lifecycle cases. These are Step 2 results; Step 3 still
 owns real-API/PostgreSQL product accounting, exact wire failures, broader lifecycle
 and navigation proofs. The five catalogue rules remain Registered.
+
+**Review round 1 — `578dcd8`.** Fresh runtime/security and proof/structure
+reviewers approve without actionable findings. Independent focused replays pass
+122 and 400 cases. They verify single bootstrap ownership, exact middleware
+refusals, bodyless HEAD, eligible Retry-After bounds, immutable snapshot identity,
+post-await and memo-hit lifetime checks, cancellation and retained source fences.
+Neither review claims Step 3's actual API/PostgreSQL or navigation obligations.
+
+**Review round 2 — `578dcd8`.** New runtime/security and proof/structure reviewers
+approve without actionable findings. Independent focused replays pass 122 and
+439 cases. They confirm real memo/runtime controls reject completed and
+cross-store values before Education or result inspection, while preserving
+request cancellation and the server-only boundary. Step 2 is complete; the
+remaining production proof obligations stay with Step 3.
 
 ### P02d-1 decision pass (2026-09-14)
 
