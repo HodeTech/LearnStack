@@ -5110,6 +5110,15 @@ to two records / two advisories: zero critical, one high and one moderate. The
 production audit retains the same two residuals already triaged in group 3;
 neither audit is described as clean. Independent review rounds follow this commit.
 
+**Round 1 — independent review of `2bf9d57..0761d84`.** GPT-6.1-sol (high)
+reviews dependency compatibility and approves without verified findings. A fresh
+resolved graph matches the saved graph and installed lock; surviving package
+records and runtime dependency declarations are unchanged. GPT-6-astra (high)
+reviews runtime/test proofs and also approves without findings. It independently
+passes 110 focused locale, runner, caller, HMR and cleanup cases, verifies the
+26-web/one-SDK file census, and checks the installed JSON reporter semantics.
+Neither reviewer claims another full frontend/build/architecture execution.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
