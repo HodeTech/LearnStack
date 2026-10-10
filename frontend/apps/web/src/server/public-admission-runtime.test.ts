@@ -1,7 +1,12 @@
 // @vitest-environment node
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { IngressContext } from './ingress';
@@ -291,6 +296,94 @@ describe('native public admission state and closed snapshot', () => {
 });
 
 describe('native public admission lifetime and concurrent ownership', () => {
+  it('collects native request objects while completed and refused writer handles remain alive', () => {
+    const root = mkdtempSync(join(tmpdir(), 'learnstack-admission-gc-'));
+    try {
+      writeFileSync(join(root, 'package.json'), '{"type":"module"}');
+      // Compile only the three native sources, independently of build:ingress or
+      // an existing .server directory. The child owns its explicit GC capability.
+      for (const name of ['public-admission-runtime', 'public-api-limits', 'ingress']) {
+        const source = readFileSync(new URL(`./${name}.ts`, import.meta.url), 'utf8');
+        const output = ts.transpileModule(source, {
+          compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+        }).outputText;
+        writeFileSync(join(root, `${name}.js`), output);
+      }
+      writeFileSync(
+        join(root, 'proof.mjs'),
+        `import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { setImmediate } from 'node:timers/promises';
+import { createPublicAdmissionRuntime } from './public-admission-runtime.js';
+
+const binding = ${JSON.stringify(binding)};
+const site = ${JSON.stringify(site())};
+const reason = ${JSON.stringify(completed)};
+assert.equal(typeof global.gc, 'function');
+
+function retainedWriter(kind) {
+  const runtime = createPublicAdmissionRuntime();
+  const request = Object.assign(new EventEmitter(), { aborted: false });
+  const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });
+  let writing;
+  runtime.run(binding, request, response, () => {
+    writing = runtime.holder.begin(binding);
+    if (kind === 'ready') writing.publish(site);
+    else writing.refuse();
+  });
+  return { runtime, writing, request: new WeakRef(request), response: new WeakRef(response) };
+}
+
+async function collectNativeObjects(owner) {
+  // Yield between GC and WeakRef observations: deref() keeps its target alive
+  // until the end of the current job. No timer or timing threshold decides this.
+  for (let turn = 0; turn < 50; turn++) {
+    await setImmediate();
+    global.gc();
+    await setImmediate();
+    if (owner.request.deref() === undefined && owner.response.deref() === undefined) return true;
+  }
+  return false;
+}
+
+for (const kind of ['ready', 'refused']) {
+  const owner = retainedWriter(kind);
+  await setImmediate();
+  global.gc();
+  await setImmediate();
+  assert.ok(owner.request.deref(), 'positive control: active request must remain owned');
+  assert.ok(owner.response.deref(), 'positive control: active response must remain owned');
+  assert.deepEqual(owner.runtime.counts(), { active: 1, snapshots: kind === 'ready' ? 1 : 0 });
+  owner.response.deref().emit('finish');
+  assert.equal(owner.request.deref().listenerCount('aborted'), 0);
+  assert.equal(owner.response.deref().listenerCount('finish'), 0);
+  assert.equal(owner.response.deref().listenerCount('close'), 0);
+  assert.deepEqual(owner.runtime.counts(), { active: 0, snapshots: 0 });
+  assert.equal(await collectNativeObjects(owner), true,
+    'completed ' + kind + ' retains native request/response through an escaped writer');
+  // Retain and exercise the writer after collection, so a dropped handle cannot
+  // manufacture the pass. Default DOMException abort reasons can retain frames.
+  assert.equal(owner.writing.signal.aborted, true);
+  assert.equal(owner.writing.signal.reason, reason);
+  assert.throws(() => owner.writing.assertActive(), { message: reason });
+  assert.throws(() => owner.writing.publish(site), { message: reason });
+  owner.runtime.shutdown();
+}
+process.stdout.write('native-lifetimes-collected:ready,refused\\n');
+`,
+      );
+      const output = execFileSync(process.execPath, ['--expose-gc', join(root, 'proof.mjs')], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        maxBuffer: 16 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(output).toBe('native-lifetimes-collected:ready,refused\n');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each(['finish', 'close', 'aborted'] as const)(
     '%s closes once and removes only owned listeners',
     (event) => {

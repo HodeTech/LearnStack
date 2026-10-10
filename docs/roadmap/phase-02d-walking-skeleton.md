@@ -5264,6 +5264,20 @@ middleware-to-RSC handoff: Step 2 still owns publication/consumption and removal
 of the second bootstrap; Step 3 owns actual product integration and lifecycle
 proofs. The five new catalogue rules remain Registered until that proof closes.
 
+**Review round 1 — `166ffb3`.** Fresh security/lifecycle and proof/structure
+reviewers independently run all 326 focused cases. They verify two gaps: completed
+handles retain native request/response objects through the disposal closure and
+the default abort exception's lazy stack; ordinary `call`/`apply`/`bind` wrappers
+also evade the new facade installer fence. The fixes clear the retained closure,
+use a fixed primitive cancellation reason on both terminal paths and recognize
+the three installer wrappers. Dirty/clean controls cover every wrapper; the
+original proof reviewer verifies its finding is closed. An isolated GC regression
+retains completed handles while checking that both native objects are released,
+with live-object positive controls. Both original and closure-only mutants fail
+at the collection assertion for ready/refused paths; the repaired 327-case
+focused run, typecheck and lint pass. Actual middleware/RSC integration remains
+pending in the next steps.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

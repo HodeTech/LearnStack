@@ -254,6 +254,17 @@ describe('ADR-0053 production public boundaries', () => {
         '\nconst {defineProperties: install} = Object; install(globalThis, {fallback: {value: {}}});',
       sources[ADMISSION_FACADE]! +
         '\nconst target = globalThis; Object.assign(target, {fallback: {}});',
+      ...[
+        ['defineProperty', 'globalThis, Symbol.for("fallback"), {value: {}}'],
+        ['defineProperties', 'globalThis, {[Symbol.for("fallback")]: {value: {}}}'],
+        ['assign', 'globalThis, {[Symbol.for("fallback")]: {}}'],
+      ].flatMap(([method, args]) =>
+        [
+          `Object.${method}.call(Object, ${args});`,
+          `Object.${method}.apply(Object, [${args}]);`,
+          `const install = Object.${method}.bind(Object); install(${args});`,
+        ].map((mutation) => sources[ADMISSION_FACADE]! + '\n' + mutation),
+      ),
     ])
       expect(admissionBoundaryFindings(graphWith(ADMISSION_FACADE, mutation))).not.toEqual([]);
     for (const file of [ADMISSION_RUNTIME, ADMISSION_FACADE]) {

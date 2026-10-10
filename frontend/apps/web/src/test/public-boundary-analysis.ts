@@ -53,6 +53,11 @@ export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
   if (!hasServerOnlyMarker(facade))
     findings.push(finding(facade, 'Fix: mark the admission facade server-only.'));
   walk(facade, (node) => {
+    const installer = (expression: ts.Node) =>
+      ['Object.defineProperty', 'Object.defineProperties', 'Object.assign'].some((name) =>
+        globalBuiltin(expression, name, graph.checker),
+      );
+    const receiver = ts.isCallExpression(node) ? memberReceiver(node.expression) : undefined;
     if (
       (ts.isImportDeclaration(node) &&
         runtimeImport(node) &&
@@ -61,11 +66,10 @@ export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
       (ts.isCallExpression(node) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
           (ts.isIdentifier(node.expression) && node.expression.text === 'require') ||
-          globalBuiltin(node.expression, 'Object.defineProperty', graph.checker) ||
-          globalBuiltin(node.expression, 'Object.defineProperties', graph.checker) ||
-          (globalBuiltin(node.expression, 'Object.assign', graph.checker) &&
-            node.arguments[0] !== undefined &&
-            globalObject(node.arguments[0], graph.checker))))
+          installer(node.expression) ||
+          (receiver !== undefined &&
+            ['call', 'apply', 'bind'].includes(memberName(node.expression, graph.checker) ?? '') &&
+            installer(receiver))))
     )
       findings.push(
         finding(

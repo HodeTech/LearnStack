@@ -39,6 +39,9 @@ type ResponseLifetime = Pick<
   'destroyed' | 'writableEnded' | 'once' | 'removeListener'
 >;
 
+const release = () => {};
+const completionReason = 'Public admission request completed';
+
 function invariant(): never {
   // Only fixed diagnostics: never include a binding, DTO, envelope or provider value.
   throw new Error('Public admission context unavailable');
@@ -152,7 +155,7 @@ export function createPublicAdmissionRuntime() {
         refuse() {
           requirePhase(store, 'loading');
           store.phase = 'refused';
-          store.controller.abort();
+          store.controller.abort(completionReason);
         },
       });
     },
@@ -188,7 +191,7 @@ export function createPublicAdmissionRuntime() {
         controller: new AbortController(),
         phase: 'pending',
         site: undefined,
-        close: () => {},
+        close: release,
       };
       const close = () => {
         if (store.phase === 'closed') return;
@@ -198,7 +201,10 @@ export function createPublicAdmissionRuntime() {
         request.removeListener('aborted', close);
         response.removeListener('finish', close);
         response.removeListener('close', close);
-        store.controller.abort();
+        // Escaped handles and late ALS work must not retain the native objects.
+        store.close = release;
+        // A fresh default DOMException can retain this stack and its request objects.
+        store.controller.abort(completionReason);
       };
       store.close = close;
       active.add(store);
