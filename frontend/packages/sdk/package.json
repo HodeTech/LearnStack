@@ -18,7 +18,8 @@
     "@learnstack/config": "workspace:*",
     "openapi-typescript": "7.13.0",
     "typescript": "5.6.3",
-    "vitest": "2.1.9",
+    "vite": "6.4.3",
+    "vitest": "4.1.11",
     "eslint": "9.39.4"
   }
 }

@@ -31,9 +31,13 @@ describe('public UI locale selection', () => {
   });
 
   it('uses deterministic ltr when runtime locale information is unavailable', () => {
-    vi.spyOn(Intl, 'Locale').mockImplementation(() => {
-      throw new RangeError('unavailable runtime data');
+    const unavailable = new RangeError('unavailable runtime data');
+    const constructor = vi.spyOn(Intl, 'Locale').mockImplementation(function () {
+      throw unavailable;
     });
     expect(textDirection('ar')).toBe('ltr');
+    expect(constructor).toHaveBeenCalledExactlyOnceWith('ar');
+    expect(constructor.mock.results[0]?.type).toBe('throw');
+    expect(constructor.mock.results[0]?.value).toBe(unavailable);
   });
 });

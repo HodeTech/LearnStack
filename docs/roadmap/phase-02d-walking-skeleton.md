@@ -5082,6 +5082,34 @@ ADR-0054's original Next 15.5.18 pin and retired test name were accurate at
 acceptance. Preserve that history: its existing Amendment 7 identifies the
 current 15.5.27 maintenance baseline. No accepted-body erratum is appropriate.
 
+Two fresh independent reviews of `46bc8a4..2bf9d57` approve these draft corrections
+without verified findings: GPT-6.1-sol (high), then GPT-6-astra (high). Both checked
+the accepted sources, actual duplicate reads, historical pin/test and five changed
+relative links/fragments. Neither claims a runtime feasibility proof. Seven
+ADR-workflow tests pass. A local three-document audit resolves 442 relative
+targets and their fragments; added prose and diff checks pass.
+
+##### Remediation group 4 — approved test-toolchain migration
+
+**Implementation recorded before independent review — 2026-10-10.** Both web
+and SDK pin Vitest 4.1.11 and Vite 6.4.3. Narrow overrides keep Vitest on Vite 6
+and Vite on compatible esbuild 0.25.12; the existing Next/PostCSS override remains.
+The resolved graph removes Vitest 2, Vite 5, tinypool and vite-node, without
+introducing Vite 7/8. Runtime dependencies and application behavior are unchanged.
+
+The `Intl.Locale` mock uses a constructible function and proves that the intended
+RangeError was thrown by identity, preventing an accidental constructor TypeError
+from satisfying the fallback case. Configurations, explicit cleanup, globals,
+runner/report validation, package/control deadlines and CI gates stay unchanged.
+
+Frozen installation and 46 focused locale/runner cases pass. The guarded frontend
+suite passes all 1,235 cases (1,175 web / 60 SDK), zero skips/todos; workspace lint,
+typecheck and production build pass. The Release architecture suite passes 198
+cases, zero skips. The full audit falls from 11 records / 10 distinct advisories
+to two records / two advisories: zero critical, one high and one moderate. The
+production audit retains the same two residuals already triaged in group 3;
+neither audit is described as clean. Independent review rounds follow this commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
