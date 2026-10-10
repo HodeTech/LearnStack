@@ -4,6 +4,7 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  images: { unoptimized: true },
   transpilePackages: ['@learnstack/ui', '@learnstack/sdk'],
   skipMiddlewareUrlNormalize: true,
   skipTrailingSlashRedirect: true,

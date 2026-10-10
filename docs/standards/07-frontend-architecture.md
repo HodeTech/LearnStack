@@ -126,7 +126,7 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.
   admission decision in their owning Phase 02b BFF/auth or Phase 06 admin work.
   Disable `poweredByHeader` independently, including framework fallback responses.
 - Signed raw targets select route/locale identity. Match observed middleware URLs
-  only against pinned Next 15.5.18's explicit full-URL RSC/`_rsc` projection; do
+  only against pinned Next 15.5.27's explicit full-URL RSC/`_rsc` projection; do
   not introduce suffix aliases or select another lesson after normalization.
 - Redirects retain inert query values, duplicates and ordering; equivalent percent
   encoding is allowed. Only the verified live host, accepted HTTPS port and local
@@ -279,7 +279,7 @@ collections, class-static and global writes. It is bounded source analysis,
 not an interpreter for reflection, arbitrary evaluation or external packages.
 Declaration-level `import type` and
 `export type` edges are erased. Inline type-only specifiers remain conservative
-source edges: TypeScript verbatim emission retains them; pinned Next 15.5.18 SWC
+source edges: TypeScript verbatim emission retains them; pinned Next 15.5.27 SWC
 erases them. Separate real compiler controls establish that distinction.
 An empty production Client Component census is source information; the configured
 production-build canary supplies independent asset containment evidence.

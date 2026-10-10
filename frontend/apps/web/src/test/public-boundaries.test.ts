@@ -459,9 +459,9 @@ describe('server boundary planted controls', () => {
     ['mixed reexport', 'export { type Secret, value } from "private-edge";', true],
     ['side-effect import', 'import "private-edge";', true],
   ] as const)(
-    'pinned Next 15.5.18 production SWC emission: %s',
+    'pinned Next 15.5.27 production SWC emission: %s',
     async (_name, declaration, retained) => {
-      expect((require('next/package.json') as { version: string }).version).toBe('15.5.18');
+      expect((require('next/package.json') as { version: string }).version).toBe('15.5.27');
       const filename = join(frontend, probe);
       const config = ts.readConfigFile(
         join(frontend, 'packages/config/tsconfig/base.json'),

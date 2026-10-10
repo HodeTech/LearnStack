@@ -325,6 +325,16 @@ owns the final head, merge verification and CI evidence. The accepted decision,
 metadata and earlier delivery notes remain unchanged. This note records delivery
 only; P02d-6/7 and Phase 11 retain their named work.
 
+
+### Amendment 7 — Next security maintenance (2026-10-10)
+
+The current verified runtime pin is Next 15.5.27 with matching eslint-config-next.
+The signed raw target, full-URL RSC projection and equivalent redirect-query
+contract are unchanged. The unused image optimizer is disabled. P02d-6's
+[remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-group-3--approved-security-maintenance)
+owns the replacement native/production proofs and dependency triage; historical
+15.5.18 observations remain unchanged.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

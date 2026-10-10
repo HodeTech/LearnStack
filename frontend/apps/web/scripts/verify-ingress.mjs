@@ -8,6 +8,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -37,6 +38,10 @@ let certificate;
 let wrongCertificate;
 let api;
 let WebSocket;
+let sharp;
+let optimizerPixels;
+const optimizerImagePath = '/_next/static/media/ingress-optimizer-proof.png';
+const optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
 const secret = randomBytes(32).toString('base64url');
 const scanners = [];
 let verificationFailed = false;
@@ -60,6 +65,7 @@ try {
   await checkpoint('root');
   const require = createRequire(join(appRoot, 'package.json'));
   WebSocket = require('next/dist/compiled/ws');
+  sharp = createRequire(require.resolve('next/package.json'))('sharp');
   api = owner.ownServer(
     createServer((request, response) => {
       bootstrapCalls++;
@@ -175,7 +181,21 @@ try {
     ].join('\n'),
     { mode: 0o600 },
   );
-  for (const name of ['.next', '.server', 'node_modules', 'src']) {
+  // Both the image fixture/cache and the later mutant belong to this copy.
+  // Never write into the caller's production build through a symlink.
+  cpSync(join(appRoot, '.next'), join(app, '.next'), {
+    recursive: true,
+    filter: (path) => path !== join(appRoot, '.next/cache'),
+  });
+  const optimizerImage = await sharp({
+    create: { width: 2, height: 2, channels: 4, background: '#216ba5' },
+  })
+    .png()
+    .toBuffer();
+  optimizerPixels = await sharp(optimizerImage).ensureAlpha().raw().toBuffer();
+  mkdirSync(join(app, '.next/static/media'), { recursive: true });
+  writeFileSync(join(app, '.next/static/media/ingress-optimizer-proof.png'), optimizerImage);
+  for (const name of ['.server', 'node_modules', 'src']) {
     symlinkSync(join(appRoot, name), join(app, name), 'dir');
   }
   for (const name of ['package.json', 'next.config.ts', 'tsconfig.json']) {
@@ -385,13 +405,19 @@ function call(tls, port, path, headers = {}, method = 'GET', tlsOptions = {}) {
         timeout: 2000,
       },
       (response) => {
-        let body = '';
+        const chunks = [];
         response.on('data', (chunk) => {
-          body += chunk.toString();
+          chunks.push(chunk);
         });
         response.on('end', () => {
           clearTimeout(deadline);
-          resolve({ status: response.statusCode, headers: response.headers, body });
+          const bytes = Buffer.concat(chunks);
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: bytes.toString(),
+            bytes,
+          });
         });
       },
     );
@@ -403,6 +429,24 @@ function call(tls, port, path, headers = {}, method = 'GET', tlsOptions = {}) {
     });
     outgoing.end();
   });
+}
+
+function assertOptimizerDisabled(response, method) {
+  assert.equal(response.status, 404, 'Image optimizer must remain disabled');
+  if (method === 'HEAD') assert.equal(response.bytes.length, 0, 'Optimizer HEAD must be bodyless');
+}
+
+async function assertOptimizerImage(response) {
+  assert.equal(response.status, 200, 'Valid image positive control must succeed');
+  assert.equal(response.headers['content-type'], 'image/png');
+  // Fully decode the HTTP bytes: a success code or a PNG-like header is not enough.
+  const decoded = await sharp(response.bytes)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.equal(decoded.info.width, 2);
+  assert.equal(decoded.info.height, 2);
+  assert.deepEqual(decoded.data, optimizerPixels, 'Image positive control pixels changed');
 }
 
 async function ready(child, tls, port) {
@@ -490,6 +534,14 @@ async function run() {
   assert.equal((await observe(native)).sinkCalls, 0, 'Production upgrades reached Next');
   assert.deepEqual(upgrades, [], 'Production upgrades reached an automatic sink listener');
   assert.equal(bootstrapCalls, 0, 'Production upgrades reached bootstrap');
+
+  await assertOptimizerImage(
+    await call(true, 3000, optimizerImagePath, { Host: 'tenant.example:3000' }),
+  );
+  for (const method of ['GET', 'HEAD']) {
+    const response = await call(true, 3000, optimizerPath, { Host: 'tenant.example:3000' }, method);
+    assertOptimizerDisabled(response, method);
+  }
 
   const buildManifest = JSON.parse(
     readFileSync(join(appRoot, '.next/build-manifest.json'), 'utf8'),
@@ -666,10 +718,44 @@ async function run() {
   }
   assert.equal(diagnosticsLeaked(), false, 'Private material entered diagnostics');
 
-  // Development gets its own build directory, never the shared production output.
   await stopTestChild(stock);
   await stopTestChild(native);
-  unlinkSync(join(app, '.next'));
+  // Next 15.5.27 loads next.config.ts for this custom production server; its
+  // serialized build config contributes only isExperimentalCompile. Mutate the
+  // copied runtime configuration and restart, without touching shared output.
+  const configPath = join(app, 'next.config.ts');
+  const disabledConfig = readFileSync(configPath, 'utf8');
+  const enabledConfig = disabledConfig.replace(
+    'images: { unoptimized: true }',
+    'images: { unoptimized: false }',
+  );
+  assert.notEqual(enabledConfig, disabledConfig, 'Optimizer configuration mutant was not planted');
+  writeFileSync(configPath, enabledConfig);
+  const optimizerMutant = start([join(app, 'scripts/public-server.mjs')]);
+  await ready(optimizerMutant, true, 3000);
+  for (const method of ['GET', 'HEAD']) {
+    const response = await call(true, 3000, optimizerPath, { Host: 'tenant.example:3000' }, method);
+    assert.equal(response.status, 200, 'Enabling the optimizer must serve the valid image');
+    if (method === 'GET') await assertOptimizerImage(response);
+    if (method === 'HEAD') assert.equal(response.bytes.length, 0);
+    assert.throws(
+      () => assertOptimizerDisabled(response, method),
+      {
+        code: 'ERR_ASSERTION',
+        actual: 200,
+        expected: 404,
+        message: /^Image optimizer must remain disabled/,
+      },
+      'Disabled-optimizer assertion did not reject the enabled configuration',
+    );
+  }
+  await observe(optimizerMutant);
+  assert.equal(diagnosticsLeaked(), false, 'Private material entered optimizer diagnostics');
+  await stopTestChild(optimizerMutant);
+  writeFileSync(configPath, disabledConfig);
+
+  // Development gets a fresh owned build directory.
+  rmSync(join(app, '.next'), { recursive: true, force: true });
   // Next's development route discovery does not traverse a symlinked src tree.
   unlinkSync(join(app, 'src'));
   cpSync(join(appRoot, 'src'), join(app, 'src'), { recursive: true });
@@ -754,7 +840,7 @@ async function run() {
   await observe(development);
   assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
   console.warn(
-    'Native ingress: TLS, GET/HEAD admission, query redirects, production closure, DEBUG containment and development HMR passed.',
+    'Native ingress: TLS, GET/HEAD admission, disabled image optimizer with configuration mutant, query redirects, production closure, DEBUG containment and development HMR passed.',
   );
 }
 

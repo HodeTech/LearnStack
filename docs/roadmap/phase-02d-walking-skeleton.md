@@ -4929,10 +4929,10 @@ without actionable findings and independently passed all 277 boundary cases.
 The verifier confirmed the seven dirty cases escape the prior analyzer and the
 selected-binding clean controls remain clean. This closes group 1.
 
-
 ##### Remediation group 2 — approved Open Graph locale projection
 
-**Implemented; independent reviews pending — 2026-10-10.** The approved G40 addendum above
+**Implemented; both independent reviews complete — 2026-10-10.** The approved
+G40 addendum above
 separates Open Graph's optional locale format from BCP-47 identity. Only canonical
 language plus an explicit two-letter territory is projected; script, variant,
 extension, bare-language and numeric-region tags are omitted. Eligible and enabled
@@ -4948,7 +4948,6 @@ build passes. Two independent review rounds follow the implementation commit.
 ADR-0055 remains Proposed and has no dependent code in this group.
 
 
-
 **Round 1 — independent review of `ca03942..75c3e61`.** GPT-6.1-sol (high)
 independently passed 61 metadata cases and web typecheck. It found no production
 projection error, but verified that the runtime alternate loop accepted missing
@@ -4956,11 +4955,17 @@ and ineligible serialized alternates. The corrected shared predicate compares
 complete current/alternate arrays against the representable eligible hreflang
 set. Six committed dirty/clean controls cover missing, ineligible, duplicate,
 malformed and invented territory output. All 103 metadata/response-helper cases
-pass. The second fresh review and repeated actual production check follow.
+pass.
+
+**Round 2 — fresh independent review of `ca03942..f16d937`.** GPT-6-astra
+(high) approved without verified findings and independently passed the same
+103 cases. The actual API/PostgreSQL fixture then passed all 20 cases, zero skips,
+with the complete serialized-array predicate active. This closes group 2.
 
 ##### Remediation group 3 — approved security maintenance
 
-**Implementation and replacement proofs in progress — 2026-10-10.** The approved
+**Implemented; replacement proofs pass; independent reviews pending —
+2026-10-10.** The approved
 paired Next/eslint-config-next 15.5.27 update disables unused image optimization.
 Compatible lockfile patches cover PostCSS 8.5.23, sharp 0.35.5, js-yaml 4.3.2,
 brace-expansion's existing major lines, nanoid 3.3.18, source-map-js 1.2.2,
@@ -4994,6 +4999,20 @@ The P02d-6 remediation owns this triage and the approval request below. The
 maintainer owns any remaining backport/parent-migration decision; applicable
 Security Standards patch deadlines remain unchanged. No test-toolchain major is
 silently included in the already approved compatible-patch package.
+
+
+Replacement validation passes on Next 15.5.27: frozen install; production build;
+workspace lint/typecheck; guarded frontend **1,235 cases** (1,175 web / 60 SDK),
+zero skips/todos; and all **20** actual API/PostgreSQL production-render cases,
+zero skips. All nine pinned SWC emission cases run against the installed patch.
+Native ingress passes TLS, GET/HEAD, query projection/redirects, DEBUG containment,
+production upgrade closure and retained HMR. The image proof decodes a valid raw
+PNG, sees disabled GET/HEAD 404, enables only a disposable copied configuration,
+then decodes optimized 200 and proves the same disabled predicate rejects it.
+All **19** native lifecycle/negative controls pass. No shared build is mutated.
+The approved ADR-0054 maintenance note is appended after these replacement proofs;
+historical 15.5.18 observations remain unchanged. Two independent review rounds
+follow the implementation commit. No new manual browser/VoiceOver pass is claimed.
 
 ###### Proposed test-toolchain migration — approval pending
 
