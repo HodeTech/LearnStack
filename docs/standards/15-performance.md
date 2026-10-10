@@ -9,6 +9,17 @@ caller and dynamic/no-store policy derive from
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
 
+**P02d-7 measurement decision — Accepted 2026-10-11.**
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
+defines the browser/Lighthouse measurement contract and hard/advisory split.
+Its normalized gzip definition covers same-/cross-origin Script responses from
+cold navigation through collection completion, including initial async/lazy
+loads and original-document inline executable bodies. It excludes inert data,
+evaluation-generated code and scripts requested after that window or by later
+interaction. This can be stricter than entry-chunk/build-time accounting; it is
+not merely a unit clarification. Enforcement is not implemented yet; this
+standard remains Adopted until the enforcing implementation lands.
+
 ## Initial Budgets
 
 | Surface | Budget |

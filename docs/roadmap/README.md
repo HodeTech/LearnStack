@@ -81,8 +81,10 @@ not deferred to the showcase phase.
   complete and merged through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
   on 2026-10-10; its
   [merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
-  records final verification. P02d-7's demo, Lighthouse and phase-exit decision
-  pass is next and has not started; Phase 02d remains in progress.
+  records final verification. P02d-7's demo, Lighthouse and phase-exit
+  [decision package](phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+  and ADR-0056 were approved on 2026-10-11; implementation follows the four-step
+  plan. Phase 02d remains in progress.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

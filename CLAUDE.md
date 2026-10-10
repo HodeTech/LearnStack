@@ -146,7 +146,11 @@ steps completed both independent review rounds;
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
 catalogue rules are Implemented.
-P02d-7's demo, Lighthouse and phase-exit decision pass is next and has not started.
+P02d-7's demo, Lighthouse and phase-exit
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+was approved on 2026-10-11, including bounded seventh-check activation after real
+success. ADR-0056 was accepted on the same date. Implementation follows the
+approved four-step plan; no P7 enforcement delivery is claimed yet.
 Phase 02d remains in progress; Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

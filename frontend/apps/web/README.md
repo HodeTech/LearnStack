@@ -28,7 +28,10 @@ precedence. P02d-6 implements localized catalog/course/lesson pages, ordered
 plain-text presentation, safe four-color themes and G40 page states. Its
 [product closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records completed verification, reviews and scoped browser/VoiceOver observations.
-P6 awaits maintainer PR review and merge.
+P6 is complete and merged through PR #27 on 2026-10-10; its
+[merge closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+owns final verification. P7's shared demo/browser package was approved on
+2026-10-11, together with ADR-0056. Implementation follows the four-step plan.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),

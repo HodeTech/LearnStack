@@ -8,7 +8,9 @@
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 (P02d-6 proofs implemented; manual smoke recorded),
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
-(replacement admission proofs implemented; both review rounds complete). The
+(replacement admission proofs implemented; both review rounds complete),
+[ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
+(accepted 2026-10-11; browser/audit rules Registered). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -644,14 +646,21 @@ otherwise).
   not a second hard-coded list. Its source reader must observe the declared values
   and fail on an incomplete or unreadable declaration rather than report clean.
 - **Source:** [Phase 02d G20](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers).
-- **Scope:** G20(a)'s source is decided in P02d-2. Production subjects, matching,
-  built-in exclusions and permitted exemptions remain G20(b/c)'s later decisions;
-  no exemption or exhaustive consumer scope is accepted by this registration.
+- **Scope:** P02d-2 accepted G20(a)'s source;
+  [P02d-5](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
+  accepted bounded seed/development/test exemptions, and
+  [P02d-6](../roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers)
+  accepted production frontend TS/JS and JSON subjects, including renderer and
+  message values. Matching/built-in detail, the Seeder-reference fence and
+  behavioral ownership are in the
+  [P7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement),
+  approved on 2026-10-11; enforcement remains pending. ADR-0056's separate
+  browser/Lighthouse measurement decision is Accepted; its rules remain Registered.
 - **Type:** xUnit + source scan, with planted offenders and allowed-data controls.
   **Kind:** structural.
 - **Status:** **Registered** — P02d-2 establishes and verifies the literal source
   (`SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable`);
-  P02d-5/6 settle remaining scope before their subjects ship. Implement the complete
+  P02d-5/6 accepted their scope before those subjects shipped. Implement the complete
   guard and its planted companion by P02d-7 exit, with no vacuous pass.
 - **Phase:** 02d (P02d-2 source; P02d-5/6 scope; P02d-7 implementation exit).
 
@@ -4454,6 +4463,60 @@ test-only instrumentation stays in the disposable copied app.
   `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+## P02d-7 public demo and Lighthouse controls
+
+These behavioral rules are Registered by Accepted ADR-0056. The planned Node
+proof entrypoint is `frontend/apps/web/scripts/verify-public-demo.mjs`, invoked
+through the shared demo lifecycle by `public demo + lighthouse`. Registration
+claims neither an existing script nor a passing browser/audit result.
+
+### `Public_Demo_Uses_Seeded_Production_Pages`
+
+- **Asserts:** the three seed-derived host/locale paths follow actual catalog,
+  course and lesson links in the same production build/database; expected
+  identity, ordered fields, computed themes and hidden-content exclusions hold.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+- **Scope:** nine delivered pages; full Playwright/axe remains Phase 06.
+- **Type:** Node browser proof with wrong-page/error-page controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — planned Node proof entrypoint and CI job above;
+  implemented only after named enforcing controls and the actual proof pass.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Lighthouse_Reports_Enforce_Budgets`
+
+- **Asserts:** all 27 current report pairs pass actual-page admission and exact
+  invocation/configuration census; hard budgets and advisory timing medians are
+  distinguished without permitting missing or invalid measurements.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#lab-profile-and-budgets).
+- **Scope:** pinned Lighthouse/Chromium; every seed lane/URL/run.
+- **Type:** Node report validation and real audits, with stale/missing/error and
+  budget-offender controls. **Kind:** behavioural.
+- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Initial_JavaScript_Gzip_Budget_Is_Measured`
+
+- **Asserts:** the cold-navigation Script response and executable-inline census
+  is complete; normalized level-9 gzip totals are strictly below 200000 bytes.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#normalized-initial-javascript-gzip-size).
+- **Scope:** the ADR's collection window, origin coverage and exclusions.
+- **Type:** Node source accounting, with omitted/empty/malformed/over-budget and
+  clean-source controls. **Kind:** behavioural.
+- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Demo_Preserves_Admission_And_Cleanup`
+
+- **Asserts:** real quotas, positive API observation, stopped CI-owned Keycloak,
+  scoped TLS trust, serial deadlines and confirmed owned cleanup remain intact.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
+- **Scope:** the shared demo lifecycle and full-stack CI job.
+- **Type:** Node lifecycle/proof controls and real production navigation.
+  **Kind:** behavioural.
+- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 ## References
 
