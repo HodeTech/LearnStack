@@ -103,10 +103,12 @@ calls `getSite()`. Each consumer honors its result before Education or theme use
 layouts alone do not serialize child execution. Content clients carry the native
 cancellation signal and retain the existing transport controls.
 
-A missing, disposed or mismatched RSC snapshot is an internal lifecycle error,
-not API 404 or permission to fetch another site or reuse data. Fail closed before
-Education/theme with a sanitized framework failure. Arbitrary framework-error
-statuses are not guaranteed; production proofs must prevent context failures.
+While the native request remains active, a missing, disposed or mismatched RSC
+snapshot is an internal lifecycle error, not API 404 or permission to fetch another
+site or reuse data. Fail closed before Education/theme with a sanitized framework
+failure. Arbitrary framework-error statuses are not guaranteed; production proofs
+must prevent these active-request context failures. Expected late refusal follows
+the separate completion policy below.
 
 ### Freshness, accounting and response scope
 
