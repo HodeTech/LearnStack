@@ -495,12 +495,17 @@ async function wireProof(native) {
   await checkpoint('arm-rate-zero');
   refused(await call(catalog), 429, 'GET', '0');
   await checkpoint('done-rate-zero');
-  stage = 'wire positive';
+  stage = 'wire positive request';
   const healthy = await call(catalog);
+  stage = 'wire positive safety';
   safe(healthy);
+  stage = 'wire positive status';
   assert.equal(healthy.status, 200);
+  stage = 'wire positive site';
   assert.ok(healthy.body.includes(configuration.tenants[0].name));
+  stage = 'wire positive release';
   empty(await observe(native));
+  stage = 'wire positive accounting';
   await checkpoint('done-healthy-wire');
   refused(await call('/unadmitted-fixture-path'), 404);
   await checkpoint('done-entry-refusal');
