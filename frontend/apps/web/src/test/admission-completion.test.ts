@@ -51,7 +51,7 @@ describe('native completion proof barrier', () => {
       const completion = observer.settled().then(() => {
         settled = true;
       });
-      await Promise.resolve(); // A completed client/delegation promise cannot release this barrier.
+      await new Promise<void>((resolve) => setImmediate(resolve)); // Drain any early completion chain.
       expect(settled).toBe(false);
       expect(runtime.counts()).toEqual({ active: 1, snapshots: 1 });
       owner.response.emit(event);
@@ -87,7 +87,7 @@ describe('native completion proof barrier', () => {
       settled = true;
     });
     first.emit('finish');
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setImmediate(resolve));
     expect(settled).toBe(false);
     second.emit('close');
     await completion;
