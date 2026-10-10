@@ -4965,7 +4965,7 @@ with the complete serialized-array predicate active. This closes group 2.
 
 ##### Remediation group 3 — approved security maintenance
 
-**Implemented; replacement proofs and first independent review round pass —
+**Implemented; replacement proofs and both independent review rounds pass —
 2026-10-10.** The approved
 paired Next/eslint-config-next 15.5.27 update disables unused image optimization.
 Compatible lockfile patches cover PostCSS 8.5.23, sharp 0.35.5, js-yaml 4.3.2,
@@ -5022,6 +5022,19 @@ cleanup. Both approved without verified actionable findings. These were read-onl
 reviews; syntax and diff checks pass, but neither claims a new runtime-suite run.
 The full Release architecture suite also passes all 198 cases, zero skips; all
 seven ADR-workflow cases pass. The second independent review round follows.
+
+**Round 2 — fresh independent reviews of `f16d937..05a4313`.** GPT-6.1-sol
+(high) independently checked dependency ranges, lockfile deltas and saved audit
+totals; GPT-6-astra (high) checked native proof falsifiability, runtime config
+loading, cleanup and preserved gates. Both approved without verified actionable
+findings. They passed syntax/diff checks and inspected installed packages/source;
+neither performed another build or runtime-suite run. A local audit of the 22
+changed Markdown files checks 1,703 relative file targets and 567 fragments, with
+inline/fenced examples excluded and no missing targets. Added prose respects
+88 columns; CI's existing link gate still checks file existence only. This closes
+the approved compatible-security group. ADR-0055 and the separate test-toolchain
+migration remain pending approval and have no implementation in these commits.
+Fresh exact-head PR CI remains the final validation step.
 
 ###### Proposed test-toolchain migration — approval pending
 
