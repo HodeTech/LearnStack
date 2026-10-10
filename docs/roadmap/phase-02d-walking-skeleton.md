@@ -4932,15 +4932,20 @@ selected-binding clean controls remain clean. This closes group 1.
 
 ##### Remediation group 2 — approved Open Graph locale projection
 
-**Implementation in progress — 2026-10-10.** The approved G40 addendum above
+**Implemented; independent reviews pending — 2026-10-10.** The approved G40 addendum above
 separates Open Graph's optional locale format from BCP-47 identity. Only canonical
 language plus an explicit two-letter territory is projected; script, variant,
 extension, bare-language and numeric-region tags are omitted. Eligible and enabled
 alternates keep their exact URLs and hreflang while unrepresentable Open Graph
 alternates are omitted. No additional API reads or territory inference is added.
 Unit projections and actual production-document checks cover both conversion and
-omission. Validation and two independent review rounds are recorded below after
-execution. ADR-0055 remains Proposed and has no dependent code in this group.
+omission. All 61 metadata cases and web typecheck pass. On the concurrently
+patched Next 15.5.27 runtime, the guarded frontend suite passes 1,229 cases
+(1,169 web / 60 SDK), zero skips/todos. The actual API/PostgreSQL production-render
+suite passes all 20 cases, zero skips; its first run exposed an overly narrow
+fixture-alternate expectation, corrected before this passing run. The production
+build passes. Two independent review rounds follow the implementation commit.
+ADR-0055 remains Proposed and has no dependent code in this group.
 
 ### P02d-1 decision pass (2026-09-14)
 

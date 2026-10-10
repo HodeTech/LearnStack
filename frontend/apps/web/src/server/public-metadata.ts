@@ -31,6 +31,12 @@ function publicUrl(host: string, path: string | null): string | null {
   }
 }
 
+// Open Graph cannot retain script/variant/numeric-region information. The
+// admitted BCP-47 identity stays unchanged everywhere else; never infer a region.
+function openGraphLocale(locale: string): string | undefined {
+  return /^[a-z]{2,3}-[A-Z]{2}$/.test(locale) ? locale.replace('-', '_') : undefined;
+}
+
 /** Pure projection of the shared resource read; UI fallback never supplies URL locale. */
 export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
   if (resource.kind === 'status') {
@@ -98,6 +104,13 @@ export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
     const alternate = publicUrl(context.host, alternatePath);
     if (alternate !== null) languages[language] = alternate;
   }
+  const graphLocale = openGraphLocale(locale);
+  const graphAlternates = Object.keys(languages)
+    .filter((language) => language !== locale)
+    .flatMap((language) => {
+      const projected = openGraphLocale(language);
+      return projected === undefined ? [] : [projected];
+    });
   return {
     title,
     ...(description === undefined ? {} : { description }),
@@ -116,8 +129,8 @@ export function publicMetadata(resource: Resource, { t }: PublicUi): Metadata {
       ...(description === undefined ? {} : { description }),
       url: canonical,
       siteName: site.displayName,
-      locale,
-      alternateLocale: Object.keys(languages).filter((language) => language !== locale),
+      ...(graphLocale === undefined ? {} : { locale: graphLocale }),
+      ...(graphAlternates.length === 0 ? {} : { alternateLocale: graphAlternates }),
     },
   };
 }

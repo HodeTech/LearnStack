@@ -87,6 +87,49 @@ function lesson(): Extract<Resource, { kind: 'lesson' }> {
 const ui = createPublicTranslator('tr');
 
 describe('public metadata projection', () => {
+  it.each([
+    ['tr-TR', 'tr_TR'],
+    ['en-GB', 'en_GB'],
+    ['fil-PH', 'fil_PH'],
+    ['en', undefined],
+    ['tr', undefined],
+    ['zh-Hant', undefined],
+    ['zh-Hans-CN', undefined],
+    ['es-419', undefined],
+    ['sl-SI-rozaj', undefined],
+  ])('projects Open Graph %s without guessing or discarding subtags', (locale, expected) => {
+    const resource = { ...catalog(), request: request(`/${locale}/courses`, locale) };
+    resource.request.site.enabledLocales = [locale, 'en'];
+    const metadata = publicMetadata(resource, createPublicTranslator(locale));
+    if (expected === undefined) expect(metadata.openGraph).not.toHaveProperty('locale');
+    else expect(metadata.openGraph).toHaveProperty('locale', expected);
+    expect(metadata.openGraph).not.toHaveProperty('alternateLocale');
+    expect(metadata.alternates?.canonical).toBe(`https://school.example:3000/${locale}/courses`);
+    expect(metadata.alternates?.languages).toHaveProperty(locale);
+  });
+
+  it('projects only eligible, enabled and representable Open Graph alternates', () => {
+    const resource = { ...course(), request: request('/tr-TR/courses/temel', 'tr-TR') };
+    resource.request.site.enabledLocales = ['tr-TR', 'en-GB', 'en', 'zh-Hans-CN', 'fr-FR'];
+    resource.data.alternates = [
+      { locale: 'en-GB', slug: 'foundation' },
+      { locale: 'en', slug: 'foundation' },
+      { locale: 'zh-Hans-CN', slug: 'basic' },
+      { locale: 'fr-FR', slug: '../private' },
+      { locale: 'de-DE', slug: 'grundlagen' },
+    ];
+    const metadata = publicMetadata(resource, ui);
+    expect(metadata.openGraph).toMatchObject({ locale: 'tr_TR', alternateLocale: ['en_GB'] });
+    expect(metadata.alternates?.languages).toEqual({
+      'tr-TR': 'https://school.example:3000/tr-TR/courses/temel',
+      'en-GB': 'https://school.example:3000/en-GB/courses/foundation',
+      en: 'https://school.example:3000/en/courses/foundation',
+      'zh-Hans-CN': 'https://school.example:3000/zh-Hans-CN/courses/basic',
+    });
+    for (const operation of Object.values(resource.request.client))
+      expect(operation).not.toHaveBeenCalled();
+  });
+
   it('gives an empty first catalog an indexable localized title and every enabled locale', () => {
     expect(publicMetadata(catalog(), ui)).toEqual({
       title: ui.t('catalog.title'),
@@ -105,8 +148,6 @@ describe('public metadata projection', () => {
         title: ui.t('catalog.title'),
         siteName: 'School',
         url: 'https://school.example:3000/tr/courses',
-        locale: 'tr',
-        alternateLocale: ['en', 'ar', 'zh-Hans-CN'],
       },
     });
   });
@@ -122,7 +163,8 @@ describe('public metadata projection', () => {
         en: 'https://school.example:3000/en/courses/foundation',
       },
     });
-    expect(metadata.openGraph).toMatchObject({ locale: 'tr', alternateLocale: ['en'] });
+    expect(metadata.openGraph).not.toHaveProperty('locale');
+    expect(metadata.openGraph).not.toHaveProperty('alternateLocale');
     expect(JSON.stringify(metadata)).not.toContain('/en/courses/temel');
     expect(JSON.stringify(metadata)).not.toContain('/ar/');
   });
@@ -197,7 +239,7 @@ describe('public metadata projection', () => {
       createPublicTranslator('ar'),
     );
     expect(metadata.title).toBe('Courses');
-    expect(metadata.openGraph).toMatchObject({ locale: 'ar' });
+    expect(metadata.openGraph).not.toHaveProperty('locale');
     expect(metadata.alternates?.canonical).toBe('https://school.example:3000/ar/courses');
   });
 
@@ -222,7 +264,7 @@ describe('public metadata projection', () => {
           en: 'https://school.example:3000/en/courses/foundation/lessons/introduction',
         },
       },
-      openGraph: { title: 'Giriş', locale: 'tr', alternateLocale: ['en'] },
+      openGraph: { title: 'Giriş' },
     });
     expect(metadata).not.toHaveProperty('description');
     expect(JSON.stringify(metadata)).not.toMatch(/\/en\/courses\/temel|\/ar\//);
@@ -248,7 +290,7 @@ describe('public metadata projection', () => {
     expect(metadata.alternates?.canonical).toBe(
       'https://school.example:3000/tr/courses/temel/lessons/giris',
     );
-    expect(metadata.openGraph).toMatchObject({ locale: 'tr' });
+    expect(metadata.openGraph).not.toHaveProperty('locale');
     expect(JSON.stringify(metadata)).not.toMatch(/private|evil|\?/);
   });
 
@@ -357,7 +399,7 @@ describe('metadata rejects unsafe URL inputs', () => {
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 
-  it.each([null, 'TR', '../tr', 'fr'])(
+  it.each([null, 'TR', '../tr', 'fr', 'en-US-u-ca-gregory', 'en-US-x-private'])(
     'fails closed for noncanonical or disabled content locale %s',
     (locale) => {
       const resource = catalog();

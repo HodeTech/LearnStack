@@ -212,7 +212,12 @@ applying the fallback chain.
 - `<html lang="{locale}">` set per page.
 - `hreflang` annotations for every translated public page.
 - Canonical URL is the requested locale.
-- `og:locale` and `og:locale:alternate` set.
+- Open Graph locale properties use `language_TERRITORY` only for admitted tags
+  with an explicit two-letter territory and no script, variant or extension to
+  discard. Omit unrepresentable values; never guess a territory. HTML language,
+  URL and hreflang retain BCP-47. The
+  [approved G40 addendum](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+  records this bounded projection and the optional-property tradeoff.
 
 ## Formatting
 
