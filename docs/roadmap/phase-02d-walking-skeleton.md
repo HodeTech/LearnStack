@@ -5456,8 +5456,20 @@ with no failures or skips. A local audit of the 37 changed Markdown files checks
 examples are excluded. Added prose respects 88 columns. CI's link gate still
 checks file existence only.
 
-All three ADR-0055 implementation steps and their review/fix loops are complete.
-The [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns final
+**Subsequent Linux capture failure — `b8d5199`.** Native completion checks pass,
+but the admission Fact rejects an empty real API log capture; 866 other Docker
+cases and five required jobs pass. The pinned Serilog hosting implementation uses
+a process-global logger by default: another concurrent API host can replace it,
+and disposing that host can close it. This verified shared-state mechanism does
+not establish the exact historical interleaving. The public-read xUnit collection
+now explicitly opts out of parallel scheduling with other collections, preserving
+production logger configuration, enrichment, sink disposal and the nonempty-log
+assertion. Forced overlapping HTTP requests inside each proof remain concurrent.
+No logger replacement, synthetic event, polling or weakened assertion is added.
+This focused fix still awaits its reviews and full-suite/CI verification.
+
+The three implementation steps have completed their review loops; the subsequent
+log-capture fix remains under verification. The [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns final
 exact-head CI after this documentation commit. Maintainer review and merge remain
 pending. P02d-7 retains the full browser demo and Lighthouse; Phase 06/11 retain
 their named broader accessibility and production-hardening work.
