@@ -219,8 +219,8 @@ missing documents three. Metadata/layout/page/UI reuse adds no bootstrap; the ne
 document re-reads. HEAD/RSC/prefetch and Flight fallback need separately proven
 counts. The
 [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-records passing production replacement proofs; Step 3's two independent review
-rounds remain pending. These HTTP/HTML/RSC proofs are not browser E2E evidence.
+records passing production replacement proofs; both independent Step 3 review
+rounds are complete. These HTTP/HTML/RSC proofs are not browser E2E evidence.
 
 ADR-0055's separate test-only stock-Next navigation probe observes a failed Flight
 followed by a fresh document request and counts that chain separately. It requires
