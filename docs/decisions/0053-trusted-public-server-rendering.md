@@ -370,6 +370,18 @@ passing production proof; the
 [three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
 owns execution and review evidence.
 
+### Amendment 10 — Single-bootstrap production delivery (2026-10-10)
+
+ADR-0055's native request context, middleware publication and checked RSC consumers
+are implemented. Actual production Next/API/PostgreSQL proofs preserve ingress,
+isolation, content states and the two/one/three-call contract; the additional
+fixture covers exact bootstrap refusals, concurrent snapshots, native lifetime,
+stock browser fallback and fresh development admission. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns execution and independent review status. This delivery note leaves the
+original acceptance metadata, body and earlier amendments unchanged; it adds no
+P7 browser-demo, full accessibility or production deployment claim.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

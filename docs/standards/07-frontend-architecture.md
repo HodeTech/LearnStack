@@ -137,7 +137,9 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.
 
 ## Request-Local Bootstrap Admission
 
-**ADR-0055 Accepted — 2026-10-10; replacement implementation pending.**
+**ADR-0055 implementation delivered — 2026-10-10; production replacement proofs
+pass.** Steps 1–2 completed both independent review rounds; Step 3 reviews remain
+pending.
 Middleware owns one live site bootstrap and its exact neutral 404/429/503 before
 rendering. A native-created context binds the captured host/peer/method/signed
 target and request lifetime. Successful entry publishes one bounded, deeply
@@ -155,9 +157,11 @@ appear in the next request's site snapshot.
 The accepted replacement costs two API calls for a completed product document,
 one for a completed fixed status/scaffold document and three for a followed
 missing-detail chain. HEAD/RSC/prefetch and Flight fallback require separately
-proven counts. Visitor/peer limits remain API-call budgets. Until the
-[implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
-is delivered, runtime retains its earlier duplicate-read three/five-call paths.
+proven counts. Metadata/layout/page/UI reuse adds no bootstrap. Visitor/peer limits
+remain API-call budgets. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns passing production replacement proof and pending Step 3 review evidence;
+the five new catalogue rules are Implemented.
 [Standards 09](09-error-handling.md#public-page-status-and-recovery) owns refusal
 and bounded renderer Retry-After rules.
 

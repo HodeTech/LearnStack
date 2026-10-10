@@ -73,8 +73,12 @@ not deferred to the showcase phase.
   catalog/course/lesson pages and product proofs are implemented; the
   [closeout record](phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
   records completed reviews and scoped browser/VoiceOver observations.
-  Implementation is
-  complete; maintainer PR review and merge remain pending. P7 owns the browser/demo.
+  The original implementation is complete. ADR-0055 remediation delivers
+  single-bootstrap admission and passing production replacement proofs. Steps 1–2
+  completed both independent review rounds;
+  the [Step 3 record](phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+  owns pending Step 3 reviews and delivery evidence. Maintainer
+  PR review and merge remain pending. P7 owns the browser/demo.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

@@ -337,6 +337,16 @@ Acceptance delivers no runtime implementation or passing production proof. The
 [three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
 owns implementation, two independent review rounds per step and delivery status.
 
+### Amendment 5 — Single-bootstrap loader delivery (2026-10-10)
+
+ADR-0055's replacement admission loader is implemented. Middleware publishes one
+validated immutable snapshot; provenance-checked request, resource and UI consumers
+share it only during that native request. Content locale and UI fallback remain
+separate. The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns actual production proof, validation and independent review status. The original
+acceptance metadata, body and earlier amendments remain historical. This delivery
+note changes no decision or manual accessibility claim.
+
 ## References
 
 - [ADR-0008 — Localization Schema](0008-localization-schema.md)

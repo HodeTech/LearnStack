@@ -82,7 +82,12 @@ owns foundation validation and review evidence. Steps 2–3 implement actual
 catalog/course/lesson views, pagination/metadata and blocking JSX accessibility
 controls. Step 4 implements automated product HTML/Flight proofs and completes
 manual accessibility, including maintainer-reported VoiceOver. P7 owns
-demo/browser/Lighthouse. Acceptance alone promotes no standard or test status.
+demo/browser/Lighthouse. ADR-0055 remediation delivers single-bootstrap admission
+and passing production replacement proofs. Steps 1–2 completed both independent
+review rounds. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns pending Step 3 reviews and delivery evidence; its five new catalogue rules
+are Implemented. Acceptance alone promotes no standard or test status.
 
 **The documents and this table say the same thing, and a test holds them to it.**
 [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) reconciled the twenty-two

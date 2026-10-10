@@ -5334,6 +5334,63 @@ cross-store values before Education or result inspection, while preserving
 request cancellation and the server-only boundary. Step 2 is complete; the
 remaining production proof obligations stay with Step 3.
 
+###### ADR-0055 Step 3 — Production admission proof and closeout
+
+**Implemented — 2026-10-10; independent review rounds not started.** The six
+existing production modes consume the shipped native admission snapshot.
+Release execution through real API/PostgreSQL passes all six cases, with zero
+skips: transport **39**, foundation **33**, pagination **12**, presentation **30**,
+product isolation **28** and product freshness **34** API calls. Exact checkpoint
+assertions preserve the approved two/one/three-call contract, prior content-state
+behavior and existing isolation, containment, build and stock-launch controls.
+
+`PublicAdmissionRenderingTests` and `verify-public-admission.mjs` add one actual
+production case with three separately budgeted phases: wire **32**, lifetime
+**48** and browser/HMR **10** API calls. Healthy calls use the real API and
+PostgreSQL as `learnstack_app`, with positive READ ONLY and non-bypass observations.
+Test-owned boundary faults exercise first-wire GET/HEAD 404/429/503, bounded
+Retry-After, malformed/oversized responses, transport failures, deadlines and
+invalid site admission. Refusals load no Education or tenant theme. A wrong-status
+mutant fails the wire oracle, followed by a passing clean control.
+
+The lifetime phase forces overlapping identical HTML/RSC/prefetch requests and
+mixed host/locale requests, proves distinct deeply frozen snapshots, and checks
+zero retained contexts/snapshots after completion. Four concurrent prefetch lanes
+make exactly eight API calls. Physical keep-alive reuse starts fresh admission;
+client aborts cancel held bootstrap/content calls. A valid HEAD response finishes
+before test-owned deferred work resumes; that work is refused before Education.
+Shutdown cancels two held content requests, clears both snapshots and exits
+without fixture escalation. Missing, duplicated and mismatched native contexts
+fail closed without an API call.
+
+Stock Brave 154.1.96.61 proves actual refused Flight navigation at 429 and 503
+falls back to a new document request. The browser uses a disposable profile and
+fixture certificate trust, without changing workstation trust. Development HMR
+changes both source and live API data in the same process and proves fresh
+admission with two site calls and no Education call. A bounded TLS WebSocket
+watcher waits for the pinned Next compiler's `serverComponentChanges` message;
+sync/client-only frames cannot release the source-change barrier. These are
+narrow navigation/lifecycle proofs, not P02d-7's browser demo, Lighthouse or a new
+manual accessibility audit.
+
+Two observed gaps were corrected before this commit. A successful JSON-shaped
+response with the wrong media type was accepted by the configured caller; it now
+requires the existing success/Problem Details media types before SDK parsing,
+with cancellation, reader-release and positive controls. The initial full Docker
+run exposed an HMR source-watcher race despite a passing focused run. The compiler
+completion barrier replaces the racing source-write/request sequence; the focused
+production case and subsequent full Docker run pass without retry or sleeps.
+
+Final local validation passes **2,946 backend cases**: **1,705 unit**, **198
+architecture**, **4 contract**, **172 Docker-free integration** and **867 Docker
+integration**, zero skips. The guarded frontend run passes **1,396 cases**:
+**1,336 web and 60 SDK**, zero skips/todos. Release build has zero warnings/errors;
+format, workspace lint/typecheck, production build, native ingress and all
+**19** ingress cleanup controls pass. The five admission catalogue rules are
+Implemented with executable owners and planted controls. Accepted ADRs retain
+their original bodies and receive dated delivery navigation. Exact-head CI and
+two fresh independent Step 3 review rounds are still pending.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

@@ -82,6 +82,12 @@ async function boundedResponse(
     })();
     const response = await Promise.race([pending, interrupted]);
     reader = response.body?.getReader();
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+    const expectedMediaType = response.ok ? 'application/json' : 'application/problem+json';
+    if (mediaType !== expectedMediaType) {
+      controller.abort();
+      throw new Error('Invalid public API response media type');
+    }
     const chunks: Uint8Array[] = [];
     let size = 0;
     if (reader) {

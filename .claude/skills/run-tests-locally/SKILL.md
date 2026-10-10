@@ -173,6 +173,21 @@ accessibility closeout is recorded with its tested scope in the
 [packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
 New UI changes require their own applicable manual checks; P7 owns the browser demo.
 
+ADR-0055's separate admission fixture adds a narrow stock-Next browser navigation
+probe and development HMR admission controls. Its Docker integration run requires
+an installed stock Chromium browser: Chrome or Brave at the supported macOS
+application paths, or Chrome/Chromium at the supported Linux executable paths.
+Missing browser installation fails the proof; it never skips. The required CI
+integration job checks `/usr/bin/google-chrome` and its version before running.
+The fixture launches headless with its own disposable profile and trust limited
+to its certificate's public-key fingerprint; it does not use a personal profile.
+Browser observations cover a refused Flight followed by stock Next's fresh document
+navigation and separately counted API calls. HMR controls cover source recompilation
+and a fresh live site snapshot in the same development process. The
+[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns actual execution and remaining reviews. This probe does not deliver P7's
+browser demo, full Playwright/axe or Lighthouse.
+
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per

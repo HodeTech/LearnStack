@@ -8,9 +8,9 @@
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 (P02d-6 proofs implemented; manual smoke recorded),
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
-(replacement admission proofs Registered). The catalogue grows as
-subsequent ADRs and phases land their tests; per-test ownership stays with
-the originating ADR / standard.
+(replacement admission proofs implemented; Step 3 reviews pending). The
+catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
+stays with the originating ADR / standard.
 
 The single source of truth for the **identifier**, the **assertion**, the
 **source ADR / standard**, the **scope**, and the **implementation status** of every
@@ -132,8 +132,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**165 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 58 are no less binding, and most could not live there. The table says where
+**170 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 63 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -4331,11 +4331,17 @@ owns execution, review and manual evidence.
 
 ## P02d-6 request-local bootstrap admission controls
 
-**Accepted — 2026-10-10; implementation pending.** ADR-0055 registers the five
-rules below before dependent code. Planned files are ownership commitments, not
-claims that new tests exist or pass. Existing P5/P6 controls remain mandatory.
-The [implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
-owns delivery and two independent review rounds per step.
+**Implemented — 2026-10-10; Step 3 reviews pending.** Production replacement
+proofs and planted controls pass for the five rules below. Steps 1–2 completed both
+independent review rounds. Existing P5/P6 controls remain mandatory. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns actual execution and pending Step 3 reviews. Six existing production modes
+pass with revised call accounting. The additional production Fact is
+`Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback` in
+`backend/tests/LearnStack.Tests.Integration/Database/PublicAdmissionRenderingTests.cs`,
+driven by `frontend/apps/web/scripts/verify-public-admission.mjs`. It passes its
+wire, lifecycle and stock-browser/HMR phases against the real API/PostgreSQL;
+test-only instrumentation stays in the disposable copied app.
 
 ### `Public_Admission_Uses_Only_The_Active_Native_Context`
 
@@ -4347,7 +4353,9 @@ owns delivery and two independent review rounds per step.
   exercise both facade admission and actual framework propagation.
 - **Source:** ADR-0055; accepted P02d-6 G40 supersession.
 - **Type:** frontend runtime + actual production Next/API. **Kind:** behavioural.
-- **Status:** **Registered** — planned
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` proves actual
+  context propagation and missing/mismatched/duplicate-context refusal with
+  `verify-public-admission.mjs`. Unit controls live in
   `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
   `frontend/apps/web/src/server/public-admission.test.ts` and existing
   `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
@@ -4364,7 +4372,10 @@ owns delivery and two independent review rounds per step.
   controls must fail beside positive controls.
 - **Source:** ADR-0055; ADR-0054 Amendment 8.
 - **Type:** frontend mapping + actual production HTTP. **Kind:** behavioural.
-- **Status:** **Registered** — planned extensions to
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove first-wire refusals and a wrong-status mutant;
+  `frontend/apps/web/src/server/configured-public-client.test.ts` proves success
+  and Problem Details media-type admission. Mapping and lifetime units live in
   `frontend/apps/web/src/middleware.test.ts`,
   `frontend/apps/web/src/server/public-request.test.ts` and existing
   `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
@@ -4381,9 +4392,13 @@ owns delivery and two independent review rounds per step.
   counts, while content 200/noindex and missing 307-to-404 remain unchanged.
 - **Source:** ADR-0055; accepted P02d-6 G40 supersession.
 - **Type:** frontend snapshot/memo + production rendering. **Kind:** behavioural.
-- **Status:** **Registered** — planned
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove overlapping HTML/RSC/prefetch stores, exact
+  calls and keep-alive freshness; original product modes retain live-state proof.
+  `frontend/apps/web/src/test/admission-browser.test.ts` supplies clean/planted
+  Flight-to-document observation controls. Snapshot and consumer units live in
   `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
-  `frontend/apps/web/src/server/public-admission.test.ts`, extensions to existing
+  `frontend/apps/web/src/server/public-admission.test.ts`,
   `frontend/apps/web/src/server/public-request.test.ts` and
   `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
@@ -4398,10 +4413,19 @@ owns delivery and two independent review rounds per step.
   zero; this does not claim all React work or captured local references ended.
 - **Source:** ADR-0055.
 - **Type:** runtime lifecycle + native production fixture. **Kind:** behavioural.
-- **Status:** **Registered** — planned
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove abort, shutdown, valid HEAD late refusal and
+  zero retained stores/snapshots. `frontend/apps/web/scripts/admission-hmr.mjs`
+  proves fresh admission after source/API change in the same development process;
+  `frontend/apps/web/src/test/admission-hmr.test.ts` supplies clean/planted freshness,
+  lifetime and cleanup controls. `admission-hmr-watch.mjs` waits for the pinned
+  Next compiler's real completion frame before the sole refresh request;
+  `frontend/apps/web/src/test/admission-hmr-watch.test.ts` proves that sync/client
+  frames cannot release this source-change barrier. Unit and retained ingress
+  controls live in
   `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
-  `frontend/apps/web/src/server/public-admission.test.ts` and extensions to
-  existing `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
+  `frontend/apps/web/src/server/public-admission.test.ts`,
+  `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
 
@@ -4416,7 +4440,11 @@ owns delivery and two independent review rounds per step.
 - **Source:** ADR-0055; ADR-0052/0053/0054.
 - **Type:** source/build + actual production Next/API/PostgreSQL. **Kind:**
   structural + behavioural.
-- **Status:** **Registered** — planned extensions to existing
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove stock-browser fallback, development HMR,
+  no build bootstrap and private-value containment. Browser/HMR assertion controls
+  live in `frontend/apps/web/src/test/admission-browser.test.ts` and
+  `frontend/apps/web/src/test/admission-hmr.test.ts`. Retained boundary controls are
   `frontend/apps/web/src/test/public-boundaries.test.ts`,
   `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.

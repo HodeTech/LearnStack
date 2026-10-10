@@ -6,6 +6,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
 controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
 and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+Native admission, stock-browser fallback and HMR proof controls derive from
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
@@ -211,9 +213,23 @@ pagination surfaces, exact schema swaps and inert authored values. Test-owned
 inventory exceeds the page bound; test-owned enabled RTL content proves direction
 and labelled UI fallback without rewriting historical seed inventory. Verify the
 approved local 307→404 chain, changed status URL, no direct internal bypass and
-HTTP 200 noindex known content-failure states. Shared metadata/layout/page loaders
-must preserve three API calls per normal document and five for a followed missing
-document; the next document re-reads. These proofs are not browser E2E evidence.
+HTTP 200 noindex known content-failure states. Under ADR-0055, completed product
+documents cost two API calls, fixed status/scaffold documents one and followed
+missing documents three. Metadata/layout/page/UI reuse adds no bootstrap; the next
+document re-reads. HEAD/RSC/prefetch and Flight fallback need separately proven
+counts. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+records passing production replacement proofs; Step 3's two independent review
+rounds remain pending. These HTTP/HTML/RSC proofs are not browser E2E evidence.
+
+ADR-0055's separate test-only stock-Next navigation probe observes a failed Flight
+followed by a fresh document request and counts that chain separately. It requires
+an installed stock Chromium browser, uses an isolated disposable profile with
+certificate-specific public-key trust, and fails if the browser is absent. The
+required CI integration job checks `/usr/bin/google-chrome` and its version.
+Development HMR controls separately check recompilation and fresh admission in
+one native process. The Step 3 record owns their actual execution and review status;
+P7's browser demo and Lighthouse, and Phase 06's full Playwright/axe, remain separate.
 
 Applicable jsx-a11y rules run at error severity with actual-config planted
 controls. Catalogue checks cover nonempty/equal key sets, valid ICU and argument

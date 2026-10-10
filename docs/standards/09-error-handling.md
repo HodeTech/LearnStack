@@ -459,7 +459,9 @@ Plain same-host relative anchors trigger fresh document requests. Admission
 completes before loading boundaries flush; [Standards 07](07-frontend-architecture.md#routing)
 owns placement and the shared request-local loader.
 
-**ADR-0055 Accepted — 2026-10-10; replacement implementation pending.**
+**ADR-0055 implementation delivered — 2026-10-10; production replacement proofs
+pass.** Steps 1–2 completed both independent review rounds; Step 3 reviews remain
+pending.
 Middleware owns the sole live bootstrap and emits neutral 404 for invalid entry
 or API 404, 429 for valid API 429 and 503 for other site/transport/configuration
 failures. Responses are no-store with fixed plain-text copy and bodyless HEAD;
@@ -473,9 +475,9 @@ as integer delta-seconds from zero through sixty inclusive. Preserve eligible
 values; omit malformed/date/negative/out-of-range values without clamping or
 inventing a retry. This qualifies renderer forwarding only; the API's selected
 refusal metadata and accounting remain unchanged. The
-[implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
-owns production proofs and review status. Earlier duplicate-read behavior remains
-the runtime baseline until that replacement is delivered.
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+records passing exact-wire failure and lifecycle proofs. Step 3's two independent
+review rounds remain pending.
 
 ### User-Facing Copy
 

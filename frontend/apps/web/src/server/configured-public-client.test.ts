@@ -68,7 +68,15 @@ function client(
 
 function stubResponse(body: unknown = site, status = 200, headers?: HeadersInit) {
   const transport = vi.fn<typeof globalThis.fetch>();
-  transport.mockImplementation(async () => new Response(JSON.stringify(body), { status, headers }));
+  const responseHeaders = new Headers(headers);
+  if (!responseHeaders.has('content-type'))
+    responseHeaders.set(
+      'content-type',
+      status < 300 ? 'application/json' : 'application/problem+json',
+    );
+  transport.mockImplementation(
+    async () => new Response(JSON.stringify(body), { status, headers: responseHeaders }),
+  );
   vi.stubGlobal('fetch', transport);
   return transport;
 }
@@ -201,6 +209,49 @@ describe('configured public authority and operation boundary', () => {
 });
 
 describe('trace context and SDK outcomes', () => {
+  it.each(['application/json', 'Application/JSON; charset=utf-8'])(
+    'accepts the public success media type %s',
+    async (contentType) => {
+      stubResponse(site, 200, { 'content-type': contentType });
+      expect(await client().getSite()).toEqual({ kind: 'success', status: 200, data: site });
+    },
+  );
+
+  it.each(['application/problem+json', 'Application/Problem+JSON; charset=utf-8'])(
+    'accepts the public failure media type %s',
+    async (contentType) => {
+      stubResponse(problem, 429, { 'content-type': contentType });
+      expect(await client().getSite()).toMatchObject({ kind: 'api-error', status: 429 });
+    },
+  );
+
+  it.each([
+    [200, null],
+    [200, 'text/plain'],
+    [200, 'application/problem+json'],
+    [200, 'application/json-extra'],
+    [429, null],
+    [429, 'text/plain'],
+    [429, 'application/json'],
+  ])('refuses status %s with media type %s and releases its body', async (status, contentType) => {
+    vi.useFakeTimers();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(JSON.stringify(status === 200 ? site : problem)),
+        );
+      },
+      cancel,
+    });
+    const headers = contentType === null ? undefined : { 'content-type': contentType };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status, headers })));
+    expect(await client().getSite()).toEqual({ kind: 'transport-error' });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(body.locked).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('preserves the incoming W3C trace and the Problem Details trace identifier', async () => {
     const transport = stubResponse(problem, 429, { 'Retry-After': '27' });
     const result = await client({ traceparent }).getSite();
@@ -249,12 +300,16 @@ describe('trace context and SDK outcomes', () => {
 
   it('preserves malformed JSON, invalid wire shape and network failure as distinct SDK outcomes', async () => {
     const transport = stubResponse();
-    transport.mockResolvedValueOnce(new Response('{'));
+    transport.mockResolvedValueOnce(
+      new Response('{', { headers: { 'content-type': 'application/json' } }),
+    );
     expect(await client().getSite()).toEqual({
       kind: 'invalid-response',
       reason: 'malformed-json',
     });
-    transport.mockResolvedValueOnce(new Response('{}'));
+    transport.mockResolvedValueOnce(
+      new Response('{}', { headers: { 'content-type': 'application/json' } }),
+    );
     expect(await client().getSite()).toEqual({
       kind: 'invalid-response',
       reason: 'invalid-success',
@@ -287,7 +342,12 @@ describe('trace context and SDK outcomes', () => {
       },
       cancel,
     });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(new Response(body, { headers: { 'content-type': 'application/json' } })),
+    );
     expect(await client({ signal: cancellation.signal }).getSite()).toEqual({
       kind: 'transport-error',
     });
@@ -301,7 +361,12 @@ describe('trace context and SDK outcomes', () => {
     vi.useFakeTimers();
     const cancel = vi.fn(() => new Promise<void>(() => {}));
     const body = new ReadableStream<Uint8Array>({ cancel });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(new Response(body, { headers: { 'content-type': 'application/json' } })),
+    );
     const pending = client().getSite();
     await vi.advanceTimersByTimeAsync(10_000);
     expect(await pending).toEqual({ kind: 'transport-error' });

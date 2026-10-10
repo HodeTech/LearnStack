@@ -203,6 +203,13 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      # ADR-0055's narrow stock-Next Flight fallback proof cannot silently skip.
+      # The hosted Ubuntu image supplies Chrome; do not use a user's browser profile.
+      - name: Verify stock browser for admission navigation proof
+        run: |
+          test -x /usr/bin/google-chrome
+          /usr/bin/google-chrome --version
+
       - name: Restore
         working-directory: backend
         # CI=true here too, not only on the build: NuGet's audit reports at RESTORE, and

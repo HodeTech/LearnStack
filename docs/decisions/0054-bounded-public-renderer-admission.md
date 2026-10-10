@@ -354,6 +354,16 @@ accounting and numeric quotas remain unchanged. This is bounded supersession
 navigation, not a correction; original metadata, body and earlier amendments stay
 historical. Acceptance is not runtime delivery evidence.
 
+### Amendment 9 — Renderer bootstrap qualification delivery (2026-10-10)
+
+ADR-0055's single-bootstrap reuse and bounded renderer Retry-After qualification
+are implemented. Real wire proofs cover supported 404/429/503, eligible zero/sixty
+boundaries, omitted invalid values and bodyless HEAD. API accounting, original API
+metadata and numeric budgets remain unchanged. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns execution and independent review status. This delivery note preserves the
+original acceptance metadata, body and all earlier amendments.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

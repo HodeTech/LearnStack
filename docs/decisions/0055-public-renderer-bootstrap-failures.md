@@ -2,6 +2,10 @@
 
 ## Status
 
+> **Delivery navigation — 2026-10-10:** [Amendment 1](#amendment-1--production-implementation-and-proof-2026-10-10)
+> records implemented runtime and production proof. The pending statements below
+> describe the acceptance baseline; the linked delivery record owns current reviews.
+
 Accepted — 2026-10-10. The maintainer approved the revised decision after the
 isolated Next 15.5.27 context-propagation experiment and its two review rounds.
 
@@ -305,6 +309,25 @@ pass. Together they own these mandatory obligations:
   request; zero active contexts/snapshots after completion and no HMR reuse.
 - Invalid host/locale/stamp, stock launcher bypass, exempt asset/health fallback,
   native method/upgrade refusal, no build-time bootstrap and retained HMR behavior.
+
+## Amendments
+
+### Amendment 1 — Production implementation and proof (2026-10-10)
+
+The three-step implementation delivers native-owned request context/lifetime,
+middleware's sole live bootstrap and provenance-checked snapshot consumers.
+The six existing production modes retain their isolation, content-state and
+freshness controls with revised accounting. The additional real API/PostgreSQL
+fixture covers exact wire failures, snapshot concurrency, cancellation, late HEAD,
+shutdown, keep-alive, stock browser Flight fallback and development source/API
+refresh. Public success and Problem Details media types are enforced before SDK
+parsing under the existing API contract.
+
+The [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns executed checks, verified corrections and independent review status. Five
+catalogue rules are Implemented with named executable owners. The original
+acceptance metadata, decision and prior feasibility observations remain historical;
+this delivery note changes no decision or P7/Phase 06 scope.
 
 ## References
 

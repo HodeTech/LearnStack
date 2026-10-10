@@ -291,10 +291,13 @@ status composition is distinct from the framework's thrown `notFound()` behavior
 - Unexpected framework errors keep pre-stream 500 / post-stream 200 behavior;
   `error.tsx` cannot set arbitrary status.
 
-The accepted normal document costs three API calls; following a missing document
-through the status route costs five total. Shared request-local loaders add no
-metadata/layout/page calls or cross-request cache. See
-[the P02d-6 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+ADR-0055's implemented single bootstrap costs two API calls per completed product
+document, one per fixed status/scaffold document and three per followed missing
+document. Metadata/layout/page/UI share the admitted snapshot without another
+bootstrap or cross-request cache. HEAD/RSC/prefetch and Flight fallback require
+separately proven counts. The
+[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+records passing production replacement proofs and pending Step 3 reviews.
 
 ### Step 10: Tests
 

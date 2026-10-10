@@ -283,35 +283,31 @@ export default function FixtureClient({ displayName }: { displayName: string }) 
 }
 `;
 
-// This source exists only inside the disposable app. Every public value comes
-// from the real configured SDK; headers, envelopes and errors are never serialized.
-const page = `import { headers } from 'next/headers';
-import { notFound } from 'next/navigation';
-import { createConfiguredPublicClient } from '@/server/configured-public-client';
-import { INGRESS_HEADER } from '@/server/ingress';
+// This source exists only inside the disposable app. It consumes the shipped
+// middleware admission and configured SDK; private carriers are never serialized.
+const page = `import { notFound } from 'next/navigation';
+import { assertPublicRequestActive, getPublicRequest } from '@/server/public-request';
 import FixtureClient from './fixture-client';
 
 export default async function FixturePage({ params }: {
   params: Promise<{ locale: string; segments?: string[] }>;
 }) {
-  const incoming = await headers();
-  const client = createConfiguredPublicClient(incoming.get(INGRESS_HEADER), {
-    traceparent: incoming.get('traceparent'),
-  });
-  if (!client) notFound();
-  const site = await client.getSite();
-  if (site.kind !== 'success') throw new Error('Fixture bootstrap failed');
+  const request = await getPublicRequest();
+  if (!request) notFound();
+  const { client, site } = request;
   const { segments = [] } = await params;
+  assertPublicRequestActive(request);
   const result = segments.length === 0 ? await client.getCourses() :
     segments.length === 1 ? await client.getCourse({ slug: segments[0]! }) :
     await client.getLesson({ slug: segments[0]!, lessonSlug: segments[2]! });
+  assertPublicRequestActive(request);
   if (result.kind === 'api-error' && result.status === 404) notFound();
   if (result.kind !== 'success') throw new Error('Fixture public read failed');
-  return <section><h1>{site.data.displayName}</h1><FixtureClient displayName={site.data.displayName}/><pre>{JSON.stringify(result.data)}</pre></section>;
+  return <section><h1>{site.displayName}</h1><FixtureClient displayName={site.displayName}/><pre>{JSON.stringify(result.data)}</pre></section>;
 }
 `;
 
-// P5 deliberately keeps its own neutral document and independent SDK calls.
+// P5 keeps its neutral document while sharing the shipped middleware admission.
 // Replacing only this disposable copy prevents later product layouts from adding
 // reads to the transport proof or its synthetic catch-all shadowing product pages.
 const transportRoot = `import type { ReactNode } from 'react';

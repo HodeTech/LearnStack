@@ -138,7 +138,12 @@ records both completed review rounds. **P02d-6 implementation is complete —
 2026-10-10, unmerged**: the
 [packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
 records passing manual browser checks and the maintainer's VoiceOver smoke.
-Maintainer PR review and merge remain pending.
+Maintainer PR review and merge remain pending. ADR-0055 remediation delivers
+single-bootstrap admission and passing production replacement proofs. Steps 1–2
+completed both independent review rounds;
+the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns pending Step 3 reviews and delivery evidence. The five new catalogue rules
+are Implemented.
 P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
 the full renderer/Studio expansion.
 

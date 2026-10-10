@@ -169,9 +169,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     case "trace-missing":
                     case "trace-malformed":
                         var requests = observed.Requests.Skip(tracePosition).ToArray();
-                        requests.Should().HaveCount(3, "middleware bootstrap, page bootstrap and content all use the real API");
-                        requests.Take(2).Should().OnlyContain(request => request.Path == "/api/v1/public/site");
-                        requests[2].Path.Should().StartWith("/api/v1/public/courses");
+                        requests.Should().HaveCount(2, "one middleware bootstrap and one content operation use the real API");
+                        requests[0].Path.Should().Be("/api/v1/public/site");
+                        requests[1].Path.Should().StartWith("/api/v1/public/courses");
                         requests.Select(request => request.TraceId).Distinct().Should().ContainSingle("one incoming render has one distributed trace");
                         requests.Should().OnlyContain(request => request.TraceId.Length == 32 && request.TraceId != new string('0', 32));
                         if (checkpoint == "trace-supplied") requests[0].TraceId.Should().Be(SuppliedTrace.Substring(3, 32));
@@ -208,10 +208,10 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     case "foundation-repeat":
                     case "foundation-missing":
                         var foundationRequests = observed.Requests.Skip(foundationPosition).ToArray();
-                        foundationRequests.Should().HaveCount(checkpoint == "foundation-missing" ? 5 : 3,
+                        foundationRequests.Should().HaveCount(checkpoint == "foundation-missing" ? 3 : 2,
                             "metadata, document/layout and page share one request-local admission and content operation");
                         foundationRequests.Count(request => request.Path == "/api/v1/public/site").Should()
-                            .Be(checkpoint == "foundation-missing" ? 4 : 2);
+                            .Be(checkpoint == "foundation-missing" ? 2 : 1);
                         foundationRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
                         foundationRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
                             .Locale.Should().Be(locale, "UI configuration cannot change the exact content API locale");
@@ -233,8 +233,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     case "pagination-outline-next":
                     case "pagination-outline-restart":
                         var productRequests = observed.Requests.Skip(foundationPosition).ToArray();
-                        productRequests.Should().HaveCount(3, "an unchanged page uses one shared content operation");
-                        productRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
+                        productRequests.Should().HaveCount(2, "an unchanged page uses one middleware admission and one shared content operation");
+                        productRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(1);
                         productRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
                         productRequests.Single(request => request.Path != "/api/v1/public/site").Status.Should().Be(200);
                         productRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
@@ -249,8 +249,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         break;
                     case "foundation-cross-tenant":
                         var crossTenantRequests = observed.Requests.Skip(foundationPosition).ToArray();
-                        crossTenantRequests.Should().HaveCount(5, "missing cross-tenant detail and followed status use the approved redirect chain");
-                        crossTenantRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
+                        crossTenantRequests.Should().HaveCount(3, "missing cross-tenant detail and followed status use the approved redirect chain");
+                        crossTenantRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
                         crossTenantRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
                         var hiddenCourseRequest = crossTenantRequests.Single(request => request.Path != "/api/v1/public/site");
                         hiddenCourseRequest.Path.Should().Be($"/api/v1/public/courses/{foreignCourse.Slug}");
@@ -265,9 +265,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         var statusRequests = observed.Requests.Skip(foundationPosition).ToArray();
                         statusRequests.Should().HaveCount(checkpoint switch
                         {
-                            "foundation-status" => 8,
-                            "foundation-head" => 2,
-                            "foundation-canonical" => 3,
+                            "foundation-status" => 4,
+                            "foundation-head" => 1,
+                            "foundation-canonical" => 2,
                             _ => 2
                         });
                         statusRequests.Should().OnlyContain(request => request.Path == "/api/v1/public/site",
@@ -287,9 +287,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     case "presentation-unavailable":
                     case "presentation-restored":
                         var presentationRequests = observed.Requests.Skip(foundationPosition).ToArray();
-                        presentationRequests.Should().HaveCount(3,
-                            "the unchanged lesson route shares one exact content read across metadata, document and page");
-                        presentationRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
+                        presentationRequests.Should().HaveCount(2,
+                            "the unchanged lesson route shares one middleware admission and one exact content read across metadata, document and page");
+                        presentationRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(1);
                         var lessonRequest = presentationRequests.Single(request => request.Path != "/api/v1/public/site");
                         lessonRequest.Path.Should().Contain("/lessons/");
                         lessonRequest.Locale.Should().Be(checkpoint is "presentation-yoga-tr" or "presentation-rsc-yoga-tr" or "presentation-yoga-unchanged"
@@ -299,9 +299,9 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                     case "presentation-cross-host":
                     case "presentation-protected":
                         var hiddenLessonRequests = observed.Requests.Skip(foundationPosition).ToArray();
-                        hiddenLessonRequests.Should().HaveCount(5,
+                        hiddenLessonRequests.Should().HaveCount(3,
                             "one refused lesson document and its localized status redirect use the real bootstrap chain");
-                        hiddenLessonRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
+                        hiddenLessonRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
                         hiddenLessonRequests.Single(request => request.Path != "/api/v1/public/site").Locale.Should()
                             .Be(checkpoint == "presentation-protected" ? SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale : locale);
                         hiddenLessonRequests.Single(request => request.Path != "/api/v1/public/site").Status.Should().Be(404);
@@ -341,7 +341,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         break;
                     case "product-html":
                     case "product-rsc":
-                        AssertProductReads(observed, foundationPosition, 12);
+                        AssertProductReads(observed, foundationPosition, siteCalls: 4, contentCalls: 4);
                         observed.VerifyBarrier();
                         var concurrent = observed.Requests.Skip(foundationPosition).Where(request => request.Path != "/api/v1/public/site").ToArray();
                         concurrent.Select(request => (request.Host, request.Locale)).Should().BeEquivalentTo(
@@ -367,7 +367,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         break;
                     case var name when name.StartsWith("product-", StringComparison.Ordinal):
                         var missing = name is "product-draft-course" or "product-draft-lesson" or "product-protected-en" or "product-protected-tr";
-                        AssertProductReads(observed, foundationPosition, missing ? 5 : 3);
+                        AssertProductReads(observed, foundationPosition, siteCalls: missing ? 2 : 1, contentCalls: 1);
                         var productContent = observed.Requests.Skip(foundationPosition).Single(request => request.Path != "/api/v1/public/site");
                         productContent.Status.Should().Be(missing ? 404 : name switch
                         {
@@ -415,15 +415,19 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 "make-draft", "product-draft-catalog", "product-draft-course", "product-draft-lesson", "product-draft-other", "restore-published",
                 "product-restored-catalog", "product-restored-course", "product-restored-lesson", "product-bad-cursor", "product-cursor-recovery",
                 "product-arm-429", "product-content-429", "product-429-recovery", "product-arm-503", "product-content-503", "product-503-recovery", "verified");
-            if (mode == "product-isolation") observed.Requests.Should().HaveCount(43);
-            if (mode == "product-freshness") observed.Requests.Should().HaveCount(52);
+            if (mode == "transport") observed.Requests.Should().HaveCount(39,
+                "sixteen HTML/RSC representations use two calls each, the root redirect uses one and six protocol probes use one each");
+            if (mode == "product-isolation") observed.Requests.Should().HaveCount(28,
+                "eight concurrent representations and three theme documents use two calls each, plus two followed missing chains use three each");
+            if (mode == "product-freshness") observed.Requests.Should().HaveCount(34,
+                "fourteen actual product representations use two calls each and two followed missing chains use three each");
             if (product) foundationPosition.Should().Be(observed.Requests.Length, "every product request belongs to an asserted checkpoint");
-            if (mode == "foundation") observed.Requests.Should().HaveCount(52,
-                "normal/repeat, both hosts and languages, restricted/empty/cross-tenant, status and refusal checks fit one visitor window");
-            if (mode == "foundation-pagination") observed.Requests.Should().HaveCount(18,
-                "six actual catalog/outline documents each make exactly three API calls");
-            if (mode == "presentation") observed.Requests.Should().HaveCount(46,
-                "twelve actual lesson HTML/RSC representations and two followed hidden lessons fit the unchanged visitor budget");
+            if (mode == "foundation") observed.Requests.Should().HaveCount(33,
+                "nine product documents use two calls each, two followed missing chains use three each and nine status/entry requests use one each");
+            if (mode == "foundation-pagination") observed.Requests.Should().HaveCount(12,
+                "six actual catalog/outline documents each make exactly two API calls");
+            if (mode == "presentation") observed.Requests.Should().HaveCount(30,
+                "twelve actual lesson HTML/RSC representations use two calls each and two followed hidden lessons use three each");
             observed.Requests.Length.Should().BeInRange(1, 59, "the fixture stays within one real anonymous visitor budget");
             observed.Requests.Should().OnlyContain(request => request.ValidHop, "the real caller uses the closed authenticated hop");
             observed.Logs.Should().BeGreaterThan(0, "API log containment needs a nonempty real logging subject");
@@ -631,11 +635,12 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         "UPDATE tenant_settings SET value=CAST(@value AS jsonb) WHERE tenant_id=@tenant AND key='branding.theme'",
         new Dictionary<string, object> { ["value"] = value });
 
-    private static void AssertProductReads(RenderingObservation observed, int position, int count)
+    private static void AssertProductReads(RenderingObservation observed, int position, int siteCalls, int contentCalls)
     {
         var requests = observed.Requests.Skip(position).ToArray();
-        requests.Should().HaveCount(count, "only the actual middleware/bootstrap/content operations reach the API");
-        requests.Count(request => request.Path == "/api/v1/public/site").Should().Be(count == 12 ? 8 : count == 5 ? 4 : 2);
+        requests.Should().HaveCount(siteCalls + contentCalls, "only the actual middleware admission and shared content operations reach the API");
+        requests.Count(request => request.Path == "/api/v1/public/site").Should().Be(siteCalls);
+        requests.Count(request => request.Path != "/api/v1/public/site").Should().Be(contentCalls);
         requests.Where(request => request.Path == "/api/v1/public/site").Should().OnlyContain(request => request.Status == 200);
     }
 
@@ -1022,7 +1027,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         && Interlocked.CompareExchange(ref _fault, null, fault) == fault)
                     {
                         // A one-shot content boundary fault, not a real handler or
-                        // limiter failure. Both site bootstraps still run normally.
+                        // limiter failure. The middleware site bootstrap runs normally.
                         Interlocked.Increment(ref _faults);
                         context.Response.StatusCode = fault.Status;
                         context.Response.ContentType = "application/problem+json";
