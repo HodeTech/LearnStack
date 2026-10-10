@@ -5515,11 +5515,22 @@ fixed state/count fields and has a passing privacy/once-only test. Phase 11 owns
 the broader frontend observability contract; removing this signal would weaken
 the current diagnostic contract.
 
-Focused local verification passes: the real admission Fact **1/1**, architecture
-**198/198**, guarded frontend **1,402/1,402**, typecheck, native compilation, lint
-and changed C# format verification. No skipped/todo cases are accepted. Two fresh
-independent review rounds and final PR-head CI verification remain pending for
-this follow-up.
+**Follow-up review round 1 — `1496269`.** Fresh GPT-6-astra at xhigh effort
+approves without actionable findings. It verifies shared port authority, explicit
+envelope narrowing, real overlap, independent seed palettes, snapshot identity,
+native completion, exact accounting and the bounded scaffold coverage claim.
+
+**Follow-up review round 2 — `1496269`.** Fresh GPT-6.1-sol at xhigh effort
+independently approves without actionable findings. It reconciles the **32/52/10**
+phase totals and checks provenance, cleanup, falsifiability and documentation.
+Both rounds are read-only source reviews; runtime execution belongs to the parent.
+
+Focused local verification passes: the real admission Fact **1/1**, retained
+rendering **20/20** (including all six production modes), architecture **198/198**,
+guarded frontend **1,402/1,402**, typecheck, native compilation, lint and changed
+C# format verification. TRX counters confirm zero failures/skips; the frontend
+runner also refuses skips/todos. The PR description owns final exact-head CI
+after this review-record commit. Maintainer review and merge remain pending.
 
 ### P02d-1 decision pass (2026-09-14)
 
