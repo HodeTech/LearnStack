@@ -778,67 +778,112 @@ async function run() {
     0,
     'Unsupported development upgrade reached Next',
   );
-  await new Promise((resolve, reject) => {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    const child =
+      signal === 'SIGTERM'
+        ? development
+        : start([join(app, 'scripts/public-server.mjs'), '--dev'], true);
+    if (child !== development) await ready(child, true, 3000);
+    await verifyHmrShutdown(child, signal);
+  }
+  assert.deepEqual(upgrades, [
+    { surface: 'sink', sanitized: true },
+    { surface: 'sink', sanitized: true },
+  ]);
+  assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
+
+  async function verifyHmrShutdown(child, signal) {
     const client = new WebSocket('wss://127.0.0.1:3000/_next/webpack-hmr', {
       ca: certificate,
       servername: 'localhost',
       rejectUnauthorized: true,
       headers: { 'X-Matched-Path': 'attacker', 'X-Middleware-Subrequest': 'attacker' },
     });
-    let accepted = false;
-    let observedFrame = false;
-    let retained = false;
-    let retention;
-    const deadline = setTimeout(() => {
+    try {
+      await new Promise((resolve, reject) => {
+        let accepted = false;
+        let retention;
+        const deadline = setTimeout(
+          () => reject(new Error('Development HMR handshake/frame deadline')),
+          12000,
+        );
+        const cleanup = () => {
+          clearTimeout(deadline);
+          clearTimeout(retention);
+          client.off('error', fail);
+          client.off('close', fail);
+        };
+        const fail = () => {
+          cleanup();
+          reject(new Error('Development HMR closed before retained acceptance'));
+        };
+        client.on('upgrade', (response) => {
+          accepted = response.statusCode === 101;
+        });
+        client.once('error', fail);
+        client.once('close', fail);
+        client.once('message', (bytes) => {
+          try {
+            const frame = JSON.parse(bytes.toString());
+            assert(typeof frame.action === 'string', 'HMR must send a real protocol frame');
+          } catch {
+            fail();
+            return;
+          }
+          // The accepted connection must outlive the launcher's handshake deadline.
+          retention = setTimeout(() => {
+            cleanup();
+            if (accepted && client.readyState === WebSocket.OPEN) resolve();
+            else reject(new Error('Development HMR did not retain its accepted connection'));
+          }, 5100);
+        });
+      });
+      assert.equal(
+        (await observe(child)).sinkCalls,
+        1,
+        'Exactly the accepted HMR upgrade must reach Next',
+      );
+      assert.equal(client.readyState, WebSocket.OPEN, 'HMR must remain open when shutdown begins');
+      // No stopTestChild here: its SIGKILL escalation would hide a hung launcher.
+      await new Promise((resolve, reject) => {
+        let exited = false;
+        let closed = false;
+        const deadline = setTimeout(() => {
+          cleanup();
+          reject(new Error('Native development shutdown deadline'));
+        }, 8000);
+        const complete = () => {
+          if (exited && closed) {
+            cleanup();
+            resolve();
+          }
+        };
+        const onExit = (code, childSignal) => {
+          if (code !== 0 || childSignal !== null) {
+            cleanup();
+            reject(new Error('Native development shutdown did not exit cleanly'));
+            return;
+          }
+          exited = true;
+          complete();
+        };
+        const onClose = () => {
+          closed = true;
+          complete();
+        };
+        const cleanup = () => {
+          clearTimeout(deadline);
+          child.off('exit', onExit);
+          client.off('close', onClose);
+        };
+        child.once('exit', onExit);
+        client.once('close', onClose);
+        child.kill(signal);
+      });
+    } finally {
       client.terminate();
-      reject(new Error('Development HMR handshake/frame deadline'));
-    }, 12000);
-    client.on('upgrade', (response) => {
-      accepted = response.statusCode === 101;
-    });
-    client.once('message', (bytes) => {
-      try {
-        const frame = JSON.parse(bytes.toString());
-        assert(typeof frame.action === 'string', 'HMR must send a real protocol frame');
-        observedFrame = true;
-      } catch {
-        client.terminate();
-        clearTimeout(deadline);
-        reject(new Error('Invalid development HMR frame'));
-        return;
-      }
-      // The accepted connection must outlive the launcher's handshake deadline.
-      retention = setTimeout(() => {
-        clearTimeout(deadline);
-        if (!accepted || client.readyState !== WebSocket.OPEN) {
-          client.terminate();
-          reject(new Error('Development HMR did not retain its accepted connection'));
-        } else {
-          retained = true;
-          client.close();
-        }
-      }, 5100);
-    });
-    client.once('error', (error) => {
-      clearTimeout(deadline);
-      clearTimeout(retention);
-      reject(error);
-    });
-    client.once('close', () => {
-      clearTimeout(deadline);
-      clearTimeout(retention);
-      if (accepted && observedFrame && retained) resolve();
-      else reject(new Error('Development HMR closed before retained acceptance'));
-    });
-  });
-  assert.equal(
-    (await observe(development)).sinkCalls,
-    1,
-    'Exactly the accepted HMR upgrade must reach Next',
-  );
-  assert.deepEqual(upgrades, [{ surface: 'sink', sanitized: true }]);
-  await observe(development);
-  assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
+    }
+  }
   console.warn(
     'Native ingress: TLS, GET/HEAD admission, disabled image optimizer with configuration mutant, query redirects, production closure, DEBUG containment and development HMR passed.',
   );

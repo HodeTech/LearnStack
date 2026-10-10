@@ -33,6 +33,7 @@ try {
   const app = next({ dev, hostname: '127.0.0.1', port: 3000, httpServer: upgradeSink });
   await app.prepare();
   const handle = app.getRequestHandler();
+  const upgradeSockets = new Set();
   const server = createServer(
     {
       cert: readFileSync(configuration.certificate),
@@ -56,6 +57,8 @@ try {
   );
   server.on('upgrade', (request, socket, head) => {
     if (!dev || !admitIncomingRequest(request, configuration.secret)) return socket.destroy();
+    upgradeSockets.add(socket);
+    socket.once('close', () => upgradeSockets.delete(socket));
     delegateDevelopmentHmr(request, socket, head, upgradeSink);
   });
   server.on('connect', (_request, socket) => socket.destroy());
@@ -64,11 +67,30 @@ try {
     console.error('Public HTTPS listener failed');
     process.exit(1);
   });
-  const shutdown = () => {
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
     admission.shutdown();
-    server.close();
+    // Node excludes upgraded sockets from closeAllConnections; Next's custom
+    // server also leaves development handles alive after app.close().
+    for (const socket of upgradeSockets) socket.destroy();
+    upgradeSockets.clear();
+    const deadline = setTimeout(() => {
+      console.error('Public server shutdown failed');
+      process.exit(1);
+    }, 5000);
+    deadline.unref();
+    const closed = new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
     server.closeAllConnections();
-    void app.close().catch(() => console.error('Public server shutdown failed'));
+    upgradeSink.close();
+    const results = await Promise.allSettled([closed, app.close()]);
+    clearTimeout(deadline);
+    const failed = results.some((result) => result.status === 'rejected');
+    if (failed) console.error('Public server shutdown failed');
+    process.exit(failed ? 1 : 0);
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);

@@ -263,10 +263,25 @@ describe('ADR-0053 production public boundaries', () => {
           `Object.${method}.call(Object, ${args});`,
           `Object.${method}.apply(Object, [${args}]);`,
           `const install = Object.${method}.bind(Object); install(${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install(${args});`,
+          `const [install] = [Object.${method}]; install(${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install.call(Object, ${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install.apply(Object, [${args}]);`,
+          `const intrinsics = {install: Object.${method}}; const install = intrinsics.install.bind(Object); install(${args});`,
         ].map((mutation) => sources[ADMISSION_FACADE]! + '\n' + mutation),
       ),
     ])
       expect(admissionBoundaryFindings(graphWith(ADMISSION_FACADE, mutation))).not.toEqual([]);
+    for (const mutation of [
+      'const intrinsics = {install: (..._args: unknown[]) => null}; intrinsics.install(globalThis, Symbol.for("fallback"), {});',
+      'const [install] = [(..._args: unknown[]) => null]; install(globalThis, Symbol.for("fallback"), {});',
+    ])
+      clean(
+        admissionBoundaryFindings(
+          graphWith(ADMISSION_FACADE, sources[ADMISSION_FACADE]! + '\n' + mutation),
+        ),
+        'Local methods selected from literals do not install native state.',
+      );
     for (const file of [ADMISSION_RUNTIME, ADMISSION_FACADE]) {
       const graph = graphWith(
         probe,

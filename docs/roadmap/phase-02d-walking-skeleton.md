@@ -5238,7 +5238,7 @@ work. No new manual browser/VoiceOver result is implied by this approval.
 
 ###### ADR-0055 Step 1 — Native request context and lifecycle
 
-**Implemented — 2026-10-10; independent review rounds pending.** The native
+**Implemented — 2026-10-10; both independent review rounds complete.** The native
 launcher installs the sole versioned ALS holder before Next preparation and wraps
 each admitted HTTP delegation in a fresh verified binding. Server-only consumers
 retrieve the existing holder lazily; no bundled runtime constructs a replacement.
@@ -5277,6 +5277,20 @@ with live-object positive controls. Both original and closure-only mutants fail
 at the collection assertion for ready/refused paths; the repaired 327-case
 focused run, typecheck and lint pass. Actual middleware/RSC integration remains
 pending in the next steps.
+
+**Review round 2 — `af34e29`.** Fresh runtime and proof reviewers independently
+run 367 and 446 focused cases. They verify that ordinary literal object/array
+aliases evade the facade installer check and that the new signal handler leaves
+a real development HMR connection/process alive. The source check now resolves
+those static aliases, with dirty and clean controls. The launcher owns upgraded
+sockets, cancels admission, awaits native/Next cleanup and bounds termination.
+The native proof keeps HMR open through SIGTERM and SIGINT and requires exit code
+zero and socket closure without fixture escalation. The original runtime reviewer
+independently repeats both signals on real Next 15.5.27: both close and exit in
+7 ms without SIGKILL, and closes the finding. The proof reviewer verifies its
+minimal alias fix and all 278 boundary cases. Root revalidation passes 327 focused
+cases, typecheck, lint, native ingress and all 19 setup/cleanup controls. Step 1
+is complete; no second-bootstrap removal or full product proof is claimed here.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -55,7 +55,7 @@ export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
   walk(facade, (node) => {
     const installer = (expression: ts.Node) =>
       ['Object.defineProperty', 'Object.defineProperties', 'Object.assign'].some((name) =>
-        globalBuiltin(expression, name, graph.checker),
+        globalBuiltin(localInitializer(expression, graph), name, graph.checker),
       );
     const receiver = ts.isCallExpression(node) ? memberReceiver(node.expression) : undefined;
     if (
