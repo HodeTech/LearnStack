@@ -4743,8 +4743,14 @@ and skips/todos where applicable. The H4-only parser mutation fails the mixed
 heading control; the restored parser passes the full architecture suite. Format
 verification and diff checks pass. A local audit of the four changed Markdown
 files checks 1,017 relative links and 353 fragments without a missing target.
-No broad backend-suite rerun is claimed by these focused local checks. Fresh
-remediation reviews and exact-head PR CI follow the commit.
+No broad backend-suite rerun is claimed by these focused local checks.
+
+Two fresh read-only remediation reviews approve `47f9c12..e871e88` on 2026-10-10:
+GPT-6.1-sol at high effort, then GPT-6-astra at high effort. Both report no verified
+actionable findings after standards, isolation, correctness, test-proof and
+documentation checks. Neither reviewer claims a runtime-suite rerun. The
+[PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns the
+exact-head CI evidence.
 
 ### P02d-1 decision pass (2026-09-14)
 
