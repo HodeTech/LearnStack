@@ -1,6 +1,6 @@
 import type { ServerSdk } from '@learnstack/sdk/server';
 
-import { normalizeHost, validTarget } from './ingress';
+import { normalizeHost, PUBLIC_HTTPS_PORT, validTarget } from './ingress';
 
 type SiteResult = Awaited<ReturnType<ServerSdk['getSite']>>;
 export type PublicSite = Extract<SiteResult, { kind: 'success' }>['data'];
@@ -117,5 +117,5 @@ export function publicRedirect(host: string, path: string): string {
   const normalized = normalizeHost(host);
   if (normalized !== host || !validTarget(path)) throw new Error('Invalid public redirect');
   const hostname = host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0];
-  return `https://${hostname}:3000${path}`;
+  return `https://${hostname}:${PUBLIC_HTTPS_PORT}${path}`;
 }

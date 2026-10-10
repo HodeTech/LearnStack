@@ -96,9 +96,11 @@ public sealed class PublicAdmissionRenderingTests(PublicReadFixture fixture)
                 courseSlug = english.Slug,
                 tenants = new[]
                 {
-                    new { host = SeedData.English.Host, name = SeedData.English.DisplayName, locale = english.Locale },
+                    new { host = SeedData.English.Host, name = SeedData.English.DisplayName, locale = english.Locale,
+                        theme = SeedData.English.Curriculum!.Theme.Value },
                     new { host = SeedData.Yoga.Host, name = SeedData.Yoga.DisplayName,
-                        locale = SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale },
+                        locale = SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale,
+                        theme = SeedData.Yoga.Curriculum.Theme.Value },
                 },
                 wireCases = WireCases.Select(row => new { row.Name, row.Method, row.Status, retryAfter = row.ExpectedRetryAfter }),
             }, JsonOptions));
@@ -200,6 +202,11 @@ public sealed class PublicAdmissionRenderingTests(PublicReadFixture fixture)
                     else if (name is "html-overlap" or "rsc-overlap" or "prefetch-overlap" or "mixed-overlap")
                     {
                         AssertCalls(host, ref position, 8, 4);
+                        host.Observation.VerifyGate();
+                    }
+                    else if (name == "scaffold-overlap")
+                    {
+                        AssertCalls(host, ref position, 4, 4);
                         host.Observation.VerifyGate();
                     }
                     else if (name == "keep-alive") AssertCalls(host, ref position, 4, 2);

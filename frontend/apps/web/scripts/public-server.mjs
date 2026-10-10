@@ -8,6 +8,7 @@ import {
   admitIncomingRequest,
   loadLocalEnvironment,
   PUBLIC_ENV_KEYS,
+  PUBLIC_HTTPS_PORT,
   INGRESS_HEADER,
   publicServerConfiguration,
   refuseIngress,
@@ -30,7 +31,12 @@ try {
   // Next attaches its automatic upgrade handler to this documented httpServer
   // option. The sink never listens: only the native TLS admission may emit to it.
   const upgradeSink = createUpgradeSink();
-  const app = next({ dev, hostname: '127.0.0.1', port: 3000, httpServer: upgradeSink });
+  const app = next({
+    dev,
+    hostname: '127.0.0.1',
+    port: PUBLIC_HTTPS_PORT,
+    httpServer: upgradeSink,
+  });
   await app.prepare();
   const handle = app.getRequestHandler();
   const upgradeSockets = new Set();
@@ -94,8 +100,8 @@ try {
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
-  server.listen(3000, '127.0.0.1', () => {
-    console.warn('Public HTTPS listener ready on 127.0.0.1:3000');
+  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {
+    console.warn(`Public HTTPS listener ready on 127.0.0.1:${PUBLIC_HTTPS_PORT}`);
   });
 } catch {
   console.error('Public server configuration or startup failed');

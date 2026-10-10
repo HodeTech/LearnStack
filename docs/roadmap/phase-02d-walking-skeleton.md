@@ -5494,6 +5494,33 @@ owns final exact-head CI after this documentation commit. Maintainer review and
 merge remain pending. P02d-7 retains the full browser demo and Lighthouse;
 Phase 06/11 retain their named broader accessibility and production-hardening work.
 
+**Latest external review follow-up — 2026-10-10.** The review against `d1cc011`
+reports no Blocker or Major. Its fixed-port observation is valid: native listening,
+Next's port option and redirect authority now share `PUBLIC_HTTPS_PORT`, preserving
+the Accepted local HTTPS port 3000. Middleware explicitly narrows the verified
+envelope instead of using a non-null assertion.
+
+The admission proof now also holds four scaffold requests at one real API barrier:
+two hosts, each requesting `/studio` and `/portal`. Distinct seed palettes provide
+positive controls; each HTML response contains its own palette and excludes the
+other tenant's palette and name. Four separate immutable snapshots are released
+after native completion. The driver asserts exactly four site calls and no
+Education call for this checkpoint. The lifetime phase now uses **52** API calls;
+wire **32** and browser/HMR **10** remain unchanged. The earlier **48**-call receipt
+above describes the previous proof revision.
+
+The suggested silent/shared logger replacement is not applied. The unsupported
+renderer warning is intentionally bounded to one event per request, contains only
+fixed state/count fields and has a passing privacy/once-only test. Phase 11 owns
+the broader frontend observability contract; removing this signal would weaken
+the current diagnostic contract.
+
+Focused local verification passes: the real admission Fact **1/1**, architecture
+**198/198**, guarded frontend **1,402/1,402**, typecheck, native compilation, lint
+and changed C# format verification. No skipped/todo cases are accepted. Two fresh
+independent review rounds and final PR-head CI verification remain pending for
+this follow-up.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

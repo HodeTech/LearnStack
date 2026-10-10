@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest) {
     method: request.method,
     target: `${url.pathname}${url.search}`,
   });
-  if (!context) return refusal(request.method, 404);
+  if (!context || envelope === null) return refusal(request.method, 404);
   let admission: ReturnType<typeof beginPublicAdmission> | undefined;
   try {
     admission = beginPublicAdmission(context);
@@ -108,7 +108,7 @@ export async function middleware(request: NextRequest) {
     const downstream = new Headers();
     const accept = request.headers.get('accept');
     if (accept !== null) downstream.set('accept', accept);
-    downstream.set(INGRESS_HEADER, envelope!); // Verified above; the caller verifies again.
+    downstream.set(INGRESS_HEADER, envelope); // Verified above; the caller verifies again.
     downstream.set('traceparent', traceparent);
     const response = NextResponse.next({
       status: isPublicStatusTarget(context.target) ? 404 : 200,

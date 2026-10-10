@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { JSDOM } from 'jsdom';
+
 import { verifyBrowserFallback } from './admission-browser.mjs';
 import { watchDevelopmentSource } from './admission-hmr-watch.mjs';
 import { verifyHmrAdmission } from './admission-hmr.mjs';
@@ -586,6 +588,52 @@ async function lifetimes(native) {
   });
   empty(await settled(native));
   await checkpoint('done-mixed-overlap');
+  stage = 'scaffold overlap';
+  const scaffoldBefore = await observe(native);
+  const scaffolds = configuration.tenants.flatMap((tenant) =>
+    ['/studio', '/portal'].map((path) => ({ tenant, path })),
+  );
+  const themeCss = (tenant) => {
+    const theme = JSON.parse(tenant.theme);
+    return `:root{--ls-primary:${theme.primary};--ls-bg:${theme.background};--ls-fg:${theme.foreground};--ls-muted:${theme.muted};}`;
+  };
+  assert.notEqual(themeCss(configuration.tenants[0]), themeCss(configuration.tenants[1]));
+  await checkpoint('arm-overlap');
+  const pendingScaffolds = scaffolds.map(({ tenant, path }) =>
+    beginCall(path, { host: tenant.host }),
+  );
+  await checkpoint('held-overlap');
+  const scaffoldHeld = await observe(native);
+  assert.equal(scaffoldHeld.active, 4);
+  assert.equal(scaffoldHeld.snapshots, 0);
+  await checkpoint('release-overlap');
+  const scaffoldResponses = await Promise.all(pendingScaffolds.map((request) => request.result));
+  scaffoldResponses.forEach((response, index) => {
+    safe(response);
+    assert.equal(response.status, 200);
+    const tenant = scaffolds[index].tenant;
+    const other = configuration.tenants.find((row) => row.host !== tenant.host);
+    const dom = new JSDOM(response.body);
+    try {
+      const styles = [...dom.window.document.querySelectorAll('style')].map(
+        (style) => style.textContent,
+      );
+      assert.ok(styles.includes(themeCss(tenant)), 'Scaffold renders its own tenant palette');
+      assert.equal(
+        styles.includes(themeCss(other)),
+        false,
+        'Scaffold excludes the other tenant palette',
+      );
+      assert.equal(response.body.includes(other.name), false);
+    } finally {
+      dom.window.close();
+    }
+  });
+  const scaffoldAfter = await settled(native);
+  empty(scaffoldAfter);
+  assert.equal(scaffoldAfter.immutable, true);
+  assert.equal(scaffoldAfter.snapshotsSeen - scaffoldBefore.snapshotsSeen, 4);
+  await checkpoint('done-scaffold-overlap');
   stage = 'keep-alive';
   const agent = new Agent({ keepAlive: true, maxSockets: 1 });
   try {
