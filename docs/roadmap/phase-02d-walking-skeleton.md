@@ -5532,6 +5532,16 @@ C# format verification. TRX counters confirm zero failures/skips; the frontend
 runner also refuses skips/todos. The PR description owns final exact-head CI
 after this review-record commit. Maintainer review and merge remain pending.
 
+**Ingress instrumentation follow-up — `b073f35`.** The shared-port refactor also
+changes a literal launcher anchor used by the separate native ingress fixture.
+Its first [CI execution](https://github.com/HodeTech/LearnStack/actions/runs/38060818584)
+rejects missing automatic-upgrade observations. The disposable copy now matches
+the shared constant and checks that both instrumentation anchors occur exactly
+once before rewriting. The fix changes no production code or assertion strength.
+Local production build, native TLS/ingress proof, all **19** ingress cleanup/
+negative controls and lint pass. Two fresh focused review rounds remain pending
+for this instrumentation fix.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

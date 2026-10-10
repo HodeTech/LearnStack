@@ -224,11 +224,15 @@ try {
   // Observe automatic Next upgrade registrations in the disposable fixture only.
   // No diagnostic route, request value or probe is added to the shipped launcher.
   const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
+  const handlerAnchor = '  const handle = app.getRequestHandler();';
+  const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
+  for (const anchor of [handlerAnchor, listenerAnchor])
+    assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
   writeFileSync(
     join(app, 'scripts/public-server.mjs'),
     launcher
       .replace(
-        '  const handle = app.getRequestHandler();',
+        handlerAnchor,
         `  let nextCalls = 0;
     let sinkCalls = 0;
     const nextHandle = app.getRequestHandler();
@@ -247,7 +251,7 @@ try {
     });`,
       )
       .replace(
-        "  server.listen(3000, '127.0.0.1',",
+        listenerAnchor,
         `  for (const [surface, target] of [['native', server], ['sink', upgradeSink]]) {
       const register = target.on.bind(target);
       target.on = (event, listener) => register(event, event !== 'upgrade' ? listener :
@@ -260,7 +264,7 @@ try {
           return listener(request, socket, head);
         });
     }
-    server.listen(3000, '127.0.0.1',`,
+    ${listenerAnchor.trimStart()}`,
       ),
   );
   assert.notEqual(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'), launcher);
