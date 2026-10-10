@@ -4792,8 +4792,9 @@ decision and is not a correction to this PR.
 2. **Open Graph locale — approved.** Emit `language_TERRITORY` only when the
    admitted tag has an explicit two-letter territory and no script/variant
    information would be silently discarded. Omit unrepresentable locale/alternate
-   properties rather than inventing a territory. `tr-TR` becomes `tr_TR`; `en`, `tr`, `zh-Hant` and
-   numeric-region tags are omitted. Document language, route and hreflang keep
+   properties rather than inventing a territory. `tr-TR` becomes `tr_TR`;
+   `en`, `tr`, `zh-Hant` and numeric-region tags are omitted. Document language,
+   route and hreflang keep
    their exact BCP-47 tags. The [protocol](https://ogp.me/) makes these properties
    optional; omission can leave consumers applying their own default. This adds
    the bounded G40 projection and qualifies Standards 08's blanket rule.
@@ -4964,7 +4965,7 @@ with the complete serialized-array predicate active. This closes group 2.
 
 ##### Remediation group 3 — approved security maintenance
 
-**Implemented; replacement proofs pass; independent reviews pending —
+**Implemented; replacement proofs and first independent review round pass —
 2026-10-10.** The approved
 paired Next/eslint-config-next 15.5.27 update disables unused image optimization.
 Compatible lockfile patches cover PostCSS 8.5.23, sharp 0.35.5, js-yaml 4.3.2,
@@ -5013,6 +5014,14 @@ All **19** native lifecycle/negative controls pass. No shared build is mutated.
 The approved ADR-0054 maintenance note is appended after these replacement proofs;
 historical 15.5.18 observations remain unchanged. Two independent review rounds
 follow the implementation commit. No new manual browser/VoiceOver pass is claimed.
+
+**Round 1 — fresh independent reviews of `f16d937..3f6f37f`.** GPT-6-astra
+(high) reviewed dependency ranges, resolved versions, audit triage and ADR history;
+GPT-6.1-sol (high) reviewed runtime proof controls, copied-build ownership and
+cleanup. Both approved without verified actionable findings. These were read-only
+reviews; syntax and diff checks pass, but neither claims a new runtime-suite run.
+The full Release architecture suite also passes all 198 cases, zero skips; all
+seven ADR-workflow cases pass. The second independent review round follows.
 
 ###### Proposed test-toolchain migration — approval pending
 
