@@ -169,7 +169,9 @@ It owns ports 3000/3011 while running and refuses occupied ports without stoppin
 an existing user process. P6 adds separate production product modes for foundation,
 pagination, presentation, concurrent isolation and freshness/failure states. Those
 HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
-accessibility closeout remains required and P7 owns the browser demo.
+accessibility closeout is recorded with its tested scope in the
+[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
+New UI changes require their own applicable manual checks; P7 owns the browser demo.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither

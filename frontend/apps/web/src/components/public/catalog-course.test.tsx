@@ -85,12 +85,10 @@ describe('public catalog and course semantics', () => {
     const resource = catalog({
       items: [courseSummary, { ...courseSummary, slug: 'another', title: 'Another course' }],
     });
-    const { container } = render(
-      <PublicCatalog resource={resource} ui={createPublicTranslator('tr-TR')} />,
-    );
+    render(<PublicCatalog resource={resource} ui={createPublicTranslator('tr-TR')} />);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Kurslar');
-    expect(screen.getByText('2 kurs')).toHaveAttribute('lang', 'tr');
+    expect(screen.getByText('Bu sayfada 2 kurs')).toHaveAttribute('lang', 'tr');
     const list = screen.getByRole('list');
     expect(list.tagName).toBe('UL');
     expect(
@@ -107,7 +105,6 @@ describe('public catalog and course semantics', () => {
       'href',
       '/tr-TR/courses/another',
     );
-    expect(container.querySelector('[data-prefetch], [data-nextjs-router]')).toBeNull();
   });
 
   it('renders an ordered outline in API order without using sort values as URLs or numbering', () => {
@@ -125,7 +122,7 @@ describe('public catalog and course semantics', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(courseSummary.title);
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Kurs içeriği');
-    expect(screen.getByText('2 ders')).toHaveAttribute('lang', 'tr');
+    expect(screen.getByText('Bu sayfada 2 ders')).toHaveAttribute('lang', 'tr');
     const list = screen.getByRole('list');
     expect(list.tagName).toBe('OL');
     expect(
@@ -201,7 +198,7 @@ describe('public catalog and course semantics', () => {
     expect(screen.queryByText('No courses are available in this language yet.')).toBeNull();
     expect(screen.queryByText('The lessons in this course are not publicly available.')).toBeNull();
     expect(screen.queryByRole('list')).toBeNull();
-    expect(screen.queryByText('0 lessons')).toBeNull();
+    expect(screen.queryByText('0 lessons on this page')).toBeNull();
   });
 
   it('renders restricted marketing and a translated notice without inspecting a supplied outline', () => {

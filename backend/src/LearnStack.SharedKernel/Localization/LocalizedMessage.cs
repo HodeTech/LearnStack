@@ -6,13 +6,13 @@ namespace LearnStack.SharedKernel.Localization;
 /// Localization-key carrier for every user-facing message LearnStack
 /// returns to the frontend. The backend never returns raw English text;
 /// it returns a <see cref="LocalizedMessage"/> whose <see cref="Key"/>
-/// resolves to a translation on the client.
+/// is stable wire data. Each consuming feature owns its supported UI mapping.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The <c>lockey_</c> prefix invariant is enforced at the constructor:
-/// every key must match the format the frontend's
-/// <c>i18n</c> bundles ship under. Mis-prefixed keys fail loud at the
+/// every backend message key uses this namespace, separately from dotted
+/// general UI keys (ADR-0027). Mis-prefixed keys fail loud at the
 /// point of construction rather than silently resolving to "missing
 /// translation" at render time. Per Phase 02a Packet 2.
 /// </para>
@@ -28,8 +28,8 @@ namespace LearnStack.SharedKernel.Localization;
 public sealed record LocalizedMessage
 {
     /// <summary>
-    /// The required prefix for every localization key. The frontend's
-    /// translation catalogues use the same prefix.
+    /// The required prefix for backend message keys. General frontend UI
+    /// catalogues use a separate dotted namespace.
     /// </summary>
     public const string RequiredPrefix = "lockey_";
 

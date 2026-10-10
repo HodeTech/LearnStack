@@ -25,7 +25,9 @@ Manage user-facing translations in `apps/web` consistently per
 > `next-intl` 4.14.9 and the catalogue home below. Step 1 installs the runtime,
 > complete English/Turkish catalogues and guarded ICU/callsite checks. Its
 > [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
-> owns validation and the remaining product/accessibility proof boundary. No
+> owns foundation validation; the
+> [packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+> records the scoped product and manual accessibility evidence. No
 > `pnpm lint:i18n`, `no-literal-strings`, `_deprecated.json`, screenshot or
 > `axe-core` task exists today; do not claim those checks run.
 
@@ -71,7 +73,8 @@ frontend/apps/web/src/i18n/
 ```
 
 P02d-6 supplies only `public`; later features add a namespace beneath each locale.
-Request configuration mounts each file beneath its namespace. JSON nesting
+`catalogues.ts` statically imports the two public files, and `request.ts` explicitly
+mounts them as `messages.public`. There is no automatic file discovery. JSON nesting
 supplies dotted identifiers: `public.catalog.course_count` is
 `catalog.course_count` within the `public` translator.
 
@@ -136,6 +139,12 @@ same layout; they do not introduce an enrollment catalogue in P02d-6.
 
 ### Step 3: ICU MessageFormat for plural / select / number
 
+For a new namespace, adding JSON files is insufficient. Wire their static imports
+and locale map into `catalogues.ts`, mount the namespace in `request.ts`, and add
+its typed translator and callsite-census coverage. Do not pass a catalogue to a
+Client Component. For public keys with new ICU arguments, update
+`PublicMessageArguments` alongside the messages and their callsites.
+
 ```jsonc
 {
   "list": {
@@ -148,8 +157,12 @@ same layout; they do not introduce an enrollment catalogue in P02d-6.
 Usage:
 
 ```tsx
-const t = useTranslations("enrollment.list");
-return <p>{t("count", { count: learners.length })}</p>;
+import { getPublicUi } from "@/server/public-ui";
+
+export default async function CatalogCount({ count }: { count: number }) {
+  const { t } = await getPublicUi();
+  return <p>{t("catalog.course_count", { count })}</p>;
+}
 ```
 
 ### Step 4: Variable interpolation
@@ -208,6 +221,15 @@ I18n: enrollment.list.empty_state.title, enrollment.list.empty_state.cta_label
 ```
 
 ## Validation
+
+Run the checked catalogue suite from `frontend/`:
+
+```bash
+pnpm --filter @learnstack/web test src/i18n/catalogues.test.ts
+```
+
+Also run the complete guarded frontend suite before completion; the focused
+command does not replace production HTML/RSC or source-boundary proofs.
 
 P02d-6 implements these accepted obligations in the guarded frontend suite; the
 acceptance record alone is not passing evidence:

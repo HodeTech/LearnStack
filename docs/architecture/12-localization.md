@@ -21,7 +21,7 @@ Initial renderer scope:
   requests a redesign. Accepted P02d-6 G39/G43 selects the mapping and proofs;
   Step 1 implements direction selection and fallback chrome; Step 2 adds
   catalog/course language attribution; Step 3 adds ordered lesson field labels.
-  Full product/manual proof remains Step 4.
+  Step 4 records the product proof and scoped manual accessibility observations.
 - P02d-6 accepts initial English and Turkish platform UI catalogues in
   [ADR-0027](../decisions/0027-frontend-i18n.md). Additional UI translations are
   added when authored; their absence must not narrow enabled content locales.
@@ -283,8 +283,9 @@ redirect/slug registry.
 [Localization Standards § Education slug grammar](../standards/08-localization.md#education-slug-grammar)
 owns the accepted storage grammar. Its URL-segment restrictions leave translated
 content fully Unicode. The [Education spec](../modules/education/README.md#localization-and-url-identity)
-owns the module's identity rules; public route templates and request normalization
-remain later packet decisions.
+owns the module's identity rules; P02d-4/6 deliver the public route templates and
+request normalization recorded in
+[Frontend Standards](../standards/07-frontend-architecture.md#routing).
 
 The routing consequences follow directly, and are behaviour rather than defects:
 
@@ -343,8 +344,9 @@ Step 1 implements the pinned dependency/plugin, catalogues, request runtime and
 key/ICU/callsite controls. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
 owns foundation verification and review evidence. Step 2 adds catalog/course
-consumers; Step 3 adds ordered lesson labels and metadata. Full product/manual
-proof remains Step 4. Phase 04 inherits
+consumers; Step 3 adds ordered lesson labels and metadata. The
+[Step 4 closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+records product proof and scoped manual accessibility evidence. Phase 04 inherits
 the foundation for CMS/Studio; Phase 06
 owns the full Studio/portal consumers.
 

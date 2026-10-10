@@ -100,7 +100,7 @@ const cases = [
 
 describe('actual web JSX accessibility lint config', () => {
   const app = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-  const filePath = join(app, 'src', 'accessibility-probe.tsx');
+  const filePath = join(app, 'src', 'components', 'public', 'catalog.tsx');
   const eslint = new LegacyESLint({
     cwd: app,
     resolvePluginsRelativeTo: resolve(app, '../../packages/config/eslint'),
@@ -145,5 +145,23 @@ describe('actual web JSX accessibility lint config', () => {
       ]),
     );
     expect(await lint(clean), `${name} clean control`).toEqual([]);
+  });
+
+  it.each([
+    ['object', '<object data="/diagram.svg" />', '<object data="/diagram.svg" title="Diagram" />'],
+    ['area', '<area href="/course" />', '<area href="/course" alt="Course" />'],
+    [
+      'input image',
+      '<input type="image" src="/submit.png" />',
+      '<input type="image" src="/submit.png" alt="Submit" />',
+    ],
+    ['Next Image', '<Image src="/photo.png" />', '<Image src="/photo.png" alt="Mountains" />'],
+  ])('requires alternative text on %s through the actual config', async (_name, dirty, clean) => {
+    expect(await lint(dirty)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ruleId: 'jsx-a11y/alt-text', severity: 2 }),
+      ]),
+    );
+    expect(await lint(clean)).toEqual([]);
   });
 });

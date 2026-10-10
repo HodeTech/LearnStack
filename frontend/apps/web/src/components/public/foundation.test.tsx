@@ -44,6 +44,7 @@ describe('P02d-6 document foundation', () => {
     { ...palette, background: 'red' },
     { ...palette, foreground: '#ffffff;}' },
     { ...palette, muted: '</style><script>private</script>' },
+    { ...palette, muted: '</style><script>private</script>#64748b' },
     { ...palette, url: 'https://private.invalid' },
     { ...palette, font: 'private' },
   ])('rejects the whole malformed theme without partial tokens: %j', (theme) => {
@@ -123,6 +124,7 @@ describe('P02d-6 document foundation', () => {
       expect(container.querySelector('section')).toHaveAttribute('lang', 'tr');
       expect(container.querySelector('section')).toHaveAttribute('dir', 'ltr');
       expect(screen.queryAllByRole('link')).toHaveLength(state === 'loading' ? 0 : 1);
+      expect(screen.queryAllByRole('status')).toHaveLength(state === 'loading' ? 1 : 0);
       expect(container.textContent).not.toMatch(/lockey_|public\.|private/);
     },
   );

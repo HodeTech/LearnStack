@@ -17,7 +17,8 @@ namespace LearnStack.Api.Common;
 /// <remarks>
 /// <see cref="ProblemDetails.Title"/> intentionally carries the
 /// <c>lockey_*</c> localization key (matches the Standards 09 § API Surface
-/// example). The frontend resolves the key against its i18n catalogue; the
+/// example). Consumers own explicit supported mappings, separately from general
+/// dotted UI catalogues (ADR-0027); arbitrary keys are not UI lookups. The
 /// wire value is stable across locales so support staff debugging in
 /// Insomnia / curl can match the lockey back to the catalogue entry. A
 /// future LocalizedMessage → text projector may compose a human-readable

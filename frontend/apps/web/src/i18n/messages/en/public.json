@@ -6,7 +6,7 @@
   },
   "catalog": {
     "title": "Courses",
-    "course_count": "{count, plural, one {# course} other {# courses}}",
+    "course_count": "{count, plural, one {# course on this page} other {# courses on this page}}",
     "empty": "No courses are available in this language yet.",
     "next": "Next courses",
     "restart": "Back to the first courses",
@@ -14,7 +14,7 @@
   },
   "course": {
     "outline": "Course outline",
-    "lesson_count": "{count, plural, one {# lesson} other {# lessons}}",
+    "lesson_count": "{count, plural, one {# lesson on this page} other {# lessons on this page}}",
     "empty_outline": "No public lessons are available in this course yet.",
     "restricted_outline": "The lessons in this course are not publicly available.",
     "next": "Next lessons",

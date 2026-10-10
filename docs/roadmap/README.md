@@ -72,7 +72,8 @@ not deferred to the showcase phase.
   P02d-6's ADR-0027 and decision package are Accepted — 2026-10-09. Its localized
   catalog/course/lesson pages and product proofs are implemented; the
   [closeout record](phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-  records completed reviews and passing manual accessibility. Implementation is
+  records completed reviews and scoped browser/VoiceOver observations.
+  Implementation is
   complete; maintainer PR review and merge remain pending. P7 owns the browser/demo.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

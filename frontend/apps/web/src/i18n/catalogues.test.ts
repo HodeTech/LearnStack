@@ -7,6 +7,7 @@ import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPublicTranslator, getPublicCatalogue, publicFormattingOptions } from './catalogues';
+import { uiLocales } from './locale';
 import en from './messages/en/public.json';
 import tr from './messages/tr/public.json';
 
@@ -64,7 +65,7 @@ function checkCatalogues(catalogues: Catalogue[], usedKeys: readonly string[]): 
   }
 }
 
-/** Census literal calls to the public translator, including destructured aliases. */
+/** Bounded census of direct calls, simple aliases and literal Promise.all tuples. */
 function publicCallsiteKeys(source: string, filename = 'consumer.tsx'): string[] {
   const file = ts.createSourceFile(
     filename,
@@ -85,20 +86,52 @@ function publicCallsiteKeys(source: string, filename = 'consumer.tsx'): string[]
     ts.forEachChild(node, collectImports);
   };
   collectImports(file);
+  const unwrap = (expression: ts.Expression): ts.Expression =>
+    ts.isAwaitExpression(expression) || ts.isParenthesizedExpression(expression)
+      ? unwrap(expression.expression)
+      : expression;
+  const propertyName = (expression: ts.Expression): string | undefined =>
+    ts.isPropertyAccessExpression(expression)
+      ? expression.name.text
+      : ts.isElementAccessExpression(expression) &&
+          ts.isStringLiteralLike(expression.argumentExpression)
+        ? expression.argumentExpression.text
+        : undefined;
+  const isTranslator = (expression: ts.Expression): boolean => {
+    const value = unwrap(expression);
+    return (
+      (ts.isIdentifier(value) && translatorNames.has(value.text)) ||
+      propertyName(value) === 't' ||
+      (ts.isCallExpression(value) &&
+        ts.isIdentifier(value.expression) &&
+        translationFactories.has(value.expression.text))
+    );
+  };
   const collectBindings = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      const initializer = ts.isAwaitExpression(node.initializer)
-        ? node.initializer.expression
-        : node.initializer;
+      if (isTranslator(node.initializer)) translatorNames.add(node.name.text);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.initializer) {
+      const initializer = unwrap(node.initializer);
       if (
         ts.isCallExpression(initializer) &&
-        ts.isIdentifier(initializer.expression) &&
-        translationFactories.has(initializer.expression.text)
+        ts.isPropertyAccessExpression(initializer.expression) &&
+        initializer.expression.expression.getText(file) === 'Promise' &&
+        initializer.expression.name.text === 'all' &&
+        initializer.arguments[0] &&
+        ts.isArrayLiteralExpression(initializer.arguments[0])
       ) {
-        translatorNames.add(node.name.text);
-      }
-      if (ts.isPropertyAccessExpression(initializer) && initializer.name.text === 't') {
-        translatorNames.add(node.name.text);
+        const values = initializer.arguments[0].elements;
+        node.name.elements.forEach((binding, index) => {
+          const value = values[index];
+          if (
+            ts.isBindingElement(binding) &&
+            ts.isIdentifier(binding.name) &&
+            value &&
+            isTranslator(value)
+          )
+            translatorNames.add(binding.name.text);
+        });
       }
     }
     if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name)) {
@@ -115,15 +148,13 @@ function publicCallsiteKeys(source: string, filename = 'consumer.tsx'): string[]
   collectBindings(file);
   const keys: string[] = [];
   const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const member = propertyName(node);
+      if (member && ['rich', 'raw', 'has'].includes(member) && isTranslator(node.expression))
+        throw new Error('Rich/raw/has UI translator methods are forbidden');
+    }
     if (ts.isCallExpression(node)) {
-      const expression = node.expression;
-      const isTranslator = ts.isIdentifier(expression)
-        ? translatorNames.has(expression.text)
-        : (ts.isPropertyAccessExpression(expression) && expression.name.text === 't') ||
-          (ts.isElementAccessExpression(expression) &&
-            ts.isStringLiteralLike(expression.argumentExpression) &&
-            expression.argumentExpression.text === 't');
-      if (isTranslator) {
+      if (isTranslator(node.expression)) {
         const key = node.arguments[0];
         if (!key || !ts.isStringLiteralLike(key))
           throw new Error('UI callsite key must be literal');
@@ -141,7 +172,14 @@ function productionCallsiteKeys(directory: string): string[] {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
     if (entry.isDirectory() && entry.name !== 'test') keys.push(...productionCallsiteKeys(path));
-    if (entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.(test|spec)\.tsx?$/.test(entry.name)) {
+    if (
+      entry.isFile() &&
+      /\.tsx?$/.test(entry.name) &&
+      !/\.(test|spec)\.tsx?$/.test(entry.name) &&
+      // This typed adapter forwards checked keys, rather than choosing copy.
+      // public-ui.test.ts proves its namespace and exact argument forwarding.
+      !path.endsWith(join('server', 'public-ui.ts'))
+    ) {
       keys.push(...publicCallsiteKeys(readFileSync(path, 'utf8'), path));
     }
   }
@@ -151,7 +189,44 @@ function productionCallsiteKeys(directory: string): string[] {
 describe('Ui_Catalogues_Cover_Public_Call_Sites', () => {
   it('validates complete bundled catalogues and every production callsite', () => {
     const root = join(process.cwd(), 'src');
-    checkCatalogues([en, tr], productionCallsiteKeys(root));
+    const bundles = uiLocales.map((locale) => {
+      const messages = JSON.parse(
+        readFileSync(join(root, 'i18n', 'messages', locale, 'public.json'), 'utf8'),
+      ) as Catalogue;
+      expect(getPublicCatalogue(locale)).toMatchObject({ locale, messages });
+      return messages;
+    });
+    const keys = productionCallsiteKeys(root);
+    expect(keys.length).toBeGreaterThan(0);
+    checkCatalogues(bundles, keys);
+  });
+
+  it.each([
+    "const copy = t; copy('catalog.titel');",
+    "const first = ui.t; const copy = first; copy('catalog.titel');",
+    "const [locale, labels] = await Promise.all([getLocale(), getTranslations('public')]); labels('catalog.titel');",
+    "import {getTranslations as messages} from 'next-intl/server'; const [labels] = await Promise.all([messages('public')]); const copy = labels; copy('catalog.titel');",
+  ])('includes ordinary translator aliases in missing-key controls: %s', (source) => {
+    const keys = publicCallsiteKeys(source);
+    expect(keys).toEqual(['catalog.titel']);
+    expect(() => checkCatalogues([en, tr], keys)).toThrow('Used UI key');
+  });
+
+  it.each([
+    'const copy = t; copy(problem.messageKey);',
+    "const [copy] = await Promise.all([getTranslations('public')]); copy(problem.messageKey);",
+  ])('refuses dynamic keys through ordinary aliases: %s', (source) => {
+    expect(() => publicCallsiteKeys(source)).toThrow('must be literal');
+  });
+
+  it.each(['rich', 'raw', 'has'])('refuses public translator %s methods', (method) => {
+    for (const source of [
+      `t.${method}('catalog.title');`,
+      `ui.t['${method}']('catalog.title');`,
+      `const copy = t; const method = copy.${method};`,
+      `const [copy] = await Promise.all([getTranslations('public')]); copy.${method}('catalog.title');`,
+    ])
+      expect(() => publicCallsiteKeys(source)).toThrow('methods are forbidden');
   });
 
   it('rejects empty catalogues, empty messages, and empty groups', () => {
@@ -241,11 +316,11 @@ describe('server-only public message formatting', () => {
 
   it('uses the selected UI language for pluralization and number formatting', () => {
     const { t } = createPublicTranslator('zh');
-    expect(t('catalog.course_count', { count: 1 })).toBe('1 course');
-    expect(t('catalog.course_count', { count: 2 })).toBe('2 courses');
-    expect(t('catalog.course_count', { count: 1000 })).toBe('1,000 courses');
+    expect(t('catalog.course_count', { count: 1 })).toBe('1 course on this page');
+    expect(t('catalog.course_count', { count: 2 })).toBe('2 courses on this page');
+    expect(t('catalog.course_count', { count: 1000 })).toBe('1,000 courses on this page');
     expect(createPublicTranslator('tr-TR').t('course.lesson_count', { count: 1000 })).toBe(
-      '1.000 ders',
+      'Bu sayfada 1.000 ders',
     );
   });
 

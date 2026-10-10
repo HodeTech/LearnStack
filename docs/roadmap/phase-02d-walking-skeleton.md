@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | ✅ implementation complete — 2026-10-10; all four steps and both review rounds per step complete; manual accessibility passed; [packet closeout](#p02d-6-packet-closeout-2026-10-10); maintainer PR review/merge pending |
+> | P02d-6 | Public renderer | ✅ implementation complete — 2026-10-10; all four steps and both review rounds per step complete; scoped browser/VoiceOver smoke passed; [packet closeout](#p02d-6-packet-closeout-2026-10-10); maintainer PR review/merge pending |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -4211,8 +4211,8 @@ documentation checks; no product-runtime or accessibility proof is claimed.
 
 ### P02d-6 Step 1: Localization and document foundation
 
-**Implementation in progress — 2026-10-10; both independent review rounds not
-started.** Work stays on `development`. This record covers the foundation only;
+**Foundation implemented — 2026-10-10; both independent review rounds complete.**
+Work stays on `development`. This record covers the foundation only;
 actual catalog/course pages remain Step 2 and lesson presentation remains Step 3.
 It does not close P02d-6 or any product/manual accessibility criterion.
 
@@ -4751,6 +4751,144 @@ actionable findings after standards, isolation, correctness, test-proof and
 documentation checks. Neither reviewer claims a runtime-suite rerun. The
 [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns the
 exact-head CI evidence.
+
+#### P02d-6 systematic-review decision package (2026-10-10)
+
+**Proposed; maintainer approval pending.** The two external reports at `ed6f81e`
+are review data, not new authority. Rechecks confirm guidance/status drift,
+ordinary static source-fence gaps, missing dirty/clean response controls and a
+second-bootstrap failure-classification gap. No accepted behavior is changed by
+this preparation record.
+
+The existing G40 content-error HTTP 200/noindex and cursor-free canonical/noindex
+policies are accepted choices, not implementation drift. Google's
+[pagination guidance](https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading)
+recommends individual canonicals; its
+[status guidance](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)
+explains temporary-error and soft-404 tradeoffs. These recommendations justify
+recording the tradeoff, not silently reopening the approved policies.
+
+G10 explicitly defines editable base64url JSON seek cursors without confidentiality
+or authentication. G40's opacity means the renderer does not interpret the token;
+it does not hide anchor UUIDs from visitors. Scope/eligibility remains independently
+enforced. Encryption, MAC rotation or server-side cursor state would need a new
+decision and is not a correction to this PR.
+
+##### Decisions requested together
+
+1. **Second bootstrap:** approve proposed
+   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md). Actual
+   missing/denied admission remains 404; temporary RSC bootstrap failures use a
+   sanitized pre-shell neutral framework 500, with no Education read or tenant
+   theme. Middleware keeps real 404/429/503 and bounded Retry-After. Exact RSC
+   429/503 requires a larger response-owner design; it is not promised here.
+2. **Open Graph locale:** emit `language_TERRITORY` only when the admitted tag has
+   an explicit two-letter territory and no script/variant information would be
+   silently discarded. Omit unrepresentable locale/alternate properties rather
+   than inventing a territory. `tr-TR` becomes `tr_TR`; `en`, `tr`, `zh-Hant` and
+   numeric-region tags are omitted. Document language, route and hreflang keep
+   their exact BCP-47 tags. The [protocol](https://ogp.me/) makes these properties
+   optional; omission can leave consumers applying their own default. Approval
+   adds this bounded G40 projection and qualifies Standards 08's blanket rule.
+3. **Security maintenance:** pin Next and eslint-config-next to 15.5.27, disable
+   the unused image optimizer, inspect/patch affected transitive versions within
+   compatible bounds, and re-prove native ingress and actual production HTML/RSC.
+   The fresh audit reports 46 findings (2 critical, 28 high, 15 moderate, 1 low),
+   not 46 reachable public flaws. The AVIF
+   [advisory](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4) affects the current
+   dependency version; attacker-controlled image input is not demonstrated.
+   The [15.5.27 metadata](https://registry.npmjs.org/next/15.5.27) supplies a
+   compatible 15.x backport. A Next bump alone does not clear transitive findings;
+   record each remaining advisory's actual input path and maintenance disposition.
+
+The proposed ADR-0054 maintenance amendment, appended only after approval and
+passing replacement proofs, reads:
+
+> **Amendment 7 — Next security maintenance (2026-10-10).** The current verified
+> runtime pin is Next 15.5.27 with matching eslint-config-next. The signed raw
+> target, full-URL RSC projection and equivalent redirect-query contract are
+> unchanged. The unused image optimizer is disabled. P02d-6's remediation record
+> owns the replacement native/production proofs and dependency triage; historical
+> 15.5.18 observations remain unchanged.
+
+No speculative native-addon/install-script policy is introduced. Existing exact
+pins, frozen lockfile and real builds remain mandatory. Dependency patching does
+not establish air-gapped packaging support.
+
+##### Remediation plan and review boundaries
+
+1. Correct current guidance/status carriers and skill examples. Strengthen the
+   existing response assertions, source-retention/prefetch fences, production
+   formatter-path tests and applicable accessibility controls. Align decimal
+   limit parsing and closed cursor-error classification with existing contracts.
+   These corrections need no new behavior decision.
+2. After approval, implement ADR-0055 and the G40 Open Graph projection; inject
+   second-bootstrap faults through the actual production fixture. Preserve
+   provenance, read-only/RLS, request counts and the approved content-error policy.
+3. After maintenance-note approval, apply compatible security patches and close
+   unused image optimization; re-run affected full/native/real-API suites, audit,
+   formatting and local link/fragment checks. Record fresh exact-head PR CI.
+
+Each group is committed and receives two fresh independent review rounds, with
+verified findings corrected before the next group. All work stays on development.
+The maintainer's earlier browser/VoiceOver report remains attributed to its tested
+commit; later defensive/proof changes do not imply a new manual pass. P02d-7 and
+Phase 06/11 retain their explicitly named browser, full accessibility and hardening
+work. This package makes no new passing runtime or merge-readiness claim.
+
+##### Remediation group 1 — existing-contract corrections
+
+**Implemented; independent review rounds pending — 2026-10-10.** No proposed
+decision above is implemented by this group. ADR-0055 remains Proposed.
+
+The Step 1 status and current i18n/theme carriers now match delivery. Skills use
+locale-bearing public folders, the shared resource loader, supported Next page
+exports and explicit catalogue wiring. Future block/entitlement sketches are
+labelled as targets. Phase 06 explicitly owns localized section names and full
+Playwright/axe completion; Phase 11 explicitly owns frontend telemetry.
+
+The production response predicates are shared with dirty/clean companions:
+inline Flight escaping, entity-encoded attributes, opposite/protected values,
+whole/partial palette emission, attribution and localized status metadata.
+Emitted viewport checks reject zoom restrictions; they are not browser zoom proof.
+The two unused ICU sentinels detect unchanged complete catalogues, not arbitrary
+partial copy leakage. Static import fences supply the separate client boundary.
+The bounded source analyzer now covers retained local factories/collections,
+module mutable bindings, static/global writes and Next Link/router imports.
+Admitted Studio/portal scaffolds are render roots and explicitly noindex.
+
+Direct tests exercise the actual request configuration and public UI wrapper;
+callsite census follows ordinary aliases/Promise tuples and requires a nonempty
+production subject. Actual lint controls cover image, object, area and image-input
+alt text. A prefixed style-breakout value tests the theme regex's start anchor.
+Loading uses a status live region. Counts explicitly describe the current page.
+Positive decimal limits saturate at the API bound without rejecting long valid
+values; only exclusive owned-cursor errors with a supplied cursor select reset UI.
+
+The following review claims do not justify changing accepted behavior:
+
+- Cursor confidentiality, self-canonical pagination and content-error HTTP status
+  are already decided; their tradeoffs and pending approval boundaries are above.
+- Studio/portal bootstrap is the admitted scaffold contract, not an implemented
+  authentication surface. Their full UI remains Phase 04/06/07.
+- Missing error-label context is outside the current provider-wrapped public
+  tree. No whole catalogue or hardcoded fallback is added to its Client Component.
+  The assertion that `reset` can never recover is not reproduced; the supported
+  framework reset and catalog recovery link remain.
+- Security headers remain Phase 11's explicit scope. Arbitrary reflective/eval
+  source analysis, a complete WCAG audit and browser-computed theme/zoom proof are
+  not newly claimed by the strengthened bounded controls.
+- ADR-0027's Decision explicitly authorizes the contract below it; the Context
+  placement does not make that contract nonbinding. Accepted history is preserved.
+- Packet 10's 19/3 standards count is historical; its timestamp is now explicit.
+  Phase 06's P6 review/merge-pending statement is still true for this open PR.
+
+Validation: the guarded frontend runner passes 1,196 cases (1,136 web, 60 SDK),
+with zero skips/todos; workspace lint/typecheck pass. Five Release corpus tests
+and seven ADR-workflow cases pass. The final focused Release integration run passes
+20 cases: six real production Next/native HTTPS/API/PostgreSQL modes and fourteen
+cleanup/log-control companions, with zero skips. No backend full-suite rerun or new
+manual accessibility pass is inferred from these focused checks.
 
 ### P02d-1 decision pass (2026-09-14)
 

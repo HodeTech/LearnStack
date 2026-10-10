@@ -41,6 +41,7 @@ export type PublicResource =
 function failure<T>(
   result: Exclude<ApiResult<T>, { kind: 'success' }>,
   request: PublicRequest,
+  pagination?: PublicPagination,
 ): PublicResource {
   if (result.kind === 'api-error') {
     if (result.status === 404) return { kind: 'missing', request };
@@ -48,7 +49,11 @@ function failure<T>(
     if (
       result.status === 400 &&
       result.error.code === 'validation_failed' &&
-      (request.route.kind === 'catalog' || request.route.kind === 'course')
+      pagination?.cursor !== undefined &&
+      Object.keys(result.error.fieldErrors).length > 0 &&
+      Object.keys(result.error.fieldErrors).every(
+        (field) => field === (request.route.kind === 'course' ? 'lessonCursor' : 'cursor'),
+      )
     )
       return { kind: 'failure', request, state: 'invalid_cursor' };
   }
@@ -81,7 +86,7 @@ export const getPublicResource = requestMemo(async (): Promise<PublicResource> =
     const result = await client.getCourses({ cursor: pagination.cursor, limit: pagination.limit });
     return result.kind === 'success'
       ? { kind: 'catalog', request, data: result.data, pagination }
-      : failure(result, request);
+      : failure(result, request, pagination);
   }
   const result = await client.getCourse(
     { slug: route.slug },
@@ -92,7 +97,7 @@ export const getPublicResource = requestMemo(async (): Promise<PublicResource> =
   );
   return result.kind === 'success'
     ? { kind: 'course', request, data: result.data, pagination }
-    : failure(result, request);
+    : failure(result, request, pagination);
 });
 
 /** Each consumer honors admission; layouts do not serialize child execution. */

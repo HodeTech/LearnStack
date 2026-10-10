@@ -4221,7 +4221,9 @@ verification pass; the delivery record owns execution evidence.
 - **Status:** **Implemented** — `public-boundaries.test.ts` names this rule, checks
   the public layout policy and follows public/helper imports for shared storage,
   forbidden Next cache APIs and static/revalidation overrides. Clean/planted
-  controls accompany it; request-local React cache remains allowed. P02d-6 Step 1
+  controls accompany it; request-local React cache remains allowed. P6 remediation
+  adds retained factory/collection, module/static/global storage and navigation
+  import controls, including admitted Studio/portal roots. P02d-6 Step 1
   also constrains the complete AST shape of `request-memo.ts`: a private weak map
   keyed only by Next's exact request-store headers object, publish-before-load
   semantics and retained rejected work. Planted strong maps, copied/value/caller
@@ -4254,6 +4256,9 @@ owns execution, review and manual evidence.
 - **Source:** ADR-0027; Accepted P02d-6 G39.
 - **Type:** frontend catalogue/callsite + production build. **Kind:** structural.
 - **Status:** **Implemented** — `frontend/apps/web/src/i18n/catalogues.test.ts`;
+  actual request-configuration callbacks in `frontend/apps/web/src/i18n/request.test.ts`
+  and typed translator argument forwarding in
+  `frontend/apps/web/src/server/public-ui.test.ts`;
   `PublicServerRenderingTests` production build, P02d-6.
 - **Phase:** 02d (P02d-6).
 
@@ -4282,6 +4287,8 @@ owns execution, review and manual evidence.
 - **Status:** **Implemented** — `PublicServerRenderingTests` foundation/
   product-isolation modes and
   `frontend/apps/web/src/components/public/foundation.test.tsx`, P02d-6.
+  `frontend/apps/web/src/test/public-rendering-assertions.test.ts` supplies
+  clean/planted controls against the production theme assertion itself.
 - **Phase:** 02d (P02d-6).
 
 ### `Public_Pages_Preserve_Approved_Response_States`
@@ -4296,6 +4303,10 @@ owns execution, review and manual evidence.
 - **Status:** **Implemented** — `PublicServerRenderingTests` foundation/pagination/
   presentation/product-freshness modes and
   `frontend/apps/web/src/server/public-resource.test.ts`, P02d-6.
+  `frontend/apps/web/src/test/public-rendering-assertions.test.ts` exercises the
+  shared production status and whole-response containment predicates, including
+  Next's nested HTML-safe Flight escaping. Raw ICU sentinels detect unchanged
+  complete catalogue payloads; source fences independently restrict imports.
 - **Phase:** 02d (P02d-6).
 
 ### `Public_Pages_Expose_Localized_Accessible_Semantics`
@@ -4312,6 +4323,8 @@ owns execution, review and manual evidence.
   `frontend/apps/web/src/components/public/lesson.test.tsx`, P02d-6. Manual
   keyboard/focus/reflow/contrast and maintainer VoiceOver evidence remain separate
   in the packet closeout; these tests do not claim a full accessibility audit.
+  Emitted viewport metadata permits zoom, tested by the shared production
+  assertion controls; this does not prove browser zoom or WCAG conformance.
 - **Phase:** 02d (P02d-6).
 
 ## References

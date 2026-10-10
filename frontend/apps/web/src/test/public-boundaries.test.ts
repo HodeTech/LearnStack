@@ -19,6 +19,7 @@ import {
   I18N_REQUEST,
   INGRESS,
   MIDDLEWARE,
+  navigationFindings,
   privateServerFiles,
   publicLayoutPolicyFindings,
   PUBLIC_LAYOUT,
@@ -76,9 +77,14 @@ function productionSources(): SourceCensus {
 const sources = productionSources();
 const production = buildSourceGraph(sources);
 const publicRoots = [...production.files.keys()].filter((name) => name.includes('/app/(public)/'));
+// Native ingress currently admits these exact scaffold paths alongside product
+// routes. They share the root layout and must remain in the rendering census.
+const scaffoldRoots = [...production.files.keys()].filter((name) =>
+  /\/app\/\((?:studio|portal)\)\//.test(name),
+);
 const ROOT_LAYOUT = 'apps/web/src/app/layout.tsx';
 // next-intl loads this configuration through its plugin, outside static imports.
-const renderRoots = [...publicRoots, ROOT_LAYOUT, MIDDLEWARE, I18N_REQUEST];
+const renderRoots = [...publicRoots, ...scaffoldRoots, ROOT_LAYOUT, MIDDLEWARE, I18N_REQUEST];
 const catalogues = ['en', 'tr'].map((locale) => `apps/web/src/i18n/messages/${locale}/public.json`);
 const publicGraph = reachable(production, renderRoots);
 const clean = (findings: readonly Finding[], fix: string) =>
@@ -156,6 +162,14 @@ describe('ADR-0053 production public boundaries', () => {
     );
     expect(publicRoots).toContain(PUBLIC_LAYOUT);
     expect(renderRoots).toContain(I18N_REQUEST);
+    expect(scaffoldRoots).toEqual(
+      expect.arrayContaining([
+        'apps/web/src/app/(studio)/layout.tsx',
+        'apps/web/src/app/(studio)/studio/page.tsx',
+        'apps/web/src/app/(portal)/layout.tsx',
+        'apps/web/src/app/(portal)/portal/page.tsx',
+      ]),
+    );
     expect(reachable(production, [I18N_REQUEST])).toEqual(
       expect.arrayContaining([
         I18N_REQUEST,
@@ -184,7 +198,7 @@ describe('ADR-0053 production public boundaries', () => {
       ]),
     );
     clean(production.unresolved, 'Fix: keep every runtime local import in the production census.');
-    clean(extensionFindings, 'Fix: model every production TypeScript runtime extension.');
+    clean(extensionFindings, 'Fix: model every production runtime source extension.');
   });
   it('the source resolver covers inherited tsconfig aliases and workspace exports', () => {
     const { configs, packages } = resolutionCensus();
@@ -260,6 +274,9 @@ describe('ADR-0053 production public boundaries', () => {
       cacheFindings(production, publicGraph),
       'Fix: keep public rendering dynamic and no-store.',
     );
+  });
+  it('the public render closure uses document anchors without client router imports', () => {
+    clean(navigationFindings(production, publicGraph), 'Fix: preserve G40 document navigation.');
   });
   it('public pages and their transitive helpers do not read raw authority', () => {
     const helpers = publicGraph.filter((name) => name !== INGRESS);
@@ -573,6 +590,7 @@ describe('public cache fence planted controls', () => {
     ],
     ['exposed collection', 'return pending;', 'return requests;'],
     ['untyped value', 'Promise<T>>();', 'Promise<unknown>>();'],
+    ['changed unary guard', 'if (!pending)', 'if (+pending)'],
   ])('refuses mutated request memo mechanism: %s', (_name, before, after) => {
     const original = sources[REQUEST_MEMO]!;
     expect(original).toContain(before);
@@ -1152,6 +1170,250 @@ describe('remediation bounded header conversions', () => {
   });
 });
 
+describe('remediation public representation lifetimes', () => {
+  it.each([
+    ['Set', 'const entries = new Set();'],
+    ['WeakSet', 'const entries = new WeakSet();'],
+    ['bound collection', 'const { Set: Entries } = globalThis; const entries = new Entries();'],
+    ['factory Map', 'function create() { return new Map(); } const retained = create();'],
+    [
+      'aliased factory',
+      'const create = () => new Set(); const alias = create; const retained = alias();',
+    ],
+    ['IIFE Map', 'const retained = (() => new Map())();'],
+    [
+      'nested factory',
+      'function inner() { return new Map(); } function outer() { return inner(); } const retained = outer();',
+    ],
+    [
+      'object factory',
+      'function create() { return { entries: new Map() }; } const retained = create();',
+    ],
+    [
+      'closure factory',
+      'function create() { const entries = new Map(); return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'named closure factory',
+      'function create() { const entries = new Map(); function read(key) { return entries.get(key); } return read; } const retained = create();',
+    ],
+    [
+      'method closure factory',
+      'function create() { const entries = new Map(); return { read(key) { return entries.get(key); } }; } const retained = create();',
+    ],
+    [
+      'mutable closure',
+      'function create() { let value; return () => value ??= client.getSite(); } const retained = create();',
+    ],
+    [
+      'neutral mutable binding',
+      'let value; export async function read() { return value ??= await client.getCourse(); }',
+    ],
+    [
+      'module object write',
+      'const holder = {}; export async function read() { holder.value = await client.getCourse(); }',
+    ],
+    [
+      'module object alias write',
+      'const holder = {}; export async function read() { const alias = holder; alias.value = await client.getCourse(); }',
+    ],
+    [
+      'module array write',
+      'const holder = []; export async function read() { holder.push(await client.getCourse()); }',
+    ],
+    ['static collection', 'class Holder { static entries = new Map(); }'],
+    [
+      'static factory collection',
+      'function create() { return new WeakSet(); } class Holder { static entries = create(); }',
+    ],
+    [
+      'static response',
+      'class Holder { static value; } export async function read() { Holder.value = await client.getCourse(); }',
+    ],
+    [
+      'static this write',
+      'class Holder { static value; static async read() { this.value = await client.getCourse(); } }',
+    ],
+    [
+      'global response',
+      'export async function read() { globalThis.value = await client.getCourse(); }',
+    ],
+    [
+      'aliased global response',
+      'const root = globalThis; export async function read() { root["value"] = await client.getCourse(); }',
+    ],
+  ])('rejects %s in a transitive helper and the real render closure', (_label, source) => {
+    const helper = 'apps/web/src/lib/lifetime-control.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import "@/lib/lifetime-control";',
+      [helper]: source,
+    });
+    clean(graph.unresolved, 'The lifetime control uses supported static modules.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: helper })]),
+    );
+    const realHelper = 'apps/web/src/server/public-entry.ts';
+    const real = graphWith(realHelper, sources[realHelper]! + '\n' + source);
+    expect(reachable(real, renderRoots)).toContain(realHelper);
+    expect(cacheFindings(real, reachable(real, renderRoots))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: realHelper })]),
+    );
+  });
+
+  it.each([
+    [
+      'local collections',
+      'export function read() { const entries = new Map(); const keys = new Set(); const weak = new WeakSet(); entries.set("a", 1); keys.add("a"); return { entries, keys, weak }; }',
+    ],
+    [
+      'request factory result',
+      'function create() { const entries = new Map(); return (key) => entries.get(key); } export function read() { return create(); }',
+    ],
+    [
+      'request mutable value',
+      'export async function read() { let value; value = await client.getSite(); return value; }',
+    ],
+    [
+      'request object writes',
+      'export async function read() { const holder = {}; const alias = holder; alias.value = await client.getCourse(); return holder; }',
+    ],
+    [
+      'request class instance',
+      'class Holder { value; async read() { this.value = await client.getCourse(); } } export const read = () => new Holder();',
+    ],
+    [
+      'pure factory scratch collection',
+      'function count() { const entries = new Set([1, 2]); return entries.size; } const countValue = count();',
+    ],
+    [
+      'pure immutable factory closure',
+      'function create() { const prefix = "ok"; return () => prefix; } const read = create();',
+    ],
+    ['shadowed collection', 'const Map = class {}; const value = new Map();'],
+    [
+      'React cache closure',
+      'import { cache as memo } from "react"; const read = memo(async () => { const entries = new Map(); entries.set("a", await client.getSite()); return entries; });',
+    ],
+  ])('keeps %s clean', (_label, source) => {
+    clean(
+      cacheFindings(buildSourceGraph({ [probe]: source }), [probe]),
+      'Request-local work and immutable declarations do not retain public representations.',
+    );
+  });
+
+  it('rejects a renamed copy of the request memo primitive retained by a module', () => {
+    const copy = 'apps/web/src/lib/copied-memo.ts';
+    const graph = buildSourceGraph({
+      [probe]:
+        'import { requestMemo as memo } from "@/lib/copied-memo"; export const read = memo(load);',
+      [copy]: sources[REQUEST_MEMO]!,
+    });
+    clean(graph.unresolved, 'The copied primitive is fully present in the graph.');
+    expect(cacheFindings(graph, reachable(graph, [probe]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: probe })]),
+    );
+    const canonical = buildSourceGraph({
+      [probe]:
+        'import { requestMemo as memo } from "@/server/request-memo"; export const read = memo(load);',
+      [REQUEST_MEMO]: sources[REQUEST_MEMO]!,
+    });
+    clean(
+      cacheFindings(canonical, reachable(canonical, [probe])),
+      'Only the exact canonical audited request memo receives the lifetime exception.',
+    );
+  });
+
+  it('follows an imported namespace factory returning retained state', () => {
+    const helper = 'apps/web/src/lib/lifetime-factory.ts';
+    const graph = buildSourceGraph({
+      [probe]:
+        'import * as factories from "@/lib/lifetime-factory"; const retained = factories.create();',
+      [helper]: 'export function create() { return new Map(); }',
+    });
+    clean(graph.unresolved, 'The local factory implementation is included in the census.');
+    expect(cacheFindings(graph, reachable(graph, [probe]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: probe })]),
+    );
+  });
+
+  it('terminates on recursive factories without inventing retained state', () => {
+    const graph = buildSourceGraph({
+      [probe]: 'function create() { return create(); } const retained = create();',
+    });
+    clean(
+      cacheFindings(graph, [probe]),
+      'Source recursion terminates within the bounded analysis.',
+    );
+  });
+
+  it.each([
+    'apps/web/src/app/(studio)/studio/page.tsx',
+    'apps/web/src/app/(portal)/portal/page.tsx',
+  ])('includes admitted scaffold %s in the production retention fence', (file) => {
+    const graph = graphWith(file, sources[file]! + '\nconst entries = new Set();');
+    expect(reachable(graph, renderRoots)).toContain(file);
+    expect(cacheFindings(graph, reachable(graph, renderRoots))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file })]),
+    );
+  });
+});
+
+describe('remediation public document navigation', () => {
+  it.each([
+    'import Link from "next/link"; export const View = () => <Link href="/en/courses">Courses</Link>;',
+    'import { default as CourseLink } from "next/link";',
+    'export { default as Link } from "next/link";',
+    'export * from "next/link";',
+    'const links = import("next/link");',
+    'const links = require("next/link");',
+    'import Links = require("next/link");',
+    'import { useRouter as router } from "next/navigation";',
+    'import * as navigation from "next/navigation";',
+    'export { useRouter as router } from "next/navigation";',
+    'export * from "next/navigation";',
+    'const navigation = import("next/navigation");',
+    'import Router from "next/router";',
+  ])('rejects runtime router navigation: %s', (source) => {
+    const graph = buildSourceGraph({ [PUBLIC_LAYOUT]: source });
+    expect(navigationFindings(graph, [PUBLIC_LAYOUT])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: PUBLIC_LAYOUT })]),
+    );
+  });
+
+  it('follows aliased local barrels into the actual product component closure', () => {
+    const component = 'apps/web/src/components/public/catalog.tsx';
+    const barrel = 'apps/web/src/lib/navigation-control.ts';
+    const graph = buildSourceGraph({
+      ...sources,
+      [component]:
+        sources[component]! + '\nimport { CourseLink as Alias } from "@/lib/navigation-control";',
+      [barrel]: 'export { default as CourseLink } from "next/link";',
+    });
+    clean(graph.unresolved, 'The aliased router barrel is in the production source graph.');
+    expect(reachable(graph, renderRoots)).toContain(component);
+    expect(navigationFindings(graph, reachable(graph, renderRoots))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ file: component }),
+        expect.objectContaining({ file: barrel }),
+      ]),
+    );
+  });
+
+  it('permits ordinary anchors, server control flow and erased router types', () => {
+    const helper = 'apps/web/src/lib/server-navigation.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import { missing, move } from "@/lib/server-navigation"; import type Link from "next/link"; import type { useRouter } from "next/navigation"; export const View = () => <a href="/en/courses">Courses</a>;',
+      [helper]: 'export { notFound as missing, redirect as move } from "next/navigation";',
+    });
+    clean(graph.unresolved, 'Allowed document navigation has a complete static graph.');
+    clean(
+      navigationFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'Server refusal/redirect control flow does not retain client Router Cache.',
+    );
+  });
+});
+
 describe('remediation source resolution census controls', () => {
   it.each([
     'import messages from "@/lib/control.json";',
@@ -1286,13 +1548,22 @@ describe('remediation source resolution census controls', () => {
     // The independent config guard closes the alias that this bounded graph cannot model.
     expect(reachable(graph, [probe])).toEqual([probe]);
   });
-  it('refuses unsupported production mts/cts while excluding declarations and test files', () => {
-    const names = ['apps/web/src/lib/runtime.mts', 'packages/sdk/src/runtime.cts'];
+  it('refuses unsupported production JS/JSX/mts/cts including routes while excluding test files', () => {
+    const names = [
+      'apps/web/src/lib/runtime.mts',
+      'packages/sdk/src/runtime.cts',
+      'apps/web/src/app/(public)/unsafe/page.js',
+      'apps/web/src/app/(public)/unsafe/layout.jsx',
+      'packages/sdk/src/runtime.mjs',
+      'packages/ui/src/runtime.cjs',
+    ];
     expect(
       unsupportedSourceFindings([
         ...names,
         'packages/sdk/src/schema.d.mts',
         'apps/web/src/lib/probe.test.cts',
+        'apps/web/src/lib/probe.test.js',
+        'apps/web/src/lib/probe.spec.jsx',
       ]),
     ).toEqual(
       names.map((file) => ({

@@ -33,7 +33,12 @@ export function PublicState({ state, recoveryPath, locale, direction, t }: State
             ? t('page.loading.description')
             : t('page.unavailable.description');
   return (
-    <section className="public-state" lang={locale} dir={direction}>
+    <section
+      className="public-state"
+      lang={locale}
+      dir={direction}
+      role={state === 'loading' ? 'status' : undefined}
+    >
       <h1>{title}</h1>
       <p className="public-muted">{description}</p>
       {state !== 'loading' && (

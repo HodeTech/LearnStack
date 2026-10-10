@@ -41,7 +41,7 @@ SDK contract per
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Path | Yes | URL path (`/courses/[slug]`, `/dashboard/users`, `/lesson/[id]`). |
+| Path | Yes | Public URL `/{locale}/courses/{slug}`; future authenticated paths follow their owning phase. |
 | Route group | Yes | `(public)` / `(studio)` / `(portal)`. |
 | Auth | Yes | Anonymous (public) / authenticated tenant / org-scoped. |
 | Permission key | If guarded | `{module}.{resource}.{action}` from the closed set. |
@@ -59,6 +59,14 @@ SDK contract per
 
 ### Step 2: Create the route folder
 
+The shipped public tree is `(public)/[locale]/courses/`, with course detail at
+`[slug]/page.tsx` and lesson detail at `[slug]/lessons/[lessonSlug]/page.tsx`.
+`courses` and `lessons` are fixed section segments. The only localized status
+namespace is `[locale]/status/not-found`. A new public segment also needs an
+explicit update to the closed `contentPath` / `publicEntry` admission policy and
+its tests; adding a Next folder alone leaves it refused. Phase 06 owns broader
+localized section names.
+
 ```
 frontend/apps/web/src/app/
   (studio)/
@@ -75,24 +83,35 @@ unless the screen genuinely needs one.
 ### Step 3: Server Component shell
 
 ```tsx
-// page.tsx (Server Component by default)
-import { createConfiguredPublicClient } from '@/server/configured-public-client';
+// app/(public)/[locale]/courses/page.tsx
+import { notFound } from 'next/navigation';
+import { PublicCatalog } from '@/components/public/catalog';
+import { PublicState } from '@/components/public/state';
+import { requirePublicResource } from '@/server/public-resource';
+import { getPublicUi } from '@/server/public-ui';
 
-// The configured server caller supplies this transport; never a tenant-ID option.
-export function loadCourses(envelope: string | null) {
-  const client = createConfiguredPublicClient(envelope);
-  if (!client) throw new Error('Invalid public ingress');
-  return client.getCourses(); // Locale comes from the authenticated route.
+export default async function CoursesPage() {
+  const resource = await requirePublicResource();
+  const ui = await getPublicUi();
+  if (resource.kind === 'failure') {
+    return <PublicState state={resource.state}
+      recoveryPath={resource.request.route.path}
+      locale={ui.locale} direction={ui.direction} t={ui.t} />;
+  }
+  if (resource.kind !== 'catalog') notFound();
+  return <PublicCatalog resource={resource} ui={ui} />;
 }
 ```
 
 > **P02d-4 delivered.** `@learnstack/sdk/server` exports an injected
 > `createServerSdk(transport)` with four typed public GET wrappers; no global `sdk`
-> object, tenant-ID option or module namespace exists. The example is a loader,
-> not a complete route. P02d-5/G35 delivers the configured trusted transport in
+> object, tenant-ID option or module namespace exists. P02d-5/G35 delivers the
+> configured trusted transport in
 > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> that caller precedes P02d-6 public page consumers. Read the verified envelope
-> from request-local `headers()`; never create or expose a provenance stamp in a page.
+> that caller precedes P02d-6 public page consumers. Pages use the shared resource
+> loader; they do not read envelope headers or create another bootstrap/client.
+> Keep loader helpers outside `page.tsx`; Next page exports are restricted to
+> supported route exports such as the default component and `generateMetadata`.
 
 Rules:
 
@@ -170,6 +189,7 @@ is authoritative.
 
 ### Step 6: Feature gating (entitlement-aware UI)
 
+The hook/package below is a future feature-UI sketch, not a shipped SDK export.
 For features gated by plan-projected `FeatureKey`:
 
 ```tsx
@@ -219,7 +239,9 @@ locale, document language and actual resolved-label language.
 The guarded frontend suite supplies ICU, argument and callsite checks. No
 `lint:i18n` command or screenshot/axe tooling exists. The
 [Step 1 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
-owns validation; product-page and manual accessibility proof remains Steps 2–4.
+owns foundation validation; the
+[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records the delivered product proof and scoped manual accessibility checks.
 
 ### Step 8: Public-site SSR caching
 

@@ -40,6 +40,12 @@ theme, freshness and content-fault product proofs. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns validation, completed reviews and passing manual accessibility closeout.
 
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is Proposed:
+it separates temporary second-bootstrap failures from missing admission. The
+[review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+also proposes Open Graph projection and a bounded Next security maintenance note.
+These proposals change no current Accepted contract before maintainer approval.
+
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
 > [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
@@ -117,7 +123,8 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 ## Tenant + Organization Resolution at the Edge
 
 **Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
-P02d-5 Step 3 delivers server transport; page consumers remain P02d-6. The frontend
+P02d-5 Step 3 delivers server transport; P02d-6 delivers the public page consumers.
+The frontend
 uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
 [Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)

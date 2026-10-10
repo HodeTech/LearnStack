@@ -62,6 +62,9 @@ The Next.js `apps/web` app supports:
   block ([ADR-0013](../decisions/0013-page-block-schema-versioning.md)).
 - Navigation rendering — header, footer, nested items, internal page and catalog
   references.
+- Localized section names and their admission/redirect policy, extending P02d-6's
+  fixed `courses` / `lessons` segments under
+  [Localization Standards](../standards/08-localization.md#locale-model).
 - Course catalog page and course detail page, driven by tenant-defined blocks over the
   [Phase 05](phase-05-education-learning-content.md) catalog data.
 - SEO metadata: per-page title and description, canonical URLs, Open Graph, sitemap and
@@ -284,6 +287,9 @@ browser suite against a mis-provisioned stack is worse evidence than no suite.
 - The browser end-to-end suite runs green against `infra/compose/e2e.yml` with the
   PostgreSQL init script and the SeaweedFS S3 identity file **present**, and two
   consecutive runs are independent of one another.
+- The full Playwright/axe suite covers the critical public and Studio flows,
+  alongside the manual checks required by
+  [Accessibility Standards](../standards/16-accessibility.md#testing).
 - Both seed tenants — the English school and the yoga studio — produce visually and
   structurally different published sites from the same binary, now with navigation, SEO
   and full page composition rather than the skeleton pages Phase 02d ships, whose set is

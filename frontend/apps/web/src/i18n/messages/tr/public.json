@@ -6,7 +6,7 @@
   },
   "catalog": {
     "title": "Kurslar",
-    "course_count": "{count, plural, one {# kurs} other {# kurs}}",
+    "course_count": "{count, plural, one {Bu sayfada # kurs} other {Bu sayfada # kurs}}",
     "empty": "Bu dilde henüz sunulan bir kurs yok.",
     "next": "Sonraki kurslar",
     "restart": "İlk kurslara dön",
@@ -14,7 +14,7 @@
   },
   "course": {
     "outline": "Kurs içeriği",
-    "lesson_count": "{count, plural, one {# ders} other {# ders}}",
+    "lesson_count": "{count, plural, one {Bu sayfada # ders} other {Bu sayfada # ders}}",
     "empty_outline": "Bu kursta henüz herkese açık bir ders yok.",
     "restricted_outline": "Bu kursun dersleri herkese açık değildir.",
     "next": "Sonraki dersler",

@@ -31,6 +31,14 @@ export type PublicPagination = {
   readonly isPaginated: boolean;
 };
 
+function boundedLimit(raw: string | undefined): number | null {
+  if (raw === undefined) return 20;
+  if (!/^[0-9]+$/.test(raw)) return null;
+  let limit = 0;
+  for (const digit of raw) limit = Math.min(100, limit * 10 + Number(digit));
+  return limit === 0 ? null : limit;
+}
+
 /** Cursor contents remain opaque; the API owns decoding and scope validation. */
 export function publicPagination(target: string, outline: boolean): PublicPagination | null {
   const parameters = new URLSearchParams(
@@ -45,11 +53,11 @@ export function publicPagination(target: string, outline: boolean): PublicPagina
   const rawLimit = limits[0];
   if (cursor !== undefined && (cursor.length > 1024 || !/^[A-Za-z0-9_-]+$/.test(cursor)))
     return null;
-  if (rawLimit !== undefined && (!/^[0-9]{1,10}$/.test(rawLimit) || Number(rawLimit) === 0))
-    return null;
+  const limit = boundedLimit(rawLimit);
+  if (limit === null) return null;
   return {
     cursor,
-    limit: rawLimit === undefined ? '20' : String(Math.min(100, Number(rawLimit))),
+    limit: String(limit),
     isPaginated: cursor !== undefined,
   };
 }

@@ -68,6 +68,11 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 > `src/lib/customization/` are not renderer implementations. See the
 > [accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
 
+`RegisterPrimitive`, `BlockRenderer`, `resolver.registerPrimitive` and
+`useContentEntries` below are illustrative future APIs, not existing symbols to
+import. G41 chooses app-local `components/public` for the shipped subset; it does
+not create `packages/blocks` or the wider registry.
+
 ### Step 2: Primitive block (path A)
 
 #### A.1 — Author the JSON Schema
@@ -210,9 +215,9 @@ the page.
   Accepted P02d-6/G43 requires applicable jsx-a11y error rules with actual-config
   planted controls, localized product-page semantics and real manual keyboard,
   focus, reflow, contrast and screen-reader evidence. Step 3 implements the
-  applicable lint controls and synchronous lesson semantics; full product/manual
-  evidence remains Step 4. See the
-  [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation).
+  applicable lint controls and synchronous lesson semantics. The
+  [Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+  records product proofs and the scoped manual browser/screen-reader checks.
 - [Performance Standards](../../../docs/standards/15-performance.md) governs pages
   embedding the block. Accepted G44 assigns Lighthouse activation and assertions
   to P02d-7 after P6; the job remains disabled until that harness ships.
@@ -220,7 +225,8 @@ the page.
 ## Validation
 
 - `dotnet build` and `pnpm build` pass.
-- Architecture test `Block_Schemas_Are_Immutable_After_Publish` is green.
+- The future block-registry implementation must supply its schema-immutability
+  proof; `Block_Schemas_Are_Immutable_After_Publish` is not a shipped test today.
 - For a primitive: the block appears in the Studio block picker.
 - For a composite: tenant admins can reference it from their `TenantPageBlock`
   editor.

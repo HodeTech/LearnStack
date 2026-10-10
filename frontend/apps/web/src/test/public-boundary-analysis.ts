@@ -5,8 +5,9 @@ import ts from 'typescript';
 /**
  * ADR-0053's source fences. This is a bounded AST analysis, not a JavaScript
  * interpreter: it follows static module paths, declaration aliases and constant
- * strings. Runtime reassignment, eval and third-party implementation bodies are
- * outside its claim. Unknown local module paths fail the graph census separately.
+ * strings, local factory returns and direct storage writes. Reflective mutation,
+ * eval and third-party implementation bodies are outside its claim. Unknown
+ * local module paths and unsupported production extensions fail census separately.
  */
 export type SourceCensus = Readonly<Record<string, string>>;
 export type Finding = { readonly file: string; readonly line: number; readonly reason: string };
@@ -287,7 +288,11 @@ export function resolutionCensusFindings(
 
 export function unsupportedSourceFindings(names: readonly string[]): Finding[] {
   return names
-    .filter((name) => /\.(?:mts|cts)$/.test(name) && !/\.(?:test|spec|d)\.(?:mts|cts)$/.test(name))
+    .filter(
+      (name) =>
+        /\.(?:mts|cts|[cm]?js|jsx)$/.test(name) &&
+        !/\.(?:test|spec|d)\.(?:[cm]?[jt]s|jsx)$/.test(name),
+    )
     .map((file) => ({
       file,
       line: 1,
@@ -860,24 +865,8 @@ function globalCollection(
   checker: ts.TypeChecker,
   visited = new Set<ts.Node>(),
 ): boolean {
-  node = unwrapped(node);
-  if (visited.has(node)) return false;
-  visited.add(node);
-  const receiver = memberReceiver(node);
-  if (
-    receiver &&
-    ['Map', 'WeakMap'].includes(memberName(node, checker) ?? '') &&
-    globalObject(receiver, checker)
-  )
-    return true;
-  if (!ts.isIdentifier(node)) return false;
-  const bindings = declarations(node, checker);
-  if (['Map', 'WeakMap'].includes(node.text) && bindings.length === 0) return true;
-  return bindings.some(
-    (declaration) =>
-      ts.isVariableDeclaration(declaration) &&
-      declaration.initializer !== undefined &&
-      globalCollection(declaration.initializer, checker, visited),
+  return ['Map', 'WeakMap', 'Set', 'WeakSet'].some((name) =>
+    globalBuiltin(node, name, checker, new Set(visited)),
   );
 }
 
@@ -891,7 +880,11 @@ function syntaxShape(node: ts.Node): unknown {
   const declarationKind = ts.isVariableDeclarationList(node)
     ? node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)
     : undefined;
-  return [node.kind, value, declarationKind, children];
+  const unaryOperator =
+    ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)
+      ? node.operator
+      : undefined;
+  return [node.kind, value, declarationKind, unaryOperator, children];
 }
 
 // This narrowly audited primitive is intentionally syntax-constrained. The map
@@ -923,15 +916,256 @@ const requestMemoContract = syntaxShape(
   ),
 );
 
+function auditedRequestMemo(file: ts.SourceFile): boolean {
+  return (
+    file.fileName === REQUEST_MEMO &&
+    JSON.stringify(syntaxShape(file)) === JSON.stringify(requestMemoContract)
+  );
+}
+
+function inside(node: ts.Node, ancestor: ts.Node): boolean {
+  for (let current: ts.Node | undefined = node; current; current = current.parent)
+    if (current === ancestor) return true;
+  return false;
+}
+
+function mutableBinding(declaration: ts.VariableDeclaration): boolean {
+  return (
+    ts.isVariableDeclarationList(declaration.parent) &&
+    !(declaration.parent.flags & ts.NodeFlags.Const)
+  );
+}
+
+function staticMember(node: ts.Node): boolean {
+  return (
+    (ts.canHaveModifiers(node) &&
+      ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword)) ??
+    false
+  );
+}
+
+/** Local calls and returned closures only; no general control-flow or heap interpretation. */
+function localFunctions(
+  node: ts.Node,
+  graph: SourceGraph,
+  visited = new Set<ts.Node>(),
+): ts.FunctionLikeDeclaration[] {
+  node = unwrapped(node);
+  if (visited.has(node)) return [];
+  visited.add(node);
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node))
+    return [node];
+  const bindings = ts.isPropertyAccessExpression(node)
+    ? (graph.checker.getSymbolAtLocation(node.name)?.declarations ?? [])
+    : declarations(node, graph.checker);
+  return bindings.flatMap((declaration) =>
+    ts.isFunctionDeclaration(declaration)
+      ? [declaration]
+      : ts.isVariableDeclaration(declaration) && declaration.initializer
+        ? localFunctions(declaration.initializer, graph, visited)
+        : [],
+  );
+}
+
+function retainedState(
+  node: ts.Node | undefined,
+  graph: SourceGraph,
+  visited = new Set<ts.Node>(),
+): boolean {
+  if (!node) return false;
+  node = unwrapped(node);
+  if (visited.has(node)) return false;
+  visited.add(node);
+  const next = (value: ts.Node | undefined) => retainedState(value, graph, new Set(visited));
+  if (ts.isNewExpression(node))
+    return (
+      globalCollection(node.expression, graph.checker) ||
+      globalBuiltin(node.expression, 'Promise', graph.checker)
+    );
+  if (ts.isIdentifier(node))
+    return declarations(node, graph.checker).some(
+      (declaration) =>
+        (ts.isVariableDeclaration(declaration) && next(declaration.initializer)) ||
+        (ts.isFunctionDeclaration(declaration) && next(declaration)),
+    );
+  if (ts.isObjectLiteralExpression(node))
+    return node.properties.some((property) =>
+      ts.isPropertyAssignment(property)
+        ? next(property.initializer)
+        : ts.isShorthandPropertyAssignment(property)
+          ? next(property.name)
+          : ts.isSpreadAssignment(property)
+            ? next(property.expression)
+            : ts.isMethodDeclaration(property) && next(property),
+    );
+  if (ts.isArrayLiteralExpression(node)) return node.elements.some(next);
+  if (ts.isConditionalExpression(node)) return next(node.whenTrue) || next(node.whenFalse);
+  if (ts.isBinaryExpression(node)) return next(node.left) || next(node.right);
+  if (
+    (ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node) ||
+      ts.isFunctionDeclaration(node) ||
+      ts.isMethodDeclaration(node)) &&
+    node.body
+  ) {
+    const closure = node;
+    const body = node.body;
+    let retained = false;
+    walk(body, (reference) => {
+      if (!ts.isIdentifier(reference)) return;
+      for (const declaration of declarations(reference, graph.checker)) {
+        if (!ts.isVariableDeclaration(declaration) || inside(declaration, closure)) continue;
+        const initializer = declaration.initializer && unwrapped(declaration.initializer);
+        if (
+          mutableBinding(declaration) ||
+          (initializer &&
+            (ts.isObjectLiteralExpression(initializer) ||
+              ts.isArrayLiteralExpression(initializer))) ||
+          next(initializer)
+        )
+          retained = true;
+      }
+    });
+    return retained;
+  }
+  if (!ts.isCallExpression(node)) return false;
+  if (importedFunction(node.expression, graph, ['react'], ['cache'])) return false;
+  const factories = localFunctions(node.expression, graph);
+  if (factories.some((factory) => auditedRequestMemo(factory.getSourceFile()))) return false;
+  if (
+    ['getSite', 'getCourses', 'getCourse', 'getLesson'].includes(
+      memberName(node.expression, graph.checker) ?? '',
+    ) ||
+    globalBuiltin(node.expression, 'Promise.resolve', graph.checker) ||
+    globalBuiltin(node.expression, 'Promise.all', graph.checker)
+  )
+    return true;
+  return factories.some((factory) => {
+    if (!factory.body) return false;
+    if (!ts.isBlock(factory.body)) return next(factory.body);
+    let retained = false;
+    const returns = (child: ts.Node) => {
+      if (ts.isFunctionLike(child) || ts.isClassLike(child)) return;
+      if (ts.isReturnStatement(child) && next(child.expression)) retained = true;
+      ts.forEachChild(child, returns);
+    };
+    returns(factory.body);
+    return retained;
+  });
+}
+
+/** Direct writes through aliases to module, static or global storage outlive requests. */
+function sharedStorage(node: ts.Node, graph: SourceGraph, visited = new Set<ts.Node>()): boolean {
+  node = unwrapped(node);
+  if (visited.has(node)) return false;
+  visited.add(node);
+  if (globalObject(node, graph.checker)) return true;
+  const receiver = memberReceiver(node);
+  if (receiver) {
+    if (sharedStorage(receiver, graph, new Set(visited))) return true;
+    if (receiver.kind === ts.SyntaxKind.ThisKeyword) {
+      for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+        if (staticMember(parent) || ts.isClassStaticBlockDeclaration(parent)) return true;
+        if (ts.isClassLike(parent)) break;
+      }
+    }
+  }
+  return declarations(node, graph.checker).some((declaration) => {
+    if (ts.isClassDeclaration(declaration) && moduleScope(declaration)) return true;
+    if (ts.isPropertyDeclaration(declaration) && staticMember(declaration)) return true;
+    if (!ts.isVariableDeclaration(declaration)) return false;
+    return (
+      moduleScope(declaration) ||
+      (declaration.initializer !== undefined &&
+        sharedStorage(declaration.initializer, graph, new Set(visited)))
+    );
+  });
+}
+
+/** P6 G40 requires document anchors, so router-backed navigation is excluded by import. */
+export function navigationFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {
+  const findings: Finding[] = [];
+  for (const name of subjects) {
+    const file = graph.files.get(name);
+    if (!file) continue;
+    walk(file, (node) => {
+      let specifier: string | undefined;
+      if (ts.isImportDeclaration(node) && runtimeImport(node))
+        specifier = constantString(node.moduleSpecifier, graph.checker);
+      else if (ts.isExportDeclaration(node) && runtimeExport(node))
+        specifier = constantString(node.moduleSpecifier, graph.checker);
+      else if (
+        ts.isImportEqualsDeclaration(node) &&
+        !node.isTypeOnly &&
+        ts.isExternalModuleReference(node.moduleReference)
+      )
+        specifier = constantString(node.moduleReference.expression, graph.checker);
+      else if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+      )
+        specifier = constantString(node.arguments[0], graph.checker);
+      const routerOrigin = valueOrigins(node, graph, {
+        nodes: new Set(),
+        exports: new Set(),
+      }).some(
+        (origin) =>
+          origin.kind === 'external' &&
+          (['next/link', 'next/router'].includes(origin.specifier) ||
+            (origin.specifier === 'next/navigation' && origin.name === 'useRouter')),
+      );
+      // Namespace/dynamic next/navigation edges could obtain useRouter without a
+      // named binding. Permit only the named server control-flow imports below.
+      const unsafeNavigationEdge =
+        specifier === 'next/navigation' &&
+        !(
+          ts.isImportDeclaration(node) &&
+          node.importClause?.namedBindings &&
+          ts.isNamedImports(node.importClause.namedBindings) &&
+          !node.importClause.name &&
+          node.importClause.namedBindings.elements.every(
+            (binding) =>
+              binding.isTypeOnly ||
+              ['notFound', 'redirect', 'permanentRedirect'].includes(
+                (binding.propertyName ?? binding.name).text,
+              ),
+          )
+        ) &&
+        !(
+          ts.isExportDeclaration(node) &&
+          node.exportClause &&
+          ts.isNamedExports(node.exportClause) &&
+          node.exportClause.elements.every(
+            (binding) =>
+              binding.isTypeOnly ||
+              ['notFound', 'redirect', 'permanentRedirect'].includes(
+                (binding.propertyName ?? binding.name).text,
+              ),
+          )
+        );
+      if (
+        (specifier !== undefined && ['next/link', 'next/router'].includes(specifier)) ||
+        unsafeNavigationEdge ||
+        routerOrigin
+      )
+        findings.push(
+          finding(
+            node,
+            'Fix: use ordinary document anchors; public navigation must not prefetch or retain Router Cache.',
+          ),
+        );
+    });
+  }
+  return findings;
+}
+
 export function cacheFindings(graph: SourceGraph, subjects: readonly string[]): Finding[] {
   const findings: Finding[] = [];
   for (const name of subjects) {
     const file = graph.files.get(name);
     if (!file) continue;
-    if (
-      name === REQUEST_MEMO &&
-      JSON.stringify(syntaxShape(file)) !== JSON.stringify(requestMemoContract)
-    )
+    if (name === REQUEST_MEMO && !auditedRequestMemo(file))
       findings.push(
         finding(
           file,
@@ -939,6 +1173,42 @@ export function cacheFindings(graph: SourceGraph, subjects: readonly string[]): 
         ),
       );
     walk(file, (node) => {
+      if (
+        (ts.isVariableDeclaration(node) &&
+          moduleScope(node) &&
+          (mutableBinding(node) || retainedState(node.initializer, graph))) ||
+        (ts.isPropertyDeclaration(node) &&
+          staticMember(node) &&
+          retainedState(node.initializer, graph))
+      )
+        findings.push(
+          finding(
+            node,
+            'Fix: keep mutable public state and retained factory results inside the request.',
+          ),
+        );
+      if (
+        (ts.isBinaryExpression(node) &&
+          node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+          sharedStorage(node.left, graph)) ||
+        ((ts.isPostfixUnaryExpression(node) || ts.isPrefixUnaryExpression(node)) &&
+          [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator) &&
+          sharedStorage(node.operand, graph)) ||
+        (ts.isDeleteExpression(node) && sharedStorage(node.expression, graph)) ||
+        (ts.isCallExpression(node) &&
+          ['set', 'add', 'delete', 'clear', 'push', 'pop', 'shift', 'unshift', 'splice'].includes(
+            memberName(node.expression, graph.checker) ?? '',
+          ) &&
+          memberReceiver(node.expression) !== undefined &&
+          sharedStorage(memberReceiver(node.expression)!, graph))
+      )
+        findings.push(
+          finding(
+            node,
+            'Fix: do not write public request state to module, class-static or global storage.',
+          ),
+        );
       if (
         (ts.isVariableDeclaration(node) &&
           ts.isIdentifier(node.name) &&

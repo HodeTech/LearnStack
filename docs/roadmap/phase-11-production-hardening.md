@@ -354,6 +354,9 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 
 ### Observability
 
+- Frontend structured logging, Sentry and web-vitals telemetry, owned here by
+  [Frontend Observability](../standards/10-observability.md#frontend-observability).
+  P02d-5/6 provide no web-vitals hook.
 - Structured logs.
 - Correlation id end to end.
 - OpenTelemetry traces.

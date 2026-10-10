@@ -58,8 +58,9 @@ the phase against its own exit decision: thirty catalogue entries name it as the
 that implemented them — module boundaries in all four legs, domain genericity across names,
 schema, slugs, keys and the frontend tree, the port and entitlement-key bans, ADR-0040's
 two behavioural properties, and three named isolation proofs as `learnstack_app`. The
-standards were re-stated against what enforces them today (nineteen `Active`, three
-`Adopted`), and four guards now hold the corpus to its own claims, so a status header, a
+standards were re-stated against enforcement at Packet 10 closeout (nineteen
+`Active`, three `Adopted`), and four guards now hold the corpus to its own claims,
+so a status header, a
 catalogue entry, a published count or a planted `Skip` fails the build rather than a
 reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
 let change.

@@ -26,6 +26,15 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import {
+  absentFromSerializedText,
+  absentFromWholeResponse as assertAbsentFromWholeResponse,
+  documentViewport,
+  productContainment as assertProductContainment,
+  productTheme as assertProductTheme,
+  statusDocument as assertStatusDocument,
+  visibleDocument as document,
+} from './public-rendering-assertions.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
 const { JSDOM } = createRequire(join(sourceApp, 'package.json'))('jsdom');
@@ -39,7 +48,7 @@ let stage = 'configuration';
 let configuration;
 let certificate;
 let privateScanner;
-let catalogueCanaries = [];
+let catalogueSentinels = [];
 
 function checkPrivate(value) {
   return privateScanner.contains(value);
@@ -259,11 +268,7 @@ function scanClientAssets(directory, expectedMarker = false) {
         marker ||= content.includes(clientMarker);
       }
       assert.equal(checkPrivate(content), false, 'Static client private-data containment');
-      assert.equal(
-        catalogueCanaries.some((value) => content.includes(value)),
-        false,
-        'Complete UI catalogue cannot enter browser assets',
-      );
+      absentFromSerializedText(content, catalogueSentinels);
     }
   }
   if (expectedMarker) assert.equal(marker, true, 'Built public Client Component marker');
@@ -323,61 +328,16 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 }
 `;
 
-function document(response) {
-  const dom = new JSDOM(response.body);
-  // Assertions below inspect the rendered document, never strings embedded in
-  // Flight/bootstrap scripts that may describe UI absent from visible HTML.
-  dom.window.document
-    .querySelectorAll('script, template, [hidden]')
-    .forEach((node) => node.remove());
-  return dom.window.document;
-}
-
 function statusDocument(response, tenant, locale, uiLocale) {
   const phase = stage;
-  stage = phase + ' status headers';
   safeResponse(response, 404);
-  stage = phase + ' HTML content-type';
-  assert.match(response.headers['content-type'], /^text\/html/);
-  stage = phase + ' catalogue containment';
-  assert.equal(
-    catalogueCanaries.some((value) => response.body.includes(value)),
-    false,
-    'Complete UI catalogue cannot enter Flight payload',
-  );
-  const doc = document(response);
-  stage = phase + ' document locale';
-  assert.equal(doc.documentElement.lang, locale, 'Document retains admitted content locale');
-  assert.equal(doc.documentElement.dir, locale === 'ar' ? 'rtl' : 'ltr');
-  stage = phase + ' visible heading';
-  const heading = doc.querySelector('h1');
-  assert.equal(doc.querySelectorAll('h1').length, 1, 'One visible localized status heading');
-  assert.equal(doc.querySelectorAll('main').length, 1, 'One main landmark');
-  const title = uiLocale === 'tr' ? 'Sayfa bulunamadı' : 'Page not found';
-  assert.equal(heading.textContent, title, 'Visible status translation');
-  stage = phase + ' localized metadata';
-  if (!doc.title.includes(title)) {
-    const original = new JSDOM(response.body).window.document;
-    const titleNode = original.querySelector('title');
-    stage += titleNode?.closest('[hidden]') ? ' hidden' : titleNode ? ' unmatched' : ' absent';
-  }
-  assert.ok(doc.title.includes(title), 'Localized document title');
-  stage = phase + ' UI locale';
-  assert.equal(heading.closest('[lang]').getAttribute('lang'), uiLocale, 'UI fallback language');
-  assert.equal(heading.closest('[dir]').getAttribute('dir'), 'ltr', 'UI fallback direction');
-  stage = phase + ' robots recovery';
-  assert.ok(doc.querySelector('meta[name="robots"]').content.includes('noindex'));
-  assert.ok(doc.querySelector('a[href="/' + locale + '/courses"]'), 'Same-locale recovery');
-  stage = phase + ' tenant chrome';
-  assert.ok(doc.body.textContent.includes(tenant.name), 'Actual tenant chrome');
-  const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
-  assert.equal(doc.body.textContent.includes(other.name), false, 'No opposite tenant chrome');
-  assert.equal(
-    response.body.includes('missing-foundation-course'),
-    false,
-    'No original resource echo',
-  );
-  assert.equal(response.body.includes('private-query-value'), false, 'No original query echo');
+  const doc = assertStatusDocument(response, tenant, locale, uiLocale, {
+    tenants: configuration.tenants,
+    catalogueSentinels,
+    mark: (part) => {
+      stage = phase + ' ' + part;
+    },
+  });
   stage = phase;
   return doc;
 }
@@ -385,6 +345,7 @@ function statusDocument(response, tenant, locale, uiLocale) {
 function productDocument(response, tenant, locale, heading, path, direction = 'ltr') {
   safeResponse(response, 200);
   const doc = document(response);
+  documentViewport(doc);
   assert.equal(doc.documentElement.lang, locale, 'Admitted document language');
   assert.equal(doc.documentElement.dir, direction, 'Admitted document direction');
   assert.equal(doc.querySelectorAll('main').length, 1, 'One product main landmark');
@@ -584,12 +545,7 @@ async function verifyFoundation(native, nextBin) {
     'Protected outline is absent',
   );
   assert.ok(first.restrictedCanaries.length > 0, 'Nonempty protected seed controls');
-  for (const canary of first.restrictedCanaries)
-    assert.equal(
-      restrictedResponse.body.includes(canary),
-      false,
-      'Protected value absent from HTML and Flight',
-    );
+  absentFromWholeResponse(restrictedResponse, first.restrictedCanaries);
   await checkpoint('foundation-restricted');
 
   stage = 'foundation empty exact-locale catalog';
@@ -852,17 +808,12 @@ async function verifyPagination(native) {
 
 function lessonContainment(response, tenant) {
   const other = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
-  for (const value of [
+  absentFromWholeResponse(response, [
     other.name,
     other.lessonTitle,
     ...other.content.fields.map((field) => field.value),
-  ])
-    assert.equal(response.body.includes(value), false, 'Opposite tenant lesson is absent');
-  assert.equal(
-    catalogueCanaries.some((value) => response.body.includes(value)),
-    false,
-    'Complete UI catalogue cannot enter the lesson Flight payload',
-  );
+    ...catalogueSentinels,
+  ]);
 }
 
 function lessonDocument(response, tenant, locale, title, path, content) {
@@ -916,11 +867,7 @@ function lessonDocument(response, tenant, locale, title, path, content) {
     assert.ok(article.textContent.includes('This lesson content is currently unavailable.'));
     assert.equal(article.textContent.includes('This lesson has no content to display yet.'), false);
     assert.ok(doc.querySelector('meta[name="robots"]')?.content.includes('noindex'));
-    assert.equal(
-      response.body.includes('unavailable-private-body-canary'),
-      false,
-      'Unavailable payload stays absent from HTML and Flight',
-    );
+    absentFromWholeResponse(response, ['unavailable-private-body-canary']);
     return doc;
   }
   assert.equal(
@@ -1155,18 +1102,9 @@ async function verifyPresentation(native) {
       // Next's redirect Flight tree can contain the request's own route segments.
       // They reveal no new content; titles/body values must still be absent, and
       // the destination below must omit even the original requested slug.
-      if (!path.split('/').includes(value))
-        assert.equal(
-          refusal.body.includes(value),
-          false,
-          'Refused lesson has no content Flight leak',
-        );
+      if (!path.split('/').includes(value)) absentFromWholeResponse(refusal, [value]);
       stage = name + ' status containment ' + index;
-      assert.equal(
-        response.body.includes(value),
-        false,
-        'Localized missing page has no lesson leak',
-      );
+      absentFromWholeResponse(response, [value]);
     }
     await checkpoint(name);
   }
@@ -1209,80 +1147,25 @@ function productDetails(tenant, locale) {
 }
 
 function absentFromWholeResponse(response, values) {
-  const decoded = new JSDOM(response.body).window.document.documentElement.textContent;
   const phase = stage;
-  for (const [index, value] of values.entries()) {
+  assertAbsentFromWholeResponse(response, values, (index) => {
     stage = phase + ' containment marker ' + index;
-    assert.ok(value.length > 0, 'Leak markers are nonempty');
-    for (const representation of [value, JSON.stringify(value).slice(1, -1)])
-      assert.equal(
-        response.body.includes(representation),
-        false,
-        'Complete HTML/Flight containment',
-      );
-    assert.equal(decoded.includes(value), false, 'Entity-decoded response containment');
-  }
+  });
   stage = phase;
 }
 
 function productContainment(response, tenant) {
-  const own = configuration.product.find((candidate) => candidate.host === tenant.host);
-  const other = configuration.product.find((candidate) => candidate.host !== tenant.host);
-  const opposite = configuration.tenants.find((candidate) => candidate.host !== tenant.host);
-  assert.ok(own.protectedCanaries.length > 0 && other.allCanaries.length > 0);
-  absentFromWholeResponse(response, [
-    opposite.name,
-    ...other.allCanaries,
-    other.courseTitle,
-    other.courseSummary,
-    other.lessonTitle,
-    ...other.content.fields.map((field) => field.value),
-    ...own.protectedCanaries,
-    ...catalogueCanaries,
-  ]);
+  const phase = stage;
+  assertProductContainment(response, tenant, configuration, catalogueSentinels, (index) => {
+    stage = phase + ' containment marker ' + index;
+  });
+  stage = phase;
 }
 
 function productTheme(doc, details, malformed = false) {
-  const styles = [...doc.querySelectorAll('style,[style]')].filter((element) =>
-    /--ls-(?:primary|bg|fg|muted)\s*:/.test(
-      element.tagName === 'STYLE' ? element.textContent : element.getAttribute('style'),
-    ),
+  assertProductTheme(doc, details, malformed, (path) =>
+    readFileSync(join(app, '.next', path.slice('/_next/'.length)), 'utf8'),
   );
-  const { primary, background, foreground, muted } = details.theme;
-  assert.equal(styles.length, malformed ? 0 : 1, 'A malformed palette emits no partial override');
-  if (!malformed)
-    assert.equal(
-      styles[0].textContent,
-      `:root{--ls-primary:${primary};--ls-bg:${background};--ls-fg:${foreground};--ls-muted:${muted};}`,
-      'Exact complete seed palette is independent of entitlement',
-    );
-  const footer = doc.querySelector('footer.public-footer');
-  assert.equal(
-    footer !== null,
-    details.showAttribution,
-    'Effective tenant entitlement alone selects attribution',
-  );
-  if (footer)
-    assert.equal(
-      footer.textContent,
-      details.locale === 'tr-TR' ? 'LearnStack altyapısıyla' : 'Powered by LearnStack',
-    );
-  if (malformed) {
-    const cssLinks = [...doc.querySelectorAll('link[rel="stylesheet"]')];
-    assert.ok(cssLinks.length > 0, 'The fallback has a real compiled stylesheet');
-    const css = cssLinks
-      .map((link) => {
-        const path = link.getAttribute('href').split('?')[0];
-        assert.match(path, /^\/_next\/static\/css\/[a-zA-Z0-9._-]+\.css$/);
-        return readFileSync(join(app, '.next', path.slice('/_next/'.length)), 'utf8');
-      })
-      .join('');
-    assert.match(
-      css,
-      /:root\{[^}]*--ls-primary:#1f6feb;[^}]*--ls-bg:#fff(?:fff)?;[^}]*--ls-fg:#0f172a;[^}]*--ls-muted:#64748b[;}]/,
-      'All four existing CSS defaults remain available together',
-    );
-  }
 }
 
 function productLesson(response, tenant, details, malformed = false) {
@@ -1612,7 +1495,9 @@ try {
     product;
   const pagination = configuration.mode === 'foundation-pagination';
   if (foundation) {
-    catalogueCanaries = ['en', 'tr'].map(
+    // These unused ICU values detect an unchanged complete catalogue; the source
+    // graph independently rejects catalogue imports into Client Components.
+    catalogueSentinels = ['en', 'tr'].map(
       (locale) =>
         JSON.parse(
           readFileSync(join(sourceApp, 'src/i18n/messages', locale, 'public.json'), 'utf8'),

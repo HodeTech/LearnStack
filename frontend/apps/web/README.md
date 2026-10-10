@@ -12,20 +12,22 @@ Route groups (`(public)`, `(studio)`, `(portal)`) organize files without
 affecting URLs — each surface owns a distinct URL prefix so the three roots
 don't collide at `/`:
 
-| Route group        | URL prefix | Purpose                                          | Phase that fills it in |
-| ------------------ | ---------- | ------------------------------------------------ | ---------------------- |
-| `(public)/`        | `/`        | Tenant-facing public site                        | 02d / 04 / 06          |
-| `(studio)/studio/` | `/studio`  | Admin + content studio                           | 04 / 06                |
-| `(portal)/portal/` | `/portal`  | Learner + instructor portal                      | 07                     |
-| `api/`             | `/api/*`   | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                   |
+| Route group                           | URL prefix                   | Purpose                                          | Phase that fills it in   |
+| ------------------------------------- | ---------------------------- | ------------------------------------------------ | ------------------------ |
+| `(public)/[locale]/courses/`          | `/{locale}/courses`          | Implemented catalog, course and lesson pages     | 02d; expanded by 04 / 06 |
+| `(public)/[locale]/status/not-found/` | `/{locale}/status/not-found` | Localized fixed 404 recovery document            | 02d                      |
+| `(studio)/studio/`                    | `/studio`                    | Admin + content studio                           | 04 / 06                  |
+| `(portal)/portal/`                    | `/portal`                    | Learner + instructor portal                      | 07                       |
+| `api/`                                | `/api/*`                     | Thin BFF route handlers (`/api/healthz` shipped) | 02a+                     |
 
 P02d-4 delivers the API reads; P02d-5 delivers live bootstrap and membership-first
 entry under [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md).
+`/` redirects through live default-locale admission; it is not a placeholder page.
 Exact scaffold roots continue only after bootstrap; enabled locale membership takes
 precedence. P02d-6 implements localized catalog/course/lesson pages, ordered
 plain-text presentation, safe four-color themes and G40 page states. Its
 [product closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records completed verification, reviews and passing manual accessibility.
+records completed verification, reviews and scoped browser/VoiceOver observations.
 P6 awaits maintainer PR review and merge.
 
 There is **no `extensions/` folder for vertical-provided components** — per

@@ -47,6 +47,9 @@ describe.each([
     ['100', '100'],
     ['101', '100'],
     ['9999999999', '100'],
+    ['10000000000', '100'],
+    ['9'.repeat(400), '100'],
+    ['0'.repeat(400) + '2', '2'],
   ])('normalizes positive decimal %s to the API bound %s', (value, expected) => {
     expect(publicPagination(`${target}?${limit}=${value}`, outline)).toEqual({
       limit: expected,
@@ -66,7 +69,7 @@ describe.each([
     '1.5',
     '1e2',
     '１２',
-    '10000000000',
+    '9'.repeat(400) + 'x',
     '%0A1',
   ])('refuses malformed owned limit %s', (value) => {
     expect(publicPagination(`${target}?${limit}=${value}`, outline)).toBeNull();

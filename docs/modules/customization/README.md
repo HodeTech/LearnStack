@@ -198,7 +198,8 @@ nondeleted definitions are eligible; missing individual pins remain distinguisha
 without failing unrelated members or substituting another revision. Labels resolve
 per call with actual locale metadata from the caller's display-locale context.
 P02d-4 Step 3 delivers the public response/refusal contract;
-page rendering remains P02d-6. The coherent loader supplies
+P02d-6 Steps 2–3 deliver the catalog, course and lesson views. The coherent loader
+supplies
 generation-keyed families; dirty or rollback-only
 scopes bypass their cache. The writer reader remains uncached.
 

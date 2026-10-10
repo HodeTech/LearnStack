@@ -29,7 +29,15 @@ const jsxA11yErrors = Object.fromEntries(
 module.exports = {
   root: true,
   extends: [require.resolve('@learnstack/config/eslint'), 'next/core-web-vitals'],
-  rules: jsxA11yErrors,
+  rules: {
+    ...jsxA11yErrors,
+    // Next's inherited options narrow this rule to img. Restore every native
+    // recommended element while retaining its Next Image component mapping.
+    'jsx-a11y/alt-text': [
+      'error',
+      { elements: ['img', 'object', 'area', 'input[type="image"]'], img: ['Image'] },
+    ],
+  },
   parserOptions: {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,

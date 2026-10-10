@@ -261,6 +261,41 @@ describe('public resource dispatch after shared live admission', () => {
 });
 
 describe.each([
+  { target: '/tr-TR/courses', cursor: 'cursor', operation: client.getCourses },
+  {
+    target: '/tr-TR/courses/foundation',
+    cursor: 'lessonCursor',
+    operation: client.getCourse,
+  },
+])('owned cursor failures: $target', ({ target, cursor, operation }) => {
+  it.each([
+    [true, { owned: ['private diagnostic'] }, 'invalid_cursor'],
+    [false, { owned: ['private diagnostic'] }, 'unavailable'],
+    [true, { private: ['private diagnostic'] }, 'unavailable'],
+    [true, { owned: ['private diagnostic'], private: ['private diagnostic'] }, 'unavailable'],
+    [true, {}, 'unavailable'],
+  ] as const)(
+    'maps only a present cursor and its exclusive field errors',
+    async (present, fields, state) => {
+      const admitted = request(`${target}${present ? `?${cursor}=opaque_1` : ''}`);
+      getRequest.mockResolvedValue(admitted);
+      operation.mockResolvedValue(
+        apiError(400, {
+          code: 'validation_failed',
+          fieldErrors: Object.fromEntries(
+            Object.entries(fields).map(([field, messages]) => [
+              field === 'owned' ? cursor : field,
+              [...messages],
+            ]),
+          ),
+        }),
+      );
+      expect(await getPublicResource()).toEqual({ kind: 'failure', request: admitted, state });
+    },
+  );
+});
+
+describe.each([
   { target: '/tr-TR/courses', operation: client.getCourses },
   { target: '/tr-TR/courses/foundation', operation: client.getCourse },
   { target: '/tr-TR/courses/foundation/lessons/intro', operation: client.getLesson },
@@ -274,7 +309,7 @@ describe.each([
         code: 'validation_failed',
         fieldErrors: { private: ['private diagnostic'] },
       }),
-      target.includes('/lessons/') ? 'unavailable' : 'invalid_cursor',
+      'unavailable',
     ],
     ['failure', apiError(503, { code: 'validation_failed', fieldErrors: {} }), 'unavailable'],
     [
