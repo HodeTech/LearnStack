@@ -4431,7 +4431,8 @@ state and assert translated label and destination together.
 
 The proof reviewer independently confirms a stale narrow ADR-0051 catalogue row.
 It now names the delivered component and actual presentation fixture as
-Implemented, with its published counts reconciled. The five broader P6 rules stay Registered
+Implemented, with its published counts reconciled. The five broader P6 rules stay
+Registered
 and Accessibility stays Adopted pending Step 4. Each reviewer passes 164 focused
 frontend cases, zero failures/skips; neither runs native/Docker or manual checks.
 The root passes 167 focused frontend cases, five Release corpus cases, workspace
@@ -5435,7 +5436,8 @@ unchanged active observations. It finds a real proof gap: one microtask wait let
 an already-resolved empty-pending mutant pass all six controls. Independent
 verification reproduces that behavior; `100534f` crosses a deterministic
 `setImmediate` turn before both pending assertions. The actual Vitest mutant now
-fails three cases; restored production code passes all six. No wall-clock sleep or runtime change is added.
+fails three cases; restored production code passes all six. No wall-clock sleep or
+runtime change is added.
 
 **Focused fix review round 2 — `9f785fc..100534f`.** Fresh GPT-6.1-sol at xhigh
 effort approves without actionable findings, independently passes all six cases
@@ -5466,13 +5468,31 @@ now explicitly opts out of parallel scheduling with other collections, preservin
 production logger configuration, enrichment, sink disposal and the nonempty-log
 assertion. Forced overlapping HTTP requests inside each proof remain concurrent.
 No logger replacement, synthetic event, polling or weakened assertion is added.
-This focused fix still awaits its reviews and full-suite/CI verification.
+**Log-capture fix review round 1 — `ef05ab0`.** Fresh GPT-6-astra at xhigh
+effort approves without actionable findings. It verifies the pinned xUnit runner
+awaits parallel collections and their fixture disposal before starting an isolated
+collection. It independently confirms the pinned Serilog global-logger mechanism,
+sequential API phase ownership and the unchanged forced HTTP overlap gates.
 
-The three implementation steps have completed their review loops; the subsequent
-log-capture fix remains under verification. The [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns final
-exact-head CI after this documentation commit. Maintainer review and merge remain
-pending. P02d-7 retains the full browser demo and Lighthouse; Phase 06/11 retain
-their named broader accessibility and production-hardening work.
+**Log-capture fix review round 2 — `ef05ab0`.** Fresh GPT-6.1-sol at xhigh
+effort independently approves without actionable findings. It checks collection
+and child-host lifetimes, awaited/idempotent fixture disposal, real-log assertions
+and the four-arrival request barriers. Neither reviewer starts another Docker or
+browser run or claims to reconstruct the earlier Linux interleaving.
+
+**Fix verification.** The full local Release Docker suite passes **867 cases**,
+including the admission Fact and all six retained production modes, with zero
+failures or skips. Release build has zero warnings/errors; format verification,
+all **198 architecture cases**, seven ADR-workflow cases and the local link audit
+pass. The previous guarded frontend execution remains **1,402 cases**, zero
+skips/todos; this scheduling fix changes no frontend source. Two overlong prose
+lines in this P6 delivery record are wrapped without changing their meaning.
+
+All three implementation steps and both subsequent focused fixes have completed
+their two independent review rounds. The [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27)
+owns final exact-head CI after this documentation commit. Maintainer review and
+merge remain pending. P02d-7 retains the full browser demo and Lighthouse;
+Phase 06/11 retain their named broader accessibility and production-hardening work.
 
 ### P02d-1 decision pass (2026-09-14)
 
