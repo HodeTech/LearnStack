@@ -4,6 +4,10 @@
 
 Proposed — 2026-10-10. Maintainer approval is pending.
 
+**Review disposition — 2026-10-10.** The maintainer did not approve the initial
+neutral-500 proposal and requested a fuller design preserving exact 429/503.
+The proposal below is being revised; it authorizes no implementation.
+
 **Date:** 2026-10-10
 **Deciders:** @cemil (approval pending)
 

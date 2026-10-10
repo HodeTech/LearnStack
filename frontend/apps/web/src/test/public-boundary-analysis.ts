@@ -933,7 +933,12 @@ function inside(node: ts.Node, ancestor: ts.Node): boolean {
   return false;
 }
 
-function mutableBinding(declaration: ts.VariableDeclaration): boolean {
+function mutableBinding(declaration: ts.VariableDeclaration | ts.BindingElement): boolean {
+  while (ts.isBindingElement(declaration)) {
+    const owner = declaration.parent.parent;
+    if (!ts.isVariableDeclaration(owner) && !ts.isBindingElement(owner)) return false;
+    declaration = owner;
+  }
   return (
     ts.isVariableDeclarationList(declaration.parent) &&
     !(declaration.parent.flags & ts.NodeFlags.Const)
@@ -948,24 +953,108 @@ function staticMember(node: ts.Node): boolean {
   );
 }
 
+/** Select only the captured binding's value, never its unrelated container siblings. */
+function bindingInitializer(
+  binding: ts.BindingElement,
+  graph: SourceGraph,
+  visited = new Set<ts.Node>(),
+): ts.Node | undefined {
+  if (binding.dotDotDotToken || visited.has(binding)) return undefined;
+  visited.add(binding);
+  const owner = binding.parent.parent;
+  const source = ts.isVariableDeclaration(owner)
+    ? owner.initializer
+    : ts.isBindingElement(owner)
+      ? bindingInitializer(owner, graph, new Set(visited))
+      : undefined;
+  if (!source) return binding.initializer;
+  const key = ts.isArrayBindingPattern(binding.parent)
+    ? String(binding.parent.elements.indexOf(binding))
+    : binding.propertyName
+      ? propertyName(binding.propertyName, graph.checker)
+      : ts.isIdentifier(binding.name)
+        ? binding.name.text
+        : undefined;
+  return key === undefined
+    ? binding.initializer
+    : (selectedInitializer(source, key, graph, visited) ?? binding.initializer);
+}
+
+function selectedInitializer(
+  node: ts.Node,
+  key: string,
+  graph: SourceGraph,
+  visited: Set<ts.Node>,
+): ts.Node | undefined {
+  node = localInitializer(node, graph, visited);
+  if (ts.isObjectLiteralExpression(node)) {
+    const property = [...node.properties]
+      .reverse()
+      .find(
+        (member) =>
+          !ts.isSpreadAssignment(member) && propertyName(member.name, graph.checker) === key,
+      );
+    if (property && ts.isPropertyAssignment(property)) return property.initializer;
+    if (property && ts.isShorthandPropertyAssignment(property)) return property.name;
+    if (property && ts.isMethodDeclaration(property)) return property;
+  }
+  if (ts.isArrayLiteralExpression(node) && /^(?:0|[1-9][0-9]*)$/.test(key)) {
+    const index = Number(key);
+    if (!node.elements.slice(0, index + 1).some(ts.isSpreadElement)) return node.elements[index];
+  }
+  return undefined;
+}
+
+/** Resolve declaration aliases and literal object/array selections only. */
+function localInitializer(
+  node: ts.Node,
+  graph: SourceGraph,
+  visited = new Set<ts.Node>(),
+): ts.Node {
+  node = unwrapped(node);
+  if (visited.has(node)) return node;
+  visited.add(node);
+  const receiver = memberReceiver(node);
+  const key = memberName(node, graph.checker);
+  if (receiver && key !== undefined) {
+    const selected = selectedInitializer(receiver, key, graph, new Set(visited));
+    if (selected) return localInitializer(selected, graph, visited);
+  }
+  for (const declaration of declarations(node, graph.checker)) {
+    const initializer = ts.isVariableDeclaration(declaration)
+      ? declaration.initializer
+      : ts.isBindingElement(declaration)
+        ? bindingInitializer(declaration, graph, new Set(visited))
+        : undefined;
+    if (initializer) return localInitializer(initializer, graph, visited);
+  }
+  return node;
+}
+
 /** Local calls and returned closures only; no general control-flow or heap interpretation. */
 function localFunctions(
   node: ts.Node,
   graph: SourceGraph,
   visited = new Set<ts.Node>(),
 ): ts.FunctionLikeDeclaration[] {
-  node = unwrapped(node);
+  node = localInitializer(node, graph);
   if (visited.has(node)) return [];
   visited.add(node);
-  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node))
+  if (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node)
+  )
     return [node];
   const bindings = ts.isPropertyAccessExpression(node)
     ? (graph.checker.getSymbolAtLocation(node.name)?.declarations ?? [])
     : declarations(node, graph.checker);
   return bindings.flatMap((declaration) =>
-    ts.isFunctionDeclaration(declaration)
+    ts.isFunctionDeclaration(declaration) || ts.isMethodDeclaration(declaration)
       ? [declaration]
-      : ts.isVariableDeclaration(declaration) && declaration.initializer
+      : (ts.isVariableDeclaration(declaration) || ts.isPropertyAssignment(declaration)) &&
+          declaration.initializer
         ? localFunctions(declaration.initializer, graph, visited)
         : [],
   );
@@ -990,6 +1079,7 @@ function retainedState(
     return declarations(node, graph.checker).some(
       (declaration) =>
         (ts.isVariableDeclaration(declaration) && next(declaration.initializer)) ||
+        (ts.isBindingElement(declaration) && next(bindingInitializer(declaration, graph))) ||
         (ts.isFunctionDeclaration(declaration) && next(declaration)),
     );
   if (ts.isObjectLiteralExpression(node))
@@ -1018,8 +1108,15 @@ function retainedState(
     walk(body, (reference) => {
       if (!ts.isIdentifier(reference)) return;
       for (const declaration of declarations(reference, graph.checker)) {
-        if (!ts.isVariableDeclaration(declaration) || inside(declaration, closure)) continue;
-        const initializer = declaration.initializer && unwrapped(declaration.initializer);
+        if (
+          (!ts.isVariableDeclaration(declaration) && !ts.isBindingElement(declaration)) ||
+          inside(declaration, closure)
+        )
+          continue;
+        const value = ts.isBindingElement(declaration)
+          ? bindingInitializer(declaration, graph)
+          : declaration.initializer;
+        const initializer = value && localInitializer(value, graph);
         if (
           mutableBinding(declaration) ||
           (initializer &&

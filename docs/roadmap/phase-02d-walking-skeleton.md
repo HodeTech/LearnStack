@@ -4754,11 +4754,12 @@ exact-head CI evidence.
 
 #### P02d-6 systematic-review decision package (2026-10-10)
 
-**Proposed; maintainer approval pending.** The two external reports at `ed6f81e`
-are review data, not new authority. Rechecks confirm guidance/status drift,
-ordinary static source-fence gaps, missing dirty/clean response controls and a
-second-bootstrap failure-classification gap. No accepted behavior is changed by
-this preparation record.
+**Maintainer response recorded — 2026-10-10.** The two external reports at
+`ed6f81e` are review data, not new authority. Rechecks confirm guidance/status
+drift, ordinary static source-fence gaps, missing dirty/clean response controls
+and a second-bootstrap failure-classification gap. The exact-response-owner
+design remains Proposed; the Open Graph and security maintenance parts below
+are separately approved.
 
 The existing G40 content-error HTTP 200/noindex and cursor-free canonical/noindex
 policies are accepted choices, not implementation drift. Google's
@@ -4774,25 +4775,25 @@ it does not hide anchor UUIDs from visitors. Scope/eligibility remains independe
 enforced. Encryption, MAC rotation or server-side cursor state would need a new
 decision and is not a correction to this PR.
 
-##### Decisions requested together
+##### Maintainer decisions (2026-10-10)
 
-1. **Second bootstrap:** approve proposed
-   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md). Actual
-   missing/denied admission remains 404; temporary RSC bootstrap failures use a
-   sanitized pre-shell neutral framework 500, with no Education read or tenant
-   theme. Middleware keeps real 404/429/503 and bounded Retry-After. Exact RSC
-   429/503 requires a larger response-owner design; it is not promised here.
-2. **Open Graph locale:** emit `language_TERRITORY` only when the admitted tag has
-   an explicit two-letter territory and no script/variant information would be
-   silently discarded. Omit unrepresentable locale/alternate properties rather
+1. **Second bootstrap — design requested; not accepted.** The maintainer did not
+   approve the neutral 500 proposal and requested a fuller response-owner design
+   preserving exact 429/503. Revise proposed
+   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) for review
+   before dependent implementation. No temporary failure contract changes yet.
+2. **Open Graph locale — approved.** Emit `language_TERRITORY` only when the
+   admitted tag has an explicit two-letter territory and no script/variant
+   information would be silently discarded. Omit unrepresentable locale/alternate properties rather
    than inventing a territory. `tr-TR` becomes `tr_TR`; `en`, `tr`, `zh-Hant` and
    numeric-region tags are omitted. Document language, route and hreflang keep
    their exact BCP-47 tags. The [protocol](https://ogp.me/) makes these properties
-   optional; omission can leave consumers applying their own default. Approval
-   adds this bounded G40 projection and qualifies Standards 08's blanket rule.
-3. **Security maintenance:** pin Next and eslint-config-next to 15.5.27, disable
-   the unused image optimizer, inspect/patch affected transitive versions within
-   compatible bounds, and re-prove native ingress and actual production HTML/RSC.
+   optional; omission can leave consumers applying their own default. This adds
+   the bounded G40 projection and qualifies Standards 08's blanket rule.
+3. **Security maintenance — approved.** Pin Next and eslint-config-next to
+   15.5.27, disable the unused image optimizer, inspect/patch affected transitive
+   versions within compatible bounds, and re-prove native ingress and actual
+   production HTML/RSC.
    The fresh audit reports 46 findings (2 critical, 28 high, 15 moderate, 1 low),
    not 46 reachable public flaws. The AVIF
    [advisory](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4) affects the current
@@ -4801,8 +4802,8 @@ decision and is not a correction to this PR.
    compatible 15.x backport. A Next bump alone does not clear transitive findings;
    record each remaining advisory's actual input path and maintenance disposition.
 
-The proposed ADR-0054 maintenance amendment, appended only after approval and
-passing replacement proofs, reads:
+The approved ADR-0054 maintenance note is appended only after passing replacement
+proofs. Its exact text is:
 
 > **Amendment 7 — Next security maintenance (2026-10-10).** The current verified
 > runtime pin is Next 15.5.27 with matching eslint-config-next. The signed raw
@@ -4822,12 +4823,15 @@ not establish air-gapped packaging support.
    formatter-path tests and applicable accessibility controls. Align decimal
    limit parsing and closed cursor-error classification with existing contracts.
    These corrections need no new behavior decision.
-2. After approval, implement ADR-0055 and the G40 Open Graph projection; inject
-   second-bootstrap faults through the actual production fixture. Preserve
-   provenance, read-only/RLS, request counts and the approved content-error policy.
-3. After maintenance-note approval, apply compatible security patches and close
-   unused image optimization; re-run affected full/native/real-API suites, audit,
-   formatting and local link/fragment checks. Record fresh exact-head PR CI.
+2. Implement the approved G40 Open Graph projection. Separately prepare the fuller
+   exact-bootstrap response-owner design; its implementation waits for approval.
+   The eventual approved design must prove second-bootstrap faults through the
+   actual production fixture without weakening provenance, read-only/RLS or the
+   admitted content-error policy.
+3. Apply the approved compatible security patches and close unused image
+   optimization; re-run affected full/native/real-API suites, audit, formatting
+   and local link/fragment checks. Record fresh exact-head PR CI. Append the
+   approved maintenance note only after its replacement proofs pass.
 
 Each group is committed and receives two fresh independent review rounds, with
 verified findings corrected before the next group. All work stays on development.
@@ -4838,8 +4842,9 @@ work. This package makes no new passing runtime or merge-readiness claim.
 
 ##### Remediation group 1 — existing-contract corrections
 
-**Implemented; round 1 findings corrected; round 2 pending — 2026-10-10.** No
-proposed decision above is implemented by this group. ADR-0055 remains Proposed.
+**Implemented; both review rounds complete; focused fix verification pending —
+2026-10-10.** No approval-gated decision above is implemented by this group.
+ADR-0055 remains Proposed.
 
 The Step 1 status and current i18n/theme carriers now match delivery. Skills use
 locale-bearing public folders, the shared resource loader, supported Next page
@@ -4903,6 +4908,16 @@ and two request-local clean cases pass afterward. The attribution control keeps
 a valid palette and checks the specific failure in both entitlement directions.
 Focused validation passes all 263 boundary cases and 36 response-helper cases;
 web typecheck passes. Neither review claims a Docker/full-suite/manual rerun.
+
+**Round 2 — fresh independent reviews of `ed6f81e..69b382a`.** GPT-6.1-sol
+(high) reviewed runtime/source boundaries; GPT-6-astra (high) reviewed proofs and
+documentation. The proof/documentation review approved. Two further bounded
+retention gaps were verified: resolved local object member factories and
+destructured closure captures. Seven additional dirty controls fail before the
+fix, while seven request-local or pure-value controls remain clean. The fix follows
+literal members and selected named/indexed binding values, without treating an
+unrelated sibling collection as a captured value. All 277 boundary cases and web
+typecheck pass. Focused independent verification of this final correction follows.
 
 ### P02d-1 decision pass (2026-09-14)
 

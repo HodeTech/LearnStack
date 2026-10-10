@@ -1182,6 +1182,34 @@ describe('remediation public representation lifetimes', () => {
     ],
     ['IIFE Map', 'const retained = (() => new Map())();'],
     [
+      'object method factory',
+      'const factories = { create() { const entries = new Map(); return (key) => entries.get(key); } }; const retained = factories.create();',
+    ],
+    [
+      'arrow property factory',
+      'const factories = { create: () => new Map() }; const retained = factories.create();',
+    ],
+    [
+      'aliased computed member factory',
+      'const factories = { create: () => new Map() }; const owner = factories; const key = "create"; const create = owner[key]; const retained = create();',
+    ],
+    [
+      'object binding closure capture',
+      'function create() { const { entries } = { entries: new Map() }; return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'array binding closure capture',
+      'function create() { const [entries] = [new Map()]; return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'nested aliased binding closure capture',
+      'function create() { const holder = { nested: { entries: new Map(), prefix: "ok" } }; const alias = holder; const { nested: { entries: values } } = alias; return (key) => values.get(key); } const retained = create();',
+    ],
+    [
+      'mutable primitive binding closure capture',
+      'function create() { let { value } = { value: "initial" }; return (next) => value = next; } const retained = create();',
+    ],
+    [
       'nested factory',
       'function inner() { return new Map(); } function outer() { return inner(); } const retained = outer();',
     ],
@@ -1284,6 +1312,34 @@ describe('remediation public representation lifetimes', () => {
     [
       'request factory result',
       'function create() { const entries = new Map(); return (key) => entries.get(key); } export function read() { return create(); }',
+    ],
+    [
+      'request object method factory',
+      'const factories = { create() { const entries = new Map(); return (key) => entries.get(key); } }; export function read() { return factories.create(); }',
+    ],
+    [
+      'request arrow property factory',
+      'const factories = { create: () => new Map() }; export function read() { return factories["create"](); }',
+    ],
+    [
+      'request binding closure capture',
+      'function create() { const { entries } = { entries: new Map() }; return (key) => entries.get(key); } export function read() { return create(); }',
+    ],
+    [
+      'pure object method factory',
+      'const factories = { create() { const entries = new Set([1, 2]); return entries.size; } }; const retained = factories.create();',
+    ],
+    [
+      'pure object binding beside collection',
+      'function create() { const { prefix } = { prefix: "ok", entries: new Map() }; return () => prefix; } const retained = create();',
+    ],
+    [
+      'pure array binding beside collection',
+      'function create() { const [prefix] = ["ok", new Map()]; return () => prefix; } const retained = create();',
+    ],
+    [
+      'pure nested aliased binding beside collection',
+      'function create() { const holder = { nested: { prefix: "ok", entries: new Map() } }; const alias = holder; const { nested: { prefix } } = alias; return () => prefix; } const retained = create();',
     ],
     [
       'request mutable value',
