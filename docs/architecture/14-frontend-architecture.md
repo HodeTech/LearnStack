@@ -41,10 +41,12 @@ theme, freshness and content-fault product proofs. The
 owns validation, completed reviews and passing manual accessibility closeout.
 
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is Proposed:
-it separates temporary second-bootstrap failures from missing admission. The
+it replaces the duplicate RSC bootstrap with one middleware-owned live read and
+an immutable same-request snapshot, preserving exact bootstrap 429/503 before
+rendering. That ownership, DTO handoff and call-count change await approval. The
 [review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
-also proposes Open Graph projection and a bounded Next security maintenance note.
-These proposals change no current Accepted contract before maintainer approval.
+separately records approval for Open Graph projection and bounded Next security
+maintenance. ADR-0055 changes no Accepted contract before its own approval.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.

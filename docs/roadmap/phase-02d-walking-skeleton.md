@@ -4779,13 +4779,20 @@ decision and is not a correction to this PR.
 
 1. **Second bootstrap — design requested; not accepted.** The maintainer did not
    approve the neutral 500 proposal and requested a fuller response-owner design
-   preserving exact 429/503. Revise proposed
-   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) for review
-   before dependent implementation. No temporary failure contract changes yet.
+   preserving exact 429/503. Revised proposed
+   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) selects one
+   live middleware-owned read and an immutable native request-local snapshot for
+   RSC. This removes the second-read failure and explicitly proposes two normal
+   document calls / three followed-missing calls in place of three/five. It also
+   proposes a closed Retry-After bound. These ownership, DTO handoff and accounting
+   changes await approval; no dependent code or current-contract change is made.
+   Independent design review rejected response-write interception as fragile;
+   the revised concrete ALS singleton design has no remaining architecture
+   finding, subject to actual Next 15.5.27 feasibility and isolation proofs.
 2. **Open Graph locale — approved.** Emit `language_TERRITORY` only when the
    admitted tag has an explicit two-letter territory and no script/variant
-   information would be silently discarded. Omit unrepresentable locale/alternate properties rather
-   than inventing a territory. `tr-TR` becomes `tr_TR`; `en`, `tr`, `zh-Hant` and
+   information would be silently discarded. Omit unrepresentable locale/alternate
+   properties rather than inventing a territory. `tr-TR` becomes `tr_TR`; `en`, `tr`, `zh-Hant` and
    numeric-region tags are omitted. Document language, route and hreflang keep
    their exact BCP-47 tags. The [protocol](https://ogp.me/) makes these properties
    optional; omission can leave consumers applying their own default. This adds
@@ -4842,7 +4849,7 @@ work. This package makes no new passing runtime or merge-readiness claim.
 
 ##### Remediation group 1 — existing-contract corrections
 
-**Implemented; both review rounds complete; focused fix verification pending —
+**Implemented; both review rounds and focused fix verification complete —
 2026-10-10.** No approval-gated decision above is implemented by this group.
 ADR-0055 remains Proposed.
 
@@ -4917,7 +4924,23 @@ destructured closure captures. Seven additional dirty controls fail before the
 fix, while seven request-local or pure-value controls remain clean. The fix follows
 literal members and selected named/indexed binding values, without treating an
 unrelated sibling collection as a captured value. All 277 boundary cases and web
-typecheck pass. Focused independent verification of this final correction follows.
+typecheck pass. Fresh independent verification of `69b382a..bdb88bb` approved
+without actionable findings and independently passed all 277 boundary cases.
+The verifier confirmed the seven dirty cases escape the prior analyzer and the
+selected-binding clean controls remain clean. This closes group 1.
+
+
+##### Remediation group 2 — approved Open Graph locale projection
+
+**Implementation in progress — 2026-10-10.** The approved G40 addendum above
+separates Open Graph's optional locale format from BCP-47 identity. Only canonical
+language plus an explicit two-letter territory is projected; script, variant,
+extension, bare-language and numeric-region tags are omitted. Eligible and enabled
+alternates keep their exact URLs and hreflang while unrepresentable Open Graph
+alternates are omitted. No additional API reads or territory inference is added.
+Unit projections and actual production-document checks cover both conversion and
+omission. Validation and two independent review rounds are recorded below after
+execution. ADR-0055 remains Proposed and has no dependent code in this group.
 
 ### P02d-1 decision pass (2026-09-14)
 
