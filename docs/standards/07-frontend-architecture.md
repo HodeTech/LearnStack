@@ -12,6 +12,8 @@ configured caller and dynamic rendering derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); native admission and
 redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.md);
+single-bootstrap ownership derives from
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md);
 page composition follows the
 [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
@@ -132,6 +134,32 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.
   encoding is allowed. Only the verified live host, accepted HTTPS port and local
   path select the destination. Membership-first precedence and redirect statuses
   remain those of the [entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix).
+
+## Request-Local Bootstrap Admission
+
+**ADR-0055 Accepted — 2026-10-10; replacement implementation pending.**
+Middleware owns one live site bootstrap and its exact neutral 404/429/503 before
+rendering. A native-created context binds the captured host/peer/method/signed
+target and request lifetime. Successful entry publishes one bounded, deeply
+immutable validated Site DTO; RSC re-verifies provenance and consumes that exact
+request's snapshot without another site call. No header DTO, context lookup,
+alternate holder or cross-request representation is permitted.
+
+Native finish/close/shutdown disposes the store once and cancels transport. Late
+work cannot publish or begin downstream reads; response finish does not prove all
+React work ended. Active-request context defects fail closed as internal lifecycle
+failures, not API 404. Actual pinned-Next security/lifecycle proofs are mandatory.
+Content eligibility remains a live API decision; changes after the sole bootstrap
+appear in the next request's site snapshot.
+
+The accepted replacement costs two API calls for a completed product document,
+one for a completed fixed status/scaffold document and three for a followed
+missing-detail chain. HEAD/RSC/prefetch and Flight fallback require separately
+proven counts. Visitor/peer limits remain API-call budgets. Until the
+[implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+is delivered, runtime retains its earlier duplicate-read three/five-call paths.
+[Standards 09](09-error-handling.md#public-page-status-and-recovery) owns refusal
+and bounded renderer Retry-After rules.
 
 ## Locale Resolution
 
@@ -262,8 +290,9 @@ and unavailable presentation use bounded fallbacks. Metadata shares the page's
 request-local content read: verified live host/local segments only, actual eligible
 alternate slugs, noindex pagination with a first-page canonical and no misleading
 resource alternates on errors. Full menus, media, preview and Studio remain
-Phase 06. Normal documents use three API calls; following a missing document's
-status redirect uses five total. No retry or shared DTO cache is added.
+Phase 06. The accepted replacement and current delivery boundary live in
+[Request-Local Bootstrap Admission](#request-local-bootstrap-admission); no retry
+or shared DTO cache is added.
 
 ### Public source fence scope
 

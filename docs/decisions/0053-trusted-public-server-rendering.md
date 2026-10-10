@@ -351,6 +351,25 @@ owns the final head, merge verification and CI evidence. Original acceptance
 metadata and prior amendments remain historical. This delivery note changes no
 decision; P02d-6 product pages and P02d-7 browser/demo/Lighthouse remain separate.
 
+### Amendment 9 — Single-bootstrap ownership supersession (2026-10-10)
+
+The maintainer accepted
+[ADR-0055](0055-public-renderer-bootstrap-failures.md). It replaces this record's
+duplicate middleware/RSC site-read contract with one live middleware bootstrap
+and an immutable validated snapshot bound to the native request lifetime. RSC
+re-verifies provenance before consuming that request's snapshot; it performs no
+second site read. Middleware owns exact bootstrap 404/429/503 before rendering.
+Normal product documents use two API calls; followed missing-detail chains use
+three. Content eligibility remains live at the API, and a new request reads a new
+site snapshot. API tenant authority, signed route identity, no-store transport,
+numeric quotas and content-error/missing-detail status policies are unchanged.
+
+This is bounded supersession navigation. The original body, metadata and earlier
+delivery notes remain historical. Acceptance delivers no implementation or
+passing production proof; the
+[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns execution and review evidence.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

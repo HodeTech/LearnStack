@@ -335,6 +335,25 @@ contract are unchanged. The unused image optimizer is disabled. P02d-6's
 owns the replacement native/production proofs and dependency triage; historical
 15.5.18 observations remain unchanged.
 
+### Amendment 8 — Renderer bootstrap and Retry-After qualification (2026-10-10)
+
+The maintainer accepted
+[ADR-0055](0055-public-renderer-bootstrap-failures.md). It selects the request-local
+bootstrap reuse left undelivered in this record's Context. Middleware performs one
+live site read and owns bootstrap refusal responses; RSC consumes the immutable
+same-request snapshot. Implementation and production proofs remain pending under
+the [three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10).
+
+ADR-0055 qualifies only the renderer forwarding boundary of
+[Anonymous accounting](#anonymous-accounting)'s instruction to use the selected
+refusal's Retry-After unchanged. The renderer forwards an eligible parsed integer
+from zero through sixty seconds unchanged for its closed supported 429/503 cases;
+it omits malformed, negative, HTTP-date or out-of-range values without clamping or
+inventing a duration. API refusal selection, original API metadata, visitor/peer
+accounting and numeric quotas remain unchanged. This is bounded supersession
+navigation, not a correction; original metadata, body and earlier amendments stay
+historical. Acceptance is not runtime delivery evidence.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

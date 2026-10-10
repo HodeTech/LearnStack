@@ -6,7 +6,9 @@
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
 (accepted replacement proofs implemented),
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
-(P02d-6 proofs implemented; manual smoke recorded). The catalogue grows as
+(P02d-6 proofs implemented; manual smoke recorded),
+[ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
+(replacement admission proofs Registered). The catalogue grows as
 subsequent ADRs and phases land their tests; per-test ownership stays with
 the originating ADR / standard.
 
@@ -4326,6 +4328,99 @@ owns execution, review and manual evidence.
   Emitted viewport metadata permits zoom, tested by the shared production
   assertion controls; this does not prove browser zoom or WCAG conformance.
 - **Phase:** 02d (P02d-6).
+
+## P02d-6 request-local bootstrap admission controls
+
+**Accepted — 2026-10-10; implementation pending.** ADR-0055 registers the five
+rules below before dependent code. Planned files are ownership commitments, not
+claims that new tests exist or pass. Existing P5/P6 controls remain mandatory.
+The [implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns delivery and two independent review rounds per step.
+
+### `Public_Admission_Uses_Only_The_Active_Native_Context`
+
+- **Asserts:** the native-created, versioned server-only ALS holder binds a fresh
+  request to its captured host/peer/method/signed target. Middleware and RSC share
+  that actual holder/store through the pinned production Next build; missing,
+  duplicated, disposed or mismatched context fails closed without header lookup,
+  another site read or an alternate holder. Planted failures and clean controls
+  exercise both facade admission and actual framework propagation.
+- **Source:** ADR-0055; accepted P02d-6 G40 supersession.
+- **Type:** frontend runtime + actual production Next/API. **Kind:** behavioural.
+- **Status:** **Registered** — planned
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts` and existing
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Bootstrap_Refusals_Preserve_Exact_Http_Responses`
+
+- **Asserts:** middleware owns first-wire bootstrap 404/429/503, no-store and
+  bodyless HEAD. Only supported 429/503 cases forward parsed Retry-After from
+  zero through sixty unchanged; malformed/date/negative/out-of-range values are
+  omitted. Timeout, invalid/oversized responses and configuration/context faults
+  are neutral 503. Failed bootstrap permits no Education operation, newly emitted
+  tenant theme, private marker or raw diagnostic. Broken refusal and containment
+  controls must fail beside positive controls.
+- **Source:** ADR-0055; ADR-0054 Amendment 8.
+- **Type:** frontend mapping + actual production HTTP. **Kind:** behavioural.
+- **Status:** **Registered** — planned extensions to
+  `frontend/apps/web/src/middleware.test.ts`,
+  `frontend/apps/web/src/server/public-request.test.ts` and existing
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 2–3).
+
+### `Public_Admission_Reuses_One_Immutable_Snapshot_Per_Request`
+
+- **Asserts:** one bounded, deeply immutable validated Site DTO is published only
+  after successful middleware entry and shared by metadata/layout/page/UI/error
+  consumers without another bootstrap. Completed product/status documents cost
+  two/one calls; followed missing-detail GET costs three. Identical and differing
+  host/locale requests overlap without shared values; the next request reads live
+  state. HTML/RSC/prefetch and Flight-to-document fallback have separately proven
+  counts, while content 200/noindex and missing 307-to-404 remain unchanged.
+- **Source:** ADR-0055; accepted P02d-6 G40 supersession.
+- **Type:** frontend snapshot/memo + production rendering. **Kind:** behavioural.
+- **Status:** **Registered** — planned
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts`, extensions to existing
+  `frontend/apps/web/src/server/public-request.test.ts` and
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Admission_Ends_With_The_Native_Request`
+
+- **Asserts:** finish, early close and shutdown close each store once, clear its
+  snapshot/listeners and cancel bootstrap/content transport. Publication and
+  downstream work refuse late continuations, including valid HEAD work after
+  response finish, without exposing the context/DTO in diagnostics. Keep-alive
+  and HMR do not reuse snapshots. Active-context/snapshot observations return to
+  zero; this does not claim all React work or captured local references ended.
+- **Source:** ADR-0055.
+- **Type:** runtime lifecycle + native production fixture. **Kind:** behavioural.
+- **Status:** **Registered** — planned
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts` and extensions to
+  existing `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
+  `frontend/apps/web/scripts/verify-ingress.mjs`.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Admission_Preserves_Production_Ingress_Boundaries`
+
+- **Asserts:** actual product/status/scaffold HTML/RSC, navigation and error paths
+  preserve provenance, API admission, READ ONLY/RLS and server-only containment.
+  Invalid host/locale/stamp, stock-launch bypass and planted broken context are
+  refused. Native method/upgrade, exempt asset/health fallback, no build bootstrap
+  and development HMR controls remain effective. No header DTO carrier, shared
+  representation cache, fallback context or private client asset is introduced.
+- **Source:** ADR-0055; ADR-0052/0053/0054.
+- **Type:** source/build + actual production Next/API/PostgreSQL. **Kind:**
+  structural + behavioural.
+- **Status:** **Registered** — planned extensions to existing
+  `frontend/apps/web/src/test/public-boundaries.test.ts`,
+  `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
+  `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
 
 ## References
 

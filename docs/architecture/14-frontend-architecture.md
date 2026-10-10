@@ -40,13 +40,17 @@ theme, freshness and content-fault product proofs. The
 [delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 owns validation, completed reviews and passing manual accessibility closeout.
 
-[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is Proposed:
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is
+**Accepted — 2026-10-10; replacement implementation pending**:
 it replaces the duplicate RSC bootstrap with one middleware-owned live read and
 an immutable same-request snapshot, preserving exact bootstrap 429/503 before
-rendering. That ownership, DTO handoff and call-count change await approval. The
+rendering. The
+[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns implementation and two independent review rounds per step. The
 [review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
 separately records approval for Open Graph projection and bounded Next security
-maintenance. ADR-0055 changes no Accepted contract before its own approval.
+maintenance. The isolated context-propagation experiment establishes feasibility;
+it is not production security/lifecycle proof or runtime delivery.
 
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
@@ -210,8 +214,10 @@ The three locale-prefixed catalog/course/lesson routes use minimal tenant chrome
 ordinary same-host relative anchors and no automatic prefetch. Both opaque
 pagination surfaces parse owned parameters only from the signed raw target. A new
 document re-reads API state; metadata/layout/page share request-local admission and
-content loaders. Normal documents cost three API calls; a followed missing-resource
-redirect costs five. No retries or shared validated-DTO cache are added.
+content loaders. ADR-0055 accepts one live middleware bootstrap and a native
+same-request immutable snapshot: two API calls per completed product document and
+three per followed missing-detail chain. Runtime retains its earlier three/five
+calls until the replacement is delivered. No retry or shared DTO cache is added.
 
 Missing/hidden resources return local **307** to the same host's fixed
 `/{locale}/status/not-found`, followed by a branded **404** document; the browser

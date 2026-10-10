@@ -2,18 +2,18 @@
 
 ## Status
 
-Proposed — 2026-10-10. Maintainer approval is pending.
+Accepted — 2026-10-10. The maintainer approved the revised decision after the
+isolated Next 15.5.27 context-propagation experiment and its two review rounds.
 
 **Date:** 2026-10-10
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
 This replaces the unaccepted neutral-500 and native-response-gate proposals.
-The maintainer must approve the single live read, request-local DTO handoff and
-changed counts before code. Accepted decisions/history remain unchanged; separate
-Open Graph/security-update approval does not accept this admission design.
-Keep this record Proposed until the Next 15.5.27 context-propagation feasibility
-proof passes and the maintainer approves the revised decision. An isolated
-feasibility experiment does not authorize production implementation.
+Approval accepts the single live read, request-local DTO handoff, revised counts
+and bounded renderer Retry-After policy. It is separate from the earlier Open
+Graph/security approvals. The isolated experiment establishes feasibility only;
+production implementation, its security/lifecycle proofs and both review rounds
+per step remain pending. The decision-only acceptance commit precedes that code.
 
 ## Decision Drivers
 
@@ -29,9 +29,10 @@ feasibility experiment does not authorize production implementation.
 ## Considered Options
 
 1. **One live middleware bootstrap with a request-local validated snapshot**
-   (recommended candidate). Middleware already owns a `NextResponse` before RSC.
+   (chosen). Middleware already owns a `NextResponse` before RSC.
    RSC re-verifies provenance and consumes only that incoming request's snapshot.
-   Shared runtime/context propagation remains a mandatory feasibility gate.
+   Shared runtime/context propagation is supported by the isolated feasibility
+   experiment; actual production integration remains a mandatory proof gate.
 2. **Native response gate around a second RSC read** (rejected). Intercepting
    commitment, early hints, compression, backpressure and terminal stream behavior
    adds a fragile version-sensitive response adapter to preserve a duplicate read.
@@ -39,7 +40,7 @@ feasibility experiment does not authorize production implementation.
    listener can emit exact refusals before delegation, but must acquire configured
    transport/SDK build support and route/locale/redirect ownership currently in
    middleware. It still needs a validated request-local handoff to RSC. Prefer this
-   only through a separate concrete decision if the recommended boundary fails.
+   only through a separate concrete decision if the chosen boundary fails.
 4. **RSC exceptions or error components** (rejected). They cannot promise arbitrary
    429/503 and Retry-After; framework error rendering can already have committed 200.
 5. **Extra preflight or two serial native reads** (rejected). Another read consumes
@@ -54,8 +55,9 @@ HTTP response owner. After verified successful admission, middleware publishes a
 bounded, immutable validated site snapshot into a native-created request-local
 context. RSC independently re-verifies provenance and consumes that exact request's
 snapshot without another site call. Middleware emits bootstrap 404/429/503 before
-RSC starts. This proposed replacement changes the accepted duplicate-read and
-request-count contracts and requires approval plus production feasibility proof.
+RSC starts. This bounded replacement supersedes the duplicate-read and request-count
+contracts in ADR-0053, ADR-0027's admission-loader execution contract and P02d-6
+G40, and qualifies ADR-0054's renderer Retry-After forwarding boundary only.
 
 ### Native context and middleware admission
 
@@ -158,9 +160,9 @@ One renderer sanitizer accepts optional parsed Retry-After integer delta-seconds
 **0 through 60 inclusive**, only on 429/503 from the closed supported rate-limit/
 unavailable error cases. Preserve eligible values; omit malformed, HTTP-date,
 negative and out-of-range values without clamping or inventing a retry duration.
-The SDK's current safe-integer parser alone does not implement this proposed bound.
+The SDK's current safe-integer parser alone does not implement this accepted bound.
 
-If accepted, this qualifies ADR-0054's
+This qualifies ADR-0054's
 [Anonymous accounting](0054-bounded-public-renderer-admission.md#anonymous-accounting)
 instruction to preserve the selected refusal's Retry-After unchanged at the
 renderer forwarding boundary only: forward an eligible value unchanged, otherwise
@@ -186,7 +188,7 @@ defect and cannot change the already completed HTTP response.
 Native startup installs the sole ALS holder as a versioned, non-enumerable
 `globalThis[Symbol.for('learnstack.public-admission.v1')]`. Server-only facades
 retrieve and validate that instance; bundles never create a fallback. Only native
-ingress calls `run()` with a fresh store. This is a same-process Node candidate;
+ingress calls `run()` with a fresh store. This is a same-process Node contract;
 workers, Edge or serverless need a new decision. Prove actual singleton/context
 reuse through middleware, RSC and error rendering on Next 15.5.27. Missing context
 fails closed; no header/cache/extra-read fallback or Next API guarantee is implied.
@@ -206,7 +208,7 @@ production upgrade closure and HMR rules; HMR must not reuse old snapshots.
 At `69b382a`, middleware discards its site read; RSC reads again and collapses
 failures to `null`, which `public-resource.ts` turns into `notFound()`. G40 spends
 three calls on a normal document and five on a followed missing document. This
-proposal replaces that ownership/count choice instead of intercepting streaming.
+decision replaces that ownership/count choice instead of intercepting streaming.
 
 This is the request-local bootstrap reuse explicitly left undelivered by
 [ADR-0054's Context](0054-bounded-public-renderer-admission.md#context).
@@ -244,7 +246,8 @@ also verify neutral diagnostics during this path.
 This establishes the same-process propagation premise only. Actual provenance,
 route binding, API/RLS, call accounting, abort/shutdown, keep-alive, HMR and browser
 navigation remain production proof obligations. The experiment does not accept
-this decision or satisfy those obligations. Maintainer approval remains pending.
+this decision or satisfy those obligations. At the experiment's completion,
+maintainer approval remained pending; Status records the subsequent acceptance.
 
 ## Consequences
 
@@ -257,7 +260,7 @@ this decision or satisfy those obligations. Maintainer approval remains pending.
 
 ## Implementation Notes
 
-P02d-6 remediation owns the proposed replacement of G40's duplicate RSC bootstrap,
+P02d-6 remediation owns the accepted replacement of G40's duplicate RSC bootstrap,
 response ownership and three/five-call contract. Approval explicitly accepts the
 request-local DTO handoff and two/three-call replacement. Record bounded dated
 supersession/navigation in ADR-0053, ADR-0027 and the G40/current guidance, plus
@@ -272,12 +275,19 @@ bootstrap needs its own ownership/build design.
 
 ## Architecture Tests
 
-These are mandatory obligations, not passing-test or Implemented-catalogue claims.
-At acceptance, register canonical rule names and their owning test paths as
-Registered in the
-[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md)
-before dependent production code. Mark a rule Implemented only after its
-executable proof and planted failing/passing controls pass:
+The acceptance commit registers the following canonical rules and planned owning
+test paths in the
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md#p02d-6-request-local-bootstrap-admission-controls):
+
+- `Public_Admission_Uses_Only_The_Active_Native_Context`
+- `Public_Bootstrap_Refusals_Preserve_Exact_Http_Responses`
+- `Public_Admission_Reuses_One_Immutable_Snapshot_Per_Request`
+- `Public_Admission_Ends_With_The_Native_Request`
+- `Public_Admission_Preserves_Production_Ingress_Boundaries`
+
+All five are Registered, not passing-test or Implemented claims. Mark a rule
+Implemented only after its executable proof and planted failing/passing controls
+pass. Together they own these mandatory obligations:
 
 - Actual Next 15.5.27 production context propagation and same-request snapshot reuse;
   missing, duplicated, disposed or mismatched context fails closed before consumers.

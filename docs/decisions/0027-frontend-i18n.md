@@ -321,6 +321,22 @@ This delivery note changes no accepted decision and claims no full WCAG audit,
 Arabic screen-reader check or zoom-conformance result. P02d-7 still owns the
 browser demo/Lighthouse and Phase 06 owns full Playwright/axe expansion.
 
+### Amendment 4 — Request-local bootstrap supersession (2026-10-10)
+
+The maintainer accepted
+[ADR-0055](0055-public-renderer-bootstrap-failures.md). It replaces only this
+record's admission-loader execution contract: middleware performs the sole live
+site bootstrap, then publishes an immutable validated snapshot into its native
+request context. The shared admission loader re-verifies provenance and consumes
+that same request's snapshot without a second `getSite()` call. Signed-route
+locale selection, enabled-locale checks, UI fallback and catalogue ownership are
+unchanged. The original acceptance metadata, body and prior amendments remain
+historical; this is bounded supersession navigation, not a correction.
+
+Acceptance delivers no runtime implementation or passing production proof. The
+[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns implementation, two independent review rounds per step and delivery status.
+
 ## References
 
 - [ADR-0008 — Localization Schema](0008-localization-schema.md)

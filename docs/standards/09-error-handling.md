@@ -6,6 +6,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+Bootstrap response ownership and renderer Retry-After qualification derive from
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -450,12 +452,30 @@ original URL. A fresh bootstrap refusal remains neutral.
 Known content-call failures are translated **HTTP 200 noindex** page states:
 invalid cursor has a relative reset link, rate limiting has a retry-later state,
 and transport/invalid-response/unavailable or unknown outcomes have the bounded
-unavailable state. They do not claim HTTP 400/429/503. Bootstrap retains its real
-404/429/503 and bounded Retry-After. Unexpected framework failures retain
-pre-stream 500/post-stream 200 behavior; `error.tsx` cannot choose arbitrary status.
+unavailable state. They do not claim HTTP 400/429/503. Unexpected framework failures
+retain pre-stream 500/post-stream 200 behavior; `error.tsx` cannot choose arbitrary
+status.
 Plain same-host relative anchors trigger fresh document requests. Admission
 completes before loading boundaries flush; [Standards 07](07-frontend-architecture.md#routing)
 owns placement and the shared request-local loader.
+
+**ADR-0055 Accepted — 2026-10-10; replacement implementation pending.**
+Middleware owns the sole live bootstrap and emits neutral 404 for invalid entry
+or API 404, 429 for valid API 429 and 503 for other site/transport/configuration
+failures. Responses are no-store with fixed plain-text copy and bodyless HEAD;
+failed bootstrap permits no Education operation or newly emitted tenant theme.
+RSC consumes only the validated same-request snapshot. An active-request context
+defect is a sanitized lifecycle failure, not API 404 or another read. Completion
+refusal cannot rewrite an already completed response.
+
+Forward optional parsed Retry-After only for closed supported 429/503 error cases,
+as integer delta-seconds from zero through sixty inclusive. Preserve eligible
+values; omit malformed/date/negative/out-of-range values without clamping or
+inventing a retry. This qualifies renderer forwarding only; the API's selected
+refusal metadata and accounting remain unchanged. The
+[implementation plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns production proofs and review status. Earlier duplicate-read behavior remains
+the runtime baseline until that replacement is delivered.
 
 ### User-Facing Copy
 

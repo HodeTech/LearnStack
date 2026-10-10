@@ -5168,6 +5168,74 @@ matrix and active/late distinction, and approves without findings. Both reviews
 inspect evidence rather than run another build. The root's separate replay passes
 the same matrix and both negative controls. No review constitutes ADR acceptance.
 
+##### ADR-0055 acceptance and implementation plan (2026-10-10)
+
+**Accepted — 2026-10-10; implementation not yet delivered.** After the isolated
+Next 15.5.27 feasibility experiment and two independent feasibility reviews, the
+maintainer explicitly approves revised
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) and dependent
+implementation. The earlier draft/review/feasibility notes record their own
+pending-approval boundaries; this dated acceptance supersedes those current-status
+readings without rewriting them. The decision-only acceptance commit precedes
+production changes. All work stays on development.
+
+**Bounded G40 supersession.** The original G40 acceptance and its three/five-call
+delivery remain historical. ADR-0055 replaces only duplicate bootstrap ownership,
+request-local snapshot handoff and call accounting: middleware owns one live site
+read and exact neutral 404/429/503; RSC re-verifies provenance and consumes the
+immutable snapshot bound to that native request. A completed product document
+costs two API calls, a fixed status/scaffold document one, and a followed missing
+detail three. Actual HEAD/RSC/prefetch and Flight fallback counts require separate
+production proof. Changes after bootstrap appear in the next request's site value;
+content eligibility still runs live at the API.
+
+Renderer Retry-After forwarding accepts only eligible parsed integer zero-to-sixty
+delta-seconds on supported 429/503 cases. Ineligible values are omitted without
+clamping or invention. API refusal selection/metadata, numeric quotas, content
+HTTP 200/noindex, cursor SEO and the local missing-detail 307-to-404 chain remain
+unchanged. ADR-0053/0027/0054 carry dated bounded supersession navigation.
+
+Five canonical rules are Registered before code in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#p02d-6-request-local-bootstrap-admission-controls):
+active native context, exact bootstrap HTTP responses, one immutable per-request
+snapshot, native lifecycle completion and preserved production ingress boundaries.
+Registered status is a commitment, not an executable or passing-test claim.
+
+###### Implementation and review sequence
+
+1. **Native context, facade and lifecycle units.** Add the sole versioned native
+   ALS holder and server-only facade, binding verified host/peer/method/target to a
+   fresh pending/ready/closed request store. Publish a bounded deeply immutable
+   snapshot only once; cancel/clear exactly once on finish/close/shutdown. Unit
+   controls cover missing/duplicate/mismatched context, abort, late publication,
+   deep immutability and overlapping identical requests. Extend source fences only
+   for this explicit owner/facade boundary. Commit, run fresh independent review
+   round 1, verify/fix/commit findings, then use new reviewers for round 2 and
+   verify/fix/commit its findings.
+2. **Middleware publication and RSC consumption.** Middleware owns one bootstrap,
+   bounded Retry-After and refusal/redirect terminal states; RSC/resource/i18n
+   consumers use only the verified ready snapshot and native cancellation signal.
+   Remove the second site read without changing locale authority or content-state
+   policy. Add mapping and fault controls, update affected unit expectations, and
+   commit. Complete the same two fresh independent review/fix rounds before Step 3.
+3. **Actual production proof and closeout.** Exercise the shipped native launcher,
+   pinned Next and real API/PostgreSQL as `learnstack_app`: first-wire refusals,
+   zero Education/theme after failure, exact counts, identical/differing concurrent
+   host/locale requests, HTML/RSC/prefetch/status/scaffolds, next-request freshness,
+   keep-alive, abort/shutdown/HMR and valid HEAD late work with neutral diagnostics.
+   Retain stock-launch, method/upgrade, exempt asset/health, no build bootstrap and
+   private-value containment controls. Plant failures beside clean controls. Run
+   affected full suites/build/lint/typecheck, catalogue and local link/fragment
+   checks; commit and complete both fresh independent review/fix rounds. Only then
+   mark proven rules Implemented, update delivery navigation and the existing PR,
+   and verify fresh exact-head CI. Merge remains a maintainer action.
+
+No step or review round is complete at acceptance. Missing propagation or lifecycle
+proof cannot be replaced by another bootstrap, DTO headers, shared data or an
+unapproved response owner; a required architectural change returns for a new
+decision. P02d-7 and Phase 06/11 retain their named browser/accessibility/hardening
+work. No new manual browser/VoiceOver result is implied by this approval.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
