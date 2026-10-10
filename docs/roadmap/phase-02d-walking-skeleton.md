@@ -4701,6 +4701,51 @@ Phase 02d exit checks. Its decision pass must close G20/G33/G38/G44/G45's remain
 parts before implementation. Full Playwright/axe and the expanded renderer/Studio
 remain Phase 06; no later packet is delivered by this closeout.
 
+#### P02d-6 external-review remediation (2026-10-10)
+
+The external review of PR #27 at `47f9c12` approves without Blocker/Major
+findings. Its three Minors and three documentation comments are rechecked against
+the current tree; all remain valid and receive bounded fixes:
+
+- The cross-tenant course probe derives a foreign-only published slug and locale
+  from `SeedData`, not a second JavaScript literal. The other host's asserted
+  catalog keeps a visible control for that course. C# independently checks the
+  refused API path, locale and 404; the shared slug cannot serve this purpose
+  because it exists in both tenants. Normal/missing course and hidden lesson
+  checkpoints also assert API status. Next's 307/Location/no-store/404 chain
+  remains owned by the Node artifact; the API observer does not observe Next
+  response headers. The broad 1–59 check remains the visitor-budget ceiling;
+  existing exact per-mode counts and checkpoints remain unchanged.
+- The malformed-theme proof removes its redundant root-style-attribute check.
+  Its existing scan still rejects four-color token declarations in any style
+  element or inline style, and checks the complete compiled default palette. These HTML
+  proofs inspect emitted CSS; they do not measure a browser's computed cascade.
+  The earlier contrast numbers remain calculated palette ratios.
+- Missing content without an admitted locale fails through `notFound()` rather
+  than constructing `/null/status/not-found`; a defensive unit control covers
+  the otherwise unreachable inconsistent request.
+- Error Handling records the delivered mapping and links Steps 1–3. README
+  inventory distinguishes the public pages from Studio/portal scaffolds. All
+  five P6 rule headings use H3 under H2; the corpus reader admits H3/H4 with
+  mixed-level planted controls so no rule falls out of the catalogue census.
+- Failure containment uses each scenario's actual private code, retaining the
+  common private-value/message-key canaries. The ICU parser suggestion does not
+  require a dependency change: the lockfile uses 3.5.18 for both the direct
+  structural parser and `use-intl`'s runtime `intl-messageformat` dependency.
+  Build-time `icu-minify` uses 3.5.21 separately; existing actual formatting and
+  production-build controls remain mandatory. No general parser-parity claim is
+  introduced.
+
+Validation passes 1,066 guarded frontend cases (1,006 web, 60 SDK), lint and
+typecheck; 198 Release architecture cases; and all 20 real renderer/cleanup
+integration cases, including all six production modes. All report zero failures
+and skips/todos where applicable. The H4-only parser mutation fails the mixed
+heading control; the restored parser passes the full architecture suite. Format
+verification and diff checks pass. A local audit of the four changed Markdown
+files checks 1,017 relative links and 353 fragments without a missing target.
+No broad backend-suite rerun is claimed by these focused local checks. Fresh
+remediation reviews and exact-head PR CI follow the commit.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

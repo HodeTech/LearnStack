@@ -199,11 +199,11 @@ public sealed partial class CorpusConsistencyTests
 
             - **Status:** **Implemented** — `SomeTests.cs`.
 
-            #### `A_Rule_Whose_Entry_Names_The_Class`
+            ### `A_Rule_Whose_Entry_Names_The_Class`
 
             - **Status:** **Implemented** (Packet 6 step 4, `SomeTests`).
 
-            #### `A_Rule_That_Does_Not`
+            ### `A_Rule_That_Does_Not`
 
             - **Status:** **Registered.**
 
@@ -211,15 +211,16 @@ public sealed partial class CorpusConsistencyTests
 
             - **Status:** **Implemented** (`LearnStack.Tests.Integration`, `OtherTests`).
 
-            #### `An-Analyzer-Rule`
+            ### `An-Analyzer-Rule`
 
             - **Status:** **Implemented** — `SomeTests.cs`.
             """).Should().Equal([
                 "A_Rule_That_Runs",
                 "A_Rule_Whose_Entry_Names_The_Class",
                 "An-Analyzer-Rule",
-            ], "a hyphen in a rule name is a rule name: excluding it dropped the `LS0001` "
-             + "analyzer's entry from every count here, prose and recount alike");
+            ], "both third- and fourth-level rule headings count; a hyphen in a rule name "
+             + "is a rule name: excluding it dropped the `LS0001` analyzer's entry from "
+             + "every count here, prose and recount alike");
 
         // The class reader the orphan check rests on: a `…Tests` token in backticks, with or
         // without its extension, and nothing else.
@@ -424,7 +425,7 @@ public sealed partial class CorpusConsistencyTests
     // name is `LearnStackException-DomainExceptionThrow`. Excluding it dropped that entry from
     // every count here, and because the prose and the recount read through this same pattern
     // they agreed with each other while both were short by one.
-    [GeneratedRegex(@"#### `(?<rule>[A-Za-z0-9_\-]+)`(?<status>.*?)(?=\n#{2,4} |\z)", RegexOptions.Singleline)]
+    [GeneratedRegex(@"^#{3,4} `(?<rule>[A-Za-z0-9_\-]+)`(?<status>.*?)(?=\n#{2,4} |\z)", RegexOptions.Singleline | RegexOptions.Multiline)]
     private static partial Regex CatalogueEntry();
 
     // Three spellings, because the catalogue writes all three: the bare class, the file with

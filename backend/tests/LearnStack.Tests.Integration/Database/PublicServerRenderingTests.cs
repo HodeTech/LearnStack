@@ -86,6 +86,12 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
         var sharedSlug = firstTranslation.Slug;
         var secondCourse = SeedData.Yoga.Curriculum!.Courses.Single(course =>
             course.Translations.Any(translation => translation.Locale == locale && translation.Slug == sharedSlug));
+        var firstSlugs = SeedData.English.Curriculum.Courses.SelectMany(course => course.Translations)
+            .Where(translation => translation.Locale == locale).Select(translation => translation.Slug).ToHashSet();
+        var foreignCourse = SeedData.Yoga.Curriculum.Courses
+            .Where(course => course.Status == "Published" && (course.OrganizationId is null
+                || (SeedData.Yoga.MapHostToDefaultOrganization && course.OrganizationId == SeedData.Yoga.DefaultOrganization.OrganizationId)))
+            .SelectMany(course => course.Translations).First(translation => translation.Locale == locale && !firstSlugs.Contains(translation.Slug));
         var tenants = new[]
         {
             TenantInput(SeedData.English, firstCourse, locale),
@@ -144,6 +150,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 secret,
                 locale,
                 courseSlug = sharedSlug,
+                foreignCourse = new { foreignCourse.Slug, foreignCourse.Title },
                 traceparent = SuppliedTrace,
                 tenants,
                 product = productInputs,
@@ -208,6 +215,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         foundationRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
                         foundationRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
                             .Locale.Should().Be(locale, "UI configuration cannot change the exact content API locale");
+                        foundationRequests.Single(request => request.Path != "/api/v1/public/site").Status.Should()
+                            .Be(checkpoint == "foundation-missing" ? 404 : 200);
                         foundationPosition = observed.Requests.Length;
                         break;
                     case "foundation-catalog-english":
@@ -227,6 +236,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         productRequests.Should().HaveCount(3, "an unchanged page uses one shared content operation");
                         productRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(2);
                         productRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
+                        productRequests.Single(request => request.Path != "/api/v1/public/site").Status.Should().Be(200);
                         productRequests.Single(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal))
                             .Locale.Should().Be(checkpoint switch
                             {
@@ -242,6 +252,10 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         crossTenantRequests.Should().HaveCount(5, "missing cross-tenant detail and followed status use the approved redirect chain");
                         crossTenantRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
                         crossTenantRequests.Count(request => request.Path.StartsWith("/api/v1/public/courses", StringComparison.Ordinal)).Should().Be(1);
+                        var hiddenCourseRequest = crossTenantRequests.Single(request => request.Path != "/api/v1/public/site");
+                        hiddenCourseRequest.Path.Should().Be($"/api/v1/public/courses/{foreignCourse.Slug}");
+                        hiddenCourseRequest.Locale.Should().Be(locale);
+                        hiddenCourseRequest.Status.Should().Be(404, "the seeded foreign course exists but is hidden on this host");
                         foundationPosition = observed.Requests.Length;
                         break;
                     case "foundation-status":
@@ -290,6 +304,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                         hiddenLessonRequests.Count(request => request.Path == "/api/v1/public/site").Should().Be(4);
                         hiddenLessonRequests.Single(request => request.Path != "/api/v1/public/site").Locale.Should()
                             .Be(checkpoint == "presentation-protected" ? SeedData.Yoga.Curriculum!.Locales.Single(row => row.IsDefault).Locale : locale);
+                        hiddenLessonRequests.Single(request => request.Path != "/api/v1/public/site").Status.Should().Be(404);
                         foundationPosition = observed.Requests.Length;
                         break;
                     case "presentation-publish-revision":

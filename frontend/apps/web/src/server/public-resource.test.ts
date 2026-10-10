@@ -339,4 +339,13 @@ describe('consumer admission and missing-content navigation', () => {
     expect(navigation.redirect).not.toHaveBeenCalled();
     expect(navigation.notFound).not.toHaveBeenCalled();
   });
+
+  it('refuses a defensive missing-content outcome without an admitted locale', async () => {
+    // Content routes normally carry a locale; a broken caller must not redirect to /null/.
+    getRequest.mockResolvedValue({ ...request('/tr-TR/courses/private-slug'), locale: null });
+    client.getCourse.mockResolvedValue(apiError(404, { code: 'not_found' }));
+    await expect(requirePublicResource()).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(navigation.notFound).toHaveBeenCalledOnce();
+    expect(navigation.redirect).not.toHaveBeenCalled();
+  });
 });

@@ -84,7 +84,7 @@ frontend UI copy. Backend code never returns raw English.
 consumer resolving a backend message reads `Message.Key` — two wire surfaces in
 sync by construction. This does not claim a shipped frontend message catalogue.
 See [Frontend Error Handling](#mapping-problem-details--ui) for current SDK
-normalization and the Accepted, implementation-pending public UI mapping. Per
+normalization and the public UI mapping implemented by P02d-6 Steps 1–3. Per
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
 [ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -431,7 +431,11 @@ specifies P02d-6's closed page-outcome mapping to owned UI keys, with unknown
 outcomes mapped to the bounded unavailable state. It does not authorize arbitrary
 Problem Details keys, titles, field errors or parameters as UI lookup identifiers
 or visible copy. This public-page mapping is Accepted — 2026-10-09;
-implementation remains pending.
+P02d-6 Steps 1–3 implement it, with evidence in the
+[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation),
+[Step 2](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
+and [Step 3](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+delivery records.
 
 ### Public Page Status and Recovery
 

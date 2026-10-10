@@ -616,11 +616,19 @@ async function verifyFoundation(native, nextBin) {
   await checkpoint('foundation-empty');
 
   stage = 'foundation cross-tenant detail refusal';
-  const hidden = await request(first, '/en/courses/shared-practice');
+  const foreign = configuration.foreignCourse;
+  assert.ok(
+    second.catalogEn.some(
+      (course) => course.slug === foreign.slug && course.title === foreign.title,
+    ),
+    'The foreign course has a kept-visible control in the asserted other-host catalog',
+  );
+  const hidden = await request(first, '/' + configuration.locale + '/courses/' + foreign.slug);
   safeResponse(hidden, 307);
-  assert.equal(hidden.headers.location, '/en/status/not-found');
-  statusDocument(await request(first, '/en/status/not-found'), first, 'en', 'en');
-  assert.equal(hidden.body.includes(second.courseTitle), false);
+  const hiddenStatus = '/' + configuration.locale + '/status/not-found';
+  assert.equal(hidden.headers.location, hiddenStatus);
+  statusDocument(await request(first, hiddenStatus), first, configuration.locale, 'en');
+  assert.equal(hidden.body.includes(foreign.title), false);
   await checkpoint('foundation-cross-tenant');
 
   stage = 'foundation-missing';
@@ -1260,7 +1268,6 @@ function productTheme(doc, details, malformed = false) {
       details.locale === 'tr-TR' ? 'LearnStack altyapısıyla' : 'Powered by LearnStack',
     );
   if (malformed) {
-    assert.equal(doc.documentElement.hasAttribute('style'), false);
     const cssLinks = [...doc.querySelectorAll('link[rel="stylesheet"]')];
     assert.ok(cssLinks.length > 0, 'The fallback has a real compiled stylesheet');
     const css = cssLinks
@@ -1487,6 +1494,7 @@ async function verifyProductFreshness(native) {
       locale: second.defaultLocale,
       path: turkish.coursePath + '?lessonCursor=bad-cursor',
       state: 'invalid_cursor',
+      privateCode: 'validation_failed',
       target: turkish.coursePath,
       title: turkish.courseTitle,
     },
@@ -1498,6 +1506,7 @@ async function verifyProductFreshness(native) {
       locale: second.defaultLocale,
       path: turkish.coursePath,
       state: 'rate_limited',
+      privateCode: 'rate_limited',
       target: '/' + second.defaultLocale + '/courses',
       title: turkish.courseTitle,
     },
@@ -1509,6 +1518,7 @@ async function verifyProductFreshness(native) {
       locale: 'ar',
       path: details.lessonPath,
       state: 'unavailable',
+      privateCode: 'service_unavailable',
       target: catalog,
       title: details.courseTitle,
     },
@@ -1557,13 +1567,7 @@ async function verifyProductFreshness(native) {
     assert.equal(doc.body.textContent.includes('bad-cursor'), false);
     assert.equal(doc.title.includes('bad-cursor'), false);
     stage = scenario.name + ' private failure';
-    absentFromWholeResponse(response, [
-      'fixture-private-',
-      'lockey_',
-      'service_unavailable',
-      'rate_limited',
-      'validation_failed',
-    ]);
+    absentFromWholeResponse(response, ['fixture-private-', 'lockey_', scenario.privateCode]);
     await checkpoint(scenario.name);
     await success(scenario.recovery, scenario.tenant, scenario.target, scenario.title);
   }

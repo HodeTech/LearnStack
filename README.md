@@ -271,7 +271,8 @@ backend/
   tests/          Unit, architecture, contract and integration suites
   analyzers/      LearnStack Roslyn analyzers
 frontend/
-  apps/web/       Public site, Admin Studio and learner portal scaffolds
+  apps/web/       Public catalog, course and lesson pages
+                  Admin Studio and learner portal scaffolds
   packages/       Shared config, UI and generated API SDK
 infra/            Compose stack and service configuration
 scripts/          Seed and verification helpers

@@ -4244,7 +4244,7 @@ P02d-6 implements the five rules below and completes its manual smoke on
 2026-10-10; the [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
 owns execution, review and manual evidence.
 
-#### `Ui_Catalogues_Cover_Public_Call_Sites`
+### `Ui_Catalogues_Cover_Public_Call_Sites`
 
 - **Asserts:** nonempty supported UI catalogues have equal key sets, valid ICU
   syntax and matching argument names/types; every used key exists. General UI
@@ -4257,7 +4257,7 @@ owns execution, review and manual evidence.
   `PublicServerRenderingTests` production build, P02d-6.
 - **Phase:** 02d (P02d-6).
 
-#### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
+### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
 
 - **Asserts:** request configuration uses the existing verified signed target and
   live membership. Whole-catalogue UI fallback changes neither exact API locale
@@ -4271,7 +4271,7 @@ owns execution, review and manual evidence.
   `frontend/apps/web/src/server/public-request.test.ts`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
-#### `Public_Theme_Emits_Only_Validated_Color_Tokens`
+### `Public_Theme_Emits_Only_Validated_Color_Tokens`
 
 - **Asserts:** the complete four-color value is admitted atomically before fixed
   `--ls-*` CSS emission. Malformed/null input preserves the whole default palette;
@@ -4284,7 +4284,7 @@ owns execution, review and manual evidence.
   `frontend/apps/web/src/components/public/foundation.test.tsx`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
-#### `Public_Pages_Preserve_Approved_Response_States`
+### `Public_Pages_Preserve_Approved_Response_States`
 
 - **Asserts:** real product routes preserve shared request-local reads, opaque
   pagination and no-store isolation. Missing/hidden content follows the approved
@@ -4298,7 +4298,7 @@ owns execution, review and manual evidence.
   `frontend/apps/web/src/server/public-resource.test.ts`, P02d-6.
 - **Phase:** 02d (P02d-6).
 
-#### `Public_Pages_Expose_Localized_Accessible_Semantics`
+### `Public_Pages_Expose_Localized_Accessible_Semantics`
 
 - **Asserts:** public states expose document language/direction, one main,
   descriptive headings/title, skip navigation and language-bearing fallback UI.

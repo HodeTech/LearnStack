@@ -101,6 +101,9 @@ export async function requirePublicResource(): Promise<
 > {
   const resource = await getPublicResource();
   if (resource.kind === 'refused') notFound();
-  if (resource.kind === 'missing') redirect(`/${resource.request.locale}/status/not-found`);
+  if (resource.kind === 'missing') {
+    if (resource.request.locale === null) notFound();
+    redirect(`/${resource.request.locale}/status/not-found`);
+  }
   return resource;
 }
