@@ -11,6 +11,11 @@ Public-read additions derive from
 configured caller and dynamic rendering derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); native admission and
 redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.md);
+single-bootstrap ownership derives from
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md);
+page composition follows the
+[Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -41,13 +46,18 @@ frontend/
           layout.tsx           # root layout
         middleware.ts          # ingress verification and live locale/path admission
         components/
+          public/              # P6 chrome/states and catalog/course/lesson views
+        i18n/                  # ADR-0027 foundation implemented in P6 Step 1
+          request.ts
+          messages/
+            en/public.json
+            tr/public.json
         lib/
 
   packages/
     ui/                        # design system primitives (extracted only when duplication is real)
     sdk/                       # generated API client + types
     config/                    # eslint, tsconfig, tailwind shared configs
-    i18n/                      # locale messages + helpers
     auth/                      # OIDC client config + BFF helpers
 ```
 
@@ -118,12 +128,42 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-walking-skeleton.
   admission decision in their owning Phase 02b BFF/auth or Phase 06 admin work.
   Disable `poweredByHeader` independently, including framework fallback responses.
 - Signed raw targets select route/locale identity. Match observed middleware URLs
-  only against pinned Next 15.5.18's explicit full-URL RSC/`_rsc` projection; do
+  only against pinned Next 15.5.27's explicit full-URL RSC/`_rsc` projection; do
   not introduce suffix aliases or select another lesson after normalization.
 - Redirects retain inert query values, duplicates and ordering; equivalent percent
   encoding is allowed. Only the verified live host, accepted HTTPS port and local
   path select the destination. Membership-first precedence and redirect statuses
   remain those of the [entry matrix](../roadmap/phase-02d-walking-skeleton.md#public-entry-matrix).
+
+## Request-Local Bootstrap Admission
+
+**ADR-0055 implementation delivered — 2026-10-10; production replacement proofs
+pass.** All three steps completed both independent review rounds and focused fix
+verification.
+Middleware owns one live site bootstrap and its exact neutral 404/429/503 before
+rendering. A native-created context binds the captured host/peer/method/signed
+target and request lifetime. Successful entry publishes one bounded, deeply
+immutable validated Site DTO; RSC re-verifies provenance and consumes that exact
+request's snapshot without another site call. No header DTO, context lookup,
+alternate holder or cross-request representation is permitted.
+
+Native finish/close/shutdown disposes the store once and cancels transport. Late
+work cannot publish or begin downstream reads; response finish does not prove all
+React work ended. Active-request context defects fail closed as internal lifecycle
+failures, not API 404. Actual pinned-Next security/lifecycle proofs are mandatory.
+Content eligibility remains a live API decision; changes after the sole bootstrap
+appear in the next request's site snapshot.
+
+The accepted replacement costs two API calls for a completed product document,
+one for a completed fixed status/scaffold document and three for a followed
+missing-detail chain. HEAD/RSC/prefetch and Flight fallback require separately
+proven counts. Metadata/layout/page/UI reuse adds no bootstrap. Visitor/peer limits
+remain API-call budgets. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns passing production replacement proof, completed reviews and verified fixes;
+the five new catalogue rules are Implemented.
+[Standards 09](09-error-handling.md#public-page-status-and-recovery) owns refusal
+and bounded renderer Retry-After rules.
 
 ## Locale Resolution
 
@@ -137,6 +177,21 @@ public-site URL canonicalization and header transport remain P02d-5.
 - A successful site bootstrap supplies the configured default and enabled locales.
   An unavailable/no-locale site supplies no synthesized `en` default.
 - Client-side locale switching navigates to the new locale path.
+
+**P02d-6 Step 1 foundation implemented — 2026-10-10.** `next-intl`
+request configuration uses the same server-only request-local admission loader
+as document/layout/page consumers. That loader re-verifies the ingress envelope,
+takes the canonical locale from its signed target and checks live enabled
+membership before selecting messages. It imports neither next-intl nor messages;
+configuration adds no bootstrap call or cycle. No i18n routing middleware,
+`requestLocale`, callsite locale override, cookie or `Accept-Language` replaces
+this authority. The private identity memo keys admission/content work only by
+Next's exact request-store headers object, retaining same-request work across
+framework error rendering. It never keys a cache by header values, host or
+envelope. `getPublicUi` uses React cache for selected messages/translators inside
+an RSC render; it does not deduplicate admission/content reads.
+[Standards 08](08-localization.md#strings-in-code) owns catalogue fallback and
+language attributes.
 
 ## SDK
 
@@ -183,12 +238,31 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 - File-based App Router.
 - Route groups: `(public)`, `(studio)`, `(portal)`.
 - Dynamic segments use `[slug]`, catch-all `[...slug]`.
-- `params` and `searchParams` server-side; thread through carefully.
+- Public route and owned pagination identity come from the verified signed raw
+  target; observed `params`/`searchParams` do not replace it.
 - Each route group has its own `layout.tsx`, `loading.tsx`, `error.tsx`.
 
-> **Open in Phase 02d.** Which of these files the `(public)` group ships in Phase 02d,
-> and any dated carve-out that needs, is G40 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+**Accepted P02d-6 G40 — 2026-10-09.** Step 1 implements shared resource admission,
+controlled state views and the fixed status page. Step 2 implements catalog/course
+pages and their pagination/metadata; Step 3 adds lesson presentation/metadata.
+Keep the three
+`/{locale}/courses` list/course/lesson routes and minimal tenant chrome. Use plain
+same-host relative anchors, including opaque catalog and outline pagination;
+disable automatic prefetch. A new document request re-reads API state.
+
+Await request-local resource admission before a loading boundary can flush the
+document. A missing/hidden resource returns local **307**, followed by the same
+host's fixed `/{locale}/status/not-found` page with **404**; the browser URL changes.
+Live host/locale admission applies again. The status page uses safe theme/chrome,
+localized title and noindex, has a catalog recovery link, echoes no original
+slug/query/cursor and never queries Education. This does not promise a direct
+branded 404 at the original URL. Unknown-host/provenance refusals remain neutral.
+
+Keep `loading.tsx`/`error.tsx`; initial pre-admission loading UI is not promised.
+Known content-call failures render translated **HTTP 200 noindex** states for
+invalid cursors, rate limiting and unavailable/invalid API responses. Bootstrap
+refusals retain real 404/429/503. Unexpected framework errors retain pre-stream
+500/post-stream 200 semantics; `error.tsx` cannot set arbitrary status.
 
 ## Public Site Renderer
 
@@ -198,23 +272,47 @@ routes render dynamically with no-store API transport. No ISR, positive
 `revalidate`, `generateStaticParams`, `unstable_cache` or shared bootstrap/data/route
 cache is permitted. Request-local reuse is isolated to one incoming request.
 Freshness is the next new server/document request, not client Router Cache history.
-Disable local Server Component HMR caching. P02d-6/G41 still owns components.
+Disable local Server Component HMR caching. P02d-6 Step 1 implements document
+loaders, chrome, state views and atomic theme injection. Step 2 adds catalog/course
+views; Step 3 adds ordered lesson views. Step 4 adds concurrent host/locale, theme,
+freshness and failure-state product proofs. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns verification, completed reviews and passing manual accessibility evidence.
 P5 delivers the dynamic layout, transport and source/runtime proofs. Test-owned
-production routes exercise the real API; P6 public pages are not delivered by them.
+production routes exercise the real API. P6 product modes copy the actual public
+routes separately; the synthetic transport mode cannot shadow those pages.
 
 - Renders **published** pages, courses, blog content.
 - Institution public SSR uses ADR-0053's dynamic/no-store policy.
 - Block rendering pulls from a block registry (`packages/blocks`); blocks register a React component plus a JSON schema.
 - Preview tokens enable draft rendering for editors.
 
+P02d-6 narrows this broader renderer target to API-ordered plain-string
+`default-card` fields, through app-local synchronous views. No HTML, Markdown,
+linkification, authored URL sink or new primitive is admitted. Unknown renderers
+and unavailable presentation use bounded fallbacks. Metadata shares the page's
+request-local content read: verified live host/local segments only, actual eligible
+alternate slugs, noindex pagination with a first-page canonical and no misleading
+resource alternates on errors. Full menus, media, preview and Studio remain
+Phase 06. The accepted replacement and current delivery boundary live in
+[Request-Local Bootstrap Admission](#request-local-bootstrap-admission); no retry
+or shared DTO cache is added.
+
 ### Public source fence scope
 
 P02d-5 remediation Step 4 follows header constructors and converted records through
 bounded declaration aliases. Inherited tsconfig paths and workspace exports must
-match the resolver census; unsupported production `.mts`/`.cts` extensions fail
-until the census/resolver supports them. Declaration-level `import type` and
+match the resolver census; unsupported production `.js`/`.jsx`/`.mjs`/`.cjs`/
+`.mts`/`.cts` extensions fail until the census/resolver supports them. Admitted
+Studio/portal scaffolds join the render-root census. Public navigation uses
+document anchors; runtime Next Link/router imports are refused, including
+transitive barrels.
+The retention fence covers module mutable bindings, local factories/IIFEs,
+collections, class-static and global writes. It is bounded source analysis,
+not an interpreter for reflection, arbitrary evaluation or external packages.
+Declaration-level `import type` and
 `export type` edges are erased. Inline type-only specifiers remain conservative
-source edges: TypeScript verbatim emission retains them; pinned Next 15.5.18 SWC
+source edges: TypeScript verbatim emission retains them; pinned Next 15.5.27 SWC
 erases them. Separate real compiler controls establish that distinction.
 An empty production Client Component census is source information; the configured
 production-build canary supplies independent asset containment evidence.
@@ -240,17 +338,23 @@ names the controls; the remediation record owns execution evidence.
 **G16(a–e)/G21 writer contract delivered in P02d-2 — 2026-10-02.** The
 [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects one whole-theme color document, contrast refusal, no organization override
-and no font/logo/URL/layout value. Document injection remains G42.
+and no font/logo/URL/layout value. P02d-6 Step 1 implements the accepted G42
+atomic document injection below.
 P02d-4 accepts complete typed theme or null and attribution-only entitlement;
 Step 2 delivers that public projection.
 
 P02d-4's public theme is exactly four validated colors or null; frontend safe
 CSS defaults remain the fallback, with no backend palette copy. Baseline colors
 are independent of plan. Effective WhiteLabelBranding removes LearnStack
-attribution only. Document injection remains G42/P02d-6.
+attribution only. Accepted G42/P02d-6 requires atomic validation of all four
+`#rrggbb` values before emitting a server-generated style element with only
+`--ls-primary`, `--ls-bg`, `--ls-fg` and `--ls-muted`. Null or any malformed value
+retains the entire existing CSS default palette; no per-token merge or style
+attribute. No URL, font or organization override is admitted. Output is safe
+without CSP, whose delivery remains Phase 11.
 
 - Tenant theme tokens loaded at the layout level via RSC.
-- Tokens map to CSS variables; Tailwind reads them via `--ls-primary`, `--ls-bg`, etc.
+- Tailwind reads the four fixed color variables above; the font token stays local.
 - Theme JSON shape part of tenant settings; tenant-admin editor surfaces it.
 
 ## Live Classroom UI
@@ -273,13 +377,17 @@ attribution only. Document injection remains G42/P02d-6.
 - Route-level `error.tsx` shows a graceful boundary.
 - Inline form errors at field level.
 - Toasts for transient feedback; modals for action-required errors.
-- 404 page renders the tenant's brand if a tenant is resolved.
+- P02d-6's accepted branded missing-resource path is the admitted 307→404 chain
+  in [Routing](#routing); a fresh bootstrap refusal stays neutral.
 
 ## Loading UI
 
 - Route-level `loading.tsx` provides a skeleton shell, not a blank page.
 - Suspense boundaries scope streaming to meaningful units.
 - No "loading…" spinners for resources expected to take < 250 ms.
+
+P02d-6 admission must complete before the initial shell flushes, per
+[Routing](#routing); the general streaming rule does not bypass redirect admission.
 
 ## Performance
 

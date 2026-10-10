@@ -28,18 +28,34 @@ payload/`304` and start protected responses private/no-store before any cache de
 
 Worth stating plainly, because a walking skeleton is easy to over-read:
 
-[Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. It renders a
-catalog page and a lesson page for two tenants through anonymous `GET` endpoints.
-There is no user, no enrollment, no course access, no progress row, and no learner-side
-write path anywhere behind it. The lesson page it produced has no "mark complete"
-control and nothing to store if it had one.
+[Phase 02d](phase-02d-walking-skeleton.md) is **anonymous and read-only**. Its API
+and trusted server transport are delivered through P02d-5; three product pages
+(catalog, course-detail/outline and lesson) are delivered by P02d-6, with
+browser/demo proof in P02d-7. There is no learner, enrollment, access grant,
+progress row or learner-side write path. The anonymous lesson has no "mark complete"
+control.
 
-Manual enrollment, invitation enrollment, lesson progress, resume-learning, and the
-learner portal shell are therefore **new construction in this phase** — not shells being
-lit up. What Phase 07 inherits from 02d is narrow and read-side only: `Course` and
+Manual enrollment, invitation enrollment, lesson progress and resume-learning are
+new construction in this phase. The portal shell belongs to
+[Phase 06](phase-06-renderer-admin-studio.md); this phase adds its learner screens.
+What Phase 07 inherits from 02d is narrow and read-side only: `Course` and
 `Lesson` exist (deepened into `CourseVersion`, modules and lesson items by Phase 05),
 host-based tenant and organization resolution works end to end, and the public content
 path exists to contrast the entitled one against.
+
+**Accepted UI inheritance — 2026-10-09; implemented by P02d-6.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9
+and app-local `src/i18n/messages/<locale>/<namespace>.json`. Learner screens add
+feature UI namespaces through the Phase 06 portal shell, preserving complete
+supported catalogues and checked ICU/callsite coverage. General UI identifiers
+remain distinct from backend `lockey_*`; the SDK supplies no translations.
+
+The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+selects anonymous page/status composition and shared verified public admission.
+Its UI fallback changes no content locale or access policy. Its local 307→404 URL
+change and HTTP 200 noindex content-failure states do not decide authenticated
+portal response behavior. This phase still owns learner access, enrollment and
+progress; public page acceptance supplies none of those implementations.
 
 ## Scope
 

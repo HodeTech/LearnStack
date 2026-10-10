@@ -4,9 +4,13 @@
 **Derives from:** [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 (ships the first batch of catalogue entries),
 [ADR-0054 Bounded Public Renderer Admission](../decisions/0054-bounded-public-renderer-admission.md)
-(accepted replacement proofs implemented). The catalogue grows as
-subsequent ADRs and phases land their tests; per-test ownership stays with
-the originating ADR / standard.
+(accepted replacement proofs implemented),
+[ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
+(P02d-6 proofs implemented; manual smoke recorded),
+[ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
+(replacement admission proofs implemented; both review rounds complete). The
+catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
+stays with the originating ADR / standard.
 
 The single source of truth for the **identifier**, the **assertion**, the
 **source ADR / standard**, the **scope**, and the **implementation status** of every
@@ -128,8 +132,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**159 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 52 are no less binding, and most could not live there. The table says where
+**170 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+The other 63 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -492,8 +496,11 @@ otherwise).
   Public descriptors are projected only after P02d-4 content eligibility.
 - **Source:** [ADR-0051](../decisions/0051-ordered-text-card-presentation.md).
 - **Type:** frontend component and public-boundary tests. **Kind:** behavioural.
-- **Status:** **Registered**; P02d-4 delivers the eligible public projection;
-  the P02d-6 renderer is not delivered.
+- **Status:** **Implemented** — P02d-6 Step 3, `PublicServerRenderingTests`,
+  `frontend/apps/web/src/components/public/lesson.test.tsx` and the unchanged
+  product-route presentation checks in `scripts/verify-public-rendering.mjs`.
+  P02d-4 supplies eligible descriptors; Step 3 proves ordered escaped text,
+  unsupported fallbacks and exact schema changes through the production renderer.
 - **Phase:** 02d (P02d-4/P02d-6).
 
 #### `JsonSchema_Net_Types_NotImportedOutsideInfrastructure`
@@ -688,7 +695,7 @@ otherwise).
 
 - **Asserts:** each of the twenty-two standards declares the same status in its own
   header as [the index](README.md) assigns it in the table, and the sentence that counts
-  the split — "Nineteen `Active`, three `Adopted`" — matches the table it summarises.
+  the split matches the table it summarises. The index owns the current counts.
 - **Why it matters:** these are two views of one claim, *what is actually enforced*, and
   they disagreed for a month: every document declared `Active` while the index classified
   eight of them `Adopted`, with the index carrying a paragraph saying so and asking the
@@ -4196,7 +4203,10 @@ verification pass; the delivery record owns execution evidence.
 - **Status:** **Implemented** — `public-boundaries.test.ts` names this rule and
   pins the nonempty production TypeScript graph, marker, direct/global/aliased
   fetches, hop setters and transitive Client Component dependencies. Clean/planted
-  controls cover imports, reexports and literal dynamic imports. Arbitrary eval,
+  controls cover imports, reexports and literal dynamic imports. P02d-6 Step 1
+  includes server configuration and bundled JSON catalogues in the graph and
+  plants direct Client Component imports of each bundle; ordinary public JSON
+  remains admissible. Arbitrary eval,
   runtime reassignment, external package bodies and native MJS are outside the
   source scan; production socket/TLS and `PublicServerRenderingTests` prove the
   runtime boundary, actual client-import rejection and private-value containment.
@@ -4213,11 +4223,237 @@ verification pass; the delivery record owns execution evidence.
 - **Status:** **Implemented** — `public-boundaries.test.ts` names this rule, checks
   the public layout policy and follows public/helper imports for shared storage,
   forbidden Next cache APIs and static/revalidation overrides. Clean/planted
-  controls accompany it; request-local React cache remains allowed.
+  controls accompany it; request-local React cache remains allowed. P6 remediation
+  adds retained factory/collection, module/static/global storage and navigation
+  import controls, including admitted Studio/portal roots. P02d-6 Step 1
+  also constrains the complete AST shape of `request-memo.ts`: a private weak map
+  keyed only by Next's exact request-store headers object, publish-before-load
+  semantics and retained rejected work. Planted strong maps, copied/value/caller
+  keys, eager loads, rejection retries and exposed/additional collections fail.
+  Its unit controls distinguish overlapping equal-header requests and subsequent
+  requests; separate P6 modes below supply actual product-page proof.
   `PublicServerRenderingTests` proves cold/interleaved same-path HTML/RSC host
   isolation and next-request publication freshness as `learnstack_app`. It owns
-  disposable routes, not P6 product pages or P7 browser delivery.
+  disposable routes in transport mode and actual P6 product routes in separate
+  modes; P7 browser delivery remains outside this fixture.
 - **Phase:** 02d (P02d-5).
+
+## P02d-6 public UI localization controls
+
+The maintainer accepted ADR-0027 and the P6 decision package on 2026-10-09. The
+rules below are commitments before the first implementation; none is a passing
+test claim at acceptance. Existing P5 source/runtime controls remain mandatory,
+and P6 product proofs supplement the isolated synthetic transport fixture.
+P02d-6 implements the five rules below and completes its manual smoke on
+2026-10-10; the [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+owns execution, review and manual evidence.
+
+### `Ui_Catalogues_Cover_Public_Call_Sites`
+
+- **Asserts:** nonempty supported UI catalogues have equal key sets, valid ICU
+  syntax and matching argument names/types; every used key exists. General UI
+  feature keys are separate from backend `lockey_*` wire keys. Planted per-locale
+  and absent-from-all keys, unknown callsites, bad ICU and mismatched arguments
+  fail. Public graphs include configuration and JSON catalogue dependencies.
+- **Source:** ADR-0027; Accepted P02d-6 G39.
+- **Type:** frontend catalogue/callsite + production build. **Kind:** structural.
+- **Status:** **Implemented** — `frontend/apps/web/src/i18n/catalogues.test.ts`;
+  actual request-configuration callbacks in `frontend/apps/web/src/i18n/request.test.ts`
+  and typed translator argument forwarding in
+  `frontend/apps/web/src/server/public-ui.test.ts`;
+  `PublicServerRenderingTests` production build, P02d-6.
+- **Phase:** 02d (P02d-6).
+
+### `Public_Ui_Locale_Does_Not_Change_Content_Admission`
+
+- **Asserts:** request configuration uses the existing verified signed target and
+  live membership. Whole-catalogue UI fallback changes neither exact API locale
+  nor admission. Document and UI groups retain their actual languages/directions;
+  test-owned enabled RTL content and overlapping host/locale requests exercise
+  the real configuration without another authority carrier or bootstrap call.
+- **Source:** ADR-0027; Accepted P02d-6 G39 and G38(b,c).
+- **Type:** frontend mapping + actual production rendering. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicServerRenderingTests` actual foundation/
+  product-isolation modes, `frontend/apps/web/src/i18n/locale.test.ts` and
+  `frontend/apps/web/src/server/public-request.test.ts`, P02d-6.
+- **Phase:** 02d (P02d-6).
+
+### `Public_Theme_Emits_Only_Validated_Color_Tokens`
+
+- **Asserts:** the complete four-color value is admitted atomically before fixed
+  `--ls-*` CSS emission. Malformed/null input preserves the whole default palette;
+  no raw style attributes, extra tokens, URLs or organization merges appear.
+  Effective attribution alone controls the platform label, independently of theme.
+- **Source:** Accepted P02d-6 G16(g)/G42; Standards 07 § Tenant Branding.
+- **Type:** frontend pure mapping + rendered document. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicServerRenderingTests` foundation/
+  product-isolation modes and
+  `frontend/apps/web/src/components/public/foundation.test.tsx`, P02d-6.
+  `frontend/apps/web/src/test/public-rendering-assertions.test.ts` supplies
+  clean/planted controls against the production theme assertion itself.
+- **Phase:** 02d (P02d-6).
+
+### `Public_Pages_Preserve_Approved_Response_States`
+
+- **Asserts:** real product routes preserve shared request-local reads, opaque
+  pagination and no-store isolation. Missing/hidden content follows the approved
+  same-host 307→fixed localized 404 chain; known content-call errors use bounded
+  HTTP 200/noindex states. The status page makes no Education call. Production
+  tests observe actual status, visible HTML, call counts, freshness and no leaks.
+- **Source:** Accepted P02d-6 G40/G38(b,c); ADR-0053/0054.
+- **Type:** actual production Next/API/PostgreSQL. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicServerRenderingTests` foundation/pagination/
+  presentation/product-freshness modes and
+  `frontend/apps/web/src/server/public-resource.test.ts`, P02d-6.
+  `frontend/apps/web/src/test/public-rendering-assertions.test.ts` exercises the
+  shared production status and whole-response containment predicates, including
+  Next's nested HTML-safe Flight escaping. Raw ICU sentinels detect unchanged
+  complete catalogue payloads; source fences independently restrict imports.
+- **Phase:** 02d (P02d-6).
+
+### `Public_Pages_Expose_Localized_Accessible_Semantics`
+
+- **Asserts:** public states expose document language/direction, one main,
+  descriptive headings/title, skip navigation and language-bearing fallback UI.
+  Applicable jsx-a11y errors fail through the real lint config with planted
+  controls. Automated semantics supplement mandatory manual keyboard, focus,
+  320 CSS px reflow, contrast and screen-reader evidence; they do not replace it.
+- **Source:** Accepted P02d-6 G43; Standards 16 § Testing.
+- **Type:** frontend lint/DOM + actual production HTML. **Kind:** structural.
+- **Status:** **Implemented** — `PublicServerRenderingTests` product-page HTML
+  assertions, `frontend/apps/web/src/test/accessibility-lint.test.ts` and
+  `frontend/apps/web/src/components/public/lesson.test.tsx`, P02d-6. Manual
+  keyboard/focus/reflow/contrast and maintainer VoiceOver evidence remain separate
+  in the packet closeout; these tests do not claim a full accessibility audit.
+  Emitted viewport metadata permits zoom, tested by the shared production
+  assertion controls; this does not prove browser zoom or WCAG conformance.
+- **Phase:** 02d (P02d-6).
+
+## P02d-6 request-local bootstrap admission controls
+
+**Implemented — 2026-10-10; both independent review rounds complete.** Production
+replacement proofs and planted controls pass for the five rules below. All three
+steps completed both independent review rounds and focused fix verification.
+Existing P5/P6 controls remain mandatory. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns actual execution, completed reviews and verified fixes. Six existing
+production modes pass with revised call accounting. The additional production Fact is
+`Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback` in
+`backend/tests/LearnStack.Tests.Integration/Database/PublicAdmissionRenderingTests.cs`,
+driven by `frontend/apps/web/scripts/verify-public-admission.mjs`. It passes its
+wire, lifecycle and stock-browser/HMR phases against the real API/PostgreSQL;
+test-only instrumentation stays in the disposable copied app.
+
+### `Public_Admission_Uses_Only_The_Active_Native_Context`
+
+- **Asserts:** the native-created, versioned server-only ALS holder binds a fresh
+  request to its captured host/peer/method/signed target. Middleware and RSC share
+  that actual holder/store through the pinned production Next build; missing,
+  duplicated, disposed or mismatched context fails closed without header lookup,
+  another site read or an alternate holder. Planted failures and clean controls
+  exercise both facade admission and actual framework propagation.
+- **Source:** ADR-0055; accepted P02d-6 G40 supersession.
+- **Type:** frontend runtime + actual production Next/API. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` proves actual
+  context propagation and missing/mismatched/duplicate-context refusal with
+  `verify-public-admission.mjs`. Unit controls live in
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts` and existing
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Bootstrap_Refusals_Preserve_Exact_Http_Responses`
+
+- **Asserts:** middleware owns first-wire bootstrap 404/429/503, no-store and
+  bodyless HEAD. Only supported 429/503 cases forward parsed Retry-After from
+  zero through sixty unchanged; malformed/date/negative/out-of-range values are
+  omitted. Timeout, invalid/oversized responses and configuration/context faults
+  are neutral 503. Failed bootstrap permits no Education operation, newly emitted
+  tenant theme, private marker or raw diagnostic. Broken refusal and containment
+  controls must fail beside positive controls.
+- **Source:** ADR-0055; ADR-0054 Amendment 8.
+- **Type:** frontend mapping + actual production HTTP. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove first-wire refusals and a wrong-status mutant;
+  `frontend/apps/web/src/server/configured-public-client.test.ts` proves success
+  and Problem Details media-type admission. Mapping and lifetime units live in
+  `frontend/apps/web/src/middleware.test.ts`,
+  `frontend/apps/web/src/server/public-request.test.ts` and existing
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 2–3).
+
+### `Public_Admission_Reuses_One_Immutable_Snapshot_Per_Request`
+
+- **Asserts:** one bounded, deeply immutable validated Site DTO is published only
+  after successful middleware entry and shared by metadata/layout/page/UI/error
+  consumers without another bootstrap. Completed product/status documents cost
+  two/one calls; followed missing-detail GET costs three. Identical and differing
+  host/locale requests overlap without shared values; the next request reads live
+  state. HTML/RSC/prefetch and Flight-to-document fallback have separately proven
+  counts, while content 200/noindex and missing 307-to-404 remain unchanged.
+- **Source:** ADR-0055; accepted P02d-6 G40 supersession.
+- **Type:** frontend snapshot/memo + production rendering. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove overlapping HTML/RSC/prefetch stores, exact
+  calls and keep-alive freshness; original product modes retain live-state proof.
+  `frontend/apps/web/src/test/admission-browser.test.ts` supplies clean/planted
+  Flight-to-document observation controls. Snapshot and consumer units live in
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts`,
+  `frontend/apps/web/src/server/public-request.test.ts` and
+  `PublicServerRenderingTests` / `verify-public-rendering.mjs` integration.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Admission_Ends_With_The_Native_Request`
+
+- **Asserts:** finish, early close and shutdown close each store once, clear its
+  snapshot/listeners and cancel bootstrap/content transport. Publication and
+  downstream work refuse late continuations, including valid HEAD work after
+  response finish, without exposing the context/DTO in diagnostics. Keep-alive
+  and HMR do not reuse snapshots. Active-context/snapshot observations return to
+  zero; this does not claim all React work or captured local references ended.
+- **Source:** ADR-0055.
+- **Type:** runtime lifecycle + native production fixture. **Kind:** behavioural.
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove abort, shutdown, valid HEAD late refusal and
+  zero retained stores/snapshots. `frontend/apps/web/scripts/admission-completion.mjs`
+  waits for native finish/close independently of runtime counts;
+  `frontend/apps/web/src/test/admission-completion.test.ts` proves that client EOF
+  cannot release it and planted missing cleanup still fails the zero-count check.
+  `frontend/apps/web/scripts/admission-hmr.mjs`
+  proves fresh admission after source/API change in the same development process;
+  `frontend/apps/web/src/test/admission-hmr.test.ts` supplies clean/planted freshness,
+  lifetime and cleanup controls. `admission-hmr-watch.mjs` waits for the pinned
+  Next compiler's real completion frame before the sole refresh request;
+  `frontend/apps/web/src/test/admission-hmr-watch.test.ts` proves that sync/client
+  frames cannot release this source-change barrier. Unit and retained ingress
+  controls live in
+  `frontend/apps/web/src/server/public-admission-runtime.test.ts`,
+  `frontend/apps/web/src/server/public-admission.test.ts`,
+  `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
+  `frontend/apps/web/scripts/verify-ingress.mjs`.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+### `Public_Admission_Preserves_Production_Ingress_Boundaries`
+
+- **Asserts:** actual product/status/scaffold HTML/RSC, navigation and error paths
+  preserve provenance, API admission, READ ONLY/RLS and server-only containment.
+  Invalid host/locale/stamp, stock-launch bypass and planted broken context are
+  refused. Native method/upgrade, exempt asset/health fallback, no build bootstrap
+  and development HMR controls remain effective. No header DTO carrier, shared
+  representation cache, fallback context or private client asset is introduced.
+- **Source:** ADR-0055; ADR-0052/0053/0054.
+- **Type:** source/build + actual production Next/API/PostgreSQL. **Kind:**
+  structural + behavioural.
+- **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
+  `verify-public-admission.mjs` prove stock-browser fallback, development HMR,
+  no build bootstrap and private-value containment. Browser/HMR assertion controls
+  live in `frontend/apps/web/src/test/admission-browser.test.ts` and
+  `frontend/apps/web/src/test/admission-hmr.test.ts`. Retained boundary controls are
+  `frontend/apps/web/src/test/public-boundaries.test.ts`,
+  `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
+  `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
+- **Phase:** 02d (P02d-6 remediation Steps 1–3).
 
 ## References
 
@@ -4226,6 +4462,7 @@ verification pass; the delivery record owns execution evidence.
 - [ADR-0032 Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md)
 - [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 - [ADR-0024 API Versioning Policy](../decisions/0024-api-versioning-policy.md)
+- [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)

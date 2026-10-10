@@ -8,6 +8,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -37,6 +38,10 @@ let certificate;
 let wrongCertificate;
 let api;
 let WebSocket;
+let sharp;
+let optimizerPixels;
+const optimizerImagePath = '/_next/static/media/ingress-optimizer-proof.png';
+const optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
 const secret = randomBytes(32).toString('base64url');
 const scanners = [];
 let verificationFailed = false;
@@ -60,6 +65,7 @@ try {
   await checkpoint('root');
   const require = createRequire(join(appRoot, 'package.json'));
   WebSocket = require('next/dist/compiled/ws');
+  sharp = createRequire(require.resolve('next/package.json'))('sharp');
   api = owner.ownServer(
     createServer((request, response) => {
       bootstrapCalls++;
@@ -175,7 +181,21 @@ try {
     ].join('\n'),
     { mode: 0o600 },
   );
-  for (const name of ['.next', '.server', 'node_modules', 'src']) {
+  // Both the image fixture/cache and the later mutant belong to this copy.
+  // Never write into the caller's production build through a symlink.
+  cpSync(join(appRoot, '.next'), join(app, '.next'), {
+    recursive: true,
+    filter: (path) => path !== join(appRoot, '.next/cache'),
+  });
+  const optimizerImage = await sharp({
+    create: { width: 2, height: 2, channels: 4, background: '#216ba5' },
+  })
+    .png()
+    .toBuffer();
+  optimizerPixels = await sharp(optimizerImage).ensureAlpha().raw().toBuffer();
+  mkdirSync(join(app, '.next/static/media'), { recursive: true });
+  writeFileSync(join(app, '.next/static/media/ingress-optimizer-proof.png'), optimizerImage);
+  for (const name of ['.server', 'node_modules', 'src']) {
     symlinkSync(join(appRoot, name), join(app, name), 'dir');
   }
   for (const name of ['package.json', 'next.config.ts', 'tsconfig.json']) {
@@ -204,11 +224,15 @@ try {
   // Observe automatic Next upgrade registrations in the disposable fixture only.
   // No diagnostic route, request value or probe is added to the shipped launcher.
   const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
+  const handlerAnchor = '  const handle = app.getRequestHandler();';
+  const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
+  for (const anchor of [handlerAnchor, listenerAnchor])
+    assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
   writeFileSync(
     join(app, 'scripts/public-server.mjs'),
     launcher
       .replace(
-        '  const handle = app.getRequestHandler();',
+        handlerAnchor,
         `  let nextCalls = 0;
     let sinkCalls = 0;
     const nextHandle = app.getRequestHandler();
@@ -227,7 +251,7 @@ try {
     });`,
       )
       .replace(
-        "  server.listen(3000, '127.0.0.1',",
+        listenerAnchor,
         `  for (const [surface, target] of [['native', server], ['sink', upgradeSink]]) {
       const register = target.on.bind(target);
       target.on = (event, listener) => register(event, event !== 'upgrade' ? listener :
@@ -240,7 +264,7 @@ try {
           return listener(request, socket, head);
         });
     }
-    server.listen(3000, '127.0.0.1',`,
+    ${listenerAnchor.trimStart()}`,
       ),
   );
   assert.notEqual(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'), launcher);
@@ -385,13 +409,19 @@ function call(tls, port, path, headers = {}, method = 'GET', tlsOptions = {}) {
         timeout: 2000,
       },
       (response) => {
-        let body = '';
+        const chunks = [];
         response.on('data', (chunk) => {
-          body += chunk.toString();
+          chunks.push(chunk);
         });
         response.on('end', () => {
           clearTimeout(deadline);
-          resolve({ status: response.statusCode, headers: response.headers, body });
+          const bytes = Buffer.concat(chunks);
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: bytes.toString(),
+            bytes,
+          });
         });
       },
     );
@@ -403,6 +433,24 @@ function call(tls, port, path, headers = {}, method = 'GET', tlsOptions = {}) {
     });
     outgoing.end();
   });
+}
+
+function assertOptimizerDisabled(response, method) {
+  assert.equal(response.status, 404, 'Image optimizer must remain disabled');
+  if (method === 'HEAD') assert.equal(response.bytes.length, 0, 'Optimizer HEAD must be bodyless');
+}
+
+async function assertOptimizerImage(response) {
+  assert.equal(response.status, 200, 'Valid image positive control must succeed');
+  assert.equal(response.headers['content-type'], 'image/png');
+  // Fully decode the HTTP bytes: a success code or a PNG-like header is not enough.
+  const decoded = await sharp(response.bytes)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.equal(decoded.info.width, 2);
+  assert.equal(decoded.info.height, 2);
+  assert.deepEqual(decoded.data, optimizerPixels, 'Image positive control pixels changed');
 }
 
 async function ready(child, tls, port) {
@@ -491,6 +539,14 @@ async function run() {
   assert.deepEqual(upgrades, [], 'Production upgrades reached an automatic sink listener');
   assert.equal(bootstrapCalls, 0, 'Production upgrades reached bootstrap');
 
+  await assertOptimizerImage(
+    await call(true, 3000, optimizerImagePath, { Host: 'tenant.example:3000' }),
+  );
+  for (const method of ['GET', 'HEAD']) {
+    const response = await call(true, 3000, optimizerPath, { Host: 'tenant.example:3000' }, method);
+    assertOptimizerDisabled(response, method);
+  }
+
   const buildManifest = JSON.parse(
     readFileSync(join(appRoot, '.next/build-manifest.json'), 'utf8'),
   );
@@ -529,7 +585,7 @@ async function run() {
     ['/faviconXico', 404, 1],
     ['/favicon.ico/extra', 404, 1],
     ['/nested/favicon.ico', 404, 1],
-    ['/en/courses', 404, 1],
+    ['/en/status/not-found', 404, 1],
     ['/studio', 200, 1],
     ['/portal', 200, 1],
   ]) {
@@ -573,15 +629,15 @@ async function run() {
   assert.equal((await observe(native)).nextCalls, beforeHead.nextCalls);
 
   const beforePositive = bootstrapCalls;
-  const positive = await call(true, 3000, '/en/courses?next=https%3A%2F%2Fevil.example', {
+  const positive = await call(true, 3000, '/en/status/not-found?next=https%3A%2F%2Fevil.example', {
     Host: 'tenant.example:3000',
     'X-LearnStack-Ingress-Provenance': 'forged',
     'X-Forwarded-For': 'attacker',
     'X-Middleware-Subrequest': 'middleware:middleware:middleware',
   });
   assert.equal(listenerFailed, false, 'Bootstrap fixture refused the hop');
-  assert.equal(positive.status, 404); // P6 pages are absent; verified bootstrap still ran.
-  assert.equal(bootstrapCalls, beforePositive + 1);
+  assert.equal(positive.status, 404); // Actual branded status route is admitted without Education.
+  assert.equal(bootstrapCalls, beforePositive + 1); // One middleware bootstrap; RSC consumes its snapshot.
   assert.match(positive.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
   for (const query of [
     '?',
@@ -666,10 +722,44 @@ async function run() {
   }
   assert.equal(diagnosticsLeaked(), false, 'Private material entered diagnostics');
 
-  // Development gets its own build directory, never the shared production output.
   await stopTestChild(stock);
   await stopTestChild(native);
-  unlinkSync(join(app, '.next'));
+  // Next 15.5.27 loads next.config.ts for this custom production server; its
+  // serialized build config contributes only isExperimentalCompile. Mutate the
+  // copied runtime configuration and restart, without touching shared output.
+  const configPath = join(app, 'next.config.ts');
+  const disabledConfig = readFileSync(configPath, 'utf8');
+  const enabledConfig = disabledConfig.replace(
+    'images: { unoptimized: true }',
+    'images: { unoptimized: false }',
+  );
+  assert.notEqual(enabledConfig, disabledConfig, 'Optimizer configuration mutant was not planted');
+  writeFileSync(configPath, enabledConfig);
+  const optimizerMutant = start([join(app, 'scripts/public-server.mjs')]);
+  await ready(optimizerMutant, true, 3000);
+  for (const method of ['GET', 'HEAD']) {
+    const response = await call(true, 3000, optimizerPath, { Host: 'tenant.example:3000' }, method);
+    assert.equal(response.status, 200, 'Enabling the optimizer must serve the valid image');
+    if (method === 'GET') await assertOptimizerImage(response);
+    if (method === 'HEAD') assert.equal(response.bytes.length, 0);
+    assert.throws(
+      () => assertOptimizerDisabled(response, method),
+      {
+        code: 'ERR_ASSERTION',
+        actual: 200,
+        expected: 404,
+        message: /^Image optimizer must remain disabled/,
+      },
+      'Disabled-optimizer assertion did not reject the enabled configuration',
+    );
+  }
+  await observe(optimizerMutant);
+  assert.equal(diagnosticsLeaked(), false, 'Private material entered optimizer diagnostics');
+  await stopTestChild(optimizerMutant);
+  writeFileSync(configPath, disabledConfig);
+
+  // Development gets a fresh owned build directory.
+  rmSync(join(app, '.next'), { recursive: true, force: true });
   // Next's development route discovery does not traverse a symlinked src tree.
   unlinkSync(join(app, 'src'));
   cpSync(join(appRoot, 'src'), join(app, 'src'), { recursive: true });
@@ -692,69 +782,114 @@ async function run() {
     0,
     'Unsupported development upgrade reached Next',
   );
-  await new Promise((resolve, reject) => {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    const child =
+      signal === 'SIGTERM'
+        ? development
+        : start([join(app, 'scripts/public-server.mjs'), '--dev'], true);
+    if (child !== development) await ready(child, true, 3000);
+    await verifyHmrShutdown(child, signal);
+  }
+  assert.deepEqual(upgrades, [
+    { surface: 'sink', sanitized: true },
+    { surface: 'sink', sanitized: true },
+  ]);
+  assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
+
+  async function verifyHmrShutdown(child, signal) {
     const client = new WebSocket('wss://127.0.0.1:3000/_next/webpack-hmr', {
       ca: certificate,
       servername: 'localhost',
       rejectUnauthorized: true,
       headers: { 'X-Matched-Path': 'attacker', 'X-Middleware-Subrequest': 'attacker' },
     });
-    let accepted = false;
-    let observedFrame = false;
-    let retained = false;
-    let retention;
-    const deadline = setTimeout(() => {
+    try {
+      await new Promise((resolve, reject) => {
+        let accepted = false;
+        let retention;
+        const deadline = setTimeout(
+          () => reject(new Error('Development HMR handshake/frame deadline')),
+          12000,
+        );
+        const cleanup = () => {
+          clearTimeout(deadline);
+          clearTimeout(retention);
+          client.off('error', fail);
+          client.off('close', fail);
+        };
+        const fail = () => {
+          cleanup();
+          reject(new Error('Development HMR closed before retained acceptance'));
+        };
+        client.on('upgrade', (response) => {
+          accepted = response.statusCode === 101;
+        });
+        client.once('error', fail);
+        client.once('close', fail);
+        client.once('message', (bytes) => {
+          try {
+            const frame = JSON.parse(bytes.toString());
+            assert(typeof frame.action === 'string', 'HMR must send a real protocol frame');
+          } catch {
+            fail();
+            return;
+          }
+          // The accepted connection must outlive the launcher's handshake deadline.
+          retention = setTimeout(() => {
+            cleanup();
+            if (accepted && client.readyState === WebSocket.OPEN) resolve();
+            else reject(new Error('Development HMR did not retain its accepted connection'));
+          }, 5100);
+        });
+      });
+      assert.equal(
+        (await observe(child)).sinkCalls,
+        1,
+        'Exactly the accepted HMR upgrade must reach Next',
+      );
+      assert.equal(client.readyState, WebSocket.OPEN, 'HMR must remain open when shutdown begins');
+      // No stopTestChild here: its SIGKILL escalation would hide a hung launcher.
+      await new Promise((resolve, reject) => {
+        let exited = false;
+        let closed = false;
+        const deadline = setTimeout(() => {
+          cleanup();
+          reject(new Error('Native development shutdown deadline'));
+        }, 8000);
+        const complete = () => {
+          if (exited && closed) {
+            cleanup();
+            resolve();
+          }
+        };
+        const onExit = (code, childSignal) => {
+          if (code !== 0 || childSignal !== null) {
+            cleanup();
+            reject(new Error('Native development shutdown did not exit cleanly'));
+            return;
+          }
+          exited = true;
+          complete();
+        };
+        const onClose = () => {
+          closed = true;
+          complete();
+        };
+        const cleanup = () => {
+          clearTimeout(deadline);
+          child.off('exit', onExit);
+          client.off('close', onClose);
+        };
+        child.once('exit', onExit);
+        client.once('close', onClose);
+        child.kill(signal);
+      });
+    } finally {
       client.terminate();
-      reject(new Error('Development HMR handshake/frame deadline'));
-    }, 12000);
-    client.on('upgrade', (response) => {
-      accepted = response.statusCode === 101;
-    });
-    client.once('message', (bytes) => {
-      try {
-        const frame = JSON.parse(bytes.toString());
-        assert(typeof frame.action === 'string', 'HMR must send a real protocol frame');
-        observedFrame = true;
-      } catch {
-        client.terminate();
-        clearTimeout(deadline);
-        reject(new Error('Invalid development HMR frame'));
-        return;
-      }
-      // The accepted connection must outlive the launcher's handshake deadline.
-      retention = setTimeout(() => {
-        clearTimeout(deadline);
-        if (!accepted || client.readyState !== WebSocket.OPEN) {
-          client.terminate();
-          reject(new Error('Development HMR did not retain its accepted connection'));
-        } else {
-          retained = true;
-          client.close();
-        }
-      }, 5100);
-    });
-    client.once('error', (error) => {
-      clearTimeout(deadline);
-      clearTimeout(retention);
-      reject(error);
-    });
-    client.once('close', () => {
-      clearTimeout(deadline);
-      clearTimeout(retention);
-      if (accepted && observedFrame && retained) resolve();
-      else reject(new Error('Development HMR closed before retained acceptance'));
-    });
-  });
-  assert.equal(
-    (await observe(development)).sinkCalls,
-    1,
-    'Exactly the accepted HMR upgrade must reach Next',
-  );
-  assert.deepEqual(upgrades, [{ surface: 'sink', sanitized: true }]);
-  await observe(development);
-  assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
+    }
+  }
   console.warn(
-    'Native ingress: TLS, GET/HEAD admission, query redirects, production closure, DEBUG containment and development HMR passed.',
+    'Native ingress: TLS, GET/HEAD admission, disabled image optimizer with configuration mutant, query redirects, production closure, DEBUG containment and development HMR passed.',
   );
 }
 

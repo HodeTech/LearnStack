@@ -182,9 +182,8 @@ replacement yields a concurrency conflict; competing creates use the existing
 tenant/scope/key uniqueness. No retry merges colors from different candidates.
 Invalid existing override projects as a whole null in P02d-4 Step 2; safe CSS
 defaults remain the renderer's responsibility. Never emit raw JSON or partial unsafe
-colors. Whole-theme/null and attribution-only semantics are delivered; G42 still
-owns injection. Authoring
-this baseline theme is
+colors. Whole-theme/null and attribution-only semantics are delivered; P02d-6
+Step 1 implements G42 atomic CSS injection. Authoring this baseline theme is
 not gated by `tenancy.white_label_branding` in P02d-2.
 
 Generic `TenantSetting.Value` carries `[PiiSensitive]`; audit capture redacts the whole
@@ -203,7 +202,7 @@ No raw string-key/JSON export, settings HTTP surface or caller-supplied scope is
 admitted. The first production registration is tenant-wide `branding.theme`,
 reusing its four-color grammar and contrast validator above. It returns a complete
 typed palette or bounded absent/invalid outcome. P02d-4 public allowlisting is
-delivered by Step 2; CSS injection remains P02d-6.
+delivered by Step 2; P02d-6 Step 1 delivers atomic CSS injection.
 
 Registrations are values in an explicit server-owned `TenantSettingRegistry`.
 The composition extension installs its default only when no registry was already

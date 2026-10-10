@@ -1,3 +1,5 @@
+export const metadata = { robots: { index: false, follow: false } };
+
 export default function PortalHomePage() {
   return (
     <section className="mx-auto max-w-5xl px-6 py-12">

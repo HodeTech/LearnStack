@@ -52,9 +52,9 @@ The planned surfaces serve the people on each side of that experience:
 | **Learner portal** | Enrolled learners | Work through lessons, track progress and join live sessions. |
 | **Optional Course Marketplace** | Learners and participating institutions | Shared discovery and central checkout; endorsed target, architecture approval pending. |
 
-These are planned product capabilities. Today, the frontend contains route scaffolds
-for the first three surfaces; the status below separates delivered foundations from the
-remaining product work.
+The public catalog, course and lesson pages are implemented. Studio and learner
+portal remain scaffolds; the status below separates delivered work from remaining
+product and validation obligations.
 
 **Built for different ways of teaching.** Content types and level taxonomies already
 have a validated customization model. The wider design covers page blocks, lesson
@@ -93,8 +93,16 @@ Its four steps deliver the read-only host boundary, anonymous site/Education
 GET/HEAD reads and OpenAPI/SDK/CI controls. Every step completed both review
 rounds; final fix verification and all six real required CI jobs pass. The sixth
 required OpenAPI check is active, with all other live protection settings preserved.
-Trusted server rendering is delivered by P02d-5; public product pages and the
-browser demo remain P02d-6–7. The
+Trusted server rendering is delivered by P02d-5. P02d-6 implements localized
+catalog/course/lesson pages, ordered text fields, safe themes and metadata; its
+[product closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+records automated verification/reviews and scoped browser/VoiceOver observations.
+The original P02d-6 implementation is complete. ADR-0055 remediation delivers
+single-bootstrap admission and passing production replacement proofs; all three
+steps completed both independent review rounds, and
+the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
+PR review and merge remain pending. The browser demo remains P02d-7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -105,9 +113,9 @@ page consumers and P02d-7 the two-host browser demo.
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
-| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Public page consumers in [P02d-6](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, route scaffolds and generated typed SDK | Public pages and two-tenant browser demo in [P02d-6–7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Two-tenant browser demo and Lighthouse in [P02d-7](docs/roadmap/phase-02d-walking-skeleton.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -185,14 +193,14 @@ this launcher. Both processes read the same private root source; a web `.env.loc
 projection is optional and must match. No shell evaluates the values. Ordinary
 no-hop API startup remains supported outside this paired renderer recipe.
 
-**P02d-5 implements ingress, visitor budgets and public entry.** The web
+**P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default
 locales and refuses unavailable scope. The server caller enforces no-store,
 deadline/body limits and the closed authenticated hop. All four steps completed
 both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
 [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-owns current review/CI evidence. Public pages are P02d-6;
+owns current review/CI evidence. P02d-6 implements public pages;
 the two-host browser demo with `make demo` is P02d-7. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.
@@ -267,7 +275,8 @@ backend/
   tests/          Unit, architecture, contract and integration suites
   analyzers/      LearnStack Roslyn analyzers
 frontend/
-  apps/web/       Public site, Admin Studio and learner portal scaffolds
+  apps/web/       Public catalog, course and lesson pages
+                  Admin Studio and learner portal scaffolds
   packages/       Shared config, UI and generated API SDK
 infra/            Compose stack and service configuration
 scripts/          Seed and verification helpers

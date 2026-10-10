@@ -60,17 +60,18 @@ and [17-page-builder.md](../../../docs/architecture/17-page-builder.md).
 | **Composite renderer** | C# composite registry + React renderer (`default-card`, `content-list`, `card-grid`). | LearnStack engineering. | Tenants compose this in `TenantPageBlock` rows. |
 | **Tenant block** | `tenant_page_blocks` row (data only). | Tenant admin via Studio editor. | Tenant-specific shape (`vocabulary-list` for English, `asana-card` for yoga). |
 
-> **Open in Phase 02d.** The code paths in this step and the next two describe intended
-> shape. At HEAD the frontend registry is `frontend/apps/web/src/lib/customization/` —
-> `PRIMITIVE_KEYS` and `COMPOSITE_KEYS` as closed key lists with `resolveRendererKey`,
-> no component and no `registerPrimitive` / `registerComposite` — and the backend's
-> closed sets are `PrimitiveRendererKey` and `CompositeRendererKey` in
-> `LearnStack.Modules.Customization.Domain`; no `PageBlockRegistry` exists. Where
-> primitive and composite components live — `components/blocks/` here, `packages/blocks`
-> in Frontend Architecture Standards — is G41 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes it, which ships the lesson renderer's first components, edits
-> this skill with its answer.
+> **P02d-6 G41 subset implemented — Step 3, 2026-10-10.** The first
+> ordered plain-string `default-card` views live in
+> `frontend/apps/web/src/components/public/`, with bounded unavailable fallbacks
+> and no active URL sink. The wider registry and component sketches below remain
+> Phase 04/05 and Phase 06 targets. The existing key lists in
+> `src/lib/customization/` are not renderer implementations. See the
+> [accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
+
+`RegisterPrimitive`, `BlockRenderer`, `resolver.registerPrimitive` and
+`useContentEntries` below are illustrative future APIs, not existing symbols to
+import. G41 chooses app-local `components/public` for the shipped subset; it does
+not create `packages/blocks` or the wider registry.
 
 ### Step 2: Primitive block (path A)
 
@@ -208,25 +209,24 @@ the page.
 
 - JSON Schema validation test for the new primitive / tenant schema.
 - Renderer snapshot test.
-- Accessibility test (`axe-core` violations fail). No test runs `axe-core` yet:
-  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md#end-to-end-tests)
-  puts automated axe through Playwright in
-  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md). Which
-  accessibility checks fail a build on Phase 02d's pages, jsdom axe among the options,
-  is G43 in
-  [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  whose pass edits this bullet with its answer.
-- Budgets in [Performance Standards](../../../docs/standards/15-performance.md) for
-  representative pages embedding the block — judged by reading while CI's
-  `lighthouse budget` job remains a placeholder. Whether it activates in Phase 02d
-  is G44 in
-  [that phase's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it edits this bullet.
+- Full automated `axe-core` through Playwright belongs to
+  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md), per
+  [Testing Standards](../../../docs/standards/06-testing.md#end-to-end-tests).
+  Accepted P02d-6/G43 requires applicable jsx-a11y error rules with actual-config
+  planted controls, localized product-page semantics and real manual keyboard,
+  focus, reflow, contrast and screen-reader evidence. Step 3 implements the
+  applicable lint controls and synchronous lesson semantics. The
+  [Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+  records product proofs and the scoped manual browser/screen-reader checks.
+- [Performance Standards](../../../docs/standards/15-performance.md) governs pages
+  embedding the block. Accepted G44 assigns Lighthouse activation and assertions
+  to P02d-7 after P6; the job remains disabled until that harness ships.
 
 ## Validation
 
 - `dotnet build` and `pnpm build` pass.
-- Architecture test `Block_Schemas_Are_Immutable_After_Publish` is green.
+- The future block-registry implementation must supply its schema-immutability
+  proof; `Block_Schemas_Are_Immutable_After_Publish` is not a shipped test today.
 - For a primitive: the block appears in the Studio block picker.
 - For a composite: tenant admins can reference it from their `TenantPageBlock`
   editor.
@@ -236,7 +236,7 @@ the page.
   and UI colours pass, per
   [Accessibility Standards § Testing](../../../docs/standards/16-accessibility.md#testing),
   recorded in the PR description. Automated `axe-core` is not a gate yet — Step 7 names
-  its owner and G43, the Phase 02d gate open on it.
+  its Phase 06 owner and Accepted G43's earlier P6 obligations.
 
 ## Common pitfalls
 

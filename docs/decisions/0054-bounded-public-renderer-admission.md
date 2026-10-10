@@ -316,6 +316,54 @@ reviews and unmerged PR readiness live in the [five-step remediation record](../
 including its [corpus/PR closeout](../roadmap/phase-02d-walking-skeleton.md#remediation-step-5--corpus-and-pr-closeout).
 This adds delivery navigation, not a new decision or a claim that PR #26 is merged.
 
+### Amendment 6 — Merge closeout (2026-10-09)
+
+All five remediation steps are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+owns the final head, merge verification and CI evidence. The accepted decision,
+metadata and earlier delivery notes remain unchanged. This note records delivery
+only; P02d-6/7 and Phase 11 retain their named work.
+
+
+### Amendment 7 — Next security maintenance (2026-10-10)
+
+The current verified runtime pin is Next 15.5.27 with matching eslint-config-next.
+The signed raw target, full-URL RSC projection and equivalent redirect-query
+contract are unchanged. The unused image optimizer is disabled. P02d-6's
+[remediation record](../roadmap/phase-02d-walking-skeleton.md#remediation-group-3--approved-security-maintenance)
+owns the replacement native/production proofs and dependency triage; historical
+15.5.18 observations remain unchanged.
+
+### Amendment 8 — Renderer bootstrap and Retry-After qualification (2026-10-10)
+
+The maintainer accepted
+[ADR-0055](0055-public-renderer-bootstrap-failures.md). It selects the request-local
+bootstrap reuse left undelivered in this record's Context. Middleware performs one
+live site read and owns bootstrap refusal responses; RSC consumes the immutable
+same-request snapshot. Implementation and production proofs remain pending under
+the [three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10).
+
+ADR-0055 qualifies only the renderer forwarding boundary of
+[Anonymous accounting](#anonymous-accounting)'s instruction to use the selected
+refusal's Retry-After unchanged. The renderer forwards an eligible parsed integer
+from zero through sixty seconds unchanged for its closed supported 429/503 cases;
+it omits malformed, negative, HTTP-date or out-of-range values without clamping or
+inventing a duration. API refusal selection, original API metadata, visitor/peer
+accounting and numeric quotas remain unchanged. This is bounded supersession
+navigation, not a correction; original metadata, body and earlier amendments stay
+historical. Acceptance is not runtime delivery evidence.
+
+### Amendment 9 — Renderer bootstrap qualification delivery (2026-10-10)
+
+ADR-0055's single-bootstrap reuse and bounded renderer Retry-After qualification
+are implemented. Real wire proofs cover supported 404/429/503, eligible zero/sixty
+boundaries, omitted invalid values and bodyless HEAD. API accounting, original API
+metadata and numeric budgets remain unchanged. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns execution and independent review status. This delivery note preserves the
+original acceptance metadata, body and all earlier amendments.
+
 ## References
 
 - [ADR-0053 — Trusted Public Server Rendering](0053-trusted-public-server-rendering.md)

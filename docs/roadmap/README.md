@@ -65,8 +65,20 @@ not deferred to the showcase phase.
   records final verification. P02d-5's decision package and ADR-0053 are Accepted
   — 2026-10-08. All four steps and both fresh review rounds per step are complete.
   The [remediation and closeout record](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-  owns current delivery, review and CI evidence; P02d-5 remains unmerged in PR #26.
-  P02d-6's public-renderer decision pass is next; the P7 browser demo remains later.
+  owns delivery and review evidence. P02d-5 is complete and merged through
+  [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on 2026-10-09; its
+  [merge closeout](phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+  records final verification.
+  P02d-6's ADR-0027 and decision package are Accepted — 2026-10-09. Its localized
+  catalog/course/lesson pages and product proofs are implemented; the
+  [closeout record](phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+  records completed reviews and scoped browser/VoiceOver observations.
+  The original implementation is complete. ADR-0055 remediation delivers
+  single-bootstrap admission and passing production replacement proofs. All three
+  steps completed both independent review rounds;
+  the [Step 3 record](phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+  owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
+  PR review and merge remain pending. P7 owns the browser/demo.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

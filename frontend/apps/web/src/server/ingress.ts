@@ -5,6 +5,7 @@ import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 
 export const INGRESS_HEADER = 'x-learnstack-ingress-provenance';
+export const PUBLIC_HTTPS_PORT = 3000;
 export const MAX_TARGET_BYTES = 8192;
 const MAX_ENVELOPE_BYTES = 12288;
 const MAC_DOMAIN = 'learnstack.public-ingress.v1\0';

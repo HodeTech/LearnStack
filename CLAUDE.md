@@ -58,8 +58,9 @@ the phase against its own exit decision: thirty catalogue entries name it as the
 that implemented them — module boundaries in all four legs, domain genericity across names,
 schema, slugs, keys and the frontend tree, the port and entitlement-key bans, ADR-0040's
 two behavioural properties, and three named isolation proofs as `learnstack_app`. The
-standards were re-stated against what enforces them today (nineteen `Active`, three
-`Adopted`), and four guards now hold the corpus to its own claims, so a status header, a
+standards were re-stated against enforcement at Packet 10 closeout (nineteen
+`Active`, three `Adopted`), and four guards now hold the corpus to its own claims,
+so a status header, a
 catalogue entry, a published count or a planted `Skip` fails the build rather than a
 reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
 let change.
@@ -110,10 +111,41 @@ records final verification. P02d-5 delivers trusted public server rendering unde
 Accepted ADR-0053 and ADR-0054: native HTTPS ingress, coordinated visitor/peer
 admission, the configured bounded server caller, live-host/locale entry and
 source/runtime proof controls. The [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
-is the current owner of implementation steps, independent reviews, validation and
-PR readiness. P02d-5 remains unmerged in [PR #26](https://github.com/HodeTech/LearnStack/pull/26).
-Work stays on development. P02d-6's decision pass and product pages are next;
-P02d-7 owns the browser demo and Lighthouse. Neither packet is delivered by P5.
+owns implementation steps, independent reviews and validation. **P02d-5 is complete
+and merged** through [PR #26](https://github.com/HodeTech/LearnStack/pull/26) on
+2026-10-09. Its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+records final verification.
+Work stays on development. **P02d-6's decision pass is Accepted — 2026-10-09**:
+[ADR-0027](docs/decisions/0027-frontend-i18n.md) and its
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+authorize four implementation steps and two independent review rounds per step.
+Step 1 implements the pinned i18n and document foundation, verified request-local
+admission/content loaders, atomic color theming, chrome and controlled status/error/
+loading components. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns its validation and review evidence. Step 2 adds actual catalog/course pages,
+independent pagination and metadata from the shared resource loader. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
+owns current verification and review status. Step 3 adds the ordered plain-text
+lesson page, eligible lesson metadata and 31 blocking JSX accessibility rules
+with actual-config planted controls. Its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+owns verification and review status. Step 4 adds concurrent host/locale, theme,
+freshness and content-fault product proofs; its
+[delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+records both completed review rounds. **P02d-6 implementation is complete —
+2026-10-10, unmerged**: the
+[packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records passing manual browser checks and the maintainer's VoiceOver smoke.
+Maintainer PR review and merge remain pending. ADR-0055 remediation delivers
+single-bootstrap admission and passing production replacement proofs. All three
+steps completed both independent review rounds;
+the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
+catalogue rules are Implemented.
+P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
+the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

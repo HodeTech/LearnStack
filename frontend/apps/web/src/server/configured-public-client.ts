@@ -6,10 +6,8 @@ import { createServerSdk } from '@learnstack/sdk/server';
 import type { ServerSdk } from '@learnstack/sdk/server';
 
 import { publicServerConfiguration, verifyProvenance } from './ingress';
+import { MAX_PUBLIC_RESPONSE_BYTES, PUBLIC_API_DEADLINE_MS } from './public-api-limits';
 import { canonicalRouteLocale } from './public-entry';
-
-const TOTAL_DEADLINE_MS = 10_000;
-const MAX_DECODED_BYTES = 8 * 1024 * 1024;
 
 type ClientOptions = {
   readonly traceparent?: string | null;
@@ -62,7 +60,7 @@ async function boundedResponse(
   });
   controller.signal.addEventListener('abort', rejectInterrupted, { once: true });
   callerSignal?.addEventListener('abort', abort, { once: true });
-  const deadline = setTimeout(abort, TOTAL_DEADLINE_MS);
+  const deadline = setTimeout(abort, PUBLIC_API_DEADLINE_MS);
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     if (callerSignal?.aborted) abort();
@@ -84,6 +82,12 @@ async function boundedResponse(
     })();
     const response = await Promise.race([pending, interrupted]);
     reader = response.body?.getReader();
+    const mediaType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+    const expectedMediaType = response.ok ? 'application/json' : 'application/problem+json';
+    if (mediaType !== expectedMediaType) {
+      controller.abort();
+      throw new Error('Invalid public API response media type');
+    }
     const chunks: Uint8Array[] = [];
     let size = 0;
     if (reader) {
@@ -91,7 +95,7 @@ async function boundedResponse(
         const chunk = await Promise.race([reader.read(), interrupted]);
         if (chunk.done) break;
         size += chunk.value.byteLength;
-        if (size > MAX_DECODED_BYTES) {
+        if (size > MAX_PUBLIC_RESPONSE_BYTES) {
           controller.abort();
           throw new Error('Public API response exceeds the consumer limit');
         }

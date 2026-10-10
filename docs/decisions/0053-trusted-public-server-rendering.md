@@ -342,6 +342,46 @@ or local topology changes. The [remediation record](../roadmap/phase-02d-walking
 owns current status. Acceptance delivers no runtime correction or new test/CI
 result; each implementation step still owes validation and two independent reviews.
 
+### Amendment 8 — Merge closeout (2026-10-09)
+
+P02d-5 and its ADR-0054 remediation are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26). The
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+owns the final head, merge verification and CI evidence. Original acceptance
+metadata and prior amendments remain historical. This delivery note changes no
+decision; P02d-6 product pages and P02d-7 browser/demo/Lighthouse remain separate.
+
+### Amendment 9 — Single-bootstrap ownership supersession (2026-10-10)
+
+The maintainer accepted
+[ADR-0055](0055-public-renderer-bootstrap-failures.md). It replaces this record's
+duplicate middleware/RSC site-read contract with one live middleware bootstrap
+and an immutable validated snapshot bound to the native request lifetime. RSC
+re-verifies provenance before consuming that request's snapshot; it performs no
+second site read. Middleware owns exact bootstrap 404/429/503 before rendering.
+Normal product documents use two API calls; followed missing-detail chains use
+three. Content eligibility remains live at the API, and a new request reads a new
+site snapshot. API tenant authority, signed route identity, no-store transport,
+numeric quotas and content-error/missing-detail status policies are unchanged.
+
+This is bounded supersession navigation. The original body, metadata and earlier
+delivery notes remain historical. Acceptance delivers no implementation or
+passing production proof; the
+[three-step plan](../roadmap/phase-02d-walking-skeleton.md#adr-0055-acceptance-and-implementation-plan-2026-10-10)
+owns execution and review evidence.
+
+### Amendment 10 — Single-bootstrap production delivery (2026-10-10)
+
+ADR-0055's native request context, middleware publication and checked RSC consumers
+are implemented. Actual production Next/API/PostgreSQL proofs preserve ingress,
+isolation, content states and the two/one/three-call contract; the additional
+fixture covers exact bootstrap refusals, concurrent snapshots, native lifetime,
+stock browser fallback and fresh development admission. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns execution and independent review status. This delivery note leaves the
+original acceptance metadata, body and earlier amendments unchanged; it adds no
+P7 browser-demo, full accessibility or production deployment claim.
+
 ## References
 
 - [ADR-0036](0036-tenant-resolution-trusted-inputs.md)

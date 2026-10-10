@@ -1,16 +1,25 @@
 // @vitest-environment node
 import { randomBytes } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { middleware } from './middleware';
+import { middleware as handleMiddleware } from './middleware';
 import { validatedTraceparent } from './server/configured-public-client';
 import type * as ConfiguredClientModule from './server/configured-public-client';
 import { INGRESS_HEADER, mintProvenance } from './server/ingress';
+import type { IngressContext } from './server/ingress';
+import { createPublicAdmissionRuntime } from './server/public-admission-runtime';
 import type { PublicSite } from './server/public-entry';
 
-const { factory, bootstrap } = vi.hoisted(() => ({ factory: vi.fn(), bootstrap: vi.fn() }));
+const { factory, bootstrap, beginAdmission } = vi.hoisted(() => ({
+  factory: vi.fn(),
+  bootstrap: vi.fn(),
+  beginAdmission: vi.fn(),
+}));
+vi.mock('./server/public-admission', () => ({ beginPublicAdmission: beginAdmission }));
 vi.mock('./server/configured-public-client', async (original) => {
   const actual = await original<typeof ConfiguredClientModule>();
   return { ...actual, createConfiguredPublicClient: factory };
@@ -26,7 +35,36 @@ const site: PublicSite = {
 };
 const trace = '00-1234567890abcdef1234567890abcdef-1234567890abcdef-01';
 
-function incoming(target: string, stamp: 'valid' | 'missing' | 'forged' = 'valid') {
+let runtime: ReturnType<typeof createPublicAdmissionRuntime>;
+const nativeBindings = new WeakMap<NextRequest, IngressContext>();
+
+function lifetime() {
+  return {
+    request: Object.assign(new EventEmitter(), { aborted: false }) as IncomingMessage,
+    response: Object.assign(new EventEmitter(), {
+      destroyed: false,
+      writableEnded: false,
+    }) as ServerResponse,
+  };
+}
+
+async function middleware(request: NextRequest) {
+  const owner = lifetime();
+  return runtime.run(nativeBindings.get(request)!, owner.request, owner.response, async () => {
+    try {
+      return await handleMiddleware(request);
+    } finally {
+      owner.response.emit('finish');
+    }
+  });
+}
+
+function incoming(
+  target: string,
+  stamp: 'valid' | 'missing' | 'forged' = 'valid',
+  method = 'GET',
+  signal?: AbortSignal,
+) {
   const headers = new Headers({
     host: 'substituted.invalid',
     cookie: 'session=private',
@@ -52,24 +90,253 @@ function incoming(target: string, stamp: 'valid' | 'missing' | 'forged' = 'valid
       stamp === 'forged'
         ? 'forged'
         : mintProvenance(
-            { host: 'tenant.example:9999', peer: '192.0.2.11', method: 'GET', target },
+            { host: 'tenant.example:9999', peer: '192.0.2.11', method, target },
             secret,
           ),
     );
   // Pinned Next normalizes the full URL before parsing, then removes _rsc.
   const observed = new URL(('https://substituted.invalid' + target).replace(/\.rsc($|\?)/, '$1'));
   observed.searchParams.delete('_rsc');
-  return new NextRequest(observed, { headers });
+  const request = new NextRequest(observed, { headers, method, signal });
+  nativeBindings.set(request, { host: 'tenant.example:9999', peer: '192.0.2.11', method, target });
+  return request;
 }
 
 beforeEach(() => {
   vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
+  runtime = createPublicAdmissionRuntime();
+  beginAdmission
+    .mockReset()
+    .mockImplementation((binding: IngressContext) => runtime.holder.begin(binding));
   factory.mockReset().mockReturnValue({ getSite: bootstrap });
   bootstrap.mockReset().mockResolvedValue({ kind: 'success', status: 200, data: site });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  runtime.shutdown();
+  vi.unstubAllEnvs();
+});
 
 describe('Node public middleware', () => {
+  it('publishes one detached immutable snapshot only after successful continuation', async () => {
+    const request = incoming('/tr/courses');
+    const owner = lifetime();
+    await runtime.run(nativeBindings.get(request)!, owner.request, owner.response, async () => {
+      const response = await handleMiddleware(request);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-middleware-next')).toBe('1');
+      const snapshot = runtime.holder.read(nativeBindings.get(request)!).site;
+      expect(snapshot).toEqual(site);
+      expect(snapshot).not.toBe(site);
+      expect(Object.isFrozen(snapshot)).toBe(true);
+      expect(Object.isFrozen((snapshot as PublicSite).enabledLocales)).toBe(true);
+      expect(bootstrap).toHaveBeenCalledOnce();
+      expect(runtime.counts()).toEqual({ active: 1, snapshots: 1 });
+    });
+    owner.response.emit('finish');
+    expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+  });
+
+  it('refuses a missing or mismatched native context before any API call', async () => {
+    const request = incoming('/tr/courses');
+    expect((await handleMiddleware(request)).status).toBe(503);
+    const owner = lifetime();
+    await runtime.run(
+      { ...nativeBindings.get(request)!, host: 'other.example' },
+      owner.request,
+      owner.response,
+      async () => {
+        const response = await handleMiddleware(request);
+        expect(response.status).toBe(503);
+        expect(await response.text()).toBe('Service unavailable');
+        expect(response.headers.get('retry-after')).toBeNull();
+      },
+    );
+    expect(factory).not.toHaveBeenCalled();
+    expect(bootstrap).not.toHaveBeenCalled();
+    expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+  });
+
+  it.each(['aborted', 'finish', 'close'] as const)(
+    'prevents late bootstrap publication after native %s',
+    async (event) => {
+      const request = incoming('/tr/courses');
+      const owner = lifetime();
+      let resolve!: (value: unknown) => void;
+      bootstrap.mockReturnValueOnce(
+        new Promise((release) => {
+          resolve = release;
+        }),
+      );
+      const pending = runtime.run(nativeBindings.get(request)!, owner.request, owner.response, () =>
+        handleMiddleware(request),
+      );
+      expect(bootstrap).toHaveBeenCalledOnce();
+      const signal = factory.mock.calls[0]![1].signal as AbortSignal;
+      expect(signal).not.toBe(request.signal);
+      expect(signal.aborted).toBe(false);
+      (event === 'aborted' ? owner.request : owner.response).emit(event);
+      expect(signal.aborted).toBe(true);
+      resolve({ kind: 'success', status: 200, data: site });
+      const response = await pending;
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe('Service unavailable');
+      expect(response.headers.get('x-middleware-next')).toBeNull();
+      expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+    },
+  );
+
+  it('propagates framework cancellation and refuses late success before a native abort event', async () => {
+    const cancel = new AbortController();
+    const request = incoming('/tr/courses', 'valid', 'GET', cancel.signal);
+    const owner = lifetime();
+    let resolve!: (value: unknown) => void;
+    bootstrap.mockReturnValueOnce(
+      new Promise((release) => {
+        resolve = release;
+      }),
+    );
+    const pending = runtime.run(nativeBindings.get(request)!, owner.request, owner.response, () =>
+      handleMiddleware(request),
+    );
+    const signal = factory.mock.calls[0]![1].signal as AbortSignal;
+    cancel.abort();
+    expect(signal.aborted).toBe(true);
+    resolve({ kind: 'success', status: 200, data: site });
+    expect((await pending).status).toBe(503);
+    expect(runtime.counts()).toEqual({ active: 1, snapshots: 0 });
+    owner.response.emit('finish');
+    expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+  });
+
+  it('refuses conflicting middleware re-entry without a second bootstrap', async () => {
+    const request = incoming('/tr/courses');
+    const owner = lifetime();
+    await runtime.run(nativeBindings.get(request)!, owner.request, owner.response, async () => {
+      expect((await handleMiddleware(request)).status).toBe(200);
+      expect((await handleMiddleware(request)).status).toBe(503);
+      expect(bootstrap).toHaveBeenCalledOnce();
+      expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+    });
+  });
+
+  it.each([
+    [429, 'rate_limited'],
+    [503, 'dependency_unavailable'],
+    [503, 'audit_unavailable'],
+  ] as const)('forwards only bounded integer Retry-After for %s/%s', async (status, code) => {
+    for (const retryAfter of [
+      0,
+      1,
+      60,
+      -1,
+      61,
+      0.5,
+      Number.MAX_SAFE_INTEGER,
+      NaN,
+      Infinity,
+      '30',
+      'Wed, 21 Oct 2015 07:28:00 GMT',
+      undefined,
+    ]) {
+      bootstrap.mockResolvedValueOnce({
+        kind: 'api-error',
+        status,
+        error: { code, retryAfter },
+        problem: { detail: secret },
+      });
+      const response = await middleware(incoming('/tr/courses'));
+      expect(response.status).toBe(status);
+      expect(response.headers.get('retry-after')).toBe(
+        typeof retryAfter === 'number' &&
+          Number.isInteger(retryAfter) &&
+          retryAfter >= 0 &&
+          retryAfter <= 60
+          ? String(retryAfter)
+          : null,
+      );
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.text()).toBe(
+        status === 429 ? 'Too many requests' : 'Service unavailable',
+      );
+      expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+    }
+  });
+
+  it.each([
+    [404, 'not_found', 404],
+    [429, 'dependency_unavailable', 429],
+    [503, 'rate_limited', 503],
+    [503, 'not_found', 503],
+    [500, 'dependency_unavailable', 503],
+    [400, 'validation_failed', 503],
+  ] as const)('omits Retry-After from unsupported %s/%s errors', async (status, code, expected) => {
+    bootstrap.mockResolvedValueOnce({ kind: 'api-error', status, error: { code, retryAfter: 30 } });
+    const response = await middleware(incoming('/tr/courses'));
+    expect(response.status).toBe(expected);
+    expect(response.headers.get('retry-after')).toBeNull();
+    expect(response.headers.get('x-middleware-next')).toBeNull();
+    expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+  });
+
+  it.each([404, 429, 503] as const)(
+    'owns bodyless HEAD bootstrap %s before any rendering',
+    async (status) => {
+      bootstrap.mockResolvedValueOnce({
+        kind: 'api-error',
+        status,
+        error: {
+          code:
+            status === 404
+              ? 'not_found'
+              : status === 429
+                ? 'rate_limited'
+                : 'dependency_unavailable',
+          retryAfter: 30,
+        },
+      });
+      const response = await middleware(incoming('/tr/courses', 'valid', 'HEAD'));
+      expect(response.status).toBe(status);
+      expect(await response.text()).toBe('');
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+      expect(response.headers.get('retry-after')).toBe(status === 404 ? null : '30');
+      expect(response.headers.get('x-middleware-next')).toBeNull();
+    },
+  );
+
+  it.each(['/courses', '/fr/courses', '/TR/courses'])(
+    'makes redirect/refusal terminal with no retained snapshot: %s',
+    async (target) => {
+      const request = incoming(target);
+      const owner = lifetime();
+      await runtime.run(nativeBindings.get(request)!, owner.request, owner.response, async () => {
+        const response = await handleMiddleware(request);
+        expect([307, 308, 404]).toContain(response.status);
+        expect(response.headers.get('x-middleware-next')).toBeNull();
+        expect(runtime.counts()).toEqual({ active: 1, snapshots: 0 });
+        expect(() => runtime.holder.read(nativeBindings.get(request)!)).toThrow(
+          'Public admission context unavailable',
+        );
+      });
+      owner.response.emit('finish');
+      expect(runtime.counts()).toEqual({ active: 0, snapshots: 0 });
+    },
+  );
+
+  it('continues only the exact admitted status namespace with a no-store 404', async () => {
+    const response = await middleware(incoming('/tr/status/not-found?slug=private'));
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+    for (const path of ['/fr/status/not-found', '/tr/status/other', '/tr/status/not-found/extra']) {
+      const refused = await middleware(incoming(path));
+      expect(refused.status).toBe(404);
+      expect(refused.headers.get('x-middleware-next')).toBeNull();
+    }
+  });
+
   it.each(['missing', 'forged'] as const)(
     'refuses %s provenance before bootstrap',
     async (stamp) => {
@@ -157,7 +424,7 @@ describe('Node public middleware', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(factory).toHaveBeenCalledWith(request.headers.get(INGRESS_HEADER), {
       traceparent: trace,
-      signal: request.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(bootstrap).toHaveBeenCalledTimes(1);
   });
@@ -182,7 +449,7 @@ describe('Node public middleware', () => {
       expect(downstream).not.toBeNull();
       expect(factory).toHaveBeenCalledWith(request.headers.get(INGRESS_HEADER), {
         traceparent: downstream,
-        signal: request.signal,
+        signal: expect.any(AbortSignal),
       });
       expect(response.headers.get('traceparent')).toBeNull();
     },

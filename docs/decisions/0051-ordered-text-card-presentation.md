@@ -2,6 +2,13 @@
 
 ## Status
 
+> **Implementation update — 2026-10-10.**
+> P02d-6 delivers ordered plain-text lesson rendering, bounded fallbacks and
+> inert HTML/script/URL-like value proofs. Product HTML/RSC checks and manual
+> accessibility smoke are complete; PR review and merge remain separate. See
+> [Amendment 4](#amendment-4--p02d-6-renderer-delivery-2026-10-10).
+> Earlier delivery disclosures and the acceptance-time statement are historical.
+
 > **Implementation update — 2026-10-05.**
 > P02d-4 delivers ordered public descriptor/content projection after eligibility,
 > including bounded unavailable results. The dated 2026-10-02 disclosure below
@@ -220,3 +227,18 @@ The Decision and acceptance-time status are unchanged. A new dated disclosure
 inside Status points to this amendment without rewriting earlier records.
 Updated carriers: this Status disclosure, the corresponding ADR-0050/0052
 delivery disclosures, the Education module spec and the P02d-4 delivery record.
+
+### Amendment 4 — P02d-6 renderer delivery (2026-10-10)
+
+P02d-6 completes ordered plain-string lesson rendering with authored field order,
+resolved label language/direction, omitted absent optional fields and bounded
+unavailable states. HTML/script/URL-like values remain inert text. Unit and
+production HTML/RSC cases cover the actual product routes; the
+[packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records automated evidence, two review rounds per step and passing manual
+browser/maintainer VoiceOver smoke. PR review and merge remain separate.
+
+The new Status disclosure points to this delivery note. Earlier amendments,
+Decision, acceptance Status, Date and Deciders remain unchanged. Richer
+primitives, media, Markdown/HTML sanitization and the full registry retain their
+Phase 04/05/06 owners; P02d-7 still owns the browser demo and Lighthouse.

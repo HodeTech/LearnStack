@@ -66,7 +66,19 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     integration also builds a disposable Next app against the real API/PostgreSQL;
     Node 22.23.1/pnpm, frozen frontend dependencies and OpenSSL are required by
     both that job and the frontend native-ingress proof.
-    Its test-owned HTML/RSC routes do not claim P6 pages or a browser audit.
+    P5 keeps its synthetic transport probe; P6 adds unchanged product-page modes
+    for HTML/RSC isolation, pagination, presentation, freshness and recovery.
+    These socket/DOM proofs do not claim a browser or manual accessibility audit.
+    ADR-0055 adds a separate narrow stock-Next navigation probe and development
+    HMR admission controls. Docker integration requires an installed stock
+    Chromium browser; CI explicitly checks `/usr/bin/google-chrome` and its
+    version before the suite. Local supported binaries are Chrome/Brave on macOS
+    and Chrome/Chromium on Linux; a missing browser fails rather than skips.
+    The fixture uses an isolated disposable profile and certificate-specific
+    public-key trust. Its Flight-to-document navigation and fresh HMR admission
+    scope does not deliver P7's browser demo, full Playwright/axe or Lighthouse.
+    The [Step 3 record](../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+    owns actual execution and remaining reviews.
   - `lighthouse budget (deferred to P02d-7)` remains behind its unset
     `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. Accepted P02d-5 G44 assigns
     activation to P02d-7/G44/G45 after P6 pages. It remains optional and disabled;

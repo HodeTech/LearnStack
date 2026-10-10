@@ -1,0 +1,57 @@
+{
+  "chrome": {
+    "skip_to_content": "Skip to content",
+    "catalog": "Course catalog",
+    "attribution": "Powered by LearnStack"
+  },
+  "catalog": {
+    "title": "Courses",
+    "course_count": "{count, plural, one {# course on this page} other {# courses on this page}}",
+    "empty": "No courses are available in this language yet.",
+    "next": "Next courses",
+    "restart": "Back to the first courses",
+    "level_unavailable": "Level unavailable"
+  },
+  "course": {
+    "outline": "Course outline",
+    "lesson_count": "{count, plural, one {# lesson on this page} other {# lessons on this page}}",
+    "empty_outline": "No public lessons are available in this course yet.",
+    "restricted_outline": "The lessons in this course are not publicly available.",
+    "next": "Next lessons",
+    "restart": "Back to the first lessons",
+    "level_unavailable": "Level unavailable"
+  },
+  "lesson": {
+    "unavailable": "This lesson content is currently unavailable.",
+    "empty": "This lesson has no content to display yet."
+  },
+  "page": {
+    "missing": {
+      "title": "Page not found",
+      "description": "This page is not available. Browse the course catalog to continue."
+    },
+    "invalid_cursor": {
+      "title": "This page link is no longer valid",
+      "description": "Return to the first page to continue browsing.",
+      "reset": "Return to the first page"
+    },
+    "rate_limited": {
+      "title": "Please try again later",
+      "description": "There have been too many requests. Wait a moment before trying again."
+    },
+    "unavailable": {
+      "title": "Content unavailable",
+      "description": "Content is temporarily unavailable. Please try again later."
+    },
+    "loading": {
+      "title": "Loading content",
+      "description": "Please wait while the content loads."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "description": "This page could not be displayed. Please try again.",
+      "retry": "Try again"
+    },
+    "recovery": "Browse courses"
+  }
+}

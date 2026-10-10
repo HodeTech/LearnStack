@@ -6,13 +6,12 @@ Turn LearnStack into an education-aware headless CMS and page-composition platfo
 merely a course-management system. This phase enables landing pages, blog content,
 catalog pages, campaign pages, and tenant-defined page blocks.
 
-[Phase 02d](phase-02d-walking-skeleton.md) already renders two tenants' catalog and
-lesson pages from customization data. It does so with hard-coded route segments, and
-draws lesson bodies through their content type's composite over the subset of primitives
-that phase implements. This phase replaces that with an authored, versioned, localized
-content system that a tenant admin drives from Admin Studio — and it is the phase where
-four long-standing modelling conflicts in the corpus get an answer, because every one of
-them becomes load-bearing the moment content is authored rather than seeded.
+[Phase 02d](phase-02d-walking-skeleton.md) delivers the anonymous read API and trusted
+server transport through P02d-5. Catalog, course-detail/outline and lesson product
+pages are delivered by P02d-6; the two-host browser/demo proof remains P02d-7.
+Its bounded renderer uses fixed section names and ADR-0051's ordered plain-text profile.
+This phase adds an authored, versioned, localized content system that a tenant
+admin drives from Admin Studio, including the richer primitive field set.
 
 Decisions consumed in this phase:
 
@@ -30,10 +29,19 @@ Decisions consumed in this phase:
   directly here: presentation and content shape are inside it, so nothing in this phase
   needs a code branch per tenant.
 
-Decision required **before this phase exits**:
-[ADR-0027 — frontend i18n library pick](../decisions/README.md) (`next-intl` vs
-`react-intl` vs `lingui`), reserved against this phase in the decisions README's open
-drafts table.
+**P02d-6 Step 1 foundation implemented — 2026-10-10.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) closes G39 at the first public UI
+consumer: exact `next-intl` 4.14.9, server-first request configuration and app-local
+`src/i18n/messages/<locale>/<namespace>.json` catalogues. This phase consumes that
+foundation and adds CMS/Studio message coverage; it does not reselect the library
+or own its initial installation. Tenant-authored content localization remains
+this phase's responsibility. The
+[P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+records accepted page/status behavior; its
+[Step 1 delivery record](phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns foundation verification. Steps 2–4 deliver actual content pages and product
+proofs; the [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records passing manual accessibility smoke.
 
 ## Scope
 
@@ -66,12 +74,11 @@ The Content module keeps the half that is genuinely its own:
   through Mechanism #1 — an application contract in
   `Customization.Application.Contracts` that resolves a `(tenant_id, key,
   schema_version)` tuple to its JSON Schema and reports whether the revision is still
-  publishable. [Phase 02d](phase-02d-walking-skeleton.md)'s lesson writer calls this
-  contract first, so whether it resolves an exact revision or binds the Active one for
-  a key, whether it is an interface or a query, and which revisions a writer may bind
-  are G12 in
-  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register).
-  P02d-2's decision pass closes that part of G12 and edits this bullet with its answer.
+  publishable. P02d-2's lesson writer already consumes the uncached exact-revision
+  application interface: new bindings require Active; existing-pin writes permit
+  Active or Deprecated. P02d-3 supplies the separate generation-keyed display
+  projection. These accepted G12 contracts are owned by the
+  [Customization module](../modules/customization/README.md).
 - Referential integrity is therefore enforced in the application, and the failure mode
   is explicit: deleting a schema revision requires a zero-instance count across the
   tenant, per [ADR-0013](../decisions/0013-page-block-schema-versioning.md).
@@ -209,7 +216,10 @@ Also in scope: locale fallback chain per tenant, the `/{locale}/{slug}` routing 
 per-locale publish readiness, and locale negotiation from `Accept-Language` for
 API-returned messages
 ([Error Handling Standards § Validation Errors](../standards/09-error-handling.md#validation-errors)).
-The frontend i18n library is chosen in ADR-0027 (see the Phase Exit Decision).
+Frontend UI messages consume Accepted ADR-0027's separate whole-catalogue fallback
+contract; that fallback never changes the admitted content locale. Public route
+admission remains signed-source and live-membership based; `Accept-Language` is
+not route authority.
 
 ### Page Blocks — Two-Tier Registry
 
@@ -392,7 +402,8 @@ describes.
 - Admin Studio CMS screens per the list above.
 - Public read APIs for the renderer, versioned per
   [ADR-0024](../decisions/0024-api-versioning-policy.md).
-- ADR-0027 Accepted, and the chosen i18n library wired into `frontend/apps/web`.
+- CMS/Studio UI messages extend the ADR-0027 foundation owned by P02d-6, with
+  complete supported catalogues and checked ICU/callsite coverage.
 
 ## Completion Criteria
 
@@ -478,9 +489,9 @@ describes.
   the education catalog as disconnected systems. Both are corpus-level regressions;
   the catalog in [Phase 05](phase-05-education-learning-content.md) composes the same
   blocks and the same content types.
-- **ADR-0027 slipping past the exit gate.** An i18n library chosen after the Studio and
-  the public renderer already have strings is a mechanical but wide refactor. The gate
-  is there to make the cost visible while it is still small.
+- **Bypassing the accepted localization foundation.** A second catalogue home or
+  unchecked CMS/Studio literals recreate the drift G39 closes. Extend ADR-0027's
+  app-local namespaces and checks rather than introducing another UI runtime.
 
 ## Phase Exit Decision
 
@@ -503,6 +514,8 @@ hold:
   `IVideoTranscoder` has exactly one registered implementation with the managed
   alternative recorded against [Phase 11](phase-11-production-hardening.md) and its
   trigger.
-- ADR-0027 is **Accepted** and the chosen library is wired, not merely selected.
+- CMS/Studio UI coverage uses the P02d-6 ADR-0027 foundation, with complete
+  supported catalogues and passing ICU/callsite checks. Its installation belongs
+  to P02d-6; acceptance alone is not evidence of delivery.
 - Public rendering and Admin Studio work can proceed against a stable content contract —
   which is what [Phase 06](phase-06-renderer-admin-studio.md) assumes.

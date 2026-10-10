@@ -45,6 +45,7 @@ describe('public locale grammar and route-only identity', () => {
     ['/courses/courses', 'courses'],
     ['/studio/courses/foundation/lessons/intro', 'studio'],
     ['/portal/courses', 'portal'],
+    ['/tr/status/not-found', null],
     ['/TR/courses', null],
     ['/tr', null],
     ['/courses', null],
@@ -76,6 +77,7 @@ describe('membership-first public entry', () => {
     ['/en', 307, '/en/courses'],
     ['/en/', 307, '/en/courses'],
     ['/TR/courses', 308, '/tr/courses'],
+    ['/TR/status/not-found?cursor=private', 308, '/tr/status/not-found?cursor=private'],
     ['/zh-hans-cn/courses/foundation', 308, '/zh-Hans-CN/courses/foundation'],
     ['/ZH-Hans-cn/', 308, '/zh-Hans-CN/'],
   ])('redirects %s with the configured non-English default', (target, status, path) => {
@@ -87,6 +89,7 @@ describe('membership-first public entry', () => {
     '/en/courses/foundation',
     '/tr/courses/foundation/lessons/intro',
     '/tr/courses/%66oundation',
+    '/tr/status/not-found',
   ])('continues only supported content: %s', (target) => {
     expect(publicEntry(target, site())).toEqual({
       kind: 'continue',
@@ -112,6 +115,11 @@ describe('membership-first public entry', () => {
     '/courses//foundation',
     '/tr/courses/',
     '/tr/unknown',
+    '/fr/status/not-found',
+    '/tr/status',
+    '/tr/status/not-found/',
+    '/tr/status/not-found/extra',
+    '/tr/status/other',
     '/tr/courses/foundation/other',
     '/tr/courses/foundation/lessons/intro/extra',
     '/tr/courses/UPPER',

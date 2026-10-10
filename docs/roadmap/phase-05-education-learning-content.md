@@ -12,10 +12,11 @@ their per-tenant shape. Every model here is **domain-agnostic**. Domain-specific
 This phase **deepens** the [Phase 02d](phase-02d-walking-skeleton.md) walking
 skeleton. Its accepted design supplies independent `Course` and `Lesson` roots,
 each with its own publication state and translation satellites; an ordered lesson
-list; and a lesson body drawn through its content type's composite over the primitive
-subset that phase implements (G18 in
+list; and ADR-0051's bounded ordered plain-text lesson presentation (G18 in
 [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register)).
-Phase 05 adds the structure a real catalog needs: programs, versioning, modules, lesson
+P02d-4 delivers the public projection and P02d-5 its trusted transport; actual
+product pages are delivered by P02d-6. Phase 05 adds the structure a real catalog needs:
+programs, versioning, modules, lesson
 items, and tenant-defined item types.
 
 This phase also carries the decision the customization model has been running without.
@@ -36,9 +37,10 @@ Decisions consumed:
   are platform features.
 - [ADR-0013 Page Block Schema Versioning](../decisions/0013-page-block-schema-versioning.md)
   — the same `(key, schemaVersion)` semantics apply to lesson item types.
-- [ADR-0048 Publication Before Course Versioning](../decisions/0048-walking-skeleton-publication.md)
-  — independent publication states, no course-version snapshot, and preservation
-  obligations for this phase's migration.
+- [ADR-0050 Publication and Course Content Access](../decisions/0050-publication-and-course-content-access.md)
+  — independent publication states and inherited access policy, no course-version
+  snapshot, and preservation obligations for this phase's migration. ADR-0048
+  remains historical context, superseded by ADR-0050.
 - [ADR-0021 Feature-Based Entitlement](../decisions/0021-feature-based-entitlement.md)
   — the runtime limits below are `LimitKeys` entries, so a plan raises them up to a
   platform ceiling rather than the ceiling being hard-coded per tenant.
@@ -56,6 +58,13 @@ content-access policy through version/module migration, decides its versioned ow
 and any policy-edit/reparent/preview behavior before those writers, and never infers
 public access from a new version or listing. This note claims no shipped column.
 
+**Current delivery — 2026-10-09.** P02d-2 delivered the policy column, restricted
+backfill and writers; P02d-4 delivered eligible public reads. Preserve those
+contracts through this phase's version/module migration. P02d-6 delivers the
+bounded renderer and product/manual proofs; P02d-7 still owns the browser/demo
+harness. The [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records current implementation evidence.
+
 Phase 05 does not re-create these. Phase 02d's
 [delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
 accepted design from shipped implementation. This phase's decision pass designs the
@@ -68,11 +77,22 @@ Each change follows [Database Standards § Migrations](../standards/05-database.
 
 | Phase 02d baseline | Phase 05 adds |
 |---|---|
-| `Course` — independent root with `draft` / `published` under [ADR-0048](../decisions/0048-walking-skeleton-publication.md); title, summary and routable slug in `course_translations`; an optional exact taxonomy/band revision pin | Program membership, versioning, categories, tags, SEO and catalog visibility; this phase decides how those compose with existing publication, which currently does not snapshot the lesson set |
+| `Course` — independent root with `draft` / `published` and separate content-access policy under [ADR-0050](../decisions/0050-publication-and-course-content-access.md); title, summary and routable slug in `course_translations`; an optional exact taxonomy/band revision pin | Program membership, versioning, categories, tags, SEO and catalog visibility; this phase decides how those compose with existing publication, which currently does not snapshot the lesson set |
 | `Lesson` — independent root referencing a course, with its own `draft` / `published` state; ordered by `(sort, id)`; its translated body pins one exact content-type revision ([Education spec](../modules/education/README.md)) | Module membership, lesson items, required / optional, duration, prerequisites; preserve identity, ordering and translated content through the migration |
-| The anonymous public reads Phase 02d ships — their paths, shapes and count are G25 and G26 in [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register) | The authenticated authoring surface and the versioned read path |
+| Four anonymous public reads delivered P02d-4 — G25/G26 and [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); P02d-5 trusted server transport | The authenticated authoring surface and the versioned read path |
 | The customization definition read path — content types and taxonomies through the generation-keyed cache ([32-tenant-customization-model.md § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy)) | The `TenantLessonItemType` read, the batched reference walk and the measured cost model |
 | `[TenantOwned]` markers, EF query filters, RLS policies | The same layers on every new table, with no exception |
+
+**Accepted renderer inheritance — 2026-10-09; implemented by P02d-6.**
+The [P02d-6 package](phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+fixes exact-locale content, both opaque pagination surfaces, inert plain-text
+presentation and distinct restricted/empty/unavailable states. Its local 307→404
+status-route chain changes the browser URL; known content-call failures use
+translated HTTP 200 noindex states. Preserve these boundaries when expanding
+catalog data. [ADR-0027](../decisions/0027-frontend-i18n.md) supplies UI messages
+through shared verified request admission; UI fallback never substitutes content
+language or revises stored schema/taxonomy pins. Richer item renderers and the
+full registry remain this phase and Phase 06 work, not P02d-6 delivery.
 
 ### ADR-0025 — the scoring and completion DSL engine
 

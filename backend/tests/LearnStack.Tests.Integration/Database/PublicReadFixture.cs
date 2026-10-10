@@ -16,7 +16,10 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-[CollectionDefinition(Name)]
+// Production Serilog owns a process-global logger. Other collections' API hosts
+// must not replace/dispose it while these fixtures inspect real emitted logs.
+// Concurrent HTTP lanes inside each renderer proof remain concurrent.
+[CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class PublicReadTestGroup : ICollectionFixture<PublicReadFixture>
 {
     public const string Name = "Public read HTTP";

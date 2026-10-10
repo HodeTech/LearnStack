@@ -1,12 +1,12 @@
 // @vitest-environment node
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createFixtureOwner,
@@ -102,9 +102,18 @@ describe('fixture private-output scanner', () => {
 });
 
 describe('fixture positive environment', () => {
+  let root: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'learnstack-environment-'));
+  });
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
   it('drops inherited secrets, loaders, proxies, debug and TLS trust overrides', () => {
     for (const [key, value] of Object.entries({
       NODE_OPTIONS: '--require=/unsafe/loader',
+      SWC_NATIVE_BINDING_CACHE: '/unsafe/cache',
+      SWC_NATIVE_BINDING_CACHE_SKIP_SECURITY_CHECK: '1',
       NODE_TLS_REJECT_UNAUTHORIZED: '0',
       NODE_EXTRA_CA_CERTS: '/unsafe/ca',
       SSL_CERT_FILE: '/unsafe/ca',
@@ -114,16 +123,26 @@ describe('fixture positive environment', () => {
       LEARNSTACK_PUBLIC_HOP_SECRET: 'inherited',
     }))
       vi.stubEnv(key, value);
-    const env = fixtureEnvironment({ root: '/owned', nodePath: '/explicit/modules' });
+    const env = fixtureEnvironment({ root, nodePath: '/explicit/modules' });
     expect(env).toEqual({
       PATH: process.env.PATH,
-      TMPDIR: '/owned',
+      TMPDIR: root,
+      SWC_NATIVE_BINDING_CACHE: join(realpathSync(root), 'swc-native-cache'),
       NODE_ENV: 'production',
       NODE_PATH: '/explicit/modules',
       NODE_TLS_REJECT_UNAUTHORIZED: '1',
       NEXT_TELEMETRY_DISABLED: '1',
       CI: 'true',
     });
+  });
+
+  it('keeps native materialization inside the owned root through a temporary-directory alias', () => {
+    const alias = join(root, 'alias');
+    symlinkSync(root, alias, 'dir');
+    const env = fixtureEnvironment({ root: alias });
+    expect(env.SWC_NATIVE_BINDING_CACHE).toBe(join(realpathSync(root), 'swc-native-cache'));
+    expect(env.HOME).toBeUndefined();
+    expect(env.SWC_NATIVE_BINDING_CACHE_SKIP_SECURITY_CHECK).toBeUndefined();
   });
 
   it('accepts only explicitly configured runtime keys and deliberate debug canaries', () => {
@@ -134,17 +153,17 @@ describe('fixture positive environment', () => {
       LEARNSTACK_PUBLIC_TLS_KEY: '/owned/key',
     };
     const env = fixtureEnvironment({
-      root: '/owned',
+      root,
       nodeEnv: 'development',
       privateValues,
       debug: 'next:*',
     });
     expect(env).toMatchObject({ ...privateValues, NODE_ENV: 'development', DEBUG: 'next:*' });
+    expect(() => fixtureEnvironment({ root, privateValues: { NODE_OPTIONS: 'unsafe' } })).toThrow(
+      'Unsupported fixture environment',
+    );
     expect(() =>
-      fixtureEnvironment({ root: '/owned', privateValues: { NODE_OPTIONS: 'unsafe' } }),
-    ).toThrow('Unsupported fixture environment');
-    expect(() =>
-      fixtureEnvironment({ root: '/owned', privateValues: { NEXT_PUBLIC_SECRET: 'unsafe' } }),
+      fixtureEnvironment({ root, privateValues: { NEXT_PUBLIC_SECRET: 'unsafe' } }),
     ).toThrow('Unsupported fixture environment');
   });
 });

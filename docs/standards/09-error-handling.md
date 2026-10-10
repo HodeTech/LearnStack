@@ -4,6 +4,10 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (Problem Details + Result\<T\> baseline), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (implementation patterns), [04-api-design.md](04-api-design.md) § Error Responses.
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18n.md)
+and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
+Bootstrap response ownership and renderer Retry-After qualification derive from
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -73,13 +77,16 @@ public readonly record struct None { public static None Value { get; } }
 ```
 
 The `LocalizedMessage`'s `lockey_` prefix is invariant: the constructor
-rejects any key that does not start with `lockey_`. Frontend translation
-catalogues are keyed by the same prefix; backend code never returns raw
-English. `Error.Code` is a **stable, unprefixed** projection of
+rejects any key that does not start with `lockey_`. Resources used to resolve
+backend messages retain that prefix; it is not a prefix requirement for general
+frontend UI copy. Backend code never returns raw English.
+`Error.Code` is a **stable, unprefixed** projection of
 `Message.Key` (the `lockey_` prefix is stripped). Routing logic
 (`Result.ToActionResult()`, Problem Details writers) reads `Code`; the
-frontend reads `Message.Key` for locale resolution — two surfaces in
-sync by construction. Per
+consumer resolving a backend message reads `Message.Key` — two wire surfaces in
+sync by construction. This does not claim a shipped frontend message catalogue.
+See [Frontend Error Handling](#mapping-problem-details--ui) for current SDK
+normalization and the public UI mapping implemented by P02d-6 Steps 1–3. Per
 [Phase 02a Packet 2](../roadmap/phase-02a-kernel-tenancy.md) and
 [ADR-0032 § Error Model](../decisions/0032-exception-handling-logging-and-observability.md).
 
@@ -304,15 +311,16 @@ Rules:
   `internal_error` is reserved for 5xx, which is what the same method returns
   there.
 - `messageKey` is the `LocalizedMessage.Key` (always begins with `lockey_`)
-  the frontend resolves against its i18n catalogue. The legacy
+  identifying a backend message for a consumer's supported error resources;
+  it is not an arbitrary UI lookup instruction. The legacy
   `detail` field is omitted — backend never returns raw English.
 - `instance` is the request path.
 - `correlationId` is the full W3C traceparent (`Activity.Current.Id`),
   which embeds the trace id; falls back to the request id when no trace is
   active.
 - `errors` is field-level detail, each entry a `LocalizedMessage` payload
-  (`key` + optional `params`) so the frontend resolves field-level messages
-  through the same path as the top-level one.
+  (`key` + optional `params`), using the same backend-message contract as the
+  top-level one. The frontend feature owns any supported field-message resources.
 
 ## Validation Errors
 
@@ -320,8 +328,8 @@ Rules:
 - Always include all failures, not just the first one.
 - Field names match the request shape (`camelCase`).
 - Messages are localizable because they travel as keys: `messageKey` and each `errors`
-  entry are `LocalizedMessage` payloads (`key` + optional `params`) the frontend
-  resolves against its i18n catalogue, as [§ API Surface](#api-surface) states. The API
+  entry are `LocalizedMessage` payloads (`key` + optional `params`) for a consumer's
+  supported error resources, as [§ API Surface](#api-surface) states. The API
   returns no message text today; locale negotiation from `Accept-Language` for any
   message text the API composes later is
   [Phase 04](../roadmap/phase-04-cms-media-pages.md)'s.
@@ -416,6 +424,60 @@ type AppError =
 ```
 
 The SDK maps Problem Details payloads to `AppError`; UI code switches on `code`.
+It validates/preserves backend message keys as data and owns no translated
+resources. A feature that displays backend messages owns its supported error
+resources; general UI copy has its own feature identifiers.
+
+[ADR-0027](../decisions/0027-frontend-i18n.md#message-and-test-contract)
+specifies P02d-6's closed page-outcome mapping to owned UI keys, with unknown
+outcomes mapped to the bounded unavailable state. It does not authorize arbitrary
+Problem Details keys, titles, field errors or parameters as UI lookup identifiers
+or visible copy. This public-page mapping is Accepted — 2026-10-09;
+P02d-6 Steps 1–3 implement it, with evidence in the
+[Step 1](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation),
+[Step 2](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-2-catalog-and-course-pages)
+and [Step 3](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-3-ordered-lesson-presentation)
+delivery records.
+
+### Public Page Status and Recovery
+
+**P02d-6 G40 composition implemented — Steps 1–3, 2026-10-10.** A missing/hidden
+content resource redirects locally with **307** to the same host's fixed
+`/{locale}/status/not-found`, whose admitted branded document returns **404**.
+The browser URL changes. The page rechecks live host/locale admission, never calls
+Education, echoes no original target/query/cursor and supplies localized noindex
+metadata and a catalog recovery anchor. This is not a direct branded 404 at the
+original URL. A fresh bootstrap refusal remains neutral.
+
+Known content-call failures are translated **HTTP 200 noindex** page states:
+invalid cursor has a relative reset link, rate limiting has a retry-later state,
+and transport/invalid-response/unavailable or unknown outcomes have the bounded
+unavailable state. They do not claim HTTP 400/429/503. Unexpected framework failures
+retain pre-stream 500/post-stream 200 behavior; `error.tsx` cannot choose arbitrary
+status.
+Plain same-host relative anchors trigger fresh document requests. Admission
+completes before loading boundaries flush; [Standards 07](07-frontend-architecture.md#routing)
+owns placement and the shared request-local loader.
+
+**ADR-0055 implementation delivered — 2026-10-10; production replacement proofs
+pass.** All three steps completed both independent review rounds and focused fix
+verification.
+Middleware owns the sole live bootstrap and emits neutral 404 for invalid entry
+or API 404, 429 for valid API 429 and 503 for other site/transport/configuration
+failures. Responses are no-store with fixed plain-text copy and bodyless HEAD;
+failed bootstrap permits no Education operation or newly emitted tenant theme.
+RSC consumes only the validated same-request snapshot. An active-request context
+defect is a sanitized lifecycle failure, not API 404 or another read. Completion
+refusal cannot rewrite an already completed response.
+
+Forward optional parsed Retry-After only for closed supported 429/503 error cases,
+as integer delta-seconds from zero through sixty inclusive. Preserve eligible
+values; omit malformed/date/negative/out-of-range values without clamping or
+inventing a retry. This qualifies renderer forwarding only; the API's selected
+refusal metadata and accounting remain unchanged. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+records passing exact-wire failure/lifecycle proofs, both independent review
+rounds and focused fix verification.
 
 ### User-Facing Copy
 

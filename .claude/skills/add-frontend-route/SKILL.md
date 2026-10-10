@@ -41,7 +41,7 @@ SDK contract per
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Path | Yes | URL path (`/courses/[slug]`, `/dashboard/users`, `/lesson/[id]`). |
+| Path | Yes | Public URL `/{locale}/courses/{slug}`; future authenticated paths follow their owning phase. |
 | Route group | Yes | `(public)` / `(studio)` / `(portal)`. |
 | Auth | Yes | Anonymous (public) / authenticated tenant / org-scoped. |
 | Permission key | If guarded | `{module}.{resource}.{action}` from the closed set. |
@@ -59,6 +59,14 @@ SDK contract per
 
 ### Step 2: Create the route folder
 
+The shipped public tree is `(public)/[locale]/courses/`, with course detail at
+`[slug]/page.tsx` and lesson detail at `[slug]/lessons/[lessonSlug]/page.tsx`.
+`courses` and `lessons` are fixed section segments. The only localized status
+namespace is `[locale]/status/not-found`. A new public segment also needs an
+explicit update to the closed `contentPath` / `publicEntry` admission policy and
+its tests; adding a Next folder alone leaves it refused. Phase 06 owns broader
+localized section names.
+
 ```
 frontend/apps/web/src/app/
   (studio)/
@@ -75,24 +83,35 @@ unless the screen genuinely needs one.
 ### Step 3: Server Component shell
 
 ```tsx
-// page.tsx (Server Component by default)
-import { createConfiguredPublicClient } from '@/server/configured-public-client';
+// app/(public)/[locale]/courses/page.tsx
+import { notFound } from 'next/navigation';
+import { PublicCatalog } from '@/components/public/catalog';
+import { PublicState } from '@/components/public/state';
+import { requirePublicResource } from '@/server/public-resource';
+import { getPublicUi } from '@/server/public-ui';
 
-// The configured server caller supplies this transport; never a tenant-ID option.
-export function loadCourses(envelope: string | null) {
-  const client = createConfiguredPublicClient(envelope);
-  if (!client) throw new Error('Invalid public ingress');
-  return client.getCourses(); // Locale comes from the authenticated route.
+export default async function CoursesPage() {
+  const resource = await requirePublicResource();
+  const ui = await getPublicUi();
+  if (resource.kind === 'failure') {
+    return <PublicState state={resource.state}
+      recoveryPath={resource.request.route.path}
+      locale={ui.locale} direction={ui.direction} t={ui.t} />;
+  }
+  if (resource.kind !== 'catalog') notFound();
+  return <PublicCatalog resource={resource} ui={ui} />;
 }
 ```
 
 > **P02d-4 delivered.** `@learnstack/sdk/server` exports an injected
 > `createServerSdk(transport)` with four typed public GET wrappers; no global `sdk`
-> object, tenant-ID option or module namespace exists. The example is a loader,
-> not a complete route. P02d-5/G35 delivers the configured trusted transport in
+> object, tenant-ID option or module namespace exists. P02d-5/G35 delivers the
+> configured trusted transport in
 > [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> that caller precedes P02d-6 public page consumers. Read the verified envelope
-> from request-local `headers()`; never create or expose a provenance stamp in a page.
+> that caller precedes P02d-6 public page consumers. Pages use the shared resource
+> loader; they do not read envelope headers or create another bootstrap/client.
+> Keep loader helpers outside `page.tsx`; Next page exports are restricted to
+> supported route exports such as the default component and `generateMetadata`.
 
 Rules:
 
@@ -170,6 +189,7 @@ is authoritative.
 
 ### Step 6: Feature gating (entitlement-aware UI)
 
+The hook/package below is a future feature-UI sketch, not a shipped SDK export.
 For features gated by plan-projected `FeatureKey`:
 
 ```tsx
@@ -187,23 +207,41 @@ Hide, don't disable. The hook reads the entitlement projection. See
 
 ### Step 7: Localisation
 
-```tsx
-import { useTranslations } from "next-intl";   // or react-intl per the i18n ADR
+**P02d-6 G39 foundation delivered — Step 1, 2026-10-10.**
+[ADR-0027](../../../docs/decisions/0027-frontend-i18n.md) selects exact `next-intl`
+4.14.9, now installed with complete English/Turkish catalogues. The async Server
+Component pattern is:
 
-export default function CoursesPage() {
-  const t = useTranslations("courses");
-  return <h1>{t("title")}</h1>;
+```tsx
+import { getPublicUi } from "@/server/public-ui";
+
+export default async function CoursesPage() {
+  const { t } = await getPublicUi();
+  return <h1>{t("catalog.title")}</h1>;
 }
 ```
 
-Translation keys live under `frontend/apps/web/src/i18n/<locale>/courses.json`.
+Messages live in `frontend/apps/web/src/i18n/messages/<locale>/<namespace>.json`;
+P02d-6 supplies complete `en/public.json` and `tr/public.json`. General UI keys
+are dotted feature identifiers, distinct from backend `lockey_*` wire keys. The
+web app owns closed page-outcome mappings; the SDK supplies no translations.
 See [add-i18n-key](../add-i18n-key/SKILL.md).
 
-> **Open in Phase 02d.** No i18n library is installed and no catalogue exists. Whether
-> ADR-0027 picks the library in Phase 02d, and where the one UI string catalogue
-> lives — the corpus names three paths — are G39 in
-> [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-> the pass that closes it edits this step and add-i18n-key.
+`src/i18n/request.ts` uses the same server-only, request-cached verified admission
+loader as document/layout/page consumers. It re-verifies the ingress envelope,
+reads the canonical locale from the signed target and checks live enabled-locale
+membership. The loader neither imports next-intl nor reads messages. No i18n
+routing middleware, preference cookie, locale header or callsite override supplies
+authority. Only whole-catalogue fallback is allowed for unauthored UI languages;
+missing used keys in supported catalogues fail validation. Preserve exact content
+locale, document language and actual resolved-label language.
+
+The guarded frontend suite supplies ICU, argument and callsite checks. No
+`lint:i18n` command or screenshot/axe tooling exists. The
+[Step 1 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-1-localization-and-document-foundation)
+owns foundation validation; the
+[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+records the delivered product proof and scoped manual accessibility checks.
 
 ### Step 8: Public-site SSR caching
 
@@ -214,21 +252,57 @@ public rendering and no-store API transport; no positive `revalidate`, ISR,
 Request-local reuse is isolated to one incoming request. Server Component HMR caching
 is disabled. A new server/document request rechecks eligibility; client history is
 not a revocation guarantee. Use the configured server caller; never derive tenancy
-from a page header or add hop options to the injected SDK. P6 owns page consumers.
+from a page header or add hop options to the injected SDK.
+
+**Accepted P02d-6 G40 — 2026-10-09; foundation delivered in Step 1.** Use ordinary
+same-host relative anchors for public navigation and pagination, without automatic
+prefetch or reliance on retained client Router Cache. Request-local metadata,
+layout and page share verified admission and resource loaders; each page honors
+their result before emitting a shell. No loading boundary may flush before
+redirect admission.
+
+Parse owned pagination values only from the verified raw signed target, never
+observed Next `searchParams`. Catalog uses `cursor`/`limit`; outline uses
+`lessonCursor`/`lessonLimit`, default 20 and API bounds. Refuse duplicate, empty,
+malformed or oversized owned values; never decode opaque cursors or fabricate a
+previous cursor. Paginated metadata is noindex with a cursor-free canonical.
+Canonical/alternate URLs use the verified live host and eligible API slugs.
 
 ### Step 9: Loading + error boundaries
 
-Every route ships its own:
+Each route retains `loading.tsx` and a graceful `error.tsx`; P02d-6's accepted
+status composition is distinct from the framework's thrown `notFound()` behavior:
 
-- `loading.tsx` — skeleton shell, not a blank page. No "loading…" spinners for
-  expected-fast resources (<250 ms).
-- `error.tsx` — graceful boundary; 404 page renders the tenant's brand if a
-  tenant was resolved.
+- A missing/hidden content resource returns local HTTP 307 to the same host's
+  `/{locale}/status/not-found`. The browser URL changes; the original response is
+  not a direct 404.
+- Middleware admits that fixed status namespace through the same live host and
+  locale checks, then supplies HTTP 404. Its ordinary server-rendered document has
+  localized language/direction, safe theme/chrome, noindex metadata and a catalog
+  recovery link. It never queries Education or echoes the original slug/query.
+- Unknown-host/provenance refusals remain direct masked responses. Fresh status
+  bootstrap failure retains neutral 404/429/503; fallback UI cannot invent tenant
+  admission. HEAD is bodyless throughout.
+- Known content-call failures are controlled translated HTTP 200 noindex states:
+  invalid cursor with reset link, retry-later for 429, unavailable for transport,
+  invalid responses or unavailable API. They do not claim HTTP 400/429/503.
+  Closed outcome mapping never exposes backend keys, titles, field errors or
+  parameters as lookup identifiers or visible copy.
+- Unexpected framework errors keep pre-stream 500 / post-stream 200 behavior;
+  `error.tsx` cannot set arbitrary status.
+
+ADR-0055's implemented single bootstrap costs two API calls per completed product
+document, one per fixed status/scaffold document and three per followed missing
+document. Metadata/layout/page/UI share the admitted snapshot without another
+bootstrap or cross-request cache. HEAD/RSC/prefetch and Flight fallback require
+separately proven counts. The
+[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+records passing production replacement proofs, completed reviews and verified fixes.
 
 ### Step 10: Tests
 
-- Component tests (`frontend/apps/web/src/app/(studio)/dashboard/users/page.test.tsx`)
-  with Testing Library, per
+- Synchronous view/mapping tests use Vitest/Testing Library; async public pages use
+  the real production HTML/RSC fixture, per
   [Testing Standards § Frontend Test Types](../../../docs/standards/06-testing.md#frontend-test-types).
   Automated `axe-core` runs through Playwright, owned by
   [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) per
@@ -236,8 +310,11 @@ Every route ships its own:
   the manual keyboard and contrast checks
   [Accessibility Standards § Tooling](../../../docs/standards/16-accessibility.md#tooling)
   and [§ Testing](../../../docs/standards/16-accessibility.md#testing) require are
-  recorded in the PR description. The phase that ships a route names its test set in
-  its decision register.
+  recorded in the PR description. P02d-6 also requires actual manual screen-reader,
+  keyboard, focus, 320 CSS px reflow/zoom, long-string and contrast evidence on both
+  hosts/locales. If unavailable, evidence stays pending and completion is not
+  claimed. HTTP/RSC assertions are not browser or assistive-technology proof.
+  P02d-7 owns browser/demo and Lighthouse; Phase 11 owns web-vitals telemetry.
 - Lighthouse budget check on representative public routes — CI's `lighthouse budget`
   job remains deferred until P02d-7/G44/G45 after P6 pages; judge by reading until
   that harness is implemented. Its remaining details are in the

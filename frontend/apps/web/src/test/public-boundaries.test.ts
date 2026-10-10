@@ -11,18 +11,24 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ADAPTER,
+  ADMISSION_RUNTIME,
+  ADMISSION_FACADE,
+  admissionBoundaryFindings,
   buildSourceGraph,
   cacheFindings,
   clientBoundaryFindings,
   hasDirective,
   hasServerOnlyMarker,
+  I18N_REQUEST,
   INGRESS,
   MIDDLEWARE,
+  navigationFindings,
   privateServerFiles,
   publicLayoutPolicyFindings,
   PUBLIC_LAYOUT,
   rawAuthorityFindings,
   reachable,
+  REQUEST_MEMO,
   resolutionCensusFindings,
   SDK_SERVER,
   transportFindings,
@@ -53,7 +59,10 @@ function productionSources(): SourceCensus {
       if (entry.isDirectory()) {
         // Runtime/test fixtures never enter the production graph.
         if (!['test', '__tests__', '__fixtures__', 'fixtures'].includes(entry.name)) visit(path);
-      } else if (/\.tsx?$/.test(entry.name) && !/\.(?:test|spec|d)\.tsx?$/.test(entry.name)) {
+      } else if (
+        /\.(?:tsx?|json)$/.test(entry.name) &&
+        !/\.(?:test|spec|d)\.(?:tsx?|json)$/.test(entry.name)
+      ) {
         sources[relative(frontend, path).split('\\').join('/')] = readFileSync(path, 'utf8');
       } else
         extensionFindings.push(
@@ -71,9 +80,15 @@ function productionSources(): SourceCensus {
 const sources = productionSources();
 const production = buildSourceGraph(sources);
 const publicRoots = [...production.files.keys()].filter((name) => name.includes('/app/(public)/'));
-// P5 middleware supplies bootstrap; public page composition remains P6.
+// Native ingress currently admits these exact scaffold paths alongside product
+// routes. They share the root layout and must remain in the rendering census.
+const scaffoldRoots = [...production.files.keys()].filter((name) =>
+  /\/app\/\((?:studio|portal)\)\//.test(name),
+);
 const ROOT_LAYOUT = 'apps/web/src/app/layout.tsx';
-const renderRoots = [...publicRoots, ROOT_LAYOUT, MIDDLEWARE];
+// next-intl loads this configuration through its plugin, outside static imports.
+const renderRoots = [...publicRoots, ...scaffoldRoots, ROOT_LAYOUT, MIDDLEWARE, I18N_REQUEST];
+const catalogues = ['en', 'tr'].map((locale) => `apps/web/src/i18n/messages/${locale}/public.json`);
 const publicGraph = reachable(production, renderRoots);
 const clean = (findings: readonly Finding[], fix: string) =>
   expect(findings, fix + '\n' + JSON.stringify(findings, null, 2)).toEqual([]);
@@ -134,7 +149,10 @@ describe('ADR-0053 production public boundaries', () => {
     expect([...production.files.keys()]).toEqual(
       expect.arrayContaining([
         ADAPTER,
+        ADMISSION_RUNTIME,
+        ADMISSION_FACADE,
         INGRESS,
+        I18N_REQUEST,
         MIDDLEWARE,
         PUBLIC_LAYOUT,
         ROOT_LAYOUT,
@@ -143,11 +161,36 @@ describe('ADR-0053 production public boundaries', () => {
         'packages/sdk/src/response-policy.ts',
         'packages/ui/src/index.ts',
         'apps/web/src/server/public-entry.ts',
+        'apps/web/src/server/public-request.ts',
+        ...catalogues,
       ]),
     );
     expect(publicRoots).toContain(PUBLIC_LAYOUT);
+    expect(renderRoots).toContain(I18N_REQUEST);
+    expect(scaffoldRoots).toEqual(
+      expect.arrayContaining([
+        'apps/web/src/app/(studio)/layout.tsx',
+        'apps/web/src/app/(studio)/studio/page.tsx',
+        'apps/web/src/app/(portal)/layout.tsx',
+        'apps/web/src/app/(portal)/portal/page.tsx',
+      ]),
+    );
+    expect(reachable(production, [I18N_REQUEST])).toEqual(
+      expect.arrayContaining([
+        I18N_REQUEST,
+        'apps/web/src/server/public-request.ts',
+        ADAPTER,
+        ...catalogues,
+      ]),
+    );
     expect(privateServerFiles(production)).toEqual(
-      expect.arrayContaining([ADAPTER, INGRESS, SDK_SERVER]),
+      expect.arrayContaining([
+        ADAPTER,
+        INGRESS,
+        SDK_SERVER,
+        I18N_REQUEST,
+        'apps/web/src/server/public-request.ts',
+      ]),
     );
     expect(reachable(production, [MIDDLEWARE])).toEqual(
       expect.arrayContaining([
@@ -160,7 +203,7 @@ describe('ADR-0053 production public boundaries', () => {
       ]),
     );
     clean(production.unresolved, 'Fix: keep every runtime local import in the production census.');
-    clean(extensionFindings, 'Fix: model every production TypeScript runtime extension.');
+    clean(extensionFindings, 'Fix: model every production runtime source extension.');
   });
   it('the source resolver covers inherited tsconfig aliases and workspace exports', () => {
     const { configs, packages } = resolutionCensus();
@@ -184,6 +227,68 @@ describe('ADR-0053 production public boundaries', () => {
           directory + '/' + value.slice(2),
         );
       }
+  });
+  it('keeps the native admission owner outside every bundled runtime edge', () => {
+    expect(production.files.has(ADMISSION_RUNTIME)).toBe(true);
+    expect(production.files.has(ADMISSION_FACADE)).toBe(true);
+    expect(production.resolveModule('./public-admission-runtime.js', ADMISSION_FACADE)).toBe(
+      ADMISSION_RUNTIME,
+    );
+    clean(admissionBoundaryFindings(production), 'Fix: preserve native-only admission ownership.');
+    expect(reachable(production, renderRoots)).not.toContain(ADMISSION_RUNTIME);
+    const imported = graphWith(
+      ADMISSION_FACADE,
+      sources[ADMISSION_FACADE]! +
+        '\nimport { createPublicAdmissionRuntime } from "./public-admission-runtime.js"; createPublicAdmissionRuntime();',
+    );
+    expect(admissionBoundaryFindings(imported)).not.toEqual([]);
+    for (const mutation of [
+      sources[ADMISSION_FACADE]!.replace("import 'server-only';", ''),
+      sources[ADMISSION_FACADE]! +
+        '\nimport { AsyncLocalStorage } from "node:async_hooks"; new AsyncLocalStorage();',
+      sources[ADMISSION_FACADE]! +
+        '\nObject.defineProperty(globalThis, Symbol.for("fallback"), {value: {}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst install = Object.defineProperty; install(globalThis, Symbol.for("fallback"), {value: {}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst {defineProperties: install} = Object; install(globalThis, {fallback: {value: {}}});',
+      sources[ADMISSION_FACADE]! +
+        '\nconst target = globalThis; Object.assign(target, {fallback: {}});',
+      ...[
+        ['defineProperty', 'globalThis, Symbol.for("fallback"), {value: {}}'],
+        ['defineProperties', 'globalThis, {[Symbol.for("fallback")]: {value: {}}}'],
+        ['assign', 'globalThis, {[Symbol.for("fallback")]: {}}'],
+      ].flatMap(([method, args]) =>
+        [
+          `Object.${method}.call(Object, ${args});`,
+          `Object.${method}.apply(Object, [${args}]);`,
+          `const install = Object.${method}.bind(Object); install(${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install(${args});`,
+          `const [install] = [Object.${method}]; install(${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install.call(Object, ${args});`,
+          `const intrinsics = {install: Object.${method}}; intrinsics.install.apply(Object, [${args}]);`,
+          `const intrinsics = {install: Object.${method}}; const install = intrinsics.install.bind(Object); install(${args});`,
+        ].map((mutation) => sources[ADMISSION_FACADE]! + '\n' + mutation),
+      ),
+    ])
+      expect(admissionBoundaryFindings(graphWith(ADMISSION_FACADE, mutation))).not.toEqual([]);
+    for (const mutation of [
+      'const intrinsics = {install: (..._args: unknown[]) => null}; intrinsics.install(globalThis, Symbol.for("fallback"), {});',
+      'const [install] = [(..._args: unknown[]) => null]; install(globalThis, Symbol.for("fallback"), {});',
+    ])
+      clean(
+        admissionBoundaryFindings(
+          graphWith(ADMISSION_FACADE, sources[ADMISSION_FACADE]! + '\n' + mutation),
+        ),
+        'Local methods selected from literals do not install native state.',
+      );
+    for (const file of [ADMISSION_RUNTIME, ADMISSION_FACADE]) {
+      const graph = graphWith(
+        probe,
+        `'use client'; import * as admission from ${JSON.stringify('@/server/' + file.split('/').at(-1)!.replace(/\.ts$/, ''))}; export const value = admission;`,
+      );
+      expect(clientBoundaryFindings(graph).some((item) => item.file === probe)).toBe(true);
+    }
   });
   it('Public_Renderer_Uses_Trusted_Ingress_And_Server_Only_Transport', () => {
     const missingMarker: Finding[] = hasServerOnlyMarker(production.files.get(ADAPTER)!)
@@ -230,17 +335,26 @@ describe('ADR-0053 production public boundaries', () => {
   });
   it('the actual public render closure contains no shared cache', () => {
     expect(publicGraph).toEqual(
-      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, ADAPTER, SDK_SERVER]),
+      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, I18N_REQUEST, ADAPTER, SDK_SERVER]),
     );
     clean(
       cacheFindings(production, publicGraph),
       'Fix: keep public rendering dynamic and no-store.',
     );
   });
+  it('the public render closure uses document anchors without client router imports', () => {
+    clean(navigationFindings(production, publicGraph), 'Fix: preserve G40 document navigation.');
+  });
   it('public pages and their transitive helpers do not read raw authority', () => {
     const helpers = publicGraph.filter((name) => name !== INGRESS);
     expect(helpers).toEqual(
-      expect.arrayContaining([PUBLIC_LAYOUT, MIDDLEWARE, 'apps/web/src/server/public-entry.ts']),
+      expect.arrayContaining([
+        PUBLIC_LAYOUT,
+        MIDDLEWARE,
+        I18N_REQUEST,
+        'apps/web/src/server/public-entry.ts',
+        'apps/web/src/server/public-request.ts',
+      ]),
     );
     clean(rawAuthorityFindings(production, helpers), 'Fix: use verified ingress host/peer.');
   });
@@ -412,9 +526,9 @@ describe('server boundary planted controls', () => {
     ['mixed reexport', 'export { type Secret, value } from "private-edge";', true],
     ['side-effect import', 'import "private-edge";', true],
   ] as const)(
-    'pinned Next 15.5.18 production SWC emission: %s',
+    'pinned Next 15.5.27 production SWC emission: %s',
     async (_name, declaration, retained) => {
-      expect((require('next/package.json') as { version: string }).version).toBe('15.5.18');
+      expect((require('next/package.json') as { version: string }).version).toBe('15.5.27');
       const filename = join(frontend, probe);
       const config = ts.readConfigFile(
         join(frontend, 'packages/config/tsconfig/base.json'),
@@ -463,6 +577,33 @@ describe('server boundary planted controls', () => {
     });
     expect(clientBoundaryFindings(graph)).toHaveLength(1);
   });
+  it('refuses a direct client import of each bundled UI catalogue', () => {
+    const catalogues = Object.keys(sources).filter(
+      (name) => name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json'),
+    );
+    expect(catalogues.length).toBeGreaterThan(0);
+    for (const catalogue of catalogues) {
+      const graph = buildSourceGraph({
+        ...sources,
+        [probe]: `"use client"; import messages from "@/${catalogue.slice('apps/web/src/'.length)}"; export const leaked = messages;`,
+      });
+      expect(clientBoundaryFindings(graph)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ file: probe, reason: expect.stringContaining(catalogue) }),
+        ]),
+      );
+    }
+  });
+  it('permits ordinary public JSON data in a client graph', () => {
+    const data = 'apps/web/src/lib/public-options.json';
+    const graph = buildSourceGraph({
+      [probe]: '"use client"; import options from "@/lib/public-options.json"; export { options };',
+      [data]: '{"sizes":[10,20]}',
+    });
+    expect(reachable(graph, [probe])).toContain(data);
+    expect(privateServerFiles(graph)).not.toContain(data);
+    expect(clientBoundaryFindings(graph)).toEqual([]);
+  });
   it('permits UI-only imports and erased type imports/re-exports', () => {
     const graph = buildSourceGraph({
       ...sources,
@@ -481,6 +622,61 @@ describe('server boundary planted controls', () => {
 });
 
 describe('public cache fence planted controls', () => {
+  it('permits the audited request-identity memo independent of formatting and comments', () => {
+    const original = sources[REQUEST_MEMO]!;
+    expect(original).toContain('export function requestMemo');
+    const graph = graphWith(
+      REQUEST_MEMO,
+      original.replace('const incoming', '/* same key */ const   incoming'),
+    );
+    expect(cacheFindings(graph, [REQUEST_MEMO])).toEqual([]);
+  });
+  it.each([
+    ['strong key retention', 'new WeakMap<', 'new Map<'],
+    ['header value key', 'requests.get(incoming)', "requests.get(incoming.get('host'))"],
+    [
+      'changed insertion key',
+      'requests.set(incoming, pending)',
+      'requests.set(new Headers(), pending)',
+    ],
+    [
+      'copied request identity',
+      'const incoming = await headers()',
+      'const incoming = new Headers(await headers())',
+    ],
+    ['caller-selected key', 'return async () =>', 'return async (incoming) =>'],
+    [
+      'eager loader before publication',
+      'Promise.resolve().then(() => load(incoming))',
+      'load(incoming)',
+    ],
+    [
+      'retry after rejection',
+      'return pending;',
+      'return pending.finally(() => requests.delete(incoming));',
+    ],
+    ['exposed collection', 'return pending;', 'return requests;'],
+    ['untyped value', 'Promise<T>>();', 'Promise<unknown>>();'],
+    ['changed unary guard', 'if (!pending)', 'if (+pending)'],
+  ])('refuses mutated request memo mechanism: %s', (_name, before, after) => {
+    const original = sources[REQUEST_MEMO]!;
+    expect(original).toContain(before);
+    const mutated = original.replace(before, after);
+    expect(mutated).not.toBe(original);
+    expect(cacheFindings(graphWith(REQUEST_MEMO, mutated), [REQUEST_MEMO])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: REQUEST_MEMO })]),
+    );
+  });
+  it.each([
+    'const shared = new Map();',
+    'const shared = new WeakMap();',
+    'export const leaked = new Map();',
+  ])('the request helper is not exempt from additional shared collections: %s', (added) => {
+    const graph = graphWith(REQUEST_MEMO, sources[REQUEST_MEMO]! + '\n' + added);
+    expect(cacheFindings(graph, [REQUEST_MEMO])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: REQUEST_MEMO })]),
+    );
+  });
   it('the layout policy detector refuses missing or weakened actual production declarations', () => {
     const withoutDynamic = graphWith(
       PUBLIC_LAYOUT,
@@ -1041,7 +1237,404 @@ describe('remediation bounded header conversions', () => {
   });
 });
 
+describe('remediation public representation lifetimes', () => {
+  it.each([
+    ['Set', 'const entries = new Set();'],
+    ['WeakSet', 'const entries = new WeakSet();'],
+    ['bound collection', 'const { Set: Entries } = globalThis; const entries = new Entries();'],
+    ['factory Map', 'function create() { return new Map(); } const retained = create();'],
+    [
+      'aliased factory',
+      'const create = () => new Set(); const alias = create; const retained = alias();',
+    ],
+    ['IIFE Map', 'const retained = (() => new Map())();'],
+    [
+      'object method factory',
+      'const factories = { create() { const entries = new Map(); return (key) => entries.get(key); } }; const retained = factories.create();',
+    ],
+    [
+      'arrow property factory',
+      'const factories = { create: () => new Map() }; const retained = factories.create();',
+    ],
+    [
+      'aliased computed member factory',
+      'const factories = { create: () => new Map() }; const owner = factories; const key = "create"; const create = owner[key]; const retained = create();',
+    ],
+    [
+      'object binding closure capture',
+      'function create() { const { entries } = { entries: new Map() }; return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'array binding closure capture',
+      'function create() { const [entries] = [new Map()]; return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'nested aliased binding closure capture',
+      'function create() { const holder = { nested: { entries: new Map(), prefix: "ok" } }; const alias = holder; const { nested: { entries: values } } = alias; return (key) => values.get(key); } const retained = create();',
+    ],
+    [
+      'mutable primitive binding closure capture',
+      'function create() { let { value } = { value: "initial" }; return (next) => value = next; } const retained = create();',
+    ],
+    [
+      'nested factory',
+      'function inner() { return new Map(); } function outer() { return inner(); } const retained = outer();',
+    ],
+    [
+      'object factory',
+      'function create() { return { entries: new Map() }; } const retained = create();',
+    ],
+    [
+      'shorthand collection factory',
+      'function create() { const entries = new Map(); return { entries }; } const retained = create();',
+    ],
+    [
+      'shorthand mutable closure factory',
+      'function create() { let pending: Promise<unknown> | undefined; const read = (load: () => Promise<unknown>) => pending ??= load(); return { read }; } const retained = create(); export const read = retained.read;',
+    ],
+    [
+      'closure factory',
+      'function create() { const entries = new Map(); return (key) => entries.get(key); } const retained = create();',
+    ],
+    [
+      'named closure factory',
+      'function create() { const entries = new Map(); function read(key) { return entries.get(key); } return read; } const retained = create();',
+    ],
+    [
+      'method closure factory',
+      'function create() { const entries = new Map(); return { read(key) { return entries.get(key); } }; } const retained = create();',
+    ],
+    [
+      'mutable closure',
+      'function create() { let value; return () => value ??= client.getSite(); } const retained = create();',
+    ],
+    [
+      'neutral mutable binding',
+      'let value; export async function read() { return value ??= await client.getCourse(); }',
+    ],
+    [
+      'module object write',
+      'const holder = {}; export async function read() { holder.value = await client.getCourse(); }',
+    ],
+    [
+      'module object alias write',
+      'const holder = {}; export async function read() { const alias = holder; alias.value = await client.getCourse(); }',
+    ],
+    [
+      'module object destructuring write',
+      'const holder = { nested: {} as Record<string, unknown> }; export function remember(value: unknown) { const { nested } = holder; nested.value = value; }',
+    ],
+    [
+      'module array destructuring write',
+      'const holders = [{} as Record<string, unknown>]; export function remember(value: unknown) { const [nested] = holders; nested.value = value; }',
+    ],
+    [
+      'module array write',
+      'const holder = []; export async function read() { holder.push(await client.getCourse()); }',
+    ],
+    ['static collection', 'class Holder { static entries = new Map(); }'],
+    [
+      'static factory collection',
+      'function create() { return new WeakSet(); } class Holder { static entries = create(); }',
+    ],
+    [
+      'static response',
+      'class Holder { static value; } export async function read() { Holder.value = await client.getCourse(); }',
+    ],
+    [
+      'static this write',
+      'class Holder { static value; static async read() { this.value = await client.getCourse(); } }',
+    ],
+    [
+      'global response',
+      'export async function read() { globalThis.value = await client.getCourse(); }',
+    ],
+    [
+      'aliased global response',
+      'const root = globalThis; export async function read() { root["value"] = await client.getCourse(); }',
+    ],
+  ])('rejects %s in a transitive helper and the real render closure', (_label, source) => {
+    const helper = 'apps/web/src/lib/lifetime-control.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]: 'import "@/lib/lifetime-control";',
+      [helper]: source,
+    });
+    clean(graph.unresolved, 'The lifetime control uses supported static modules.');
+    expect(cacheFindings(graph, reachable(graph, [PUBLIC_LAYOUT]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: helper })]),
+    );
+    const realHelper = 'apps/web/src/server/public-entry.ts';
+    const real = graphWith(realHelper, sources[realHelper]! + '\n' + source);
+    expect(reachable(real, renderRoots)).toContain(realHelper);
+    expect(cacheFindings(real, reachable(real, renderRoots))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: realHelper })]),
+    );
+  });
+
+  it.each([
+    [
+      'local collections',
+      'export function read() { const entries = new Map(); const keys = new Set(); const weak = new WeakSet(); entries.set("a", 1); keys.add("a"); return { entries, keys, weak }; }',
+    ],
+    [
+      'request factory result',
+      'function create() { const entries = new Map(); return (key) => entries.get(key); } export function read() { return create(); }',
+    ],
+    [
+      'request object method factory',
+      'const factories = { create() { const entries = new Map(); return (key) => entries.get(key); } }; export function read() { return factories.create(); }',
+    ],
+    [
+      'request arrow property factory',
+      'const factories = { create: () => new Map() }; export function read() { return factories["create"](); }',
+    ],
+    [
+      'request binding closure capture',
+      'function create() { const { entries } = { entries: new Map() }; return (key) => entries.get(key); } export function read() { return create(); }',
+    ],
+    [
+      'pure object method factory',
+      'const factories = { create() { const entries = new Set([1, 2]); return entries.size; } }; const retained = factories.create();',
+    ],
+    [
+      'pure object binding beside collection',
+      'function create() { const { prefix } = { prefix: "ok", entries: new Map() }; return () => prefix; } const retained = create();',
+    ],
+    [
+      'pure array binding beside collection',
+      'function create() { const [prefix] = ["ok", new Map()]; return () => prefix; } const retained = create();',
+    ],
+    [
+      'pure nested aliased binding beside collection',
+      'function create() { const holder = { nested: { prefix: "ok", entries: new Map() } }; const alias = holder; const { nested: { prefix } } = alias; return () => prefix; } const retained = create();',
+    ],
+    [
+      'request mutable value',
+      'export async function read() { let value; value = await client.getSite(); return value; }',
+    ],
+    [
+      'request object writes',
+      'export async function read() { const holder = {}; const alias = holder; alias.value = await client.getCourse(); return holder; }',
+    ],
+    [
+      'request object destructuring write',
+      'export function remember(value: unknown) { const holder = { nested: {} as Record<string, unknown> }; const { nested } = holder; nested.value = value; return holder; }',
+    ],
+    [
+      'request array destructuring write',
+      'export function remember(value: unknown) { const holders = [{} as Record<string, unknown>]; const [nested] = holders; nested.value = value; return holders; }',
+    ],
+    [
+      'request class instance',
+      'class Holder { value; async read() { this.value = await client.getCourse(); } } export const read = () => new Holder();',
+    ],
+    [
+      'pure factory scratch collection',
+      'function count() { const entries = new Set([1, 2]); return entries.size; } const countValue = count();',
+    ],
+    [
+      'pure immutable factory closure',
+      'function create() { const prefix = "ok"; return () => prefix; } const read = create();',
+    ],
+    ['shadowed collection', 'const Map = class {}; const value = new Map();'],
+    [
+      'React cache closure',
+      'import { cache as memo } from "react"; const read = memo(async () => { const entries = new Map(); entries.set("a", await client.getSite()); return entries; });',
+    ],
+  ])('keeps %s clean', (_label, source) => {
+    clean(
+      cacheFindings(buildSourceGraph({ [probe]: source }), [probe]),
+      'Request-local work and immutable declarations do not retain public representations.',
+    );
+  });
+
+  it('rejects a renamed copy of the request memo primitive retained by a module', () => {
+    const copy = 'apps/web/src/lib/copied-memo.ts';
+    const graph = buildSourceGraph({
+      [probe]:
+        'import { requestMemo as memo } from "@/lib/copied-memo"; export const read = memo(load);',
+      [copy]: sources[REQUEST_MEMO]!,
+    });
+    clean(graph.unresolved, 'The copied primitive is fully present in the graph.');
+    expect(cacheFindings(graph, reachable(graph, [probe]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: probe })]),
+    );
+    const canonical = buildSourceGraph({
+      [probe]:
+        'import { requestMemo as memo } from "@/server/request-memo"; export const read = memo(load);',
+      [REQUEST_MEMO]: sources[REQUEST_MEMO]!,
+    });
+    clean(
+      cacheFindings(canonical, reachable(canonical, [probe])),
+      'Only the exact canonical audited request memo receives the lifetime exception.',
+    );
+  });
+
+  it('follows an imported namespace factory returning retained state', () => {
+    const helper = 'apps/web/src/lib/lifetime-factory.ts';
+    const graph = buildSourceGraph({
+      [probe]:
+        'import * as factories from "@/lib/lifetime-factory"; const retained = factories.create();',
+      [helper]: 'export function create() { return new Map(); }',
+    });
+    clean(graph.unresolved, 'The local factory implementation is included in the census.');
+    expect(cacheFindings(graph, reachable(graph, [probe]))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: probe })]),
+    );
+  });
+
+  it('terminates on recursive factories without inventing retained state', () => {
+    const graph = buildSourceGraph({
+      [probe]: 'function create() { return create(); } const retained = create();',
+    });
+    clean(
+      cacheFindings(graph, [probe]),
+      'Source recursion terminates within the bounded analysis.',
+    );
+  });
+
+  it.each([
+    'apps/web/src/app/(studio)/studio/page.tsx',
+    'apps/web/src/app/(portal)/portal/page.tsx',
+  ])('includes admitted scaffold %s in the production retention fence', (file) => {
+    const graph = graphWith(file, sources[file]! + '\nconst entries = new Set();');
+    expect(reachable(graph, renderRoots)).toContain(file);
+    expect(cacheFindings(graph, reachable(graph, renderRoots))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file })]),
+    );
+  });
+});
+
+describe('remediation public document navigation', () => {
+  it.each([
+    'import Link from "next/link"; export const View = () => <Link href="/en/courses">Courses</Link>;',
+    'import { default as CourseLink } from "next/link";',
+    'export { default as Link } from "next/link";',
+    'export * from "next/link";',
+    'const links = import("next/link");',
+    'const links = require("next/link");',
+    'import Links = require("next/link");',
+    'import { useRouter as router } from "next/navigation";',
+    'import * as navigation from "next/navigation";',
+    'export { useRouter as router } from "next/navigation";',
+    'export * from "next/navigation";',
+    'const navigation = import("next/navigation");',
+    'import Router from "next/router";',
+  ])('rejects runtime router navigation: %s', (source) => {
+    const graph = buildSourceGraph({ [PUBLIC_LAYOUT]: source });
+    expect(navigationFindings(graph, [PUBLIC_LAYOUT])).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: PUBLIC_LAYOUT })]),
+    );
+  });
+
+  it('follows aliased local barrels into the actual product component closure', () => {
+    const component = 'apps/web/src/components/public/catalog.tsx';
+    const barrel = 'apps/web/src/lib/navigation-control.ts';
+    const graph = buildSourceGraph({
+      ...sources,
+      [component]:
+        sources[component]! + '\nimport { CourseLink as Alias } from "@/lib/navigation-control";',
+      [barrel]: 'export { default as CourseLink } from "next/link";',
+    });
+    clean(graph.unresolved, 'The aliased router barrel is in the production source graph.');
+    expect(reachable(graph, renderRoots)).toContain(component);
+    expect(navigationFindings(graph, reachable(graph, renderRoots))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ file: component }),
+        expect.objectContaining({ file: barrel }),
+      ]),
+    );
+  });
+
+  it('permits ordinary anchors, server control flow and erased router types', () => {
+    const helper = 'apps/web/src/lib/server-navigation.ts';
+    const graph = buildSourceGraph({
+      [PUBLIC_LAYOUT]:
+        'import { missing, move } from "@/lib/server-navigation"; import type Link from "next/link"; import type { useRouter } from "next/navigation"; export const View = () => <a href="/en/courses">Courses</a>;',
+      [helper]: 'export { notFound as missing, redirect as move } from "next/navigation";',
+    });
+    clean(graph.unresolved, 'Allowed document navigation has a complete static graph.');
+    clean(
+      navigationFindings(graph, reachable(graph, [PUBLIC_LAYOUT])),
+      'Server refusal/redirect control flow does not retain client Router Cache.',
+    );
+  });
+});
+
 describe('remediation source resolution census controls', () => {
+  it.each([
+    'import messages from "@/lib/control.json";',
+    'export { default as messages } from "@/lib/control.json";',
+    'const messages = import("@/lib/control.json");',
+    'const messages = require("@/lib/control.json");',
+  ])('includes valid JSON as an inert graph leaf: %s', (source) => {
+    const json = 'apps/web/src/lib/control.json';
+    const graph = buildSourceGraph({
+      [probe]: source,
+      [json]: JSON.stringify({
+        cache: 'force-cache',
+        'x-learnstack-host': 'An inert message key',
+        body: 'import("./missing"); fetch("/api");',
+      }),
+    });
+    clean(graph.unresolved, 'Existing strict JSON resolves like other local modules.');
+    expect(reachable(graph, [probe])).toEqual([probe, json].sort());
+    expect(graph.edges.get(json)).toEqual([]);
+    clean(
+      [...transportFindings(graph), ...cacheFindings(graph, reachable(graph, [probe]))],
+      'JSON property names and text are data, not executable transport or cache configuration.',
+    );
+  });
+  it('rejects an absent JSON import instead of exempting its extension', () => {
+    const graph = buildSourceGraph({ [probe]: 'import messages from "@/lib/missing.json";' });
+    expect(graph.unresolved).toEqual([
+      expect.objectContaining({
+        file: probe,
+        reason: expect.stringContaining('Unresolved local module @/lib/missing.json'),
+      }),
+    ]);
+  });
+  it.each(['{"message":', '{"message": "hello",}', '/* comment */ {}', 'fetch("/api");'])(
+    'rejects malformed JSON in the census: %s',
+    (source) => {
+      const json = 'apps/web/src/lib/control.json';
+      const graph = buildSourceGraph({
+        [probe]: 'import messages from "@/lib/control.json";',
+        [json]: source,
+      });
+      expect(reachable(graph, [probe])).toContain(json);
+      expect(graph.unresolved).toEqual([
+        {
+          file: json,
+          line: 1,
+          reason: 'Malformed JSON module: use strict inert JSON in the production census.',
+        },
+      ]);
+    },
+  );
+  it('does not treat a top-level JSON string as a client directive', () => {
+    const json = 'apps/web/src/lib/control.json';
+    const graph = buildSourceGraph({ [json]: '"use client"' });
+    clean(graph.unresolved, 'A JSON string is valid inert data.');
+    expect(hasDirective(graph.files.get(json)!, 'use client')).toBe(false);
+  });
+  it('keeps the plugin-loaded request configuration inside authority and cache fences', () => {
+    const graph = graphWith(
+      I18N_REQUEST,
+      sources[I18N_REQUEST]! +
+        '\nimport { headers as unsafeHeaders } from "next/headers";\n' +
+        'export async function dirty() { return (await unsafeHeaders()).get("host"); }\n' +
+        'export const dynamic = "force-static";',
+    );
+    const subjects = reachable(graph, renderRoots);
+    expect(subjects).toContain(I18N_REQUEST);
+    expect(rawAuthorityFindings(graph, subjects)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: I18N_REQUEST })]),
+    );
+    expect(cacheFindings(graph, subjects)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: I18N_REQUEST })]),
+    );
+  });
   it.each([
     [
       'new local alias',
@@ -1102,13 +1695,22 @@ describe('remediation source resolution census controls', () => {
     // The independent config guard closes the alias that this bounded graph cannot model.
     expect(reachable(graph, [probe])).toEqual([probe]);
   });
-  it('refuses unsupported production mts/cts while excluding declarations and test files', () => {
-    const names = ['apps/web/src/lib/runtime.mts', 'packages/sdk/src/runtime.cts'];
+  it('refuses unsupported production JS/JSX/mts/cts including routes while excluding test files', () => {
+    const names = [
+      'apps/web/src/lib/runtime.mts',
+      'packages/sdk/src/runtime.cts',
+      'apps/web/src/app/(public)/unsafe/page.js',
+      'apps/web/src/app/(public)/unsafe/layout.jsx',
+      'packages/sdk/src/runtime.mjs',
+      'packages/ui/src/runtime.cjs',
+    ];
     expect(
       unsupportedSourceFindings([
         ...names,
         'packages/sdk/src/schema.d.mts',
         'apps/web/src/lib/probe.test.cts',
+        'apps/web/src/lib/probe.test.js',
+        'apps/web/src/lib/probe.spec.jsx',
       ]),
     ).toEqual(
       names.map((file) => ({

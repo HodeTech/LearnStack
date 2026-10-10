@@ -2,14 +2,156 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tenant theme tokens default to neutral values. How a layout overrides them
- * per tenant from validated tenant settings is G42 in Phase 02d's decision
- * register (docs/roadmap/phase-02d-walking-skeleton.md; Standards 07 § Tenant
- * Branding). */
+/* Null or malformed whole themes retain these local defaults (P02d-6 G42). */
 :root {
   --ls-primary: #1f6feb;
   --ls-bg: #ffffff;
   --ls-fg: #0f172a;
   --ls-muted: #64748b;
   --ls-font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    overflow-wrap: anywhere;
+  }
+  a {
+    color: var(--ls-fg);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  main:focus {
+    outline: 3px solid var(--ls-primary);
+    outline-offset: 4px;
+  }
+  button {
+    border: 1px solid var(--ls-fg);
+    border-radius: 0.4rem;
+    padding: 0.6rem 1rem;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-weight: 650;
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+}
+
+@layer components {
+  .public-header,
+  .public-main,
+  .public-footer {
+    width: min(100%, 68rem);
+    margin-inline: auto;
+    padding-inline: 1.5rem;
+  }
+  .public-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    justify-content: space-between;
+    align-items: center;
+    padding-block: 1.75rem;
+    border-block-end: 1px solid var(--ls-muted);
+  }
+  .public-institution {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .public-main {
+    min-height: 65vh;
+    padding-block: 3rem;
+  }
+  .public-footer {
+    padding-block: 2rem;
+  }
+  .public-muted {
+    color: var(--ls-muted);
+  }
+  .public-state {
+    max-width: 44rem;
+    display: grid;
+    gap: 1.25rem;
+  }
+  .public-skip {
+    position: fixed;
+    inset-inline-start: 1rem;
+    top: 1rem;
+    z-index: 50;
+    padding: 0.75rem 1rem;
+    background: var(--ls-bg);
+    transform: translateY(-200%);
+  }
+  .public-skip:focus {
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  .public-catalog,
+  .public-course,
+  .public-outline {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .public-course-list {
+    display: grid;
+    gap: 1.5rem;
+    list-style: disc;
+    padding-inline-start: 1.5rem;
+  }
+  .public-course-card {
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--ls-muted);
+  }
+  .public-course-card > * + * {
+    margin-block-start: 0.75rem;
+  }
+  .public-summary {
+    max-width: 65ch;
+    white-space: pre-wrap;
+  }
+  .public-lesson-list {
+    display: grid;
+    gap: 1rem;
+    list-style: decimal;
+    padding-inline-start: 1.75rem;
+  }
+  .public-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
+    padding-block: 0.75rem;
+  }
+}
+
+@layer components {
+  .public-lesson,
+  .public-lesson-content,
+  .public-lesson-fields {
+    display: grid;
+    gap: 1.25rem;
+    min-inline-size: 0;
+  }
+  .public-lesson-field {
+    padding-block: 1rem;
+    border-block-end: 1px solid var(--ls-muted);
+    min-inline-size: 0;
+  }
+  .public-lesson-field dt {
+    font-weight: 600;
+  }
+  .public-lesson-field dd {
+    margin-block-start: 0.5rem;
+    margin-inline-start: 0;
+    max-inline-size: 65ch;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }

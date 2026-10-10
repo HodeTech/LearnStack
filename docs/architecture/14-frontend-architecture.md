@@ -27,6 +27,32 @@ native method/upgrade admission and pinned URL controls. The remediation record
 owns execution and independent review evidence; the ongoing rules live in
 [Frontend Standards](../standards/07-frontend-architecture.md#native-admission-and-url-identity).
 
+**P02d-6 decisions Accepted — 2026-10-09; Steps 1–4 implemented.**
+[ADR-0027](../decisions/0027-frontend-i18n.md) selects the UI foundation; the
+[decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09)
+selects pages, status/navigation, safe theme and product/accessibility proofs.
+Step 1 installs the pinned runtime and supplies shared request-local loaders,
+document language/direction, atomic theme injection, chrome and controlled
+status/error/loading components. Step 2 adds actual catalog/course pages,
+independent opaque pagination and metadata. Step 3 adds ordered lesson fields,
+language attribution and eligible metadata. Step 4 adds concurrent host/locale,
+theme, freshness and content-fault product proofs. The
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
+owns validation, completed reviews and passing manual accessibility closeout.
+
+[ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md) is
+**Accepted — 2026-10-10; implementation delivered and production proofs pass**:
+it replaces the duplicate RSC bootstrap with one middleware-owned live read and
+an immutable same-request snapshot, preserving exact bootstrap 429/503 before
+rendering. The
+[Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns passing production replacement proofs and completed Step 3 reviews. Both
+review rounds for all three steps and focused fix verification are complete. The
+[review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
+separately records approval for Open Graph projection and bounded Next security
+maintenance. The isolated context-propagation experiment establishes feasibility;
+it is not production security/lifecycle proof or runtime delivery.
+
 > **P02d-4 Accepted design — 2026-10-03.** Step 2 delivers site bootstrap;
 > Steps 3–4 deliver Education and contract/SDK controls; P02d-5 owns the server consumer.
 > [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) selects host-resolved
@@ -61,13 +87,18 @@ frontend/
             sessions/
           api/                            # only thin BFF proxies, see "Data Fetching"
         components/
+          public/                         # P6 public views and states
           blocks/                         # built-in primitive page blocks
           ui/                             # design-system primitives
         lib/
           api/
           auth/
           tenant/
-          i18n/
+        i18n/                             # ADR-0027 foundation implemented in P6 Step 1
+          request.ts
+          messages/
+            en/public.json
+            tr/public.json
         middleware.ts                     # ingress verification + locale entry
         extensions/                       # client-side block resolver, see Page Builder
   packages/
@@ -76,8 +107,11 @@ frontend/
     config/                               # eslint, tsconfig, tailwind shared bits
 ```
 
-> **Phase 02d ownership.** Component placement (G41) and the UI string catalogue
-> (G39) remain P02d-6 decisions. P02d-5/G36 delivers Node middleware in
+> **Phase 02d ownership.** Accepted G41 places synchronous plain-string views in
+> `apps/web/src/components/public/`; G39 selects the app-local i18n home above.
+> Step 1 implements i18n and chrome/state views; Step 2 adds catalog/course views.
+> Step 3 adds ordered plain-text lesson views and metadata.
+> P02d-5/G36 delivers Node middleware in
 > `apps/web/src/middleware.ts`. The ownership and accepted entry rule are recorded in
 > [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
 > The tree above is the earlier target layout, not a shipped-directory census.
@@ -96,7 +130,8 @@ Splitting into separate apps is governed by [ADR 0009 — Frontend Single App Fi
 ## Tenant + Organization Resolution at the Edge
 
 **Accepted public boundary — 2026-10-03.** Site bootstrap is delivered in Step 2;
-P02d-5 Step 3 delivers server transport; page consumers remain P02d-6. The frontend
+P02d-5 Step 3 delivers server transport; P02d-6 delivers the public page consumers.
+The frontend
 uses host-resolved site bootstrap, not an edge registry returning tenancy IDs.
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the read boundary;
 [Frontend Standards](../standards/07-frontend-architecture.md#tenant-resolution)
@@ -147,8 +182,10 @@ provenance, a server-only configured transport and uncached institution renderin
 Its four-step [delivery plan](../roadmap/phase-02d-walking-skeleton.md#p02d-5-implementation-plan)
 records all four completed steps and both independent review rounds per step.
 Frontend fences, no-skip outcomes and real-API production HTML/RSC proofs pass;
-P02d-5 remains unmerged while external-review remediation continues. P02d-6 owns
-public page consumers.
+P02d-5 and its external-review remediation are complete and merged through
+[PR #26](https://github.com/HodeTech/LearnStack/pull/26); the
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
+records final verification. P02d-6 owns public page consumers.
 
 ADR-0054 retains API-owned tenant authority and membership-first locale entry.
 Its accepted native boundary admits GET/HEAD on every callback path, including
@@ -172,22 +209,63 @@ Per segment:
 
 Static export is not used; tenants are resolved at request time and the renderer needs per-request context.
 
+### Accepted P02d-6 public composition
+
+The three locale-prefixed catalog/course/lesson routes use minimal tenant chrome,
+ordinary same-host relative anchors and no automatic prefetch. Both opaque
+pagination surfaces parse owned parameters only from the signed raw target. A new
+document re-reads API state; metadata/layout/page share request-local admission and
+content loaders. ADR-0055's implemented boundary uses one live middleware bootstrap
+and a native same-request immutable snapshot: two API calls per product document,
+one per fixed status/scaffold document and three per followed missing-detail
+chain. Metadata/layout/page/UI reuse adds no bootstrap. HEAD/RSC/prefetch and
+Flight fallback require separately proven counts. No retry or shared DTO cache is
+added.
+
+Missing/hidden resources return local **307** to the same host's fixed
+`/{locale}/status/not-found`, followed by a branded **404** document; the browser
+URL changes. Live host/locale admission applies again, with no Education read or
+original slug/query/cursor echo. Required loading/error files cannot flush a shell
+before redirect admission. Known content-call failures use translated **HTTP 200
+noindex** states for invalid cursor, retry-later and unavailable responses;
+bootstrap retains real neutral 404/429/503. Framework exceptions retain pre-stream
+500/post-stream 200 behavior. [Standards 07](../standards/07-frontend-architecture.md#routing)
+owns the detailed status and navigation rules.
+
+Metadata uses verified live host and validated local segments, with actual eligible
+alternate slugs. Pagination is noindex with a cursor-free first-page canonical;
+errors are noindex without misleading resource alternates. Restricted marketing,
+empty catalog/public outline, empty ready content and unavailable content remain
+distinct. The lesson view renders only ADR-0051's ordered plain-string
+`default-card` fields; unsupported presentation has a bounded fallback. No active
+URL sink, HTML, Markdown, linkification or richer primitive is introduced. Full
+menus, media, preview, authored error pages and Studio remain Phase 06.
+
+UI configuration shares verified request-local admission without i18n routing
+middleware or another locale authority. Admission/content loaders use a private
+weak memo keyed by Next's exact request-store headers object, including error
+rendering; header values never key shared representations. `getPublicUi` uses
+React cache only for selected messages/translators inside an RSC render. UI fallback
+does not change API content
+locale; document/UI/label language and RTL rules live in
+[Localization](12-localization.md#ui-string-catalogue).
+
 ## Theming
 
 **P02d-4 Step 2 public projection delivered.** Bootstrap returns
 only the whole typed four-color theme or null; frontend safe CSS defaults remain
 owned here, without backend duplication. Baseline colors apply independently of
 plan. Effective WhiteLabelBranding removes LearnStack attribution only. Public
-responses expose no setting keys, raw/partial JSON or organization merge. G42
-still owns document injection in P02d-6.
+responses expose no setting keys, raw/partial JSON or organization merge. Accepted
+G42 document injection is implemented in P02d-6 Step 1.
 
 **P02d-2/3 delivered foundation — 2026-10-03.** The theme writer and typed settings
-accessor are implemented. Step 2 delivers the anonymous projection; renderer
-injection remains P02d-6. The
+accessor are implemented. P02d-4 Step 2 delivers the anonymous projection;
+P02d-6 Step 1 implements renderer injection. The
 [whole-theme contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 selects only tenant-wide color values and no remote subresource. Organization merges,
 logo/font URLs and Studio below are Phase 06 targets, not this packet's behavior.
-G42 still selects safe HTML injection before P02d-6.
+G42 accepts atomic four-color validation and fixed server-generated CSS.
 
 A tenant's branding flows from the API as design tokens, and the renderer applies them
 as CSS custom properties in the SSR'd page. The variable names are the `--ls-*` set
@@ -196,18 +274,20 @@ names and the shared Tailwind preset reads; this document keeps no second vocabu
 The accepted [Tenancy contract](../modules/tenancy/README.md#whole-theme-setting-and-public-boundary)
 owns P02d-2's admitted tokens and values. P02d-4 accepts their public projection and
 attribution rule; Step 2 delivers this API projection.
-How the tokens reach the document, and how that mechanism stays compatible with the
-nonce-based policy that
-[Security Standards § HTTP Headers](../standards/11-security.md#http-headers) sets as
-the target, is G42 in the same register.
+The emitter revalidates the complete `#rrggbb` palette before producing only four
+fixed color properties in a style element. A null/malformed value retains the
+entire existing CSS default palette; no per-token merge, style attribute, URL or
+font is admitted.
+[Standards 07](../standards/07-frontend-architecture.md#tenant-branding) owns the exact
+tokens. Output is safe without CSP; Phase 11 owns its delivery.
 
 In Phase 06's planned organization override, when the request carries an organization id
 and that organization has a
 `BrandingOverride`, the override merges on top of the tenant defaults before injection —
 the merged token set is the source of truth for the SSR'd page.
 
-P02d-6's target is a themed first paint through safe SSR injection; no renderer
-injection is implemented yet.
+P02d-6 Step 1 implements safe SSR injection for themed first paint; the delivery
+record owns production verification and review evidence.
 
 Logo/font assets and uploads are Phase 06 targets, requiring safe media and
 subresource contracts before their writers or consumers. P02d-2's accepted color-only
@@ -364,6 +444,16 @@ harness and assertions. The decision is recorded in
   [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
   names the owning phase.
 - Keyboard navigation and focus order are reviewed before any block ships.
+- Accepted P02d-6/G38(b,c)/G43 requires actual product HTML/DOM proofs and applicable
+  jsx-a11y error rules with planted controls. Manual keyboard, focus, reflow/zoom,
+  contrast and real screen-reader evidence for catalog → course → lesson names
+  commit, environment and both hosts/locales. Automated product proofs and blocking
+  lint controls are implemented; the
+  [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
+  records passing manual browser checks and maintainer-reported VoiceOver evidence.
+  See
+  [Testing Standards](../standards/06-testing.md#frontend-test-types); HTTP/RSC
+  proofs do not claim browser E2E or full Playwright/axe delivery.
 - Color contrast is verified for every branded theme, including the merged tenant and
   organization token set, per
   [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast).

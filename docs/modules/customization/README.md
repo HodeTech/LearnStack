@@ -198,7 +198,8 @@ nondeleted definitions are eligible; missing individual pins remain distinguisha
 without failing unrelated members or substituting another revision. Labels resolve
 per call with actual locale metadata from the caller's display-locale context.
 P02d-4 Step 3 delivers the public response/refusal contract;
-page rendering remains P02d-6. The coherent loader supplies
+P02d-6 Steps 2–3 deliver the catalog, course and lesson views. The coherent loader
+supplies
 generation-keyed families; dirty or rollback-only
 scopes bypass their cache. The writer reader remains uncached.
 
@@ -235,7 +236,8 @@ binding purpose (`NewBinding` or `ExistingPin`), never an inferred live version.
   if it is concurrently deprecated. Strict commit-time eligibility is not selected.
 - Body validation uses `IJsonSchemaValidator` against that returned exact schema.
   Generation-keyed read caching is delivered in P02d-3; P02d-4 public shape is
-  delivered by Step 3. Renderer fallback remains P02d-6. These are
+  delivered by Step 3. P02d-6 Step 3 implements the bounded ordered-text renderer
+  and unavailable fallback. These are
   separate from the exact write contract.
 - Module-owned contextual verification queries give the seeder exact IDs, revision
   data, labels/bands and state. They are audit Off and introduce no setter exception.

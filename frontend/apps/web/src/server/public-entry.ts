@@ -1,6 +1,6 @@
 import type { ServerSdk } from '@learnstack/sdk/server';
 
-import { normalizeHost, validTarget } from './ingress';
+import { normalizeHost, PUBLIC_HTTPS_PORT, validTarget } from './ingress';
 
 type SiteResult = Awaited<ReturnType<ServerSdk['getSite']>>;
 export type PublicSite = Extract<SiteResult, { kind: 'success' }>['data'];
@@ -57,6 +57,12 @@ function contentPath(parts: readonly string[]): boolean {
   );
 }
 
+/** Fixed error namespace; it grants no Education-route authority. */
+export function isPublicStatusTarget(target: string): boolean {
+  const parts = (target.split('?')[0] ?? '').slice(1).split('/');
+  return parts.length === 3 && parts[1] === 'status' && parts[2] === 'not-found';
+}
+
 /** The configured caller uses only a canonical locale from a supported signed route. */
 export function canonicalRouteLocale(target: string): string | null {
   if (!validTarget(target)) return null;
@@ -88,7 +94,8 @@ export function publicEntry(target: string, site: PublicSite): PublicEntry {
   const canonical = canonicalLocale(prefix);
   if (canonical !== null && enabled.includes(canonical)) {
     const root = parts.length === 1 || (parts.length === 2 && parts[1] === '');
-    if (!root && !contentPath(parts.slice(1))) return { kind: 'refuse', status: 404 };
+    if (!root && !contentPath(parts.slice(1)) && !isPublicStatusTarget(target))
+      return { kind: 'refuse', status: 404 };
     if (canonical !== prefix)
       return {
         kind: 'redirect',
@@ -110,5 +117,5 @@ export function publicRedirect(host: string, path: string): string {
   const normalized = normalizeHost(host);
   if (normalized !== host || !validTarget(path)) throw new Error('Invalid public redirect');
   const hostname = host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0];
-  return `https://${hostname}:3000${path}`;
+  return `https://${hostname}:${PUBLIC_HTTPS_PORT}${path}`;
 }

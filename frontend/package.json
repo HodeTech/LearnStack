@@ -17,5 +17,12 @@
   "devDependencies": {
     "typescript": "5.6.3",
     "prettier": "3.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "next@15.5.27>postcss": "8.5.23",
+      "vitest@4.1.11>vite": "6.4.3",
+      "vite@6.4.3>esbuild": "0.25.12"
+    }
   }
 }

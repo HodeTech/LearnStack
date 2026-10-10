@@ -9,6 +9,6 @@
     "incremental": false,
     "plugins": []
   },
-  "include": ["src/server/ingress.ts"],
+  "include": ["src/server/ingress.ts", "src/server/public-admission-runtime.ts"],
   "exclude": ["node_modules", ".next"]
 }

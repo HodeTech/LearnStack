@@ -166,15 +166,38 @@ packet/PR validation uses the guarded workspace command. Backend Docker integrat
 also runs P5's disposable production Next/TLS fixture against the real API and
 PostgreSQL; Node, pnpm, installed frontend dependencies and OpenSSL are required.
 It owns ports 3000/3011 while running and refuses occupied ports without stopping
-an existing user process. Product-page browser/a11y tests remain P6/P7.
+an existing user process. P6 adds separate production product modes for foundation,
+pagination, presentation, concurrent isolation and freshness/failure states. Those
+HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
+accessibility closeout is recorded with its tested scope in the
+[packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
+New UI changes require their own applicable manual checks; P7 owns the browser demo.
+
+ADR-0055's separate admission fixture adds a narrow stock-Next browser navigation
+probe and development HMR admission controls. Its Docker integration run requires
+an installed stock Chromium browser: Chrome or Brave at the supported macOS
+application paths, or Chrome/Chromium at the supported Linux executable paths.
+Missing browser installation fails the proof; it never skips. The required CI
+integration job checks `/usr/bin/google-chrome` and its version before running.
+The fixture launches headless with its own disposable profile and trust limited
+to its certificate's public-key fingerprint; it does not use a personal profile.
+Browser observations cover a refused Flight followed by stock Next's fresh document
+navigation and separately counted API calls. HMR controls cover source recompilation
+and a fresh live site snapshot in the same development process. The
+[Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
+owns actual execution, completed reviews and verified fixes. This probe does not
+deliver P7's browser demo, full Playwright/axe or Lighthouse.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
 > `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
 > [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
 > Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
-> remains disabled. P02d-6/G43 selects the skeleton's accessibility gate. P5's
-> production HTML/RSC fixture proves transport, not a browser/a11y audit.
+> remains disabled. Accepted P02d-6/G43 requires failing applicable `jsx-a11y`
+> rules, localized page semantics and a real manual screen-reader smoke. These
+> lint and product-semantic controls are implemented. Passing manual evidence is
+> recorded in the P6 delivery record. P5's production HTML/RSC mode proves transport;
+> P6's separate product modes still do not claim a browser/a11y audit.
 
 ### Step 7: Single-test focus
 
@@ -274,10 +297,11 @@ The entry decision does not provide a Lighthouse command or passing audit.
   The P5 native renderer fixtures require free 3000/3011 and fail on collisions.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
-  The axe suite joins this list in Phase 06. Whether route tests or `jsx-a11y`
-  findings fail a build on Phase 02d's pages is P02d-6/G43 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes it edits this line.
+  The axe suite joins this list in Phase 06. Accepted P02d-6/G43 requires failing
+  applicable `jsx-a11y` rules and localized page-semantics checks, plus manual
+  keyboard, focus, reflow, contrast and screen-reader evidence. Acceptance does
+  not claim those controls pass; implementation records their actual results in
+  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
 
 ## Common pitfalls
 
@@ -295,9 +319,9 @@ The entry decision does not provide a Lighthouse command or passing audit.
 - **Assuming an accessibility gate exists.**
   [16-accessibility.md](../../../docs/standards/16-accessibility.md) makes WCAG
   2.2 AA binding, and Phase 06 brings the axe suite that enforces it. Reading the
-  standard is the gate today; whether a route test or lint rule fails a build
-  earlier, on Phase 02d's pages, is G43 in
-  [Phase 02d's decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes it edits this pitfall.
+  standard does not prove implementation. Accepted P02d-6/G43 requires earlier
+  failing lint/semantics controls and actual manual assistive-technology evidence;
+  DOM assertions cannot substitute for a screen reader. Delivery is recorded in
+  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers).
 - **CI-only failures.** Usually a race or timing assumption. Use `--blame-hang`
   + `--blame-crash` locally.
