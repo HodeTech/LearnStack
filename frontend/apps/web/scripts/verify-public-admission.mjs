@@ -145,6 +145,7 @@ async function control(child, op, value) {
   }
 }
 const observe = (child) => control(child, 'observe');
+const settled = (child) => control(child, 'settled');
 
 function beginCall(
   path,
@@ -319,12 +320,13 @@ function instrumentCopy() {
   replaceOnce(
     launcher,
     'import { installPublicAdmissionRuntime }',
-    'import { createPublicAdmissionRuntime, installPublicAdmissionRuntime }',
+    "import { createNativeCompletionObserver } from './admission-completion.mjs';\nimport { createPublicAdmissionRuntime, installPublicAdmissionRuntime }",
   );
   replaceOnce(
     launcher,
     '  const admission = installPublicAdmissionRuntime();',
     `  const admission = installPublicAdmissionRuntime();
+  const completions = createNativeCompletionObserver();
   const snapshotIds = new WeakMap();
   let snapshotsSeen = 0;
   let reads = 0;
@@ -357,14 +359,15 @@ function instrumentCopy() {
   Object.defineProperty(globalThis, Symbol.for('learnstack.fixture.duplicate'), {
     value: createPublicAdmissionRuntime().holder, writable: false, enumerable: false, configurable: false
   });
-  process.on('message', (message) => {
+  process.on('message', async (message) => {
     if (!message || !Number.isInteger(message.id)) return;
     if (message.op === 'mode') {
       if (!['normal','missing','mismatch','duplicate','late','configuration','wrong-status'].includes(message.value)) return;
       fixture.mode = message.value;
       process.env.LEARNSTACK_PUBLIC_API_ORIGIN = message.value === 'configuration' ? 'invalid' : originalOrigin;
       if (message.value === 'late') fixture.finished = new Promise((resolve) => { finishLate = resolve; });
-    } else if (message.op !== 'observe') return;
+    } else if (!['observe', 'settled'].includes(message.op)) return;
+    if (message.op === 'settled') await completions.settled();
     process.send?.({ id: message.id, ...admission.counts(), snapshotsSeen, reads, immutable, lateRefused, lateAccepted });
   });`,
   );
@@ -380,7 +383,10 @@ function instrumentCopy() {
     `.then(() => fixture.mode === 'missing'
           ? handle(request, response)
           : admission.run(fixture.mode === 'mismatch' ? { ...binding, target: '/mismatch' } : binding,
-              request, response, () => handle(request, response)))`,
+              request, response, () => {
+                completions.track(response);
+                return handle(request, response);
+              }))`,
   );
   replaceOnce(
     launcher,
@@ -482,7 +488,7 @@ async function wireProof(native) {
     await checkpoint('arm-' + fault.name);
     const response = await call(catalog, { method: fault.method });
     refused(response, fault.status, fault.method, fault.retryAfter ?? undefined);
-    empty(await observe(native));
+    empty(await settled(native));
     await checkpoint('done-' + fault.name);
   }
   stage = 'wire mutant';
@@ -504,7 +510,7 @@ async function wireProof(native) {
   stage = 'wire positive site';
   assert.ok(healthy.body.includes(configuration.tenants[0].name));
   stage = 'wire positive release';
-  empty(await observe(native));
+  empty(await settled(native));
   stage = 'wire positive accounting';
   await checkpoint('done-healthy-wire');
   refused(await call('/unadmitted-fixture-path'), 404);
@@ -517,7 +523,7 @@ async function lifetimes(native) {
     stage = 'context ' + mode;
     await control(native, 'mode', mode);
     refused(await call(catalog), 503);
-    empty(await observe(native));
+    empty(await settled(native));
     await checkpoint(mode === 'configuration' ? 'done-configuration' : 'done-context-' + mode);
   }
   await control(native, 'mode', 'normal');
@@ -543,7 +549,7 @@ async function lifetimes(native) {
       safe(response);
       assert.equal(response.status, 200);
     }
-    const after = await observe(native);
+    const after = await settled(native);
     empty(after);
     assert.equal(after.immutable, true);
     assert.equal(
@@ -578,7 +584,7 @@ async function lifetimes(native) {
     const other = configuration.tenants.find((tenant) => tenant.host !== lanes[index].tenant.host);
     assert.equal(response.body.includes(other.name), false);
   });
-  empty(await observe(native));
+  empty(await settled(native));
   await checkpoint('done-mixed-overlap');
   stage = 'keep-alive';
   const agent = new Agent({ keepAlive: true, maxSockets: 1 });
@@ -592,7 +598,7 @@ async function lifetimes(native) {
       second.socket,
       'One physical keep-alive connection serves fresh native requests',
     );
-    empty(await observe(native));
+    empty(await settled(native));
   } finally {
     agent.destroy();
   }
@@ -602,7 +608,7 @@ async function lifetimes(native) {
   safe(head);
   assert.equal(head.status, 200);
   assert.equal(head.body, '');
-  empty(await observe(native));
+  empty(await settled(native));
   await checkpoint('done-head');
   stage = 'late HEAD';
   await control(native, 'mode', 'late');
@@ -614,7 +620,7 @@ async function lifetimes(native) {
     if (state.lateRefused === 1) break;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  const lateState = await observe(native);
+  const lateState = await settled(native);
   empty(lateState);
   assert.equal(lateState.lateRefused, 1);
   assert.equal(lateState.lateAccepted, 0);
@@ -631,7 +637,7 @@ async function lifetimes(native) {
     pending.abort();
     assert.equal((await pending.outcome).aborted, true);
     await checkpoint('aborted-' + kind);
-    empty(await observe(native));
+    empty(await settled(native));
   }
   stage = 'active shutdown';
   await checkpoint('arm-shutdown');
@@ -748,7 +754,7 @@ try {
           await checkpoint('arm-browser-' + status);
         },
         afterNavigation: async () => {
-          empty(await observe(native));
+          empty(await settled(native));
           await checkpoint('done-browser-' + status);
         },
       }),
@@ -763,7 +769,7 @@ try {
     startNative,
     stopNative,
     call,
-    observe,
+    observe: settled,
     watchSource: () => watchDevelopmentSource({ app, certificate }),
   });
   stage = 'private containment';

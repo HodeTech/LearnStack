@@ -4415,7 +4415,11 @@ test-only instrumentation stays in the disposable copied app.
 - **Type:** runtime lifecycle + native production fixture. **Kind:** behavioural.
 - **Status:** **Implemented** — `PublicAdmissionRenderingTests` and
   `verify-public-admission.mjs` prove abort, shutdown, valid HEAD late refusal and
-  zero retained stores/snapshots. `frontend/apps/web/scripts/admission-hmr.mjs`
+  zero retained stores/snapshots. `frontend/apps/web/scripts/admission-completion.mjs`
+  waits for native finish/close independently of runtime counts;
+  `frontend/apps/web/src/test/admission-completion.test.ts` proves that client EOF
+  cannot release it and planted missing cleanup still fails the zero-count check.
+  `frontend/apps/web/scripts/admission-hmr.mjs`
   proves fresh admission after source/API change in the same development process;
   `frontend/apps/web/src/test/admission-hmr.test.ts` supplies clean/planted freshness,
   lifetime and cleanup controls. `admission-hmr-watch.mjs` waits for the pinned

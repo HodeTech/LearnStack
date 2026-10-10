@@ -5383,13 +5383,33 @@ production case and subsequent full Docker run pass without retry or sleeps.
 
 Final local validation passes **2,946 backend cases**: **1,705 unit**, **198
 architecture**, **4 contract**, **172 Docker-free integration** and **867 Docker
-integration**, zero skips. The guarded frontend run passes **1,396 cases**:
-**1,336 web and 60 SDK**, zero skips/todos. Release build has zero warnings/errors;
+integration**, zero skips. The guarded frontend run passes **1,402 cases**:
+**1,342 web and 60 SDK**, zero skips/todos. Release build has zero warnings/errors;
 format, workspace lint/typecheck, production build, native ingress and all
 **19** ingress cleanup controls pass. The five admission catalogue rules are
 Implemented with executable owners and planted controls. Accepted ADRs retain
 their original bodies and receive dated delivery navigation. Exact-head CI and
 two fresh independent Step 3 review rounds are still pending.
+
+
+**CI investigation and native completion proof.** The first Linux run on
+`37ec51e` passes 866 Docker cases but fails the new production Fact during its
+healthy wire control, after both real API calls return 200. An independent initial
+console-only local attempt also fails without a retained substage; its captured
+unchanged replay and five root replays pass. A diagnostic commit splits the closed
+wire-control stages without printing provider or response data.
+
+The proof had inferred native completion from client response EOF. Node's socket
+write callback emits server `finish`; client EOF and a later IPC message do not
+establish that event has run. A test-only independent finish/close observer now
+registers after production disposal listeners and waits for actual native terminal
+events before asserting zero counts. Held-active observations stay immediate.
+Six dirty/clean cases prove client/delegation completion cannot release the barrier
+and missing runtime cleanup still fails after the barrier resolves. No sleep,
+count-poll, production lifetime change or API retry is added. The actual production
+Fact and guarded 1,402-case frontend run pass locally with this proof correction.
+The exact first Linux substage, focused fix reviews and replacement CI remain
+pending; no unproved causal attribution is made.
 
 ### P02d-1 decision pass (2026-09-14)
 
