@@ -1190,6 +1190,14 @@ describe('remediation public representation lifetimes', () => {
       'function create() { return { entries: new Map() }; } const retained = create();',
     ],
     [
+      'shorthand collection factory',
+      'function create() { const entries = new Map(); return { entries }; } const retained = create();',
+    ],
+    [
+      'shorthand mutable closure factory',
+      'function create() { let pending: Promise<unknown> | undefined; const read = (load: () => Promise<unknown>) => pending ??= load(); return { read }; } const retained = create(); export const read = retained.read;',
+    ],
+    [
       'closure factory',
       'function create() { const entries = new Map(); return (key) => entries.get(key); } const retained = create();',
     ],
@@ -1216,6 +1224,14 @@ describe('remediation public representation lifetimes', () => {
     [
       'module object alias write',
       'const holder = {}; export async function read() { const alias = holder; alias.value = await client.getCourse(); }',
+    ],
+    [
+      'module object destructuring write',
+      'const holder = { nested: {} as Record<string, unknown> }; export function remember(value: unknown) { const { nested } = holder; nested.value = value; }',
+    ],
+    [
+      'module array destructuring write',
+      'const holders = [{} as Record<string, unknown>]; export function remember(value: unknown) { const [nested] = holders; nested.value = value; }',
     ],
     [
       'module array write',
@@ -1276,6 +1292,14 @@ describe('remediation public representation lifetimes', () => {
     [
       'request object writes',
       'export async function read() { const holder = {}; const alias = holder; alias.value = await client.getCourse(); return holder; }',
+    ],
+    [
+      'request object destructuring write',
+      'export function remember(value: unknown) { const holder = { nested: {} as Record<string, unknown> }; const { nested } = holder; nested.value = value; return holder; }',
+    ],
+    [
+      'request array destructuring write',
+      'export function remember(value: unknown) { const holders = [{} as Record<string, unknown>]; const [nested] = holders; nested.value = value; return holders; }',
     ],
     [
       'request class instance',

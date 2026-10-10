@@ -63,7 +63,11 @@ function unwrapped(node: ts.Node): ts.Node {
 
 function declarations(node: ts.Node, checker: ts.TypeChecker): readonly ts.Declaration[] {
   if (!ts.isIdentifier(node)) return [];
-  let symbol = checker.getSymbolAtLocation(node);
+  // A shorthand property's name has a property symbol; follow its captured value.
+  let symbol =
+    ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
+      ? checker.getShorthandAssignmentValueSymbol(node.parent)
+      : checker.getSymbolAtLocation(node);
   if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
   return symbol?.declarations ?? [];
 }
@@ -1073,6 +1077,22 @@ function sharedStorage(node: ts.Node, graph: SourceGraph, visited = new Set<ts.N
   return declarations(node, graph.checker).some((declaration) => {
     if (ts.isClassDeclaration(declaration) && moduleScope(declaration)) return true;
     if (ts.isPropertyDeclaration(declaration) && staticMember(declaration)) return true;
+    if (ts.isBindingElement(declaration)) {
+      // Named object/array bindings preserve the selected object's identity.
+      // Rest bindings allocate a new container and are not direct aliases.
+      let binding = declaration;
+      while (!binding.dotDotDotToken) {
+        const owner = binding.parent.parent;
+        if (ts.isVariableDeclaration(owner))
+          return (
+            owner.initializer !== undefined &&
+            sharedStorage(owner.initializer, graph, new Set(visited))
+          );
+        if (!ts.isBindingElement(owner)) break;
+        binding = owner;
+      }
+      return false;
+    }
     if (!ts.isVariableDeclaration(declaration)) return false;
     return (
       moduleScope(declaration) ||

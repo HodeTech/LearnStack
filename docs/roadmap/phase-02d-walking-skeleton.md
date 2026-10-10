@@ -4838,8 +4838,8 @@ work. This package makes no new passing runtime or merge-readiness claim.
 
 ##### Remediation group 1 — existing-contract corrections
 
-**Implemented; independent review rounds pending — 2026-10-10.** No proposed
-decision above is implemented by this group. ADR-0055 remains Proposed.
+**Implemented; round 1 findings corrected; round 2 pending — 2026-10-10.** No
+proposed decision above is implemented by this group. ADR-0055 remains Proposed.
 
 The Step 1 status and current i18n/theme carriers now match delivery. Skills use
 locale-bearing public folders, the shared resource loader, supported Next page
@@ -4882,13 +4882,27 @@ The following review claims do not justify changing accepted behavior:
   placement does not make that contract nonbinding. Accepted history is preserved.
 - Packet 10's 19/3 standards count is historical; its timestamp is now explicit.
   Phase 06's P6 review/merge-pending statement is still true for this open PR.
+- The review skill's conditional manual-evidence completion gate remains valid
+  for future work. Branding has no authored-language field; inventing a language
+  for the institution name would not establish correct pronunciation.
 
-Validation: the guarded frontend runner passes 1,196 cases (1,136 web, 60 SDK),
-with zero skips/todos; workspace lint/typecheck pass. Five Release corpus tests
+Validation at `cc626e8`: the guarded frontend runner passes 1,197 cases (1,137 web,
+60 SDK), with zero skips/todos; workspace lint/typecheck pass. Five Release corpus tests
 and seven ADR-workflow cases pass. The final focused Release integration run passes
 20 cases: six real production Next/native HTTPS/API/PostgreSQL modes and fourteen
 cleanup/log-control companions, with zero skips. No backend full-suite rerun or new
 manual accessibility pass is inferred from these focused checks.
+
+**Round 1 — fresh independent reviews of `ed6f81e..cc626e8`.** GPT-6-astra
+(high) reviewed runtime/source-boundary behavior; GPT-6.1-sol (high) reviewed
+proofs, guidance and documentation. Three findings were verified: shorthand
+factory returns and destructured shared-storage aliases escaped the bounded
+retention fence, and the attribution dirty control failed on its palette before
+reaching attribution. Four new dirty cases fail before the retention fix; they
+and two request-local clean cases pass afterward. The attribution control keeps
+a valid palette and checks the specific failure in both entitlement directions.
+Focused validation passes all 263 boundary cases and 36 response-helper cases;
+web typecheck passes. Neither review claims a Docker/full-suite/manual rerun.
 
 ### P02d-1 decision pass (2026-09-14)
 

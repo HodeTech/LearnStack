@@ -121,7 +121,13 @@ describe('production theme assertion controls', () => {
   });
 
   it('rejects attribution that disagrees with effective entitlement', () => {
-    expect(() => productTheme(themeDoc('', ''), details)).toThrow();
+    expect(() => productTheme(themeDoc(undefined, ''), details)).toThrow(
+      'Effective tenant entitlement alone selects attribution',
+    );
+    expect(() => productTheme(themeDoc(), { ...details, showAttribution: false })).toThrow(
+      'Effective tenant entitlement alone selects attribution',
+    );
+    expect(() => productTheme(themeDoc(), details)).not.toThrow();
     expect(() =>
       productTheme(themeDoc(undefined, ''), { ...details, showAttribution: false }),
     ).not.toThrow();
