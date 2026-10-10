@@ -4667,8 +4667,8 @@ cases and 1,065 passing guarded frontend cases, zero failures/skips/todos.
 The manual closeout permits Accessibility Standards to become Active and the
 five P6 catalogue entries to become Implemented; the automated checks named by
 those entries are already present. The closure change updates documentation only.
-Final corpus/link validation and two fresh documentation reviews follow before
-the implementation PR is handed to the maintainer.
+Final corpus/link validation and two fresh documentation review rounds complete
+before the implementation PR is handed to the maintainer, as recorded below.
 
 Closeout validation passes all 198 Release architecture cases, including the
 corpus guards, with zero failures/skips, and all seven ADR-workflow tests. A local
@@ -4685,7 +4685,15 @@ nineteen/three split. It now references the index-owned counts instead. Both
 reviewers verify the five promoted entries against existing tests, 165 catalogue
 rules (107 architecture, 58 outside), twenty Active/two Adopted standards,
 maintainer-attributed VoiceOver scope and insertion-only ADR history. Neither
-claims new broad runtime execution. Fresh second-round reviews follow the fix.
+claims new broad runtime execution.
+
+Fresh GPT-6-sol high consistency and GPT-6.1-sol high history/evidence reviewers
+independently review `27a02ba..2b6dbb4` after the fix. Both approve without findings.
+They verify current status, catalogue and standards counts, bounded manual
+evidence, preserved historical records and insertion-only ADR changes. The
+history reviewer independently checks 1,832 relative links and 565 fragments in
+the 23 closeout Markdown files; none is missing. Neither reruns a broad runtime
+suite. Both closeout review rounds are complete.
 
 P02d-6 implementation is complete; PR review and merge remain separate. P02d-7
 owns `make demo`, the browser/full-stack CI harness, Lighthouse activation and the
