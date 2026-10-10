@@ -1,4 +1,4 @@
-# ADR-0055: Own Public Bootstrap Admission in Middleware
+# ADR-0055: Handle Public Renderer Bootstrap Failures in Middleware
 
 ## Status
 
@@ -11,6 +11,9 @@ This replaces the unaccepted neutral-500 and native-response-gate proposals.
 The maintainer must approve the single live read, request-local DTO handoff and
 changed counts before code. Accepted decisions/history remain unchanged; separate
 Open Graph/security-update approval does not accept this admission design.
+Keep this record Proposed until the Next 15.5.27 context-propagation feasibility
+proof passes and the maintainer approves the revised decision. An isolated
+feasibility experiment does not authorize production implementation.
 
 ## Decision Drivers
 
@@ -155,6 +158,14 @@ unavailable error cases. Preserve eligible values; omit malformed, HTTP-date,
 negative and out-of-range values without clamping or inventing a retry duration.
 The SDK's current safe-integer parser alone does not implement this proposed bound.
 
+If accepted, this qualifies ADR-0054's
+[Anonymous accounting](0054-bounded-public-renderer-admission.md#anonymous-accounting)
+instruction to preserve the selected refusal's Retry-After unchanged at the
+renderer forwarding boundary only: forward an eligible value unchanged, otherwise
+omit it. The API's visitor-first refusal selection and original response metadata
+remain unchanged. Record this bounded renderer qualification explicitly in
+ADR-0054's dated navigation note; it is not a replacement of API accounting.
+
 ### Lifecycle, runtime and navigation
 
 Cancellation reaches bootstrap/content transport, without promising forced
@@ -187,6 +198,14 @@ failures to `null`, which `public-resource.ts` turns into `notFound()`. G40 spen
 three calls on a normal document and five on a followed missing document. This
 proposal replaces that ownership/count choice instead of intercepting streaming.
 
+This is the request-local bootstrap reuse explicitly left undelivered by
+[ADR-0054's Context](0054-bounded-public-renderer-admission.md#context).
+It changes the admission loader described in
+[ADR-0027's execution boundary](0027-frontend-i18n.md#dependency-and-execution-boundary):
+the loader consumes this request's validated live snapshot instead of calling
+`getSite()` again. Provenance verification, signed-route locale selection and
+enabled-locale membership checks remain required before UI or content consumers.
+
 Historical source inspection of Next 15.5.18 shows `pipe-readable.js` flushing
 headers before body writes, `app-render.js` mapping ordinary errors to 500 and
 Node middleware executing through its adapter. Official custom-server/streaming
@@ -208,8 +227,10 @@ context's correctness. Delivery requires production proofs on Next **15.5.27**;
 P02d-6 remediation owns the proposed replacement of G40's duplicate RSC bootstrap,
 response ownership and three/five-call contract. Approval explicitly accepts the
 request-local DTO handoff and two/three-call replacement. Record bounded dated
-supersession/navigation in ADR-0053, ADR-0027 and the G40/current guidance as needed;
-retain Accepted bodies and historical delivery records unchanged.
+supersession/navigation in ADR-0053, ADR-0027 and the G40/current guidance, plus
+ADR-0054's renderer Retry-After qualification and deferred-reuse delivery boundary;
+retain Accepted bodies and historical delivery records unchanged. The acceptance
+decision must be committed before dependent production implementation.
 
 Scope covers native context/lifecycle, runtime facade, middleware publication,
 RSC/resource/i18n consumers and proofs. Failed feasibility requires a new decision,
@@ -218,7 +239,12 @@ bootstrap needs its own ownership/build design.
 
 ## Architecture Tests
 
-These are mandatory obligations, not passing-test or Implemented-catalogue claims:
+These are mandatory obligations, not passing-test or Implemented-catalogue claims.
+At acceptance, register canonical rule names and their owning test paths as
+Registered in the
+[architecture-test catalogue](../standards/21-architecture-tests-catalogue.md)
+before dependent production code. Mark a rule Implemented only after its
+executable proof and planted failing/passing controls pass:
 
 - Actual Next 15.5.27 production context propagation and same-request snapshot reuse;
   missing, duplicated, disposed or mismatched context fails closed before consumers.

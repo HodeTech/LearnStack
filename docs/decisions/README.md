@@ -76,7 +76,7 @@ an amendment is not a lifecycle status change.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0055 | [Own Public Bootstrap Admission in Middleware](0055-public-renderer-bootstrap-failures.md) | One live middleware bootstrap with an immutable same-request snapshot; exact 429/503 and revised call accounting proposed | P02d-6 remediation; approval before dependent implementation |
+| 0055 | [Handle Public Renderer Bootstrap Failures in Middleware](0055-public-renderer-bootstrap-failures.md) | One live middleware bootstrap with an immutable same-request snapshot; exact 429/503 and revised call accounting proposed | P02d-6 remediation; feasibility proof and approval before dependent implementation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

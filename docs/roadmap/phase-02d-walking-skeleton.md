@@ -5036,7 +5036,7 @@ the approved compatible-security group. ADR-0055 and the separate test-toolchain
 migration remain pending approval and have no implementation in these commits.
 Fresh exact-head PR CI remains the final validation step.
 
-###### Proposed test-toolchain migration — approval pending
+###### Test-toolchain migration — approved (2026-10-10)
 
 The separately reviewable candidate pins Vitest **4.1.11** and Vite **6.4.3** in
 both web and SDK, resolving esbuild **0.25.12** within Vite's range. Vitest 4 removes
@@ -5055,9 +5055,32 @@ runner; all its skip/todo/missing/omitted-file negative controls must still fail
 Before completion: frozen install, resolved graph/advisory audit, guarded full
 frontend suite, lint, typecheck and production build; two independent review
 rounds and verified fixes. Preserve package/control deadlines and all existing
-proof gates. This candidate has not been installed or implemented and accepts no
-new architecture/ADR contract. Approval is requested because it exceeds the
-compatible-transitive scope already approved.
+proof gates. The maintainer separately approved this major test-toolchain upgrade
+on 2026-10-10; implementation and fresh two-round review follow that approval.
+It accepts no new architecture/ADR contract. The earlier compatible-security
+group's pending-approval statement records its own commit-time boundary.
+
+###### ADR-0055 draft review reconciliation (2026-10-10)
+
+The maintainer's review is a request for draft corrections, not ADR acceptance.
+The revised Proposed record names ADR-0054's unchanged Retry-After instruction and
+limits the proposed qualification to renderer forwarding; API refusal selection
+and metadata stay unchanged. It also names ADR-0054's deferred request-local reuse
+and ADR-0027's admission loader, aligns the title with the existing filename, and
+requires canonical Registered catalogue rules before dependent production code.
+
+Next 15.5.27 native-to-middleware-to-RSC context propagation must be demonstrated
+before acceptance. An isolated feasibility experiment is research, not permission
+to ship the proposed runtime. Maintainer approval is still required after review.
+
+The draft first appeared in mixed fix commit `cc626e8`, was revised in `bdb88bb`,
+and received its decision-scoped commit in `ca03942`. That draft packaging is
+recorded rather than rewritten. No Accepted ADR-0055 decision or dependent runtime
+exists; acceptance-before-production implementation has not been bypassed.
+
+ADR-0054's original Next 15.5.18 pin and retired test name were accurate at
+acceptance. Preserve that history: its existing Amendment 7 identifies the
+current 15.5.27 maintenance baseline. No accepted-body erratum is appropriate.
 
 ### P02d-1 decision pass (2026-09-14)
 
