@@ -3,7 +3,7 @@ import 'server-only';
 import type { ApiResult, ServerSdk } from '@learnstack/sdk/server';
 import { notFound, redirect } from 'next/navigation';
 
-import { getPublicRequest } from './public-request';
+import { assertPublicRequestActive, getPublicRequest } from './public-request';
 import type { PublicRequest } from './public-request';
 import { publicPagination } from './public-route';
 import type { PublicPagination } from './public-route';
@@ -61,14 +61,16 @@ function failure<T>(
 }
 
 /** Metadata, root and page share a single content read; the next document re-reads. */
-export const getPublicResource = requestMemo(async (): Promise<PublicResource> => {
+const loadPublicResource = requestMemo(async (): Promise<PublicResource> => {
   const request = await getPublicRequest();
   if (!request) return { kind: 'refused' };
+  assertPublicRequestActive(request);
   const { route, client, context } = request;
   if (route.kind === 'status') return { kind: 'status', request };
   if (route.kind === 'scaffold') return { kind: 'scaffold', request };
   if (route.kind === 'lesson') {
     const result = await client.getLesson({ slug: route.slug, lessonSlug: route.lessonSlug });
+    assertPublicRequestActive(request);
     if (result.kind !== 'success') return failure(result, request);
     if (result.data.content.state === 'ready' && result.data.content.rendererKey !== 'default-card')
       // This memoized resource read is shared by metadata, layout and page.
@@ -84,6 +86,7 @@ export const getPublicResource = requestMemo(async (): Promise<PublicResource> =
   if (!pagination) return { kind: 'failure', request, state: 'invalid_cursor' };
   if (route.kind === 'catalog') {
     const result = await client.getCourses({ cursor: pagination.cursor, limit: pagination.limit });
+    assertPublicRequestActive(request);
     return result.kind === 'success'
       ? { kind: 'catalog', request, data: result.data, pagination }
       : failure(result, request, pagination);
@@ -95,10 +98,18 @@ export const getPublicResource = requestMemo(async (): Promise<PublicResource> =
       lessonLimit: pagination.limit,
     },
   );
+  assertPublicRequestActive(request);
   return result.kind === 'success'
     ? { kind: 'course', request, data: result.data, pagination }
     : failure(result, request, pagination);
 });
+
+/** Memo reuse never revives a completed native request. */
+export async function getPublicResource(): Promise<PublicResource> {
+  const resource = await loadPublicResource();
+  if (resource.kind !== 'refused') assertPublicRequestActive(resource.request);
+  return resource;
+}
 
 /** Each consumer honors admission; layouts do not serialize child execution. */
 export async function requirePublicResource(): Promise<
@@ -106,6 +117,7 @@ export async function requirePublicResource(): Promise<
 > {
   const resource = await getPublicResource();
   if (resource.kind === 'refused') notFound();
+  assertPublicRequestActive(resource.request);
   if (resource.kind === 'missing') {
     if (resource.request.locale === null) notFound();
     redirect(`/${resource.request.locale}/status/not-found`);

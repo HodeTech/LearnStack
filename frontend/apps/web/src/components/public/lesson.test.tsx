@@ -19,10 +19,12 @@ const dependencies = vi.hoisted(() => ({
   resource: vi.fn(),
   ui: vi.fn(),
   metadata: vi.fn(),
+  active: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('Not found');
   }),
 }));
+vi.mock('@/server/public-request', () => ({ assertPublicRequestActive: dependencies.active }));
 vi.mock('@/server/public-resource', () => ({ requirePublicResource: dependencies.resource }));
 vi.mock('@/server/public-ui', () => ({ getPublicUi: dependencies.ui }));
 vi.mock('@/server/public-metadata', () => ({ publicMetadata: dependencies.metadata }));
@@ -409,6 +411,20 @@ describe('lesson route dispatch', () => {
       await expect(consumer()).rejects.toThrow('Admission refused');
       expect(dependencies.ui).not.toHaveBeenCalled();
       expect(dependencies.metadata).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([CoursePage, LessonPage, generateMetadata])(
+    'checks the original resource again after UI work',
+    async (consumer) => {
+      dependencies.resource.mockResolvedValue(lesson());
+      dependencies.ui.mockResolvedValue(createPublicTranslator('en'));
+      dependencies.active.mockImplementationOnce(() => {
+        throw new Error('Public admission request completed');
+      });
+      await expect(consumer()).rejects.toThrow('Public admission request completed');
+      expect(dependencies.metadata).not.toHaveBeenCalled();
+      expect(dependencies.notFound).not.toHaveBeenCalled();
     },
   );
 

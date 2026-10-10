@@ -13,7 +13,10 @@ const navigation = vi.hoisted(() => ({
   redirect: vi.fn<(path: string) => never>(),
 }));
 vi.mock('next/navigation', () => navigation);
-vi.mock('./public-request', () => ({ getPublicRequest: vi.fn() }));
+vi.mock('./public-request', () => ({
+  getPublicRequest: vi.fn(),
+  assertPublicRequestActive: vi.fn(),
+}));
 // Dedicated memo controls and the production RSC fixture prove request reuse;
 // these invocations independently exercise dispatch and closed outcome mapping.
 vi.mock('./request-memo', () => ({ requestMemo: <T>(load: T): T => load }));

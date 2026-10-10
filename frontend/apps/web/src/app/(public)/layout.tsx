@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { PublicChrome } from '@/components/public/chrome';
 import { ErrorLabelsProvider } from '@/components/public/error-labels';
+import { assertPublicRequestActive } from '@/server/public-request';
 import { requirePublicResource } from '@/server/public-resource';
 import { getPublicUi } from '@/server/public-ui';
 
@@ -17,6 +18,7 @@ type PublicLayoutProps = {
 export default async function PublicLayout({ children }: PublicLayoutProps) {
   const { request } = await requirePublicResource();
   const ui = await getPublicUi();
+  assertPublicRequestActive(request);
   const contentLocale = request.locale ?? 'en';
   const recoveryPath = `/${contentLocale}/courses`;
   return (

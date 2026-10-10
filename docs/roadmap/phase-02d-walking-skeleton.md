@@ -5292,6 +5292,34 @@ minimal alias fix and all 278 boundary cases. Root revalidation passes 327 focus
 cases, typecheck, lint, native ingress and all 19 setup/cleanup controls. Step 1
 is complete; no second-bootstrap removal or full product proof is claimed here.
 
+
+###### ADR-0055 Step 2 — Single bootstrap publication and checked consumers
+
+**Implemented — 2026-10-10; independent review rounds pending.** Middleware
+requires the matching active native context before transport, performs the sole
+site call and publishes only after successful route admission and response
+construction. Redirects and refusals terminalize without a snapshot. Controlled
+404/429/503 responses are bodyless for HEAD; the renderer forwards only eligible
+integer Retry-After values from zero through sixty, without clamping.
+
+The RSC loader independently verifies provenance, consumes that native snapshot
+and constructs its content caller with native cancellation. It never calls
+`getSite()`. Invalid provenance and exempt transport fallbacks retain their prior
+neutral behavior; active context/configuration defects fail with fixed internal
+diagnostics. Identity checks distinguish simultaneous identical bindings. Private
+memoized loaders have checked outer wrappers, and resource/UI/i18n/document
+consumers recheck after their awaits; completed cache hits and retained translators
+cannot revive an ended native request.
+
+The guarded frontend run passes **1,342** cases: **1,282 web and 60 SDK**, zero
+skips/todos. Typecheck, lint, production build and all **198 architecture cases**
+pass. The native ingress proof passes with one site call for status/scaffold
+requests, real middleware/RSC consumption and retained TLS, method, optimizer,
+DEBUG, HMR and signal controls. Focused tests include 88 middleware/admission and
+18 actual-memo resource lifecycle cases. These are Step 2 results; Step 3 still
+owns real-API/PostgreSQL product accounting, exact wire failures, broader lifecycle
+and navigation proofs. The five catalogue rules remain Registered.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

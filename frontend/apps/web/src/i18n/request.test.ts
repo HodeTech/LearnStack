@@ -9,11 +9,15 @@ import requestConfig from './request';
 
 const dependencies = vi.hoisted(() => ({
   request: vi.fn(),
+  active: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('Admission refused');
   }),
 }));
-vi.mock('@/server/public-request', () => ({ getPublicRequest: dependencies.request }));
+vi.mock('@/server/public-request', () => ({
+  getPublicRequest: dependencies.request,
+  assertPublicRequestActive: dependencies.active,
+}));
 vi.mock('next/navigation', () => ({ notFound: dependencies.notFound }));
 // Execute the production callback directly; next-intl's request cache is outside
 // this unit boundary. The real formatter consumes the returned config below.
@@ -23,6 +27,7 @@ const configure = () => requestConfig({ requestLocale: Promise.resolve('forged-l
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dependencies.active.mockReset();
 });
 
 describe('verified public next-intl request configuration', () => {
@@ -58,6 +63,17 @@ describe('verified public next-intl request configuration', () => {
     expect(dependencies.notFound).toHaveBeenCalledOnce();
     expect(dependencies.notFound).toHaveBeenCalledWith();
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it('refuses a completed request after the admission await before catalogue selection', async () => {
+    dependencies.request.mockResolvedValue({ locale: 'tr' });
+    dependencies.active.mockImplementationOnce(() => {
+      throw new Error('Public admission request completed');
+    });
+    const select = vi.spyOn(catalogues, 'getPublicCatalogue');
+    await expect(configure()).rejects.toThrow('Public admission request completed');
+    expect(select).not.toHaveBeenCalled();
+    expect(dependencies.notFound).not.toHaveBeenCalled();
   });
 
   it.each(['tr-TR', 'ar'])('bounds formatter failures in the actual %s config', async (locale) => {

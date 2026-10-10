@@ -3,6 +3,7 @@ import 'server-only';
 import { createConfiguredPublicClient, publicTraceparent } from './configured-public-client';
 import type { ConfiguredPublicClient } from './configured-public-client';
 import { INGRESS_HEADER, verifyProvenance } from './ingress';
+import { readPublicAdmission } from './public-admission';
 import { publicEntry } from './public-entry';
 import type { PublicSite } from './public-entry';
 import { publicRoute } from './public-route';
@@ -18,7 +19,7 @@ export type PublicRequest = {
 };
 
 /** One incoming RSC request only; this module deliberately knows no UI catalogue. */
-export const getPublicRequest = requestMemo(async (incoming): Promise<PublicRequest | null> => {
+const loadPublicRequest = requestMemo(async (incoming): Promise<PublicRequest | null> => {
   const envelope = incoming.get(INGRESS_HEADER);
   const context = verifyProvenance(envelope, process.env.LEARNSTACK_PUBLIC_HOP_SECRET);
   if (!context) return null;
@@ -27,24 +28,40 @@ export const getPublicRequest = requestMemo(async (incoming): Promise<PublicRequ
   const path = context.target.split('?')[0];
   if (path === '/favicon.ico' || path === '/api/healthz' || path?.startsWith('/_next/'))
     return null;
+  const admission = readPublicAdmission(context);
   try {
     const client = createConfiguredPublicClient(envelope, {
       traceparent: publicTraceparent(incoming.get('traceparent')),
+      signal: admission.signal,
     });
-    if (!client) return null;
-    const result = await client.getSite();
-    if (result.kind !== 'success') return null;
-    const entry = publicEntry(context.target, result.data);
-    if (entry.kind !== 'continue') return null;
+    if (!client) throw new Error('Public admission context unavailable');
+    const entry = publicEntry(context.target, admission.site);
+    if (entry.kind !== 'continue') throw new Error('Public admission context unavailable');
+    admission.assertActive();
     return {
       context,
       client,
-      site: result.data,
+      site: admission.site,
       locale: entry.locale,
       route: publicRoute(context.target),
     };
   } catch {
-    // Fail before selecting a tenant document; private configuration is never logged.
-    return null;
+    // Distinguish completed work from an active invariant without private details.
+    admission.assertActive();
+    throw new Error('Public admission context unavailable');
   }
 });
+
+export function assertPublicRequestActive(request: PublicRequest): void {
+  const admission = readPublicAdmission(request.context);
+  // Identical host/path bindings can overlap; a value still belongs to one store.
+  if (admission.site !== request.site) throw new Error('Public admission context unavailable');
+  admission.assertActive();
+}
+
+/** A memo hit still crosses an await and must recheck the native lifetime. */
+export async function getPublicRequest(): Promise<PublicRequest | null> {
+  const request = await loadPublicRequest();
+  if (request) assertPublicRequestActive(request);
+  return request;
+}

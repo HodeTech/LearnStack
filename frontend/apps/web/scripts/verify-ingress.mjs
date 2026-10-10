@@ -581,9 +581,9 @@ async function run() {
     ['/faviconXico', 404, 1],
     ['/favicon.ico/extra', 404, 1],
     ['/nested/favicon.ico', 404, 1],
-    ['/en/status/not-found', 404, 2],
-    ['/studio', 200, 2],
-    ['/portal', 200, 2],
+    ['/en/status/not-found', 404, 1],
+    ['/studio', 200, 1],
+    ['/portal', 200, 1],
   ]) {
     for (const method of ['GET', 'HEAD']) {
       const before = bootstrapCalls;
@@ -633,7 +633,7 @@ async function run() {
   });
   assert.equal(listenerFailed, false, 'Bootstrap fixture refused the hop');
   assert.equal(positive.status, 404); // Actual branded status route is admitted without Education.
-  assert.equal(bootstrapCalls, beforePositive + 2); // Middleware and request-local RSC bootstrap.
+  assert.equal(bootstrapCalls, beforePositive + 1); // One middleware bootstrap; RSC consumes its snapshot.
   assert.match(positive.headers['cache-control'], /(?:^|,\s*)no-store(?:,|$)/);
   for (const query of [
     '?',

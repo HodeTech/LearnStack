@@ -4,17 +4,21 @@ import { PublicCourse } from '@/components/public/course';
 import { PublicState } from '@/components/public/state';
 import { publicMetadata } from '@/server/public-metadata';
 import { catalogPath } from '@/server/public-paths';
+import { assertPublicRequestActive } from '@/server/public-request';
 import { requirePublicResource } from '@/server/public-resource';
 import { getPublicUi } from '@/server/public-ui';
 
 export async function generateMetadata() {
   const resource = await requirePublicResource();
-  return publicMetadata(resource, await getPublicUi());
+  const ui = await getPublicUi();
+  assertPublicRequestActive(resource.request);
+  return publicMetadata(resource, ui);
 }
 
 export default async function CoursePage() {
   const resource = await requirePublicResource();
   const ui = await getPublicUi();
+  assertPublicRequestActive(resource.request);
   if (resource.kind === 'failure')
     return (
       <PublicState

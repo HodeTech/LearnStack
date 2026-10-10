@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { PublicTheme } from '@/components/public/theme';
 import { textDirection } from '@/i18n/locale';
+import { assertPublicRequestActive } from '@/server/public-request';
 import { requirePublicResource } from '@/server/public-resource';
 
 import './globals.css';
@@ -18,6 +19,7 @@ type RootLayoutProps = {
 export default async function RootLayout({ children }: RootLayoutProps) {
   // Do not let loading.tsx flush a shell before the missing-resource redirect.
   const { request } = await requirePublicResource();
+  assertPublicRequestActive(request);
   const locale = request.locale ?? 'en';
   return (
     <html lang={locale} dir={textDirection(locale)}>
