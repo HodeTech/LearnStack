@@ -5130,6 +5130,33 @@ and proves restoration of native locale behavior. No full-suite, build, install
 or audit rerun is attributed to these reviewers. This closes group 4; fresh
 exact-head CI follows. ADR-0055 remains Proposed and unimplemented.
 
+##### ADR-0055 isolated feasibility observation (2026-10-10)
+
+The root independently replays a disposable native HTTPS / production Next
+15.5.27 fixture on Node 22.23.1. All 37 requests pass the propagation matrix:
+eight simultaneous identical HTML, eight Flight, eight prefetch, eight host/locale
+HTML/Flight combinations, HEAD and HTML/Flight missing/error cases. Native,
+middleware and RSC compare actual holder/store references; request IDs are
+observations, not context lookup keys. Unbound and duplicate-ALS controls each
+refuse with 503, without snapshot publication or RSC consumers. Prefetch runs
+middleware without dynamic RSC consumers in this synthetic fixture.
+
+Valid HEAD exposes a lifecycle caveat: Next can resume an already-started
+not-found component after response finish. The store is correctly disposed, its
+snapshot cleared, and late access refused; Next logs the bounded fixture error.
+ADR-0055 now explicitly requires disposal checks after awaits and neutral
+production diagnostics. Response finish does not imply synchronous reclamation
+of already captured local references or completion of all React work.
+
+The experiment uses synthetic site publication. It proves neither real API/
+provenance/RLS nor the proposed two/three-call accounting, cancellation, active
+shutdown, keep-alive, HMR or browser navigation. Certificates, children and owned
+build output are cleaned; a local reproducible source/results bundle is retained
+for maintainer inspection. No experiment source enters the production tree.
+This supports feasibility of the proposed same-process design only. ADR-0055
+remains Proposed; dependent production implementation still requires approval
+and all named production proofs.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

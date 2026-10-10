@@ -172,6 +172,14 @@ Cancellation reaches bootstrap/content transport, without promising forced
 cancellation of arbitrary React work. Native `finish`/`close` or shutdown closes
 the store exactly once, releases its snapshot/listeners and prevents late use.
 Do not call ALS `disable()` per request or dispose on a delegating promise's return.
+Response completion does not prove React work has ended. Check disposal before
+publication or downstream work and again after awaits. Clearing the store's
+snapshot reference does not synchronously reclaim references held by already
+running consumers. Late continuations must fail closed without republishing,
+starting another bootstrap or Education read, or exposing the context/DTO in
+diagnostics. Production proofs must cover valid HEAD and late component work.
+Expected refusal after completion is distinct from an active-request context
+defect and cannot change the already completed HTTP response.
 
 Native startup installs the sole ALS holder as a versioned, non-enumerable
 `globalThis[Symbol.for('learnstack.public-admission.v1')]`. Server-only facades
@@ -212,6 +220,29 @@ Node middleware executing through its adapter. Official custom-server/streaming
 and Node ALS documentation establish the available primitives, not this shared
 context's correctness. Delivery requires production proofs on Next **15.5.27**;
 15.5.18 source observations are not runtime evidence for the patched baseline.
+
+### Isolated feasibility observation (2026-10-10)
+
+An isolated native HTTPS / production Next 15.5.27 experiment on Node 22.23.1,
+independently replayed by the root agent, confirms the same ALS holder and store
+references through bundled Node middleware, metadata, layout and page, including
+after awaits. It covers 37 requests: eight overlapping identical requests each
+for HTML, Flight and prefetch; eight host/locale HTML/Flight combinations; HEAD;
+and HTML/Flight not-found/error cases. Prefetch executes middleware without dynamic
+RSC consumers in this fixture. Unbound and duplicate-ALS controls return 503 with
+no snapshot publication or RSC consumer. Publication is synthetic, not `getSite()`.
+
+On a valid HEAD, an already-started not-found component resumes after native
+`finish`. ALS still carries the correct disposed store; its snapshot is cleared
+and the facade refuses late access. The wire remains bodyless 200. This supports
+the disposal checks above; it does not prove all React work or local references
+have ended. The fixture's bounded error is logged by Next, so production must
+also verify neutral diagnostics during this path.
+
+This establishes the same-process propagation premise only. Actual provenance,
+route binding, API/RLS, call accounting, abort/shutdown, keep-alive, HMR and browser
+navigation remain production proof obligations. The experiment does not accept
+this decision or satisfy those obligations. Maintainer approval remains pending.
 
 ## Consequences
 
