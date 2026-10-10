@@ -98,10 +98,10 @@ catalog/course/lesson pages, ordered text fields, safe themes and metadata; its
 [product closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
 records automated verification/reviews and scoped browser/VoiceOver observations.
 The original P02d-6 implementation is complete. ADR-0055 remediation delivers
-single-bootstrap admission and passing production replacement proofs; Steps 1–2
-completed both independent review rounds, and
+single-bootstrap admission and passing production replacement proofs; all three
+steps completed both independent review rounds, and
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns pending Step 3 reviews and delivery evidence. Maintainer
+owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
 PR review and merge remain pending. The browser demo remains P02d-7. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops

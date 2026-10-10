@@ -46,8 +46,8 @@ it replaces the duplicate RSC bootstrap with one middleware-owned live read and
 an immutable same-request snapshot, preserving exact bootstrap 429/503 before
 rendering. The
 [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns passing production replacement proofs and pending Step 3 reviews. Both review
-rounds for Steps 1–2 are complete. The
+owns passing production replacement proofs and completed Step 3 reviews. Both
+review rounds for all three steps and focused fix verification are complete. The
 [review decision package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-systematic-review-decision-package-2026-10-10)
 separately records approval for Open Graph projection and bounded Next security
 maintenance. The isolated context-propagation experiment establishes feasibility;

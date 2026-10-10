@@ -5336,7 +5336,7 @@ remaining production proof obligations stay with Step 3.
 
 ###### ADR-0055 Step 3 — Production admission proof and closeout
 
-**Implemented — 2026-10-10; independent review rounds not started.** The six
+**Implemented — 2026-10-10; both independent review rounds complete.** The six
 existing production modes consume the shipped native admission snapshot.
 Release execution through real API/PostgreSQL passes all six cases, with zero
 skips: transport **39**, foundation **33**, pagination **12**, presentation **30**,
@@ -5388,9 +5388,8 @@ integration**, zero skips. The guarded frontend run passes **1,402 cases**:
 format, workspace lint/typecheck, production build, native ingress and all
 **19** ingress cleanup controls pass. The five admission catalogue rules are
 Implemented with executable owners and planted controls. Accepted ADRs retain
-their original bodies and receive dated delivery navigation. Exact-head CI and
-two fresh independent Step 3 review rounds are still pending.
-
+their original bodies and receive dated delivery navigation. The reviews and
+subsequent CI investigation are recorded below.
 
 **CI investigation and native completion proof.** The first Linux run on
 `37ec51e` passes 866 Docker cases but fails the new production Fact during its
@@ -5408,8 +5407,60 @@ Six dirty/clean cases prove client/delegation completion cannot release the barr
 and missing runtime cleanup still fails after the barrier resolves. No sleep,
 count-poll, production lifetime change or API retry is added. The actual production
 Fact and guarded 1,402-case frontend run pass locally with this proof correction.
-The exact first Linux substage, focused fix reviews and replacement CI remain
-pending; no unproved causal attribution is made.
+The diagnostic-only `9f785fc` then passes all six required jobs, including all
+867 Docker cases and the new production Fact in
+[run 38054051927](https://github.com/HodeTech/LearnStack/actions/runs/38054051927).
+The exact first Linux substage remains unknown; this passing replay does not
+establish the original cause. The completion correction addresses an independently
+verified ordering assumption, not a claimed reconstruction of that failure.
+
+**Review round 1 — `7a2b4b2..37ec51e`.** GPT-6-astra and GPT-6.1-sol, both at
+xhigh effort, review runtime/security and production proof/documentation
+respectively. Both approve without actionable findings and independently pass
+94 focused cases. They do not claim another full production-suite run.
+
+**Review round 2 — `7a2b4b2..37ec51e`.** Fresh GPT-6-astra and GPT-6.1-sol
+reviewers at xhigh effort check runtime/lifecycle and proof/documentation. Static
+runtime checks and 94 focused cases pass, but the runtime review's first
+console-only production attempt fails as recorded above; its retained unchanged
+replay passes. The proof reviewer records the early catalogue-status promotion:
+`37ec51e` marked five rules Implemented after passing execution but before both
+review rounds, contrary to the approved sequence. This process deviation is
+preserved here rather than rewriting the plan. The later completed reviews and
+fix verification support the current Implemented status.
+
+**Focused fix review round 1 — `9f785fc..b8d5199`.** Fresh GPT-6-astra at xhigh
+effort verifies native observer ordering, independence from runtime counts and
+unchanged active observations. It finds a real proof gap: one microtask wait lets
+an already-resolved empty-pending mutant pass all six controls. Independent
+verification reproduces that behavior; `100534f` crosses a deterministic
+`setImmediate` turn before both pending assertions. The actual Vitest mutant now
+fails three cases; restored production code passes all six. No wall-clock sleep or runtime change is added.
+
+**Focused fix review round 2 — `9f785fc..100534f`.** Fresh GPT-6.1-sol at xhigh
+effort approves without actionable findings, independently passes all six cases
+and rejects the empty-pending mutant at all three corrected assertions. It
+verifies native completion cannot conceal missing runtime cleanup and that the
+existing ten-second IPC bound and API accounting remain unchanged. The guarded
+full frontend replay passes 1,402 cases, zero skips/todos.
+
+The repeated optimizer-child cleanup comment is not applicable: `start()`
+registers the child with its owner immediately, and failure unwinds through the
+existing top-level `finally`/`owner.dispose()`. The implementation agent and an
+independent proof reviewer verify that path; no redundant local cleanup is added.
+The original manual browser/VoiceOver evidence retains its tested scope and commit.
+
+Closeout verification passes 198 architecture cases and seven ADR-workflow cases,
+with no failures or skips. A local audit of the 37 changed Markdown files checks
+2,392 relative links and 735 fragments without missing targets; inline/fenced
+examples are excluded. Added prose respects 88 columns. CI's link gate still
+checks file existence only.
+
+All three ADR-0055 implementation steps and their review/fix loops are complete.
+The [PR #27 description](https://github.com/HodeTech/LearnStack/pull/27) owns final
+exact-head CI after this documentation commit. Maintainer review and merge remain
+pending. P02d-7 retains the full browser demo and Lighthouse; Phase 06/11 retain
+their named broader accessibility and production-hardening work.
 
 ### P02d-1 decision pass (2026-09-14)
 

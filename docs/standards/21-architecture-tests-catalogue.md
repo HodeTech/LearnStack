@@ -8,7 +8,7 @@
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 (P02d-6 proofs implemented; manual smoke recorded),
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
-(replacement admission proofs implemented; Step 3 reviews pending). The
+(replacement admission proofs implemented; both review rounds complete). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -4331,12 +4331,13 @@ owns execution, review and manual evidence.
 
 ## P02d-6 request-local bootstrap admission controls
 
-**Implemented — 2026-10-10; Step 3 reviews pending.** Production replacement
-proofs and planted controls pass for the five rules below. Steps 1–2 completed both
-independent review rounds. Existing P5/P6 controls remain mandatory. The
+**Implemented — 2026-10-10; both independent review rounds complete.** Production
+replacement proofs and planted controls pass for the five rules below. All three
+steps completed both independent review rounds and focused fix verification.
+Existing P5/P6 controls remain mandatory. The
 [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns actual execution and pending Step 3 reviews. Six existing production modes
-pass with revised call accounting. The additional production Fact is
+owns actual execution, completed reviews and verified fixes. Six existing
+production modes pass with revised call accounting. The additional production Fact is
 `Native_admission_preserves_wire_failures_request_lifetimes_and_browser_fallback` in
 `backend/tests/LearnStack.Tests.Integration/Database/PublicAdmissionRenderingTests.cs`,
 driven by `frontend/apps/web/scripts/verify-public-admission.mjs`. It passes its

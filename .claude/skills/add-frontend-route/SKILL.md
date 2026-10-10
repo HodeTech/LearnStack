@@ -297,7 +297,7 @@ document. Metadata/layout/page/UI share the admitted snapshot without another
 bootstrap or cross-request cache. HEAD/RSC/prefetch and Flight fallback require
 separately proven counts. The
 [Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-records passing production replacement proofs and pending Step 3 reviews.
+records passing production replacement proofs, completed reviews and verified fixes.
 
 ### Step 10: Tests
 

@@ -185,8 +185,8 @@ Browser observations cover a refused Flight followed by stock Next's fresh docum
 navigation and separately counted API calls. HMR controls cover source recompilation
 and a fresh live site snapshot in the same development process. The
 [Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns actual execution and remaining reviews. This probe does not deliver P7's
-browser demo, full Playwright/axe or Lighthouse.
+owns actual execution, completed reviews and verified fixes. This probe does not
+deliver P7's browser demo, full Playwright/axe or Lighthouse.
 
 > **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
 > defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither

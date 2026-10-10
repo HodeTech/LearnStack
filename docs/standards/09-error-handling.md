@@ -460,8 +460,8 @@ completes before loading boundaries flush; [Standards 07](07-frontend-architectu
 owns placement and the shared request-local loader.
 
 **ADR-0055 implementation delivered — 2026-10-10; production replacement proofs
-pass.** Steps 1–2 completed both independent review rounds; Step 3 reviews remain
-pending.
+pass.** All three steps completed both independent review rounds and focused fix
+verification.
 Middleware owns the sole live bootstrap and emits neutral 404 for invalid entry
 or API 404, 429 for valid API 429 and 503 for other site/transport/configuration
 failures. Responses are no-store with fixed plain-text copy and bodyless HEAD;
@@ -476,8 +476,8 @@ values; omit malformed/date/negative/out-of-range values without clamping or
 inventing a retry. This qualifies renderer forwarding only; the API's selected
 refusal metadata and accounting remain unchanged. The
 [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-records passing exact-wire failure and lifecycle proofs. Step 3's two independent
-review rounds remain pending.
+records passing exact-wire failure/lifecycle proofs, both independent review
+rounds and focused fix verification.
 
 ### User-Facing Copy
 
