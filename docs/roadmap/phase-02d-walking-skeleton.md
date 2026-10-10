@@ -5539,8 +5539,19 @@ rejects missing automatic-upgrade observations. The disposable copy now matches
 the shared constant and checks that both instrumentation anchors occur exactly
 once before rewriting. The fix changes no production code or assertion strength.
 Local production build, native TLS/ingress proof, all **19** ingress cleanup/
-negative controls and lint pass. Two fresh focused review rounds remain pending
-for this instrumentation fix.
+negative controls and lint pass.
+
+**Instrumentation fix review round 1 — `7ea14c5`.** Fresh GPT-6-astra at high
+effort approves without actionable findings. In-memory checks reject missing and
+duplicate anchors and confirm that the transformed launcher parses. It verifies
+observer installation before Next's first-request upgrade registration, unchanged
+upgrade assertions and compatible cleanup controls.
+
+**Instrumentation fix review round 2 — `7ea14c5`.** Fresh GPT-6.1-sol at high
+effort independently approves without actionable findings. It checks actual
+transformation syntax, one shared-constant listener, adjacent source anchors,
+registration order and cleanup. Both rounds are read-only and start no runtime
+services. The PR description owns final exact-head CI after this record commit.
 
 ### P02d-1 decision pass (2026-09-14)
 
