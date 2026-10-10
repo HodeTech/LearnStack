@@ -5119,6 +5119,17 @@ passes 110 focused locale, runner, caller, HMR and cleanup cases, verifies the
 26-web/one-SDK file census, and checks the installed JSON reporter semantics.
 Neither reviewer claims another full frontend/build/architecture execution.
 
+**Round 2 — fresh independent review of `2bf9d57..a97f6ee`.** GPT-6-astra
+(high) approves the dependency/documentation lens without verified findings,
+independently matching the installed lock and fresh graph to the committed tree.
+GPT-6.1-sol (high) approves runtime/proof integrity without findings. It passes
+178 focused cases, including 68 shuffled DOM/request/mock cases, and validates
+both reports with the actual repository validator. Its direct installed-spy
+control distinguishes the intended RangeError from the old arrow's TypeError
+and proves restoration of native locale behavior. No full-suite, build, install
+or audit rerun is attributed to these reviewers. This closes group 4; fresh
+exact-head CI follows. ADR-0055 remains Proposed and unimplemented.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
