@@ -134,18 +134,20 @@ with actual-config planted controls. Its
 owns verification and review status. Step 4 adds concurrent host/locale, theme,
 freshness and content-fault product proofs; its
 [delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records both completed review rounds. **P02d-6 implementation is complete —
-2026-10-10, unmerged**: the
+records both completed review rounds. **P02d-6 is complete and merged** through
+[PR #27](https://github.com/HodeTech/LearnStack/pull/27) on 2026-10-10; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records final verification. The
 [packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
 records passing manual browser checks and the maintainer's VoiceOver smoke.
-Maintainer PR review and merge remain pending. ADR-0055 remediation delivers
+ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs. All three
 steps completed both independent review rounds;
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
 catalogue rules are Implemented.
-P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
-the full renderer/Studio expansion.
+P02d-7's demo, Lighthouse and phase-exit decision pass is next and has not started.
+Phase 02d remains in progress; Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

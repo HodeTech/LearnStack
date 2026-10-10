@@ -14,7 +14,7 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | ✅ implementation complete — 2026-10-10; all four steps and both review rounds per step complete; scoped browser/VoiceOver smoke passed; [packet closeout](#p02d-6-packet-closeout-2026-10-10); maintainer PR review/merge pending |
+> | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
 > | P02d-7 | Demo, full-stack CI and exit | not started |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
@@ -125,6 +125,13 @@ both independent review rounds per step are complete. The
 manual browser observations and the maintainer's passing VoiceOver smoke.
 P02d-6 awaits maintainer PR review and merge. P02d-7's demo, browser/Lighthouse
 harness and phase-exit decision pass are next; they have not started.
+
+**P02d-6 merge complete — 2026-10-10.** The preceding notes record pre-merge
+milestones. P02d-6 is now closed through
+[PR #27](https://github.com/HodeTech/LearnStack/pull/27); its
+[merge closeout](#p02d-6-merge-and-closeout-2026-10-10) records the final head,
+verification and merge. Phase 02d remains in progress. P02d-7's demo, Lighthouse
+and phase-exit decision pass is next; implementation has not started.
 
 ## Goal
 
@@ -5552,6 +5559,73 @@ effort independently approves without actionable findings. It checks actual
 transformation syntax, one shared-constant listener, adjacent source anchors,
 registration order and cleanup. Both rounds are read-only and start no runtime
 services. The PR description owns final exact-head CI after this record commit.
+
+### P02d-6 merge and closeout (2026-10-10)
+
+The maintainer merged [PR #27](https://github.com/HodeTech/LearnStack/pull/27) at
+2026-10-10 17:07:50 UTC. GitHub records final PR head
+`46ed971bf976514fb451a162cc9450d147ed0441` and merge commit
+`378346126949c90bb286b5217c24513fc2044f06`. The merge's second parent is that
+head, and both commits have the identical tree. Development is fast-forwarded to
+the verified merge without changing branches or rewriting history. The final
+head includes the testing-standard correction marking both ADR-0055 Step 3
+review rounds complete.
+
+- All six required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/38070332107)
+  and the [merge commit](https://github.com/HodeTech/LearnStack/actions/runs/38070479860).
+  Independently downloaded merge-run TRX confirms **2,946 passed**, zero failures
+  or skips: 1,705 unit, 198 architecture, four contract, 172 Docker-free
+  integration and 867 Docker integration cases.
+- Merge-run frontend logs confirm **1,402 passed** (1,342 web, 60 SDK), successful
+  typecheck, lint, production build and SDK drift verification. Native production
+  ingress verification and all **19** setup/cleanup and negative controls pass.
+  Release builds report zero warnings and errors. These are merge-run receipts;
+  the documentation closeout does not rerun the full runtime suites.
+- Read-only verification confirms `strict: true` and the same six required Actions
+  contexts, including OpenAPI diff and Docker integration. No protection setting
+  changes. Lighthouse remains disabled with activation owned by P02d-7.
+
+**P02d-6 is closed.** Localized catalog, course/outline and ordered plain-text
+lesson pages, safe four-color themes, exact-locale metadata, scoped pagination
+and controlled public states are delivered. ADR-0055 adds middleware-owned single
+bootstrap admission, immutable request-local reuse and production lifecycle/
+isolation proofs. All implementation steps and focused fixes retain their
+recorded independent review rounds. The
+[packet closeout](#p02d-6-packet-closeout-2026-10-10) owns scoped keyboard, focus,
+reflow and contrast observations and the maintainer's VoiceOver smoke; this
+merge adds no new manual observation or full WCAG-conformance claim.
+
+**Next: P02d-7 — Demo, full-stack CI and exit.** Its decision pass and
+implementation have not started. Resolve the remaining G20/G33/G38/G44/G45 parts
+against the delivered renderer before harness implementation:
+
+- Define `make demo` and stop/re-run ownership on a clean checkout, environment
+  projection, readiness, non-destructive seeding and the printed host/locale URLs
+  (G45). Local use and CI reuse the selected entrypoint.
+- Select Lighthouse's tools, both-host/locale URL set, assertions, budgets,
+  aggregation and artifacts; activate its currently disabled job and reconcile
+  standards/required-check carriers with the chosen enforcement (G44).
+- Complete the shared full-stack/browser demo and trusted-hop CI evidence
+  (G33/G38), including anonymous catalog-to-lesson flows with Keycloak stopped.
+- Implement and prove G20's remaining production/seed and frontend genericity
+  fences in required checks, preserving tenant-data-driven differences.
+- Reconcile every exit criterion and register row with its evidence and record
+  the Education/seed preservation obligations and premises `P02b-0` re-verifies.
+  [Phase 02b](phase-02b-events-auth.md) follows only after the Phase 02d exit
+  decision, not this packet merge.
+
+Phase 06 retains full Studio/portal, authored composition and Playwright/axe;
+Phase 11 retains broader production hardening and telemetry. Course Marketplace
+commerce is not delivered by this closeout. Earlier dated delivery records,
+including their pre-merge pending statements, remain historical and unchanged.
+
+**Documentation-only closeout validation.** All **198** local Release architecture
+cases and seven ADR lifecycle/workflow controls pass, with zero failures/skips.
+The six changed Markdown files resolve **873** relative links and **371** fragments
+with zero errors in the local audit. Added prose wrapping and diff checks pass.
+Earlier dated phase records are byte-preserved; no Accepted ADR or production
+code changes.
 
 ### P02d-1 decision pass (2026-09-14)
 

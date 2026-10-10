@@ -22,8 +22,9 @@ and a non-developer tenant admin can maintain it.
 
 ### What Phase 02d supplies
 
-Rows identify implemented P02d-6 scope; its PR review and merge remain pending. Planned
-P02d-7 work is not current behavior.
+Rows identify P02d-6 scope merged through PR #27; its
+[merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records final verification. Planned P02d-7 work is not current behavior.
 
 | Phase 02d foundation | Phase 06 adds |
 |---|---|

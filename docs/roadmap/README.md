@@ -77,8 +77,12 @@ not deferred to the showcase phase.
   single-bootstrap admission and passing production replacement proofs. All three
   steps completed both independent review rounds;
   the [Step 3 record](phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-  owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
-  PR review and merge remain pending. P7 owns the browser/demo.
+  owns completed Step 3 reviews, verified fixes and delivery evidence. P02d-6 is
+  complete and merged through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
+  on 2026-10-10; its
+  [merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+  records final verification. P02d-7's demo, Lighthouse and phase-exit decision
+  pass is next and has not started; Phase 02d remains in progress.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

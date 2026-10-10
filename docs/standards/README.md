@@ -68,7 +68,7 @@ bookkeeping pass.
 ### Honest status today
 
 The table below describes the implementation as of 2026-10-10:
-[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–5 are complete and
+[Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–6 are complete and
 merged. P02d-5's ingress, configured server caller, dynamic entry and frontend
 guards are delivered through PR #26; the
 [merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-5-merge-and-closeout-2026-10-09)
@@ -87,7 +87,10 @@ and passing production replacement proofs. All three steps completed both
 independent review rounds. The
 [Step 3 record](../roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence; its five rules
-are Implemented. Acceptance alone promotes no standard or test status.
+are Implemented. P6's
+[merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records PR #27's merge and final verification; P7 has not started. Acceptance
+alone promotes no standard or test status.
 
 **The documents and this table say the same thing, and a test holds them to it.**
 [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) reconciled the twenty-two

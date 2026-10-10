@@ -101,8 +101,12 @@ The original P02d-6 implementation is complete. ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs; all three
 steps completed both independent review rounds, and
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
-PR review and merge remain pending. The browser demo remains P02d-7. The
+owns completed Step 3 reviews, verified fixes and delivery evidence. **P02d-6 is
+complete and merged** through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
+on 2026-10-10; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records final verification. P02d-7's demo, Lighthouse and phase-exit decision pass
+is next and has not started. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
