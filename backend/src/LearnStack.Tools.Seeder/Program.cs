@@ -5,6 +5,11 @@ using LearnStack.Infrastructure.Persistence;
 using System.Text.Json;
 
 // Read-only tooling projection: no data source, seeding side effect or credentials.
+if (args is ["--demo-identities"])
+{
+    Console.WriteLine(JsonSerializer.Serialize(DemoIdentities.Create(), JsonSerializerOptions.Web));
+    return 0;
+}
 if (args is ["--demo-manifest"])
 {
     Console.WriteLine(JsonSerializer.Serialize(DemoManifest.Create(), JsonSerializerOptions.Web));

@@ -103,7 +103,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**154 test methods run in
+**159 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -134,7 +134,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**170 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
+**171 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
 The other 63 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -654,14 +654,29 @@ otherwise).
   message values. Matching/built-in detail, the Seeder-reference fence and
   behavioral ownership are in the
   [P7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement),
-  approved on 2026-10-11; enforcement remains pending. ADR-0056's separate
+  approved on 2026-10-11; Step 2 implements the exact-literal/reference fences.
+  ADR-0056's separate
   browser/Lighthouse measurement decision is Accepted; its rules remain Registered.
-- **Type:** xUnit + source scan, with planted offenders and allowed-data controls.
+- **Type:** Roslyn C#/embedded-JSON scan, TypeScript AST/JSON scan, compiled and
+  restore-resolved project references, with planted offenders and clean controls.
   **Kind:** structural.
-- **Status:** **Registered** — P02d-2 establishes and verifies the literal source
-  (`SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable`);
-  P02d-5/6 accepted their scope before those subjects shipped. Implement the complete
-  guard and its planted companion by P02d-7 exit, with no vacuous pass.
+- **Status:** **Implemented** — `DomainGenericityTests.cs` (partial source in
+  `DomainGenericityTests.DemoIdentities.cs`) and frontend
+  `demo-genericity.test.ts`/`demo-genericity-analysis.ts`. `DemoIdentities.Create`
+  projects categorized values from typed `SeedData`; the architecture suite
+  verifies category coverage and exact frontend fixture drift. Canonical built-ins
+  come from their owning declarations. Production census includes Seeder
+  orchestration, frontend packages/messages/configuration/native code; only the
+  exact seed declaration and named test/development data are exempt. Complete
+  decoded values match ordinally; GUIDs match by value. The rule does not claim
+  to prove dynamically assembled identities.
+  `Production_Projects_Do_Not_Reference_The_Seeder`
+  reads every non-Seeder production assembly and restore graph. Its compiled
+  test edge and restored fixture are deliberate forbidden-reference controls.
+  The existing real API/PostgreSQL presentation proof retains original pins and
+  the unaffected tenant; `orderedLessonFields` is its shared behavioral predicate
+  with planted label/value/order/active-markup/language controls. Browser
+  observation of these fields remains P7 Step 3.
 - **Phase:** 02d (P02d-2 source; P02d-5/6 scope; P02d-7 implementation exit).
 
 #### `Frontend_Has_Only_The_Web_App`

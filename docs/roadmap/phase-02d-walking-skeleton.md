@@ -5929,6 +5929,66 @@ copy: the foreign secret now produces 200 in the mutant and 404 in the clean
 runtime. All three cases pass. Both required review rounds and their verified
 fixes are complete; Step 2 follows.
 
+### P02d-7 Step 2 — genericity and exit foundations (2026-10-11)
+
+**Implementation verified; both review rounds pending.** The exact-literal
+G20 fence reads categorized `DemoIdentities.Create` values derived from typed
+`SeedData`, including all declared IDs and translated identity/definition/field
+labels. Ordinary body prose, locale/status/access values and schema keywords do
+not become identities. Canonical platform values come from
+`BuiltInCustomizations`, including collisions with demo values.
+
+Backend Roslyn and frontend TypeScript AST readers compare complete decoded
+strings ordinally and GUIDs by value, including alternate spellings. Embedded
+JSON strings and standalone JSON values are inspected. Source parse errors,
+empty/malformed vocabulary and missing production subjects fail loudly. The
+frontend fixture is derived, not a second declaration; architecture tests compare
+it to the current typed projection. Regenerate it after editing `SeedData`:
+
+```sh
+dotnet run --project backend/src/LearnStack.Tools.Seeder -c Release -- \
+  --demo-identities > frontend/apps/web/src/test/fixtures/demo-identities.json
+```
+
+The backend scans Seeder orchestration as production and exempts only its exact
+`SeedData.cs` declaration. Frontend scans app/package/configuration/native code
+and root Node scripts, with exact named test-proof and development-launch data
+exemptions. The existing unsupported-runtime-source/import census is preserved.
+Every production project except the Seeder is checked for both compiled and
+restore-resolved Seeder references, preventing symbolic `SeedData` access.
+
+The existing real API/PostgreSQL/HTML/Flight presentation successor proof calls
+one shared ordered-field assertion. Planted label, value, ordering, active-markup,
+language and internal-name controls exercise the same predicate without changing
+production rendering. Original-pin and unaffected-tenant observations remain.
+
+**Initial verification.** Release suites pass 1,705 unit, 203 architecture and
+four contract cases with zero failures/skips. The existing presentation-mode
+real API/PostgreSQL/native production proof passes (one case), exercising both
+HTML and Flight, successor/rebinding, original pins and the unaffected tenant.
+Lint, typecheck, formatting and all 1,442 guarded frontend cases pass with zero
+skips/todos. This is not Step 3 browser/Lighthouse evidence.
+
+#### P02d-7 preliminary exit evidence inventory
+
+This is an inventory, not a phase-exit verdict. Step 4 reconciles every individual
+Deliverable and Completion Criterion against exact-head evidence, current CI and
+protection receipts; historical delivery records retain their original limits.
+
+| Criterion group | Existing evidence to retain/recheck | P7 completion work |
+|---|---|---|
+| Two sites, linked catalog/course/lesson, distinct field sets and branding | P6 product/presentation HTML/Flight fixture; maintainer keyboard/focus/reflow/VoiceOver record; `DemoManifest` typed expectations. | Step 3 real Chromium linked navigation and computed themes, three host/locale lanes; same API/web/database with owned Keycloak stopped. |
+| Clean preparation, non-destructive repeat and owned stop | Step 1 isolated seven-service/two-realm startup, audit-neutral Seeder repeat and signal/parent/process/TLS controls. | Step 3 shares the lifecycle; Step 4 records complete CI receipt and cleanup. |
+| Education schema, RLS, scope, satellites, parents, privileges, migrations | `EducationIsolationTests`, migration/tenant-scoping/index/grant sweeps and P1 delivery record. | Re-run full backend suites at exit; Phase 05 preservation handoff. |
+| Writer invariants, exact pins, locale/slug/state/body validation, MUST audit, branding and seed convergence | `EducationWriterTests`, `TenancyWriterTests`, `SeederTests`, P2 record. | Re-run with zero skips; retain typed inventories and bounded branding/access contracts. |
+| Definition/settings reads, generations, rollback safety, fallback, no read validation | `CustomizationProjectionTests` and composition/cache/settings suites; P3 record. | Re-run; retain existing generation/family metrics and settings freshness boundary. |
+| Public eligibility, cursor/scope/locale, DTO/HEAD/OpenAPI/SDK, no-store, read-only pipeline | P4 public HTTP, contract, transaction and dispatch guards. | Re-run SDK/contract/OpenAPI drift and all required checks; retain current seven-check read-back only after success. |
+| Provenance/ingress/hop/visitor limits, private carriers, native production freshness, single bootstrap | P5 remediation and ADR-0055 real native/API proofs; P6 bootstrap/refusal coverage. | Step 3 uses identical ingress/limiter and records positive API calls with zero 429. |
+| Localized renderer, inert authored text, metadata/status, manual accessibility | P6 i18n/route/HTML-RSC/a11y guards and recorded human checks. | Step 3 observes actual browser documents; Lighthouse supplements the bounded manual record. |
+| G20 exact-literal/reference fence and schema replacement | This Step 2 backend/frontend dirty/clean controls and existing presentation successor fixture. | Both independent review rounds; Step 3 ordered fields. Computed comparisons remain a review/behavioral boundary. |
+| Performance/accessibility audits, report/census/gzip guards | ADR-0056 accepted obligations, four Registered behavioral rules. | Step 3 implements 27 report pairs/hard checks; Step 4 activates mandatory CI/protection and updates statuses with enforcement. |
+| Governance, all gates/catalogue rows, module/standard/skill/vision/MVP carriers and named exclusions | Existing decision register and P1–P6 records. | Step 4 complete criterion matrix, zero 02d Registered/Awaiting rows, owner-document checks and P02b-0/Phase 05 handoffs. |
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
