@@ -5848,7 +5848,7 @@ maintainer's PR review and merge remain separate from implementation completion.
 
 ### P02d-7 Step 1 — shared demo lifecycle (2026-10-11)
 
-**Both review rounds complete; round 2 fixes under final verification.**
+**Complete — both review rounds and their fixes verified.**
 The foreground `make demo` supervisor shares explicit Compose selection,
 PostgreSQL-before-migration readiness, full seven-service/both-realm admission,
 contextual seeding, production builds and owned process cleanup. Local data is
@@ -5920,9 +5920,14 @@ The demo API receives an empty invocation-owned HOME/APPDATA/TMPDIR; restoration
 and builds retain their own profiles. A real API/PostgreSQL test accepts the
 configured hop secret and rejects an additional secret planted in a foreign
 profile. No user profile is modified. All 24 focused lifecycle cases, typecheck
-and both real launcher cases pass with zero failures/skips. Lint, all 1,426
-guarded frontend cases and all 198 architecture cases pass. Focused fix review
-remains pending.
+and the real launcher cases pass with zero failures/skips. Lint, all 1,426
+guarded frontend cases and all 198 architecture cases pass. A fresh focused fix
+review found that the foreign-secret request omitted its visitor header, allowing
+an unrelated refusal to mask the regression. The corrected three-case real API
+suite supplies that header and removes the profile boundary only in an owned
+copy: the foreign secret now produces 200 in the mutant and 404 in the clean
+runtime. All three cases pass. Both required review rounds and their verified
+fixes are complete; Step 2 follows.
 
 ### P02d-1 decision pass (2026-09-14)
 

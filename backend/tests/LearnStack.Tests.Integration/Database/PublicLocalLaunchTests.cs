@@ -22,11 +22,13 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
     public async Task Public_local_API_launcher_serves_seeded_reads_without_a_PlatformAdmin_credential()
         => await AssertLauncherAsync(useDemoRuntime: false);
 
-    [Fact]
-    public async Task Demo_API_runtime_rejects_a_foreign_user_secret_and_accepts_its_own_hop()
-        => await AssertLauncherAsync(useDemoRuntime: true);
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Demo_API_runtime_rejects_a_foreign_user_secret_only_with_profile_isolation(bool isolateProfile)
+        => await AssertLauncherAsync(useDemoRuntime: true, isolateProfile);
 
-    private async Task AssertLauncherAsync(bool useDemoRuntime)
+    private async Task AssertLauncherAsync(bool useDemoRuntime, bool isolateProfile = true)
     {
         var repository = RepositoryRoot();
         var temporary = Path.Combine(Path.GetTempPath(), "learnstack-public-local-" + Guid.NewGuid().ToString("N"));
@@ -47,6 +49,19 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
             File.WriteAllText(Path.Combine(temporary, "package.json"), "{\"type\":\"module\"}");
             File.Copy(Path.Combine(repository, "scripts/public-local.mjs"), Path.Combine(temporary, "scripts/public-local.mjs"));
             File.Copy(Path.Combine(repository, "scripts/public-runtime.mjs"), Path.Combine(temporary, "scripts/public-runtime.mjs"));
+            if (!isolateProfile)
+            {
+                // Deliberately remove only the profile boundary in the owned copy.
+                // The same live request must now reach the site as an accepted hop.
+                var runtime = Path.Combine(temporary, "scripts/public-runtime.mjs");
+                var source = File.ReadAllText(runtime);
+                foreach (var assignment in new[] { "HOME: profile,", "APPDATA: profile,", "TMPDIR: profile," })
+                {
+                    source.Should().Contain(assignment, "the mutation must change the shipped profile boundary");
+                    source = source.Replace(assignment, string.Empty, StringComparison.Ordinal);
+                }
+                File.WriteAllText(runtime, source);
+            }
             foreach (var file in new[] { "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts" })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
             Directory.CreateSymbolicLink(Path.Combine(app, "node_modules"), Path.Combine(repository, "frontend/apps/web/node_modules"));
@@ -132,9 +147,10 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
                 request.Headers.Host = "gateway.internal";
                 request.Headers.Add(TrustedHopOptions.HostHeaderName, SeedData.English.Host);
                 request.Headers.Add(TrustedHopOptions.SecretHeaderName, foreignSecret);
+                request.Headers.Add(AnonymousRequestIdentity.VisitorHeaderName, "203.0.113.90");
                 using var response = await client.SendAsync(request, deadline.Token);
-                response.StatusCode.Should().Be(HttpStatusCode.NotFound,
-                    "a foreign Development secret cannot extend the demo's trusted hop");
+                response.StatusCode.Should().Be(isolateProfile ? HttpStatusCode.NotFound : HttpStatusCode.OK,
+                    "only the owned profile prevents a foreign secret from extending the trusted hop");
                 File.Exists(Path.Combine(temporary, "user-secrets", "Microsoft", "UserSecrets",
                     "learnstack-api-dev", "secrets.json")).Should().BeTrue("the foreign profile is never modified");
             }
