@@ -4,8 +4,9 @@
 independent review rounds. The real PR check receipts, verified artifacts,
 seventh-check activation and positive exit verdict are recorded in the
 [CI and exit closeout](phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
-This document is an evidence index, not a new architecture decision or a merge
-approval. PR #28 awaits maintainer review and merge.
+This document is an evidence index, not a new architecture decision. PR #28 is
+merged; the [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+owns final verification and the completed phase exit.
 
 The rows enumerate all 36 [deliverables](phase-02d-walking-skeleton.md#deliverables),
 79 [completion criteria](phase-02d-walking-skeleton.md#completion-criteria),
@@ -20,7 +21,7 @@ phase document owns the complete contract and every subordinate condition.
 |---|---|
 | B | Real PR `backend` passes: Release build/format, 1,705 unit, 203 architecture, four contract and 180 Docker-free integration; zero failures/skips and execution guards. |
 | I | Real PR `backend integration (Testcontainers)` passes all 872 cases, including the three locale/branding/combined-scope cases and physical app-role/RLS/read-only production proofs; zero failures/skips. |
-| F | Real PR guarded `frontend` passes 1,444 web + 60 SDK cases, zero failures/skips/todos, plus lint, typecheck, builds and controls. |
+| F | Final PR guarded `frontend` passes 1,478 web + 60 SDK cases, zero failures/skips/todos, plus lint, typecheck, builds and controls. |
 | O | Real PR `openapi diff` and generated SDK drift pass with retained planted incompatibility controls. |
 | J | Real PR `public demo + lighthouse` passes with verified nine-page/27-audit artifacts and confirmed cleanup; authorized seventh-context activation and complete protection read-back pass. |
 | M | Named source/document inspection and explicit future-owner reconciliation in Step 4; both fresh review rounds and verified fixes complete. |
@@ -31,13 +32,12 @@ Named backend classes live under `backend/tests/`; frontend tests live under
 `frontend/apps/web/src/` or `frontend/scripts/`. Partial-class filenames are
 identified separately where needed. P1–P6 refer to the merged packet records in
 [Phase 02d](phase-02d-walking-skeleton.md); Step 1–3 refer to P7's records.
-[Run 38108622191](https://github.com/HodeTech/LearnStack/actions/runs/38108622191)
-supplies B/I/F/O/J for reviewed implementation source `d47ef17`, tested merge
-`ba44563`; the [exact-head verification](phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
-records full identities and artifact validation. The earlier run owns
-seventh-check activation history. The
-[PR rollup](https://github.com/HodeTech/LearnStack/pull/28/checks) must also pass
-on subsequent heads before merge; historic counts do not replace it.
+[Run 38127402847](https://github.com/HodeTech/LearnStack/actions/runs/38127402847)
+supplies final B/I/F/O/J for source `8d9d219`, tested merge `2d8ff6b`; the
+[merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+records full identities and verified artifacts. Earlier runs retain their dated
+counts and seventh-check activation history. The squash merge has the same tree
+as the final PR source; its post-merge run is identified separately.
 
 ## Local and manual evidence boundaries
 
@@ -269,6 +269,6 @@ and future settings-event ownership. Phase 05 migrates the existing records; it
 does not treat reseeding as migration. Course Marketplace ADR-0049 and Phase 09a
 remain Proposed and are outside this exit.
 
-All E01–E09 obligations pass against the receipts and named evidence above, as
-recorded in the positive CI/exit closeout. Maintainer PR review and merge are
-separate actions; subsequent PR heads retain the seven required checks.
+All E01–E09 obligations pass against the receipts and named evidence above.
+The maintainer merged PR #28 on 2026-10-11; Phase 02d is closed. P02b-0
+re-verification is next, with no future-phase gate accepted by this closeout.

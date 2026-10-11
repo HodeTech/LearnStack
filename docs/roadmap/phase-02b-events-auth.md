@@ -1,5 +1,11 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
+**Entry ready — 2026-10-11.** Phase 02d is complete and merged through PR #28;
+its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+records the verified exit. P02b-0 is next and has not started. It re-verifies the
+code, corpus and Hub premises; later packets accept their own gates in their
+decision passes. This closeout starts no Phase 02b implementation.
+
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
 manual hosts/trust setup and the shared private hop-secret source. ADR-0053/0054

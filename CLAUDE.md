@@ -64,8 +64,8 @@ so a status header, a
 catalogue entry, a published count or a planted `Skip` fails the build rather than a
 reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
 let change.
-**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) implementation and exit
-verification are complete; PR #28 review and merge remain pending**. Its kickoff
+**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is complete and merged**
+through PR #28 on 2026-10-11. Its kickoff
 shipped the packet table and the decision register, and every later packet opens with
 its decision pass. **P02d-1 is complete and merged** through
 [PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
@@ -160,8 +160,9 @@ owns CI enforcement, completed reviews and individual exit reconciliation. Its
 [CI and exit closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
 verifies all seven real PR jobs, complete artifacts and live seventh-check
 activation with all other protection settings preserved. All four steps completed
-both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
-maintainer review and merge. P02b-0 re-verification/decision pass is next afterward;
+both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged;
+the [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+owns final verification. P02b-0 phase-entry re-verification is next;
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -331,7 +332,7 @@ all recorded in the Phase 02a Status block:
   renders both of them in a browser.
 
 **[Phase 02d: Two-Tenant Walking Skeleton](docs/roadmap/phase-02d-walking-skeleton.md)
-is the next user-visible milestone** — the first phase whose output
+is the first delivered user-visible milestone** — the first phase whose output
 someone who does not read C# can evaluate: two hosts, two tenants, two
 education sites, one binary and one database.
 
@@ -360,10 +361,13 @@ For any task, read in this order:
 
 Then read the phase that is live and the one it stands on:
 
+- [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
+  — **the next phase**. P02b-0 re-verifies its entry premises before implementation;
+  each later packet accepts its own gates in its decision pass.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
-  — **the current phase**, and where new work belongs. `02d` sorts after
-  `02b`/`02c` but runs **before** them; the roadmap dependency map is
-  authoritative for order, filename order is not.
+  — complete and merged; the delivered public-site baseline and P02b-0 handoff.
+  `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
+  map is authoritative for order, filename order is not.
 - [docs/roadmap/phase-02a-kernel-tenancy.md](docs/roadmap/phase-02a-kernel-tenancy.md)
   — complete, with a dated Status block and a delivery record per packet. It is
   the authority on what the kernel already guarantees, not on what to build next.

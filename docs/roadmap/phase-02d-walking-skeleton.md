@@ -1,9 +1,10 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-11).** Phase 02d implementation and exit verification are
-> **complete**; [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
-> maintainer review and merge. The [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
-> records the evidence and live protection read-back. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-11).** Phase 02d is **complete and merged** through
+> [PR #28](https://github.com/HodeTech/LearnStack/pull/28). The
+> [merge closeout](#p02d-7-merge-and-closeout-2026-10-11) records final verification
+> and the completed phase exit. P02b-0 phase-entry re-verification is next.
+> The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -18,7 +19,7 @@
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
-> | P02d-7 | Demo, full-stack CI and exit | ✅ implementation and exit verification complete — 2026-10-11; all four steps completed both independent review rounds; [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11); PR #28 review/merge pending |
+> | P02d-7 | Demo, full-stack CI and exit | ✅ complete and merged — 2026-10-11; all four steps completed both independent review rounds; [merge closeout](#p02d-7-merge-and-closeout-2026-10-11) |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -6505,6 +6506,74 @@ Closing documentation commits must also pass the seven required jobs before
 merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
 owns that moving-head result. Next after maintainer review and merge is
 **P02b-0 re-verification and decision pass**, before Phase 02b implementation.
+
+### P02d-7 merge and closeout (2026-10-11)
+
+The maintainer merged [PR #28](https://github.com/HodeTech/LearnStack/pull/28) at
+2026-10-11 09:38:58 UTC. GitHub records final PR source
+`8d9d2195cfadf1d83807613ea22d792b7ce329f4` and squash merge
+`d37f46ccf0ebbf909f02c81a59d9019af3e9a1ca`, whose parent is the previous main
+`378346126949c90bb286b5217c24513fc2044f06`. Source and squash merge have the
+identical tree `7f83bee243fe17626ef10af051e54a9218fd7aaa`. Development incorporates
+the main merge without switching branches or rewriting published history.
+
+All seven required checks pass in the
+[final PR run](https://github.com/HodeTech/LearnStack/actions/runs/38127402847)
+for that source. The tested synthetic merge is
+`2d8ff6b23cd1b27691ea0038859944ca6c0ce395`, with the final source and previous
+main as parents. Independently verified downloaded receipts confirm:
+
+- **2,964 backend passes**, zero failures/skips: 1,705 unit, 203 architecture,
+  four contract, 180 Docker-free integration and 872 Docker integration cases.
+- **1,538 guarded frontend passes**: 1,478 web and 60 SDK, zero
+  failures/skips/todos; lint, typecheck, builds and SDK drift also pass.
+- Exactly 27 Lighthouse JSON/HTML report pairs, nine screenshots and two
+  sanitized receipts. Report digests, source/checkout/build/invocation identities
+  and the nine-URL/three-run census match. Normalized initial JS gzip is
+  106,358–106,552 bytes, CLS 0 and automated accessibility 1 throughout.
+  Per-URL timing medians remain advisory.
+- Nine linked navigations, 24 planted visibility refusals, both TLS refusals and
+  the actual audit-timeout control pass. All 134 API observations are 200,
+  with zero 429, malformed or pending records. Setup/proof/cleanup take
+  170,462 / 618,055 / 10,695 ms; all owned-cleanup flags pass.
+- A fresh protection read-back retains `strict: true` and all seven GitHub
+  Actions contexts, including `public demo + lighthouse`. This closeout changes
+  no protection setting.
+
+The [post-merge main run](https://github.com/HodeTech/LearnStack/actions/runs/38129121225)
+tests the squash commit separately; its result is not inferred from source CI.
+At this documentation check, five jobs pass; Docker integration and the
+demo/Lighthouse job are still running.
+
+**P02d-7 and Phase 02d are closed.** All seven implementation packets are merged;
+all four P7 steps and verified fixes retain their recorded independent reviews.
+The [individual exit evidence](phase-02d-exit-evidence.md) reconciles all
+36 deliverables, 79 completion criteria, 39 exclusions and nine exit obligations.
+Earlier dated delivery/review records, Accepted ADRs and their acceptance-time
+or pre-merge wording remain historical and unchanged. No new human/VoiceOver,
+full WCAG, zoom, production-p95 or deployment-readiness claim is added.
+
+**Next: P02b-0 — phase-entry re-verification.** The
+[Phase 02b packet table](phase-02b-events-auth.md#packets-and-decision-gates)
+requires re-reading code, corpus and Hub premises against HEAD, including the
+[P7 handoff](#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
+P02b-0 has not started; each later packet closes its own gates in its decision
+pass. No Phase 02b implementation or auth/BFF decision is accepted here.
+
+Phase 05 retains versioned-curriculum migration and preservation of existing
+Education/seed records; Phase 06 retains full renderer/Studio and Playwright
+Test/axe; Phase 07 retains enrollment, learner portal, progress and access grants.
+Phase 11 retains production hardening, telemetry and demand-gated adapters.
+Course Marketplace ADR-0049 and Phase 09a remain Proposed; commerce, commissions,
+payouts and cross-installation federation are not delivered.
+
+**Documentation-only closeout validation.** All 203 local Release architecture
+cases and seven ADR lifecycle/workflow controls pass, with zero failures/skips.
+The seven changed Markdown files resolve 1,088 relative links and 478 fragments
+with zero errors; added prose wrapping and whitespace checks pass. Prior dated
+phase delivery records and all Accepted ADR files are byte-preserved. Full runtime
+suites are not rerun locally for this documentation-only change; the final PR
+receipts above supply their evidence.
 
 ### P02d-1 decision pass (2026-09-14)
 
