@@ -6381,8 +6381,13 @@ Tool versions, budgets, admission and cleanup behavior are unchanged.
 Local validation passes 1,454 web + 60 SDK tests, zero failures/skips/todos,
 typecheck, lint and all 203 architecture tests. Ten added cases cover installed
 metadata/pin mismatch, malformed or missing browser metadata, stale census and
-wrong-version report refusal, each retaining a clean passing control. Two fresh
-independent remediation review rounds and full seven-job CI are pending.
+wrong-version report refusal, each retaining a clean passing control. Both fresh
+independent remediation rounds reviewed `d47ef17..dca3a7b` and approved without
+findings. Each independently checked installed dependency resolution, fail-closed
+metadata/census comparison and the downloaded historical receipts. All five
+corpus tests pass; the complete PR's 33 changed/new Markdown files resolve
+2,201 relative links and 698 fragments without errors. The new remediation head
+must still pass full seven-job CI through the PR rollup before merge.
 
 Closing documentation commits must also pass the seven required jobs before
 merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
