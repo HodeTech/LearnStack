@@ -6124,6 +6124,34 @@ managed-Chromium controls verify visible admission and hidden/zero-area refusal.
 A complete rerun and fresh independent round 2 remain pending; the earlier local
 feasibility result is preserved and does not validate these subsequent changes.
 
+#### Step 3 review round 2
+
+Fresh GPT-6-astra (xhigh) runtime/measurement and GPT-6.1-sol (xhigh)
+proof/corpus reviews cover `69ce613..38c15d9`. Both request changes. Three
+verified proof gaps remain; the existing 50 proof controls passed independently.
+
+- A completion record missing its opening brace or carrying a prefix was ignored,
+  as was an unexpected endpoint completion. The owned API emits structured
+  startup/output; only empty plaintext separators are now admitted. Damaged and
+  unexpected completion records refuse the entire census, including a 429.
+- Process-group absence preceded child `close` and buffered stream EOF. An actual
+  child with deliberately deferred stdout demonstrated a 429 arriving after a
+  prematurely passing final census. Cleanup now joins `close` with a separate
+  five-second output-drain bound before observer finalization. The regression
+  holds and releases the real pipe, proves cleanup waits, then refuses the 429.
+- Clip/filter/mask and offscreen/overflow styles could hide laid-out markers.
+  The bounded seeded-page predicate now refuses these ancestor styles and
+  horizontally unreachable/negative-area markers. Each lesson navigation checks
+  eight actual DOM mutations, restores and re-admits its positive control;
+  the receipt requires all 24 completed controls. This is not a general CSS
+  occlusion or visual-accessibility audit.
+
+All 78 focused proof/lifecycle cases and typecheck pass with zero failures/skips.
+The full guarded runner passed 1,496 cases before these round-2 changes.
+Final lint, a fresh focused fix review and complete runtime validation remain
+pending. The running `38c15d9` feasibility copy precedes these fixes and cannot
+validate them.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

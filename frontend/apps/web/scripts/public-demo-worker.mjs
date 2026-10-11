@@ -50,6 +50,7 @@ async function observe(page, response, lane, kind) {
 }
 
 async function browserPaths(browser, input) {
+  let visibilityControls = 0;
   for (const [laneIndex, lane] of input.lanes.entries()) {
     const context = await browser.newContext({
       viewport: { width: 412, height: 823 },
@@ -81,6 +82,11 @@ async function browserPaths(browser, input) {
             'body { opacity: 0 !important }',
             'body { transform: scale(0) !important }',
             'dt { opacity: 0 !important }',
+            'body { clip-path: inset(100%) !important }',
+            'h1 { filter: opacity(0) !important }',
+            'dt { mask-image: linear-gradient(transparent, transparent) !important }',
+            'body { position: absolute !important; left: -100000px !important }',
+            'body { height: 0 !important; overflow: hidden !important }',
           ]) {
             const mask = await page.addStyleTag({ content: css });
             try {
@@ -93,6 +99,7 @@ async function browserPaths(browser, input) {
               await mask.evaluate((node) => node.remove());
             }
             await observe(page, response, lane, kind);
+            visibilityControls++;
           }
         }
       }
@@ -100,6 +107,7 @@ async function browserPaths(browser, input) {
       await context.close();
     }
   }
+  return visibilityControls;
 }
 
 /** The pinned Lighthouse load deadline is a warning, which admission must refuse. */
@@ -182,10 +190,10 @@ async function main(input) {
       return;
     }
     if (input.mode === 'browser') {
-      await browserPaths(browser, input);
+      const visibilityControls = await browserPaths(browser, input);
       writeFileSync(
         input.result,
-        JSON.stringify({ browserVersion, navigations: 9, visibilityControls: 9 }),
+        JSON.stringify({ browserVersion, navigations: 9, visibilityControls }),
       );
       return;
     }

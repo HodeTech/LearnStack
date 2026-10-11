@@ -214,7 +214,7 @@ export async function verifyPublicDemo(runtime) {
     let before = snapshot(runtime.completions);
     receipt.browser = await operation({ mode: 'browser' });
     assert.equal(receipt.browser.navigations, 9);
-    assert.equal(receipt.browser.visibilityControls, 9);
+    assert.equal(receipt.browser.visibilityControls, 24);
     await finishBatch(before, 18, 'linked-browser');
     for (const [laneIndex, lane] of runtime.manifest.entries()) {
       await quiet();

@@ -31,7 +31,7 @@ export function installDemoCancellation(cancel) {
 
 /** Own every command tree, including setup commands, from spawn until confirmed exit. */
 export class DemoProcesses {
-  #children = new Set();
+  #children = new Map();
   #signal;
   #failed;
   #failure;
@@ -55,7 +55,7 @@ export class DemoProcesses {
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    this.#children.add(child);
+    const closed = new Promise((resolve) => child.once('close', resolve));
     const output = [];
     let outputBytes = 0;
     let failed;
@@ -82,14 +82,17 @@ export class DemoProcesses {
       child.once('error', () => resolve({ code: 1 }));
       child.once('close', (code) => resolve({ code: code ?? 1 }));
     });
-    return {
+    const running = {
       child,
       exit,
       result: () => ({ output: Buffer.concat(output).toString('utf8'), failed }),
     };
+    this.#children.set(child, { closed, result: running.result, daemon: false });
+    return running;
   }
   daemon(command, args, options) {
     const running = this.start(command, args, options);
+    this.#children.get(running.child).daemon = true;
     void running.exit.then(() => {
       this.#failed = new DemoCommandError(`${options.label} exited`);
       this.#failure(this.#failed);
@@ -124,7 +127,24 @@ export class DemoProcesses {
   async dispose() {
     this.#closed = true;
     const results = await Promise.allSettled(
-      [...this.#children].map((child) => stopTestChild(child)),
+      [...this.#children].map(async ([child, { closed, result, daemon }]) => {
+        await stopTestChild(child);
+        // Group absence does not establish stream EOF. A closed child has also
+        // delivered its buffered stdout/stderr; bound this separate drain so
+        // inherited/leaked pipes cannot hang teardown.
+        let timer;
+        try {
+          await Promise.race([
+            closed,
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error('Owned output did not close')), 5000);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (daemon && result().failed) throw new Error('Owned output was refused');
+      }),
     );
     if (results.some((row) => row.status === 'rejected'))
       throw new Error('Owned process cleanup failed; private files retained');

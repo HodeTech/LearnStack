@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpsServer } from 'node:https';
 import { createServer } from 'node:net';
@@ -10,6 +11,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { composeSelection } from '../../../../../scripts/compose.mjs';
 import { boundedBody, demoRequest, vacant } from '../../../../../scripts/demo-http.mjs';
+import {
+  apiCompletionObserver,
+  finalCompletionCensus,
+} from '../../../../../scripts/demo-observation.mjs';
 import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import { isApiListenerEvent, validateCertificate } from '../../../../../scripts/demo.mjs';
 import {
@@ -483,6 +488,65 @@ describe('owned real process lifecycle', () => {
     expect(running.child.exitCode).toBe(0);
     expect(() => process.kill(descendant, 0)).toThrow();
     expect(() => processes.start(process.execPath, ['-e', 'process.exit(0)'])).toThrow('closed');
+  });
+  it('joins deferred stdout through child close before finalizing completion counts', async () => {
+    const processes = owner();
+    const observer = apiCompletionObserver();
+    const record = (status: number) =>
+      JSON.stringify({
+        SourceContext: 'Microsoft.AspNetCore.Hosting.Diagnostics',
+        EventId: { Id: 2 },
+        Path: '/api/v1/public/site',
+        StatusCode: status,
+        Method: 'GET',
+      }) + '\n';
+    const running = processes.start(
+      process.execPath,
+      [
+        '-e',
+        `
+        const keepAlive = setInterval(() => {}, 1000);
+        process.once('SIGUSR2', () => {
+          clearInterval(keepAlive);
+          process.stdout.write(${JSON.stringify(record(429))});
+        });
+        process.stdout.write(${JSON.stringify(record(200))});
+      `,
+      ],
+      { label: 'Deferred output control', observe: observer.consume },
+    );
+    const stream = running.child.stdout;
+    if (!stream) throw new Error('Owned child must have piped stdout');
+    await once(stream, 'data');
+    const beforeCleanup = structuredClone(observer.state);
+    expect(beforeCleanup.total).toBe(1);
+    // child_process auto-resumes at exit; retain the planted backpressure until
+    // we explicitly release it, after confirming cleanup waits for EOF.
+    const hold = () => stream.pause();
+    stream.on('resume', hold);
+    stream.pause();
+    let disposed = false;
+    let disposal: Promise<void> | undefined;
+    try {
+      const exited = once(running.child, 'exit');
+      running.child.kill('SIGUSR2');
+      await exited;
+      disposal = processes.dispose().then(() => {
+        disposed = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(disposed).toBe(false);
+      stream.off('resume', hold);
+      stream.resume();
+      await disposal;
+      observer.finish();
+      expect(observer.state.statuses[429]).toBe(1);
+      expect(() => finalCompletionCensus(beforeCleanup, observer.state, 1)).toThrow();
+    } finally {
+      stream.off('resume', hold);
+      stream.resume();
+      await disposal;
+    }
   });
   it('captures a successful command and refuses its nonzero control', async () => {
     const processes = owner();

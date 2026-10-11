@@ -14,13 +14,32 @@ export function productDomSnapshot() {
     if (!node || node.closest('[hidden],template')) return false;
     const style = getComputedStyle(node);
     const box = node.getBoundingClientRect();
+    // These seeded pages have no paint-clipping/filter/mask containers. Refuse
+    // such styles rather than mistaking a laid-out, fully hidden marker for
+    // visible product identity. This is a bounded product gate, not a general
+    // CSS occlusion or visual-accessibility audit.
+    for (let ancestor = node; ancestor; ancestor = ancestor.parentElement) {
+      const parentStyle = getComputedStyle(ancestor);
+      if (
+        parentStyle.clipPath !== 'none' ||
+        parentStyle.clip !== 'auto' ||
+        parentStyle.filter !== 'none' ||
+        parentStyle.maskImage !== 'none' ||
+        ['hidden', 'clip'].includes(parentStyle.overflowX) ||
+        ['hidden', 'clip'].includes(parentStyle.overflowY)
+      )
+        return false;
+    }
     return (
       style.display !== 'none' &&
       style.visibility === 'visible' &&
       Number(style.opacity) !== 0 &&
       node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
       box.width > 0 &&
-      box.height > 0
+      box.height > 0 &&
+      box.right > 0 &&
+      box.left < document.documentElement.clientWidth &&
+      box.bottom > 0
     );
   };
   const pick = (selector) => [...document.querySelectorAll(selector)].filter(visible);

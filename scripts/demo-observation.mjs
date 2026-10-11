@@ -23,11 +23,16 @@ export function apiCompletionObserver() {
       try {
         value = JSON.parse(line);
       } catch {
-        // The startup banner is plaintext; a damaged structured record is not.
-        if (line.trimStart().startsWith('{')) state.malformed = true;
+        // The owned API uses structured console output, including startup.
+        // Missing prefixes/braces must not turn damaged completion events into
+        // an ignored plaintext banner. Only empty separators are harmless.
+        if (line.trim()) state.malformed = true;
         continue;
       }
-      if (!value || typeof value !== 'object') continue;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        state.malformed = true;
+        continue;
+      }
       if (
         value.SourceContext !== 'Microsoft.AspNetCore.Hosting.Diagnostics' ||
         value.EventId?.Id !== 2
@@ -37,7 +42,6 @@ export function apiCompletionObserver() {
         state.malformed = true;
         continue;
       }
-      if (!value.Path.startsWith('/api/v1/public/')) continue;
       if (
         !['GET', 'HEAD'].includes(value.Method) ||
         !/^\/api\/v1\/public\/(?:site|courses(?:\/[^/]+(?:\/lessons(?:\/[^/]+)?)?)?)$/.test(

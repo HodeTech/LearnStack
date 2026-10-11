@@ -330,30 +330,45 @@ describe('Public_Demo_Preserves_Admission_And_Cleanup observer', () => {
       StatusCode: status,
       Method: 'GET',
     });
-  it.each(['unterminated', 'malformed', 'eof', 'late-success', 'late-refusal'])(
-    'refuses actual %s records after a successful positive control',
-    (kind) => {
-      const observer = apiCompletionObserver();
-      const before = structuredClone(observer.state);
-      observer.consume(Buffer.from(completion(200) + '\n'));
-      expect(completionDelta(before, observer.state, 1).count).toBe(1);
-      const beforeCleanup = structuredClone(observer.state);
-      if (kind === 'malformed') observer.consume(Buffer.from('{"StatusCode":429\n'));
-      else if (kind === 'late-success' || kind === 'late-refusal')
-        observer.consume(Buffer.from(completion(kind === 'late-success' ? 200 : 429) + '\n'));
-      else observer.consume(Buffer.from(completion(429)));
-      if (kind === 'unterminated')
-        expect(() => completionDelta(before, observer.state, 1)).toThrow();
-      observer.finish();
-      expect(() => finalCompletionCensus(beforeCleanup, observer.state, 1)).toThrow();
-    },
-  );
+  it.each([
+    'unterminated',
+    'malformed',
+    'missing-brace',
+    'prefixed',
+    'unexpected-endpoint',
+    'eof',
+    'late-success',
+    'late-refusal',
+  ])('refuses actual %s records after a successful positive control', (kind) => {
+    const observer = apiCompletionObserver();
+    const before = structuredClone(observer.state);
+    observer.consume(Buffer.from(completion(200) + '\n'));
+    expect(completionDelta(before, observer.state, 1).count).toBe(1);
+    const beforeCleanup = structuredClone(observer.state);
+    if (kind === 'malformed') observer.consume(Buffer.from('{"StatusCode":429\n'));
+    else if (kind === 'missing-brace')
+      observer.consume(Buffer.from(completion(429).slice(1) + '\n'));
+    else if (kind === 'prefixed') observer.consume(Buffer.from('prefix ' + completion(429) + '\n'));
+    else if (kind === 'unexpected-endpoint')
+      observer.consume(
+        Buffer.from(completion(429).replace('/api/v1/public/site', '/api/v1/other') + '\n'),
+      );
+    else if (kind === 'late-success' || kind === 'late-refusal')
+      observer.consume(Buffer.from(completion(kind === 'late-success' ? 200 : 429) + '\n'));
+    else observer.consume(Buffer.from(completion(429)));
+    if (kind === 'unterminated') expect(() => completionDelta(before, observer.state, 1)).toThrow();
+    observer.finish();
+    expect(() => finalCompletionCensus(beforeCleanup, observer.state, 1)).toThrow();
+  });
   it('keeps interleaved streams separate and confirms joined clean output', () => {
     const observer = apiCompletionObserver();
     const before = structuredClone(observer.state);
     const value = completion(200);
     observer.consume(Buffer.from(value.slice(0, 30)), 'stdout');
-    observer.consume(Buffer.from('Startup banner\n'), 'stderr');
+    observer.consume(
+      Buffer.from(JSON.stringify({ SourceContext: 'Startup', Message: 'Ready' }) + '\n'),
+      'stderr',
+    );
     expect(() => completionDelta(before, observer.state, 0)).toThrow();
     observer.consume(Buffer.from(value.slice(30) + '\n'), 'stdout');
     expect(completionDelta(before, observer.state, 1).count).toBe(1);
