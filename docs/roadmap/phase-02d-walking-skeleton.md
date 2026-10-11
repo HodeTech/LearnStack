@@ -6453,6 +6453,17 @@ removed afterward. Whitespace and the complete PR's link/fragment audit pass.
 The final PR rollup below owns replacement final-head CI; all seven jobs remain
 required before merge.
 
+**CI stability follow-up.** Run 38126790757 reports one unit-test failure in
+`A_Factory_That_Ignores_Its_Token_Is_Still_Bounded`; all 203 architecture cases,
+including the new admission controls, pass. This pre-existing test races an
+80 ms cache deadline against a 600 ms factory delay. It now holds the factory
+behind an explicit release signal until the cache's own timeout is observed,
+checks that a replacement waits and retains the late-result/cache assertions.
+The bounded test wait cannot masquerade as the cache timeout: its message must
+identify the cache's own deadline. The release is guaranteed in `finally`.
+Production cache behavior and its budget are unchanged. Focused verification
+and both independent review rounds remain required before replacement CI.
+
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte
 measurement. Existing fast tests already cover report admission, source-byte
