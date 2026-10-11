@@ -6442,9 +6442,16 @@ The follow-up admits only explicitly known machine filenames that Git also
 ignores. Ignored source files, unknown formats and compiler coverage retain
 fail-closed behavior. The first independent round approved `d16d2d7`. The fresh
 second round reproduced an automatically imported `.csproj.user` build hook;
-`.user` is therefore excluded from the machine-file exemption, with explicit
-refusal controls. The same reviewer must verify this fix before closeout.
-Replacement final-head CI remains required.
+`.user` is therefore excluded from the machine-file exemption in `9343e99`,
+with explicit refusal controls. The reviewer independently re-ran the actual
+collector: clean ignored files pass and the original build-hook counterexample
+refuses. Both review rounds are complete, with no remaining findings. All 19
+frontend and seven backend genericity cases pass; the complete guarded frontend
+rerun passes 1,538 cases (1,478 web + 60 SDK), zero failures/skips/todos.
+Owned temporary ignored-file controls pass both actual raw collectors and are
+removed afterward. Whitespace and the complete PR's link/fragment audit pass.
+The final PR rollup below owns replacement final-head CI; all seven jobs remain
+required before merge.
 
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte
