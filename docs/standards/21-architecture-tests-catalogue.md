@@ -675,7 +675,9 @@ otherwise).
   text/attribute values are included. Frontend
   runtime imports cannot hide helpers behind test filenames or directories;
   exact standalone proof/development entries retain their bounded exemptions.
-  Generated/dependency roots are exact paths. Local module URL suffixes,
+  Generated/dependency roots are exact paths. Known environment/OS/editor/log
+  files are omitted only when Git also ignores them; source and unknown formats
+  retain fail-closed admission. Local module URL suffixes,
   supported tsconfig aliases, workspace exports, re-exports, import-equals and
   literal `require.resolve` edges enter the closure. Ambiguous local JS/TS and alias
   targets are conservatively included; only owned workspace manifests select

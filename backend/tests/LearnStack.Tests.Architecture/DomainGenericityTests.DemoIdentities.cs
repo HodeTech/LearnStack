@@ -119,6 +119,14 @@ public sealed partial class DomainGenericityTests
                 .Should().Be(1, "only actual project outputs are excluded");
             BackendDemoSourceKind(Path.Combine(project, directory, "Generated.cs"), generated).Should().Be(0);
         }
+        foreach (var name in new[] { ".env.local", ".DS_Store", "Thumbs.db", "editor.swp", "runtime.log" })
+        {
+            var local = Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api", name);
+            IsDemoLocalArtifact(local).Should().BeTrue();
+            OmitIgnoredDemoLocalFile(local).Should().BeTrue("the actual Git rules omit known machine files");
+        }
+        foreach (var name in new[] { ".env.hidden.cs", ".env.hidden.json", "hidden.resx" })
+            IsDemoLocalArtifact(Path.Combine(project, name)).Should().BeFalse("ignored source/unknown formats are not machine-file exemptions");
         Action unknownFormat = () => _ = BackendDemoSourceKind(Path.Combine(project, "Probe.resx"), generated);
         unknownFormat.Should().Throw<InvalidOperationException>();
         Action linkedInput = () => RequireCompileCoverage([Path.Combine(project, "Probe.cs")], ["/repo/shared/Linked.cs"]);

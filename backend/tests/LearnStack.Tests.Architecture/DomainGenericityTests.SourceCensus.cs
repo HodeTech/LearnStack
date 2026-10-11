@@ -15,18 +15,53 @@ public sealed partial class DomainGenericityTests
         var evaluated = projects.Select(EvaluatedDemoCompile).ToArray();
         RequireProductionProjectCoverage(projects, evaluated.SelectMany(row => row.References));
         var outputs = evaluated.SelectMany(row => row.Outputs).Distinct(StringComparer.Ordinal).ToArray();
-        var files = ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
-            .Where(path => BackendDemoSourceKind(path, outputs) == 1).ToArray();
+        var census = ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            .Where(path => !OmitIgnoredDemoLocalFile(path)).ToArray();
+        var files = census.Where(path => BackendDemoSourceKind(path, outputs) == 1).ToArray();
         // Evaluation includes explicit/linked Compile items as well as the SDK's default glob.
         // A compiler input outside the supported census must refuse, never disappear.
         RequireCompileCoverage(files, evaluated.SelectMany(row => row.Sources));
-        foreach (var file in ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        foreach (var file in census
             .Where(path => BackendDemoSourceKind(path, outputs) == 2)
             .Concat([Path.Combine(RepositoryPaths.RepoRoot(), "backend/Directory.Build.props"),
                 Path.Combine(RepositoryPaths.RepoRoot(), "backend/Directory.Packages.props")])
             .Where(path => Path.GetExtension(path) is ".csproj" or ".props" or ".targets"))
             RefuseExecutionTimeCompile(File.ReadAllText(file));
         return files;
+    }
+
+    private static bool IsDemoLocalArtifact(string path) => Path.GetFileName(path) is
+        ".env" or ".env.local" or ".env.development" or ".env.test" or ".env.production"
+        or ".env.development.local" or ".env.test.local" or ".env.production.local" or ".DS_Store" or "Thumbs.db"
+        || Path.GetExtension(path) is ".swp" or ".log" or ".user" or ".suo" or ".rsuser";
+
+    private static bool OmitIgnoredDemoLocalFile(string path)
+    {
+        if (!IsDemoLocalArtifact(path)) return false;
+        using var child = new Process
+        {
+            StartInfo = new ProcessStartInfo("git")
+            {
+                ArgumentList = { "check-ignore", "--quiet", "--", path },
+                WorkingDirectory = RepositoryPaths.RepoRoot(),
+                RedirectStandardError = true,
+            }
+        };
+        child.Start();
+        var error = child.StandardError.ReadToEndAsync();
+        if (!child.WaitForExit(10_000))
+        {
+            child.Kill(entireProcessTree: true);
+            child.WaitForExit();
+            throw new InvalidOperationException("Git ignored-local-file admission deadline.");
+        }
+        error.GetAwaiter().GetResult();
+        return child.ExitCode switch
+        {
+            0 => true,
+            1 => false,
+            _ => throw new InvalidOperationException("Git ignored-local-file admission failed.")
+        };
     }
 
     private static int BackendDemoSourceKind(string path, IEnumerable<string> outputs)

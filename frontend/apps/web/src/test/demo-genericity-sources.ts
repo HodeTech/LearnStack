@@ -117,6 +117,31 @@ export function demoSourceClassification(path: string): 'runtime' | 'other' {
   return 'runtime';
 }
 
+// A narrow machine-file exception, never a blanket exemption for ignored formats.
+export function omitIgnoredDemoLocalFile(
+  path: string,
+  ignored: (path: string) => boolean,
+): boolean {
+  const name = posix.basename(path);
+  const environment = new Set([
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.test',
+    '.env.production',
+    '.env.development.local',
+    '.env.test.local',
+    '.env.production.local',
+  ]);
+  return (
+    (environment.has(name) ||
+      name === '.DS_Store' ||
+      name === 'Thumbs.db' ||
+      /\.(?:swp|log|user|suo|rsuser)$/.test(name)) &&
+    ignored(path)
+  );
+}
+
 export type ExternalModuleResolver = (from: string, specifier: string, anchors: string[]) => string;
 
 function testSource(path: string): boolean {

@@ -6434,6 +6434,14 @@ Work remains on `development`; PR #28 is not merged by this record.
    The final PR rollup must still pass all seven required jobs, including the
    real Docker and 27-audit lifecycle proof, before merge.
 
+**Late automatic-review follow-up.** Run 38125035732 passes all seven jobs for
+source `4541d63`, including 2,964 backend and 1,537 frontend cases, the real
+27-audit proof and cleanup. A later CodeRabbit comment exposed a local-DX gap:
+ignored `.env.local` and OS/editor files reached raw filesystem classification.
+The follow-up admits only explicitly known machine filenames that Git also
+ignores. Ignored source files, unknown formats and compiler coverage retain
+fail-closed behavior. Focused reviews and replacement final-head CI are pending.
+
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte
 measurement. Existing fast tests already cover report admission, source-byte

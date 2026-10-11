@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -11,6 +11,7 @@ import { demoIdentityFindings } from './demo-genericity-analysis';
 import {
   demoSourceClassification,
   omitDemoSourceDirectory,
+  omitIgnoredDemoLocalFile,
   productionDemoSources,
 } from './demo-genericity-sources';
 import vocabulary from './fixtures/demo-identities.json';
@@ -37,6 +38,19 @@ function productionSources(): Map<string, string> {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       const name = relative(root, path).replaceAll('\\', '/');
+      if (
+        entry.isFile() &&
+        omitIgnoredDemoLocalFile(name, (candidate) => {
+          const result = spawnSync('git', ['check-ignore', '--quiet', '--', candidate], {
+            cwd: root,
+            stdio: 'ignore',
+          });
+          if (result.status !== 0 && result.status !== 1)
+            throw new Error('Git ignored-local-file admission failed');
+          return result.status === 0;
+        })
+      )
+        continue;
       if (entry.isSymbolicLink() && !omitDemoSourceDirectory(name))
         throw new Error(`Unmodeled production symlink: ${name}`);
       if (entry.isDirectory()) {
@@ -260,6 +274,21 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/node_modules',
     ])
       expect(omitDemoSourceDirectory(path)).toBe(false);
+  });
+  it('omits only ignored known machine files and retains ignored source and unknown formats', () => {
+    for (const name of ['.env.local', '.DS_Store', 'Thumbs.db', 'editor.swp', 'runtime.log']) {
+      const path = `frontend/apps/web/${name}`;
+      expect(omitIgnoredDemoLocalFile(path, () => true)).toBe(true);
+      expect(omitIgnoredDemoLocalFile(path, () => false)).toBe(false);
+      const result = spawnSync('git', ['check-ignore', '--quiet', '--', path], {
+        cwd: root,
+        stdio: 'ignore',
+      });
+      expect(result.status).toBe(0);
+    }
+    for (const name of ['.env.hidden.ts', '.env.hidden.json', 'hidden.vue', 'hidden.resx'])
+      expect(omitIgnoredDemoLocalFile(`frontend/apps/web/${name}`, () => true)).toBe(false);
+    expect(() => demoSourceClassification('frontend/apps/web/hidden.vue')).toThrow('Unclassified');
   });
   it('refuses unclassified production roots and formats while retaining declared non-runtime ownership', () => {
     for (const path of [
