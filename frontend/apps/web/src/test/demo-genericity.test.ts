@@ -204,6 +204,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       "const path = './special.test.mjs'; await import(path);",
       "const path = './special.test.mjs'; require(path);",
       "const path = './special.test.mjs'; require(require.resolve(path));",
+      "require(require.resolve('./fixtures/demo-identities.json', { paths: [new URL('../src/test', import.meta.url).pathname] }));",
       "await import('file:///outside/helper.mjs');",
     ])
       expect(() => productionDemoSources(new Map([[entry, source]]))).toThrow(

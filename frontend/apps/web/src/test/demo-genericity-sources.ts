@@ -70,8 +70,16 @@ export function productionDemoSources(all: ReadonlyMap<string, string>): Map<str
           ts.isIdentifier(specifier.expression.expression) &&
           specifier.expression.expression.text === 'require' &&
           specifier.expression.name.text === 'resolve'
-        )
+        ) {
+          if (
+            specifier.arguments.length > 1 &&
+            (!specifier.arguments[0] ||
+              !ts.isStringLiteralLike(specifier.arguments[0]) ||
+              specifier.arguments[0].text.startsWith('.'))
+          )
+            throw new Error(`Unmodeled runtime import: ${path}`);
           specifier = specifier.arguments[0];
+        }
         if (!specifier || !ts.isStringLiteralLike(specifier))
           throw new Error(`Unmodeled runtime import: ${path}`);
         imports.push(specifier.text);

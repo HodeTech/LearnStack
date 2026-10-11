@@ -5931,7 +5931,7 @@ fixes are complete; Step 2 follows.
 
 ### P02d-7 Step 2 — genericity and exit foundations (2026-10-11)
 
-**Implementation verified; both review rounds pending.** The exact-literal
+**Implementation and both independent review rounds complete.** The exact-literal
 G20 fence reads categorized `DemoIdentities.Create` values derived from typed
 `SeedData`, including all declared IDs and translated identity/definition/field
 labels. Ordinary body prose, locale/status/access values and schema keywords do
@@ -5994,6 +5994,12 @@ imports fail loudly. Literal `require.resolve` loads remain countable. The
 ordering offender now swaps intact label/value pairs rather than corrupting them.
 Release architecture (203) and all guarded frontend cases (1,446), lint,
 typecheck, formatting and link/anchor checks pass. Fresh fix verification follows.
+
+**Fresh fix verification.** The prior omissions are closed. The verifier found
+one new resolver-options gap: a relative `require.resolve` input could redirect
+through `paths`. That unmodeled form now fails loudly, with a planted control;
+the actual literal external-package ESLint load remains accepted. Both review
+rounds and their verified findings are complete. Step 3 follows.
 
 #### P02d-7 preliminary exit evidence inventory
 
