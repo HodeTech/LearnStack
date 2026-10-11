@@ -19,10 +19,16 @@ import {
   validateReport,
 } from '../../scripts/public-demo-contract.mjs';
 import { PublicDemoDocument, resolvedDemoCensus } from '../../scripts/public-demo-gatherer.mjs';
+import {
+  readDemoToolchain,
+  toolchainVersions,
+  type DemoToolchain,
+} from '../../scripts/public-demo-toolchain.mjs';
 
 const census = JSON.parse(
   readFileSync(new URL('../../scripts/public-demo-census.json', import.meta.url), 'utf8'),
 ) as {
+  versions: DemoToolchain;
   audits: string[];
   categories: Record<string, Array<{ id: string; weight: number }>>;
 };
@@ -237,7 +243,7 @@ function cleanReport() {
   ])
     audits[id]!.numericValue = 0;
   return {
-    lighthouseVersion: '13.5.0',
+    lighthouseVersion: census.versions.lighthouse,
     runWarnings: [] as string[],
     requestedUrl: lane.lessonUrl,
     mainDocumentUrl: lane.lessonUrl,
@@ -262,6 +268,50 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
       census,
     );
   });
+  it('derives the installed tool/browser versions and refuses an independently stale census', () => {
+    expect(readDemoToolchain()).toEqual(census.versions);
+    expect(() =>
+      assertConfiguration(
+        { ...census, versions: { ...census.versions, chromiumRevision: 'stale' } },
+        census,
+      ),
+    ).toThrow();
+    expect(() => assertConfiguration(census, census)).not.toThrow();
+  });
+  it.each([
+    'lighthouse',
+    'playwright',
+    'core',
+    'unpinned',
+    'missing',
+    'duplicate',
+    'revision',
+    'browser-version',
+  ])('refuses %s tool metadata without weakening clean admission', (kind) => {
+    const pins = { lighthouse: census.versions.lighthouse, playwright: census.versions.playwright };
+    const clean = {
+      lighthouse: pins.lighthouse,
+      playwright: pins.playwright,
+      core: pins.playwright,
+      browsers: [
+        {
+          name: 'chromium',
+          revision: census.versions.chromiumRevision,
+          browserVersion: census.versions.browserVersion,
+        },
+      ],
+    };
+    const installed = structuredClone(clean);
+    if (kind === 'lighthouse' || kind === 'playwright' || kind === 'core')
+      installed[kind] = '0.0.0';
+    if (kind === 'unpinned') pins.playwright = '^' + pins.playwright;
+    if (kind === 'missing') installed.browsers = [];
+    if (kind === 'duplicate') installed.browsers.push({ ...installed.browsers[0]! });
+    if (kind === 'revision') installed.browsers[0]!.revision = '';
+    if (kind === 'browser-version') installed.browsers[0]!.browserVersion = 'unknown';
+    expect(() => toolchainVersions(pins, installed)).toThrow();
+    expect(toolchainVersions(census.versions, clean)).toEqual(census.versions);
+  });
   it.each([
     'missing',
     'runtime',
@@ -273,6 +323,7 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
     'accessibility',
     'weights',
     'redirect',
+    'version',
   ])('refuses a planted %s report', (kind) => {
     const value = structuredClone(cleanReport());
     if (kind === 'missing') delete value.audits[census.audits[0]!];
@@ -285,6 +336,7 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
     if (kind === 'accessibility') value.categories.accessibility!.score = 0.99;
     if (kind === 'weights') value.categories.accessibility!.auditRefs[0]!.weight = 999;
     if (kind === 'redirect') value.finalDisplayedUrl = lane.catalogUrl;
+    if (kind === 'version') value.lighthouseVersion = '0.0.0';
     expect(() => validateReport(value, { url: lane.lessonUrl }, census)).toThrow();
     expect(() => validateReport(cleanReport(), { url: lane.lessonUrl }, census)).not.toThrow();
   });

@@ -1,3 +1,6 @@
+import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
+
 /** Keep privileged setup/worker credentials and arbitrary configuration out of runtime. */
 export function publicApiEnvironment(values, configuration, base = process.env) {
   const environment = {};
@@ -15,9 +18,6 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
     Tenancy__TrustedHop__Secrets__0: configuration.secret,
   };
 }
-import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
-
 /** Development configuration must not consult the workstation's user secrets. */
 export function publicDemoApiEnvironment(values, configuration, privateRoot, base = process.env) {
   const profile = realpathSync(privateRoot);

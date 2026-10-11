@@ -16,6 +16,9 @@ import { completionDelta, finalCompletionCensus } from '../../../../scripts/demo
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const worker = fileURLToPath(new URL('./public-demo-worker.mjs', import.meta.url));
 const snapshot = (state) => JSON.parse(JSON.stringify(state));
+const census = JSON.parse(
+  readFileSync(new URL('./public-demo-census.json', import.meta.url), 'utf8'),
+);
 
 /** Four paced batches over one unchanged production API/build/database. */
 export async function verifyPublicDemo(runtime) {
@@ -59,12 +62,12 @@ export async function verifyPublicDemo(runtime) {
     os: platform() + ' ' + release(),
     cpus: cpus().length,
     runnerImage: process.env.ImageOS ?? null,
-    versions: { lighthouse: '13.5.0', playwright: '1.64.0', chromiumRevision: '1248' },
-    configDigest: digest(
-      JSON.stringify(
-        JSON.parse(readFileSync(new URL('./public-demo-census.json', import.meta.url), 'utf8')),
-      ),
-    ),
+    versions: {
+      lighthouse: census.versions.lighthouse,
+      playwright: census.versions.playwright,
+      chromiumRevision: census.versions.chromiumRevision,
+    },
+    configDigest: digest(JSON.stringify(census)),
     setupMilliseconds: runtime.setupMilliseconds,
     batches: [],
     reports: [],
@@ -72,9 +75,7 @@ export async function verifyPublicDemo(runtime) {
     proofMilliseconds: null,
     passed: false,
   };
-  receipt.configuration = JSON.parse(
-    readFileSync(new URL('./public-demo-census.json', import.meta.url), 'utf8'),
-  );
+  receipt.configuration = census;
   const expected = runtime.manifest.flatMap((lane) =>
     ['catalog', 'course', 'lesson'].flatMap((kind) =>
       [1, 2, 3].map((run) => ({
@@ -82,7 +83,7 @@ export async function verifyPublicDemo(runtime) {
         url: lane[kind + 'Url'],
         run,
         configDigest: receipt.configDigest,
-        browserVersion: '156.0.8078.4',
+        browserVersion: census.versions.browserVersion,
       })),
     ),
   );

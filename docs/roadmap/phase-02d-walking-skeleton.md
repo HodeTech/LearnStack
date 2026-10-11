@@ -6349,6 +6349,41 @@ Closing-document checks pass all five CorpusConsistencyTests with zero skips;
 the 33 changed/new Markdown files resolve 2,197 relative links and 694 fragments
 with no errors. Added prose respects 88 columns; ADR-0056 changes are insertion-only.
 
+##### Reviewed implementation head verification (2026-10-11)
+
+The first run above owns activation history. The separately downloaded
+[reviewed-head run](https://github.com/HodeTech/LearnStack/actions/runs/38108622191)
+passes all seven jobs for source `d47ef17c8473e17e0950361dc35e419ba6c0825c`,
+tested merge `ba44563af66fbd7744b6625673e61286a8e77fa4` with the same main parent.
+Its invocation is `170c02e7741fbc6c79895ce718cecd89`; build is
+`rlL6ubYmcf7_VQaPBN-fA`. TRX/frontend receipts confirm the same 2,964 backend
+and 1,504 frontend passes, zero failures/skips/todos.
+
+All 27 report pairs, nine screenshots, nine navigations and 24 visibility
+refusals pass. Report digests and source/build/invocation/configuration identities
+match. Normalized gzip is 106,358–106,551 bytes, CLS 0 and automated
+accessibility 1 throughout. Both TLS refusals, the audit-timeout control and all
+134 API observations (200 only, no malformed/pending records) pass.
+Setup/proof/cleanup take 214,616 / 644,207 / 12,962 ms; all cleanup flags pass.
+Sandbox-enabled Chromium and owned AppArmor cleanup pass. These numbers belong
+to the exact implementation head reviewed externally, not to later commits.
+
+##### External review follow-up (2026-10-11)
+
+The maintainer's review of `3783461..d47ef17` reported no Blocker/Major and
+four bounded documentation/maintenance findings. All four are verified and
+addressed: the reviewed-head receipt above supplements activation history;
+runtime imports move to the file header; installed tool/browser metadata feeds
+the shared census and remains checked against independent committed pins; and
+ADR-0056 gains dated acceptance-baseline navigation without changing history.
+Tool versions, budgets, admission and cleanup behavior are unchanged.
+
+Local validation passes 1,454 web + 60 SDK tests, zero failures/skips/todos,
+typecheck, lint and all 203 architecture tests. Ten added cases cover installed
+metadata/pin mismatch, malformed or missing browser metadata, stale census and
+wrong-version report refusal, each retaining a clean passing control. Two fresh
+independent remediation review rounds and full seven-job CI are pending.
+
 Closing documentation commits must also pass the seven required jobs before
 merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
 owns that moving-head result. Next after maintainer review and merge is

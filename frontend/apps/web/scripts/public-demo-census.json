@@ -1,4 +1,10 @@
 {
+  "versions": {
+    "lighthouse": "13.5.0",
+    "playwright": "1.64.0",
+    "chromiumRevision": "1248",
+    "browserVersion": "156.0.8078.4"
+  },
   "artifacts": [
     {
       "id": "Accessibility"

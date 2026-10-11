@@ -10,6 +10,11 @@ Accepted
 
 No implementation, passing audit or gate acceptance is claimed.
 
+> **Acceptance-baseline clarification — 2026-10-11:** The preceding sentence
+> records the state at acceptance, not current delivery status.
+> [Amendment 2](#amendment-2--acceptance-and-reviewed-head-navigation-2026-10-11)
+> distinguishes that baseline, activation history and reviewed-head evidence.
+
 **Date:** 2026-10-11
 **Deciders:** @cemil
 
@@ -317,6 +322,15 @@ the [CI and exit closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-an
 PR #28 remains subject to maintainer review and merge. This is delivery navigation;
 the acceptance metadata, decision and feasibility obligations remain unchanged.
 Existing P6 human/VoiceOver evidence and Phase 06/11 scope retain their limits.
+
+### Amendment 2 — Acceptance and reviewed-head navigation (2026-10-11)
+
+The original no-implementation sentence describes acceptance-time state.
+Amendment 1 describes later delivery and the first real run used for activation.
+The [reviewed-head verification](../roadmap/phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
+separately records source `d47ef17` and its downloaded successful CI artifacts.
+Subsequent heads remain subject to all seven required checks. This clarification
+changes no decision, tool version, budget or original acceptance metadata.
 
 ## References
 

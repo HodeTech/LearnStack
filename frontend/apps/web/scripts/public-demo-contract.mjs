@@ -220,7 +220,7 @@ export function assertConfiguration(actual, expected) {
 }
 
 export function validateReport(lhr, expected, census) {
-  assert.equal(lhr.lighthouseVersion, '13.5.0');
+  assert.equal(lhr.lighthouseVersion, census.versions.lighthouse);
   assert.equal(lhr.runtimeError, undefined, 'Runtime errors refuse the report');
   assert.deepEqual(lhr.runWarnings, [], 'Incomplete/warning audit reports are refused');
   for (const key of ['requestedUrl', 'mainDocumentUrl', 'finalDisplayedUrl'])

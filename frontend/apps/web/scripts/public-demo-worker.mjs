@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
 import lighthouse, { generateReport } from 'lighthouse';
@@ -15,8 +14,8 @@ import {
   validateReport,
 } from './public-demo-contract.mjs';
 import { resolvedDemoCensus, demoLighthouseConfiguration } from './public-demo-gatherer.mjs';
+import { readDemoToolchain } from './public-demo-toolchain.mjs';
 
-const require = createRequire(import.meta.url);
 const expectedCensus = JSON.parse(
   readFileSync(new URL('./public-demo-census.json', import.meta.url), 'utf8'),
 );
@@ -159,15 +158,18 @@ async function timeoutControl(port) {
 }
 
 async function main(input) {
-  assert.equal(require('playwright/package.json').version, '1.64.0');
-  assert.equal(require('lighthouse/package.json').version, '13.5.0');
+  assert.deepEqual(readDemoToolchain(), expectedCensus.versions, 'Pinned tool/browser census');
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${input.port}`, {
     timeout: 10000,
   });
   let browserVersion;
   try {
     browserVersion = browser.version();
-    assert.equal(browserVersion, '156.0.8078.4', 'Pinned managed full Chromium version');
+    assert.equal(
+      browserVersion,
+      expectedCensus.versions.browserVersion,
+      'Pinned managed full Chromium version',
+    );
     // The native browser starts with no product target. Retire its blank target.
     for (const context of browser.contexts())
       for (const page of context.pages()) await page.close();

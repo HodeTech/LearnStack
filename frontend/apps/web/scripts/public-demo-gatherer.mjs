@@ -7,6 +7,7 @@ import {
   normalizedJavaScript,
   productDomSnapshot,
 } from './public-demo-contract.mjs';
+import { readDemoToolchain } from './public-demo-toolchain.mjs';
 
 /** Observe the initial audited target; never refetch a body or navigate a second time. */
 export class PublicDemoDocument extends BaseGatherer {
@@ -184,6 +185,7 @@ export function configurationCensus(config) {
   // must not differ merely because Lighthouse represents them as undefined.
   return JSON.parse(
     JSON.stringify({
+      versions: readDemoToolchain(),
       artifacts: config.artifacts
         .map((row) => ({ id: row.id, dependencies: row.dependencies }))
         .sort((a, b) => a.id.localeCompare(b.id)),

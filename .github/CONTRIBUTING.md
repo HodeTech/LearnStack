@@ -69,6 +69,9 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       retained and every unrelated protection setting unchanged. The
       [CI and exit closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
       records execution, artifact validation and activation proof.
+      The separate [reviewed-head verification](../docs/roadmap/phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
+      identifies the exact implementation head inspected after activation;
+      subsequent heads still require all seven passing checks.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
     workspace test runner and native production/cleanup controls. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
