@@ -286,8 +286,21 @@ describe('P02d-7 exact demo identity boundary', () => {
       });
       expect(result.status).toBe(0);
     }
-    for (const name of ['.env.hidden.ts', '.env.hidden.json', 'hidden.vue', 'hidden.resx'])
+    for (const name of [
+      '.env.hidden.ts',
+      '.env.hidden.json',
+      'hidden.vue',
+      'hidden.resx',
+      'Probe.csproj.user',
+    ])
       expect(omitIgnoredDemoLocalFile(`frontend/apps/web/${name}`, () => true)).toBe(false);
+    // MSBuild automatically imports this ignored format; it is not inert machine data.
+    expect(
+      spawnSync('git', ['check-ignore', '--quiet', '--', 'frontend/apps/web/Probe.csproj.user'], {
+        cwd: root,
+        stdio: 'ignore',
+      }).status,
+    ).toBe(0);
     expect(() => demoSourceClassification('frontend/apps/web/hidden.vue')).toThrow('Unclassified');
   });
   it('refuses unclassified production roots and formats while retaining declared non-runtime ownership', () => {

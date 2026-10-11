@@ -137,7 +137,7 @@ export function omitIgnoredDemoLocalFile(
     (environment.has(name) ||
       name === '.DS_Store' ||
       name === 'Thumbs.db' ||
-      /\.(?:swp|log|user|suo|rsuser)$/.test(name)) &&
+      /\.(?:swp|log|suo|rsuser)$/.test(name)) &&
     ignored(path)
   );
 }

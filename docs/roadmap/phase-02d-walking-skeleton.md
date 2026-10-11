@@ -6440,7 +6440,11 @@ source `4541d63`, including 2,964 backend and 1,537 frontend cases, the real
 ignored `.env.local` and OS/editor files reached raw filesystem classification.
 The follow-up admits only explicitly known machine filenames that Git also
 ignores. Ignored source files, unknown formats and compiler coverage retain
-fail-closed behavior. Focused reviews and replacement final-head CI are pending.
+fail-closed behavior. The first independent round approved `d16d2d7`. The fresh
+second round reproduced an automatically imported `.csproj.user` build hook;
+`.user` is therefore excluded from the machine-file exemption, with explicit
+refusal controls. The same reviewer must verify this fix before closeout.
+Replacement final-head CI remains required.
 
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte

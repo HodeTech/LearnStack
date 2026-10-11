@@ -33,7 +33,7 @@ public sealed partial class DomainGenericityTests
     private static bool IsDemoLocalArtifact(string path) => Path.GetFileName(path) is
         ".env" or ".env.local" or ".env.development" or ".env.test" or ".env.production"
         or ".env.development.local" or ".env.test.local" or ".env.production.local" or ".DS_Store" or "Thumbs.db"
-        || Path.GetExtension(path) is ".swp" or ".log" or ".user" or ".suo" or ".rsuser";
+        || Path.GetExtension(path) is ".swp" or ".log" or ".suo" or ".rsuser";
 
     private static bool OmitIgnoredDemoLocalFile(string path)
     {

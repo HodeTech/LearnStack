@@ -125,8 +125,13 @@ public sealed partial class DomainGenericityTests
             IsDemoLocalArtifact(local).Should().BeTrue();
             OmitIgnoredDemoLocalFile(local).Should().BeTrue("the actual Git rules omit known machine files");
         }
-        foreach (var name in new[] { ".env.hidden.cs", ".env.hidden.json", "hidden.resx" })
+        foreach (var name in new[] { ".env.hidden.cs", ".env.hidden.json", "hidden.resx", "Probe.csproj.user" })
             IsDemoLocalArtifact(Path.Combine(project, name)).Should().BeFalse("ignored source/unknown formats are not machine-file exemptions");
+        // MSBuild automatically imports .csproj.user, so ignore rules cannot exempt it.
+        OmitIgnoredDemoLocalFile(Path.Combine(RepositoryPaths.BackendSrc(), "LearnStack.Api", "Probe.csproj.user"))
+            .Should().BeFalse();
+        Action ignoredBuildHook = () => _ = BackendDemoSourceKind(Path.Combine(project, "Probe.csproj.user"), generated);
+        ignoredBuildHook.Should().Throw<InvalidOperationException>();
         Action unknownFormat = () => _ = BackendDemoSourceKind(Path.Combine(project, "Probe.resx"), generated);
         unknownFormat.Should().Throw<InvalidOperationException>();
         Action linkedInput = () => RequireCompileCoverage([Path.Combine(project, "Probe.cs")], ["/repo/shared/Linked.cs"]);
