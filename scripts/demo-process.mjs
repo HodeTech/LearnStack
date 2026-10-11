@@ -128,6 +128,7 @@ export class DemoProcesses {
     this.#closed = true;
     const results = await Promise.allSettled(
       [...this.#children].map(async ([child, { closed, result, daemon }]) => {
+        const deadline = Date.now() + 5000;
         await stopTestChild(child);
         // Group absence does not establish stream EOF. A closed child has also
         // delivered its buffered stdout/stderr; bound this separate drain so
@@ -137,7 +138,10 @@ export class DemoProcesses {
           await Promise.race([
             closed,
             new Promise((_, reject) => {
-              timer = setTimeout(() => reject(new Error('Owned output did not close')), 5000);
+              timer = setTimeout(
+                () => reject(new Error('Owned output did not close')),
+                Math.max(0, deadline - Date.now()),
+              );
             }),
           ]);
         } finally {

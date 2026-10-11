@@ -6137,8 +6137,8 @@ verified proof gaps remain; the existing 50 proof controls passed independently.
 - Process-group absence preceded child `close` and buffered stream EOF. An actual
   child with deliberately deferred stdout demonstrated a 429 arriving after a
   prematurely passing final census. Cleanup now joins `close` with a separate
-  five-second output-drain bound before observer finalization. The regression
-  holds and releases the real pipe, proves cleanup waits, then refuses the 429.
+  shared five-second stop/output-drain bound before observer finalization. The
+  regression holds and releases the real pipe, proves cleanup waits, then refuses the 429.
 - Clip/filter/mask and offscreen/overflow styles could hide laid-out markers.
   The bounded seeded-page predicate now refuses these ancestor styles and
   horizontally unreachable/negative-area markers. Each lesson navigation checks
@@ -6146,11 +6146,22 @@ verified proof gaps remain; the existing 50 proof controls passed independently.
   the receipt requires all 24 completed controls. This is not a general CSS
   occlusion or visual-accessibility audit.
 
-All 78 focused proof/lifecycle cases and typecheck pass with zero failures/skips.
-The full guarded runner passed 1,496 cases before these round-2 changes.
-Final lint, a fresh focused fix review and complete runtime validation remain
-pending. The running `38c15d9` feasibility copy precedes these fixes and cannot
-validate them.
+All 78 focused proof/lifecycle cases, typecheck and lint pass. The full guarded
+runner passes 1,500 cases (1,440 web + 60 SDK), with zero failures/skips/todos.
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) fix reviews approve
+`38c15d9..39cee01` and the final shared cleanup-deadline adjustment. Independent
+controls reproduce the old observer/drain gaps, confirm joined stdout/stderr,
+refuse daemon output errors and bound a TERM-resistant child plus held output
+to 5,003 ms. Managed Chromium refuses all eight DOM mutants and re-admits each
+restored counterpart; the five added cases passed the old predicate.
+
+The complete `38c15d9` rerun passes: setup 60,270 ms, proof 571,089 ms,
+cleanup 10,688 ms, all 27 report pairs and nine screenshots, actual soft-timeout
+refusal, nine visibility controls and 134 successful API completions, with zero
+429/malformed/pending records. The authorized foreign containers restart healthy.
+That receipt precedes round-2 fixes. A complete `39cee01` rerun is in progress;
+the subsequent shared-bound change has focused verification above and must also
+run in final CI. No final phase-exit or real-CI success is claimed here.
 
 ### P02d-1 decision pass (2026-09-14)
 
