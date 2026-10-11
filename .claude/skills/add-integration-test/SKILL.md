@@ -44,11 +44,12 @@ architecture test) plus any other invariant the change touches. See
 - Domain-method invariants. Those are unit tests in `LearnStack.Tests.Unit`.
 - Structural rules (no cross-module reference). Architecture tests own those.
 - UI flows. There is no `LearnStack.Tests.EndToEnd` project. End-to-end means a
-  browser: Playwright over a running stack, owned by
-  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) per
-  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
-  [Phase 02d](../../../docs/roadmap/phase-02d-walking-skeleton.md) puts two
-  tenants in a browser but gates on a human opening them, not on a Playwright run.
+  browser over a running stack. P02d-7 supplies the narrow Playwright library
+  walkthrough of nine seeded product pages and 27 Lighthouse audits through
+  `make demo DEMO_MODE=ci`; G33's human walkthrough remains separate.
+  [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md) owns the
+  broader Playwright Test/axe suite, per
+  [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md#end-to-end-tests).
 
 ## Inputs
 
@@ -69,9 +70,12 @@ architecture test) plus any other invariant the change touches. See
 > what almost every test wants: **every** migration chain applied — through
 > `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
 > table seeded for two tenants, with a second organization under tenant A. There
-> are four chains and seventeen tables as of Packet 9; a fixture that names them is
-> a fixture that goes stale, which is the defect below. Share it with `[Collection(SharedSchema.Name)]` rather than
-> `IClassFixture<>`, so one container serves the whole schema suite.
+> are five chains and 21 data tables (26 including migration histories). Discover
+> current chains and history names through
+> [MigrationChains](../../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs);
+> do not copy that inventory into a fixture. Share the schema with
+> `[Collection(SharedSchema.Name)]` rather than `IClassFixture<>`, so one container
+> serves the whole schema suite.
 >
 > Anything touching either carries `[Trait(RequiresDocker.Key, RequiresDocker.Value)]`,
 > which is how CI routes it to `backend-integration` rather than `backend`.
@@ -225,7 +229,11 @@ and removes every other `ITestOnlyController`. That is the precedent
 `ProductionHostFixture` is the counterpart that adds none, so the production
 endpoint set stays exactly what a deployed instance serves. It drives the real
 middleware chain and the real EF
-query filters without moving Phase 02d's first `/api/v1/*` read endpoints earlier.
+query filters. Current production Education reads are covered separately by
+[PublicEducationHttpTests](../../../backend/tests/LearnStack.Tests.Integration/Database/PublicEducationHttpTests.cs);
+[EducationIsolationTests](../../../backend/tests/LearnStack.Tests.Integration/Database/EducationIsolationTests.cs)
+independently exercises EF and raw RLS scope, writes and parent guards. Follow
+those shipped examples for Education rather than inventing an authenticated route.
 
 ### Step 3: Outbox round-trip
 
@@ -237,9 +245,9 @@ query filters without moving Phase 02d's first `/api/v1/*` read endpoints earlie
 > [ADR-0037 Amendment 1](../../../docs/decisions/0037-idempotency-key-contract.md)
 > names: the first `[Idempotent]` endpoint, or the first deployment running more
 > than one instance. Packet 6 shipped the `idempotency_keys` table, not the store. The `_fx.*` members below are illustrative of what those phases will
-> provide; today the only fixtures are `PostgresFixture` and `SchemaFixture`, and
-> the only session-context helper is `SchemaQueries`. Write against Step 1 and
-> Step 2's shapes until the owning phase lands.
+> provide. The schema examples above use `PostgresFixture`, `SchemaFixture` and
+> `SchemaQueries`; production public HTTP cases use the separately shipped fixtures
+> linked above. Write against those delivered APIs until the owning phase lands.
 
 For a handler that publishes an integration event:
 

@@ -64,7 +64,8 @@ so a status header, a
 catalogue entry, a published count or a planted `Skip` fails the build rather than a
 reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
 let change.
-**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
+**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) implementation and exit
+verification are complete; PR #28 review and merge remain pending**. Its kickoff
 shipped the packet table and the decision register, and every later packet opens with
 its decision pass. **P02d-1 is complete and merged** through
 [PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
@@ -134,18 +135,34 @@ with actual-config planted controls. Its
 owns verification and review status. Step 4 adds concurrent host/locale, theme,
 freshness and content-fault product proofs; its
 [delivery record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records both completed review rounds. **P02d-6 implementation is complete —
-2026-10-10, unmerged**: the
+records both completed review rounds. **P02d-6 is complete and merged** through
+[PR #27](https://github.com/HodeTech/LearnStack/pull/27) on 2026-10-10; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records final verification. The
 [packet closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
 records passing manual browser checks and the maintainer's VoiceOver smoke.
-Maintainer PR review and merge remain pending. ADR-0055 remediation delivers
+ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs. All three
 steps completed both independent review rounds;
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
 owns completed Step 3 reviews, verified fixes and delivery evidence. The five new
 catalogue rules are Implemented.
-P02d-7 owns the browser demo and Lighthouse; Phase 06 retains
-the full renderer/Studio expansion.
+P02d-7's demo, Lighthouse and phase-exit
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+was approved on 2026-10-11, including bounded seventh-check activation after real
+success. ADR-0056 was accepted on the same date. Steps 1 and 2 completed both
+independent review rounds; the
+[Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+owns browser/audit implementation, passing complete local reruns and both
+completed Step 3 review rounds. The
+[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns CI enforcement, completed reviews and individual exit reconciliation. Its
+[CI and exit closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+verifies all seven real PR jobs, complete artifacts and live seventh-check
+activation with all other protection settings preserved. All four steps completed
+both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
+maintainer review and merge. P02b-0 re-verification/decision pass is next afterward;
+Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -162,12 +162,15 @@ match the change:
 
 - Backend changes → `dotnet build`, `LearnStack.Tests.Architecture`,
   `LearnStack.Tests.Unit`, `LearnStack.Tests.Integration` (Testcontainers).
-- Frontend changes → `pnpm lint`, `pnpm typecheck` and `pnpm test`. No Lighthouse
-  command exists yet, locally or in CI — the `lighthouse-budget` job is a deferred
-  placeholder — so judge public-route budgets against
-  [Performance Standards](../../../docs/standards/15-performance.md) by reading. There
-  is no `pnpm test:a11y` yet
-  — the axe suite arrives in Phase 06 ([run-tests-locally](../run-tests-locally/SKILL.md)).
+- Frontend changes → `pnpm lint`, `pnpm typecheck` and guarded `pnpm test`.
+  Public-route changes also use the shared P7 browser/Lighthouse lifecycle:
+  `(cd frontend && pnpm exec playwright install --with-deps chromium)`, then
+  `make demo DEMO_MODE=ci` from a fresh checkout without private `.env`/
+  `.env.local` configuration or `artifacts/public-demo`. Follow
+  [run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+  for prerequisites, artifact review and cleanup. The Playwright library proof
+  covers nine seeded pages and 27 audits; Phase 06 owns the full Playwright Test/
+  axe suite. There is no `pnpm test:a11y` or `pnpm test:e2e` script.
 - Documentation-only → broken-link sweep + `docs/analysis/` residual scan
   (see Step 7's link audit).
 
@@ -264,9 +267,12 @@ template. The prompt must:
 Deliver the prompt as a code-fence in the response so the user can copy and
 dispatch it.
 
-**Lighthouse ownership — Accepted P02d-5, 2026-10-08.** P02d-7/G44/G45
-activates the full-stack job after P6 pages; it remains a disabled placeholder.
-The entry decision does not provide a Lighthouse command or passing audit.
+**Lighthouse ownership — P02d-7 / ADR-0056.** The shared demo lifecycle supplies
+browser/audit proof. The packet's Step 4 record and
+[branch protection](../../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+own real CI receipts and required-check activation; local success alone does not
+establish activation. Automated accessibility scores preserve P6's independently
+recorded human/VoiceOver evidence and do not claim full WCAG conformance.
 
 ## Validation (Definition of Done)
 

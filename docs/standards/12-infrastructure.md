@@ -93,8 +93,11 @@ P02d-5 delivers G33's loopback API/native TLS web ingress and paired private loc
 configuration under [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 Follow the [local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
 for explicit hosts and certificate trust preparation; neither is installed by scripts.
-P02d-7 owns G45's `make demo` lifecycle and browser/TLS evidence, plus the remaining
-G44 Lighthouse harness/assertions after P6. APISIX remains Phase 11.
+P02d-7 delivers G45's `make demo` lifecycle, browser/TLS evidence and G44's
+Lighthouse harness/assertions under
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns enforcement and phase-exit verification. APISIX remains Phase 11.
 
 ### Healthchecks and the readiness gate
 

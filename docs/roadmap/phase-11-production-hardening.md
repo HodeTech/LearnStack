@@ -401,7 +401,11 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
 
 - Database indexes.
 - Query review.
-- Cache strategy.
+- Cache strategy, including gateway/CDN response caching for public API responses
+  and rendered pages. This phase settles host/tenant/organization/locale and
+  eligibility partitioning, cache keys, validators and invalidation before enabling
+  it. The Phase 02d API and renderer retain `no-store`; the generation-keyed
+  definition cache does not authorize response or page caching.
 - CDN strategy for media and public assets.
 - Pagination enforcement.
 - Search indexing optimization.
@@ -532,6 +536,8 @@ same `ILiveClassProvider`.
 - Backup and restore process with a completed drill.
 - Performance baseline against the budgets in
   [15-performance.md](../standards/15-performance.md).
+- Gateway/CDN response-cache policy and isolation/freshness proofs before activation,
+  preserving the existing uncached public contract until that decision ships.
 - Live classroom operations checklist.
 - Release checklist and operational runbooks under `docs/runbooks/`.
 - ADR-0026 Accepted, and

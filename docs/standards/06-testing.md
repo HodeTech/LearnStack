@@ -6,6 +6,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
 controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
 and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+The seeded browser/audit proof derives from
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
@@ -47,7 +49,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 6, Testcontainers marked `[Trait("Requires","Docker")]` — CI runs the two halves in separate jobs by that trait |
 | Architecture | `LearnStack.Tests.Architecture` | xUnit with NetArchTest (Mono.Cecil), reflection and source scans |
 | API contract | `LearnStack.Tests.Contract` | The published OpenAPI document; the snapshot-diff gate activates in Phase 02d, per § API Contract Tests |
-| End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
+| End-to-end | Shared demo lifecycle (P02d-7) | Playwright library + Lighthouse; Phase 06 owns the broader golden-flow suite, per § End-to-End Tests |
 
 ### Unit Tests
 
@@ -82,10 +84,12 @@ belongs to is decided by what it needs, not by what it is about:
   a Testcontainers PostgreSQL. **Packet 7** introduces the population, because it is
   the only shape in which the real middleware chain, the real EF query filters and
   the real RLS policies run against one another in one request, connected as
-  `learnstack_app`. It drives no production endpoint — Packet 7 ships none — but a
-  test-only controller the fixture registers, which is what `IdempotencyFixture`
-  already does for `/api/v1/sideeffectprobe`. These live under `Database/` with the
-  rest of the Docker-bound suite and carry the same trait.
+  `learnstack_app`. Packet 7 originally drives test-only controllers because it
+  ships no production endpoint. P02d-4 adds actual public Education GET/HEAD cases
+  in `PublicEducationHttpTests`, including mapped-host scope and uniform hidden
+  resources. Test-only probes remain separate from the production endpoint set.
+  These live under `Database/` with the rest of the Docker-bound suite and carry
+  the same trait.
 
 **Where a Docker-bound test lives, and what it takes, is what routes it.**
 `Every_Database_Test_Carries_The_Docker_Trait` scans the whole of
@@ -134,28 +138,48 @@ and were read as running.
 
 ### End-to-End Tests
 
-**None exist, and the project this section used to name never did.** Driving the
-API through `WebApplicationFactory` is what the *host tests* above do; that is
-not end-to-end, and listing it as a separate suite made a phantom look shipped.
+P02d-7 Step 3 implements the narrow seeded catalog → course → lesson browser
+proof over the running production API/native renderer. Its
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+records the passing local nine-page walkthrough and 27 Lighthouse audits;
+both independent Step 3 reviews are complete. The packet's Step 4 record owns
+real CI receipts and required-check activation; local proof alone does not establish
+activation. The proof uses Playwright's library and managed Chromium, without a
+separate Playwright Test project.
+It supplements G33's human walkthrough and preserves P6's recorded manual smoke;
+it does not replace either with automated accessibility scores.
 
-End-to-end here means a browser: Playwright over a running stack, per the
-frontend tooling table below.
+Phase 06 owns the broader MVP vertical slice (tenant → page → course → enrollment
+→ live session), approximately ten high-signal golden flows and the full
+Playwright/axe harness. P02d-5/6's real-API HTML/RSC integration cases remain
+separate from browser evidence. P02d-7's proof adds actual linked navigation,
+computed themes, ordered fields, TLS refusal controls and bounded audits over
+unchanged seeded product routes.
 
-- Cover the MVP vertical slice (tenant → page → course → enrollment → live
-  session).
-- ~10 high-signal scenarios.
-- **Owner:** the first flow arrives in
-  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), which also wires the
-  axe accessibility checks that run through the same harness.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) renders the first tenant
-  surfaces, puts two tenants in a browser and gates on a human opening them, not on a
-  Playwright run.
+Run the shared proof from a fresh checkout without root `.env`, web `.env.local`
+or `artifacts/public-demo`, with Docker and the documented toolchain available:
 
-P02d-5's required integration suite proves two-host production HTML/RSC transport
-against the real API, using explicitly test-owned pages. G33's local topology is
-delivered; its browser/TLS evidence remains P02d-7's G45 obligation. P02d-6 owns
-G38(c)'s product-page cases. P02d-7 selects the demo/browser harness and Lighthouse
-assertions after P6; Phase 06 retains the broader Playwright/axe golden-flow suite.
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+The lifecycle provisions a unique tmpfs-backed Compose project, generates private
+disposable TLS/configuration, seeds through normal commands and stops its Keycloak
+before browser navigation. Fixed application/Compose ports must be free. Review
+the sanitized `artifacts/public-demo/receipt.json`, all 27 JSON/HTML report pairs
+and browser screenshots; proof and owned cleanup must both pass. Existing artifacts
+must be moved aside before a repeat run. Private environments, certificates, keys,
+browser profiles and raw process logs are excluded from artifacts. Human foreground
+`make demo` retains manual hosts/CA/leaf setup and persistent local data. The
+[local test workflow](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+owns the complete setup and artifact instructions.
+
+The frontend workspace pins Playwright and Lighthouse as development tools.
+Lighthouse's transitive development `axe-core@4.14.0` does not supply a standalone
+application axe dependency or the full Phase 06 axe suite. There is no
+`pnpm test:e2e`, `pnpm test:a11y` or `@playwright/test` project.
 
 ### Public renderer fixture ownership
 
@@ -183,9 +207,9 @@ or Lighthouse delivery.
 | Unit (logic) | Vitest |
 | Component | Testing Library + Vitest |
 | Server actions | Vitest + Next.js test helpers |
-| E2E | Playwright |
+| E2E | P02d-7: Playwright library; Phase 06: broader Playwright Test harness |
 | Visual regression | Chromatic / Playwright snapshot |
-| Accessibility | axe-core via Playwright |
+| Accessibility | P02d-7: Lighthouse automated score; Phase 06: full axe-core via Playwright suite |
 
 Rules:
 - Components with non-trivial state have unit tests.
@@ -239,29 +263,33 @@ offenders. Canonical names/statuses live in the
 not mark them Implemented. Manual keyboard, focus, 320 CSS px reflow/zoom, long
 strings, contrast and real screen-reader smoke evidence must name commit,
 environment, both hosts/locales and assistive technology. If pending, P6 completion
-is not claimed. Full Playwright/axe remains Phase 06; demo/browser/Lighthouse remains
-P02d-7. G38(a)'s transport proofs and G38(d)'s guarded runner are already delivered.
+is not claimed. Full Playwright Test/axe remains Phase 06; the narrow seeded
+demo/browser/Lighthouse proof is delivered by P02d-7. G38(a)'s transport proofs and
+G38(d)'s guarded runner are already delivered.
 
 ## Tenant Isolation Tests
 
 **Mandatory** for every PR touching tenant-owned data:
 
-```csharp
-public sealed class CourseTenantIsolationTests : IntegrationTestBase
-{
-    [Fact]
-    public async Task User_in_tenant_A_cannot_see_courses_in_tenant_B()
-    {
-        var (tenantA, tenantB) = await SeedTwoTenantsAsync();
-        var courseInB = await CreateCourseAsync(tenantB);
+Use the shipped examples:
 
-        var response = await Client.As(tenantA.AdminUser)
-            .GetAsync($"/api/v1/courses/{courseInB.Id}");
+- [PublicEducationHttpTests](../../backend/tests/LearnStack.Tests.Integration/Database/PublicEducationHttpTests.cs)
+  resolves actual mapped hosts and asserts exact-locale public catalog/detail
+  behavior, foreign/draft/restricted hiding and sibling-organization refusal.
+  `Course_draft_branch_foreign_and_unknown_are_uniformly_hidden` and
+  `Organization_host_never_serves_a_sibling_organization` exercise the production
+  public GET/HEAD contract.
+- [EducationIsolationTests](../../backend/tests/LearnStack.Tests.Integration/Database/EducationIsolationTests.cs)
+  independently tests raw app-role RLS and EF-filter behavior on all four Education
+  tables, including unresolved scope, insert scope, reporting reads versus writes,
+  immutable organizations and parent constraints.
 
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-}
-```
+Fixtures apply every chain through
+[MigrationChains](../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs),
+which owns current chain/history discovery. The current schema has five chains,
+21 data tables and five history tables; tests must not copy a fixed partial chain
+list. Follow [add-integration-test](../../.claude/skills/add-integration-test/SKILL.md)
+for fixture selection and transaction-scoped context.
 
 Rules:
 - Every module owning tenant-scoped data has at least one such test.
@@ -338,8 +366,12 @@ Real LiveKit is **not** required in CI; a fake provider satisfies the contract.
    `backend` job.
 4. The Docker-bound integration tests — the `backend-integration` job.
 5. Frontend unit and component tests — the `frontend` job.
-6. E2E tests — from [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), per
-   § End-to-End Tests; allowed to retry on infra flake, with logged justification.
+6. Narrow seeded browser/Lighthouse proof — the `public demo + lighthouse` job
+   invokes the shared `make demo DEMO_MODE=ci` lifecycle, per § End-to-End Tests.
+   It retains real admission budgets and never retries a 429 or audits a refusal
+   page. The packet's Step 4 record owns the real PR receipt and seventh required
+   check activation. Phase 06 owns the broader Playwright Test/axe golden flows;
+   any infrastructure-flake retry there requires logged justification.
 7. Coverage report — none yet, per § Coverage Targets.
 
 A failure in any step that runs fails the pull request. Which checks block a merge is a

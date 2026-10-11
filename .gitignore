@@ -27,6 +27,9 @@ dist/
 build/
 coverage/
 
+# Local test and browser proof artifacts
+/artifacts/
+
 # Environment — track only the explicitly-listed *.example templates,
 # never real envs. `!*.example` would un-ignore every future `foo.example`
 # file in the tree (e.g. `infra/foo.conf.example`); the explicit allowlist

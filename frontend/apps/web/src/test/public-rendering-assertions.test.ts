@@ -7,6 +7,7 @@ import {
   absentFromSerializedText,
   absentFromWholeResponse,
   documentViewport,
+  orderedLessonFields,
   documentOpenGraphLocales,
   productContainment,
   productTheme,
@@ -241,5 +242,37 @@ describe('production Open Graph locale assertion controls', () => {
         'tr-TR',
       ),
     ).not.toThrow();
+  });
+});
+
+describe('successor-revision ordered field assertion', () => {
+  const content = {
+    fields: [
+      { name: 'first', label: { value: 'First label', locale: 'en' }, value: 'One & <two>' },
+      { name: 'second', label: { value: 'Second label', locale: 'en' }, value: 'Other value' },
+    ],
+  };
+  const html =
+    '<article lang="en"><dl><dt lang="en" dir="ltr">First label</dt><dd>One &amp; &lt;two&gt;</dd><dt lang="en" dir="ltr">Second label</dt><dd>Other value</dd></dl></article>';
+  const article = (source: string) => new JSDOM(source).window.document.querySelector('article')!;
+  it('accepts exact escaped values and the authored descriptor order', () => {
+    expect(() => orderedLessonFields(article(html), content, 'en')).not.toThrow();
+    expect(() =>
+      orderedLessonFields(article('<article lang="en"></article>'), { fields: [] }, 'en'),
+    ).not.toThrow();
+  });
+  it.each([
+    ['label', html.replace('First label', 'wrong label')],
+    ['value', html.replace('Other value', 'wrong value')],
+    [
+      'order',
+      '<article lang="en"><dl><dt lang="en" dir="ltr">Second label</dt><dd>Other value</dd><dt lang="en" dir="ltr">First label</dt><dd>One &amp; &lt;two&gt;</dd></dl></article>',
+    ],
+    ['active value', html.replace('Other value', '<b>Other value</b>')],
+    ['fallback language', html.replace('lang="en" dir="ltr"', 'lang="tr" dir="ltr"')],
+    ['internal name', html.replace('First label', 'first')],
+  ])('rejects a planted %s mismatch in the same production assertion', (_kind, source) => {
+    expect(() => orderedLessonFields(article(source), content, 'en')).toThrow();
+    expect(() => orderedLessonFields(article(html), content, 'en')).not.toThrow();
   });
 });

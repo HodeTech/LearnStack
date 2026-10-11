@@ -185,7 +185,7 @@ change.
 | Outbox round-trip test for new integration event | Always |
 | Permission denied test for every new permission key | Always |
 | Boundary tests for every DSL band threshold | Scoring / completion rules |
-| Lighthouse / axe-core for public-route changes | Accepted P02d-5 G44 assigns Lighthouse activation to P02d-7/G44/G45 after P6 pages. It is still a disabled placeholder; no passing audit is claimed. Accepted P02d-6/G43 requires applicable jsx-a11y error rules with planted controls, actual-page semantics and real manual keyboard/focus/reflow/contrast/screen-reader evidence; the broader axe/Playwright suite belongs to Phase 06. Pending manual evidence prevents packet completion. |
+| Lighthouse / axe-core for public-route changes | P02d-7 supplies the shared `make demo DEMO_MODE=ci` seeded browser/Lighthouse proof under ADR-0056; follow run-tests-locally for prerequisites and review its sanitized receipt/reports. Accepted P02d-6/G43 requires applicable jsx-a11y error rules with planted controls, actual-page semantics and real manual keyboard/focus/reflow/contrast/screen-reader evidence; the broader axe/Playwright suite belongs to Phase 06. Pending manual evidence prevents packet completion. |
 
 A change without tests is incomplete; flag as Blocker unless the user
 explicitly deferred the test.

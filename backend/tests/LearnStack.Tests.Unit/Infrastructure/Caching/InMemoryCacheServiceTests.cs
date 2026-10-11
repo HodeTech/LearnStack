@@ -1105,26 +1105,37 @@ public sealed class InMemoryCacheServiceTests
         var cache = new InMemoryCacheService(
             new FixedClock(Origin), MeterFactory, factoryTimeout: TimeSpan.FromMilliseconds(80));
         var runs = 0;
+        var release = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var overrunning = cache.GetOrSetAsync<string>(Key(), async _ =>
+        var overrunning = cache.GetOrSetAsync(Key(), _ =>
         {
             Interlocked.Increment(ref runs);
-            await Task.Delay(TimeSpan.FromMilliseconds(600), CancellationToken.None);
-            return "late";
+            return release.Task;
         });
 
-        await ((Func<Task>)(() => overrunning)).Should().ThrowAsync<TimeoutException>();
+        try
+        {
+            // Only the cache's deadline can finish first; two elapsed timers can
+            // run in reverse order on a busy worker. The outer bound must never
+            // masquerade as the cache's own timeout if its deadline regresses.
+            var refusal = await ((Func<Task>)(() => overrunning.WaitAsync(TestTimeout)))
+                .Should().ThrowAsync<TimeoutException>();
+            refusal.WithMessage("The cache factory for '*' did not complete within *s.");
 
-        // The replacement waits for the overrunning factory rather than starting
-        // a second one beside it, and is not answered with the first caller's
-        // timeout for ever.
-        var replacement = await cache.GetOrSetAsync(Key(), _ => Task.FromResult("fresh"))
-            .WaitAsync(TestTimeout);
+            // A replacement waits for the original factory's real termination.
+            var replacement = cache.GetOrSetAsync(Key(), _ => Task.FromResult("fresh"));
+            replacement.IsCompleted.Should().BeFalse("the original factory has not been released");
+            release.SetResult("late");
 
-        replacement.Should().Be("fresh");
-        runs.Should().Be(1, "no second factory ran alongside the first");
-        (await cache.GetAsync<string>(Key())).Should().Be("fresh",
-            "a result that arrived after its deadline is not cached");
+            (await replacement.WaitAsync(TestTimeout)).Should().Be("fresh");
+            runs.Should().Be(1, "no second factory ran alongside the first");
+            (await cache.GetAsync<string>(Key())).Should().Be("fresh",
+                "a result that arrived after its deadline is not cached");
+        }
+        finally
+        {
+            release.TrySetResult("late");
+        }
     }
 
     [Theory]

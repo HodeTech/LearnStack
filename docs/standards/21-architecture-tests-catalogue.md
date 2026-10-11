@@ -8,7 +8,9 @@
 [ADR-0027 Frontend UI Localization](../decisions/0027-frontend-i18n.md)
 (P02d-6 proofs implemented; manual smoke recorded),
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
-(replacement admission proofs implemented; both review rounds complete). The
+(replacement admission proofs implemented; both review rounds complete),
+[ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
+(accepted 2026-10-11; browser/audit replacement proofs implemented). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -101,7 +103,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**154 test methods run in
+**159 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -132,8 +134,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**170 rules in this catalogue are Implemented, and 107 of them are in that assembly.**
-The other 63 are no less binding, and most could not live there. The table says where
+**175 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
+The other 67 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -644,15 +646,63 @@ otherwise).
   not a second hard-coded list. Its source reader must observe the declared values
   and fail on an incomplete or unreadable declaration rather than report clean.
 - **Source:** [Phase 02d G20](../roadmap/phase-02d-walking-skeleton.md#p02d-2-accepted-answers).
-- **Scope:** G20(a)'s source is decided in P02d-2. Production subjects, matching,
-  built-in exclusions and permitted exemptions remain G20(b/c)'s later decisions;
-  no exemption or exhaustive consumer scope is accepted by this registration.
-- **Type:** xUnit + source scan, with planted offenders and allowed-data controls.
+- **Scope:** P02d-2 accepted G20(a)'s source;
+  [P02d-5](../roadmap/phase-02d-walking-skeleton.md#p02d-5-accepted-answers)
+  accepted bounded seed/development/test exemptions, and
+  [P02d-6](../roadmap/phase-02d-walking-skeleton.md#p02d-6-accepted-answers)
+  accepted production frontend TS/JS and JSON subjects, including renderer and
+  message values. Matching/built-in detail, the Seeder-reference fence and
+  behavioral ownership are in the
+  [P7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement),
+  approved on 2026-10-11; Step 2 implements the exact-literal/reference fences.
+  ADR-0056's separate
+  browser/Lighthouse measurement decision and its implemented controls complement
+  this source fence; neither proves all dynamically assembled tenant comparisons.
+- **Type:** Roslyn C#/embedded-JSON scan, TypeScript AST/JSON scan, compiled and
+  restore-resolved project references, with planted offenders and clean controls.
   **Kind:** structural.
-- **Status:** **Registered** — P02d-2 establishes and verifies the literal source
-  (`SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable`);
-  P02d-5/6 settle remaining scope before their subjects ship. Implement the complete
-  guard and its planted companion by P02d-7 exit, with no vacuous pass.
+- **Status:** **Implemented** — `DomainGenericityTests.cs` (partial source in
+  `DomainGenericityTests.DemoIdentities.cs`) and frontend
+  `demo-genericity.test.ts`/`demo-genericity-analysis.ts`. `DemoIdentities.Create`
+  projects categorized values from typed `SeedData`; the architecture suite
+  verifies category coverage and exact frontend fixture drift. Canonical built-ins
+  come from their owning declarations. Production census includes Seeder
+  orchestration, frontend packages/messages/configuration/native code; only the
+  exact seed declaration and named test/development data are exempt. Complete
+  decoded values match ordinally; GUIDs match by value. C# conditional symbol
+  configurations are parsed independently to a fixed point (at most eight symbols;
+  excessive or unreadable configurations fail). UTF-8 literals and emitted JSX
+  text/attribute values are included. Frontend
+  runtime imports cannot hide helpers behind test filenames or directories;
+  exact standalone proof/development entries retain their bounded exemptions.
+  Generated/dependency roots are exact paths. Known environment/OS/editor/log
+  files are omitted only when Git also ignores them; source and unknown formats
+  retain fail-closed admission. Local module URL suffixes,
+  supported tsconfig aliases, workspace exports, re-exports, import-equals and
+  literal `require.resolve` edges enter the closure. Ambiguous local JS/TS and alias
+  targets are conservatively included; only owned workspace manifests select
+  workspace exports, and duplicate identities refuse. Missing/unsupported local
+  edges and unclassified repository roots/source formats fail. Installed external
+  packages are resolved under the known dependency roots; local/link targets
+  enter the census or refuse. Native `.server` edges require the actual pinned
+  TypeScript output mapping; the known stylesheet is an explicit inert asset.
+  Backend `DomainGenericityTests.SourceCensus.cs` cross-checks the source set with
+  Release MSBuild-evaluated `Compile` inputs, `ProjectReference` paths and actual
+  output/intermediate roots.
+  Nested `bin`/`obj` remain authored source. Linked inputs outside the census and
+  unmodeled build properties, custom targets/imports/SDKs and references outside
+  the admitted production project set refuse rather than silently omit code.
+  Dirty/clean controls cover these admission boundaries. Computed runtime imports
+  fail rather than omit a helper.
+  The rule does not claim
+  to prove dynamically assembled identities.
+  `Production_Projects_Do_Not_Reference_The_Seeder`
+  reads every non-Seeder production assembly and restore graph. Its compiled
+  test edge and restored fixture are deliberate forbidden-reference controls.
+  The existing real API/PostgreSQL presentation proof retains original pins and
+  the unaffected tenant; `orderedLessonFields` is its shared behavioral predicate
+  with planted label/value/order/active-markup/language controls. Browser
+  observation of these fields remains P7 Step 3.
 - **Phase:** 02d (P02d-2 source; P02d-5/6 scope; P02d-7 implementation exit).
 
 #### `Frontend_Has_Only_The_Web_App`
@@ -4454,6 +4504,68 @@ test-only instrumentation stays in the disposable copied app.
   `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
+
+## P02d-7 public demo and Lighthouse controls
+
+These behavioral rules are Implemented under Accepted ADR-0056 by
+`frontend/apps/web/scripts/verify-public-demo.mjs`, its contract/gatherer/worker
+and the always-running `public demo + lighthouse` job through `make demo`.
+`src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
+planted failing and clean controls in the required frontend job. Actual browser
+mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/public-demo-ci.test.ts` executes the actual workflow deadline shell;
+`scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
+cleanup before the job runs the real managed-browser launch smoke.
+The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns exact CI and protection receipts. These are Node behavioral rules, not
+C# architecture-test methods or a full WCAG/production-performance claim.
+
+### `Public_Demo_Uses_Seeded_Production_Pages`
+
+- **Asserts:** the three seed-derived host/locale paths follow actual catalog,
+  course and lesson links in the same production build/database; expected
+  identity, ordered fields, computed themes and hidden-content exclusions hold.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+- **Scope:** nine delivered pages; full Playwright/axe remains Phase 06.
+- **Type:** Node browser proof with wrong-page/error-page controls.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — `verify-public-demo.mjs` browser mode and
+  `public-demo.test.ts` actual-page controls, executed by the jobs above.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Lighthouse_Reports_Enforce_Budgets`
+
+- **Asserts:** all 27 current report pairs pass actual-page admission and exact
+  invocation/configuration census; hard budgets and advisory timing medians are
+  distinguished without permitting missing or invalid measurements.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#lab-profile-and-budgets).
+- **Scope:** pinned Lighthouse/Chromium; every seed lane/URL/run.
+- **Type:** Node report validation and real audits, with stale/missing/error and
+  budget-offender controls. **Kind:** behavioural.
+- **Status:** **Implemented** — named Node proof and planted controls above.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Initial_JavaScript_Gzip_Budget_Is_Measured`
+
+- **Asserts:** the cold-navigation Script response and executable-inline census
+  is complete; normalized level-9 gzip totals are strictly below 200000 bytes.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#normalized-initial-javascript-gzip-size).
+- **Scope:** the ADR's collection window, origin coverage and exclusions.
+- **Type:** Node source accounting, with omitted/empty/malformed/over-budget and
+  clean-source controls. **Kind:** behavioural.
+- **Status:** **Implemented** — named Node proof and planted controls above.
+- **Phase:** 02d (P02d-7 Step 3).
+
+### `Public_Demo_Preserves_Admission_And_Cleanup`
+
+- **Asserts:** real quotas, positive API observation, stopped CI-owned Keycloak,
+  scoped TLS trust, serial deadlines and confirmed owned cleanup remain intact.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
+- **Scope:** the shared demo lifecycle and full-stack CI job.
+- **Type:** Node lifecycle/proof controls and real production navigation.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — named Node proof and planted controls above.
+- **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 ## References
 

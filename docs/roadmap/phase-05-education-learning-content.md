@@ -58,21 +58,22 @@ content-access policy through version/module migration, decides its versioned ow
 and any policy-edit/reparent/preview behavior before those writers, and never infers
 public access from a new version or listing. This note claims no shipped column.
 
-**Current delivery — 2026-10-09.** P02d-2 delivered the policy column, restricted
+**Current delivery — 2026-10-11.** P02d-2 delivered the policy column, restricted
 backfill and writers; P02d-4 delivered eligible public reads. Preserve those
 contracts through this phase's version/module migration. P02d-6 delivers the
-bounded renderer and product/manual proofs; P02d-7 still owns the browser/demo
-harness. The [packet closeout](phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10)
-records current implementation evidence.
+bounded renderer and product/manual proofs; P02d-7 implements the demo and narrow
+browser/Lighthouse proof. The [Phase 02d delivery record](phase-02d-walking-skeleton.md)
+owns current implementation, CI enforcement and phase-exit evidence.
 
 Phase 05 does not re-create these. Phase 02d's
 [delivery status](phase-02d-walking-skeleton.md#delivery-record-p02d-1) distinguishes
 accepted design from shipped implementation. This phase's decision pass designs the
 move from independent lessons referencing courses to course versions and modules,
 and from translated inline bodies to lesson items. It must preserve course and
-lesson ids, published localized URLs, lesson order, organization scope, translated
-bodies and exact content-type and taxonomy revision bindings. The migration and its
-tests must carry existing rows forward; re-seeding is not a migration strategy.
+lesson ids, published localized URLs, lesson order, tenant/organization scope,
+translated bodies, exact content-type and taxonomy revision bindings and effective
+content-access policy. Migration tests must carry existing rows forward;
+re-seeding is not a migration strategy.
 Each change follows [Database Standards § Migrations](../standards/05-database.md#migrations).
 
 | Phase 02d baseline | Phase 05 adds |
@@ -134,12 +135,13 @@ scoring and does not re-decide it.
   for the yoga studio, tracks for a coding bootcamp). A taxonomy key and an item key are
   lowercase under
   [ADR-0018's key rule](../decisions/0018-tenant-driven-customization-model.md#2026-09-04--customization-keys-and-item-keys-are-lowercase),
-  and a band's name is its `display_name`. Which key the yoga taxonomy uses is G14 in
-  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
-  and the decision pass that closes it writes the key here. The taxonomy is data, not
-  code. The `Level` projection must preserve the exact revision and band referenced
-  by an existing course; a new Active taxonomy cannot silently relabel or remove that
-  stored binding. This phase's decision pass defines how the revision-aware projection
+  and a band's name is its `display_name`. The shipped Yoga seed uses
+  `yoga-difficulty` revision 1, with `foundation`, `developing` and `advanced` bands;
+  [SeedData](../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns that
+  inventory. The taxonomy is tenant data. The `Level` projection preserves the exact
+  revision and band referenced by an existing course; a new Active taxonomy cannot
+  silently relabel or remove that stored binding. This phase's decision pass defines
+  how the revision-aware projection
   composes with the target `Level` identity.
 - Tag.
 - Instructor profile reference, with tenant-defined custom fields via
@@ -162,6 +164,18 @@ scoring and does not re-decide it.
 
 Required capabilities: draft version, published version, version clone, change summary,
 publish validation.
+
+### Post-seed authoring and lifecycle
+
+This phase owns the authenticated Course/Lesson authoring API and Studio surface,
+including commands to edit content after seeding, reorder lessons, unpublish and
+delete. Its decision pass settles allowed states, versioned owners, concurrency,
+access-policy edits, reparenting and published-URL behavior before those writers.
+The current ADR-0050 baseline permits draft-only insertions and independent
+`draft → published` transitions; it supplies no published edit, reorder, unpublish
+or delete operation. New lifecycle behavior must preserve the migration obligations
+[above](#what-phase-02d-already-shipped), rather than treating a seed rerun as an edit
+or migration. This handoff records future ownership without selecting that contract.
 
 ### Learning structure
 
@@ -367,8 +381,10 @@ cross-phase screen ownership table lives in **one** place —
 - Lesson editor.
 - Lesson item editor (schema-driven for both built-in and tenant-defined item types).
 - `TenantLessonItemType` editor (schema + player key).
-- `TenantLevelTaxonomy` editor (items + metadata; the tenant admin declares CEFR /
-  difficulty / track / kyu-dan).
+- `TenantLevelTaxonomy` editor with per-band editing of keys, ordering, localized
+  labels and metadata; the tenant admin declares CEFR / difficulty / track /
+  kyu-dan. It consumes [Phase 04](phase-04-cms-media-pages.md)'s customization
+  deprecate/revise lifecycle and preserves existing exact revision/band pins.
 - `TenantCompletionRule` editor — sandboxed DSL editor with live validation against the
   ADR-0025 engine.
 - Course publish flow.
@@ -387,6 +403,9 @@ cross-phase screen ownership table lives in **one** place —
 - Education catalog API — programs, courses, versions, categories, levels, tags, SEO.
 - Versioned course structure with draft / publish / clone.
 - Lesson content management with lesson items across both registry tiers.
+- Authenticated post-seed Course/Lesson edit, reorder, unpublish and delete commands
+  and Studio controls under the lifecycle contract settled in this phase.
+- Per-band taxonomy editing over the versioned customization lifecycle.
 - Public catalog rendering data, extending the read endpoints
   [Phase 02d](phase-02d-walking-skeleton.md) shipped.
 - The customization runtime cost model implemented and **measured**: validation on the
@@ -407,6 +426,11 @@ cross-phase screen ownership table lives in **one** place —
   complete, no scoring band is assigned, and the failure is audited.
 - An admin creates a course, adds modules and lessons, edits it as a draft, and
   publishes it; the published course detail is readable by the public site.
+- Post-seed edit/reorder/unpublish/delete cases prove the allowed state transitions,
+  concurrency and refusal behavior chosen by the lifecycle decision; seed reruns
+  cannot substitute for those commands.
+- Migration tests preserve the existing seed rows' stable IDs, localized URLs,
+  scopes, lesson order, translated bodies, exact definition pins and access policy.
 - `CourseVersion` behaviour is covered by integration tests, including that an existing
   enrollment reference stays pinned to its version when a new version publishes.
 - Both seed tenants from [Phase 02a Packet 7](phase-02a-kernel-tenancy.md) — the English

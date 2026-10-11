@@ -64,7 +64,8 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 ## Where it is today
 
-**Phase 01 and Phase 02a are complete. Phase 02d is in progress.**
+**Phase 01 and Phase 02a are complete. Phase 02d implementation and exit
+verification are complete; PR #28 awaits maintainer review and merge.**
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -101,8 +102,19 @@ The original P02d-6 implementation is complete. ADR-0055 remediation delivers
 single-bootstrap admission and passing production replacement proofs; all three
 steps completed both independent review rounds, and
 the [Step 3 record](docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns completed Step 3 reviews, verified fixes and delivery evidence. Maintainer
-PR review and merge remain pending. The browser demo remains P02d-7. The
+owns completed Step 3 reviews, verified fixes and delivery evidence. **P02d-6 is
+complete and merged** through [PR #27](https://github.com/HodeTech/LearnStack/pull/27)
+on 2026-10-10; its
+[merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
+records final verification. P02d-7's demo, Lighthouse and phase-exit
+[decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
+and ADR-0056 were approved on 2026-10-11. All four steps completed both independent
+review rounds. The shared demo, genericity fences and seeded browser/Lighthouse
+proof pass real CI; the seventh required context is active. The
+[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns CI enforcement, reviews and the positive phase-exit verdict.
+[PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits maintainer review
+and merge; P02b-0 re-verification is next afterward. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -115,7 +127,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Two-tenant browser demo and Lighthouse in [P02d-7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -147,9 +159,12 @@ Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
 ### 2. Bootstrap from the repository root
 
 ```bash
-make install   # create .env if absent, restore dependencies, install git hooks
-make seed      # start infrastructure, apply migrations, seed two demo tenants
+make hooks     # optional: install the repository Git hooks
 ```
+
+Continue with the manual HTTPS prerequisites below, then run `make demo`. It
+creates missing private configuration and restores dependencies without changing
+Git hooks. `make seed` remains available for infrastructure/database-only use.
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
@@ -159,9 +174,8 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 
 ### 3. Prepare local HTTPS and start the applications
 
-```bash
-make public-env   # generate a private 32-byte hop secret in the ignored root .env
-```
+The demo prepares a missing private 32-byte hop secret in the ignored root `.env`.
+Existing values and optional projections must agree; they are not reset.
 
 Install mkcert using its [official instructions](https://github.com/FiloSottile/mkcert).
 Run its trust step yourself, then create the local leaf certificate:
@@ -178,14 +192,27 @@ commands never edit that file or install trust. Keep the CA private key local;
 only the ignored leaf/key paths belong in `.env`.
 
 ```bash
-# Terminal 1 — loopback API with runtime credentials and network + hop secret.
-make public-api
+make demo
 ```
 
-```bash
-# Terminal 2 — the mandatory native HTTPS launcher, then Next.js.
-make public-web
-```
+This foreground command restores pinned dependencies, starts the selected default
+stack, waits for PostgreSQL before migrations, retains both Keycloak realm gates,
+converges the seed and builds/starts the production API and native HTTPS web.
+Readiness includes actual seeded lesson content; nine seed-derived URLs are printed.
+Ctrl+C joins its owned API/web processes and preserves local infrastructure/data.
+Use `make down` to stop infrastructure explicitly. A second demo invocation or a
+foreign listener is refused; no foreign process is killed. If a hard kill leaves
+`.data/demo.lock`, confirm the earlier process tree has stopped before removing
+that lock manually. Missing/stale configuration or TLS is refused without reset.
+
+For separate development/watch terminals, retain `make public-api` and
+`make public-web`. The CI lifecycle uses an isolated checkout/project and disposable
+configuration through `make demo DEMO_MODE=ci`. Install its locked managed browser
+first with `cd frontend && pnpm exec playwright install --with-deps chromium`.
+The CI mode requires a fresh checkout configuration and artifact directory; use
+local `make demo` for an existing workstation. The
+[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns actual CI and protection receipts.
 
 Readiness is <http://127.0.0.1:5080/healthz> for the API and
 <https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
@@ -201,7 +228,7 @@ both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
 [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 owns current review/CI evidence. P02d-6 implements public pages;
-the two-host browser demo with `make demo` is P02d-7. See
+P02d-7 supplies `make demo` and the seeded browser/Lighthouse proof. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.
 
@@ -210,6 +237,7 @@ the two-host browser demo with `make demo` is P02d-7. See
 | Command | Purpose |
 |---|---|
 | `make help` | List available tasks. |
+| `make demo` | Build/start the seeded production sites; Ctrl+C preserves local data. |
 | `make dev` | Start the default local infrastructure. |
 | `make migrate` | Apply platform and module migration chains. |
 | `make test` | Restore dependencies and run backend and frontend suites; Docker is required. |

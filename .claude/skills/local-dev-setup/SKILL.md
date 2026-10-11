@@ -7,7 +7,8 @@ description: >
   `docker-compose` plus the project's `make dev` orchestrator. USE FOR: first-time
   workstation setup, restoring a broken local environment, switching between
   `DeploymentMode` for testing. DO NOT USE FOR: production deployment (separate
-  topic), CI environment configuration (CI uses Testcontainers directly), or
+  topic), CI environment configuration (integration uses Testcontainers; P02d-7
+  owns the compose-backed demo), or
   cloud / managed equivalents (those are deployment-mode-specific composition).
 ---
 
@@ -39,8 +40,8 @@ the backend runs today calls them, so `make dev` starts 7 services and
 ## When not to use
 
 - Production deployment. Topic for ops runbooks, not this skill.
-- CI configuration. CI uses Testcontainers via `LearnStack.Tests.Integration`,
-  not `make dev`.
+- CI configuration. Integration uses Testcontainers; P02d-7 separately owns
+  the isolated compose-backed demo and browser/audit job.
 - Cloud-managed services (AWS RDS, Confluent Cloud). Composition is similar but
   config differs; out of scope.
 
@@ -177,8 +178,9 @@ docker compose --env-file .env -f infra/compose/dev.yml config --format json
 
 ### Step 4: First-run bootstrap
 
-`make seed` brings the stack up, applies migrations (it depends on `migrate`),
-checks the two Keycloak realms, and — since Phase 02a Packet 7 — writes the two
+`make seed` starts the selected stack, waits for PostgreSQL before migrations,
+checks all seven default services and both Keycloak realm issuers, and — since
+Phase 02a Packet 7 — writes the two
 demo tenants. One command from a clean checkout.
 
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the exact
@@ -187,7 +189,24 @@ built-in and tenant-authored definitions, branding and Course/Lesson content.
 [seed-tenant](../seed-tenant/SKILL.md) owns convergence, mismatch handling and future
 data scope. A completed rerun is write/audit-neutral; a divergent run fails without
 overwriting or resetting authored state. Public reads are delivered by P02d-4;
-seed alone does not deliver pages.
+P02d-6 delivers pages, and P02d-7 starts them with `make demo` after the manual
+TLS/hosts prerequisite. Seed alone does not start a renderer.
+
+P02d-7 also supplies isolated CI mode over the same production lifecycle. In a
+fresh checkout without root `.env`, web `.env.local` or `artifacts/public-demo`:
+
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+This creates disposable private TLS/configuration and a unique tmpfs-backed
+Compose project, then runs nine browser pages and 27 Lighthouse audits with its
+Keycloak stopped. It removes only owned resources and requires successful cleanup.
+Follow [run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+for fresh artifacts, receipts and prerequisites. Manual hosts/CA trust remains the
+human local-mode prerequisite; CI mode does not modify system hosts or trust.
 
 ### Step 5: Verify
 
@@ -211,8 +230,9 @@ curl -fsS https://localhost:3000/api/healthz
 ```
 
 P02d-5 delivers native ingress/TLS, live-host bootstrap and enabled-locale entry.
-P02d-6 owns public page composition and P02d-7 owns the two-host browser harness.
-TLS socket tests with isolated trust roots do not claim a workstation browser run.
+P02d-6 supplies public page composition and P02d-7 supplies the narrow two-host
+browser/Lighthouse proof. TLS socket tests with isolated trust roots remain
+separate from browser evidence and P6's recorded manual accessibility checks.
 
 ### Step 6: Switch deployment modes locally
 
@@ -244,8 +264,8 @@ separately configured runtime credential. For the paired renderer workflow, rest
 with `make public-api` so its child-only database and hop configuration is retained:
 
 ```bash
-# In the terminal running `dotnet run`, press Ctrl+C, then:
-dotnet run --project backend/src/LearnStack.Api
+# In the paired API terminal, press Ctrl+C, then:
+make public-api
 ```
 
 ### Step 7: Common troubleshooting
@@ -273,7 +293,10 @@ state.
 
 [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md)
 and the [P5 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
-own the accepted host/TLS/transport contract. `make demo` remains P02d-7/G45.
+own the accepted host/TLS/transport contract. P02d-7 supplies foreground `make demo`
+and CI browser/audit mode. Follow README Quickstart for production-build launch,
+owned cleanup, retained local data and stale-lock handling. The packet's Step 4
+record and CONTRIBUTING own real CI receipts and required-check activation.
 
 - `make dev` exits 0; after starting the API separately, `/healthz` responds 200.
 - After `make dev-gated` and with that API running, APISIX forwards `/healthz`.
@@ -281,9 +304,9 @@ own the accepted host/TLS/transport contract. `make demo` remains P02d-7/G45.
 - Direct stock Next cannot authenticate forged ingress carriers; ordinary
   `pnpm dev/start` use the mandatory launcher.
 - Keycloak login works for both realms.
-- `dotnet test backend/tests/LearnStack.Tests.Integration` passes against the
-  same containers (the Testcontainers fixture is independent; this is just a
-  consistency check).
+- `dotnet test backend/tests/LearnStack.Tests.Integration` passes against its
+  independently provisioned Testcontainers databases; it does not use the dev
+  Compose database. P7's demo proof separately exercises the Compose topology.
 
 ## Common pitfalls
 

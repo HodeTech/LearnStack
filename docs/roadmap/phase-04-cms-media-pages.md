@@ -8,7 +8,9 @@ catalog pages, campaign pages, and tenant-defined page blocks.
 
 [Phase 02d](phase-02d-walking-skeleton.md) delivers the anonymous read API and trusted
 server transport through P02d-5. Catalog, course-detail/outline and lesson product
-pages are delivered by P02d-6; the two-host browser/demo proof remains P02d-7.
+pages are delivered by P02d-6; P02d-7 implements the two-host demo and narrow
+browser/Lighthouse proof. Its [delivery record](phase-02d-walking-skeleton.md)
+owns current CI enforcement and phase-exit evidence.
 Its bounded renderer uses fixed section names and ADR-0051's ordered plain-text profile.
 This phase adds an authored, versioned, localized content system that a tenant
 admin drives from Admin Studio, including the richer primitive field set.
@@ -87,6 +89,15 @@ Also in scope:
 
 - `TenantContentType` JSON Schema editor in Admin Studio; the schema is validated as a
   schema on save, not merely stored.
+- Authored field ordering and per-locale field-label editing under
+  [ADR-0051](../decisions/0051-ordered-text-card-presentation.md), preserving the
+  ordered `x-fields` contract and localized visible labels when extending the
+  plain-text profile to richer primitives.
+- Customization deprecate and revise commands with their Studio lifecycle controls;
+  per-band taxonomy editing is delivered with [Phase 05](phase-05-education-learning-content.md#admin-studio-education-screens)
+  and consolidated by [Phase 06](phase-06-renderer-admin-studio.md#admin-studio--screen-ownership).
+  Existing exact revision pins remain readable; the revision workflow decision
+  below precedes any new mutation contract.
 - Built-in primitive field types composed by the JSON Schema: text, rich text, number,
   boolean, date/time, media reference, entry reference, select / multi-select, JSON /
   object. The set is closed and changes only with a LearnStack release.
@@ -283,6 +294,10 @@ Storage and asset management:
   emit no protected bearer URL; issuance and retrieval require effective access.
   It does not claim an authenticated evaluator exists before Phase 07. The first
   active URL/markup sink also needs the shared safety contract named in ADR-0051.
+  This phase owns the tenant media-origin allow-policy: approved origin provenance,
+  permitted schemes/hosts and enforcement at authored URL validation and the first
+  active media sink. Its decision pass settles the policy before introducing that
+  sink; Phase 02d's inert plain-text fields authorize no media URL or markup.
 
 **This phase owns the media processing pipeline.** No phase currently does:
 [Media Pipeline](../architecture/16-media-pipeline.md) describes `IVideoTranscoder`,
@@ -399,7 +414,10 @@ describes.
   a `LimitKey`.
 - `ITenantSearch` / `IPlatformSearch` with a PostgreSQL full-text implementation over
   content entries and pages, tenant-filtered inside the port.
-- Admin Studio CMS screens per the list above.
+- Admin Studio CMS screens per the list above, including field-order/localized-label
+  authoring and customization deprecate/revise controls.
+- The tenant media-origin allow-policy and its authoring/runtime enforcement at
+  active media sinks.
 - Public read APIs for the renderer, versioned per
   [ADR-0024](../decisions/0024-api-versioning-policy.md).
 - CMS/Studio UI messages extend the ADR-0027 foundation owned by P02d-6, with
@@ -445,6 +463,10 @@ describes.
   page block; a video asset produces an HLS master playlist, a poster and a thumbnail
   strip through the ffmpeg worker.
 - An SVG containing a `<script>` element is stored sanitised and served without it.
+- Disallowed tenant media origins are refused at authoring and cannot load through
+  an active sink; allowed origins render under the same tenant's policy.
+- Studio preserves authored field order and displays translated labels in each
+  supported locale; deprecating/revising a definition preserves existing exact pins.
 - Draft and published versions are separated, published pages never show draft content,
   and the preview flow works for admin users.
 - The same Studio editor and rendering pipeline serve both

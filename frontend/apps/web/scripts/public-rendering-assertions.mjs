@@ -212,3 +212,43 @@ export function productTheme(doc, details, malformed = false, readStylesheet) {
     );
   }
 }
+
+/** The real successor-revision proof and its planted controls share this predicate. */
+export function orderedLessonFields(article, content, locale) {
+  const terms = [...article.querySelectorAll('dl dt')];
+  const values = [...article.querySelectorAll('dl dd')];
+  assert.deepEqual(
+    terms.map((term) => term.textContent),
+    content.fields.map((field) => field.label.value),
+    'Descriptor order controls authored labels',
+  );
+  assert.deepEqual(
+    values.map((value) => value.textContent),
+    content.fields.map((field) => field.value),
+    'Every exact API string renders as text in descriptor order',
+  );
+  assert.equal(
+    article.querySelectorAll('dl').length,
+    content.fields.length ? 1 : 0,
+    'Only nonempty cards have a definition list',
+  );
+  for (const [index, field] of content.fields.entries()) {
+    const term = terms[index];
+    const value = values[index];
+    assert.equal(
+      term.lang,
+      field.label.locale,
+      'Each label attributes the actual fallback-resolved language',
+    );
+    assert.equal(term.dir, field.label.locale === 'ar' ? 'rtl' : 'ltr');
+    assert.equal(term.childElementCount, 0, 'Labels remain escaped text');
+    assert.equal(value.childElementCount, 0, 'Values remain escaped text');
+    assert.equal(
+      value.closest('[lang]').lang,
+      locale,
+      'Content value does not inherit its label fallback locale',
+    );
+    assert.notEqual(term.textContent, field.name, 'Internal field names never become labels');
+    assert.equal(term.nextElementSibling, value, 'Every term is followed by its definition');
+  }
+}

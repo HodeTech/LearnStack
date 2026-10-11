@@ -1,6 +1,9 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-10).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-11).** Phase 02d implementation and exit verification are
+> **complete**; [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
+> maintainer review and merge. The [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+> records the evidence and live protection read-back. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -14,8 +17,8 @@
 > | P02d-3 | Read internals | ✅ complete and merged — 2026-10-03; [merge closeout](#p02d-3-merge-and-closeout-2026-10-03) |
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
-> | P02d-6 | Public renderer | ✅ implementation complete — 2026-10-10; all four steps and both review rounds per step complete; scoped browser/VoiceOver smoke passed; [packet closeout](#p02d-6-packet-closeout-2026-10-10); maintainer PR review/merge pending |
-> | P02d-7 | Demo, full-stack CI and exit | not started |
+> | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
+> | P02d-7 | Demo, full-stack CI and exit | ✅ implementation and exit verification complete — 2026-10-11; all four steps completed both independent review rounds; [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11); PR #28 review/merge pending |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -125,6 +128,13 @@ both independent review rounds per step are complete. The
 manual browser observations and the maintainer's passing VoiceOver smoke.
 P02d-6 awaits maintainer PR review and merge. P02d-7's demo, browser/Lighthouse
 harness and phase-exit decision pass are next; they have not started.
+
+**P02d-6 merge complete — 2026-10-10.** The preceding notes record pre-merge
+milestones. P02d-6 is now closed through
+[PR #27](https://github.com/HodeTech/LearnStack/pull/27); its
+[merge closeout](#p02d-6-merge-and-closeout-2026-10-10) records the final head,
+verification and merge. Phase 02d remains in progress. P02d-7's demo, Lighthouse
+and phase-exit decision pass is next; implementation has not started.
 
 ## Goal
 
@@ -426,7 +436,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G17 | Does `TenantSetting.Value` carry `[PiiSensitive]`? [Phase 03](phase-03-identity-admin.md) sequences the decision before the first command writing `tenant_settings`, and this phase ships that command | Not marked, provided `tenancy.setting.write` admits only G16's closed key set, so the answer cannot stretch to keys a tenant invents; modelling a sensitive part as its own property stays open to Phase 03 | Contract: a dated phase-doc statement, reflected in `TenantSetting.cs`, the Tenancy spec and `audit.md`. Whole-value redaction of `jsonb` is settled by [ADR-0044](../decisions/0044-audit-write-path.md) Amendment 4 § 1 | P02d-2 (the first MUST-class settings audit row is written by the seed, and rows cannot be redacted retroactively); closes with G16 (a) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): generic whole-value PII redaction before the writer |
 | G18 | How is a tenant content type presented? `json_schema` is `jsonb`, which keeps no key order, and the schema profile collects only `x-renderer`, `x-taxonomy` and `x-language`. How are field order, a label per enabled locale and a composite's field roles carried; which registered composite draws a lesson for each seeded type; which primitives does this phase implement, and does `markdown` render; how do types with no primitive row (`integer`, `number`, `boolean`, enums) map; may a rendered type declare a field outside the subset; and is a presentation entry naming a missing property refused at save? | A LearnStack extension — `x-order` and `x-label`, or one ordered `x-fields` list — carrying Pattern B labels, resolved at write like `x-taxonomy`; one composite already in both registries; the reviews split on the subset — `text`, `list` and `link`, with `markdown` without raw HTML, or a placeholder until Phase 05's sanitiser; the seed uses only the subset | Contract: a dated ADR-0043 amendment for a keyword or a save-time refusal; a dated ADR-0018 amendment for a presentation column; a phase-doc statement for `title` plus `required`, which cannot carry two locales. Detail: [Tenant Customization Model § 2](../architecture/32-tenant-customization-model.md) and § 8.1, the Customization spec, the profile's extension and reference-graph skip lists, `composites.ts` | P02d-2 (the seed publishes both content types as `schema_version` 1 with their renderer keys and field kinds; a later answer needs successor revisions) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): ADR-0051 profile and first-render subset. Component placement/fallback remains G41 |
 | G19 | URL and markup policy for tenant-authored values on an anonymous page: which schemes (`https` only, or `http` too), credentials and `target`, which media origins, whether the rule is enforced on write — in the Education command, or as a validation gate Phase 04's entries share — whether the public API filters too, and whether URLs inside markdown fall under it. The write-time check constrains structure, not schemes: `format: uri` admits `javascript:` and `data:` | The reviews split on `http`; all refuse `javascript:`, dangerous `data:` and credentials; checked on write by a LearnStack rule and again on render; no third-party media in the seed | Detail: one home for the scheme list — [Security Standards § XSS & Output Encoding](../standards/11-security.md#xss--output-encoding) or [Frontend Architecture Standards § Security](../standards/07-frontend-architecture.md#security), not both; the Education spec's write rules; Tenant Customization Model § 8.1 if checked on write. Contract: a dated ADR-0043 amendment if it becomes a shared validation gate | P02d-2 (the lesson command's validation and the seed values; the render-time check reuses the answer) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no active sink in the seeded text profile; future URL/markup contracts precede Phase 04/05 sinks |
-| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. [Accepted — 2026-10-08](#p02d-5-accepted-answers): (c) exemptions; [Accepted — 2026-10-09](#p02d-6-accepted-answers): (b) frontend subjects; implementation and behavioral proof remain P7 |
+| G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. [Accepted — 2026-10-08](#p02d-5-accepted-answers): (c) exemptions; [Accepted — 2026-10-09](#p02d-6-accepted-answers): (b) frontend subjects; implementation and behavioral proof remain P7; [Accepted — 2026-10-11](#p02d-7-decision-package-2026-10-10): matching, canonical built-ins, Seeder-reference fence and behavioral ownership; Step 2 implements the required fences and schema-replacement companion |
 | G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): subresources. Cookies remain open for P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): cookies; prior subresource answer retained |
 | G22 | How does the customization definition projection load and stay correct? In the request's ambient transaction, or as a ninth out-of-band tenant-context setter (ADR-0040's set is closed at eight)? In what order are the generation and the rows read; what does an absent generation row mean; how is a cache filled inside a transaction that bumped and rolled back kept unreachable, when the bump is an upsert increment that can reissue a number; what does an absent definition set return; which families are registered, and how does the adapter's exact-tuple `cache.name` mapping match generation-embedded names; what do the TTLs bound; and is the contract batched so a public read issues a bounded number of statements? | Load in the ambient transaction; read the generation first, then the rows; fill only from non-bumping transactions; treat cache faults as misses; restate the module's cache-hit budget; a batched contract, with statement-count assertions cold and warm | Contract: the Customization spec § Primary read flow and a [Tenant Customization Model § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy) statement on how a request learns the generation; a dated ADR-0040 amendment and a setters row only if the loader is out-of-band. Detail: the [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) cache table, the `cache.name` mapping, the Observability Standards metrics family list | P02d-3 | [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02) |
 | G23 | The typed settings accessor and its freshness. With no `learnstack.tenancy.settings` event until Phase 02b and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound until 02b, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event row and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no settings cache in P02d-2/3. [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): typed ambient accessor/scoped merge |
@@ -439,19 +449,19 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G30 | The locale error matrix and transport. On each read, what answers an empty, repeated, malformed, over-length, non-canonical, not-enabled or enabled-but-untranslated locale? Does a not-enabled locale answer the Active `unsupported_locale` `400` or the not-found body? Is `X-Locale`, which [Frontend Architecture Standards § Locale Resolution](../standards/07-frontend-architecture.md#locale-resolution) still names as the API carrier, withdrawn, so that locale reaches the API only as the query parameter? | Missing or malformed → `400` `validation_failed` naming `locale`; untranslated → an empty catalog page; the query parameter only. The reviews split on not-enabled — not-found, amending the Error Handling row, or the Active `400`; a uniform answer after the enabled check hides pre-launch rows under either | Detail: a phase-doc statement; the [Error Handling Standards](../standards/09-error-handling.md) table only if not-found; Standards 07 § Locale Resolution; the Frontend Architecture SDK sketch; the API Standards § Pagination example gains `locale` | P02d-4 (validators, OpenAPI parameters and responses), P02d-5 (the server SDK's header set) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): query/error matrix; trusted server header transport remains P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): header transport; prior API query-locale answer retained |
 | G31 | Contract checks and the SDK surface. The committed OpenAPI snapshot's path, and how the contract suite proves it equals the served document; how the base copy is read; how the first run behaves; which `oasdiff` version and fail level, and which ADR-0024 rows that level detects (a tightened validator or a changed status may be invisible to any diff); what is uploaded on failure. The drift gate's source — the committed snapshot through `LEARNSTACK_OPENAPI`, or a running API — and its job. Whether an activated deferred job keeps its `if: vars.ENABLE_*` condition, given that GitHub treats a skipped required job as passing, or loses it as the integration job's did. And what the SDK surface becomes when regeneration makes `paths` non-empty: a hand-written transport over `paths` or a typed client library, the fate of `createClientSdk`, and whether the package root keeps re-exporting the server entry | A committed snapshot the contract suite asserts equal, diffed against the base ref's copy with `oasdiff` pinned; drift generated from the snapshot in the required `frontend` job; the condition removed on activation; a thin hand-written transport, and no root re-export of the server entry | Detail: [Testing Standards § API Contract Tests](../standards/06-testing.md#api-contract-tests), the API Standards § OpenAPI links, `ci.yml`, [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main) (its activation procedure follows the answer), [Frontend Architecture Standards § SDK](../standards/07-frontend-architecture.md#sdk); a package pin with its licence verdict if a client library is chosen | P02d-4 (the first operation, its snapshot and assertion, the drift gate, and the regenerated types the factories must compile against) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): snapshot, SDK, diff/drift and approved required-check activation |
 | G32 | **The development-transport part of [Phase 02b](phase-02b-events-auth.md#the-decision-register)'s G12.** Which development hostnames and transport serve the two seed tenants — keep `*.learnstack.local`, with a hosts-file step and local TLS with a trust step, or move the seed hosts under `*.localhost`? What does a reviewer do between a clean checkout and both sites, and which carriers move, including host rows already on warm databases, where the host is the primary key and the seeder removes no mapping? | `*.localhost` over HTTP, provided the pass verifies in each browser the team uses and in CI's Chrome that both hosts resolve with no hosts entry and that a `Secure` cookie set on them is stored and returned; otherwise `*.learnstack.local` with local TLS and a named trust step. Tenants are never told apart by port: the effective host strips it | Detail: a dated phase-doc statement in [§ Host-based tenant resolution, end to end](#host-based-tenant-resolution-end-to-end), with `SeedData`, `scripts/seed.sh`, the README Quickstart, the `seed-tenant` and `local-dev-setup` skills and `apps/web`'s dev script and Next configuration in the same packet; Infrastructure Standards only if a TLS proxy publishes a port. No ADR | P02d-5 (the development transport, and the hop configuration a TLS proxy would change), or the first earlier packet that writes a seed-host literal outside `SeedData` | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local hosts and TLS |
-| G33 | The server-rendering topology and its evidence. Where do Next.js and the API run relative to each other — the workstation loopback, containers, gated APISIX; which networks are trusted; how does one hop secret reach both processes; what is the server-only API origin — and the same for the CI job that renders the pages? What evidence discharges ADR-0036's "Phase 02d's browser test" and its matrix rows "a direct socket bypassing the hop" and "the Phase 02d anonymous two-host browser render", given that Testing Standards gate this phase on a human? And ADR-0036 § Consequences says the root refuses to start outside Development when the secret list is empty or short, while the shipped rule, in every mode, refuses a half-configured hop, a network entry that is not CIDR and a blank secret or one under 32 characters (characters, not bytes), and admits both lists empty: is that recorded or restored, and is non-development hop configuration this phase's or Phase 11's? | Both processes on the loopback, networks `127.0.0.1/32` and `::1/128`, one generated secret from a single source and never under `NEXT_PUBLIC_`, with networks and secrets arriving together (committing networks without secrets breaks every Development-environment fixture); the API called directly; a per-run secret in CI. Evidence: request-level hop tests as `learnstack_app` — no `X-Tenant-Id`, a non-hop peer, a wrong secret, a repeated header — beside the human walkthrough, with one review adding an automated browser smoke. Record the shipped startup rule; non-development hop configuration is Phase 11's | Contract: one dated [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) amendment if the evidence departs from the ADR's words, recording the startup rule, and carrying G34 if G34 changes the key or budget. Detail: `.env.example`, `apps/web/.env.local.example`, `appsettings.Development.json` or the demo recipe; a Standards 21 row for the hop runtime test; a Testing Standards § End-to-End Tests sentence only if ownership moves; a Phase 11 scope row | P02d-5 (the hop configuration and the fixture shape — in-process test hosts have no socket peer), P02d-7 (the CI part) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local topology, shared source and ingress |
+| G33 | The server-rendering topology and its evidence. Where do Next.js and the API run relative to each other — the workstation loopback, containers, gated APISIX; which networks are trusted; how does one hop secret reach both processes; what is the server-only API origin — and the same for the CI job that renders the pages? What evidence discharges ADR-0036's "Phase 02d's browser test" and its matrix rows "a direct socket bypassing the hop" and "the Phase 02d anonymous two-host browser render", given that Testing Standards gate this phase on a human? And ADR-0036 § Consequences says the root refuses to start outside Development when the secret list is empty or short, while the shipped rule, in every mode, refuses a half-configured hop, a network entry that is not CIDR and a blank secret or one under 32 characters (characters, not bytes), and admits both lists empty: is that recorded or restored, and is non-development hop configuration this phase's or Phase 11's? | Both processes on the loopback, networks `127.0.0.1/32` and `::1/128`, one generated secret from a single source and never under `NEXT_PUBLIC_`, with networks and secrets arriving together (committing networks without secrets breaks every Development-environment fixture); the API called directly; a per-run secret in CI. Evidence: request-level hop tests as `learnstack_app` — no `X-Tenant-Id`, a non-hop peer, a wrong secret, a repeated header — beside the human walkthrough, with one review adding an automated browser smoke. Record the shipped startup rule; non-development hop configuration is Phase 11's | Contract: one dated [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) amendment if the evidence departs from the ADR's words, recording the startup rule, and carrying G34 if G34 changes the key or budget. Detail: `.env.example`, `apps/web/.env.local.example`, `appsettings.Development.json` or the demo recipe; a Standards 21 row for the hop runtime test; a Testing Standards § End-to-End Tests sentence only if ownership moves; a Phase 11 scope row | P02d-5 (the hop configuration and the fixture shape — in-process test hosts have no socket peer), P02d-7 (the CI part) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): local topology, shared source and ingress; [Accepted — 2026-10-11](#p02d-7-decision-package-2026-10-10): shared CI lifecycle/topology; ADR-0056 measurement Accepted on the same date; Step 3 local proof passes; Step 4 owns real CI receipts |
 | G34 | How does the pre-classification anonymous limiter treat a request arriving over the authenticated trusted hop? Every server-rendered call reaches the API from the renderer's peer, so every visitor of both tenants shares one partition, and one client sending random `Host` values through the renderer can starve both sites. The partition key, the budget and how the renderer derives any visitor identity it states — while unknown-host floods stay bounded before database work, and a direct peer is still limited per peer | The reviews differ: a visitor address stated over the hop, in a dedicated single-valued header or through `X-Forwarded-For` with the peer captured first, as ADR-0036 anticipates; a separate hop budget with limiting in the renderer; or an explicitly sized shared quota. A per-host ceiling as the only backstop multiplies under a random-`Host` flood | Contract: a dated ADR-0036 amendment if the hop changes the key or the budget, stating the new input's trust rule and whether it may be logged or audited; otherwise a phase-doc statement. Detail: API Standards § Request and Response Limits, [Security Standards § Rate Limiting](../standards/11-security.md#rate-limiting), the catalogue's per-peer rule. `P02b-0` re-verifies Phase 02b's G14 against the answer | P02d-5 | [Accepted — 2026-10-08](#p02d-5-accepted-answers): authenticated visitor and peer budgets |
 | G35 | The server SDK transport. Its options — visitor host, locale, an optional assertion, never a tenant id as selector; where the host comes from; how the API origin is configured; the server-only guard, timeouts and cancellation; and whether it forwards W3C `traceparent`. With it: which parts of [Observability Standards § Frontend Observability](../standards/10-observability.md#frontend-observability) — Next.js error capture, web vitals — ship here, and which phase owns the rest, since no phase names them | Host and locale plus an optional assertion; hop headers and origin from server configuration, never from request input; a `server-only` guard; Problem Details mapped to the `AppError` union [Error Handling Standards](../standards/09-error-handling.md) already fixes; `traceparent` forwarded; Next.js error capture and web vitals assigned to Phase 11, whose § Observability lists error tracking | Detail: Frontend Architecture Standards § SDK and the Frontend Architecture SDK sketch; a pin and licence verdict if a guard package is added; an exclusion row naming frontend observability's owner, with an Observability Standards sentence | P02d-5 (the transport's headers and configuration read); the ownership half closes by exit, because a deferral names its phase | [Accepted — 2026-10-08](#p02d-5-accepted-answers): configured caller, deadlines and observability owners |
 | G36 | The edge middleware and entry behaviour. Does the middleware resolve anything (with G25)? What does it carry inward, and under which header name — the Frontend Architecture sketch reuses `x-learnstack-host`, the hop header's own name? Which inbound internal headers are removed or overwritten, including `x-organization-id` when resolution has none — a deny-strip or an allowlist rebuild? What does the matcher exclude? What do `/` and a locale-less path answer, with which status, target and default-locale source; what do a disabled, malformed or non-canonical locale segment (G6 c), a platform host and an unknown host answer; does this run in middleware or the route tree, and may an i18n library own the middleware? Does this phase build the locale-less redirect [Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy) requires, or keep the standards index's i18n-runtime carve-out while Phase 06 claims redirect handling? | Normalise the host; strip every client-supplied `x-tenant-id`, `x-organization-id`, `x-locale` and `x-learnstack-*`; drop the scaffold's `503` guard and TODOs; `/` redirects to the tenant's default locale; a disabled locale is a `404` before any content call; a platform or unknown host gets a `404` with no platform text; the redirect built minimally here, with Phase 06's rows reworded to "deepens" | Detail: a phase-doc statement; the Standards 07 § Tenant Resolution flowchart and the Frontend Architecture middleware sketch; Phase 06's rows in the same diff; if less is built, a dated narrowing of the standards index row for Localization Standards naming the owning phase | P02d-5 (the middleware replacement rewrites the scaffold's locale fallback, so every placement answer changes it first) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): membership-first entry and redirects |
 | G37 | How do tenant-varying `(public)` routes render, and which Next.js caches may hold tenant data — the full-route cache, the fetch data cache, `unstable_cache`, `generateStaticParams` — so one host's page is never served on the other? A public URL carries no tenant, and both tenants send the same request line over the hop, so a path-keyed cache leaks. What freshness does a page have after a customization or content write? | All three reviews: dynamic rendering with uncached SDK fetches — no `revalidate`, no `generateStaticParams`, no `unstable_cache` — relying on the API's generation-keyed cache; no ISR here | Detail: [Frontend Architecture Standards § Public Site Renderer](../standards/07-frontend-architecture.md#public-site-renderer), which prescribes `revalidate` today, and [Frontend Architecture § Rendering Strategies](../architecture/14-frontend-architecture.md#rendering-strategies), rewritten with the `add-frontend-route` skill; [Performance Standards § Caching](../standards/15-performance.md#caching) if the answer caches; an ADR if the pass judges the Standards 07 change non-trivial | P02d-5 (one mechanism: a host-bearing rewrite target is middleware code and fetch cache options are transport code, both written before the renderer) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): dynamic no-store renderer policy |
-| G38 | The frontend test set. (a) Which predicates of the middleware and the server SDK does Vitest cover, and in which packages — `pnpm -r test` runs only packages with a test script, which `packages/sdk` lacks? (b) How are async Server Component pages and field components covered below the browser, given vendor guidance that Vitest does not render async Server Components? (c) What automated evidence, if any, re-proves the page-level two-host claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke pulled forward from Phase 06, or a dated manual record? (d) By what mechanism does the `frontend` job refuse skipped and todo cases, which it does not today, since `No_Architecture_Test_Is_Skippable`'s runner leg reads only the backend `.trx` files? | (a) host normalization and header stripping, locale parsing and entry answers, hop headers with no tenant selector, `not_found` mapping — each with an inversion companion; (b) async pages covered through their synchronous children; (c) the reviews split three ways; (d) a reporter-output check or a lint ban on disabled tests, failing also on a package with tests and no script, proven with a planted skip | Detail: a phase-doc statement; the test files; the Standards 21 entry `No_Architecture_Test_Is_Skippable` extended rather than a second name; `ci.yml`. Contract for (c) only if a browser smoke moves: a Testing Standards § End-to-End Tests edit citing this row, with its carriers | P02d-5 (a; d at the latest), P02d-6 (b, c), P02d-7 (c's job) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): (a,d) tests and non-skippability; [Accepted — 2026-10-09](#p02d-6-accepted-answers): (b,c) synchronous tests and required production HTML/RSC product proof; P7 owns the browser/demo job |
+| G38 | The frontend test set. (a) Which predicates of the middleware and the server SDK does Vitest cover, and in which packages — `pnpm -r test` runs only packages with a test script, which `packages/sdk` lacks? (b) How are async Server Component pages and field components covered below the browser, given vendor guidance that Vitest does not render async Server Components? (c) What automated evidence, if any, re-proves the page-level two-host claim after exit — an HTTP smoke against `next start`, one narrow Playwright smoke pulled forward from Phase 06, or a dated manual record? (d) By what mechanism does the `frontend` job refuse skipped and todo cases, which it does not today, since `No_Architecture_Test_Is_Skippable`'s runner leg reads only the backend `.trx` files? | (a) host normalization and header stripping, locale parsing and entry answers, hop headers with no tenant selector, `not_found` mapping — each with an inversion companion; (b) async pages covered through their synchronous children; (c) the reviews split three ways; (d) a reporter-output check or a lint ban on disabled tests, failing also on a package with tests and no script, proven with a planted skip | Detail: a phase-doc statement; the test files; the Standards 21 entry `No_Architecture_Test_Is_Skippable` extended rather than a second name; `ci.yml`. Contract for (c) only if a browser smoke moves: a Testing Standards § End-to-End Tests edit citing this row, with its carriers | P02d-5 (a; d at the latest), P02d-6 (b, c), P02d-7 (c's job) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): (a,d) tests and non-skippability; [Accepted — 2026-10-09](#p02d-6-accepted-answers): (b,c) synchronous tests and required production HTML/RSC product proof; P7 owns the browser/demo job; [Accepted — 2026-10-11](#p02d-7-decision-package-2026-10-10): narrow browser-job scope; ADR-0056 measurement Accepted on the same date; browser proof delivered in Step 3; CI receipts owned by Step 4 |
 | G39 | Is [ADR-0027](../decisions/0027-frontend-i18n.md), the frontend i18n library, Accepted in this phase rather than Phase 04, or do this phase's pages meet a library-neutral message contract under the standards index's carve-out? Where does the one UI string catalogue live — the carriers name three paths? | The reviews differ: Accept at first use (`next-intl` composed with the tenant middleware, with its pin and licence verdict), or move only the minimum slice — catalogue loading, lookup, layout locale, `lang`. A third option, no platform-authored text, is hard for a skip link or a not-found page | Contract: ADR-0027 Accepted, with the decisions index row, Phase 04's ADR-0027 lines and the standards index row in the same diff — which, under [the decisions index SLA](../decisions/README.md#open-adr-drafts), makes it an exit blocker here — or a narrowed carve-out plus a phase-doc statement. Detail: [Localization Standards § Strings in Code](../standards/08-localization.md#strings-in-code), [Localization § UI String Catalogue](../architecture/12-localization.md#ui-string-catalogue), the `add-i18n-key` and `add-frontend-route` skills | P02d-6 (the first platform string, message loading and catalogue files) | [Accepted — 2026-10-09](#p02d-6-accepted-answers): ADR-0027, exact pin and one checked UI catalogue home |
 | G40 | Route files, page states and site chrome. What happens to `(public)/page.tsx`'s platform placeholder, and to `/studio` and `/portal` on tenant hosts; is the `courses` segment fixed, and which phase owns localized section names? Does this phase ship `(public)` loading, error and not-found files — [Frontend Architecture Standards § Routing](../standards/07-frontend-architecture.md#routing) requires `loading.tsx` and `error.tsx` per route group, and a not-found page is this phase's own choice; how do SDK `not_found`, a cursor `validation_failed`, unavailable and `429` map to page states; what do an empty catalog and a course with no eligible lesson show; does the catalog render a next-page link? Does a minimal chrome ship? Are `hreflang`, canonical and `og:locale`, which [Localization Standards § SEO](../standards/08-localization.md#seo) requires on translated public pages, built here or carved out? | The placeholder leaves the public tree; a fixed `courses` segment with the section-name owner named; minimal state files in tenant tokens; `not_found` → an HTTP `404` page; unavailable or `429` → the route group's error page without disclosure; an explicit empty state; a next-page link over enough seeded courses; in-page links rather than chrome, keeping Phase 06's navigation rows true | Detail: a phase-doc statement; Phase 06's § What Phase 02d already shipped rows reworded; a dated carve-out in the standards index row for Frontend Architecture Standards or Localization Standards, naming the owning phase, for whatever this phase builds less of | P02d-6 | [Accepted — 2026-10-09](#p02d-6-accepted-answers): product routes, approved status/URL chain, page states and metadata |
 | G41 | How does the lesson page draw what the subset does not implement — an out-of-subset `x-renderer`, a missing optional field, an array of objects, a stored value whose type differs from its declaration, an `x-taxonomy` value and its missing band? And where do composite and primitive components live — Frontend Architecture Standards names `packages/blocks`, Frontend Architecture names `components/blocks/`, and the registry sits in `apps/web/src/lib/customization/`? | A safe placeholder, never an exception and never raw JSON; a missing optional field renders nothing; `integer`, `boolean` and enums as text; an `x-taxonomy` value as the band's display name in the requested locale. No review addresses the component home | Detail: Tenant Customization Model § 2 (the implemented subset, not a second list) and § 8.1; Frontend Architecture Standards § Public Site Renderer and the Frontend Architecture tree. A new primitive would be an ADR-0018 release, which this row must not assume, since Phase 04 owns the field-type set | P02d-6 | [Accepted — 2026-10-09](#p02d-6-accepted-answers): ordered plain-string components and bounded fallbacks |
 | G42 | How do validated branding tokens reach the server-rendered HTML — a `style` attribute on the root element, which needs `unsafe-inline` or `unsafe-hashes`; a nonce-compatible `<style>` element built from validated values; or a per-tenant stylesheet route — without constraining [Security Standards § HTTP Headers](../standards/11-security.md#http-headers)' nonce-based target before Phase 11 documents it per surface? | A `<style>` element built only from registry-validated values, emitting only the `--ls-*` vocabulary, never a `style` attribute; a nonce would force dynamic rendering (G37) | Detail: Frontend Architecture Standards § Tenant Branding for the mechanism; Frontend Architecture § Theming | P02d-6 (the layout's token injection; closes with G37's answer and G16's grammar) | [Accepted — 2026-10-09](#p02d-6-accepted-answers): atomic four-token style-element injection |
 | G43 | Which accessibility checks on this phase's pages fail a build — route tests asserting `lang`, one `<main>`, the heading outline, a skip link and a descriptive title; `jsx-a11y` at error severity, where most of the shipped config's rules warn; or jsdom axe, which Testing Standards puts through Playwright in Phase 06? Is catalog → lesson a critical flow that needs [Accessibility Standards § Testing](../standards/16-accessibility.md#testing)' screen-reader smoke test? | Route tests in the `frontend` job for the checkable semantics; keyboard, focus and 320 CSS px reflow in the manual record; failing `jsx-a11y` with a planted companion. No review addresses the screen-reader question | Detail: a phase-doc statement; [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) if lint severity or component axe becomes a rule; the lint configuration. Whether failing lint enforces the standard couples with G44; its index row changes only in the enforcing pull request | P02d-6 (page components and their tests) | [Accepted — 2026-10-09](#p02d-6-accepted-answers): failing lint/semantics and mandatory manual assistive-technology proof |
-| G44 | The Lighthouse job. Does it activate in this phase, and on what full-stack harness — a migrated stack, a seed written as `learnstack_app`, the API as a process over the hop with a per-run secret, `next start` on a production build, both seed hosts reachable from CI's browser, a readiness and tenant-marker check before the audit — or does activation move to the phase that brings a browser harness? What does it assert: the URL set and which [Performance Standards](../standards/15-performance.md) row each page answers to (its LCP row names a landing page this phase does not ship); which rows, under which throttling preset; the 200 KB budget or the 250 KB forbidden line; hard or warning, run count and aggregation; categories, including the accessibility audit [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) requires; the runtime ceiling, tool install and report destination; and what the standards index rows for Performance and Accessibility say afterwards? | Activate here, reusing the `make demo` entrypoint; catalog, course and lesson on both hosts plus the bilingual tenant's second locale; hard assertions on deterministic audits (script transfer size, CLS, the accessibility category or contrast over both palettes) and median-of-N timings as warnings, with TBT rather than a lab INP; tooling from the lockfile; reports to workflow artifacts only; Accessibility promoted if asserted hard, Performance kept Adopted as a pre-baseline check unless a hard budget makes it Active for what ships. The budget authority is settled: [Frontend Architecture Standards § Performance](../standards/07-frontend-architecture.md#performance) names Performance Standards | Contract: a phase-doc statement plus a committed Lighthouse configuration. Detail: `ci.yml`, CONTRIBUTING's activation edits, the `run-tests-locally` skill; Performance Standards only if a number or lab profile changes; the standards index rows and status headers in the enforcing pull request. Moving activation edits `ci.yml`, CONTRIBUTING and the skills, and leaves Phase 01's and 02a's records as written | P02d-5 (whether it activates, as an input to G32: the hosts must work in CI's browser), P02d-7 (the harness and assertions) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): whether: activate in P7; harness details stay P7 |
-| G45 | What does `make demo` start and guarantee on a clean checkout? The process model — a foreground supervisor over detached compose, or detached processes with a stop target; the web app's mode; how environment reaches host processes, given `dotnet run` reads no `.env` and nothing creates `apps/web/.env.local`; readiness waits before Phase 11's `/readyz`; stale-`.env` detection; re-run and stop behaviour; whether its seed step keeps `make seed`'s wait on every default-profile service and both Keycloak realms; and what it prints, including the bilingual tenant's second-locale URLs | The reviews differ on attached versus detached processes; both reject a destructive reset, wait on both processes, keep re-runs idempotent and have CI reuse the entrypoint | Detail: the `Makefile` targets with help lines and a dated phase-doc statement; README § Quickstart, `scripts/seed.sh`'s closing output and the `local-dev-setup` and `seed-tenant` skills in the same packet; Infrastructure Standards § Healthchecks if the seed's gate narrows. No ADR | P02d-7 (with G44, whose job invokes the same entrypoint; if G44's harness moves earlier, this row moves with it) | Open |
+| G44 | The Lighthouse job. Does it activate in this phase, and on what full-stack harness — a migrated stack, a seed written as `learnstack_app`, the API as a process over the hop with a per-run secret, `next start` on a production build, both seed hosts reachable from CI's browser, a readiness and tenant-marker check before the audit — or does activation move to the phase that brings a browser harness? What does it assert: the URL set and which [Performance Standards](../standards/15-performance.md) row each page answers to (its LCP row names a landing page this phase does not ship); which rows, under which throttling preset; the 200 KB budget or the 250 KB forbidden line; hard or warning, run count and aggregation; categories, including the accessibility audit [Accessibility Standards § Tooling](../standards/16-accessibility.md#tooling) requires; the runtime ceiling, tool install and report destination; and what the standards index rows for Performance and Accessibility say afterwards? | Activate here, reusing the `make demo` entrypoint; catalog, course and lesson on both hosts plus the bilingual tenant's second locale; hard assertions on deterministic audits (script transfer size, CLS, the accessibility category or contrast over both palettes) and median-of-N timings as warnings, with TBT rather than a lab INP; tooling from the lockfile; reports to workflow artifacts only; Accessibility promoted if asserted hard, Performance kept Adopted as a pre-baseline check unless a hard budget makes it Active for what ships. The budget authority is settled: [Frontend Architecture Standards § Performance](../standards/07-frontend-architecture.md#performance) names Performance Standards | Contract: a phase-doc statement plus a committed Lighthouse configuration. Detail: `ci.yml`, CONTRIBUTING's activation edits, the `run-tests-locally` skill; Performance Standards only if a number or lab profile changes; the standards index rows and status headers in the enforcing pull request. Moving activation edits `ci.yml`, CONTRIBUTING and the skills, and leaves Phase 01's and 02a's records as written | P02d-5 (whether it activates, as an input to G32: the hosts must work in CI's browser), P02d-7 (the harness and assertions) | [Accepted — 2026-10-08](#p02d-5-accepted-answers): whether: activate in P7; harness details stay P7; [Approved — 2026-10-11](#p02d-7-approval-and-exit-boundary): bounded seventh-check activation after real success; [Accepted — 2026-10-11](#p02d-7-accepted-answers): ADR-0056 measurements and serial feasibility gate; local enforcement passes; live CI/protection receipts owned by Step 4 |
+| G45 | What does `make demo` start and guarantee on a clean checkout? The process model — a foreground supervisor over detached compose, or detached processes with a stop target; the web app's mode; how environment reaches host processes, given `dotnet run` reads no `.env` and nothing creates `apps/web/.env.local`; readiness waits before Phase 11's `/readyz`; stale-`.env` detection; re-run and stop behaviour; whether its seed step keeps `make seed`'s wait on every default-profile service and both Keycloak realms; and what it prints, including the bilingual tenant's second-locale URLs | The reviews differ on attached versus detached processes; both reject a destructive reset, wait on both processes, keep re-runs idempotent and have CI reuse the entrypoint | Detail: the `Makefile` targets with help lines and a dated phase-doc statement; README § Quickstart, `scripts/seed.sh`'s closing output and the `local-dev-setup` and `seed-tenant` skills in the same packet; Infrastructure Standards § Healthchecks if the seed's gate narrows. No ADR | P02d-7 (with G44, whose job invokes the same entrypoint; if G44's harness moves earlier, this row moves with it) | [Accepted — 2026-10-11](#p02d-7-demo-lifecycle): shared foreground lifecycle; implemented with both review rounds complete in Step 1 |
 
 Gates that define one mechanism are answered against each other. Where their parts shape
 different packets' code, the mechanism is split as
@@ -5553,6 +5563,949 @@ transformation syntax, one shared-constant listener, adjacent source anchors,
 registration order and cleanup. Both rounds are read-only and start no runtime
 services. The PR description owns final exact-head CI after this record commit.
 
+### P02d-6 merge and closeout (2026-10-10)
+
+The maintainer merged [PR #27](https://github.com/HodeTech/LearnStack/pull/27) at
+2026-10-10 17:07:50 UTC. GitHub records final PR head
+`46ed971bf976514fb451a162cc9450d147ed0441` and merge commit
+`378346126949c90bb286b5217c24513fc2044f06`. The merge's second parent is that
+head, and both commits have the identical tree. Development is fast-forwarded to
+the verified merge without changing branches or rewriting history. The final
+head includes the testing-standard correction marking both ADR-0055 Step 3
+review rounds complete.
+
+- All six required checks pass on the
+  [final PR head](https://github.com/HodeTech/LearnStack/actions/runs/38070332107)
+  and the [merge commit](https://github.com/HodeTech/LearnStack/actions/runs/38070479860).
+  Independently downloaded merge-run TRX confirms **2,946 passed**, zero failures
+  or skips: 1,705 unit, 198 architecture, four contract, 172 Docker-free
+  integration and 867 Docker integration cases.
+- Merge-run frontend logs confirm **1,402 passed** (1,342 web, 60 SDK), successful
+  typecheck, lint, production build and SDK drift verification. Native production
+  ingress verification and all **19** setup/cleanup and negative controls pass.
+  Release builds report zero warnings and errors. These are merge-run receipts;
+  the documentation closeout does not rerun the full runtime suites.
+- Read-only verification confirms `strict: true` and the same six required Actions
+  contexts, including OpenAPI diff and Docker integration. No protection setting
+  changes. Lighthouse remains disabled with activation owned by P02d-7.
+
+**P02d-6 is closed.** Localized catalog, course/outline and ordered plain-text
+lesson pages, safe four-color themes, exact-locale metadata, scoped pagination
+and controlled public states are delivered. ADR-0055 adds middleware-owned single
+bootstrap admission, immutable request-local reuse and production lifecycle/
+isolation proofs. All implementation steps and focused fixes retain their
+recorded independent review rounds. The
+[packet closeout](#p02d-6-packet-closeout-2026-10-10) owns scoped keyboard, focus,
+reflow and contrast observations and the maintainer's VoiceOver smoke; this
+merge adds no new manual observation or full WCAG-conformance claim.
+
+**Next: P02d-7 — Demo, full-stack CI and exit.** Its decision pass and
+implementation have not started. Resolve the remaining G20/G33/G38/G44/G45 parts
+against the delivered renderer before harness implementation:
+
+- Define `make demo` and stop/re-run ownership on a clean checkout, environment
+  projection, readiness, non-destructive seeding and the printed host/locale URLs
+  (G45). Local use and CI reuse the selected entrypoint.
+- Select Lighthouse's tools, both-host/locale URL set, assertions, budgets,
+  aggregation and artifacts; activate its currently disabled job and reconcile
+  standards/required-check carriers with the chosen enforcement (G44).
+- Complete the shared full-stack/browser demo and trusted-hop CI evidence
+  (G33/G38), including anonymous catalog-to-lesson flows with Keycloak stopped.
+- Implement and prove G20's remaining production/seed and frontend genericity
+  fences in required checks, preserving tenant-data-driven differences.
+- Reconcile every exit criterion and register row with its evidence and record
+  the Education/seed preservation obligations and premises `P02b-0` re-verifies.
+  [Phase 02b](phase-02b-events-auth.md) follows only after the Phase 02d exit
+  decision, not this packet merge.
+
+Phase 06 retains full Studio/portal, authored composition and Playwright/axe;
+Phase 11 retains broader production hardening and telemetry. Course Marketplace
+commerce is not delivered by this closeout. Earlier dated delivery records,
+including their pre-merge pending statements, remain historical and unchanged.
+
+**Documentation-only closeout validation.** All **198** local Release architecture
+cases and seven ADR lifecycle/workflow controls pass, with zero failures/skips.
+The six changed Markdown files resolve **873** relative links and **371** fragments
+with zero errors in the local audit. Added prose wrapping and diff checks pass.
+Earlier dated phase records are byte-preserved; no Accepted ADR or production
+code changes.
+
+### P02d-7 decision package (2026-10-10)
+
+**Accepted — 2026-10-11; package and revised ADR-0056 approved.** Read-only
+inspection starts from `f857437` on `development`, after the P6 merge closeout.
+The maintainer approved the lifecycle, genericity, four-step review plan and
+bounded seventh-check activation after real success. No implementation, passing
+P7 test, enforcement delivery or phase exit is claimed. The user requires new
+ADRs to be reviewed and approved before dependent work. Accepted
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
+owns the new browser/Lighthouse measurement and required-check contract.
+
+P7 completes the walking skeleton's operational proof: a reviewer starts the
+actual seeded sites with one command; the same lifecycle supplies CI's browser
+and audit job; genericity and every phase-exit obligation receive named evidence.
+Education writes, public DTOs, tenant authority, native ingress, anonymous quotas,
+and request-local admission retain their Accepted contracts.
+
+#### P02d-7 inspection and document actions
+
+Three independent read-only review lenses covered demo/orchestration,
+browser/Lighthouse, and genericity/exit. Source inspection was cross-checked with
+the current branch and official tool metadata. This preparation executes no
+runtime suite and does not reuse P6's counts as P7 results.
+
+| Area reviewed | Current premises and required action |
+|---|---|
+| README, CLAUDE, platform vision, MVP scope, roadmap index, principles and glossary | P1–P6 are merged; P7 is the remaining exit packet. Preserve the white-label/data-driven boundary and Proposed marketplace status. Keep current packet surfaces synchronized without rewriting dated delivery history. |
+| ADR-0018/0035/0036/0040/0043/0048/0050/0051/0052/0053/0054/0055 and ADR-0027 | Existing content, RLS, read-only, exact-pin, TLS/provenance, quota and one-bootstrap contracts survive. G20/G45 implementation detail needs no ADR; new measurement/tool enforcement is Proposed ADR-0056. |
+| Standards 03/06/07/08/11/12/13/14/15/16/20/21, CI and CONTRIBUTING | The Lighthouse job is still disabled. Qualify Testing 06's “None exist / first browser flow Phase 06” when P7's narrow flow ships; retain full Phase 06 Playwright/axe ownership. Update Performance status only with hard enforcement and distinguish CI targets from timeouts. |
+| Makefile, compose dev/e2e, seed/public-local launchers, ingress/configuration and public server | No demo target exists. `make seed` runs migrations before the script's readiness gate. Wait for PostgreSQL before migration; parameterize one compose selection through start/wait/migrate/seed/stop. Health endpoints alone cannot prove seeded readiness or listener ownership. |
+| SeedData, source-reader/name guards, module-reference guards and frontend source census | The existing source proof reads all strings, not just identities. Derive a typed identity vocabulary for G20 and canonical built-ins; add the whole-production Seeder-reference fence. Existing HTML/Flight schema-replacement proof supplies a behavioral companion, rather than a duplicate production mutation surface. |
+| Production renderer fixture, admission browser, cleanup helpers, seed/local-dev/integration/test skills, compose and web READMEs | Reuse owned-process/TLS/private-output controls. Correct stale seeder activation, P6 merge and raw API restart guidance. Narrow old “CI uses Testcontainers only” and human-only browser statements when the compose-backed proof ships. |
+| Phase 02b/05/06/11 and module handoff documents | Fix Phase 02b's mutable plain-HTTP/open-G32 premise; carry native HTTPS, visitor/peer accounting and single-bootstrap inputs into P02b-0 re-verification. Preserve Phase 05 migration obligations and Phase 06/11 ownership. |
+
+No accepted ADR body or prior delivery record is rewritten. Current contradictions
+outside the new package receive bounded carrier fixes in the owning step; the exit
+matrix verifies they are all resolved.
+
+**Preparation review — 2026-10-10.** Independent GPT-6-astra and GPT-6.1-sol
+reviews verified the proposal against current contracts/source. Corrections
+cover the package heading, complete seeded-ID vocabulary, actual Lighthouse
+audit/navigation set and live status carriers. The maintainer's external review
+additionally exposed the ADR lifecycle parser incompatibility; it was reproduced
+and fixed. Metric/batch wording, tool pin/license placement, decimal gzip units
+and the exact Testing 06 carrier action are now explicit. Earlier dated
+“not started” statements describe their record time; this package and the top
+packet table own current state, and Step 4 verifies that navigation at closeout.
+
+Documentation preparation passes all 198 Release architecture cases and all
+seven ADR lifecycle/workflow controls, with zero failures/skips. These results
+validate the draft corpus, not the unimplemented browser/Lighthouse harness.
+
+**Additional maintainer review — 2026-10-11.** The review identified ambiguity
+between per-audit timeouts and the total deadline. Revised ADR-0056 specifies
+one serial worker, nested deadlines and the 244-second quiet-window cost; the
+first complete run must prove feasibility before activation, with no silent
+parallelism or reduced census. It makes the potentially stricter gzip window,
+origin coverage and exclusions explicit, names the four budgeted audits and
+keeps FCP/Speed Index unasserted. The source-verified category name replaces the
+imprecise agentic term. Tool ownership, behavioral script-rule ownership and
+G33's retained human evidence are explicit. The revised ADR remains Proposed.
+
+An independent GPT-6-astra review found no unresolved revision finding.
+Read-only upstream verification confirmed the audit/filter selection and the
+pinned DevTools source for slow-4G constants. Revision validation passes 198
+Release architecture cases, seven ADR lifecycle/workflow controls and the
+changed-document relative-link/anchor, wrapping and diff checks. No browser run
+or timing feasibility is claimed by these preparation checks.
+
+#### P02d-7 accepted answers
+
+The maintainer approved the package on 2026-10-11. G20 detail, G33 CI topology,
+G38's narrow browser-job scope and G45 lifecycle are Accepted planning decisions;
+their implementation and proof remain pending. The maintainer subsequently
+approved revised ADR-0056 on the same date, closing G44's measurement decision.
+The seventh-check activation is authorized only after the approved ADR's complete
+real PR run succeeds. The combined decision commit precedes implementation.
+
+| Gate | Approved scope / remaining decision authority |
+|---|---|
+| G20(b/c/d) | Typed exact identity matching, bounded canonical built-ins/exemptions and a whole-production Seeder-reference ban; the section below owns the detail. Implement the existing Registered rule and adopt the real schema-replacement companion. |
+| G33 CI part | Same workstation-style loopback API/native TLS topology in the CI runner, one per-run secret, real migrated database and `learnstack_app`. Disposable CI certificates/resolver mapping; no system-trust mutation or additional trusted transport. |
+| G38(c) job | A narrow managed-Chromium library script follows real catalog → course → lesson links in the three seed host/locale lanes. Existing product HTML/Flight proofs remain required; full Playwright/axe stays Phase 06. |
+| G44 remaining detail | Accepted ADR-0056 owns direct pinned Lighthouse/Chromium, nine URLs × three runs, actual-page admission, hard gzip/CLS/accessibility checks, advisory timings, serial real-window pacing and artifacts. Its revised measurement contract was approved on 2026-10-11. Bounded activation of `public demo + lighthouse` as the seventh required check is approved only after the complete approved proof succeeds on a real PR, with protection read-back. |
+| G45 | Foreground production-demo supervisor, shared full seed gate, persistent non-destructive local data and owned-process cleanup; the lifecycle below owns the details. |
+
+#### P02d-7 demo lifecycle
+
+`make demo` is the local entrypoint; `make demo DEMO_MODE=ci` selects isolated
+automation through the same lifecycle. The mode selects environment/compose
+ownership and the proof driver, not different product code or a bypass. Make
+arguments are validated; startup, readiness, migration, seeding and cleanup share
+one explicit compose project/file/env selection.
+
+1. Check installed prerequisites and refuse concurrent ownership or occupied
+   API/web listeners; never adopt or kill a foreign process. Restore locked
+   frontend, .NET and tool dependencies without changing Git hook configuration.
+   Prepare missing private root configuration from `.env.example`, validate
+   required values and refuse stale/disagreeing projections rather than overwrite
+   user values. Generate a missing hop secret through the existing preparation.
+2. Local hosts/CA/leaf preparation remains the explicit manual G32 prerequisite.
+   Verify host resolution, certificate/key match, validity and trust with
+   actionable sanitized errors before infrastructure starts. Never edit system
+   hosts or install a root CA automatically. CI creates private disposable
+   configuration/certificates in its owned checkout and uses ADR-0056's scoped
+   browser trust and independent Node TLS checks.
+3. Start the existing seven-service default compose stack, wait for PostgreSQL
+   before any migration, then retain the existing full default-service and both
+   Keycloak-realm seed gate. Apply all current migration chains with the migration
+   role and seed via the normal contextual request path as `learnstack_app`.
+   No destructive reset, overwrite or direct seed SQL is added.
+4. Build the web production bundle and API, then launch the real API and mandatory
+   native HTTPS web listener in owned process groups. Use existing paired private
+   configuration, role validation and child-environment boundaries. These are
+   production builds with the accepted local Development deployment mode;
+   stock `next start` is not substituted for native ingress.
+5. Declare ready only after owned-child readiness, verified TLS and positive
+   host/locale/content checks. Print catalog/course/lesson URLs for English
+   `en` and Yoga `tr-TR`/`en`, derived from the seed declaration. Static
+   `/healthz` or `/api/healthz` success alone is insufficient.
+6. Ctrl+C, parent/control closure, child failure or a startup error stops and
+   joins owned API/web process trees. Local compose/data remains available;
+   `make down` is the explicit infrastructure stop. Re-run after shutdown
+   converges without reset; simultaneous invocations fail clearly.
+7. CI uses the existing e2e overlay and a unique owned project. Stop its Keycloak
+   after successful seeding and assert the stopped state before fresh browser
+   navigation. On every exit, remove only that invocation's processes, project
+   and private files. Confirm child exit before deleting sensitive trees; fail
+   and preserve private diagnostics if cleanup cannot be established.
+
+Browser/Lighthouse uses actual limiter windows under ADR-0056. No API restart,
+quota inflation, forged visitor or 429 retry is part of a successful proof.
+API status/call observation must have a nonempty positive control; missing or
+truncated observation fails. Reuse structured host completion events where
+possible, retaining only sanitized counters/receipts in artifacts.
+
+#### P02d-7 genericity enforcement
+
+The typed `SeedData` declaration remains the single identity source. Build the
+G20 vocabulary from every declared entity ID, including built-in row and theme
+IDs; tenant/organization slugs, hosts and display names; course/lesson keys and
+localized slugs/titles; customization keys, item keys, schema property names and
+localized definition/field/band labels. Do not classify
+ordinary body prose, locale codes, publication/access values or JSON-schema
+keywords as tenant identities simply because the existing reader sees them.
+
+Compare complete decoded string values ordinally; compare GUID literals by
+their parsed GUID value. This is an exact-literal fence, not a claim to prove
+every possible dynamically assembled branch. Read C# literals, frontend TS/JS
+literals and JSON values with syntax-aware readers, excluding comments. Fail on
+unreadable/empty identity sources or production subjects. Preserve the frontend
+census's refusal of unsupported source forms; no silent extension/import gap.
+
+Canonical platform built-in keys/labels come from their owning declarations/registries,
+not copied into an expanding arbitrary allow-list. Preserve the accepted G20(c)
+bounded exemptions: `SeedData`, explicitly identified seed/development launch
+data, operational documentation and test-owned fixtures/assertions. Production
+middleware, ingress, transport, renderer and message catalogues are subjects.
+No blanket `scripts`, configuration or catalogue directory exemption is added.
+
+Additionally forbid every non-test production project except the Seeder itself
+from referencing `LearnStack.Tools.Seeder`, both through compiled references and
+restore-resolved project references. This catches identity comparisons through
+`SeedData` symbols that contain no local literal.
+
+Planted failing controls cover backend identity/customization-ID comparisons,
+renderer/transport branches, a shared frontend helper, message JSON values and
+Seeder references.
+Passing controls cover comments, canonical platform built-ins and specifically
+allowed development/test data. Prove the actual production census is nonempty.
+Re-run the existing real API/PostgreSQL/HTML/Flight presentation successor-revision
+proof as the behavioral companion, with a field-assertion failure control; retain
+original-pin and unaffected-tenant checks. The new browser proof observes
+distinct ordered authored fields, without adding a production mutation endpoint.
+
+#### P02d-7 implementation plan
+
+Work remains on `development`; no alternate branch or worktree. Each step lands
+its implementation commit, then two fresh independent agent review rounds.
+Verify findings against current code, fix valid findings and commit before the
+next round/step. A new architectural decision pauses only its dependent work.
+
+| Step | Delivery | Validation before completion |
+|---|---|---|
+| 1 — Shared demo lifecycle | Compose selection, pre-migration wait, locked restoration, private configuration, foreground ownership, production build/start, seeded readiness, non-destructive repeat/stop and local guidance. | Clean-checkout preparation with the documented manual TLS prerequisite; repeat convergence; stale/missing configuration; port collision/foreign listener; child failure, signal/parent closure and owned cleanup controls. |
+| 2 — Genericity and exit foundations | Existing G20 production literal rule, whole-production Seeder-reference fence, canonical built-ins/exemptions, behavioral companion and preliminary criterion/evidence inventory. | Nonempty backend/frontend/JSON census; planted dirty/clean controls; architecture/unit/contract and relevant integration tests; existing exact-pin/schema-replacement product proof. |
+| 3 — Browser and audit proof | Pinned tools/browser; seed-derived nine-URL manifest; Keycloak-stopped linked navigation; computed themes/ordered fields; actual audited-page admission, gzip collector, metrics/census validator, rate pacing and sanitized artifacts. | Real same-build/same-database run; no API 429; positive call observer; wrong/error page, invalid report, over-budget and missing-source controls; TLS and failure cleanup; all 27 report pairs. |
+| 4 — Required CI and phase exit | Always-running seventh job, bounded protection activation after real success, standards/carrier alignment, complete evidence matrix and P02b-0/Phase 05 handoff. | All backend/frontend suites with zero skips; real CI and live protection read-back; links/anchors/wrapping; every gate/deliverable/criterion reconciled; zero 02d Registered/Awaiting rows; two review rounds and explicit exit verdict. |
+
+The new job does not replace any existing required suite or fixture. Preserve
+the accepted P6 keyboard/focus/reflow/contrast and maintainer VoiceOver record,
+with its actual limits; record new automated observations separately. Promoting
+Performance to Active is conditional on delivering the proposed hard checks,
+not on accepting this package. Its index/header/count change lands with the
+enforcer; Accessibility is already Active for its delivered public-page scope.
+
+#### P02d-7 approval and exit boundary
+
+The complete lifecycle and G20/G33/G38/G45 answers, four-step review plan and
+bounded seventh-check activation were approved on 2026-10-11. Revised ADR-0056's
+tools/measurement/browser contract was subsequently approved on the same date.
+Its register dependencies are recorded in the combined decision commit before
+implementation.
+No other unresolved product choice was found in this inspection. Unexpected
+architectural changes need a separate reviewable decision; implementation details
+inside the approved package proceed without further approval.
+
+At closeout, map every Deliverable and Completion Criterion to current named
+evidence, including carried-forward evidence and its limits. Reconcile current
+Phase 02b native-HTTPS/quotas/single-bootstrap premises without accepting its
+auth/BFF gates. Record independent Course/Lesson roots, stable IDs/URLs, ordering,
+scope, translated bodies, exact pins and access policy as Phase 05 preservation
+obligations; re-seeding is not a migration.
+
+Do not declare Phase 02d exited merely because P7 code or its PR is complete.
+The exit verdict must state which obligations passed, identify evidence/CI/protection
+receipts and leave no unresolved 02d-owned gate or Registered/Awaiting rule. The
+maintainer's PR review and merge remain separate from implementation completion.
+
+### P02d-7 Step 1 — shared demo lifecycle (2026-10-11)
+
+**Complete — both review rounds and their fixes verified.**
+The foreground `make demo` supervisor shares explicit Compose selection,
+PostgreSQL-before-migration readiness, full seven-service/both-realm admission,
+contextual seeding, production builds and owned process cleanup. Local data is
+retained; CI uses a unique project, disposable private configuration and the e2e
+overlay. Its browser/audit driver remains Step 3 work and is not claimed here.
+
+`DemoManifest.Create` derives all three host/locale lanes, nine URLs, ordered field
+expectations, palettes and excluded course titles from `SeedData`. Its export
+requires no database. Configuration validation uses Npgsql's real parser to
+refuse stale role/password/database/host/port combinations before infrastructure.
+The runtime environment helper is shared with the existing paired API launcher;
+migration and worker credentials are excluded. TLS prerequisites do not modify
+hosts or system trust. The exclusive demo lock never kills a recorded foreign PID.
+
+**Initial verification.** The Release Seeder build has zero warnings/errors.
+All 1,705 unit, 198 architecture, four contract, nine focused integration and
+42 Seeder integration cases pass with zero failures/skips. Focused integration
+includes eight manifest/configuration cases and the real-API/PostgreSQL local
+launcher proof without a PlatformAdmin credential. The guarded frontend runner
+passes 1,413 cases without skips/todos; the final 13-case focused suite also
+covers structured API-listener readiness and an invocation-owned native cache.
+Lint and typecheck pass. Node controls cover
+explicit selection, readiness refusal, runtime credential isolation, foreign
+listeners, bounded bodies, certificate mismatch, real process timeout/cancellation
+and owned trees. These initial checks precede the complete startup and review
+evidence below.
+
+**Complete isolated lifecycle proof.** An owned temporary checkout copy starts
+all seven services with the e2e overlay, passes both realm gates, applies every
+migration chain and seeds through the application role. Its owned production
+API/native renderer passes positive lesson checks in all three seed host/locale
+lanes. Re-running the ordinary Seeder leaves the nonempty audit count unchanged.
+Teardown confirms process/project absence, removes its private configuration,
+certificate tree and lock, and releases the API/web listeners. This is a Step 1
+startup/neutrality/cleanup proof; it is not Step 3 browser/Lighthouse evidence.
+
+**Workstation port prerequisite.** The first attempt correctly refused occupied
+5080/5432 ports. After explicit maintainer authorization on 2026-10-11, the two
+foreign containers were stopped only for validation and restarted afterward;
+both returned healthy. LearnStack volumes remain intact. Its local PostgreSQL
+and Keycloak cannot run concurrently while the foreign database retains 5432;
+no port mapping or foreign project configuration was changed.
+
+**Step 1 review round 1 — `3160714..82459cb`.** Fresh GPT-6-astra and
+GPT-6.1-sol reviewers independently covered the full diff through lifecycle/
+security and evidence/corpus lenses. Four distinct findings were verified:
+selected-env migration fallback, terminal hangup cleanup, split UTF-8/byte-bound
+capture and restricted-course marketing exclusions in the demo manifest.
+Corrections add actual Make/configuration, process/signal/parent, split-output
+and marketing-disjoint controls. Combined seeding now rejects disagreeing ambient
+credentials before stack/migration actions. Default-service enumeration is shared
+as reinforcement; the suspected gated-port defect was not reproduced. The
+suspected parallel prerequisite race was rejected because global `.NOTPARALLEL`
+already serializes those acts. The 18-case focused suite, typecheck, eight
+manifest/configuration cases and all 198 architecture cases pass. Lint and the
+guarded frontend run pass all 1,420 cases with zero skips/todos. The complete
+isolated lifecycle rerun also passes real SIGHUP/repeated-signal cleanup and
+listener release. The two authorized foreign containers return healthy afterward.
+
+**Step 1 review round 2 — `3160714..4966dca`.** Fresh GPT-6-astra and
+GPT-6.1-sol reviewers independently inspected lifecycle/security and evidence/
+corpus. Both reran all 18 focused cases. Two additional findings were confirmed:
+Docker can read `COMPOSE_PROFILES` from the selected dotenv file, and Development
+API configuration can consult workstation user secrets through its profile.
+The selected-file control now refuses reserved Compose assignments, including
+export/whitespace/colon forms. A read-only real Compose control observes exactly
+seven default services and refuses the planted file profile before Docker.
+The demo API receives an empty invocation-owned HOME/APPDATA/TMPDIR; restoration
+and builds retain their own profiles. A real API/PostgreSQL test accepts the
+configured hop secret and rejects an additional secret planted in a foreign
+profile. No user profile is modified. All 24 focused lifecycle cases, typecheck
+and the real launcher cases pass with zero failures/skips. Lint, all 1,426
+guarded frontend cases and all 198 architecture cases pass. A fresh focused fix
+review found that the foreign-secret request omitted its visitor header, allowing
+an unrelated refusal to mask the regression. The corrected three-case real API
+suite supplies that header and removes the profile boundary only in an owned
+copy: the foreign secret now produces 200 in the mutant and 404 in the clean
+runtime. All three cases pass. Both required review rounds and their verified
+fixes are complete; Step 2 follows.
+
+### P02d-7 Step 2 — genericity and exit foundations (2026-10-11)
+
+**Implementation and both independent review rounds complete.** The exact-literal
+G20 fence reads categorized `DemoIdentities.Create` values derived from typed
+`SeedData`, including all declared IDs and translated identity/definition/field
+labels. Ordinary body prose, locale/status/access values and schema keywords do
+not become identities. Canonical platform values come from
+`BuiltInCustomizations`, including collisions with demo values.
+
+Backend Roslyn and frontend TypeScript AST readers compare complete decoded
+strings ordinally and GUIDs by value, including alternate spellings. Embedded
+JSON strings and standalone JSON values are inspected. Source parse errors,
+empty/malformed vocabulary and missing production subjects fail loudly. The
+frontend fixture is derived, not a second declaration; architecture tests compare
+it to the current typed projection. Regenerate it after editing `SeedData`:
+
+```sh
+dotnet run --project backend/src/LearnStack.Tools.Seeder -c Release -- \
+  --demo-identities > frontend/apps/web/src/test/fixtures/demo-identities.json
+```
+
+The backend scans Seeder orchestration as production and exempts only its exact
+`SeedData.cs` declaration. Frontend scans app/package/configuration/native code
+and root Node scripts, with exact named test-proof and development-launch data
+exemptions. The existing unsupported-runtime-source/import census is preserved.
+Every production project except the Seeder is checked for both compiled and
+restore-resolved Seeder references, preventing symbolic `SeedData` access.
+
+The existing real API/PostgreSQL/HTML/Flight presentation successor proof calls
+one shared ordered-field assertion. Planted label, value, ordering, active-markup,
+language and internal-name controls exercise the same predicate without changing
+production rendering. Original-pin and unaffected-tenant observations remain.
+
+**Initial verification.** Release suites pass 1,705 unit, 203 architecture and
+four contract cases with zero failures/skips. The existing presentation-mode
+real API/PostgreSQL/native production proof passes (one case), exercising both
+HTML and Flight, successor/rebinding, original pins and the unaffected tenant.
+Lint, typecheck, formatting and all 1,442 guarded frontend cases pass with zero
+skips/todos. This is not Step 3 browser/Lighthouse evidence.
+
+**Review round 1.** Fresh GPT-6-astra and GPT-6.1-sol reviewers independently
+checked backend identity/reference coverage and frontend subjects/behavioral
+controls. Four verified omissions were fixed: conditional C# branches, UTF-8
+literals, emitted JSX values and runtime helpers hidden by test exemptions.
+The initial fix exposed conditional branches conservatively; round 2 below
+replaces that approach to preserve lexical semantics. JSX handling uses TypeScript's
+emitter. Exact test directories replace name-wide directory exclusions, and
+runtime relative imports include helpers even behind test filenames. Native HMR
+and the shared process-stop helper are production subjects. Planted dirty/clean
+controls cover all four findings. Release architecture (203), guarded frontend
+(1,444), lint, typecheck, formatting and the documentation link audit pass.
+Second-round review follows the fix commit.
+
+**Review round 2.** Fresh GPT-6-astra and GPT-6.1-sol reviewers verified three
+census omissions and one ordering-control gap. Flattening C# branches could let
+an inactive comment hide active code. The reader now parses feasible symbol
+configurations independently, discovers conditional symbols to a fixed point,
+and refuses more than eight symbols or unreadable configurations. UTF-8 and raw
+literal semantics remain intact. Frontend generated-output exclusions now name
+actual roots; nested source directories remain subjects. Runtime imports resolve
+local module URL query/fragment suffixes and percent escapes, while computed
+imports fail loudly. Literal `require.resolve` loads remain countable. The
+ordering offender now swaps intact label/value pairs rather than corrupting them.
+Release architecture (203) and all guarded frontend cases (1,446), lint,
+typecheck, formatting and link/anchor checks pass. Fresh fix verification follows.
+
+**Fresh fix verification.** The prior omissions are closed. The verifier found
+one new resolver-options gap: a relative `require.resolve` input could redirect
+through `paths`. That unmodeled form now fails loudly, with a planted control;
+the actual literal external-package ESLint load remains accepted. Both review
+rounds and their verified findings are complete. Step 3 follows.
+
+#### P02d-7 preliminary exit evidence inventory
+
+This is an inventory, not a phase-exit verdict. Step 4 reconciles every individual
+Deliverable and Completion Criterion against exact-head evidence, current CI and
+protection receipts; historical delivery records retain their original limits.
+
+| Criterion group | Existing evidence to retain/recheck | P7 completion work |
+|---|---|---|
+| Two sites, linked catalog/course/lesson, distinct field sets and branding | P6 product/presentation HTML/Flight fixture; maintainer keyboard/focus/reflow/VoiceOver record; `DemoManifest` typed expectations. | Step 3 real Chromium linked navigation and computed themes, three host/locale lanes; same API/web/database with owned Keycloak stopped. |
+| Clean preparation, non-destructive repeat and owned stop | Step 1 isolated seven-service/two-realm startup, audit-neutral Seeder repeat and signal/parent/process/TLS controls. | Step 3 shares the lifecycle; Step 4 records complete CI receipt and cleanup. |
+| Education schema, RLS, scope, satellites, parents, privileges, migrations | `EducationIsolationTests`, migration/tenant-scoping/index/grant sweeps and P1 delivery record. | Re-run full backend suites at exit; Phase 05 preservation handoff. |
+| Writer invariants, exact pins, locale/slug/state/body validation, MUST audit, branding and seed convergence | `EducationWriterTests`, `TenancyWriterTests`, `SeederTests`, P2 record. | Re-run with zero skips; retain typed inventories and bounded branding/access contracts. |
+| Definition/settings reads, generations, rollback safety, fallback, no read validation | `CustomizationProjectionTests` and composition/cache/settings suites; P3 record. | Re-run; retain existing generation/family metrics and settings freshness boundary. |
+| Public eligibility, cursor/scope/locale, DTO/HEAD/OpenAPI/SDK, no-store, read-only pipeline | P4 public HTTP, contract, transaction and dispatch guards. | Re-run SDK/contract/OpenAPI drift and all required checks; retain current seven-check read-back only after success. |
+| Provenance/ingress/hop/visitor limits, private carriers, native production freshness, single bootstrap | P5 remediation and ADR-0055 real native/API proofs; P6 bootstrap/refusal coverage. | Step 3 uses identical ingress/limiter and records positive API calls with zero 429. |
+| Localized renderer, inert authored text, metadata/status, manual accessibility | P6 i18n/route/HTML-RSC/a11y guards and recorded human checks. | Step 3 observes actual browser documents; Lighthouse supplements the bounded manual record. |
+| G20 exact-literal/reference fence and schema replacement | This Step 2 backend/frontend dirty/clean controls and existing presentation successor fixture. | Both independent review rounds; Step 3 ordered fields. Computed comparisons remain a review/behavioral boundary. |
+| Performance/accessibility audits, report/census/gzip guards | ADR-0056 accepted obligations, four Registered behavioral rules. | Step 3 implements 27 report pairs/hard checks; Step 4 activates mandatory CI/protection and updates statuses with enforcement. |
+| Governance, all gates/catalogue rows, module/standard/skill/vision/MVP carriers and named exclusions | Existing decision register and P1–P6 records. | Step 4 complete criterion matrix, zero 02d Registered/Awaiting rows, owner-document checks and P02b-0/Phase 05 handoffs. |
+
+### P02d-7 Step 3 — browser and audit proof (2026-10-11)
+
+**Complete — both independent review rounds and verified fixes pass.**
+The shared CI lifecycle invokes `verify-public-demo.mjs` over the same seeded
+production API/native renderer. `DemoManifest` also derives hidden lesson titles
+and field values, excluding values shared with eligible public content. The
+browser follows the actual catalog/course/lesson links in all three host/locale
+lanes and compares computed theme colors, identity and ordered authored fields.
+
+Exact development-tool pins are Lighthouse 13.5.0 and Playwright 1.64.0, using
+its managed full Chromium 156.0.8078.4, revision 1248. The audit configuration
+has an independently recorded 125-audit/14-artifact census and complete category
+weights. A custom initial-navigation gatherer observes the actual document and
+all delivered Script bodies; it never refetches or navigates. The shared policy
+checks original inline source, complete decoded bodies, normalized gzip and the
+actual audited product DOM before admitting a JSON/HTML report pair.
+
+The structured API completion observer retains only aggregate status/path-family
+counts. A fresh HTTPS product read supplies its positive control. Four serial
+batches preserve the real admission policy, with the approved quiet intervals
+and subordinate deadlines. The public receipt records setup/proof/cleanup
+milliseconds, versions, configuration, source digests, report inventory and API
+counts. Browser profiles, certificates, private configuration and raw logs stay
+outside the public evidence. CI cleanup confirms owned process/project absence
+and removes owned private files, environment and lock within its separate bound.
+
+**Initial verification.** All 43 focused frontend controls and eight existing
+manifest/configuration integration cases pass with zero failures/skips. Lint
+and typecheck pass. The guarded frontend runner passes all 1,489 cases
+(1,429 web + 60 SDK); all 203 architecture cases pass, with zero skips.
+The controls include actual installed Lighthouse configuration
+resolution, measured over-budget sources, wrong/error product documents, invalid
+reports/census, missing/truncated/foreign-target sources and split API events.
+The first complete serial feasibility run passes: lifecycle setup 61,468 ms,
+proof 549,269 ms (9 min 9 s), and confirmed cleanup 10,656 ms. It produces all 27
+JSON/HTML pairs and nine browser screenshots. All hard checks pass: normalized
+initial JavaScript is 106,381–106,573 bytes, CLS is zero, and scored automated
+accessibility is 1 on every run. The four proof batches observe exactly
+18/36/36/36 successful API calls; the separate observer control observes two.
+Both untrusted/wrong-SPKI browser controls refuse before reaching the API.
+The CI-owned Keycloak stays stopped. Owned processes/project/private files,
+environment and lock are removed; the two authorized foreign containers restart.
+
+LCP samples are 2,008.544–2,166.836 ms, producing an advisory median warning for
+each of the nine URLs. Server response is 15–23 ms and TBT 4–16 ms. These are
+local simulated lab samples, not field/p95 performance or a new manual WCAG pass.
+This is working-copy feasibility evidence over the `69ce613` baseline and build
+`vCA7HXnit3froptth4IYD`; it is not an exact-head CI claim. Subsequent receipt-only
+hardening records the complete expected/configuration census and startup/final
+counters; the final committed CI run must validate those changes. Step 4 owns
+CI enforcement, protection activation and phase exit.
+
+The first runtime attempts exposed harness defects before any audit verdict:
+macOS's certificate verifier stalled when Chromium inherited the isolated Node
+HOME, and optional `undefined` configuration properties differed from their JSON
+receipt. A causal disposable TLS experiment confirms certificate refusal with
+the real account HOME; only the managed browser receives it, with an explicit
+owned disposable profile. Worker/API environments remain isolated. Configuration
+comparison now uses the serializable receipt and an actual-resolution control.
+The linked nine-page browser path subsequently passed, with exactly 18 successful
+API calls and no 429, before the configuration comparison stopped that attempt.
+These observations are preliminary validation, not the complete feasibility gate.
+
+**Transitive review.** Both direct tools are Apache-2.0 development dependencies.
+The added tree includes MPL-2.0 `axe-core` 4.14.0, used by Lighthouse's development
+accessibility audit; retain its package license/source obligations if distributing
+that tool. Existing runtime package versions are unchanged. Resolving the added
+OpenTelemetry API peer changes some lockfile peer identities without adding
+application instrumentation. The full-workspace audit reports zero critical,
+one high and one moderate advisory; neither path comes from the new tools.
+The existing [security triage](#remediation-group-3--approved-security-maintenance)
+owns Braces' unfixed build-glob recursion issue and the incompatible-major
+selector-parser fix. Their maintainer/backport/parent-migration ownership and
+Security Standards deadlines remain unchanged; this is not a clean-audit claim.
+
+#### Step 3 review round 1
+
+Fresh GPT-6-astra (xhigh) runtime/measurement and GPT-6.1-sol (xhigh)
+proof/corpus/dependency reviews cover `69ce613..d99d10b`. Both request changes;
+three verified findings concern the proof, with no production-code defect.
+Independent root reproductions confirm each failure before correction.
+
+- Completion observation silently ignored damaged JSON and unterminated records;
+  the receipt preceded final API output drain. Separate stdout/stderr decoders,
+  pending-tail refusal, joined EOF finalization and post-cleanup final census now
+  prevent malformed, late or 429 traffic from disappearing. Actual record controls
+  include split/interleaved clean output, damaged/newline/EOF records and late
+  success/refusal events.
+- Lighthouse treats its navigation timeout as a warning. A real disposable
+  Chromium/Lighthouse run took 22,116 ms and admitted an incomplete image load.
+  Report admission now refuses warnings. The shared proof includes that actual
+  soft-timeout control with an otherwise passing report counterpart.
+- Ancestor opacity and zero-area rendering hid product markers while the DOM gate
+  admitted them. Browser-native visibility plus positive-area rectangles now
+  apply to markers and individual field labels/values. Each real lesson navigation
+  plants ancestor-opacity, zero-area and hidden-label mutations, verifies refusal,
+  restores the document and re-admits the visible control, without new API calls.
+
+All 74 focused proof/lifecycle cases pass with zero failures/skips. Disposable
+managed-Chromium controls verify visible admission and hidden/zero-area refusal.
+A complete rerun and fresh independent round 2 remain pending; the earlier local
+feasibility result is preserved and does not validate these subsequent changes.
+
+#### Step 3 review round 2
+
+Fresh GPT-6-astra (xhigh) runtime/measurement and GPT-6.1-sol (xhigh)
+proof/corpus reviews cover `69ce613..38c15d9`. Both request changes. Three
+verified proof gaps remain; the existing 50 proof controls passed independently.
+
+- A completion record missing its opening brace or carrying a prefix was ignored,
+  as was an unexpected endpoint completion. The owned API emits structured
+  startup/output; only empty plaintext separators are now admitted. Damaged and
+  unexpected completion records refuse the entire census, including a 429.
+- Process-group absence preceded child `close` and buffered stream EOF. An actual
+  child with deliberately deferred stdout demonstrated a 429 arriving after a
+  prematurely passing final census. Cleanup now joins `close` with a separate
+  shared five-second stop/output-drain bound before observer finalization. The
+  regression holds and releases the real pipe, proves cleanup waits, then refuses
+  the 429.
+- Clip/filter/mask and offscreen/overflow styles could hide laid-out markers.
+  The bounded seeded-page predicate now refuses these ancestor styles and
+  horizontally unreachable/negative-area markers. Each lesson navigation checks
+  eight actual DOM mutations, restores and re-admits its positive control;
+  the receipt requires all 24 completed controls. This is not a general CSS
+  occlusion or visual-accessibility audit.
+
+All 78 focused proof/lifecycle cases, typecheck and lint pass. The full guarded
+runner passes 1,500 cases (1,440 web + 60 SDK), with zero failures/skips/todos.
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) fix reviews approve
+`38c15d9..39cee01` and the final shared cleanup-deadline adjustment. Independent
+controls reproduce the old observer/drain gaps, confirm joined stdout/stderr,
+refuse daemon output errors and bound a TERM-resistant child plus held output
+to 5,003 ms. Managed Chromium refuses all eight DOM mutants and re-admits each
+restored counterpart; the five added cases passed the old predicate.
+
+The complete `38c15d9` rerun passes: setup 60,270 ms, proof 571,089 ms,
+cleanup 10,688 ms, all 27 report pairs and nine screenshots, actual soft-timeout
+refusal, nine visibility controls and 134 successful API completions, with zero
+429/malformed/pending records. The authorized foreign containers restart healthy.
+That receipt precedes round-2 fixes. The complete `39cee01` rerun also passes:
+setup 60,374 ms, proof 585,644 ms and cleanup 10,719 ms. Build
+`d0bzXjXoImUdH317X83rK`, invocation `825982bee2ed568f43208368f99f332d`,
+produces all 27 report pairs, nine screenshots and 24 completed visibility
+controls. The actual soft-timeout and both TLS refusal controls pass; final
+observation contains 134 successful calls, zero 429/malformed/pending records.
+All owned cleanup checks pass and the authorized foreign containers restart.
+The subsequent shared-bound change has focused verification above and must also
+run in final CI. Both independent review rounds and fresh fix verification are
+complete. Step 4 owns CI enforcement and phase exit; neither is claimed here.
+
+### P02d-7 Step 4 — CI enforcement and phase exit (2026-10-11)
+
+**Implementation, both independent review rounds and real CI complete.** The
+[CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11) records
+successful artifacts and the activated seventh required context.
+The always-running `public demo + lighthouse` job replaces the disabled
+placeholder. It installs the exact locked browser tools and managed Chromium,
+then invokes `make demo DEMO_MODE=ci` over the shared seven-service lifecycle.
+The 20-minute job includes setup, the 12-minute serial proof, separate bounded
+cleanup and artifact handling. An unconditional bounded workflow receipt records
+failure even when setup prevents a product receipt. Uploads allow only public
+JSON/HTML reports, screenshots and sanitized workflow/proof receipts.
+
+The [individual exit evidence matrix](phase-02d-exit-evidence.md) maps all
+36 Deliverables, 79 Completion Criteria, 39 exclusions and nine exit obligations.
+It preserves prior human/PR evidence and names the verified CI receipts;
+implementation alone does not constitute phase exit.
+
+**Criterion reconciliation.** Published roots cannot receive new translations
+under ADR-0050. The third-locale proof therefore creates and publishes new
+French-only roots through supported commands, preserving the existing EN/TR
+public responses and all five migration histories. Organization branding writers
+remain unrouted. The branding criterion now separates API-root command refusal
+from mapped-host reads and distinguishes a successful business audit from the
+required standalone denied-attempt audit. This corrects the mutable criterion's
+no-audit overclaim; ADR-0033/0044 and production auditing are unchanged.
+
+**Education preservation handoff.** Phase 05 inherits separate Course/Lesson
+roots and their contained Pattern A translations. Its migration preserves stable
+IDs and published localized URLs, `(sort,id)` lesson order, tenant/organization
+scope, translated bodies, exact content-type/taxonomy revision pins and course
+access policy. `SeedData.All` supplies both tenant curricula: eight courses,
+ten lessons and 27 translations at their declared scopes, including draft and
+restricted controls. Carry those persisted fixtures through the migration;
+reseeding is not a migration strategy.
+
+**P02b-0 re-verification handoff.** Re-read the four `/api/v1/public` GET/HEAD
+pairs and contract; retained `*.learnstack.local` seed hosts over native HTTPS,
+manual local hosts/CA setup and private paired hop configuration; coordinated
+60/min visitor and 600/min physical-peer accounting; tenant-wide English versus
+organization-scoped Yoga seed context; one live bootstrap with two calls per
+normal product document and three for a followed missing-content chain; and the
+uncached settings reader plus `learnstack.tenancy.settings` eager-invalidation
+event owned by Phase 02b. These delivered premises do not Accept future
+session/BFF/authenticated-rate-limit decisions.
+
+**Initial validation at `bf5bc9c`.** Both third-locale/branding cases pass locally
+with zero skips. Release build has zero warnings/errors; 1,705 unit, 203 architecture,
+four contract and 180 Docker-free integration cases pass, as do all 1,500 guarded
+frontend cases. Typecheck, lint, whitespace and 2,042 relative links (666 fragments)
+pass. All 871 Docker integration cases pass with zero skips; execution guards pass.
+Two fresh review rounds, a real
+successful PR job and the authorized seventh-context activation/read-back remain.
+No PR, live check activation or phase exit is claimed yet.
+
+#### Step 4 review round 1 (2026-10-11)
+
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) agents reviewed
+`06d46ad..bf5bc9c` for runtime/CI ownership and corpus/exit evidence. Their
+confirmed findings concern proof completeness and CI prerequisites, not a
+production contract defect. C40–C42 now share one HTTP test: 17 requests pair
+foreign-only/shared slugs, exact-locale omissions and organization/tenant host
+controls with exact raw translation sets on each request's own enlisted
+application connection. The third-locale case now enables French on the foreign
+host and proves its positive catalog before checking the same French detail
+URLs are hidden. Missing Cache-Control can no longer bypass its assertions.
+
+The CI job starts an absolute deadline before checkout, bounds setup steps and
+interrupts the shared lifecycle by minute 16, reserving four minutes inside the
+unchanged 20-minute ceiling for owned cleanup, policy cleanup and artifacts.
+Four controls execute the actual workflow shell: first-step reservation,
+remaining-budget arguments and two exhausted-budget refusals. An actual GNU
+timeout → make → shared Node-owner experiment exits 124 only after child cleanup.
+The internal 12-minute serial proof deadline remains unchanged.
+
+The GitHub-hosted Linux prerequisite loads only an invocation-owned AppArmor
+userns profile for the exact managed Chromium when the kernel restriction needs
+it, then performs a sandbox-enabled launch smoke. Fifteen isolated controls
+exercise ownership, literal paths, failed load/removal and cleanup without
+changing workstation policy. A real Linux job remains required; the initial
+runner risk was source-supported inference, not a reproduced hosted failure.
+The exit matrix, stale review guidance, Phase 02b risk premises and mutable
+renderer/writer scope descriptions now match delivered contracts.
+
+All three focused locale/branding Docker cases pass with zero skips and the
+execution guard. The guarded frontend rerun passes 1,504 cases (1,444 web + 60
+SDK), zero failures/skips/todos; typecheck, lint, scoped backend formatting and
+whitespace pass. The initial full backend totals above precede the added combined
+case. Final complete PR CI, round 2 and protection read-back remain required.
+
+#### Step 4 review round 2 (2026-10-11)
+
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) agents reviewed
+`06d46ad..100b022` across runtime/CI ownership, security, correctness,
+maintainability, test quality and the complete changed corpus/exit matrix.
+Both approve with no remaining Blocker or Major. The corpus reviewer confirmed
+two Minor navigation/census remnants: the matrix still called the expanded
+three-case class two cases, and CONTRIBUTING still described completed
+ADR-0055 reviews as remaining. Both are corrected; the reviewer independently
+checked the bounded follow-up. One overlong P7 prose line is wrapped without
+changing its content, and catalogue navigation names the new deadline/sandbox
+controls. Earlier P1–P6 delivery records remain unchanged.
+
+The runtime reviewer independently passes all 15 Chromium-prerequisite controls,
+four actual-workflow deadline controls and all three focused Docker HTTP cases,
+with zero skips, plus whitespace. The corpus reviewer verifies all 36/79/39/9
+inventory counts, complete named evidence, 175 Implemented rules, 21 Active/one
+Adopted standards and future-owner scope. Root checks pass seven ADR lifecycle
+and 14 OpenAPI-CI controls. The complete PR's 33 unique Markdown files resolve
+2,188 relative links and 686 fragments with no errors before these closing
+navigation additions. Fenced and inline examples are excluded from link counts.
+Both review rounds and verified fixes are complete. Actual successful Linux PR
+CI, complete artifact receipts and authorized protection activation/read-back
+remain required before a positive phase-exit verdict.
+
+#### P02d-7 CI and phase-exit closeout (2026-10-11)
+
+**Verdict: implementation and Phase 02d exit verification complete.** All four
+P7 steps completed both fresh independent review rounds; verified findings are
+fixed and committed. [PR #28](https://github.com/HodeTech/LearnStack/pull/28)
+remains open for maintainer review and merge. No merge is claimed.
+
+All seven jobs passed in the first real
+[PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383) for source
+head `8605fc94f7ba343d5cd7cc15d28001d99349735b`. GitHub tested synthetic merge
+`15109c3a80a41ee7b6d6f9832880c7b2b13877f5`, whose parents are that source and
+main `378346126949c90bb286b5217c24513fc2044f06`. The sanitized workflow receipt
+records both identities. Downloaded TRX files confirm 1,705 unit, 203 architecture,
+four contract, 180 Docker-free integration and 872 Docker integration passes:
+2,964 backend tests, zero failures/skips. All three locale/branding/combined-scope
+cases are present and Passed. Frontend job output confirms 1,444 web + 60 SDK
+passes, zero failures/skips/todos; typecheck, lint, builds and SDK drift pass.
+Meta, secret scan and OpenAPI compatibility pass too.
+
+The `public-demo-lighthouse` artifact contains exactly 27 JSON/HTML report pairs,
+nine screenshots and two sanitized receipts; no private logs, profiles, env files
+or keys are included. Report digests, nine URL/three-run census, configuration,
+invocation, build and synthetic checkout identities match. The invocation is
+`aab02c37c71c02569f71ef8829a96c09`; build is `yTmMjFs6JVE2ea_W-jFzX`.
+Node 22.23.1, Lighthouse 13.5.0, Playwright 1.64.0 and Chromium revision 1248 /
+156.0.8078.4 run on the four-CPU Ubuntu 24 hosted runner. Its sandbox-enabled
+launch passes with the exact-executable temporary AppArmor prerequisite;
+the owned policy removal passes afterward.
+
+All nine linked navigations and 24 planted visibility refusals pass. Every audit
+has normalized initial JS gzip 106,359–106,553 bytes, CLS 0 and automated
+accessibility 1. Per-URL timing medians remain advisory, not production p95.
+All 134 API observations are 200, with zero 429, malformed or pending records:
+six startup + two observer-control + 18 linked-browser + 3 × 36 audit calls.
+Both TLS refusal controls and the actual audit-timeout control pass. Keycloak is
+stopped before anonymous navigation. Setup/proof/cleanup take
+228,127 / 650,154 / 11,041 ms; the proof stays inside 12 minutes and cleanup
+inside 30 seconds. The complete job takes 15 minutes 51 seconds, within its
+20-minute ceiling and absolute setup/proof deadline.
+
+After that successful run, the authorized API update adds only
+`public demo + lighthouse` to main's required contexts. A fresh full read-back
+confirms seven GitHub Actions contexts (`app_id: 15368`), strict up-to-date
+checking, all six prior contexts retained and every unrelated protection setting
+identical to the immediately preceding API response. The current list lives in
+[CONTRIBUTING](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main).
+
+The [individual evidence matrix](phase-02d-exit-evidence.md) reconciles all
+36 deliverables, 79 criteria, 39 explicit exclusions and E01–E09. All 45 register
+rows have dated Accepted closure links; no Phase 02d-owned Registered/Awaiting
+catalogue rule remains. All four ADR-0056 rules are Implemented; corpus checks
+confirm 175 Implemented catalogue entries and 21 Active/one Adopted standards.
+The existing P6 human/VoiceOver evidence retains its original attribution and
+limits; this closeout claims no new final-head manual WCAG or zoom audit.
+Phase 05 preservation and P02b-0 premises are handed off above and in their
+owning documents; no future-phase decision is accepted by this exit.
+Closing-document checks pass all five CorpusConsistencyTests with zero skips;
+the 33 changed/new Markdown files resolve 2,197 relative links and 694 fragments
+with no errors. Added prose respects 88 columns; ADR-0056 changes are insertion-only.
+
+##### Reviewed implementation head verification (2026-10-11)
+
+The first run above owns activation history. The separately downloaded
+[reviewed-head run](https://github.com/HodeTech/LearnStack/actions/runs/38108622191)
+passes all seven jobs for source `d47ef17c8473e17e0950361dc35e419ba6c0825c`,
+tested merge `ba44563af66fbd7744b6625673e61286a8e77fa4` with the same main parent.
+Its invocation is `170c02e7741fbc6c79895ce718cecd89`; build is
+`rlL6ubYmcf7_VQaPBN-fA`. TRX/frontend receipts confirm the same 2,964 backend
+and 1,504 frontend passes, zero failures/skips/todos.
+
+All 27 report pairs, nine screenshots, nine navigations and 24 visibility
+refusals pass. Report digests and source/build/invocation/configuration identities
+match. Normalized gzip is 106,358–106,551 bytes, CLS 0 and automated
+accessibility 1 throughout. Both TLS refusals, the audit-timeout control and all
+134 API observations (200 only, no malformed/pending records) pass.
+Setup/proof/cleanup take 214,616 / 644,207 / 12,962 ms; all cleanup flags pass.
+Sandbox-enabled Chromium and owned AppArmor cleanup pass. These numbers belong
+to the exact implementation head reviewed externally, not to later commits.
+
+##### External review follow-up (2026-10-11)
+
+The maintainer's review of `3783461..d47ef17` reported no Blocker/Major and
+four bounded documentation/maintenance findings. All four are verified and
+addressed: the reviewed-head receipt above supplements activation history;
+runtime imports move to the file header; installed tool/browser metadata feeds
+the shared census and remains checked against independent committed pins; and
+ADR-0056 gains dated acceptance-baseline navigation without changing history.
+Tool versions, budgets, admission and cleanup behavior are unchanged.
+
+Local validation passes 1,454 web + 60 SDK tests, zero failures/skips/todos,
+typecheck, lint and all 203 architecture tests. Ten added cases cover installed
+metadata/pin mismatch, malformed or missing browser metadata, stale census and
+wrong-version report refusal, each retaining a clean passing control. Both fresh
+independent remediation rounds reviewed `d47ef17..dca3a7b` and approved without
+findings. Each independently checked installed dependency resolution, fail-closed
+metadata/census comparison and the downloaded historical receipts. All five
+corpus tests pass; the complete PR's 33 changed/new Markdown files resolve
+2,201 relative links and 698 fragments without errors. The new remediation head
+must still pass full seven-job CI through the PR rollup before merge.
+
+##### Systematic review remediation (2026-10-11)
+
+The later review examined source `aebefee`. Its findings were re-verified against
+current code before changes; this is a separate record from the historical
+`d47ef17` review above. No new architecture decision or budget change is needed.
+Work remains on `development`; PR #28 is not merged by this record.
+
+1. **Lifecycle and launcher — complete.** `cd6affd` removes the unsupported
+   Seeder launcher argument, attempts independent process/observer/Compose
+   cleanup stages even when a preceding stage fails, and retains failure causes
+   internally without echoing private diagnostics. Private files are removed
+   only after confirmed cleanup. Socket errors distinguish occupied ports from
+   other bind failures; declaration files describe the actual lifecycle API.
+   `/artifacts/` is ignored. All 34 lifecycle tests, lint and typecheck pass.
+   Two first-round reviewers and a fresh second-round reviewer approved without
+   findings.
+2. **Genericity census — complete.** `db6bcdf`, `90114f0` and `c6cd69f` close
+   source-root/format admission and supported static import gaps. Local and
+   inherited-config candidate ambiguities are conservatively included or
+   refused; workspace manifests have explicit ownership. Backend evaluation
+   checks `Compile` and `ProjectReference` coverage, exact output roots and
+   bounded build shapes/properties. First-round frontend/backend reviewers
+   identified five verified resolution/build-admission gaps, fixed in
+   `90114f0`. The fresh second round found inherited-config shadowing, fixed in
+   `c6cd69f`; its same counterexample now refuses and its clean control passes.
+   All 18 frontend genericity cases, seven backend genericity cases, all 203
+   architecture cases, lint, typecheck and targeted format pass. This remains a
+   bounded exact-literal/static-import fence, not arbitrary program analysis.
+3. **Proof helpers and carriers — complete.** `9a0d285` extracts actual worker
+   network-inventory reconciliation and verifier advisory aggregation for fast
+   dirty/clean controls. Navigation counts come from completed
+   observations; upload globs admit only named reports/screenshots/receipts.
+   Current architecture, infrastructure, standards and route-authoring guidance
+   describe delivered G44/G45 enforcement. Two first-round reviewers and a fresh
+   second-round reviewer approved without findings. The second round also
+   reproduced all historical advisory medians from the downloaded receipt.
+   All 128 focused tests, 1,537 frontend cases (1,477 web + 60 SDK) and 2,092
+   Docker-free backend cases (1,705 unit + 203 architecture + four contract +
+   180 integration) pass with zero failures/skips/todos. Release build, format,
+   lint, typecheck and production frontend builds pass; 15 sandbox-policy and
+   seven ADR-status controls pass. The complete PR's 36 Markdown files resolve
+   2,289 relative links and 719 fragments; added prose respects 88 columns.
+   The final PR rollup must still pass all seven required jobs, including the
+   real Docker and 27-audit lifecycle proof, before merge.
+
+**Late automatic-review follow-up.** Run 38125035732 passes all seven jobs for
+source `4541d63`, including 2,964 backend and 1,537 frontend cases, the real
+27-audit proof and cleanup. A later CodeRabbit comment exposed a local-DX gap:
+ignored `.env.local` and OS/editor files reached raw filesystem classification.
+The follow-up admits only explicitly known machine filenames that Git also
+ignores. Ignored source files, unknown formats and compiler coverage retain
+fail-closed behavior. The first independent round approved `d16d2d7`. The fresh
+second round reproduced an automatically imported `.csproj.user` build hook;
+`.user` is therefore excluded from the machine-file exemption in `9343e99`,
+with explicit refusal controls. The reviewer independently re-ran the actual
+collector: clean ignored files pass and the original build-hook counterexample
+refuses. Both review rounds are complete, with no remaining findings. All 19
+frontend and seven backend genericity cases pass; the complete guarded frontend
+rerun passes 1,538 cases (1,478 web + 60 SDK), zero failures/skips/todos.
+Owned temporary ignored-file controls pass both actual raw collectors and are
+removed afterward. Whitespace and the complete PR's link/fragment audit pass.
+The final PR rollup below owns replacement final-head CI; all seven jobs remain
+required before merge.
+
+**CI stability follow-up.** Run 38126790757 reports one unit-test failure in
+`A_Factory_That_Ignores_Its_Token_Is_Still_Bounded`; all 203 architecture cases,
+including the new admission controls, pass. This pre-existing test races an
+80 ms cache deadline against a 600 ms factory delay. It now holds the factory
+behind an explicit release signal until the cache's own timeout is observed,
+checks that a replacement waits and retains the late-result/cache assertions.
+The bounded test wait cannot masquerade as the cache timeout: its message must
+identify the cache's own deadline. The release is guaranteed in `finally`.
+Production cache behavior and its budget are unchanged. `32a7951` delivers
+this test-only fix. Fresh GPT-6.1-sol (high) and GPT-6-astra (high) reviews approve
+in two separate rounds with no findings; the second reviewer independently
+passes the focused Release case. All 51 cache cases and all 1,705 unit cases
+pass with zero skips. Replacement final-head CI remains required by the rollup
+below; the initial failed job is not counted as passing evidence.
+
+**Other finding dispositions.** The gzip adapter equality checks wiring; the
+independent Script observer checks source-window coverage, not a second byte
+measurement. Existing fast tests already cover report admission, source-byte
+normalization, completion accounting and gatherer cleanup; full orchestration,
+TLS refusal, real visibility and report-file checks remain real lifecycle/CI
+proofs. The added helpers supplement those proofs rather than replacing them.
+The review's zero-fast-coverage claim was therefore broader than the actual gap.
+
+The reported PR-body count/gzip mismatch compared different receipts. Downloaded
+[run 38119659152](https://github.com/HodeTech/LearnStack/actions/runs/38119659152)
+for source `aebefee`, tested merge `0bb897c`, verifies 2,964 backend and 1,514
+frontend passes, gzip 106,358–106,552 bytes. Historical `d47ef17` numbers above
+remain correct for that earlier head; neither substitutes for final remediation
+CI. The newer proof took 619,309 ms inside the accepted 720,000 ms deadline;
+cleanup took 10,595 ms inside 30,000 ms. No deadline increase is justified.
+
+Ordinal complete-value matching and strict readable JSON are accepted G20
+behavior, so host case-folding and JSON-comment tolerance are not introduced.
+Below-fold laid-out content remains valid full-page evidence; adding a viewport
+bottom cutoff would reject legitimate long lessons. Bounded child ownership
+records are retained through process-group/EOF confirmation; no sustained leak
+was demonstrated. The older `public-local` exit behavior, dormant platform
+branches and test-project placement are unchanged maintenance suggestions.
+Census regeneration instructions already name the authoritative Seeder command.
+
+Mutable Action tags are pre-existing throughout CI, with no accepted SHA-pinning
+policy. This patch does not introduce a repository-wide dependency policy;
+[Security Standards](../standards/11-security.md#dependency-hygiene) already assign
+update automation to Phase 11. Accepted ADR-0053/0056 baseline and dated notes
+remain historical; their then-pending wording is not rewritten as a correction.
+Current carriers link delivered P7 evidence instead. No new human/WCAG evidence
+is claimed by these orchestration and proof changes.
+
+Closing documentation commits must also pass the seven required jobs before
+merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
+owns that moving-head result. Next after maintainer review and merge is
+**P02b-0 re-verification and decision pass**, before Phase 02b implementation.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved
@@ -5697,10 +6650,11 @@ scope, with explicit data-preservation obligations. The
 distinguish this shape from Phase 05's target hierarchy.
 
 - `Course` — tenant-owned, optionally organization-scoped, with independent
-  `draft` / `published` state under [ADR-0048](../decisions/0048-walking-skeleton-publication.md).
+  `draft` / `published` state and explicit content-access policy under
+  [ADR-0050](../decisions/0050-publication-and-course-content-access.md).
   Its title, summary and per-locale slug live in `course_translations`; its optional
-  level reference pins an exact taxonomy revision and band. G5's write validation and
-  unresolved-band presentation remain with their later packets. No versioning,
+  level reference pins an exact taxonomy revision and band. P02d-2/4 delivered
+  G5's write validation and bounded unresolved-band presentation. No versioning,
   programs or cohorts.
 - `Lesson` — ordered within a course; its title and per-locale slug likewise live in
   `lesson_translations`. Its body is drawn the way
@@ -5881,11 +6835,10 @@ module's audit catalogue and registered in both composition roots.
   [Audit Coverage Standards](../standards/18-audit-coverage.md). The command set and
   re-run behaviour are **G11**; the Customization contract the lesson writer calls, and
   which revisions it may bind, are **G12**.
-- **Tenancy commands** raise `tenancy.locale.write` (SHOULD) and `tenancy.setting.write`
-  (MUST), both `(planned)` today. The setting command lands only once **G17** is
-  answered, because no command writing `tenant_settings` precedes the `[PiiSensitive]`
-  decision ([Phase 03](phase-03-identity-admin.md)); its keys and value checks follow
-  **G16**, and it performs the contrast check
+- **Tenancy commands**, delivered in P02d-2, raise `tenancy.locale.write` (SHOULD)
+  and `tenancy.setting.write` (MUST). Accepted **G17** supplies whole-value
+  `[PiiSensitive]` redaction before setting writes; keys and value checks follow
+  Accepted **G16**, including the contrast check
   [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast)
   requires before a theme token is saved, with the outcome G16 records.
 - **The Education module spec**, `docs/modules/education/` (`README.md`, `audit.md`,
@@ -5904,8 +6857,8 @@ module's audit catalogue and registered in both composition roots.
   announced context, never from a command field
   ([Security Standards § Forbidden](../standards/11-security.md#forbidden)), and a
   tenant-wide row can be updated only from a context that announces no organization. The
-  seeder announces its context today by calling `IUnitOfWork.SetTenantContextAsync`
-  itself, which ADR-0040's closed setter set does not list: **G15**.
+  seeder uses the accepted **G15** contextual composition and registered caller
+  fence; it does not directly call a tenant-context setter.
 
 Each tenant's **own** customization data — the table in § Genericity proof — is authored
 through the Customization module's commands, as Phase 02a's seed is, and presented as
@@ -5949,8 +6902,8 @@ Obligations already imposed:
 
 P02d-3 delivered **G12**'s cache contract, the loader/correctness contract (**G22**)
 and internal display fallback (**G24**) under the
-[accepted gate answers](#accepted-gate-answers). P02d-4 delivers public response
-parts; page-state behavior remains P02d-6.
+[accepted gate answers](#accepted-gate-answers). P02d-4 delivered public response
+parts; P02d-6 delivered page-state behavior.
 
 **The typed settings accessor** over `tenant_settings`, which Phase 02a left to its
 first reader, is delivered in P02d-3. Under Row Level Security a `tenant_settings`
@@ -6063,27 +7016,31 @@ The full path from
 [Phase 02a Packet 7](phase-02a-kernel-tenancy.md#delivery-record-packet-7), exercised
 for real — on the path a Server Component takes:
 
-1. The browser's `Host` reaches Next.js. Both pages are Server Components, so the API
-   call is made by the Next.js server, and the `Host` the API sees is not the visitor's.
-2. The server SDK states the visitor's host to the API over the trusted hop
-   ([ADR-0036 § Effective host and the trusted hop](../decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)),
-   whose § Consequences names `frontend/packages/sdk/src/server.ts` as the only frontend
-   place that sets the hop headers.
+1. Native HTTPS ingress validates the browser's host, physical peer and request
+   target, strips authority carriers and signs the request-local provenance envelope.
+   Middleware verifies it before making the one live site bootstrap call.
+2. The configured server caller in
+   `frontend/apps/web/src/server/configured-public-client.ts` states the verified
+   host/visitor to the API over the closed trusted hop under
+   [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) and
+   [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+   The injected SDK remains transport-policy agnostic.
 3. The API resolves that effective host through `platform_host_to_tenant` to a
    `(tenant_id, organization_id?)` pair, the singleton `ITenantContextAccessor` is
    written and the transient `ITenantContext` resolves from it on every access, the
    transaction sets `app.tenant_id` / `app.organization_id` with `SET LOCAL`, and Row
    Level Security filters every read.
-4. Whatever the edge resolves is for rendering only, and any `X-Tenant-Id` is an
-   assertion
+4. RSC consumes the verified immutable bootstrap snapshot for that request under
+   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md). Rendering
+   contributes no tenant authority; the API owns resolution and admission
    ([Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)).
-5. In this phase's default topology the loopback bind, not the secret, is the boundary
-   (ADR-0036 § Consequences).
+5. The private loopback hop and authenticated internal envelope preserve the
+   accepted local trust boundary; a stock Next process cannot mint admission.
 
-None of that path is wired from the renderer's side yet — § What this phase inherits
-lists the scaffolds this phase replaces. The topology and its evidence are **G33**, the
-limiter in front of it **G34**, the SDK transport **G31** and **G35**, the middleware
-and entry behaviour **G36**, and the rendering mode **G37**.
+P02d-5/6 delivered this path and its real production HTML/RSC isolation proofs.
+**G33**, **G34**, **G31**, **G35**, **G36** and **G37** are Accepted and implemented;
+their packet records retain the decisions and test receipts. P02d-7 adds the
+shared foreground lifecycle and real browser/audit enforcement.
 
 Two hosts are registered in local development, one per seed tenant:
 [Phase 02a Packet 7](phase-02a-kernel-tenancy.md#delivery-record-packet-7) wrote one
@@ -6484,11 +7441,13 @@ otherwise
   string containing `</style>` — never reaches a rendered document, and a refused write
   commits neither a `tenant_settings` row nor an audit row. A key outside the contract,
   and a failing contrast pair, behave as G16 records — never a silent save.
-- A branding key written as an organization-scoped `tenant_settings` row behaves as
-  **G16** (e) records, checked request-level through a host mapped to the organization:
-  refused at write, committing neither a `tenant_settings` row nor an audit row; stored
-  while the page served on that host is unchanged; or, if G16 (e) applies it, shown on
-  that host's page and on no other host's.
+- Under **G16** (e), the unrouted branding command dispatched through the API
+  composition root in organization scope refuses the write. It changes no
+  `tenant_settings` row and commits no successful setting-write audit; the denied
+  attempt remains auditable under ADR-0033/0044. A real GET on the mapped
+  organization host returns the same tenant palette before and after refusal.
+  This combines the application-writer boundary with the shipped HTTP reader;
+  it does not introduce an HTTP authoring endpoint.
 - If **G19** includes a write-time rule, a lesson write holding a disallowed URL is
   refused with details naming the JSON pointer, and nothing is written.
 - Whatever **G18** refuses at save — which may include a presentation entry naming a
@@ -6536,8 +7495,10 @@ otherwise
 
 - In one test, a course slug that exists only in tenant B returns `200` with that course
   on tenant B's host and `404` on tenant A's host, and a `(locale, slug)` held by one
-  course in each tenant returns each host's own course, compared by id. A status alone
-  proves nothing here: a route miss and an unknown host also answer `404` with the same
+  course in each tenant returns each host's own course, compared against its exact
+  seed-derived public payload. Stable source-side IDs select the expected course;
+  accepted public DTOs expose no ID. A status alone proves nothing here: a route miss
+  and an unknown host also answer `404` with the same
   `not_found` code, and the same route's `200` is what rules them out.
 - In the same test, a course returns `200` at its slug in a locale it is translated into
   and `404` for that slug under an enabled locale it has no translation for; a lesson
@@ -6820,8 +7781,8 @@ otherwise
   handler's response type and neither has a handler. The mechanical control is
   accepted in **G28**: mandatory marked dispatch and structural guards complement
   the physical read-only barrier. P02d-4 Step 1 delivers the physical read-only barrier and host admission.
-  Endpoint dispatch/dependency guards remain with Step 2; the barrier covers only
-  enlisted transactions.
+  Steps 2–4 deliver endpoint dispatch/dependency and eligibility proofs;
+  the physical barrier covers only enlisted transactions.
 - **A missing marker looks like a resolver bug.** A host-only request to a type without
   `[PublicSurface]` answers the unknown-host `404` by design, so a public read shipped
   without its marker reads as a resolution or Row Level Security defect. The tempting

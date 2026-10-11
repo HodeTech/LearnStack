@@ -27,11 +27,12 @@ Run an end-to-end online English-learning tenant on LearnStack, where:
 - A second tenant — a **yoga studio** — has existed since
   [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md), holding the same
   built-in customization rows as the English school, owned per tenant.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) gives each tenant its own
-  taxonomy, content type and branding as tenant data and renders both sites
-  ([§ Genericity proof](../roadmap/phase-02d-walking-skeleton.md#genericity-proof)). The
-  substrate-genericity proof is therefore continuous from Phase 02d onward, not a
-  checkbox at MVP exit.
+  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) renders each tenant's
+  catalog, course and lesson pages from its own taxonomy, content type and branding:
+  two ordered English-school lesson fields and three Yoga fields, with distinct
+  English/Turkish Yoga slugs and labels. The same renderer serves both sites
+  ([§ Genericity proof](../roadmap/phase-02d-walking-skeleton.md#genericity-proof));
+  P02d-7's demo and narrow browser/audit proof exercise that delivered path.
 
 ## Vertical Slice First
 
@@ -233,15 +234,20 @@ The **second tenant already exists** — the yoga studio seeded in
 since [Phase 02d](../roadmap/phase-02d-walking-skeleton.md). Phase 10 is therefore a
 **depth** showcase rather than a breadth one: its job is to exercise *every*
 customization aggregate against one real tenant, proving the customization surface is
-complete. Genericity is already proven, and re-proven on every CI run.
+complete. The shipped public slice already demonstrates different tenant shapes.
 
-P02d-5's required integration check renders two hosts through the production ingress,
-middleware and configured caller against the real API and PostgreSQL. Its explicitly
-test-owned pages prove the transport boundary, not P6's product pages or P7's browser
-demo. P02d-6 owns G38(c)'s page cases; P02d-7 owns G20's production genericity guard,
-G45's demo/browser evidence and G44's Lighthouse activation after P6. The remaining
-harness and assertion decisions stay in the
-[Phase 02d decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+P02d-5's required integration check renders two hosts through production ingress,
+middleware and the configured caller against the real API and PostgreSQL. Its
+explicitly test-owned pages prove transport; P02d-6 adds actual product page and
+presentation proofs. P02d-7 implements G20's production genericity guard, the
+shared `make demo` lifecycle and a narrow Playwright library/Lighthouse proof over
+nine seed-derived URLs across the English school's English lane and Yoga's Turkish
+and English lanes. These enforcement implementations and local audit receipts
+remain distinct from required real-PR CI and protection activation, whose evidence
+and phase-exit verdict belong to the [Phase 02d closeout](../roadmap/phase-02d-walking-skeleton.md).
+[Phase 06](../roadmap/phase-06-renderer-admin-studio.md) retains the full Playwright
+Test/axe suite and Studio expansion; [Phase 11](../roadmap/phase-11-production-hardening.md)
+retains field telemetry, load testing and production performance hardening.
 
 ## Deferred
 

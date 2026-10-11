@@ -315,18 +315,20 @@ domain the diff doesn't touch.
 - [ ] Public-route budgets in
   [15-performance.md § Initial Budgets](../../../docs/standards/15-performance.md#initial-budgets)
   and [§ Bundle Size](../../../docs/standards/15-performance.md#bundle-size) respected.
-  **Not mechanically checkable yet** — `ci.yml`'s `lighthouse-budget` job is a
-  placeholder. Accepted P02d-5 G44 assigns activation to P02d-7/G44/G45 after
-  P6 pages. Judge by reading until that harness ships; do not report an unrun
-  audit as a measured pass or failure.
+  P02d-7's `make demo DEMO_MODE=ci` proof enforces the ADR-0056 normalized
+  gzip/CLS/automated-accessibility checks on nine seeded pages; timing medians
+  remain advisory. Follow
+  [run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+  for prerequisites and inspect actual receipts rather than claiming an unrun pass.
 - [ ] Backend latency budget per module respected.
 
 #### `16-accessibility.md`
 - [ ] WCAG 2.2 AA target.
-- [ ] `axe-core` clean on changed components. **Not mechanically checkable yet** —
-  no `axe` dependency exists in `frontend/`; [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md)
-  wires the automated checks, per
-  [Standards index row 16](../../../docs/standards/README.md). Judge by reading.
+- [ ] Applicable blocking jsx-a11y rules, component semantics and P7's automated
+  Lighthouse accessibility checks pass. Lighthouse's transitive development axe
+  audit is bounded to its nine pages; the full Playwright Test/direct axe suite
+  remains [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md).
+  Automated scores do not replace the recorded manual checks below.
 - [ ] Keyboard navigation + focus order reviewed.
 - [ ] Color contrast verified per brand token.
 

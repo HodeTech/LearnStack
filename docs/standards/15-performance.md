@@ -1,6 +1,6 @@
 # 15 — Performance Standards
 
-**Status:** Adopted
+**Status:** Active
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md) (initial budgets in [04-technical-architecture.md § Performance Budgets](../architecture/04-technical-architecture.md)), [ADR 0005 — Live Classroom Media Stack](../decisions/0005-live-classroom-media-stack.md) (classroom join + bandwidth budgets).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); P02d-5's bounded
@@ -8,6 +8,22 @@ caller and dynamic/no-store policy derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md).
 
 Performance budgets, the rules that keep them, and the test discipline that protects them.
+
+**P02d-7 measurement decision — Accepted 2026-10-11.**
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
+defines the browser/Lighthouse measurement contract and hard/advisory split.
+Its normalized gzip definition covers same-/cross-origin Script responses from
+cold navigation through collection completion, including initial async/lazy
+loads and original-document inline executable bodies. It excludes inert data,
+evaluation-generated code and scripts requested after that window or by later
+interaction. This can be stricter than entry-chunk/build-time accounting; it is
+not merely a unit clarification. P7 delivers the always-running
+`public demo + lighthouse` job and its fail-closed browser/report/source controls.
+The hard gzip/CLS/automated-accessibility checks make this standard Active for
+that delivered scope. Timing medians remain advisory; production baselines,
+field telemetry and load tests remain Phase 11. The
+[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns real CI receipts and bounded required-check activation.
 
 ## Initial Budgets
 
@@ -98,7 +114,8 @@ owns that boundary under ADR-0052.
 
 ### Bundle Size
 
-- Initial JS payload on a public route: < 200 KB gzipped.
+- Initial JS payload on a public route: < 200 decimal KB (`< 200000` bytes),
+  measured using [ADR-0056's normalized source scope](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#normalized-initial-javascript-gzip-size).
 - Studio routes may exceed this; budget reviewed per route.
 - Lazy load below-the-fold blocks and modals.
 - Code-split heavy client libraries (rich-text editor, video player) via `dynamic(...)`.

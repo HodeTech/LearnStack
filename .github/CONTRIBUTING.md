@@ -61,6 +61,17 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
+    - `public demo + lighthouse` — **required since P02d-7, 2026-10-11.** The
+      first complete [real PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
+      passes before activation. Downloaded artifacts confirm all nine pages,
+      27 audits and owned cleanup. Full API read-back confirms seven GitHub
+      Actions contexts, strict up-to-date checking, all six previous contexts
+      retained and every unrelated protection setting unchanged. The
+      [CI and exit closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+      records execution, artifact validation and activation proof.
+      The separate [reviewed-head verification](../docs/roadmap/phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
+      identifies the exact implementation head inspected after activation;
+      subsequent heads still require all seven passing checks.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
     workspace test runner and native production/cleanup controls. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
@@ -78,14 +89,21 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     public-key trust. Its Flight-to-document navigation and fresh HMR admission
     scope does not deliver P7's browser demo, full Playwright/axe or Lighthouse.
     The [Step 3 record](../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-    owns actual execution and remaining reviews.
-  - `lighthouse budget (deferred to P02d-7)` remains behind its unset
-    `vars.ENABLE_LIGHTHOUSE_BUDGET` condition. Accepted P02d-5 G44 assigns
-    activation to P02d-7/G44/G45 after P6 pages. It remains optional and disabled;
-    P7 selects the harness/assertions and any live required-check registration.
+    owns completed implementation, reviews and execution evidence.
+  - P02d-7 replaces the disabled Lighthouse placeholder with the always-running
+    `public demo + lighthouse` job under ADR-0056. It installs the locked browser
+    tools and Playwright-managed Chromium, then runs `make demo DEMO_MODE=ci` over
+    the same lifecycle as local use. Nine actual pages, 27 JSON/HTML audits,
+    normalized gzip/CLS/automated-accessibility checks, real quota observation
+    and confirmed cleanup are mandatory. Only public reports/screenshots and
+    sanitized receipts are uploaded; raw logs, profiles and private TLS/env files
+    are excluded. The authorized seventh-context activation followed the complete
+    successful real PR run on 2026-10-11. The
+    [Step 4 record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+    owns the actual run and verified activation/read-back.
 
     GitHub matches required checks **by name**. The
-    [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+    [current CI and exit record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
     owns execution and dated API read-back; a workflow edit alone is not a
     protection-setting change.
 - **Require conversation resolution before merging**: on.
@@ -96,9 +114,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 - **Allow force pushes**: off.
 - **Allow deletions**: off.
 
-The CI workflow is intentionally fast (~3 min target). If a step exceeds
-that budget for two consecutive merges, raise a follow-up issue rather
-than skipping the step on `main`.
+The ordinary fast checks retain their approximately three-minute target.
+ADR-0056's full-stack job deliberately includes real limiter-window waits: its
+20-minute job ceiling includes setup/build, a 12-minute serial proof and separate
+30-second cleanup. Timing ceilings are not performance targets. A failing or
+slow check is investigated rather than skipped on `main`.
 
 ## Commit messages
 

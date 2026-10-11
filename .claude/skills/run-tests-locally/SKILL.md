@@ -33,7 +33,7 @@ flags, and a triage map for the most common failure shapes.
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend`. (`e2e` arrives in [Phase 06](../../../docs/roadmap/phase-06-renderer-admin-studio.md).) |
+| Suite | Yes | `unit` / `integration` / `architecture` / `contract` / `frontend` / `public-demo` (P02d-7). Phase 06 owns the broader Playwright Test/axe suite. |
 | Filter | No | `--filter <expr>` to run a subset. |
 | Docker available? | Integration (`Requires=Docker`) | A running daemon. Postgres only — no Valkey, no Kafka. |
 
@@ -70,10 +70,11 @@ backend/tests/
                                    # learnstack_app), split by [Trait("Requires","Docker")].
   LearnStack.Tests.Contract/       # OpenAPI / SDK contract assertions.
 
-frontend/apps/web/                 # Vitest. The axe-core and Playwright suites
-                                   # arrive in Phase 06. Accepted P02d-5 G44 assigns
-                                   # the deferred Lighthouse job to P02d-7/G44/G45
-                                   # after P6 pages; it remains disabled today.
+frontend/apps/web/                 # Guarded Vitest unit/component/control suites.
+scripts/demo.mjs                   # Shared local/CI production lifecycle.
+frontend/apps/web/scripts/
+  verify-public-demo.mjs           # P02d-7 Playwright library + Lighthouse proof.
+                                   # Phase 06 owns full Playwright Test/axe flows.
 ```
 
 ### Step 3: Run unit tests
@@ -171,7 +172,8 @@ pagination, presentation, concurrent isolation and freshness/failure states. Tho
 HTTP/HTML/RSC proofs do not claim browser or screen-reader execution; P6's manual
 accessibility closeout is recorded with its tested scope in the
 [packet closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10).
-New UI changes require their own applicable manual checks; P7 owns the browser demo.
+New UI changes require their own applicable manual checks; P7 supplies the narrow
+seeded browser demo described below.
 
 ADR-0055's separate admission fixture adds a narrow stock-Next browser navigation
 probe and development HMR admission controls. Its Docker integration run requires
@@ -185,19 +187,68 @@ Browser observations cover a refused Flight followed by stock Next's fresh docum
 navigation and separately counted API calls. HMR controls cover source recompilation
 and a fresh live site snapshot in the same development process. The
 [Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-owns actual execution, completed reviews and verified fixes. This probe does not
-deliver P7's browser demo, full Playwright/axe or Lighthouse.
+owns actual execution, completed reviews and verified fixes. This probe remains
+separate from P7's browser demo/Lighthouse and Phase 06's full Playwright Test/axe.
 
-> **`pnpm test:a11y` and `pnpm test:e2e` do not exist yet.** `package.json`
-> defines `dev`, `build`, `start`, `lint`, `typecheck` and `test`, and neither
-> `axe-core` nor `@playwright/test` is a dependency. Both arrive in **Phase 06**, per
+> **`pnpm test:a11y` and `pnpm test:e2e` do not exist.** P7 directly pins the
+> development tools `playwright@1.64.0` and `lighthouse@13.5.0` in the frontend
+> workspace. Lighthouse brings transitive development `axe-core@4.14.0`; this is
+> not an application axe dependency or a standalone axe suite. There is no
+> `@playwright/test` project. Phase 06 owns that broader harness, per
 > [Testing Standards § End-to-End Tests](../../../docs/standards/06-testing.md).
-> Accepted P02d-5 G44 assigns Lighthouse to P02d-7/G44/G45 after P6 pages; the job
-> remains disabled. Accepted P02d-6/G43 requires failing applicable `jsx-a11y`
-> rules, localized page semantics and a real manual screen-reader smoke. These
-> lint and product-semantic controls are implemented. Passing manual evidence is
-> recorded in the P6 delivery record. P5's production HTML/RSC mode proves transport;
-> P6's separate product modes still do not claim a browser/a11y audit.
+> P6's blocking `jsx-a11y` and product-semantic controls and recorded manual smoke
+> remain separate evidence from P7's automated Lighthouse accessibility score.
+
+### Public demo: managed browser and Lighthouse
+
+From a fresh checkout without root `.env`, web `.env.local` or
+`artifacts/public-demo`, install the pinned managed Chromium and run the shared
+lifecycle:
+
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+Docker, .NET, Node, pnpm, OpenSSL and make must be available; the fixed application
+and Compose ports must be free. CI mode creates private disposable configuration,
+uses a unique tmpfs-backed Compose project, migrates and seeds through the normal
+pipeline, stops its Keycloak, and builds the production API/native HTTPS renderer.
+It runs nine linked product pages and 27 cold Lighthouse audits over one unchanged
+API/build/database, with real admission pacing and certificate-specific trust.
+Missing browser installation fails the proof rather than skipping it.
+
+On GitHub-hosted Linux runners, run `node scripts/ci-public-chromium.mjs prepare`
+after installation and before the lifecycle, then run
+`node scripts/ci-public-chromium.mjs cleanup` in an always-running cleanup step.
+The helper discovers Playwright's exact executable and performs a sandbox-enabled
+20-second launch smoke with a disposable browser profile. If Ubuntu's AppArmor
+user-namespace restriction is enabled, it loads one invocation-owned profile
+allowing `userns` only for that exact executable; the source and ownership marker
+stay under `RUNNER_TEMP`, and cleanup unloads only that profile. It preserves the
+kernel restriction and foreign policies/files. This follows
+[Chromium's AppArmor guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)
+with a literal attachment path. The helper refuses local/self-hosted execution;
+it does not change workstation policy. Run its isolated controls with
+`node --test scripts/ci-public-chromium.test.mjs`; these use fake commands and
+an executable fixture without mutating host AppArmor. A passing Linux job remains
+required evidence of the actual runner prerequisite and complete demo/audit flow.
+
+Review `artifacts/public-demo/receipt.json`, the 27 JSON/HTML report pairs and browser
+screenshots. Proof and owned cleanup must both pass. Archive only this sanitized
+artifact directory; private configuration, certificates, keys, profiles and raw
+process logs are excluded. Existing artifacts must be moved aside before another
+run so stale evidence cannot pass. The
+[P7 delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+owns local proof/review evidence; the packet's Step 4 record and
+[branch protection](../../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+own real CI receipts and required-check activation. Local success alone does not
+establish activation.
+
+For a human foreground demo, use `make demo` after the root README's manual
+hosts/CA/leaf setup. Local mode retains Compose data and joins its owned API/web
+processes on Ctrl+C; it does not run the CI browser/audit proof.
 
 ### Step 7: Single-test focus
 
@@ -285,9 +336,9 @@ For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 dotnet test --blame-hang --blame-hang-timeout 5min
 ```
 
-**Lighthouse ownership — Accepted P02d-5, 2026-10-08.** P02d-7/G44/G45
-activates the full-stack job after P6 pages; it remains a disabled placeholder.
-The entry decision does not provide a Lighthouse command or passing audit.
+The `public demo + lighthouse` job uses the same `make demo DEMO_MODE=ci` lifecycle.
+Its real receipt and required-check status are recorded in the packet's Step 4
+record and CONTRIBUTING; do not infer them from a local audit.
 
 ## Validation
 
@@ -297,7 +348,8 @@ The entry decision does not provide a Lighthouse command or passing audit.
   The P5 native renderer fixtures require free 3000/3011 and fail on collisions.
 - A failing test message points at the specific rule / scenario it violates.
 - For frontend changes, `pnpm test`, `pnpm lint` and `pnpm typecheck` are clean.
-  The axe suite joins this list in Phase 06. Accepted P02d-6/G43 requires failing
+  Public-route changes also run the applicable P7 browser/Lighthouse proof. The
+  full axe suite joins this list in Phase 06. Accepted P02d-6/G43 requires failing
   applicable `jsx-a11y` rules and localized page-semantics checks, plus manual
   keyboard, focus, reflow, contrast and screen-reader evidence. Acceptance does
   not claim those controls pass; implementation records their actual results in

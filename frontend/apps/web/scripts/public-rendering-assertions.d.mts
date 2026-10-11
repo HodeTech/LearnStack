@@ -59,3 +59,15 @@ export function productTheme(
   malformed?: boolean,
   readStylesheet?: (path: string) => string,
 ): void;
+
+export function orderedLessonFields(
+  article: Element,
+  content: {
+    readonly fields: readonly {
+      readonly name: string;
+      readonly label: { readonly value: string; readonly locale: string };
+      readonly value: string;
+    }[];
+  },
+  locale: string,
+): void;

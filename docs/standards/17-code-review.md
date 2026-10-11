@@ -2,6 +2,9 @@
 
 **Status:** Active
 **Derives from:** [ADR 0003 — Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md), [ADR 0010 — Cross-Module Communication](../decisions/0010-cross-module-communication.md), [ADR 0041 — Correcting False Statements in Accepted ADRs](../decisions/0041-correcting-false-statements-in-accepted-adrs.md) (every zero-tolerance blocker maps back to one of these three).
+Public accessibility enforcement additionally derives from
+[ADR-0027](../decisions/0027-frontend-i18n.md) and
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 
 How LearnStack reviews pull requests. The goal is faster, safer ship — not gatekeeping.
 
@@ -65,16 +68,20 @@ Before requesting reviews, run the relevant checklist on your own diff:
   ([Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist)).
 - [ ] New forms use React Hook Form + Zod and render errors at the field level.
 - [ ] New routes have `error.tsx` and `loading.tsx` where appropriate.
-- [ ] Accessibility: every interactive element keyboard-reachable; labels associated; color contrast checked; axe-core tests pass where a suite runs them — none does yet (see the note below).
-- [ ] Bundle size delta acceptable on public routes (< 200 KB gzipped per route).
+- [ ] Accessibility: keyboard reachability, labels and contrast reviewed; blocking
+  JSX accessibility checks and the public browser/Lighthouse proof pass where
+  applicable. Preserve the scoped manual evidence described below.
+- [ ] Public-route JavaScript meets the normalized gzip budget and measurement
+  scope in [Performance Standards](15-performance.md#frontend-rules).
 
-> **Open in Phase 02d.** No axe-core suite exists in `frontend/` today, and
-> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests) assigns the
-> Playwright axe run to [Phase 06](../roadmap/phase-06-renderer-admin-studio.md). Which
-> accessibility checks fail a build on Phase 02d's public pages — route tests,
-> `jsx-a11y` at error severity or component axe — is G43 in
-> [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register),
-> and the pass that closes it edits the accessibility box with its answer.
+> **Accepted G43 enforcement is delivered.** P02d-6 supplies blocking `jsx-a11y`
+> rules with planted controls. P02d-7's shared browser/Lighthouse proof enforces
+> automated accessibility score 100 through Lighthouse's transitive axe audits;
+> it does not provide the full Playwright Test/axe suite owned by
+> [Phase 06](../roadmap/phase-06-renderer-admin-studio.md).
+> [Testing Standards § End-to-End Tests](06-testing.md#end-to-end-tests) separates
+> these automated checks from the preserved keyboard, focus, reflow, calculated
+> contrast and maintainer VoiceOver smoke evidence. Neither is a full WCAG audit.
 
 If a checkbox doesn't apply to your diff, omit it. If you cannot tick a checkbox, fix the gap before requesting review.
 

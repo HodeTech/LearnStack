@@ -14,23 +14,12 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .ONESHELL:
 
-# Compose layering — dev.yml is always the base; e2e.yml overlays for the
-# end-to-end test suite (Playwright + Testcontainers harness).
-# Compose resolves its default env file from the PROJECT directory — the
-# directory of the first `-f` file, i.e. `infra/compose/` — not from the cwd.
-# Without `--env-file` the repo-root `.env` that `.env.example` documents is
-# silently ignored and every `${VAR:-default}` falls back. `--env-file` on a
-# missing path is a hard error, so the flag is conditional.
-# Recursively expanded (`=`, not `:=`) AND $(shell), not $(wildcard): `.env` is
-# a prerequisite that the rule below creates. `:=` would evaluate at parse time,
-# before the file exists; $(wildcard) would not help either, because make caches
-# its directory listing for the whole invocation and keeps answering "absent"
-# even after the prerequisite wrote the file. Either way the first `make dev` on
-# a fresh clone ran without the `.env` it had just written, and silently picked
-# up any stray `infra/compose/.env` instead.
-ENV_FILE      = $(shell test -f .env && echo --env-file .env)
-COMPOSE_DEV   = docker compose $(ENV_FILE) -f infra/compose/dev.yml
-COMPOSE_E2E   = docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/compose/e2e.yml
+# All lifecycle commands share an explicit project/files/env selection through
+# scripts/compose.mjs. Normal targets use the dev stack; LEARNSTACK_COMPOSE_MODE,
+# LEARNSTACK_COMPOSE_PROJECT and LEARNSTACK_COMPOSE_ENV_FILE select an explicit
+# alternative. Ambient COMPOSE_* overrides never widen the selected service set.
+COMPOSE_DEV   = node scripts/compose.mjs selected
+COMPOSE_E2E   = node scripts/compose.mjs e2e
 
 # Kafka, Valkey, Vault, APISIX and the two Dapr services sit behind the `gated`
 # compose profile per ADR-0035: their ports ship now, their adapters land in
@@ -45,8 +34,8 @@ COMPOSE_E2E   = docker compose $(ENV_FILE) -f infra/compose/dev.yml -f infra/com
 # Kafka broker, a Vault and their volumes, while `make ps` said the stack was
 # down.
 GATED_PROFILE = gated
-COMPOSE_ALL   = docker compose $(ENV_FILE) --profile '*' -f infra/compose/dev.yml
-COMPOSE_E2E_ALL = docker compose $(ENV_FILE) --profile '*' -f infra/compose/dev.yml -f infra/compose/e2e.yml
+COMPOSE_ALL   = node scripts/compose.mjs selected --profile '*'
+COMPOSE_E2E_ALL = node scripts/compose.mjs e2e --profile '*'
 
 # Colour helpers (no-op when stdout is not a TTY).
 ifeq ($(shell test -t 1 && echo 1),1)
@@ -84,7 +73,7 @@ dev: .env ## Bring the local dev stack up (Postgres, Keycloak, SeaweedFS, …).
 
 .PHONY: dev-gated
 dev-gated: .env ## Bring the dev stack up INCLUDING the demand-gated services (Kafka, kafka-ui, Valkey, Vault, APISIX, Dapr).
-	COMPOSE_PROFILES=$(GATED_PROFILE) $(COMPOSE_DEV) up -d
+	$(COMPOSE_DEV) --profile $(GATED_PROFILE) up -d
 	@printf "\n$(CYAN)Full stack up.$(RESET) Nothing the backend runs today calls these — see ADR-0035.\n"
 
 .PHONY: down
@@ -104,7 +93,7 @@ ps: ## Show service health summary, gated services included.
 	$(COMPOSE_ALL) ps
 
 .PHONY: e2e-up
-e2e-up: .env ## Bring the default dev services up with the e2e overlay (set COMPOSE_PROFILES=gated for all 14).
+e2e-up: .env ## Bring the seven default services up with the ephemeral e2e overlay.
 	$(COMPOSE_E2E) up -d
 	@printf "\n$(CYAN)E2E stack up.$(RESET) Data is ephemeral — every restart wipes state.\n"
 
@@ -187,8 +176,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@#    `database update` is a no-op, but a recipe that prints the same chain
 	@#    twice reads like a bug in the recipe.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
-	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
-		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+	migration_env="$${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"; \
+	if [ -z "$$migration_cs" ] && [ -f "$$migration_env" ]; then \
+		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" "$$migration_env" \
 			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
 	fi; \
 	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
@@ -298,9 +288,21 @@ format: ## Apply formatters in place (backend dotnet-format + frontend prettier)
 typecheck: ## `pnpm -r typecheck` (tsc --noEmit across the monorepo).
 	(cd frontend && pnpm -r typecheck)
 
+.PHONY: demo wait-postgres
+DEMO_MODE ?= local
+export DEMO_MODE
+demo: ## Start the seeded production demo in the foreground (local or ci).
+	node scripts/demo.mjs
+
+wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
+	node scripts/wait-compose.mjs --postgres
+
 # ─── Seed ─────────────────────────────────────────────────────────────────
-.PHONY: seed
-seed: dev migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
+.PHONY: seed seed-config
+seed-config: .env
+	./scripts/seed.sh --validate-config
+
+seed: seed-config dev wait-postgres migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
 	./scripts/seed.sh
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────
