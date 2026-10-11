@@ -67,7 +67,7 @@ bookkeeping pass.
 
 ### Honest status today
 
-The table below describes the implementation as of 2026-10-10:
+The table below describes the implementation as of 2026-10-11:
 [Phase 02a](../roadmap/phase-02a-kernel-tenancy.md) and P02d-1–6 are complete and
 merged. P02d-5's ingress, configured server caller, dynamic entry and frontend
 guards are delivered through PR #26; the
@@ -89,8 +89,10 @@ independent review rounds. The
 owns completed Step 3 reviews, verified fixes and delivery evidence; its five rules
 are Implemented. P6's
 [merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
-records PR #27's merge and final verification; P7 has not started. Acceptance
-alone promotes no standard or test status.
+records PR #27's merge and final verification. P7 delivers the shared demo,
+G20 fences and seeded browser/Lighthouse enforcement. Its
+[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns review, real CI and protection receipts. Acceptance alone promotes no status.
 
 **The documents and this table say the same thing, and a test holds them to it.**
 [Phase 02a Packet 10](../roadmap/phase-02a-kernel-tenancy.md) reconciled the twenty-two
@@ -116,8 +118,8 @@ included.
 | 12 | [Infrastructure](12-infrastructure.md) | **Active** | Compose stack, `Makefile`, CI workflow, pre-commit hooks and secret scanning all live since Phase 01. |
 | 13 | [Documentation](13-documentation.md) | **Active** | Governs this corpus; the CI link audit walks changed Markdown. |
 | 14 | [Git Workflow](14-git-workflow.md) | **Active** | Conventional Commits, hooks and required checks are live. Two branch-protection settings — `Require approvals` and `Do not allow bypassing` — are **deferred by maintainer decision (2026-08-10)** while the repository has one active contributor; the trigger and what activating them involves are recorded in [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md). P02d-1 repaired and re-read the live required-check list on 2026-09-14: all five active jobs, including the current meta name and Docker integration, are required with GitHub Actions attribution and strict up-to-date checking. P02d-4 activates the sixth `openapi diff` context after a successful real job and verifies every other setting unchanged. [CONTRIBUTING § Branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main) owns the current list; the [P02d-4 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci) records activation verification. |
-| 15 | [Performance](15-performance.md) | **Adopted** | No budget is measured and no load test exists. Enforcement lands in [Phase 11](../roadmap/phase-11-production-hardening.md). Accepted P02d-5 G44 assigns Lighthouse activation to P02d-7 after P6 pages; P7 selects the harness and assertions. The job remains disabled. [Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register) owns the decision; any status promotion lands with its enforcement. |
-| 16 | [Accessibility](16-accessibility.md) | **Active** | P6 delivers catalog/course/lesson and controlled-state semantics, all 31 active recommended jsx-a11y rules at error severity with per-rule actual-config dirty/clean controls, and real product HTML/Flight proofs. The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10) records keyboard/focus/reflow/contrast observations and the maintainer's passing VoiceOver smoke. This is enforcement for delivered public-page scope, not a full WCAG audit. Full Playwright/axe remains [Phase 06](../roadmap/phase-06-renderer-admin-studio.md); Accepted G44 assigns Lighthouse to P02d-7 after P6. |
+| 15 | [Performance](15-performance.md) | **Active** | P02d-7 delivers the always-running `public demo + lighthouse` job under ADR-0056: nine seeded pages, 27 audits, actual-page/source/census controls and hard normalized gzip/CLS/automated-accessibility checks. Timing medians are advisory. The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11) owns real CI and required-check receipts. Production p95/field telemetry/load tests remain [Phase 11](../roadmap/phase-11-production-hardening.md). |
+| 16 | [Accessibility](16-accessibility.md) | **Active** | P6 delivers catalog/course/lesson and controlled-state semantics, all 31 active recommended jsx-a11y rules at error severity with per-rule actual-config dirty/clean controls, and real product HTML/Flight proofs. The [packet closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-6-packet-closeout-2026-10-10) records keyboard/focus/reflow/contrast observations and the maintainer's passing VoiceOver smoke. This is enforcement for delivered public-page scope, not a full WCAG audit. P02d-7 adds hard Lighthouse automated accessibility and a narrow library browser walkthrough; full Playwright Test/axe remains [Phase 06](../roadmap/phase-06-renderer-admin-studio.md). |
 | 17 | [Code Review](17-code-review.md) | **Active** | Applied to every pull request merged so far; the zero-tolerance blocker list is in live use. |
 | 18 | [Audit Coverage](18-audit-coverage.md) | **Active** | Packet 9 lit the write path under [ADR-0033](../decisions/0033-audit-durability-model.md) and [ADR-0044](../decisions/0044-audit-write-path.md): classification at step 3, MUST rows on the business transaction before `COMMIT`, `audit_log` / `audit_config` with their append-only layers, and the catalogue ↔ matrix join enforced in both directions and per request type by `AuditCoverageTests`. Retention and partitioning are [Phase 11](../roadmap/phase-11-production-hardening.md)'s. |
 | 19 | [Permissions](19-permissions.md) | **Adopted** | No permission key, policy or role exists. Lands in [Phase 03](../roadmap/phase-03-identity-admin.md). |
@@ -134,12 +136,13 @@ Step 3 adds Education eligibility, scoped seek pages and bounded content/label
 projections with HTTP/database proof. Step 4 adds served/snapshot equality,
 recursive DTO guards, generated SDK/drift and breaking-policy CI controls.
 
-Twenty `Active`, two `Adopted`. Packet 10 moved five: the frontend rules, the one-app
-rule, the locale invariants, the out-of-band setters and the port bans are all mechanical
-now, and a standard whose rules a test enforces is `Active` by this document's own
-definition. P02d-6 promotes Accessibility with blocking lint/semantic controls and
-recorded manual evidence. Performance and Permissions remain Adopted: no budget is
-enforced and no permission key exists. Each names the phase that will promote it.
+Twenty-one `Active`, one `Adopted`. Packet 10 moved five: the frontend rules, the one-
+app rule, the locale invariants, the out-of-band setters and the port bans are all
+mechanical now, and a standard whose rules a test enforces is `Active` by this
+document's own definition. P02d-6 promotes Accessibility with blocking lint/semantic
+controls and recorded manual evidence. P02d-7 promotes Performance with the hard checks
+above; this does not make advisory or future production measurements enforced.
+Permissions remains Adopted until Phase 03 ships permission keys and enforcement.
 
 ## Relationship to ADRs
 

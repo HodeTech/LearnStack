@@ -219,8 +219,10 @@ the page.
   [Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
   records product proofs and the scoped manual browser/screen-reader checks.
 - [Performance Standards](../../../docs/standards/15-performance.md) governs pages
-  embedding the block. Accepted G44 assigns Lighthouse activation and assertions
-  to P02d-7 after P6; the job remains disabled until that harness ships.
+  embedding the block. P02d-7's shared `make demo DEMO_MODE=ci` proof supplies
+  nine-page browser/Lighthouse checks; follow
+  [run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+  for prerequisites and evidence scope. Phase 06 owns full Playwright Test/axe.
 
 ## Validation
 

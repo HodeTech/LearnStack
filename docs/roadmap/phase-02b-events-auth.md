@@ -1,10 +1,18 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**P02d-5 handoff — 2026-10-08.** Accepted ADR-0053 supplies native ingress
-provenance and a server-only public caller, with no anonymous cookies or credential
-forwarding. G12/G14 must re-verify that boundary before adding BFF/session behavior;
-auth routes may not shadow enabled `/{locale}/courses...` paths. P5 implementation
-and P6 pages remain separately recorded; this note accepts no Phase 02b gate.
+**Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
+public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
+manual hosts/trust setup and the shared private hop-secret source. ADR-0053/0054
+supply visitor and peer admission; ADR-0055 supplies one middleware-owned site
+bootstrap per native request: two API calls per normal product document, one per
+fixed status document and three for a followed missing detail. HEAD, RSC and
+prefetch retain their separately proved accounting. Seed authoring distinguishes
+tenant-wide rows from default- and sibling-organization rows; typed settings remain
+uncached. Anonymous public reads retain no cookies or forwarded credentials.
+The [Phase 02d delivery record](phase-02d-walking-skeleton.md)
+owns verification and the CI/phase-exit state. G12/G14 re-verify these premises
+before adding BFF/session behavior; auth routes may not shadow enabled
+`/{locale}/courses...` paths. This handoff accepts no Phase 02b auth or BFF gate.
 
 ## Goal
 
@@ -260,7 +268,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; a job reaches the database only through `ISender`, which leaves ADR-0040's closed setter set at eight | **ADR-0047** + a dated ADR-0003 Amendment for the storage + a dated **ADR-0036 Amendment** (or an erratum) if the job-path writer is not the `JobActivator` its § Rules names in the closed four-caller set, then Standards 05 and Standards 20 | P02b-4 |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 |
-| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, **over what transport** — the seed hosts are `*.learnstack.local` and the frontend's dev script serves plain HTTP, which no browser will return a `Secure` cookie over — and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? | A confidential BFF client with one redirect URI per seed host; local TLS for those hosts with a trust step, or hosts under `localhost`, which browsers exempt; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | [Phase 02d](phase-02d-walking-skeleton.md#the-decision-register) G32 (the dev transport and hostnames, closed in the decision pass of the 02d packet that row blocks), P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 |
+| G12 | Which Keycloak client does the BFF exchange the code with, where does sign-in happen across two tenant hosts, and how do the client scope, the mappers and the seed users reach a Keycloak database that has already consumed the import? Native HTTPS on retained `*.learnstack.local` hosts, with manual hosts/trust setup, is delivered by Phase 02d and re-verified by P02b-0 | A confidential BFF client with one redirect URI per seed host, retaining native HTTPS and `Secure` cookies; and an idempotent reconciler inside `make seed` — a mapper added only to the import reaches no existing workstation | Phase-doc + the realm JSON + `scripts/seed.sh` + `infra/keycloak/README.md`; a new ADR only if the reconciler becomes ADR-0004's `IIdentityProvider` | P02b-0 re-verifies [Phase 02d G32](phase-02d-walking-skeleton.md#the-decision-register), ADR-0053/0054 and ADR-0055; P02b-5 (which client the BFF redeems the code with: the API pins `azp` against it), P02b-6 |
 | G13 | What is the BFF session — its custody of the refresh token, its store, its idle and absolute lifetimes, its refresh serialisation under concurrent requests, its terminal `invalid_grant` behaviour, its CSRF control and its logout — and which document owns the access-token lifetime? | The `HttpOnly` cookie Security Standards already describes, encrypted by the session adapter, read only by server code, with single-flight refresh and one authority for the TTL | Phase-doc + one reconciled [Security Standards § Authentication](../standards/11-security.md#authentication); a **new ADR** only for a server-side session store | P02b-6 (which document owns the access-token lifetime: the realm export and its reconciler write it), P02b-7 |
 | G14 | What bounds the request types reachable over HTTP while `AuthorizationBehavior` is `return next()`, and what is the shape of the token-keyed rate-limit stage behind a shared BFF connection? | An enumerated read-only routable set held by a catalogue-registered rule, and a limiter stage after `UseAuthentication` keyed on the validated subject. The early anonymous stage already runs before authentication: P02d-5 delivers 60/min per canonical direct or authenticated-hop visitor IP plus 600/min peer acquisitions/allocations under ADR-0053 and ADR-0054. Exhausted known visitors refuse before peer debit; unknown visitor allocation remains peer-gated. These remain IP/peer quotas, not token quotas; a request they reject never reaches the token stage. Re-verify the [P5 remediation decision](phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09) before choosing authenticated accounting, preserving pre-classification protection against unknown-host abuse | Phase-doc + catalogue registration; a dated ADR-0032 Amendment for a deny-by-default step instead | P02b-5 (the token-keyed stage and the early stage's treatment of validated callers); G34's anonymous-hop policy and ADR-0054's bounded accounting replacement are Accepted and delivered in P02d-5 |
 | G15 | What initiates a replay in this phase? | A dispatcher-level operation on the dispatcher's own connection, with the operator surface deferred | Phase-doc; the URL space is its own decision record, per ADR-0036 | — (answered in § The consumer side; recorded so the question travels with the deferral) |
@@ -677,20 +685,15 @@ settles it; what the phase ships either way:
   mutating route. `SameSite=Lax` does not separate hosts under one registrable domain,
   which is exactly the SaaS subdomain shape, and no CSRF rule exists in the catalogue
   today.
-- **Login topology**, under **G12**: login is served on the tenant host the visitor is
-  already on, which needs one registered redirect URI per seed host — the realm
-  registers only `localhost` today, and the product is reached on two tenant hosts. It
-  also needs a transport the session cookie can survive: `Secure` is a secure-channel
-  attribute, the seed hosts are `*.learnstack.local`, and the frontend's dev script
-  serves plain HTTP, so the cookie this phase sets would be accepted and never sent
-  back. Which transport and hostnames serve the seed tenants — local TLS with its trust
-  step, or the dev hosts moved under `localhost` — is **G32** in
-  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
-  which closes before this phase starts; the pass that closes it edits this text with
-  its answer, and `P02b-0` re-verifies it. This gate settles the callback and
-  post-logout URLs that answer needs, and neither gate may drop `Secure`. The login
-  transaction's `state`, `nonce` and `code_verifier` live in a host-only transaction
-  cookie, and return URLs are validated.
+- **Login topology**, under **G12**: login is served on the visitor's tenant host,
+  requiring one registered redirect URI per seed host. Phase 02d retains
+  `demo-english.learnstack.local` and `demo-yoga.learnstack.local` under the native
+  HTTPS launcher; hosts entries and certificate trust remain manual prerequisites.
+  `P02b-0` re-verifies [G32](phase-02d-walking-skeleton.md#the-decision-register)
+  and the ADR-0053/0054/0055 ingress, visitor/peer and single-bootstrap boundaries.
+  G12 still settles the BFF client, callback and post-logout URLs; it preserves
+  `Secure`. The login transaction's `state`, `nonce` and `code_verifier` live in a
+  host-only transaction cookie, and return URLs are validated.
 - **Logout**, which
   [Identity and Auth § Logout](../architecture/13-identity-and-auth.md#logout) describes
   and Phase 03 expects: the session cleared, the end-session endpoint called, and
@@ -703,6 +706,16 @@ settles it; what the phase ships either way:
   the server SDK's bearer attachment, and server-only environment keys. One skill
   imports `auth` from a package that does not exist and a second calls `auth()` with no
   import at all; both are corrected here.
+
+### Tenant settings eager invalidation
+
+This phase owns `learnstack.tenancy.settings`: Tenancy publishes supported settings
+changes through the durable outbox, and settings readers consume eager invalidation,
+as declared by the [Tenancy event catalogue](../modules/tenancy/README.md#integration-event-catalogue).
+Its producer/payload, consumer scope and failure/replay behavior are settled in the
+owning event packet's decision pass before implementation. P02d-3's
+`ITenantSettingsAccessor` uses uncached ambient scoped reads; this handoff introduces
+no settings cache, staleness window or organization branding override.
 
 ### Audit coverage wiring
 
@@ -907,6 +920,8 @@ criterion says *not skipped*, per assembly.
   [Phase 11](phase-11-production-hardening.md) picks the purge interval that honours it.
 - `IOutbox` and the `OutboxFlushBehavior` body, with the producer write model G2
   settles.
+- The `learnstack.tenancy.settings` producer and eager-invalidation consumers,
+  with tenant/organization scope preserved and delivery/replay behavior tested.
 - A durable `OutboxProcessor` implementing the specified lease: a fenced claim, a
   per-delivery deadline, bounded retry, a terminal producer state, and the migration
   that adds `locked_by` / `locked_until` **and** extends `learnstack_outbox_admin`'s
@@ -948,8 +963,9 @@ criterion says *not skipped*, per assembly.
   with its full validation contract written into
   [Security Standards § Authentication](../standards/11-security.md#authentication), and
   token-keyed rate-limit partitions going live with authentication — including the
-  change **G14** settles to the existing pre-auth peer stage, which today caps every
-  caller behind one BFF at the anonymous budget before any token is read.
+  change **G14** settles to the existing pre-auth floor: 60/min per canonical
+  visitor and 600/min peer acquisitions/allocations under ADR-0053/0054. These
+  anonymous visitor/peer quotas remain distinct from the token-keyed budget.
 - The rejection record carrying a source, an actor and a correlation id; the recorder
   writing `metadata.assertionSource` and populating `actor_user_id` on the authenticated
   tier; and the resolver's refusal path calling the recorder rather than only logging.
@@ -1183,12 +1199,19 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   with admin-only view and edit; a variant export marking either attribute user-editable
   fails the case; and a seed user's own token cannot write either through Keycloak's
   account REST surface.
-- Two principals behind one BFF do not share a quota: through the **whole** middleware
-  chain, from one peer address, one exhausts the authenticated budget and the other's
-  next request is not 429 — a case that fails today, because the pre-auth peer stage
-  rejects at the anonymous budget first. Anonymous abuse from an unknown host stays
-  bounded. The 429 carries the one Problem Details shape and `Retry-After`, and repeated
-  mismatches from one token reach 429 and stop producing audit rows.
+- Authenticated and id-addressed routes have tenant and organization isolation
+  cases as `learnstack_app`: an identifier from another tenant or an invisible
+  sibling organization reveals no resource, and each route has a visible-resource
+  positive control. Host/JWT cross-check cases remain independently asserted.
+- A supported settings change enqueues `learnstack.tenancy.settings` with the
+  correct scope; its consumers invalidate only that scope, and replay follows the
+  inbox contract without repeating the effective side effect.
+- Two principals behind one BFF do not share an authenticated quota: through the
+  **whole** middleware chain, from one peer address, one exhausts that budget and
+  the other's next request is not 429. G14 settles the delivered pre-auth visitor/
+  peer floor's treatment of validated callers; anonymous unknown-host abuse stays
+  bounded. The 429 carries the one Problem Details shape and `Retry-After`, and
+  repeated mismatches from one token reach 429 and stop producing audit rows.
 - A second `make seed` against a Keycloak database created from the pre-mapper realm
   JSON leaves every existing account and the `learnstack-hub` realm intact, applies the
   client scope and the mappers, and yields a token carrying a UUID-valued `tenant_id`. A
@@ -1200,8 +1223,8 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   `SameSite=Lax`, `Path=/` with no `Domain`; and no response body or script-readable
   cookie carries the refresh token. Asserting the header is not enough: on each real
   seed host a browser-level case shows the cookie **stored and sent back** on the next
-  request, which is what fails if the dev transport Phase 02d's G32 settles is not in
-  place.
+  request through the retained native HTTPS launcher and manual hosts/trust setup
+  that `P02b-0` re-verifies.
 - Two concurrent requests with a near-expiry token produce exactly one token request at
   the issuer and one logical session version — counted as versions, not as `Set-Cookie`
   headers, because a session adapter may split one cookie across several and a correct

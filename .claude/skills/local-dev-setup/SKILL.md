@@ -189,8 +189,24 @@ built-in and tenant-authored definitions, branding and Course/Lesson content.
 [seed-tenant](../seed-tenant/SKILL.md) owns convergence, mismatch handling and future
 data scope. A completed rerun is write/audit-neutral; a divergent run fails without
 overwriting or resetting authored state. Public reads are delivered by P02d-4;
-P02d-6 delivers pages, and P02d-7 Step 1 starts them with `make demo` after the
-manual TLS/hosts prerequisite. Seed alone does not start a renderer.
+P02d-6 delivers pages, and P02d-7 starts them with `make demo` after the manual
+TLS/hosts prerequisite. Seed alone does not start a renderer.
+
+P02d-7 also supplies isolated CI mode over the same production lifecycle. In a
+fresh checkout without root `.env`, web `.env.local` or `artifacts/public-demo`:
+
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+This creates disposable private TLS/configuration and a unique tmpfs-backed
+Compose project, then runs nine browser pages and 27 Lighthouse audits with its
+Keycloak stopped. It removes only owned resources and requires successful cleanup.
+Follow [run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+for fresh artifacts, receipts and prerequisites. Manual hosts/CA trust remains the
+human local-mode prerequisite; CI mode does not modify system hosts or trust.
 
 ### Step 5: Verify
 
@@ -214,8 +230,9 @@ curl -fsS https://localhost:3000/api/healthz
 ```
 
 P02d-5 delivers native ingress/TLS, live-host bootstrap and enabled-locale entry.
-P02d-6 owns public page composition and P02d-7 owns the two-host browser harness.
-TLS socket tests with isolated trust roots do not claim a workstation browser run.
+P02d-6 supplies public page composition and P02d-7 supplies the narrow two-host
+browser/Lighthouse proof. TLS socket tests with isolated trust roots remain
+separate from browser evidence and P6's recorded manual accessibility checks.
 
 ### Step 6: Switch deployment modes locally
 
@@ -276,9 +293,10 @@ state.
 
 [ADR-0053](../../../docs/decisions/0053-trusted-public-server-rendering.md)
 and the [P5 package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-decision-package-2026-10-08)
-own the accepted host/TLS/transport contract. P02d-7 Step 1 supplies foreground
-`make demo`; its browser/audit proof remains Step 3. Follow README Quickstart for
-production-build launch, owned cleanup, retained local data and stale-lock handling.
+own the accepted host/TLS/transport contract. P02d-7 supplies foreground `make demo`
+and CI browser/audit mode. Follow README Quickstart for production-build launch,
+owned cleanup, retained local data and stale-lock handling. The packet's Step 4
+record and CONTRIBUTING own real CI receipts and required-check activation.
 
 - `make dev` exits 0; after starting the API separately, `/healthz` responds 200.
 - After `make dev-gated` and with that API running, APISIX forwards `/healthz`.
@@ -286,9 +304,9 @@ production-build launch, owned cleanup, retained local data and stale-lock handl
 - Direct stock Next cannot authenticate forged ingress carriers; ordinary
   `pnpm dev/start` use the mandatory launcher.
 - Keycloak login works for both realms.
-- `dotnet test backend/tests/LearnStack.Tests.Integration` passes against the
-  same containers (the Testcontainers fixture is independent; this is just a
-  consistency check).
+- `dotnet test backend/tests/LearnStack.Tests.Integration` passes against its
+  independently provisioned Testcontainers databases; it does not use the dev
+  Compose database. P7's demo proof separately exercises the Compose topology.
 
 ## Common pitfalls
 

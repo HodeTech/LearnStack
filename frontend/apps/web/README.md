@@ -31,8 +31,12 @@ records completed verification, reviews and scoped browser/VoiceOver observation
 P6 is complete and merged through PR #27 on 2026-10-10; its
 [merge closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
 owns final verification. P7's shared demo/browser package was approved on
-2026-10-11, together with ADR-0056. Step 1 implements the foreground lifecycle;
-the browser/audit proof remains Step 3.
+2026-10-11, together with ADR-0056. The shared local/CI lifecycle and narrow
+Playwright library proof are delivered: nine seeded pages and 27 Lighthouse audits.
+The [Step 3 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+owns local execution and reviews; the packet's Step 4 record and CONTRIBUTING own
+real CI receipts and required-check activation. Phase 06 retains the broader
+Playwright Test/axe suite.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
@@ -62,3 +66,22 @@ IPv4 loopback port 3000 and serves configured hosts over HTTPS. `/api/healthz` i
 the exact web health path. The paired API origin comes from private local
 configuration, never from the visitor's URL. Direct stock `next dev/start` does
 not establish trusted provenance and is unsupported.
+
+For the isolated browser/Lighthouse proof, use a fresh checkout without root
+`.env`, web `.env.local` or `artifacts/public-demo`:
+
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+Run these commands from the repository root with Docker and the documented
+toolchain available and fixed application/Compose ports free. CI mode generates
+private disposable TLS/configuration, uses certificate-specific browser trust and
+stops its Keycloak before the product proof. Review the sanitized
+`artifacts/public-demo/receipt.json`, 27 JSON/HTML report pairs and browser
+screenshots; proof and owned cleanup must both pass. See
+[Running tests locally](../../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+for artifact freshness and cleanup rules. Local success alone does not establish
+required-check activation or a new manual accessibility pass.

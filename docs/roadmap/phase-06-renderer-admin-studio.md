@@ -9,8 +9,8 @@ learner-facing and instructor-facing screen after this phase is built into.
 [Phase 02d](phase-02d-walking-skeleton.md) delivers the public read API and trusted
 server transport through P02d-5. P02d-6 owns catalog, course-detail/outline and
 lesson pages, now implemented with product proofs and passing manual accessibility
-smoke. P02d-7 owns the unbuilt browser/demo harness. This phase deepens
-that bounded path with authored navigation,
+smoke. P02d-7 implements the demo, narrow Playwright library browser proof and
+Lighthouse audits. This phase deepens that bounded path with authored navigation,
 tenant error pages, complete block composition and editing surfaces.
 
 After this phase, LearnStack publishes a simple but real education website for a tenant,
@@ -24,7 +24,10 @@ and a non-developer tenant admin can maintain it.
 
 Rows identify P02d-6 scope merged through PR #27; its
 [merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
-records final verification. Planned P02d-7 work is not current behavior.
+records final verification. P02d-7's
+[delivery record](phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+records the narrow browser/audit proof; the canonical Phase 02d closeout records
+its CI enforcement and phase-exit state.
 
 | Phase 02d foundation | Phase 06 adds |
 |---|---|
@@ -32,7 +35,7 @@ records final verification. Planned P02d-7 work is not current behavior.
 | Anonymous `(public)` catalog/course Server Component pages delivered P02d-6 Step 2; lesson page delivered Step 3 in [Phase 02d § Public renderer](phase-02d-walking-skeleton.md#public-renderer) | Navigation, SEO metadata beyond G40, tenant-authored error pages, redirect handling, full page composition |
 | ADR-0051 ordered plain-text lesson presentation, API projection delivered P02d-4 and bounded renderer delivered P02d-6 Step 3 | The complete two-tier block registry with safe-render placeholders |
 | Four-color public theme projection delivered P02d-4; safe document injection delivered P02d-6 Step 1 | The branding configuration surface, additional tokens and organization override |
-| The `apps/web` Vitest suite [Phase 02d](phase-02d-walking-skeleton.md) extends | The browser-level end-to-end suite |
+| The `apps/web` Vitest suite and P02d-7's pinned Playwright library/Lighthouse proof over nine seed-derived product URLs | The full Playwright Test project and direct axe suite across public, Studio and portal flows |
 
 **P02d-6 inheritance — Accepted 2026-10-09; Steps 1–4 implemented.**
 [ADR-0027](../decisions/0027-frontend-i18n.md) selects exact `next-intl` 4.14.9,
@@ -46,9 +49,12 @@ uses plain same-host anchors, opaque signed-target pagination, safe four-color
 injection and local 307→404 navigation to `/{locale}/status/not-found`. The URL
 changes; known content-call failures are translated HTTP 200 noindex states.
 Tenant-authored errors, menus, media, expanded renderer composition and
-organization overrides remain here. P02d-7 owns the initial browser/demo and
-Lighthouse activation; this phase owns the full Playwright/axe suite and Phase 11
-owns web-vitals telemetry. Acceptance does not claim these consumers are shipped.
+organization overrides remain here. P02d-7's Playwright 1.64.0 library proof and
+Lighthouse 13.5.0 audits exercise the seeded production public pages; Lighthouse's
+transitive axe audit is part of that bounded proof. This phase owns the full
+`@playwright/test` project and direct axe suite, including authenticated Studio and
+portal flows. [Phase 11](phase-11-production-hardening.md#observability) owns
+web-vitals telemetry. These future consumers are not Phase 02d delivery.
 
 ### Public site renderer
 
@@ -234,8 +240,9 @@ live class. **Phase 06 owns it.**
 
 ### End-to-end test stack — a carried dependency
 
-P02d-7 owns the initial browser/demo harness; Phase 06 expands it into the full
-browser/axe suite and depends on the ephemeral end-to-end stack working.
+P02d-7 delivers a narrow Playwright library browser and Lighthouse harness through
+the shared demo lifecycle. Phase 06 adds the full Playwright Test/axe suite and
+retains the ephemeral end-to-end stack dependency.
 `infra/compose/e2e.yml` overlays the development stack with `volumes: !reset []`,
 which discards more than the named volumes:
 it also discards the **PostgreSQL init script** and the **SeaweedFS S3 identity file**.
@@ -262,7 +269,8 @@ browser suite against a mis-provisioned stack is worse evidence than no suite.
   information-architecture pass.
 - The `(portal)` route-group shell and the instructor portal's first screens.
 - Shared UI package and the typed SDK over the full API surface.
-- A browser-level end-to-end suite running against the fixed ephemeral stack.
+- The full Playwright Test/axe end-to-end suite running against the fixed ephemeral
+  stack, extending the narrow P02d-7 public browser/audit proof.
 
 ## Completion Criteria
 

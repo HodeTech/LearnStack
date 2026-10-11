@@ -218,10 +218,14 @@ When the foundation is in place, LearnStack should be able to:
   hot-reload → tenant resolver mapping. All Hub-orchestrated, ADR-0022.
 - **Run radically different tenant platforms on the same binary** — English learning +
   yoga studio + coding bootcamp + driving school — without LearnStack writing any domain
-  code. Two such tenants exist from
-  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) and render side by side in
-  a browser from [Phase 02d](../roadmap/phase-02d-walking-skeleton.md), so the claim is
-  tested continuously rather than asserted until the showcase phase.
+  code. The English school and Yoga studio seeded in
+  [Phase 02a Packet 7](../roadmap/phase-02a-kernel-tenancy.md) now render their own
+  catalogs, courses and lessons through the same Phase 02d code: distinct themes,
+  taxonomies and ordered two-field/three-field lesson shapes, with English and
+  Turkish Yoga routes. P02d-7 supplies the shared demo and narrow browser/audit
+  proof; the [Phase 02d record](../roadmap/phase-02d-walking-skeleton.md) owns its
+  verification, required CI activation and phase-exit state. Studio composition
+  and the wider tenant capabilities remain with their named roadmap phases.
 - **Tenant admin defines a custom content type in Admin Studio** (e.g. "BreathTechnique"
   for a yoga tenant) — JSON Schema authored in a visual editor — and immediately uses it
   in a course lesson.

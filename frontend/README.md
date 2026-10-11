@@ -27,7 +27,7 @@ There is **no `extensions/` folder** — ADR-0018 model is data, not code.
 ## Common Commands
 
 ```bash
-pnpm install                                  # install workspace deps
+pnpm install --frozen-lockfile                # install workspace deps
 pnpm --filter @learnstack/web dev             # native HTTPS ingress; prepare TLS first
 pnpm lint                                     # eslint across the workspace
 pnpm typecheck                                # tsc --noEmit across the workspace
@@ -40,5 +40,32 @@ remain explicit developer steps. Start `make public-api` in another terminal.
 The native ingress serves the configured tenant hosts over HTTPS on port 3000.
 Direct stock `next dev/start` is unsupported. P6 implements localized public
 catalog/course/lesson pages; its [closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-step-4-product-proof-and-accessibility-closeout)
-records completed reviews and passing manual accessibility. P7 owns the browser/demo
-harness; P6 awaits maintainer PR review and merge.
+records completed reviews and passing manual accessibility. P6 is complete and
+merged through PR #27 on 2026-10-10. P7 delivers the shared demo and narrow
+Playwright library/Lighthouse proof; Phase 06 owns the broader Playwright Test/axe
+suite. Automated scores retain P6's separately attributed manual evidence.
+
+## Seeded browser and Lighthouse proof
+
+From a fresh checkout without root `.env`, web `.env.local` or
+`artifacts/public-demo`, run:
+
+```bash
+# from frontend/, after the locked dependency install above
+pnpm exec playwright install --with-deps chromium
+cd ..
+make demo DEMO_MODE=ci
+```
+
+The shared lifecycle builds the production API/native renderer, seeds an isolated
+tmpfs-backed Compose project, stops its Keycloak and runs nine linked product
+pages plus 27 cold audits. Docker, .NET, Node, pnpm, OpenSSL and make are required;
+fixed application/Compose ports must be free. It uses disposable private TLS and
+certificate-specific browser trust without system hosts/trust changes. Review
+`artifacts/public-demo/receipt.json`, all 27 JSON/HTML report pairs and browser
+screenshots; proof and owned cleanup must both pass. Follow
+[Running tests locally](../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+for the complete workflow. The packet's Step 4 record and
+[branch protection](../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+own real CI receipts and required-check activation; local success alone does not
+establish activation. Human foreground `make demo` retains the manual HTTPS setup.

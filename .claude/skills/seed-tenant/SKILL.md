@@ -17,9 +17,11 @@ The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.m
 records the decisions. Step 4 delivers the complete inventory and contextual
 verification; both implementation review rounds and final verification passed.
 P02d-2 is merged, and P02d-4 supplies public API reads. Server ingress/transport
-belongs to P02d-5; P02d-6 pages and P02d-7 Step 1's foreground demo are delivered.
-P02d-7 Step 3 still owns browser/Lighthouse proof. Do not claim a
-rendered demo from seed alone.
+belongs to P02d-5; P02d-6 pages and P02d-7's shared foreground/CI demo are delivered.
+Step 3 supplies the narrow browser/Lighthouse proof; its
+[delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+owns local execution and reviews. The packet's Step 4 record owns real CI receipts
+and activation. Do not claim a rendered demo from seed alone.
 
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns all demo
 identities, schemas, labels, palettes, bodies and computed inventory. The runner
@@ -151,8 +153,13 @@ and planted companions catch calls, method groups, private transactions, accesso
 assignment, announcing SQL, direct EF mutations and ad hoc database commands.
 A separate guard requires the direct tool to build its pool through the shared
 application-role guard. G20(a)'s literal reader observes the actual declaration
-and fails on unreadable/empty data. The complete demo-literal production-branch guard
-remains Registered for P02d-5/6 scope and P02d-7 exit.
+and fails on unreadable/empty data. P02d-7 Step 2 implements G20's nonempty exact
+demo-literal source fence across backend/frontend/scripts, dirty/clean controls and
+the backend production-project Seeder-reference ban. The bounded schema-replacement
+companion checks data-driven behavior. These controls do not prove the absence of every
+possible computed-identity branch; the
+[Step 2 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-2--genericity-and-exit-foundations-2026-10-11)
+owns their delivered scope and review evidence.
 
 ### 6. Reach the hosts
 
@@ -163,7 +170,10 @@ for explicit CA trust/leaf creation and `make public-api` / `make public-web`.
 Repository scripts never edit hosts or system trust. P02d-5 delivers live-host
 bootstrap and locale entry; P02d-6 supplies pages. `make demo` now owns the
 foreground production launch, while P02d-7 Step 3 supplies browser/audit proof.
-No browser render is supplied by seeding alone.
+For the isolated proof, install managed Chromium and use `make demo DEMO_MODE=ci`
+from a fresh checkout, following
+[run-tests-locally](../run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse).
+Seeding alone supplies no browser render.
 
 ### 7. Reset only an explicitly disposable development environment
 

@@ -10,7 +10,7 @@
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
 (replacement admission proofs implemented; both review rounds complete),
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
-(accepted 2026-10-11; browser/audit rules Registered). The
+(accepted 2026-10-11; browser/audit replacement proofs implemented). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -134,8 +134,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**171 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
-The other 63 are no less binding, and most could not live there. The table says where
+**175 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
+The other 67 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -656,7 +656,8 @@ otherwise).
   [P7 package](../roadmap/phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement),
   approved on 2026-10-11; Step 2 implements the exact-literal/reference fences.
   ADR-0056's separate
-  browser/Lighthouse measurement decision is Accepted; its rules remain Registered.
+  browser/Lighthouse measurement decision and its implemented controls complement
+  this source fence; neither proves all dynamically assembled tenant comparisons.
 - **Type:** Roslyn C#/embedded-JSON scan, TypeScript AST/JSON scan, compiled and
   restore-resolved project references, with planted offenders and clean controls.
   **Kind:** structural.
@@ -4489,12 +4490,15 @@ test-only instrumentation stays in the disposable copied app.
 
 ## P02d-7 public demo and Lighthouse controls
 
-These behavioral rules remain Registered under Accepted ADR-0056 while P7 Step 3
-independent reviews and Step 4 CI enforcement remain pending. The first complete
-local browser/audit feasibility run passes. The Node proof
-entrypoint is `frontend/apps/web/scripts/verify-public-demo.mjs`, invoked through
-the shared demo lifecycle. Step 4 adds the `public demo + lighthouse` CI job.
-Registration claims neither a passing complete audit nor delivered CI enforcement.
+These behavioral rules are Implemented under Accepted ADR-0056 by
+`frontend/apps/web/scripts/verify-public-demo.mjs`, its contract/gatherer/worker
+and the always-running `public demo + lighthouse` job through `make demo`.
+`src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
+planted failing and clean controls in the required frontend job. Actual browser
+mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns exact CI and protection receipts. These are Node behavioral rules, not
+C# architecture-test methods or a full WCAG/production-performance claim.
 
 ### `Public_Demo_Uses_Seeded_Production_Pages`
 
@@ -4505,8 +4509,8 @@ Registration claims neither a passing complete audit nor delivered CI enforcemen
 - **Scope:** nine delivered pages; full Playwright/axe remains Phase 06.
 - **Type:** Node browser proof with wrong-page/error-page controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — planned Node proof entrypoint and CI job above;
-  implemented only after named enforcing controls and the actual proof pass.
+- **Status:** **Implemented** — `verify-public-demo.mjs` browser mode and
+  `public-demo.test.ts` actual-page controls, executed by the jobs above.
 - **Phase:** 02d (P02d-7 Step 3).
 
 ### `Public_Lighthouse_Reports_Enforce_Budgets`
@@ -4518,7 +4522,7 @@ Registration claims neither a passing complete audit nor delivered CI enforcemen
 - **Scope:** pinned Lighthouse/Chromium; every seed lane/URL/run.
 - **Type:** Node report validation and real audits, with stale/missing/error and
   budget-offender controls. **Kind:** behavioural.
-- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Status:** **Implemented** — named Node proof and planted controls above.
 - **Phase:** 02d (P02d-7 Step 3).
 
 ### `Public_Initial_JavaScript_Gzip_Budget_Is_Measured`
@@ -4529,7 +4533,7 @@ Registration claims neither a passing complete audit nor delivered CI enforcemen
 - **Scope:** the ADR's collection window, origin coverage and exclusions.
 - **Type:** Node source accounting, with omitted/empty/malformed/over-budget and
   clean-source controls. **Kind:** behavioural.
-- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Status:** **Implemented** — named Node proof and planted controls above.
 - **Phase:** 02d (P02d-7 Step 3).
 
 ### `Public_Demo_Preserves_Admission_And_Cleanup`
@@ -4540,7 +4544,7 @@ Registration claims neither a passing complete audit nor delivered CI enforcemen
 - **Scope:** the shared demo lifecycle and full-stack CI job.
 - **Type:** Node lifecycle/proof controls and real production navigation.
   **Kind:** behavioural.
-- **Status:** **Registered** — planned Node proof entrypoint and CI job above.
+- **Status:** **Implemented** — named Node proof and planted controls above.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 ## References

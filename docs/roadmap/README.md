@@ -83,8 +83,10 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
   records final verification. P02d-7's demo, Lighthouse and phase-exit
   [decision package](phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
-  and ADR-0056 were approved on 2026-10-11; implementation follows the four-step
-  plan. Phase 02d remains in progress.
+  and ADR-0056 were approved on 2026-10-11. Steps 1–3 deliver the shared demo,
+  genericity fences and seeded browser/Lighthouse proof. The
+  [Step 4 record](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+  owns CI enforcement, reviews and phase-exit status. Phase 02d remains in progress.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
@@ -188,10 +190,12 @@ retrofit**, and **thin where it is not**:
 - Module boundaries stay clear; architecture tests enforce them from Phase 02a,
   including `Core_Modules_HaveNo_DomainSpecific_Names`, which keeps every name the
   platform ships free of the forbidden domain terms. That rule reads names and strips
-  literals, so it cannot show that no production code branches on which tenant it
-  serves. What mechanically backs that claim is open as G20 in
-  [Phase 02d's decision register](phase-02d-walking-skeleton.md#the-decision-register),
-  and the pass that closes G20 edits this bullet with its answer.
+  literals. P02d-7's
+  [G20 controls](phase-02d-walking-skeleton.md#p02d-7-genericity-enforcement)
+  add typed exact identity matching across nonempty backend/frontend/JSON subjects,
+  compiled/restore-resolved Seeder-reference bans and planted dirty/clean controls.
+  The production schema-replacement proof complements that source fence;
+  dynamically assembled tenant comparisons remain a behavioral/review boundary.
 - CMS and education catalog capabilities work together against tenant-defined content
   types, blocks, lesson items, taxonomies, and scoring / completion rules
   ([ADR-0018](../decisions/0018-tenant-driven-customization-model.md)).

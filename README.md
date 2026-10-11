@@ -107,8 +107,10 @@ on 2026-10-10; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
 records final verification. P02d-7's demo, Lighthouse and phase-exit
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
-and ADR-0056 were approved on 2026-10-11; implementation follows the four-step
-plan. The
+and ADR-0056 were approved on 2026-10-11. Steps 1–3 deliver the shared demo,
+genericity fences and seeded browser/Lighthouse proof; the
+[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns CI enforcement, reviews and phase-exit status. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -121,7 +123,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
 | **API foundation** | Error contracts, validation, tenancy, concurrency and observability infrastructure | Authentication and durable event processing in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
-| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Two-tenant browser demo and Lighthouse in [P02d-7](docs/roadmap/phase-02d-walking-skeleton.md) |
+| **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
 Education. Identity, Content and Media remain scaffolded.
@@ -201,8 +203,12 @@ that lock manually. Missing/stale configuration or TLS is refused without reset.
 
 For separate development/watch terminals, retain `make public-api` and
 `make public-web`. The CI lifecycle uses an isolated checkout/project and disposable
-configuration through `make demo DEMO_MODE=ci`; its browser/audit driver is delivered
-in P02d-7 Step 3, so CI proof is not yet available at Step 1.
+configuration through `make demo DEMO_MODE=ci`. Install its locked managed browser
+first with `cd frontend && pnpm exec playwright install --with-deps chromium`.
+The CI mode requires a fresh checkout configuration and artifact directory; use
+local `make demo` for an existing workstation. The
+[Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns actual CI and protection receipts.
 
 Readiness is <http://127.0.0.1:5080/healthz> for the API and
 <https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
@@ -218,7 +224,7 @@ both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
 [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 owns current review/CI evidence. P02d-6 implements public pages;
-P02d-7 supplies `make demo`; browser/Lighthouse proof remains its Step 3. See
+P02d-7 supplies `make demo` and the seeded browser/Lighthouse proof. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.
 

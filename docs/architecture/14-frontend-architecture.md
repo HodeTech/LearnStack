@@ -431,10 +431,11 @@ This document does not restate them.
 
 Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
 
-CI's Lighthouse job over representative public pages remains a disabled placeholder.
-Accepted P02d-5 G44 assigns activation to P02d-7 after P6 pages; P7 selects the
-harness and assertions. The decision is recorded in
-[Phase 02d's decision register](../roadmap/phase-02d-walking-skeleton.md#the-decision-register).
+P02d-7's always-running `public demo + lighthouse` job exercises nine seeded
+public pages under ADR-0056. Performance Standards owns its hard budgets and
+advisory timing scope; the
+[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns real CI and required-check receipts.
 
 ## Accessibility
 

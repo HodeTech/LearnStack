@@ -25,8 +25,8 @@
 #     § Branch protection.
 #
 # P02d-4 activates the always-running `openapi diff` check: pinned oasdiff,
-# ADR-0024 policy controls and verified base/head snapshots. Lighthouse remains
-# deferred under P02d-7's G44/G45; a public-page harness has not shipped yet.
+# ADR-0024 policy controls and verified base/head snapshots. P02d-7 adds the
+# always-running seeded browser/Lighthouse proof under ADR-0056.
 
 name: ci
 
@@ -374,13 +374,85 @@ jobs:
           path: artifacts/openapi
           if-no-files-found: error
 
-  # ─── Lighthouse budget (deferred — Phase 02d) ─────────────────────────
-  lighthouse-budget:
-    name: lighthouse budget (deferred to P02d-7)
+  # ─── Seeded production browser + Lighthouse proof (P02d-7) ────────────
+  public-demo:
+    name: public demo + lighthouse
     runs-on: ubuntu-latest
-    if: vars.ENABLE_LIGHTHOUSE_BUDGET == 'true'
+    timeout-minutes: 20
     steps:
-      - run: echo "Placeholder — P02d-7 wires the full-stack harness after P02d-6 pages."
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Install pinned browser tools
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      # The same entrypoint owns restoration, seven-service readiness, migrations,
+      # contextual seeding, native TLS, production builds and confirmed cleanup.
+      # Its 12-minute proof deadline is separate from setup and 30-second cleanup.
+      - name: Prove the seeded production sites and budgets
+        id: demo
+        run: make demo DEMO_MODE=ci
+
+      - name: Record bounded workflow outcome
+        if: always()
+        env:
+          DEMO_OUTCOME: ${{ steps.demo.outcome }}
+          CHECKOUT_SHA: ${{ github.sha }}
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          output = Path('artifacts/public-demo-ci')
+          output.mkdir(parents=True, exist_ok=True)
+          receipt = {key: os.environ.get(key, '') for key in (
+              'DEMO_OUTCOME', 'CHECKOUT_SHA', 'SOURCE_HEAD_SHA', 'RUN_URL')}
+          (output / 'workflow.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+
+      - name: Upload public reports and sanitized receipts only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-demo-lighthouse
+          path: |
+            artifacts/public-demo/receipt.json
+            artifacts/public-demo/*.json
+            artifacts/public-demo/*.html
+            artifacts/public-demo/*.png
+            artifacts/public-demo-ci/workflow.json
+          if-no-files-found: error
+          retention-days: 7
 
   # ─── Meta (commit-message format, link audit) ─────────────────────────
   meta:

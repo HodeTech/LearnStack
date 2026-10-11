@@ -181,8 +181,28 @@ COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml -
 ```
 
 P02d-7's isolated demo lifecycle uses this overlay with a unique project and
-private configuration. Its browser/Lighthouse driver remains Step 3 work.
-The full Playwright/axe suite remains Phase 06. Explicit Compose selection ignores
+private configuration. The delivered Playwright library walkthrough covers nine
+seeded product pages, followed by 27 Lighthouse audits over the same production
+API/build/database with its Keycloak stopped. From a fresh checkout without root
+`.env`, web `.env.local` or `artifacts/public-demo`:
+
+```bash
+(cd frontend && pnpm install --frozen-lockfile)
+(cd frontend && pnpm exec playwright install --with-deps chromium)
+make demo DEMO_MODE=ci
+```
+
+Fixed ports must be free. The lifecycle owns disposable TLS/configuration,
+certificate-specific browser trust and cleanup, without modifying system hosts or
+trust. Review the sanitized `artifacts/public-demo/receipt.json`, all 27 JSON/HTML
+report pairs and browser screenshots; proof and cleanup must both pass. See
+[Running tests locally](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse)
+for the complete workflow and
+[branch protection](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+for actual required-check activation. Local success alone does not establish it.
+Human `make demo` retains manual hosts/CA/leaf setup and persistent local data.
+
+The full Playwright Test/axe suite remains Phase 06. Explicit Compose selection ignores
 ambient `COMPOSE_*` overrides; use an explicit `--profile gated` for that opt-in.
 Host ports remain fixed, so a foreign stack/listener is refused rather than stopped.
 

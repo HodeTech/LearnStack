@@ -98,8 +98,11 @@ LearnStack is an education platform; learners with disabilities are a first-clas
 - `eslint-plugin-jsx-a11y` in the frontend lint config.
 - Phase 06 integrates `axe-core` with Playwright for public-renderer and portal
   critical flows.
-- P02d-7 owns Lighthouse activation and the accessibility assertions for public
-  routes; the CI placeholder remains disabled.
+- P02d-7 delivers the narrow managed-browser walkthrough and hard Lighthouse
+  automated accessibility score for nine seeded pages under
+  [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+  The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+  owns CI and required-check receipts; this supplements the scoped P6 human record.
 - Manual keyboard walkthroughs for new screens in the PR review.
 
 **P02d-6 G43 enforcement — Step 3, 2026-10-10.** All 31 active recommended
