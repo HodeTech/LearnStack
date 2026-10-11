@@ -52,6 +52,25 @@ export function validateCertificate(certificate, privateKey, hosts, now = Date.n
   return leaf;
 }
 
+/** Attempt every owned teardown stage; private files survive any unconfirmed stage. */
+export async function disposeDemoResources({ processes, finish, teardown, removePrivate }) {
+  const failures = [];
+  for (const attempt of [() => processes.dispose(), finish, teardown]) {
+    if (!attempt) continue;
+    try {
+      await attempt();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length)
+    throw new AggregateError(
+      failures,
+      'Owned cleanup could not be confirmed; private files retained',
+    );
+  await removePrivate();
+}
+
 /** Start the same seeded, production-built topology for foreground use and CI proof. */
 export async function startDemo(mode) {
   if (!['local', 'ci'].includes(mode)) throw new Error('Use make demo DEMO_MODE=local or ci');
@@ -98,45 +117,52 @@ export async function startDemo(mode) {
       };
       controller.abort();
       try {
-        await processes.dispose();
-        completions?.finish();
-        // Cleanup has a separate signal: cancellation must not cancel teardown.
-        if (mode === 'ci' && startedStack) {
-          const cleanup = new DemoProcesses(new AbortController().signal);
-          try {
-            await cleanup.run(
-              'docker',
-              [...selected.args, '--profile', '*', 'down', '--volumes', '--remove-orphans'],
-              {
-                cwd: selected.cwd,
-                env: selected.env,
-                label: 'Owned Compose teardown',
-                timeout: cleanupTimeout(20000),
-              },
-            );
-            const remaining = await cleanup.run(
-              'docker',
-              [...selected.args, '--profile', '*', 'ps', '-a', '-q'],
-              {
-                cwd: selected.cwd,
-                env: selected.env,
-                label: 'Owned Compose teardown verification',
-                capture: true,
-                timeout: cleanupTimeout(5000),
-              },
-            );
-            if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
-          } finally {
-            await cleanup.dispose();
-          }
-        }
-        if (ownedEnvironment !== undefined) {
-          if (readFileSync(rootEnv, 'utf8') !== ownedEnvironment)
-            throw new Error('CI environment changed; private files retained');
-          unlinkSync(rootEnv);
-        }
-        if (privateRoot) rmSync(privateRoot, { recursive: true });
-        if (locked) rmSync(lock, { recursive: true });
+        await disposeDemoResources({
+          processes,
+          finish: () => completions?.finish(),
+          // Cleanup has a separate signal: cancellation must not cancel teardown.
+          teardown:
+            mode === 'ci' && startedStack
+              ? async () => {
+                  const cleanup = new DemoProcesses(new AbortController().signal);
+                  try {
+                    await cleanup.run(
+                      'docker',
+                      [...selected.args, '--profile', '*', 'down', '--volumes', '--remove-orphans'],
+                      {
+                        cwd: selected.cwd,
+                        env: selected.env,
+                        label: 'Owned Compose teardown',
+                        timeout: cleanupTimeout(20000),
+                      },
+                    );
+                    const remaining = await cleanup.run(
+                      'docker',
+                      [...selected.args, '--profile', '*', 'ps', '-a', '-q'],
+                      {
+                        cwd: selected.cwd,
+                        env: selected.env,
+                        label: 'Owned Compose teardown verification',
+                        capture: true,
+                        timeout: cleanupTimeout(5000),
+                      },
+                    );
+                    if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
+                  } finally {
+                    await cleanup.dispose();
+                  }
+                }
+              : undefined,
+          removePrivate: () => {
+            if (ownedEnvironment !== undefined) {
+              if (readFileSync(rootEnv, 'utf8') !== ownedEnvironment)
+                throw new Error('CI environment changed; private files retained');
+              unlinkSync(rootEnv);
+            }
+            if (privateRoot) rmSync(privateRoot, { recursive: true });
+            if (locked) rmSync(lock, { recursive: true });
+          },
+        });
         const milliseconds = Date.now() - started;
         if (mode === 'ci' && milliseconds > 30000) throw new Error('Owned cleanup deadline');
         return {

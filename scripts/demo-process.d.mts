@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 export function installDemoCancellation(cancel: () => void): () => void;
 export class DemoCommandError extends Error {
-  constructor(label: string);
+  constructor(label: string, cause?: unknown);
 }
 interface Options {
   cwd?: string;

@@ -3,8 +3,8 @@ import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs'
 
 /** Only fixed caller-owned stage labels reach the foreground CLI. */
 export class DemoCommandError extends Error {
-  constructor(label) {
-    super(`demo: ${label} failed`);
+  constructor(label, cause) {
+    super(`demo: ${label} failed`, { cause });
   }
 }
 
@@ -60,8 +60,8 @@ export class DemoProcesses {
     let outputBytes = 0;
     let failed;
     for (const stream of [child.stdout, child.stderr]) {
-      stream.once('error', () => {
-        failed = new Error(`${label} output refused`);
+      stream.once('error', (cause) => {
+        failed ??= new Error(`${label} output refused`, { cause });
         void stopTestChild(child);
       });
       stream.on('data', (chunk) => {
@@ -72,8 +72,8 @@ export class DemoProcesses {
             if (outputBytes > 2 * 1024 * 1024) throw new Error('Command output exceeds bound');
             output.push(chunk);
           }
-        } catch {
-          failed = new Error(`${label} output refused`);
+        } catch (cause) {
+          failed ??= new Error(`${label} output refused`, { cause });
           void stopTestChild(child);
         }
       });
@@ -85,16 +85,23 @@ export class DemoProcesses {
     const running = {
       child,
       exit,
-      result: () => ({ output: Buffer.concat(output).toString('utf8'), failed }),
+      result: () => ({
+        output: Buffer.concat(output).toString('utf8'),
+        failed,
+      }),
     };
-    this.#children.set(child, { closed, result: running.result, daemon: false });
+    this.#children.set(child, {
+      closed,
+      result: running.result,
+      daemon: false,
+    });
     return running;
   }
   daemon(command, args, options) {
     const running = this.start(command, args, options);
     this.#children.get(running.child).daemon = true;
     void running.exit.then(() => {
-      this.#failed = new DemoCommandError(`${options.label} exited`);
+      this.#failed = new DemoCommandError(`${options.label} exited`, running.result().failed);
       this.#failure(this.#failed);
     });
     return running;
@@ -116,7 +123,10 @@ export class DemoProcesses {
         this.failure.then(() => ({ code: 1 })),
       ]);
       if (result.code !== 0 || running.result().failed)
-        throw new DemoCommandError(options.label ?? command);
+        throw new DemoCommandError(
+          options.label ?? command,
+          running.result().failed ?? this.#failed,
+        );
       this.assertActive();
       return running.result().output;
     } finally {
@@ -147,10 +157,16 @@ export class DemoProcesses {
         } finally {
           clearTimeout(timer);
         }
-        if (daemon && result().failed) throw new Error('Owned output was refused');
+        if (daemon && result().failed)
+          throw new Error('Owned output was refused', {
+            cause: result().failed,
+          });
       }),
     );
     if (results.some((row) => row.status === 'rejected'))
-      throw new Error('Owned process cleanup failed; private files retained');
+      throw new AggregateError(
+        results.filter((row) => row.status === 'rejected').map((row) => row.reason),
+        'Owned process cleanup failed; private files retained',
+      );
   }
 }

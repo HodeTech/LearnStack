@@ -24,8 +24,15 @@ export async function boundedBody(response, maximum) {
 export function vacant(port) {
   return new Promise((resolve, reject) => {
     const server = createServer();
-    server.once('error', () =>
-      reject(new Error(`Port ${port} is occupied; stop its owner before make demo`)),
+    server.once('error', (cause) =>
+      reject(
+        new Error(
+          cause.code === 'EADDRINUSE'
+            ? `Port ${port} is occupied; stop its owner before make demo`
+            : 'Demo listener bind check failed',
+          { cause },
+        ),
+      ),
     );
     server.listen(port, '127.0.0.1', () =>
       server.close((error) => (error ? reject(error) : resolve())),

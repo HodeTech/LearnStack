@@ -16,7 +16,11 @@ import {
   finalCompletionCensus,
 } from '../../../../../scripts/demo-observation.mjs';
 import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
-import { isApiListenerEvent, validateCertificate } from '../../../../../scripts/demo.mjs';
+import {
+  disposeDemoResources,
+  isApiListenerEvent,
+  validateCertificate,
+} from '../../../../../scripts/demo.mjs';
 import {
   publicApiEnvironment,
   publicDemoApiEnvironment,
@@ -87,6 +91,50 @@ describe('shared explicit demo stack selection', () => {
       expect(result.stderr).toContain('disagrees');
       expect(result.stderr).not.toContain('foreign');
     }
+  });
+  it('launches the argument-free Seeder from the documented shell path', () => {
+    const root = temporary();
+    for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
+    for (const file of ['seed.sh', 'connection-string.awk'])
+      writeFileSync(
+        join(root, 'scripts', file),
+        readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
+      );
+    writeFileSync(
+      join(root, '.env'),
+      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\n',
+    );
+    for (const [name, body] of Object.entries({
+      docker: '[ "$*" = "compose version" ]',
+      node: '[ "$*" = "scripts/wait-compose.mjs" ]',
+      dotnet:
+        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$PWD" = "$TEST_ROOT/backend" ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && printf launched > "$TEST_ROOT/launched"',
+    }))
+      writeFileSync(join(root, 'bin', name), `#!/bin/sh\n${body}\n`, { mode: 0o700 });
+    const launch = () =>
+      spawnSync('bash', [join(root, 'scripts/seed.sh')], {
+        cwd: root,
+        env: {
+          PATH: `${join(root, 'bin')}:${process.env.PATH}`,
+          TEST_ROOT: root,
+          NODE_ENV: 'test',
+        },
+        encoding: 'utf8',
+        timeout: 5000,
+      });
+    expect(launch().status).toBe(0);
+    expect(readFileSync(join(root, 'launched'), 'utf8')).toBe('launched');
+    const script = join(root, 'scripts/seed.sh');
+    writeFileSync(
+      script,
+      readFileSync(script, 'utf8').replace(
+        'dotnet run --project src/LearnStack.Tools.Seeder',
+        'dotnet run --project src/LearnStack.Tools.Seeder --nologo',
+      ),
+    );
+    const refused = launch();
+    expect(refused.status).not.toBe(0);
+    expect(refused.stderr).toContain('tenant seeding failed');
   });
   it('reads the selected migration env file and refuses its runtime role before any database act', () => {
     const root = temporary();
@@ -584,4 +632,116 @@ describe('owned real process lifecycle', () => {
     );
     expect(() => processes.assertActive()).toThrow('daemon exited');
   });
+});
+
+describe('independent owned cleanup attempts', () => {
+  it.each(['processes', 'observer', 'compose'])(
+    'retains private state and failure after %s fails, without skipping other teardown',
+    async (stage) => {
+      const actions: string[] = [];
+      const cause = new Error('private diagnostic sentinel');
+      const attempt = (name: string) => () => {
+        actions.push(name);
+        if (stage === name) throw cause;
+      };
+      const error = await disposeDemoResources({
+        processes: { dispose: async () => attempt('processes')() },
+        finish: attempt('observer'),
+        teardown: attempt('compose'),
+        removePrivate: attempt('private'),
+      }).catch((error: unknown) => error);
+      expect(actions).toEqual(['processes', 'observer', 'compose']);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors).toEqual([cause]);
+      expect((error as Error).message).not.toContain(cause.message);
+    },
+  );
+  it.each([false, true])(
+    'removes private state only after every applicable stage confirms cleanup (CI=%s)',
+    async (ci) => {
+      const actions: string[] = [];
+      await disposeDemoResources({
+        processes: {
+          dispose: async () => {
+            actions.push('processes');
+          },
+        },
+        finish: () => {
+          actions.push('observer');
+        },
+        teardown: ci
+          ? async () => {
+              actions.push('compose');
+            }
+          : undefined,
+        removePrivate: () => {
+          actions.push('private');
+        },
+      });
+      expect(actions).toEqual(
+        ci ? ['processes', 'observer', 'compose', 'private'] : ['processes', 'observer', 'private'],
+      );
+    },
+  );
+  it('retains observer causes internally without printing private output', async () => {
+    const cause = new Error('private observer sentinel');
+    const processes = new DemoProcesses(new AbortController().signal);
+    const error = await processes
+      .run(process.execPath, ['-e', 'process.stdout.write("output")'], {
+        label: 'Fixed observer stage',
+        observe: () => {
+          throw cause;
+        },
+      })
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('demo: Fixed observer stage failed');
+    expect(((error as Error).cause as Error).cause).toBe(cause);
+    await processes.dispose();
+  });
+});
+
+describe('listener bind diagnostics', () => {
+  it.each(['EADDRINUSE', 'EACCES'])(
+    'keeps %s distinct without exposing socket diagnostics',
+    (code) => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `
+      import net from 'node:net';
+      import { EventEmitter } from 'node:events';
+      import { syncBuiltinESMExports } from 'node:module';
+      const cause = Object.assign(new Error('private bind diagnostic'), { code: process.argv[1] });
+      net.createServer = () => {
+        const server = new EventEmitter();
+        server.listen = () => queueMicrotask(() => server.emit('error', cause));
+        return server;
+      };
+      syncBuiltinESMExports();
+      const { vacant } = await import(process.argv[2]);
+      try { await vacant(3000); process.exitCode = 2; }
+      catch (error) { console.log(JSON.stringify({ message: error.message, code: error.cause?.code })); }
+    `,
+          code,
+          new URL('../../../../../scripts/demo-http.mjs', import.meta.url).href,
+        ],
+        {
+          encoding: 'utf8',
+          timeout: 5000,
+        },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(JSON.parse(result.stdout)).toEqual({
+        message:
+          code === 'EADDRINUSE'
+            ? 'Port 3000 is occupied; stop its owner before make demo'
+            : 'Demo listener bind check failed',
+        code,
+      });
+    },
+  );
 });

@@ -127,7 +127,7 @@ fi
 # repository root no global.json applies and whichever SDK is newest answers, which is
 # not the one CI and `make migrate` use.
 if ! (cd backend && ConnectionStrings__Default="$seed_cs" \
-        dotnet run --project src/LearnStack.Tools.Seeder --nologo); then
+        dotnet run --project src/LearnStack.Tools.Seeder); then
     red "seed: tenant seeding failed."
     red "  Has the schema been applied? → make migrate"
     exit 1

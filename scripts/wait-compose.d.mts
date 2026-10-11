@@ -8,3 +8,10 @@ export function healthyServices(
   rows: { Service: string; State: string; Health?: string }[],
   postgresOnly?: boolean,
 ): boolean;
+
+export function waitCompose(
+  selected: ReturnType<typeof import('./compose.mjs').composeSelection>,
+  processes: import('./demo-process.mjs').DemoProcesses,
+  signal: AbortSignal,
+  postgresOnly?: boolean,
+): Promise<void>;
