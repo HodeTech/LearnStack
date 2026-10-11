@@ -6,6 +6,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md). Public-renderer
 controls derive from [ADR-0053](../decisions/0053-trusted-public-server-rendering.md)
 and [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+The seeded browser/audit proof derives from
+[ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
@@ -47,7 +49,7 @@ We invest most at **unit + integration**. Architecture tests are zero-flake. E2E
 | Integration | `LearnStack.Tests.Integration` | xUnit + `WebApplicationFactory` (Docker-free host tests) and, from Packet 6, Testcontainers marked `[Trait("Requires","Docker")]` — CI runs the two halves in separate jobs by that trait |
 | Architecture | `LearnStack.Tests.Architecture` | xUnit with NetArchTest (Mono.Cecil), reflection and source scans |
 | API contract | `LearnStack.Tests.Contract` | The published OpenAPI document; the snapshot-diff gate activates in Phase 02d, per § API Contract Tests |
-| End-to-end | none yet | Playwright, per § End-to-End Tests below. No project exists; the owning phase is named there |
+| End-to-end | Shared demo lifecycle (P02d-7) | Playwright library + Lighthouse; Phase 06 owns the broader golden-flow suite, per § End-to-End Tests |
 
 ### Unit Tests
 
@@ -134,28 +136,21 @@ and were read as running.
 
 ### End-to-End Tests
 
-**None exist, and the project this section used to name never did.** Driving the
-API through `WebApplicationFactory` is what the *host tests* above do; that is
-not end-to-end, and listing it as a separate suite made a phantom look shipped.
+P02d-7 Step 3 implements the narrow seeded catalog → course → lesson browser
+proof over the running production API/native renderer. Its
+[delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
+records the passing local nine-page walkthrough and 27 Lighthouse audits;
+independent reviews and required CI activation remain pending. The proof uses
+Playwright's library and managed Chromium, not a separate Playwright Test project.
+It supplements G33's human walkthrough and preserves P6's recorded manual smoke;
+it does not replace either with automated accessibility scores.
 
-End-to-end here means a browser: Playwright over a running stack, per the
-frontend tooling table below.
-
-- Cover the MVP vertical slice (tenant → page → course → enrollment → live
-  session).
-- ~10 high-signal scenarios.
-- **Owner:** the first flow arrives in
-  [Phase 06](../roadmap/phase-06-renderer-admin-studio.md), which also wires the
-  axe accessibility checks that run through the same harness.
-  [Phase 02d](../roadmap/phase-02d-walking-skeleton.md) renders the first tenant
-  surfaces, puts two tenants in a browser and gates on a human opening them, not on a
-  Playwright run.
-
-P02d-5's required integration suite proves two-host production HTML/RSC transport
-against the real API, using explicitly test-owned pages. G33's local topology is
-delivered; its browser/TLS evidence remains P02d-7's G45 obligation. P02d-6 owns
-G38(c)'s product-page cases. P02d-7 selects the demo/browser harness and Lighthouse
-assertions after P6; Phase 06 retains the broader Playwright/axe golden-flow suite.
+Phase 06 owns the broader MVP vertical slice (tenant → page → course → enrollment
+→ live session), approximately ten high-signal golden flows and the full
+Playwright/axe harness. P02d-5/6's real-API HTML/RSC integration cases remain
+separate from browser evidence. P02d-7's proof adds actual linked navigation,
+computed themes, ordered fields, TLS refusal controls and bounded audits over
+unchanged seeded product routes.
 
 ### Public renderer fixture ownership
 
@@ -183,9 +178,9 @@ or Lighthouse delivery.
 | Unit (logic) | Vitest |
 | Component | Testing Library + Vitest |
 | Server actions | Vitest + Next.js test helpers |
-| E2E | Playwright |
+| E2E | P02d-7: Playwright library; Phase 06: broader Playwright Test harness |
 | Visual regression | Chromatic / Playwright snapshot |
-| Accessibility | axe-core via Playwright |
+| Accessibility | P02d-7: Lighthouse automated score; Phase 06: full axe-core via Playwright suite |
 
 Rules:
 - Components with non-trivial state have unit tests.

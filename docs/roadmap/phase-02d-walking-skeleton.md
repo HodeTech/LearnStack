@@ -1,6 +1,6 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-10).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-11).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -15,7 +15,7 @@
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
-> | P02d-7 | Demo, full-stack CI and exit | decision pass Accepted — 2026-10-11; [decision package](#p02d-7-decision-package-2026-10-10); implementation starts with Step 1 |
+> | P02d-7 | Demo, full-stack CI and exit | decision pass Accepted — 2026-10-11; [decision package](#p02d-7-decision-package-2026-10-10); Steps 1–2 complete; [Step 3 validation](#p02d-7-step-3--browser-and-audit-proof-2026-10-11) in progress |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -6020,6 +6020,81 @@ protection receipts; historical delivery records retain their original limits.
 | G20 exact-literal/reference fence and schema replacement | This Step 2 backend/frontend dirty/clean controls and existing presentation successor fixture. | Both independent review rounds; Step 3 ordered fields. Computed comparisons remain a review/behavioral boundary. |
 | Performance/accessibility audits, report/census/gzip guards | ADR-0056 accepted obligations, four Registered behavioral rules. | Step 3 implements 27 report pairs/hard checks; Step 4 activates mandatory CI/protection and updates statuses with enforcement. |
 | Governance, all gates/catalogue rows, module/standard/skill/vision/MVP carriers and named exclusions | Existing decision register and P1–P6 records. | Step 4 complete criterion matrix, zero 02d Registered/Awaiting rows, owner-document checks and P02b-0/Phase 05 handoffs. |
+
+### P02d-7 Step 3 — browser and audit proof (2026-10-11)
+
+**Implementation in progress; both independent review rounds remain pending.**
+The shared CI lifecycle invokes `verify-public-demo.mjs` over the same seeded
+production API/native renderer. `DemoManifest` also derives hidden lesson titles
+and field values, excluding values shared with eligible public content. The
+browser follows the actual catalog/course/lesson links in all three host/locale
+lanes and compares computed theme colors, identity and ordered authored fields.
+
+Exact development-tool pins are Lighthouse 13.5.0 and Playwright 1.64.0, using
+its managed full Chromium 156.0.8078.4, revision 1248. The audit configuration
+has an independently recorded 125-audit/14-artifact census and complete category
+weights. A custom initial-navigation gatherer observes the actual document and
+all delivered Script bodies; it never refetches or navigates. The shared policy
+checks original inline source, complete decoded bodies, normalized gzip and the
+actual audited product DOM before admitting a JSON/HTML report pair.
+
+The structured API completion observer retains only aggregate status/path-family
+counts. A fresh HTTPS product read supplies its positive control. Four serial
+batches preserve the real admission policy, with the approved quiet intervals
+and subordinate deadlines. The public receipt records setup/proof/cleanup
+milliseconds, versions, configuration, source digests, report inventory and API
+counts. Browser profiles, certificates, private configuration and raw logs stay
+outside the public evidence. CI cleanup confirms owned process/project absence
+and removes owned private files, environment and lock within its separate bound.
+
+**Initial verification.** All 43 focused frontend controls and eight existing
+manifest/configuration integration cases pass with zero failures/skips. Lint
+and typecheck pass. The guarded frontend runner passes all 1,489 cases
+(1,429 web + 60 SDK); all 203 architecture cases pass, with zero skips.
+The controls include actual installed Lighthouse configuration
+resolution, measured over-budget sources, wrong/error product documents, invalid
+reports/census, missing/truncated/foreign-target sources and split API events.
+The first complete serial feasibility run passes: lifecycle setup 61,468 ms,
+proof 549,269 ms (9 min 9 s), and confirmed cleanup 10,656 ms. It produces all 27
+JSON/HTML pairs and nine browser screenshots. All hard checks pass: normalized
+initial JavaScript is 106,381–106,573 bytes, CLS is zero, and scored automated
+accessibility is 1 on every run. The four proof batches observe exactly
+18/36/36/36 successful API calls; the separate observer control observes two.
+Both untrusted/wrong-SPKI browser controls refuse before reaching the API.
+The CI-owned Keycloak stays stopped. Owned processes/project/private files,
+environment and lock are removed; the two authorized foreign containers restart.
+
+LCP samples are 2,008.544–2,166.836 ms, producing an advisory median warning for
+each of the nine URLs. Server response is 15–23 ms and TBT 4–16 ms. These are
+local simulated lab samples, not field/p95 performance or a new manual WCAG pass.
+This is working-copy feasibility evidence over the `69ce613` baseline and build
+`vCA7HXnit3froptth4IYD`; it is not an exact-head CI claim. Subsequent receipt-only
+hardening records the complete expected/configuration census and startup/final
+counters; the final committed CI run must validate those changes. Step 4 owns
+CI enforcement, protection activation and phase exit.
+
+The first runtime attempts exposed harness defects before any audit verdict:
+macOS's certificate verifier stalled when Chromium inherited the isolated Node
+HOME, and optional `undefined` configuration properties differed from their JSON
+receipt. A causal disposable TLS experiment confirms certificate refusal with
+the real account HOME; only the managed browser receives it, with an explicit
+owned disposable profile. Worker/API environments remain isolated. Configuration
+comparison now uses the serializable receipt and an actual-resolution control.
+The linked nine-page browser path subsequently passed, with exactly 18 successful
+API calls and no 429, before the configuration comparison stopped that attempt.
+These observations are preliminary validation, not the complete feasibility gate.
+
+**Transitive review.** Both direct tools are Apache-2.0 development dependencies.
+The added tree includes MPL-2.0 `axe-core` 4.14.0, used by Lighthouse's development
+accessibility audit; retain its package license/source obligations if distributing
+that tool. Existing runtime package versions are unchanged. Resolving the added
+OpenTelemetry API peer changes some lockfile peer identities without adding
+application instrumentation. The full-workspace audit reports zero critical,
+one high and one moderate advisory; neither path comes from the new tools.
+The existing [security triage](#remediation-group-3--approved-security-maintenance)
+owns Braces' unfixed build-glob recursion issue and the incompatible-major
+selector-parser fix. Their maintainer/backport/parent-migration ownership and
+Security Standards deadlines remain unchanged; this is not a clean-audit claim.
 
 ### P02d-1 decision pass (2026-09-14)
 

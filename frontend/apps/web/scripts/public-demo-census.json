@@ -1,0 +1,713 @@
+{
+  "artifacts": [
+    {
+      "id": "Accessibility"
+    },
+    {
+      "id": "CSSUsage"
+    },
+    {
+      "id": "DevtoolsLog"
+    },
+    {
+      "id": "FullPageScreenshot"
+    },
+    {
+      "id": "ImageElements"
+    },
+    {
+      "id": "JsUsage"
+    },
+    {
+      "id": "NetworkUserAgent",
+      "dependencies": {
+        "DevtoolsLog": {
+          "id": "DevtoolsLog"
+        }
+      }
+    },
+    {
+      "id": "PublicDemoDocument"
+    },
+    {
+      "id": "Scripts"
+    },
+    {
+      "id": "SourceMaps",
+      "dependencies": {
+        "Scripts": {
+          "id": "Scripts"
+        }
+      }
+    },
+    {
+      "id": "Stacks"
+    },
+    {
+      "id": "Stylesheets"
+    },
+    {
+      "id": "Trace"
+    },
+    {
+      "id": "TraceElements",
+      "dependencies": {
+        "Trace": {
+          "id": "Trace"
+        },
+        "SourceMaps": {
+          "id": "SourceMaps"
+        }
+      }
+    }
+  ],
+  "audits": [
+    "accesskeys",
+    "aria-allowed-attr",
+    "aria-allowed-role",
+    "aria-command-name",
+    "aria-conditional-attr",
+    "aria-deprecated-role",
+    "aria-dialog-name",
+    "aria-hidden-body",
+    "aria-hidden-focus",
+    "aria-input-field-name",
+    "aria-meter-name",
+    "aria-progressbar-name",
+    "aria-prohibited-attr",
+    "aria-required-attr",
+    "aria-required-children",
+    "aria-required-parent",
+    "aria-roles",
+    "aria-text",
+    "aria-toggle-field-name",
+    "aria-tooltip-name",
+    "aria-treeitem-name",
+    "aria-valid-attr",
+    "aria-valid-attr-value",
+    "autocomplete-valid",
+    "bootup-time",
+    "button-name",
+    "bypass",
+    "cache-insight",
+    "cls-culprits-insight",
+    "color-contrast",
+    "cumulative-layout-shift",
+    "custom-controls-labels",
+    "custom-controls-roles",
+    "definition-list",
+    "diagnostics",
+    "dlitem",
+    "document-latency-insight",
+    "document-title",
+    "dom-size-insight",
+    "duplicate-id-aria",
+    "duplicated-javascript-insight",
+    "empty-heading",
+    "final-screenshot",
+    "first-contentful-paint",
+    "focus-traps",
+    "focusable-controls",
+    "font-display-insight",
+    "forced-reflow-insight",
+    "form-field-multiple-labels",
+    "frame-title",
+    "heading-order",
+    "html-has-lang",
+    "html-lang-valid",
+    "html-xml-lang-mismatch",
+    "identical-links-same-purpose",
+    "image-alt",
+    "image-delivery-insight",
+    "image-redundant-alt",
+    "initial-js-gzip-bytes",
+    "inp-breakdown-insight",
+    "input-button-name",
+    "input-image-alt",
+    "interactive",
+    "interactive-element-affordance",
+    "label",
+    "label-content-name-mismatch",
+    "landmark-one-main",
+    "largest-contentful-paint",
+    "layout-shifts",
+    "lcp-breakdown-insight",
+    "lcp-discovery-insight",
+    "legacy-javascript-insight",
+    "link-in-text-block",
+    "link-name",
+    "list",
+    "listitem",
+    "logical-tab-order",
+    "long-tasks",
+    "main-thread-tasks",
+    "mainthread-work-breakdown",
+    "managed-focus",
+    "max-potential-fid",
+    "meta-refresh",
+    "meta-viewport",
+    "metrics",
+    "modern-http-insight",
+    "network-dependency-tree-insight",
+    "network-requests",
+    "network-rtt",
+    "network-server-latency",
+    "non-composited-animations",
+    "object-alt",
+    "offscreen-content-hidden",
+    "presentation-role-conflict",
+    "redirects",
+    "render-blocking-insight",
+    "resource-summary",
+    "screenshot-thumbnails",
+    "script-treemap-data",
+    "select-name",
+    "server-response-time",
+    "skip-link",
+    "speed-index",
+    "svg-img-alt",
+    "tabindex",
+    "table-duplicate-name",
+    "table-fake-caption",
+    "target-size",
+    "td-has-header",
+    "td-headers-attr",
+    "th-has-data-cells",
+    "third-parties-insight",
+    "total-blocking-time",
+    "total-byte-weight",
+    "unminified-css",
+    "unminified-javascript",
+    "unsized-images",
+    "unused-css-rules",
+    "unused-javascript",
+    "use-landmarks",
+    "user-timings",
+    "valid-lang",
+    "video-caption",
+    "viewport-insight",
+    "visual-order-follows-dom"
+  ],
+  "categories": {
+    "performance": [
+      {
+        "id": "first-contentful-paint",
+        "weight": 10
+      },
+      {
+        "id": "largest-contentful-paint",
+        "weight": 25
+      },
+      {
+        "id": "total-blocking-time",
+        "weight": 30
+      },
+      {
+        "id": "cumulative-layout-shift",
+        "weight": 25
+      },
+      {
+        "id": "speed-index",
+        "weight": 10
+      },
+      {
+        "id": "cache-insight",
+        "weight": 0
+      },
+      {
+        "id": "cls-culprits-insight",
+        "weight": 0
+      },
+      {
+        "id": "document-latency-insight",
+        "weight": 0
+      },
+      {
+        "id": "dom-size-insight",
+        "weight": 0
+      },
+      {
+        "id": "duplicated-javascript-insight",
+        "weight": 0
+      },
+      {
+        "id": "font-display-insight",
+        "weight": 0
+      },
+      {
+        "id": "forced-reflow-insight",
+        "weight": 0
+      },
+      {
+        "id": "image-delivery-insight",
+        "weight": 0
+      },
+      {
+        "id": "inp-breakdown-insight",
+        "weight": 0
+      },
+      {
+        "id": "lcp-breakdown-insight",
+        "weight": 0
+      },
+      {
+        "id": "lcp-discovery-insight",
+        "weight": 0
+      },
+      {
+        "id": "legacy-javascript-insight",
+        "weight": 0
+      },
+      {
+        "id": "modern-http-insight",
+        "weight": 0
+      },
+      {
+        "id": "network-dependency-tree-insight",
+        "weight": 0
+      },
+      {
+        "id": "render-blocking-insight",
+        "weight": 0
+      },
+      {
+        "id": "third-parties-insight",
+        "weight": 0
+      },
+      {
+        "id": "viewport-insight",
+        "weight": 0
+      },
+      {
+        "id": "interactive",
+        "weight": 0
+      },
+      {
+        "id": "max-potential-fid",
+        "weight": 0
+      },
+      {
+        "id": "unminified-css",
+        "weight": 0
+      },
+      {
+        "id": "unminified-javascript",
+        "weight": 0
+      },
+      {
+        "id": "unused-css-rules",
+        "weight": 0
+      },
+      {
+        "id": "unused-javascript",
+        "weight": 0
+      },
+      {
+        "id": "total-byte-weight",
+        "weight": 0
+      },
+      {
+        "id": "user-timings",
+        "weight": 0
+      },
+      {
+        "id": "bootup-time",
+        "weight": 0
+      },
+      {
+        "id": "mainthread-work-breakdown",
+        "weight": 0
+      },
+      {
+        "id": "long-tasks",
+        "weight": 0
+      },
+      {
+        "id": "non-composited-animations",
+        "weight": 0
+      },
+      {
+        "id": "unsized-images",
+        "weight": 0
+      },
+      {
+        "id": "network-requests",
+        "weight": 0
+      },
+      {
+        "id": "network-rtt",
+        "weight": 0
+      },
+      {
+        "id": "network-server-latency",
+        "weight": 0
+      },
+      {
+        "id": "main-thread-tasks",
+        "weight": 0
+      },
+      {
+        "id": "diagnostics",
+        "weight": 0
+      },
+      {
+        "id": "metrics",
+        "weight": 0
+      },
+      {
+        "id": "screenshot-thumbnails",
+        "weight": 0
+      },
+      {
+        "id": "final-screenshot",
+        "weight": 0
+      },
+      {
+        "id": "script-treemap-data",
+        "weight": 0
+      },
+      {
+        "id": "resource-summary",
+        "weight": 0
+      },
+      {
+        "id": "redirects",
+        "weight": 0
+      },
+      {
+        "id": "server-response-time",
+        "weight": 0
+      },
+      {
+        "id": "layout-shifts",
+        "weight": 0
+      }
+    ],
+    "accessibility": [
+      {
+        "id": "accesskeys",
+        "weight": 7
+      },
+      {
+        "id": "aria-allowed-attr",
+        "weight": 10
+      },
+      {
+        "id": "aria-command-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-conditional-attr",
+        "weight": 7
+      },
+      {
+        "id": "aria-deprecated-role",
+        "weight": 1
+      },
+      {
+        "id": "aria-dialog-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-hidden-body",
+        "weight": 10
+      },
+      {
+        "id": "aria-hidden-focus",
+        "weight": 7
+      },
+      {
+        "id": "aria-input-field-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-meter-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-progressbar-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-prohibited-attr",
+        "weight": 7
+      },
+      {
+        "id": "aria-required-attr",
+        "weight": 10
+      },
+      {
+        "id": "aria-required-children",
+        "weight": 10
+      },
+      {
+        "id": "aria-required-parent",
+        "weight": 10
+      },
+      {
+        "id": "aria-roles",
+        "weight": 10
+      },
+      {
+        "id": "aria-text",
+        "weight": 7
+      },
+      {
+        "id": "aria-toggle-field-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-tooltip-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-treeitem-name",
+        "weight": 7
+      },
+      {
+        "id": "aria-valid-attr-value",
+        "weight": 10
+      },
+      {
+        "id": "aria-valid-attr",
+        "weight": 10
+      },
+      {
+        "id": "button-name",
+        "weight": 10
+      },
+      {
+        "id": "bypass",
+        "weight": 7
+      },
+      {
+        "id": "color-contrast",
+        "weight": 7
+      },
+      {
+        "id": "definition-list",
+        "weight": 7
+      },
+      {
+        "id": "dlitem",
+        "weight": 7
+      },
+      {
+        "id": "document-title",
+        "weight": 7
+      },
+      {
+        "id": "duplicate-id-aria",
+        "weight": 10
+      },
+      {
+        "id": "form-field-multiple-labels",
+        "weight": 3
+      },
+      {
+        "id": "frame-title",
+        "weight": 7
+      },
+      {
+        "id": "heading-order",
+        "weight": 3
+      },
+      {
+        "id": "html-has-lang",
+        "weight": 7
+      },
+      {
+        "id": "html-lang-valid",
+        "weight": 7
+      },
+      {
+        "id": "html-xml-lang-mismatch",
+        "weight": 3
+      },
+      {
+        "id": "image-alt",
+        "weight": 10
+      },
+      {
+        "id": "input-button-name",
+        "weight": 10
+      },
+      {
+        "id": "input-image-alt",
+        "weight": 10
+      },
+      {
+        "id": "label",
+        "weight": 10
+      },
+      {
+        "id": "link-in-text-block",
+        "weight": 7
+      },
+      {
+        "id": "link-name",
+        "weight": 7
+      },
+      {
+        "id": "list",
+        "weight": 7
+      },
+      {
+        "id": "listitem",
+        "weight": 7
+      },
+      {
+        "id": "meta-refresh",
+        "weight": 10
+      },
+      {
+        "id": "meta-viewport",
+        "weight": 10
+      },
+      {
+        "id": "object-alt",
+        "weight": 7
+      },
+      {
+        "id": "select-name",
+        "weight": 10
+      },
+      {
+        "id": "skip-link",
+        "weight": 3
+      },
+      {
+        "id": "tabindex",
+        "weight": 7
+      },
+      {
+        "id": "target-size",
+        "weight": 7
+      },
+      {
+        "id": "td-headers-attr",
+        "weight": 7
+      },
+      {
+        "id": "th-has-data-cells",
+        "weight": 7
+      },
+      {
+        "id": "valid-lang",
+        "weight": 7
+      },
+      {
+        "id": "video-caption",
+        "weight": 10
+      },
+      {
+        "id": "landmark-one-main",
+        "weight": 3
+      },
+      {
+        "id": "autocomplete-valid",
+        "weight": 1
+      },
+      {
+        "id": "presentation-role-conflict",
+        "weight": 1
+      },
+      {
+        "id": "svg-img-alt",
+        "weight": 1
+      },
+      {
+        "id": "focusable-controls",
+        "weight": 0
+      },
+      {
+        "id": "interactive-element-affordance",
+        "weight": 0
+      },
+      {
+        "id": "logical-tab-order",
+        "weight": 0
+      },
+      {
+        "id": "visual-order-follows-dom",
+        "weight": 0
+      },
+      {
+        "id": "focus-traps",
+        "weight": 0
+      },
+      {
+        "id": "managed-focus",
+        "weight": 0
+      },
+      {
+        "id": "use-landmarks",
+        "weight": 0
+      },
+      {
+        "id": "offscreen-content-hidden",
+        "weight": 0
+      },
+      {
+        "id": "custom-controls-labels",
+        "weight": 0
+      },
+      {
+        "id": "custom-controls-roles",
+        "weight": 0
+      },
+      {
+        "id": "table-duplicate-name",
+        "weight": 0
+      },
+      {
+        "id": "empty-heading",
+        "weight": 0
+      },
+      {
+        "id": "aria-allowed-role",
+        "weight": 0
+      },
+      {
+        "id": "image-redundant-alt",
+        "weight": 0
+      },
+      {
+        "id": "identical-links-same-purpose",
+        "weight": 0
+      },
+      {
+        "id": "label-content-name-mismatch",
+        "weight": 0
+      },
+      {
+        "id": "table-fake-caption",
+        "weight": 0
+      },
+      {
+        "id": "td-has-header",
+        "weight": 0
+      }
+    ]
+  },
+  "settings": {
+    "formFactor": "mobile",
+    "screenEmulation": {
+      "mobile": true,
+      "width": 412,
+      "height": 823,
+      "deviceScaleFactor": 1.75,
+      "disabled": false
+    },
+    "throttlingMethod": "simulate",
+    "throttling": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.56,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "disableStorageReset": false
+  }
+}

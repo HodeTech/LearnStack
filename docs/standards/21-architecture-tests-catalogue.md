@@ -4489,10 +4489,12 @@ test-only instrumentation stays in the disposable copied app.
 
 ## P02d-7 public demo and Lighthouse controls
 
-These behavioral rules are Registered by Accepted ADR-0056. The planned Node
-proof entrypoint is `frontend/apps/web/scripts/verify-public-demo.mjs`, invoked
-through the shared demo lifecycle by `public demo + lighthouse`. Registration
-claims neither an existing script nor a passing browser/audit result.
+These behavioral rules remain Registered under Accepted ADR-0056 while P7 Step 3
+independent reviews and Step 4 CI enforcement remain pending. The first complete
+local browser/audit feasibility run passes. The Node proof
+entrypoint is `frontend/apps/web/scripts/verify-public-demo.mjs`, invoked through
+the shared demo lifecycle. Step 4 adds the `public demo + lighthouse` CI job.
+Registration claims neither a passing complete audit nor delivered CI enforcement.
 
 ### `Public_Demo_Uses_Seeded_Production_Pages`
 

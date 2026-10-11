@@ -19,6 +19,7 @@ import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo
 import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
+import { apiCompletionObserver } from './demo-observation.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -54,6 +55,7 @@ export function validateCertificate(certificate, privateKey, hosts, now = Date.n
 /** Start the same seeded, production-built topology for foreground use and CI proof. */
 export async function startDemo(mode) {
   if (!['local', 'ci'].includes(mode)) throw new Error('Use make demo DEMO_MODE=local or ci');
+  const setupStarted = Date.now();
   const controller = new AbortController();
   const processes = new DemoProcesses(controller.signal);
   const lock = join(repositoryRoot, '.data/demo.lock');
@@ -85,6 +87,14 @@ export async function startDemo(mode) {
     });
   async function dispose() {
     disposed ??= (async () => {
+      const started = Date.now();
+      const cleanupTimeout = (bound) => {
+        if (mode !== 'ci') return bound;
+        // Reserve the final five seconds for an owned command's forced stop.
+        const remaining = 25000 - (Date.now() - started);
+        if (remaining <= 0) throw new Error('Owned cleanup deadline');
+        return Math.min(bound, remaining);
+      };
       controller.abort();
       try {
         await processes.dispose();
@@ -99,7 +109,7 @@ export async function startDemo(mode) {
                 cwd: selected.cwd,
                 env: selected.env,
                 label: 'Owned Compose teardown',
-                timeout: 20000,
+                timeout: cleanupTimeout(20000),
               },
             );
             const remaining = await cleanup.run(
@@ -110,7 +120,7 @@ export async function startDemo(mode) {
                 env: selected.env,
                 label: 'Owned Compose teardown verification',
                 capture: true,
-                timeout: 5000,
+                timeout: cleanupTimeout(5000),
               },
             );
             if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
@@ -125,6 +135,17 @@ export async function startDemo(mode) {
         }
         if (privateRoot) rmSync(privateRoot, { recursive: true });
         if (locked) rmSync(lock, { recursive: true });
+        const milliseconds = Date.now() - started;
+        if (mode === 'ci' && milliseconds > 30000) throw new Error('Owned cleanup deadline');
+        return {
+          passed: true,
+          milliseconds,
+          processesStopped: true,
+          composeEmpty: mode === 'ci' && startedStack,
+          privateFilesRemoved: !privateRoot || !existsSync(privateRoot),
+          environmentRemoved: ownedEnvironment === undefined || !existsSync(rootEnv),
+          lockRemoved: !locked || !existsSync(lock),
+        };
       } finally {
         // Repeated terminal signals must not interrupt asynchronous teardown.
         removeCancellation();
@@ -373,8 +394,10 @@ export async function startDemo(mode) {
       counts: new Map(),
       malformed: false,
     };
+    const completions = apiCompletionObserver();
     let apiTail = '';
     const observeApi = (chunk) => {
+      completions.consume(chunk);
       apiTail += chunk.toString();
       if (apiTail.length > 1024 * 1024) throw new Error('Unbounded API diagnostic line');
       const lines = apiTail.split('\n');
@@ -391,7 +414,11 @@ export async function startDemo(mode) {
       [join(backendRoot, 'src/LearnStack.Api/bin/Release/net10.0/LearnStack.Api.dll')],
       {
         cwd: join(backendRoot, 'src/LearnStack.Api'),
-        env: publicDemoApiEnvironment(values, configuration, privateRoot),
+        env: {
+          ...publicDemoApiEnvironment(values, configuration, privateRoot),
+          'Serilog__MinimumLevel__Override__Microsoft.AspNetCore.Hosting.Diagnostics':
+            'Information',
+        },
         label: 'Owned API',
         observe: observeApi,
       },
@@ -442,11 +469,13 @@ export async function startDemo(mode) {
       leaf,
       privateRoot,
       observation,
+      completions: completions.state,
       processes,
       signal: controller.signal,
       dispose,
       compose,
       signalRequested: () => signalRequested,
+      setupMilliseconds: Date.now() - setupStarted,
     };
   } catch (error) {
     try {

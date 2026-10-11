@@ -42,7 +42,8 @@ public static class DemoManifest
                         .SelectMany(row => row.Translations.Select(value => value.Title))
                         .Concat(SeedData.All.Where(row => row.TenantId != tenant.TenantId)
                             .SelectMany(row => row.Curriculum!.Courses.SelectMany(value => value.Translations.Select(text => text.Title))))
-                        .Distinct(StringComparer.Ordinal).ToArray()));
+                        .Distinct(StringComparer.Ordinal).ToArray(),
+                    HiddenContent(tenant, hostOrganization)));
             }
         }
         if (lanes.Count != 3 || lanes.SelectMany(row => new[] { row.CatalogUrl, row.CourseUrl, row.LessonUrl })
@@ -54,9 +55,33 @@ public static class DemoManifest
     private static string Label(JsonElement labels, string locale) =>
         labels.TryGetProperty(locale, out var exact) ? exact.GetString()!
         : labels.GetProperty("en").GetString()!;
+
+    private static string[] HiddenContent(SeedTenant tenant, OrganizationId? organization)
+    {
+        var visible = tenant.Curriculum!.Courses.Where(course => course.Status == "Published"
+            && (course.OrganizationId is null || course.OrganizationId == organization)
+            && course.ContentAccess == "public").SelectMany(course => course.Lessons)
+            .Where(lesson => lesson.Status == "Published").SelectMany(lesson => lesson.Translations).ToArray();
+        var visibleValues = visible.SelectMany(ContentValues).ToHashSet(StringComparer.Ordinal);
+        return SeedData.All.SelectMany(source => source.Curriculum!.Courses
+            .SelectMany(course => course.Lessons.Where(lesson => source.TenantId != tenant.TenantId
+                || course.Status != "Published" || course.ContentAccess != "public"
+                || course.OrganizationId is not null && course.OrganizationId != organization
+                || lesson.Status != "Published").SelectMany(lesson => lesson.Translations)))
+            .SelectMany(ContentValues).Where(value => !visibleValues.Contains(value))
+            .Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static IEnumerable<string> ContentValues(SeedLessonTranslation translation)
+    {
+        using var body = JsonDocument.Parse(translation.Body);
+        return body.RootElement.EnumerateObject().Select(row => row.Value.GetString()!)
+            .Prepend(translation.Title).ToArray();
+    }
 }
 
 public sealed record DemoLane(string Host, string Locale, string DisplayName, string CourseTitle,
     string LessonTitle, string CatalogUrl, string CourseUrl, string LessonUrl,
-    IReadOnlyList<DemoField> Fields, IReadOnlyDictionary<string, string> Theme, IReadOnlyList<string> ExcludedTitles);
+    IReadOnlyList<DemoField> Fields, IReadOnlyDictionary<string, string> Theme, IReadOnlyList<string> ExcludedTitles,
+    IReadOnlyList<string> ExcludedContent);
 public sealed record DemoField(string Name, string Label, string Value);

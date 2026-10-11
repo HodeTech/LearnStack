@@ -47,6 +47,14 @@ public sealed class DemoManifestTests
                     .SelectMany(row => row.Translations.Select(value => value.Title));
                 lane.ExcludedTitles.Should().NotIntersectWith(visibleMarketing,
                     "published restricted courses retain public marketing under ADR-0050");
+                lane.ExcludedContent.Should().NotBeEmpty().And.NotIntersectWith(lane.Fields.Select(row => row.Value));
+                foreach (var hidden in curriculum.Courses.Where(row => row.ContentAccess != "public")
+                    .SelectMany(row => row.Lessons).SelectMany(row => row.Translations))
+                    lane.ExcludedContent.Should().Contain(hidden.Title,
+                        "restricted lesson identity is different from published course marketing");
+                foreach (var hidden in course.Lessons.Where(row => row.Status != "Published")
+                    .SelectMany(row => row.Translations))
+                    lane.ExcludedContent.Should().Contain(hidden.Title, "draft lessons stay outside the public outline");
             }
         }
         manifest.Select(row => row.Fields.Count).Distinct().Should().HaveCount(2,

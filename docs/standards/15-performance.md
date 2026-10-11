@@ -17,8 +17,9 @@ cold navigation through collection completion, including initial async/lazy
 loads and original-document inline executable bodies. It excludes inert data,
 evaluation-generated code and scripts requested after that window or by later
 interaction. This can be stricter than entry-chunk/build-time accounting; it is
-not merely a unit clarification. Enforcement is not implemented yet; this
-standard remains Adopted until the enforcing implementation lands.
+not merely a unit clarification. P7 Step 3's local browser/audit feasibility passes;
+independent reviews and CI activation remain pending. This standard stays Adopted
+until Step 4 lands required enforcement.
 
 ## Initial Budgets
 
@@ -109,7 +110,8 @@ owns that boundary under ADR-0052.
 
 ### Bundle Size
 
-- Initial JS payload on a public route: < 200 KB gzipped.
+- Initial JS payload on a public route: < 200 decimal KB (`< 200000` bytes),
+  measured using [ADR-0056's normalized source scope](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#normalized-initial-javascript-gzip-size).
 - Studio routes may exceed this; budget reviewed per route.
 - Lazy load below-the-fold blocks and modals.
 - Code-split heavy client libraries (rich-text editor, video player) via `dynamic(...)`.
