@@ -6417,13 +6417,22 @@ Work remains on `development`; PR #28 is not merged by this record.
    All 18 frontend genericity cases, seven backend genericity cases, all 203
    architecture cases, lint, typecheck and targeted format pass. This remains a
    bounded exact-literal/static-import fence, not arbitrary program analysis.
-3. **Proof helpers and carriers — implementation in progress.** Actual worker
+3. **Proof helpers and carriers — complete.** `9a0d285` shares actual worker
    network-inventory reconciliation and verifier advisory aggregation are shared
    with fast dirty/clean controls. Navigation counts come from completed
    observations; upload globs admit only named reports/screenshots/receipts.
    Current architecture, infrastructure, standards and route-authoring guidance
-   describe delivered G44/G45 enforcement. Both fresh review rounds and final
-   seven-job CI are pending for this step.
+   describe delivered G44/G45 enforcement. Two first-round reviewers and a fresh
+   second-round reviewer approved without findings. The second round also
+   reproduced all historical advisory medians from the downloaded receipt.
+   All 128 focused tests, 1,537 frontend cases (1,477 web + 60 SDK) and 2,092
+   Docker-free backend cases (1,705 unit + 203 architecture + four contract +
+   180 integration) pass with zero failures/skips/todos. Release build, format,
+   lint, typecheck and production frontend builds pass; 15 sandbox-policy and
+   seven ADR-status controls pass. The complete PR's 36 Markdown files resolve
+   2,289 relative links and 719 fragments; added prose respects 88 columns.
+   The final PR rollup must still pass all seven required jobs, including the
+   real Docker and 27-audit lifecycle proof, before merge.
 
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte
