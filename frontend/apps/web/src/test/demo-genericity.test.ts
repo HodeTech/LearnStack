@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { demoIdentityFindings } from './demo-genericity-analysis';
-import { productionDemoSources } from './demo-genericity-sources';
+import { omitDemoSourceDirectory, productionDemoSources } from './demo-genericity-sources';
 import vocabulary from './fixtures/demo-identities.json';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
@@ -19,8 +19,7 @@ function productionSources(): Map<string, string> {
       if (entry.isSymbolicLink() && entry.name !== 'node_modules')
         throw new Error(`Unmodeled production symlink: ${name}`);
       if (entry.isDirectory()) {
-        if (!['node_modules', '.next', '.server', 'dist', 'coverage'].includes(entry.name))
-          visit(path);
+        if (!omitDemoSourceDirectory(name)) visit(path);
       } else if (
         /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name) &&
         !/\.d\.[cm]?[jt]sx?$/.test(entry.name)
@@ -154,6 +153,8 @@ describe('P02d-7 exact demo identity boundary', () => {
       'test/select-theme.mjs',
       'select-theme.test.mjs',
       '../src/test/select-theme.ts',
+      '../src/dist/select-theme.ts',
+      'coverage/select-theme.mjs',
       'verify-public-rendering.mjs',
     ]) {
       const target = relative(root, resolve(root, dirname(entry), helper)).replaceAll('\\', '/');
@@ -174,6 +175,54 @@ describe('P02d-7 exact demo identity boundary', () => {
         [...files].flatMap(([path, source]) => demoIdentityFindings(path, source, vocabulary)),
       ).toEqual([identity]);
     }
+  });
+  it('resolves Node module URL suffixes and refuses computed runtime imports', () => {
+    const entry = 'frontend/apps/web/scripts/public-server.mjs';
+    const target = 'frontend/apps/web/src/test/special.mjs';
+    for (const suffix of ['?runtime=1', '#runtime', '?a=1#runtime']) {
+      const files = productionDemoSources(
+        new Map([
+          [entry, `import '../src/test/special.mjs${suffix}';`],
+          [target, `export const special = ${JSON.stringify(identity)};`],
+        ]),
+      );
+      expect(files.has(target)).toBe(true);
+    }
+    const resolved = productionDemoSources(
+      new Map([
+        [entry, "require(require.resolve('../src/test/special.mjs'));"],
+        [target, `export const special = ${JSON.stringify(identity)};`],
+      ]),
+    );
+    expect(resolved.has(target)).toBe(true);
+    expect(() =>
+      productionDemoSources(
+        new Map([[entry, "require(require.resolve('eslint-plugin-jsx-a11y', { paths: [] }));"]]),
+      ),
+    ).not.toThrow();
+    for (const source of [
+      "const path = './special.test.mjs'; await import(path);",
+      "const path = './special.test.mjs'; require(path);",
+      "const path = './special.test.mjs'; require(require.resolve(path));",
+      "await import('file:///outside/helper.mjs');",
+    ])
+      expect(() => productionDemoSources(new Map([[entry, source]]))).toThrow(
+        'Unmodeled runtime import',
+      );
+  });
+  it('omits only known generated roots in the actual filesystem collector', () => {
+    for (const path of [
+      'frontend/apps/web/.next',
+      'frontend/packages/sdk/dist',
+      'frontend/node_modules',
+    ])
+      expect(omitDemoSourceDirectory(path)).toBe(true);
+    for (const path of [
+      'frontend/apps/web/src/dist',
+      'frontend/apps/web/scripts/coverage',
+      'frontend/apps/web/src/.server',
+    ])
+      expect(omitDemoSourceDirectory(path)).toBe(false);
   });
   it('fails loudly on unreadable sources and an empty or malformed vocabulary', () => {
     expect(() => demoIdentityFindings('probe.ts', 'const = ;', vocabulary)).toThrow('Unreadable');

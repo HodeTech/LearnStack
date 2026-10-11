@@ -136,13 +136,13 @@ public sealed partial class DomainGenericityTests
             "#if NET\n" + declaration + "\n#endif",
             "#if NET10_0\r\n" + declaration + "\r\n#endif",
             "#if FUTURE_TARGET\n" + declaration + "\n#endif",
-            "#if true\nclass Probe {}\n#else\n" + declaration + "\n#endif",
-            "#if true\nclass Probe {}\n#elif FUTURE_TARGET\n" + declaration + "\n#endif",
+            "#if NET\nclass Probe {}\n#else\n" + declaration + "\n#endif",
+            "#if NET\nclass Probe {}\n#elif FUTURE_TARGET\n" + declaration + "\n#endif",
             "#if NET\n#if NET10_0\nclass Probe {}\n#elif FUTURE_TARGET\n" + declaration + "\n#else\nclass Probe {}\n#endif\n#endif",
             "#if NET\n#if NET10_0\nclass Probe {}\n#else\n" + declaration + "\n#endif\n#endif" })
         {
             DemoLiteralViolations("Probe.cs", source, vocabulary)
-                .Should().Equal([identity], "every conditional branch is scanned independently of build symbols");
+                .Should().Equal([identity], "every feasible conditional configuration is scanned independently of build symbols");
             DemoLiteralViolations("Probe.cs", source.Replace(identity, "generic", StringComparison.Ordinal), vocabulary)
                 .Should().BeEmpty("mutually exclusive declarations need only be syntactically valid for the source scan");
         }
@@ -152,6 +152,18 @@ public sealed partial class DomainGenericityTests
         var directiveText = "#if NET\n" + identity + "\n#endif";
         CSharpValues("class Probe { string Value = \"\"\"\n" + directiveText + "\n\"\"\"; }")
             .Should().Equal([directiveText], "directive-looking text inside a raw literal must remain unchanged");
+        var splitComment = "#if FOO\n/*\n#endif\n" + declaration + "\n#if FOO\n*/\n#endif";
+        DemoLiteralViolations("Probe.cs", splitComment, vocabulary).Should().Equal([identity]);
+        DemoLiteralViolations("Probe.cs", splitComment.Replace(identity, "generic", StringComparison.Ordinal), vocabulary)
+            .Should().BeEmpty();
+        DemoLiteralViolations("Probe.cs", "#define FOO\n" + splitComment, vocabulary).Should().BeEmpty();
+        var lateSymbol = "#if FOO\n/*\n#endif\n#if LATE_SYMBOL\n" + declaration
+            + "\n#endif\n#if FOO\n*/\n#endif";
+        DemoLiteralViolations("Probe.cs", lateSymbol, vocabulary).Should().Equal([identity],
+            "symbols exposed by another lexical configuration must enter the fixed-point census");
+        var excessive = string.Join("\n", Enumerable.Range(0, 9).Select(index => $"#if SYMBOL{index}\nclass Probe{index} {{}}\n#endif"));
+        Action tooManySymbols = () => _ = DemoLiteralViolations("Probe.cs", excessive, vocabulary);
+        tooManySymbols.Should().Throw<InvalidOperationException>("an excessive census must fail rather than omit configurations");
         DemoLiteralViolations("Probe.json", JsonSerializer.Serialize(new { value = identity }), vocabulary).Should().ContainSingle();
         DemoLiteralViolations("Probe.cs", "// " + identity + "\nclass Probe { string Value = \"generic\"; }", vocabulary).Should().BeEmpty();
         foreach (var value in vocabulary.PlatformValues)
@@ -231,52 +243,63 @@ public sealed partial class DomainGenericityTests
 
     private static IEnumerable<string> CSharpValues(string source)
     {
-        var syntax = CSharpWithEveryConditionalBranch(source);
-        foreach (var node in syntax.GetRoot().DescendantNodes())
-        {
-            var value = node switch
+        foreach (var syntax in CSharpConditionalConfigurations(source))
+            foreach (var node in syntax.GetRoot().DescendantNodes())
             {
-                LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression)
-                    || literal.IsKind(SyntaxKind.Utf8StringLiteralExpression) => literal.Token.ValueText,
-                InterpolatedStringExpressionSyntax template when template.Contents.All(part => part is InterpolatedStringTextSyntax) =>
-                    string.Concat(template.Contents.Cast<InterpolatedStringTextSyntax>().Select(part => part.TextToken.ValueText)),
-                _ => null
-            };
-            if (value is null) continue;
-            yield return value;
-            // JSON embedded in C# is a source of complete decoded values too.
-            string[] nested;
-            try { nested = value.TrimStart().StartsWith('{') || value.TrimStart().StartsWith('[') ? JsonValues(value).ToArray() : []; }
-            catch (JsonException) { nested = []; } // Ordinary text/SQL may start with a bracket.
-            foreach (var inner in nested) yield return inner;
-        }
+                var value = node switch
+                {
+                    LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression)
+                        || literal.IsKind(SyntaxKind.Utf8StringLiteralExpression) => literal.Token.ValueText,
+                    InterpolatedStringExpressionSyntax template when template.Contents.All(part => part is InterpolatedStringTextSyntax) =>
+                        string.Concat(template.Contents.Cast<InterpolatedStringTextSyntax>().Select(part => part.TextToken.ValueText)),
+                    _ => null
+                };
+                if (value is null) continue;
+                yield return value;
+                // JSON embedded in C# is a source of complete decoded values too.
+                string[] nested;
+                try { nested = value.TrimStart().StartsWith('{') || value.TrimStart().StartsWith('[') ? JsonValues(value).ToArray() : []; }
+                catch (JsonException) { nested = []; } // Ordinary text/SQL may start with a bracket.
+                foreach (var inner in nested) yield return inner;
+            }
     }
 
-    private static SyntaxTree CSharpWithEveryConditionalBranch(string source)
+    private static List<SyntaxTree> CSharpConditionalConfigurations(string source)
     {
-        var syntax = CSharpSyntaxTree.ParseText(source);
-        EnsureReadable(syntax);
-        var directives = syntax.GetRoot().DescendantTrivia(descendIntoTrivia: true)
-            .Select(trivia => trivia.GetStructure()).OfType<DirectiveTriviaSyntax>()
-            .Where(directive => directive is IfDirectiveTriviaSyntax or ElifDirectiveTriviaSyntax
-                or ElseDirectiveTriviaSyntax or EndIfDirectiveTriviaSyntax).ToArray();
-        if (directives.Length == 0) return syntax;
-        // Roslyn identifies actual directives, so comments and raw-string contents survive.
-        // Removing only conditional directives exposes every branch without assuming a
-        // target's symbols. Duplicate declarations are legal syntax; incompatible source
-        // fragments fail closed rather than leaving any branch silently uninspected.
-        var characters = source.ToCharArray();
-        foreach (var directive in directives)
-            for (var index = directive.FullSpan.Start; index < directive.FullSpan.End; index++)
-                if (characters[index] is not ('\r' or '\n' or '\u0085' or '\u2028' or '\u2029')) characters[index] = ' ';
-        syntax = CSharpSyntaxTree.ParseText(new string(characters));
-        EnsureReadable(syntax);
-        return syntax;
-
-        static void EnsureReadable(SyntaxTree tree)
+        // Parse configurations independently: flattening branches can let an inactive
+        // comment or raw literal swallow code compiled in another configuration.
+        const int maximumSymbols = 8;
+        var symbols = new SortedSet<string>(StringComparer.Ordinal);
+        while (true)
         {
-            if (tree.GetDiagnostics().Any(row => row.Severity == DiagnosticSeverity.Error))
-                throw new InvalidOperationException("Unreadable production C#; Fix: restore syntax before scanning; conditional branches must also parse together.");
+            var names = symbols.ToArray();
+            var trees = new List<SyntaxTree>();
+            for (var mask = 0; mask < (1 << names.Length); mask++)
+            {
+                var defined = names.Where((_, index) => (mask & (1 << index)) != 0);
+                var tree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithPreprocessorSymbols(defined));
+                if (tree.GetDiagnostics().Any(row => row.Severity == DiagnosticSeverity.Error))
+                    throw new InvalidOperationException("Unreadable production C#; Fix: restore syntax in every preprocessor configuration.");
+                trees.Add(tree);
+                foreach (var directive in tree.GetRoot().DescendantTrivia(descendIntoTrivia: true)
+                    .Select(trivia => trivia.GetStructure()).OfType<DirectiveTriviaSyntax>())
+                {
+                    ExpressionSyntax? condition = directive switch
+                    {
+                        IfDirectiveTriviaSyntax value => value.Condition,
+                        ElifDirectiveTriviaSyntax value => value.Condition,
+                        _ => null
+                    };
+                    if (condition is not null)
+                        foreach (var identifier in condition.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+                            symbols.Add(identifier.Identifier.ValueText);
+                }
+                if (symbols.Count > maximumSymbols)
+                    throw new InvalidOperationException("Preprocessor census exceeds eight symbols; Fix: review this source explicitly before widening the bounded scan.");
+            }
+            // A configuration can expose directives hidden inside another branch's
+            // comment. Discover symbols to a fixed point before accepting the census.
+            if (names.Length == symbols.Count) return trees;
         }
     }
 

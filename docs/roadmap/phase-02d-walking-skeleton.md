@@ -5973,14 +5973,27 @@ skips/todos. This is not Step 3 browser/Lighthouse evidence.
 checked backend identity/reference coverage and frontend subjects/behavioral
 controls. Four verified omissions were fixed: conditional C# branches, UTF-8
 literals, emitted JSX values and runtime helpers hidden by test exemptions.
-The reader now exposes every conditional branch conservatively; incompatible
-combined syntax fails closed. JSX entity/whitespace handling uses TypeScript's
+The initial fix exposed conditional branches conservatively; round 2 below
+replaces that approach to preserve lexical semantics. JSX handling uses TypeScript's
 emitter. Exact test directories replace name-wide directory exclusions, and
 runtime relative imports include helpers even behind test filenames. Native HMR
 and the shared process-stop helper are production subjects. Planted dirty/clean
 controls cover all four findings. Release architecture (203), guarded frontend
 (1,444), lint, typecheck, formatting and the documentation link audit pass.
 Second-round review follows the fix commit.
+
+**Review round 2.** Fresh GPT-6-astra and GPT-6.1-sol reviewers verified three
+census omissions and one ordering-control gap. Flattening C# branches could let
+an inactive comment hide active code. The reader now parses feasible symbol
+configurations independently, discovers conditional symbols to a fixed point,
+and refuses more than eight symbols or unreadable configurations. UTF-8 and raw
+literal semantics remain intact. Frontend generated-output exclusions now name
+actual roots; nested source directories remain subjects. Runtime imports resolve
+local module URL query/fragment suffixes and percent escapes, while computed
+imports fail loudly. Literal `require.resolve` loads remain countable. The
+ordering offender now swaps intact label/value pairs rather than corrupting them.
+Release architecture (203) and all guarded frontend cases (1,446), lint,
+typecheck, formatting and link/anchor checks pass. Fresh fix verification follows.
 
 #### P02d-7 preliminary exit evidence inventory
 

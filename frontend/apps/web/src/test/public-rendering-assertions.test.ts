@@ -266,7 +266,7 @@ describe('successor-revision ordered field assertion', () => {
     ['value', html.replace('Other value', 'wrong value')],
     [
       'order',
-      html.replace('First label', 'Second label').replace('Other value', 'One &amp; &lt;two&gt;'),
+      '<article lang="en"><dl><dt lang="en" dir="ltr">Second label</dt><dd>Other value</dd><dt lang="en" dir="ltr">First label</dt><dd>One &amp; &lt;two&gt;</dd></dl></article>',
     ],
     ['active value', html.replace('Other value', '<b>Other value</b>')],
     ['fallback language', html.replace('lang="en" dir="ltr"', 'lang="tr" dir="ltr"')],

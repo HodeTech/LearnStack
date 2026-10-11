@@ -1,4 +1,5 @@
 import { posix } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
 
@@ -16,6 +17,20 @@ const exemptEntries = new Set([
   'frontend/apps/web/scripts/admission-hmr-watch.mjs',
   'scripts/public-local.mjs',
 ]);
+
+const generatedOutputs = new Set([
+  'frontend/apps/web/.next',
+  'frontend/apps/web/.server',
+  'frontend/apps/web/coverage',
+  'frontend/packages/sdk/dist',
+  'frontend/packages/ui/dist',
+  'frontend/coverage',
+]);
+
+/** Only actual generated roots are omitted; nested source directories stay visible. */
+export function omitDemoSourceDirectory(path: string): boolean {
+  return path.split('/').at(-1) === 'node_modules' || generatedOutputs.has(path);
+}
 
 function testSource(path: string): boolean {
   return (
@@ -43,16 +58,36 @@ export function productionDemoSources(all: ReadonlyMap<string, string>): Map<str
       if (
         ts.isCallExpression(node) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === 'require')) &&
-        node.arguments[0] &&
-        ts.isStringLiteralLike(node.arguments[0])
-      )
-        imports.push(node.arguments[0].text);
+          (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+      ) {
+        let specifier = node.arguments[0];
+        // ESLint resolves an external package before loading it. This remains a
+        // statically named edge; computed resolver inputs are refused below.
+        if (
+          specifier &&
+          ts.isCallExpression(specifier) &&
+          ts.isPropertyAccessExpression(specifier.expression) &&
+          ts.isIdentifier(specifier.expression.expression) &&
+          specifier.expression.expression.text === 'require' &&
+          specifier.expression.name.text === 'resolve'
+        )
+          specifier = specifier.arguments[0];
+        if (!specifier || !ts.isStringLiteralLike(specifier))
+          throw new Error(`Unmodeled runtime import: ${path}`);
+        imports.push(specifier.text);
+      }
       ts.forEachChild(node, visit);
     };
     visit(file);
-    for (const edge of imports.filter((value) => value.startsWith('.'))) {
-      const base = posix.normalize(posix.join(posix.dirname(path), edge));
+    for (const edge of imports) {
+      if (/^(?:file:|\/)/.test(edge)) throw new Error(`Unmodeled runtime import: ${path}`);
+      if (!edge.startsWith('.')) continue;
+      // Node ESM resolves query/fragment and percent escapes as a module URL.
+      const resolved = new URL(edge, `file:///learnstack/${path}`);
+      const filename = fileURLToPath(resolved);
+      if (!filename.startsWith('/learnstack/'))
+        throw new Error(`Unmodeled runtime import: ${path}`);
+      const base = filename.slice('/learnstack/'.length);
       const candidates = [
         base,
         ...['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs', '.json'].flatMap(
