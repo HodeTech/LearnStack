@@ -282,3 +282,43 @@ export function reportInventory(rows, expected) {
     assert.equal(row.browserVersion, expected[0].browserVersion, 'Exact audited browser');
   }
 }
+
+/** Reconcile independent Lighthouse events with the complete source gatherer's window. */
+export function reconcileScriptInventory(log, inventory) {
+  const logged = log.filter(
+    (row) => row.method === 'Network.responseReceived' && row.params.type === 'Script',
+  );
+  assert.ok(logged.length > 0, 'Positive independent Script network observer');
+  for (const row of logged)
+    assert.ok(
+      inventory.some(
+        (item) => item.id === row.params.requestId && item.url === row.params.response.url,
+      ),
+      'Script inventory overlap',
+    );
+}
+
+/** Timing metrics remain warnings; each URL owns exactly three finite samples. */
+export function reportAdvisories(reports) {
+  return [...new Set(reports.map((row) => row.url))].map((url) => ({
+    url,
+    metrics: Object.fromEntries(
+      Object.entries({
+        'largest-contentful-paint': 1500,
+        'server-response-time': 300,
+        'total-blocking-time': 200,
+      }).map(([key, threshold]) => {
+        const samples = reports.filter((row) => row.url === url).map((row) => row.metrics[key]);
+        assert.equal(samples.length, 3, 'Exactly three advisory samples per URL');
+        assert.ok(
+          samples.every(
+            (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0,
+          ),
+          'Finite advisory samples',
+        );
+        const median = samples.sort((a, b) => a - b)[1];
+        return [key, { median, threshold, warning: median >= threshold }];
+      }),
+    ),
+  }));
+}

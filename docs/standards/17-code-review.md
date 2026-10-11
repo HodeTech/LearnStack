@@ -71,7 +71,8 @@ Before requesting reviews, run the relevant checklist on your own diff:
 - [ ] Accessibility: keyboard reachability, labels and contrast reviewed; blocking
   JSX accessibility checks and the public browser/Lighthouse proof pass where
   applicable. Preserve the scoped manual evidence described below.
-- [ ] Bundle size delta acceptable on public routes (< 200 KB gzipped per route).
+- [ ] Public-route JavaScript meets the normalized gzip budget and measurement
+  scope in [Performance Standards](15-performance.md#frontend-rules).
 
 > **Accepted G43 enforcement is delivered.** P02d-6 supplies blocking `jsx-a11y`
 > rules with planted controls. P02d-7's shared browser/Lighthouse proof enforces

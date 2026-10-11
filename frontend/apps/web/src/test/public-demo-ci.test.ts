@@ -89,3 +89,23 @@ it.each(['1000', '999'])(
     expect(() => readFileSync(files.invocation)).toThrow();
   },
 );
+
+it('uploads only named public reports, screenshots and sanitized receipts', () => {
+  const paths = (source: string) => {
+    const block = source.match(/ {10}path: \|\n((?: {12}.+\n)+)/)?.[1];
+    if (!block) throw new Error('Missing actual workflow artifact allowlist');
+    return block
+      .trim()
+      .split('\n')
+      .map((path) => path.trim());
+  };
+  const expected = [
+    'artifacts/public-demo/receipt.json',
+    'artifacts/public-demo/audit-*.json',
+    'artifacts/public-demo/audit-*.html',
+    'artifacts/public-demo/browser-*.png',
+    'artifacts/public-demo-ci/workflow.json',
+  ];
+  expect(paths(job!)).toEqual(expected);
+  expect(paths(job!.replace('audit-*.json', '*.json'))).not.toEqual(expected);
+});

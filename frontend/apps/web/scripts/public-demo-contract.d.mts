@@ -22,3 +22,17 @@ export function validateReport(
   census: unknown,
 ): Record<string, number>;
 export function reportInventory(rows: unknown, expected: unknown): void;
+
+export function reconcileScriptInventory(
+  log: Array<{
+    method: string;
+    params: { type: string; requestId: string; response: { url: string } };
+  }>,
+  inventory: Array<{ id: string; url: string }>,
+): void;
+export function reportAdvisories(
+  reports: Array<{ url: string; metrics: Record<string, number> }>,
+): Array<{
+  url: string;
+  metrics: Record<string, { median: number; threshold: number; warning: boolean }>;
+}>;

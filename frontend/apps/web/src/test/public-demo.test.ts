@@ -15,6 +15,8 @@ import {
   assertConfiguration,
   decodedSource,
   normalizedJavaScript,
+  reconcileScriptInventory,
+  reportAdvisories,
   reportInventory,
   validateReport,
 } from '../../scripts/public-demo-contract.mjs';
@@ -505,4 +507,81 @@ describe('actual initial source gatherer completeness controls', () => {
       expect(targets.eventNames()).toEqual([]);
     },
   );
+});
+
+describe('public proof independent reconciliation helpers', () => {
+  const script = {
+    method: 'Network.responseReceived',
+    params: {
+      type: 'Script',
+      requestId: 'request-one',
+      response: { url: 'https://public.example/chunk.js' },
+    },
+  };
+  const matching = { id: script.params.requestId, url: script.params.response.url };
+  it.each(['empty', 'missing-id', 'wrong-url', 'non-script'])(
+    'refuses %s network overlap with a clean control',
+    (kind) => {
+      const log =
+        kind === 'empty'
+          ? []
+          : kind === 'non-script'
+            ? [{ ...script, params: { ...script.params, type: 'Document' } }]
+            : [script];
+      const rows =
+        kind === 'missing-id'
+          ? [{ ...matching, id: 'other' }]
+          : kind === 'wrong-url'
+            ? [{ ...matching, url: 'https://public.example/other.js' }]
+            : [matching];
+      expect(() => reconcileScriptInventory(log, rows)).toThrow();
+      expect(() => reconcileScriptInventory([script], [matching])).not.toThrow();
+    },
+  );
+  const timing = (url: string, value: number) => ({
+    url,
+    metrics: {
+      'largest-contentful-paint': value * 1500,
+      'server-response-time': value * 300,
+      'total-blocking-time': value * 200,
+    },
+  });
+  it('sorts each URL independently and warns at the exact thresholds', () => {
+    const rows = [
+      timing('one', 2),
+      timing('two', 0.8),
+      timing('one', 0.5),
+      timing('two', 0.2),
+      timing('one', 1),
+      timing('two', 0.4),
+    ];
+    const result = reportAdvisories(rows);
+    expect(result).toEqual([
+      {
+        url: 'one',
+        metrics: {
+          'largest-contentful-paint': { median: 1500, threshold: 1500, warning: true },
+          'server-response-time': { median: 300, threshold: 300, warning: true },
+          'total-blocking-time': { median: 200, threshold: 200, warning: true },
+        },
+      },
+      {
+        url: 'two',
+        metrics: {
+          'largest-contentful-paint': { median: 600, threshold: 1500, warning: false },
+          'server-response-time': { median: 120, threshold: 300, warning: false },
+          'total-blocking-time': { median: 80, threshold: 200, warning: false },
+        },
+      },
+    ]);
+    expect(rows[0]?.metrics['largest-contentful-paint']).toBe(3000);
+  });
+  it.each(['missing', 'extra', 'nonfinite'])('refuses %s advisory samples', (kind) => {
+    const rows = [timing('one', 0.2), timing('one', 0.4), timing('one', 0.8)];
+    expect(() => reportAdvisories(rows)).not.toThrow();
+    if (kind === 'missing') rows.pop();
+    if (kind === 'extra') rows.push(timing('one', 1));
+    if (kind === 'nonfinite') rows[0]!.metrics['server-response-time'] = Number.NaN;
+    expect(() => reportAdvisories(rows)).toThrow();
+  });
 });

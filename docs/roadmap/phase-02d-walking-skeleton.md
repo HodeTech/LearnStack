@@ -6389,6 +6389,75 @@ corpus tests pass; the complete PR's 33 changed/new Markdown files resolve
 2,201 relative links and 698 fragments without errors. The new remediation head
 must still pass full seven-job CI through the PR rollup before merge.
 
+##### Systematic review remediation (2026-10-11)
+
+The later review examined source `aebefee`. Its findings were re-verified against
+current code before changes; this is a separate record from the historical
+`d47ef17` review above. No new architecture decision or budget change is needed.
+Work remains on `development`; PR #28 is not merged by this record.
+
+1. **Lifecycle and launcher — complete.** `cd6affd` removes the unsupported
+   Seeder launcher argument, attempts independent process/observer/Compose
+   cleanup stages even when a preceding stage fails, and retains failure causes
+   internally without echoing private diagnostics. Private files are removed
+   only after confirmed cleanup. Socket errors distinguish occupied ports from
+   other bind failures; declaration files describe the actual lifecycle API.
+   `/artifacts/` is ignored. All 34 lifecycle tests, lint and typecheck pass.
+   Two first-round reviewers and a fresh second-round reviewer approved without
+   findings.
+2. **Genericity census — complete.** `db6bcdf`, `90114f0` and `c6cd69f` close
+   source-root/format admission and supported static import gaps. Local and
+   inherited-config candidate ambiguities are conservatively included or
+   refused; workspace manifests have explicit ownership. Backend evaluation
+   checks `Compile` and `ProjectReference` coverage, exact output roots and
+   bounded build shapes/properties. First-round frontend/backend reviewers
+   identified five verified resolution/build-admission gaps, fixed in
+   `90114f0`. The fresh second round found inherited-config shadowing, fixed in
+   `c6cd69f`; its same counterexample now refuses and its clean control passes.
+   All 18 frontend genericity cases, seven backend genericity cases, all 203
+   architecture cases, lint, typecheck and targeted format pass. This remains a
+   bounded exact-literal/static-import fence, not arbitrary program analysis.
+3. **Proof helpers and carriers — implementation in progress.** Actual worker
+   network-inventory reconciliation and verifier advisory aggregation are shared
+   with fast dirty/clean controls. Navigation counts come from completed
+   observations; upload globs admit only named reports/screenshots/receipts.
+   Current architecture, infrastructure, standards and route-authoring guidance
+   describe delivered G44/G45 enforcement. Both fresh review rounds and final
+   seven-job CI are pending for this step.
+
+**Other finding dispositions.** The gzip adapter equality checks wiring; the
+independent Script observer checks source-window coverage, not a second byte
+measurement. Existing fast tests already cover report admission, source-byte
+normalization, completion accounting and gatherer cleanup; full orchestration,
+TLS refusal, real visibility and report-file checks remain real lifecycle/CI
+proofs. The added helpers supplement those proofs rather than replacing them.
+The review's zero-fast-coverage claim was therefore broader than the actual gap.
+
+The reported PR-body count/gzip mismatch compared different receipts. Downloaded
+[run 38119659152](https://github.com/HodeTech/LearnStack/actions/runs/38119659152)
+for source `aebefee`, tested merge `0bb897c`, verifies 2,964 backend and 1,514
+frontend passes, gzip 106,358–106,552 bytes. Historical `d47ef17` numbers above
+remain correct for that earlier head; neither substitutes for final remediation
+CI. The newer proof took 619,309 ms inside the accepted 720,000 ms deadline;
+cleanup took 10,595 ms inside 30,000 ms. No deadline increase is justified.
+
+Ordinal complete-value matching and strict readable JSON are accepted G20
+behavior, so host case-folding and JSON-comment tolerance are not introduced.
+Below-fold laid-out content remains valid full-page evidence; adding a viewport
+bottom cutoff would reject legitimate long lessons. Bounded child ownership
+records are retained through process-group/EOF confirmation; no sustained leak
+was demonstrated. The older `public-local` exit behavior, dormant platform
+branches and test-project placement are unchanged maintenance suggestions.
+Census regeneration instructions already name the authoritative Seeder command.
+
+Mutable Action tags are pre-existing throughout CI, with no accepted SHA-pinning
+policy. This patch does not introduce a repository-wide dependency policy;
+[Security Standards](../standards/11-security.md#dependency-hygiene) already assign
+update automation to Phase 11. Accepted ADR-0053/0056 baseline and dated notes
+remain historical; their then-pending wording is not rewritten as a correction.
+Current carriers link delivered P7 evidence instead. No new human/WCAG evidence
+is claimed by these orchestration and proof changes.
+
 Closing documentation commits must also pass the seven required jobs before
 merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
 owns that moving-head result. Next after maintainer review and merge is

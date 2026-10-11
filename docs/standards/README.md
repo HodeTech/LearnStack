@@ -81,7 +81,7 @@ loaders, chrome/states and atomic theme injection. Its
 owns foundation validation and review evidence. Steps 2–3 implement actual
 catalog/course/lesson views, pagination/metadata and blocking JSX accessibility
 controls. Step 4 implements automated product HTML/Flight proofs and completes
-manual accessibility, including maintainer-reported VoiceOver. P7 owns
+manual accessibility, including maintainer-reported VoiceOver. P7 delivers
 demo/browser/Lighthouse. ADR-0055 remediation delivers single-bootstrap admission
 and passing production replacement proofs. All three steps completed both
 independent review rounds. The

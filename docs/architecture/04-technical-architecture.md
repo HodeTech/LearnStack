@@ -232,8 +232,10 @@ Application projects run **outside** containers during active development for fa
 P02d-5 delivers G33's paired loopback API and native TLS web ingress, with isolated
 real-API production-rendering fixtures. The
 [accepted local setup](../roadmap/phase-02d-walking-skeleton.md#local-setup-and-ingress-details)
-owns host, certificate and private configuration preparation. P02d-7 owns G45's
-`make demo` lifecycle and browser evidence; that gate remains open.
+owns host, certificate and private configuration preparation. P02d-7 delivers
+G45's `make demo` lifecycle and browser evidence; the
+[Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+owns completed reviews, CI enforcement and phase-exit verification.
 
 ## Observability
 

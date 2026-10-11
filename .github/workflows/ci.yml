@@ -480,9 +480,9 @@ jobs:
           name: public-demo-lighthouse
           path: |
             artifacts/public-demo/receipt.json
-            artifacts/public-demo/*.json
-            artifacts/public-demo/*.html
-            artifacts/public-demo/*.png
+            artifacts/public-demo/audit-*.json
+            artifacts/public-demo/audit-*.html
+            artifacts/public-demo/browser-*.png
             artifacts/public-demo-ci/workflow.json
           if-no-files-found: error
           retention-days: 7

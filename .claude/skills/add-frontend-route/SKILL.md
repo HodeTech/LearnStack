@@ -315,11 +315,13 @@ records passing production replacement proofs, completed reviews and verified fi
   hosts/locales. If unavailable, evidence stays pending and completion is not
   claimed. HTTP/RSC assertions are not browser or assistive-technology proof.
   P02d-7 owns browser/demo and Lighthouse; Phase 11 owns web-vitals telemetry.
-- Lighthouse budget check on representative public routes — CI's `lighthouse budget`
-  job remains deferred until P02d-7/G44/G45 after P6 pages; judge by reading until
-  that harness is implemented. Its remaining details are in the
-  [decision register](../../../docs/roadmap/phase-02d-walking-skeleton.md#the-decision-register);
-  the pass that closes it rewrites this bullet.
+- CI's required `public demo + lighthouse` job exercises the seeded public
+  catalog/course/lesson routes under
+  [ADR-0056](../../../docs/decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
+  Preserve its production-page admission, hard budgets and owned cleanup. The
+  [P7 Step 4 record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
+  owns completed G44/G45 enforcement; Phase 06 still owns broader Playwright/axe
+  coverage.
 
 ## Validation
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-import { digest, reportInventory } from './public-demo-contract.mjs';
+import { digest, reportAdvisories, reportInventory } from './public-demo-contract.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
 import { completionDelta, finalCompletionCensus } from '../../../../scripts/demo-observation.mjs';
@@ -246,23 +246,7 @@ export async function verifyPublicDemo(runtime) {
         'Complete HTML report',
       );
     }
-    receipt.advisories = [...new Set(receipt.reports.map((row) => row.url))].map((url) => ({
-      url,
-      metrics: Object.fromEntries(
-        Object.entries({
-          'largest-contentful-paint': 1500,
-          'server-response-time': 300,
-          'total-blocking-time': 200,
-        }).map(([key, threshold]) => {
-          const samples = receipt.reports
-            .filter((row) => row.url === url)
-            .map((row) => row.metrics[key])
-            .sort((a, b) => a - b);
-          const median = samples[1];
-          return [key, { median, threshold, warning: median >= threshold }];
-        }),
-      ),
-    }));
+    receipt.advisories = reportAdvisories(receipt.reports);
     remaining(1);
     receipt.proofMilliseconds = Date.now() - started;
     receipt.passed = true;

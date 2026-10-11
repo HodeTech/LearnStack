@@ -11,6 +11,7 @@ import {
   assertConfiguration,
   digest,
   productDomSnapshot,
+  reconcileScriptInventory,
   validateReport,
 } from './public-demo-contract.mjs';
 import { resolvedDemoCensus, demoLighthouseConfiguration } from './public-demo-gatherer.mjs';
@@ -50,6 +51,7 @@ async function observe(page, response, lane, kind) {
 
 async function browserPaths(browser, input) {
   let visibilityControls = 0;
+  let navigations = 0;
   for (const [laneIndex, lane] of input.lanes.entries()) {
     const context = await browser.newContext({
       viewport: { width: 412, height: 823 },
@@ -70,6 +72,7 @@ async function browserPaths(browser, input) {
           ]);
         }
         await observe(page, response, lane, kind);
+        navigations++;
         await page.screenshot({
           path: join(input.output, `browser-${laneIndex}-${kind}.png`),
           fullPage: true,
@@ -106,7 +109,7 @@ async function browserPaths(browser, input) {
       await context.close();
     }
   }
-  return visibilityControls;
+  return { navigations, visibilityControls };
 }
 
 /** The pinned Lighthouse load deadline is a warning, which admission must refuse. */
@@ -192,11 +195,8 @@ async function main(input) {
       return;
     }
     if (input.mode === 'browser') {
-      const visibilityControls = await browserPaths(browser, input);
-      writeFileSync(
-        input.result,
-        JSON.stringify({ browserVersion, navigations: 9, visibilityControls }),
-      );
+      const counts = await browserPaths(browser, input);
+      writeFileSync(input.result, JSON.stringify({ browserVersion, ...counts }));
       return;
     }
     if (input.mode !== 'timeout-control') {
@@ -243,18 +243,8 @@ async function main(input) {
   const metrics = validateReport(result.lhr, input, expectedCensus);
   assert.equal(metrics['initial-js-gzip-bytes'], result.artifacts.PublicDemoDocument.gzip.total);
   const source = result.artifacts.PublicDemoDocument;
-  // Independently reconcile the overlap with Lighthouse's earlier network window.
-  const logged = result.artifacts.DevtoolsLog.filter(
-    (row) => row.method === 'Network.responseReceived' && row.params.type === 'Script',
-  );
-  assert.ok(logged.length > 0, 'Positive independent Script network observer');
-  for (const row of logged)
-    assert.ok(
-      source.inventory.some(
-        (item) => item.id === row.params.requestId && item.url === row.params.response.url,
-      ),
-      'Script inventory overlap',
-    );
+  // This is independent network-window coverage, not a second gzip measurement.
+  reconcileScriptInventory(result.artifacts.DevtoolsLog, source.inventory);
   const base = join(input.output, `audit-${input.laneIndex}-${input.kind}-${input.run}`);
   const report = JSON.stringify(result.lhr);
   writeFileSync(base + '.json', report, { flag: 'wx' });
