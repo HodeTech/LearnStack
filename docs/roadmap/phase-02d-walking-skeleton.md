@@ -6461,8 +6461,12 @@ behind an explicit release signal until the cache's own timeout is observed,
 checks that a replacement waits and retains the late-result/cache assertions.
 The bounded test wait cannot masquerade as the cache timeout: its message must
 identify the cache's own deadline. The release is guaranteed in `finally`.
-Production cache behavior and its budget are unchanged. Focused verification
-and both independent review rounds remain required before replacement CI.
+Production cache behavior and its budget are unchanged. `32a7951` delivers
+this test-only fix. Fresh GPT-6.1-sol (high) and GPT-6-astra (high) reviews approve
+in two separate rounds with no findings; the second reviewer independently
+passes the focused Release case. All 51 cache cases and all 1,705 unit cases
+pass with zero skips. Replacement final-head CI remains required by the rollup
+below; the initial failed job is not counted as passing evidence.
 
 **Other finding dispositions.** The gzip adapter equality checks wiring; the
 independent Script observer checks source-window coverage, not a second byte
