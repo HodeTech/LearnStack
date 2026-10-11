@@ -66,7 +66,7 @@ export class DemoProcesses {
       });
       stream.on('data', (chunk) => {
         try {
-          observe(chunk);
+          observe(chunk, stream === child.stdout ? 'stdout' : 'stderr');
           if (capture && stream === child.stdout) {
             outputBytes += chunk.length;
             if (outputBytes > 2 * 1024 * 1024) throw new Error('Command output exceeds bound');

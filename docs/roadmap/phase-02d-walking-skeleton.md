@@ -6096,6 +6096,34 @@ owns Braces' unfixed build-glob recursion issue and the incompatible-major
 selector-parser fix. Their maintainer/backport/parent-migration ownership and
 Security Standards deadlines remain unchanged; this is not a clean-audit claim.
 
+#### Step 3 review round 1
+
+Fresh GPT-6-astra (xhigh) runtime/measurement and GPT-6.1-sol (xhigh)
+proof/corpus/dependency reviews cover `69ce613..d99d10b`. Both request changes;
+three verified findings concern the proof, with no production-code defect.
+Independent root reproductions confirm each failure before correction.
+
+- Completion observation silently ignored damaged JSON and unterminated records;
+  the receipt preceded final API output drain. Separate stdout/stderr decoders,
+  pending-tail refusal, joined EOF finalization and post-cleanup final census now
+  prevent malformed, late or 429 traffic from disappearing. Actual record controls
+  include split/interleaved clean output, damaged/newline/EOF records and late
+  success/refusal events.
+- Lighthouse treats its navigation timeout as a warning. A real disposable
+  Chromium/Lighthouse run took 22,116 ms and admitted an incomplete image load.
+  Report admission now refuses warnings. The shared proof includes that actual
+  soft-timeout control with an otherwise passing report counterpart.
+- Ancestor opacity and zero-area rendering hid product markers while the DOM gate
+  admitted them. Browser-native visibility plus positive-area rectangles now
+  apply to markers and individual field labels/values. Each real lesson navigation
+  plants ancestor-opacity, zero-area and hidden-label mutations, verifies refusal,
+  restores the document and re-admits the visible control, without new API calls.
+
+All 74 focused proof/lifecycle cases pass with zero failures/skips. Disposable
+managed-Chromium controls verify visible admission and hidden/zero-area refusal.
+A complete rerun and fresh independent round 2 remain pending; the earlier local
+feasibility result is preserved and does not validate these subsequent changes.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

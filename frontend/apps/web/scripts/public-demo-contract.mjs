@@ -13,11 +13,14 @@ export function productDomSnapshot() {
   const visible = (node) => {
     if (!node || node.closest('[hidden],template')) return false;
     const style = getComputedStyle(node);
+    const box = node.getBoundingClientRect();
     return (
       style.display !== 'none' &&
       style.visibility === 'visible' &&
       Number(style.opacity) !== 0 &&
-      node.getClientRects().length > 0
+      node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+      box.width > 0 &&
+      box.height > 0
     );
   };
   const pick = (selector) => [...document.querySelectorAll(selector)].filter(visible);
@@ -48,8 +51,8 @@ export function productDomSnapshot() {
       const term = node.querySelector('dt');
       const value = node.querySelector('dd');
       return {
-        label: term?.textContent,
-        value: value?.textContent,
+        label: visible(term) ? term.textContent : undefined,
+        value: visible(value) ? value.textContent : undefined,
         labelLang: term?.lang,
         labelDir: term?.dir,
         valueLang: value?.closest('[lang]')?.lang,
@@ -200,6 +203,7 @@ export function assertConfiguration(actual, expected) {
 export function validateReport(lhr, expected, census) {
   assert.equal(lhr.lighthouseVersion, '13.5.0');
   assert.equal(lhr.runtimeError, undefined, 'Runtime errors refuse the report');
+  assert.deepEqual(lhr.runWarnings, [], 'Incomplete/warning audit reports are refused');
   for (const key of ['requestedUrl', 'mainDocumentUrl', 'finalDisplayedUrl'])
     assert.equal(lhr[key], expected.url, key);
   assert.deepEqual(Object.keys(lhr.categories).sort(), ['accessibility', 'performance']);

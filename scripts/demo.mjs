@@ -66,6 +66,7 @@ export async function startDemo(mode) {
   let startedStack = false;
   let locked = false;
   let disposed;
+  let completions;
   let signalRequested = false;
   const cancel = () => {
     signalRequested = true;
@@ -98,6 +99,7 @@ export async function startDemo(mode) {
       controller.abort();
       try {
         await processes.dispose();
+        completions?.finish();
         // Cleanup has a separate signal: cancellation must not cancel teardown.
         if (mode === 'ci' && startedStack) {
           const cleanup = new DemoProcesses(new AbortController().signal);
@@ -394,14 +396,14 @@ export async function startDemo(mode) {
       counts: new Map(),
       malformed: false,
     };
-    const completions = apiCompletionObserver();
-    let apiTail = '';
-    const observeApi = (chunk) => {
-      completions.consume(chunk);
-      apiTail += chunk.toString();
+    completions = apiCompletionObserver();
+    const apiTails = { stdout: '', stderr: '' };
+    const observeApi = (chunk, stream) => {
+      completions.consume(chunk, stream);
+      let apiTail = apiTails[stream] + chunk.toString();
       if (apiTail.length > 1024 * 1024) throw new Error('Unbounded API diagnostic line');
       const lines = apiTail.split('\n');
-      apiTail = lines.pop();
+      apiTails[stream] = lines.pop();
       for (const line of lines) {
         if (isApiListenerEvent(line, configuration.apiOrigin)) observation.apiReady = true;
         // Step 3's proof consumes sanitized structured public completion counts.

@@ -11,7 +11,7 @@ import { chromium } from 'playwright';
 import { digest, reportInventory } from './public-demo-contract.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
-import { completionDelta } from '../../../../scripts/demo-observation.mjs';
+import { completionDelta, finalCompletionCensus } from '../../../../scripts/demo-observation.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const worker = fileURLToPath(new URL('./public-demo-worker.mjs', import.meta.url));
@@ -172,7 +172,10 @@ export async function verifyPublicDemo(runtime) {
     // The API finishes before returning its document; allow only log delivery,
     // never a retry or extra request, to catch up on its pipe.
     const until = Date.now() + remaining(2000);
-    while (runtime.completions.total - before.total < expected && Date.now() < until)
+    while (
+      (runtime.completions.total - before.total < expected || runtime.completions.pendingBytes) &&
+      Date.now() < until
+    )
       await pause(20, undefined, { signal: runtime.signal });
     receipt.batches.push({ name, ...completionDelta(before, runtime.completions, expected) });
     save();
@@ -200,9 +203,18 @@ export async function verifyPublicDemo(runtime) {
       beforeTls.total,
       'Untrusted browser TLS never reaches API',
     );
+    receipt.timeoutControl = await operation({ mode: 'timeout-control' });
+    assert.equal(receipt.timeoutControl.refused, true);
+    assert.equal(
+      runtime.completions.total,
+      beforeTls.total,
+      'Synthetic timeout control has no API traffic',
+    );
     await quiet();
     let before = snapshot(runtime.completions);
-    await operation({ mode: 'browser' });
+    receipt.browser = await operation({ mode: 'browser' });
+    assert.equal(receipt.browser.navigations, 9);
+    assert.equal(receipt.browser.visibilityControls, 9);
     await finishBatch(before, 18, 'linked-browser');
     for (const [laneIndex, lane] of runtime.manifest.entries()) {
       await quiet();
@@ -257,7 +269,7 @@ export async function verifyPublicDemo(runtime) {
     failure = error;
   } finally {
     receipt.proofMilliseconds = Date.now() - started;
-    receipt.totalCompletions = snapshot(runtime.completions);
+    const beforeCleanup = snapshot(runtime.completions);
     try {
       receipt.cleanup = await runtime.dispose();
     } catch {
@@ -265,6 +277,18 @@ export async function verifyPublicDemo(runtime) {
       receipt.passed = false;
       failure ??= new Error('Public proof owned cleanup failed');
     } finally {
+      receipt.totalCompletions = snapshot(runtime.completions);
+      try {
+        finalCompletionCensus(
+          beforeCleanup,
+          runtime.completions,
+          (receipt.startupCompletions?.total ?? 0) +
+            receipt.batches.reduce((sum, batch) => sum + batch.count, 0),
+        );
+      } catch (error) {
+        receipt.passed = false;
+        failure ??= error;
+      }
       save();
     }
   }

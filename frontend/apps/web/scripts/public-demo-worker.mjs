@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
@@ -30,16 +31,20 @@ const catalogue = (locale) =>
     ),
   );
 
-async function observe(page, response, lane, kind) {
+async function observeDocument(page, response) {
   assert.ok(response, 'Live product response exists');
   await response.finished();
-  const document = {
+  return {
     status: response.status(),
     headers: await response.allHeaders(),
     html: (await response.body()).toString('utf8'),
     dom: await page.evaluate(productDomSnapshot),
     redirects: response.request().redirectedFrom() ? 1 : 0,
   };
+}
+
+async function observe(page, response, lane, kind) {
+  const document = await observeDocument(page, response);
   admitProduct(document, lane, kind, catalogue(lane.locale).catalog.title);
   return document;
 }
@@ -69,10 +74,79 @@ async function browserPaths(browser, input) {
           path: join(input.output, `browser-${laneIndex}-${kind}.png`),
           fullPage: true,
         });
+        if (kind === 'lesson') {
+          // Exercise the real DOM predicate, not a fabricated snapshot. No
+          // additional document/API request is introduced by these mutations.
+          for (const css of [
+            'body { opacity: 0 !important }',
+            'body { transform: scale(0) !important }',
+            'dt { opacity: 0 !important }',
+          ]) {
+            const mask = await page.addStyleTag({ content: css });
+            try {
+              const hidden = await observeDocument(page, response);
+              assert.throws(
+                () => admitProduct(hidden, lane, kind, catalogue(lane.locale).catalog.title),
+                'Actual hidden product markers cannot satisfy admission',
+              );
+            } finally {
+              await mask.evaluate((node) => node.remove());
+            }
+            await observe(page, response, lane, kind);
+          }
+        }
       }
     } finally {
       await context.close();
     }
+  }
+}
+
+/** The pinned Lighthouse load deadline is a warning, which admission must refuse. */
+async function timeoutControl(port) {
+  const server = createServer((request, response) => {
+    if (request.url === '/pending.png') return;
+    if (request.url === '/script.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript' });
+      response.end('window.source = true;');
+      return;
+    }
+    if (request.url === '/favicon.ico') {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' });
+    response.end(
+      '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deadline control</title></head><body><main><h1>Deadline control</h1><img src="/pending.png" alt="" width="1" height="1"><script>window.inline = true;</script><script src="/script.js"></script></main></body></html>',
+    );
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/`;
+    const result = await lighthouse(
+      url,
+      { port, hostname: '127.0.0.1', logLevel: 'error', maxWaitForLoad: 15000 },
+      demoLighthouseConfiguration,
+    );
+    assert.equal(result.lhr.runtimeError, undefined, 'Control reaches report-warning admission');
+    assert.ok(result.lhr.runWarnings.length > 0, 'Actual incomplete-navigation warning');
+    assert.throws(
+      () => validateReport(result.lhr, { url }, expectedCensus),
+      /Incomplete\/warning/,
+      'Soft navigation timeout must refuse',
+    );
+    const clean = structuredClone(result.lhr);
+    clean.runWarnings = [];
+    validateReport(clean, { url }, expectedCensus);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 }
 
@@ -109,22 +183,33 @@ async function main(input) {
     }
     if (input.mode === 'browser') {
       await browserPaths(browser, input);
-      writeFileSync(input.result, JSON.stringify({ browserVersion, navigations: 9 }));
+      writeFileSync(
+        input.result,
+        JSON.stringify({ browserVersion, navigations: 9, visibilityControls: 9 }),
+      );
       return;
     }
-    const context = await browser.newContext({
-      viewport: { width: 412, height: 823 },
-      deviceScaleFactor: 1.75,
-    });
-    const page = await context.newPage();
-    try {
-      const response = await page.goto(input.url, { waitUntil: 'networkidle', timeout: 15000 });
-      await observe(page, response, input.lane, input.kind);
-    } finally {
-      await context.close();
+    if (input.mode !== 'timeout-control') {
+      const context = await browser.newContext({
+        viewport: { width: 412, height: 823 },
+        deviceScaleFactor: 1.75,
+      });
+      const page = await context.newPage();
+      try {
+        const response = await page.goto(input.url, { waitUntil: 'networkidle', timeout: 15000 });
+        await observe(page, response, input.lane, input.kind);
+      } finally {
+        await context.close();
+      }
     }
   } finally {
     await browser.close();
+  }
+
+  if (input.mode === 'timeout-control') {
+    await timeoutControl(input.port);
+    writeFileSync(input.result, JSON.stringify({ browserVersion, refused: true }));
+    return;
   }
 
   const flags = {

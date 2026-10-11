@@ -9,7 +9,7 @@ interface Options {
   label?: string;
   capture?: boolean;
   timeout?: number;
-  observe?: (chunk: Buffer) => void;
+  observe?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
 }
 interface Running {
   child: ChildProcess;

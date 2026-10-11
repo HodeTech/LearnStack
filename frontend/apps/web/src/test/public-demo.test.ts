@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   apiCompletionObserver,
   completionDelta,
+  finalCompletionCensus,
 } from '../../../../../scripts/demo-observation.mjs';
 import {
   admitProduct,
@@ -237,6 +238,7 @@ function cleanReport() {
     audits[id]!.numericValue = 0;
   return {
     lighthouseVersion: '13.5.0',
+    runWarnings: [] as string[],
     requestedUrl: lane.lessonUrl,
     mainDocumentUrl: lane.lessonUrl,
     finalDisplayedUrl: lane.lessonUrl,
@@ -263,6 +265,7 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
   it.each([
     'missing',
     'runtime',
+    'warning',
     'audit',
     'nonfinite',
     'gzip',
@@ -274,6 +277,7 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
     const value = structuredClone(cleanReport());
     if (kind === 'missing') delete value.audits[census.audits[0]!];
     if (kind === 'runtime') Object.assign(value, { runtimeError: { code: 'failure' } });
+    if (kind === 'warning') value.runWarnings.push('Results may be incomplete');
     if (kind === 'audit') value.audits[census.audits[0]!]!.scoreDisplayMode = 'error';
     if (kind === 'nonfinite') value.audits['largest-contentful-paint']!.numericValue = NaN;
     if (kind === 'gzip') value.audits['initial-js-gzip-bytes']!.numericValue = 200000;
@@ -318,6 +322,46 @@ describe('Public_Lighthouse_Reports_Enforce_Budgets', () => {
 });
 
 describe('Public_Demo_Preserves_Admission_And_Cleanup observer', () => {
+  const completion = (status: number) =>
+    JSON.stringify({
+      SourceContext: 'Microsoft.AspNetCore.Hosting.Diagnostics',
+      EventId: { Id: 2 },
+      Path: '/api/v1/public/site',
+      StatusCode: status,
+      Method: 'GET',
+    });
+  it.each(['unterminated', 'malformed', 'eof', 'late-success', 'late-refusal'])(
+    'refuses actual %s records after a successful positive control',
+    (kind) => {
+      const observer = apiCompletionObserver();
+      const before = structuredClone(observer.state);
+      observer.consume(Buffer.from(completion(200) + '\n'));
+      expect(completionDelta(before, observer.state, 1).count).toBe(1);
+      const beforeCleanup = structuredClone(observer.state);
+      if (kind === 'malformed') observer.consume(Buffer.from('{"StatusCode":429\n'));
+      else if (kind === 'late-success' || kind === 'late-refusal')
+        observer.consume(Buffer.from(completion(kind === 'late-success' ? 200 : 429) + '\n'));
+      else observer.consume(Buffer.from(completion(429)));
+      if (kind === 'unterminated')
+        expect(() => completionDelta(before, observer.state, 1)).toThrow();
+      observer.finish();
+      expect(() => finalCompletionCensus(beforeCleanup, observer.state, 1)).toThrow();
+    },
+  );
+  it('keeps interleaved streams separate and confirms joined clean output', () => {
+    const observer = apiCompletionObserver();
+    const before = structuredClone(observer.state);
+    const value = completion(200);
+    observer.consume(Buffer.from(value.slice(0, 30)), 'stdout');
+    observer.consume(Buffer.from('Startup banner\n'), 'stderr');
+    expect(() => completionDelta(before, observer.state, 0)).toThrow();
+    observer.consume(Buffer.from(value.slice(30) + '\n'), 'stdout');
+    expect(completionDelta(before, observer.state, 1).count).toBe(1);
+    const beforeCleanup = structuredClone(observer.state);
+    observer.finish();
+    expect(() => finalCompletionCensus(beforeCleanup, observer.state, 1)).not.toThrow();
+    expect(() => finalCompletionCensus(beforeCleanup, observer.state, 2)).toThrow();
+  });
   it('observes split UTF-8 completion lines while retaining only bounded aggregates', () => {
     const observer = apiCompletionObserver();
     const before = structuredClone(observer.state);
