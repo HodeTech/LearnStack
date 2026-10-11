@@ -6138,7 +6138,8 @@ verified proof gaps remain; the existing 50 proof controls passed independently.
   child with deliberately deferred stdout demonstrated a 429 arriving after a
   prematurely passing final census. Cleanup now joins `close` with a separate
   shared five-second stop/output-drain bound before observer finalization. The
-  regression holds and releases the real pipe, proves cleanup waits, then refuses the 429.
+  regression holds and releases the real pipe, proves cleanup waits, then refuses
+  the 429.
 - Clip/filter/mask and offscreen/overflow styles could hide laid-out markers.
   The bounded seeded-page predicate now refuses these ancestor styles and
   horizontally unreachable/negative-area markers. Each lesson navigation checks
@@ -6172,7 +6173,7 @@ complete. Step 4 owns CI enforcement and phase exit; neither is claimed here.
 
 ### P02d-7 Step 4 — CI enforcement and phase exit (2026-10-11)
 
-**Implementation delivered; round 1 fixes complete, round 2 pending.**
+**Implementation and both independent review rounds complete; real CI pending.**
 The always-running `public demo + lighthouse` job replaces the disabled
 placeholder. It installs the exact locked browser tools and managed Chromium,
 then invokes `make demo DEMO_MODE=ci` over the shared seven-service lifecycle.
@@ -6214,7 +6215,7 @@ uncached settings reader plus `learnstack.tenancy.settings` eager-invalidation
 event owned by Phase 02b. These delivered premises do not Accept future
 session/BFF/authenticated-rate-limit decisions.
 
-**Validation boundary.** Both third-locale/branding combined cases pass locally
+**Initial validation at `bf5bc9c`.** Both third-locale/branding cases pass locally
 with zero skips. Release build has zero warnings/errors; 1,705 unit, 203 architecture,
 four contract and 180 Docker-free integration cases pass, as do all 1,500 guarded
 frontend cases. Typecheck, lint, whitespace and 2,042 relative links (666 fragments)
@@ -6257,6 +6258,31 @@ execution guard. The guarded frontend rerun passes 1,504 cases (1,444 web + 60
 SDK), zero failures/skips/todos; typecheck, lint, scoped backend formatting and
 whitespace pass. The initial full backend totals above precede the added combined
 case. Final complete PR CI, round 2 and protection read-back remain required.
+
+#### Step 4 review round 2 (2026-10-11)
+
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) agents reviewed
+`06d46ad..100b022` across runtime/CI ownership, security, correctness,
+maintainability, test quality and the complete changed corpus/exit matrix.
+Both approve with no remaining Blocker or Major. The corpus reviewer confirmed
+two Minor navigation/census remnants: the matrix still called the expanded
+three-case class two cases, and CONTRIBUTING still described completed
+ADR-0055 reviews as remaining. Both are corrected; the reviewer independently
+checked the bounded follow-up. One overlong P7 prose line is wrapped without
+changing its content, and catalogue navigation names the new deadline/sandbox
+controls. Earlier P1–P6 delivery records remain unchanged.
+
+The runtime reviewer independently passes all 15 Chromium-prerequisite controls,
+four actual-workflow deadline controls and all three focused Docker HTTP cases,
+with zero skips, plus whitespace. The corpus reviewer verifies all 36/79/39/9
+inventory counts, complete named evidence, 175 Implemented rules, 21 Active/one
+Adopted standards and future-owner scope. Root checks pass seven ADR lifecycle
+and 14 OpenAPI-CI controls. The complete PR's 33 unique Markdown files resolve
+2,188 relative links and 686 fragments with no errors before these closing
+navigation additions. Fenced and inline examples are excluded from link counts.
+Both review rounds and verified fixes are complete. Actual successful Linux PR
+CI, complete artifact receipts and authorized protection activation/read-back
+remain required before a positive phase-exit verdict.
 
 ### P02d-1 decision pass (2026-09-14)
 

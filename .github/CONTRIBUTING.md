@@ -78,7 +78,7 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     public-key trust. Its Flight-to-document navigation and fresh HMR admission
     scope does not deliver P7's browser demo, full Playwright/axe or Lighthouse.
     The [Step 3 record](../docs/roadmap/phase-02d-walking-skeleton.md#adr-0055-step-3--production-admission-proof-and-closeout)
-    owns actual execution and remaining reviews.
+    owns completed implementation, reviews and execution evidence.
   - P02d-7 replaces the disabled Lighthouse placeholder with the always-running
     `public demo + lighthouse` job under ADR-0056. It installs the locked browser
     tools and Playwright-managed Chromium, then runs `make demo DEMO_MODE=ci` over

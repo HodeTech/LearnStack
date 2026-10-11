@@ -187,13 +187,13 @@ Phase 04/05/06 retain the named future contracts. C36 is conditional: G23 select
 uncached settings, so no settings-cache eviction rule is claimed. Other named
 rows retain their full canonical conditions even when a locator is abbreviated.
 
-The two new `PublicLocaleEvolutionHttpTests` cases passed locally with zero skips.
+The three `PublicLocaleEvolutionHttpTests` cases passed locally with zero skips.
 They use the normal API-root pipeline and actual mapped-host HTTP, under
 `learnstack_app`, physical READ ONLY and non-BYPASSRLS. French-only new roots are
 authored while Draft; published seeded roots are not edited to create the proof.
 All five migration histories and complete pre-existing EN/TR DTOs remain equal.
 The organization writer refusal commits exactly its expected Denied audit;
-public reads remain audit Off. Final receipt I must include both cases.
+public reads remain audit Off. Final receipt I must include all three cases.
 
 ## Exclusions and future owners
 
@@ -247,7 +247,7 @@ by listing its phase here.
 
 | ID | Obligation | Required evidence |
 |---|---|---|
-| E01 | Every Completion Criterion holds with named/manual evidence | All C01-C79 rows, the two new combined HTTP/pipeline cases; actual B/I/F/O/J/H receipts linked at exact final head where applicable. |
+| E01 | Every Completion Criterion holds with named/manual evidence | All C01-C79 rows, the three locale/branding/combined-scope HTTP/pipeline cases; actual B/I/F/O/J/H receipts linked at exact final head where applicable. |
 | E02 | Every register row closed through G1 vehicle and carriers, including G32 development transport | Dated closure/link census; Accepted ADRs retained, implementation receipts distinct from decisions; Phase02b native HTTPS carriers reconciled. |
 | E03 | Phase02a and Education schema/request isolation green as app role, zero skips, required | Exact final backend/backend-integration TRX/rollup, role/isolation evidence and skip guard. |
 | E04 | OpenAPI/SDK/Lighthouse required and shown able to fail; live list/date; no deferred job names | O/J offender controls, successful final real PR rollup, dated seven-context strict protection read-back, all other settings preserved. |

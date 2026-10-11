@@ -4496,6 +4496,9 @@ and the always-running `public demo + lighthouse` job through `make demo`.
 `src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
 planted failing and clean controls in the required frontend job. Actual browser
 mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/public-demo-ci.test.ts` executes the actual workflow deadline shell;
+`scripts/ci-public-chromium.test.mjs` tests owned Linux sandbox preparation and
+cleanup before the job runs the real managed-browser launch smoke.
 The [Step 4 record](../roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 owns exact CI and protection receipts. These are Node behavioral rules, not
 C# architecture-test methods or a full WCAG/production-performance claim.
