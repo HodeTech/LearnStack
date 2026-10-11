@@ -153,9 +153,12 @@ Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
 ### 2. Bootstrap from the repository root
 
 ```bash
-make install   # create .env if absent, restore dependencies, install git hooks
-make seed      # start infrastructure, apply migrations, seed two demo tenants
+make hooks     # optional: install the repository Git hooks
 ```
+
+Continue with the manual HTTPS prerequisites below, then run `make demo`. It
+creates missing private configuration and restores dependencies without changing
+Git hooks. `make seed` remains available for infrastructure/database-only use.
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
@@ -165,9 +168,8 @@ ordinary authoring pipeline and verifies completed acts before skipping them on 
 
 ### 3. Prepare local HTTPS and start the applications
 
-```bash
-make public-env   # generate a private 32-byte hop secret in the ignored root .env
-```
+The demo prepares a missing private 32-byte hop secret in the ignored root `.env`.
+Existing values and optional projections must agree; they are not reset.
 
 Install mkcert using its [official instructions](https://github.com/FiloSottile/mkcert).
 Run its trust step yourself, then create the local leaf certificate:
@@ -184,14 +186,23 @@ commands never edit that file or install trust. Keep the CA private key local;
 only the ignored leaf/key paths belong in `.env`.
 
 ```bash
-# Terminal 1 — loopback API with runtime credentials and network + hop secret.
-make public-api
+make demo
 ```
 
-```bash
-# Terminal 2 — the mandatory native HTTPS launcher, then Next.js.
-make public-web
-```
+This foreground command restores pinned dependencies, starts the selected default
+stack, waits for PostgreSQL before migrations, retains both Keycloak realm gates,
+converges the seed and builds/starts the production API and native HTTPS web.
+Readiness includes actual seeded lesson content; nine seed-derived URLs are printed.
+Ctrl+C joins its owned API/web processes and preserves local infrastructure/data.
+Use `make down` to stop infrastructure explicitly. A second demo invocation or a
+foreign listener is refused; no foreign process is killed. If a hard kill leaves
+`.data/demo.lock`, confirm the earlier process tree has stopped before removing
+that lock manually. Missing/stale configuration or TLS is refused without reset.
+
+For separate development/watch terminals, retain `make public-api` and
+`make public-web`. The CI lifecycle uses an isolated checkout/project and disposable
+configuration through `make demo DEMO_MODE=ci`; its browser/audit driver is delivered
+in P02d-7 Step 3, so CI proof is not yet available at Step 1.
 
 Readiness is <http://127.0.0.1:5080/healthz> for the API and
 <https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
@@ -207,7 +218,7 @@ both independent review rounds and fix verification. Source fences, the no-skip
 test runner and real-API production HTML/RSC proofs pass. The
 [remediation and closeout record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-5-external-review-remediation-2026-10-09)
 owns current review/CI evidence. P02d-6 implements public pages;
-the two-host browser demo with `make demo` is P02d-7. See
+P02d-7 supplies `make demo`; browser/Lighthouse proof remains its Step 3. See
 [local setup](.claude/skills/local-dev-setup/SKILL.md) and
 [Compose documentation](infra/compose/README.md) for troubleshooting.
 
@@ -216,6 +227,7 @@ the two-host browser demo with `make demo` is P02d-7. See
 | Command | Purpose |
 |---|---|
 | `make help` | List available tasks. |
+| `make demo` | Build/start the seeded production sites; Ctrl+C preserves local data. |
 | `make dev` | Start the default local infrastructure. |
 | `make migrate` | Apply platform and module migration chains. |
 | `make test` | Restore dependencies and run backend and frontend suites; Docker is required. |

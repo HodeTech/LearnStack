@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { publicApiEnvironment } from './public-runtime.mjs';
 
 import {
   loadLocalEnvironment,
@@ -44,25 +45,7 @@ try {
     const values = loadLocalEnvironment(root, process.env);
     const configuration = publicServerConfiguration(values, root);
     if (!values.ConnectionStrings__Default) throw new Error();
-    const environment = { ...process.env };
-    // Migration/worker credentials and stale hop entries never reach this API launcher.
-    for (const key of Object.keys(environment)) {
-      if (
-        /^ConnectionStrings__/i.test(key) ||
-        /^Tenancy__TrustedHop__/i.test(key) ||
-        /^(?:LEARNSTACK_MIGRATION_PW|LEARNSTACK_OUTBOX_PW)$/i.test(key)
-      ) {
-        delete environment[key];
-      }
-    }
-    environment.ConnectionStrings__Default = values.ConnectionStrings__Default;
-    if (values.ConnectionStrings__PlatformAdmin) {
-      environment.ConnectionStrings__PlatformAdmin = values.ConnectionStrings__PlatformAdmin;
-    }
-    environment.ASPNETCORE_ENVIRONMENT = 'Development';
-    environment.ASPNETCORE_URLS = configuration.apiOrigin;
-    environment.Tenancy__TrustedHop__Networks__0 = '127.0.0.1/32';
-    environment.Tenancy__TrustedHop__Secrets__0 = configuration.secret;
+    const environment = publicApiEnvironment(values, configuration);
     const child = spawn(
       'dotnet',
       ['run', '--no-launch-profile', '--project', 'src/LearnStack.Api'],

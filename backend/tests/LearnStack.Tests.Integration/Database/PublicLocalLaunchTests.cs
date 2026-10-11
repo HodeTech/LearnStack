@@ -36,6 +36,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
             Directory.CreateDirectory(Path.Combine(temporary, "user-secrets"));
             File.WriteAllText(Path.Combine(temporary, "package.json"), "{\"type\":\"module\"}");
             File.Copy(Path.Combine(repository, "scripts/public-local.mjs"), Path.Combine(temporary, "scripts/public-local.mjs"));
+            File.Copy(Path.Combine(repository, "scripts/public-runtime.mjs"), Path.Combine(temporary, "scripts/public-runtime.mjs"));
             foreach (var file in new[] { "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts" })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
             Directory.CreateSymbolicLink(Path.Combine(app, "node_modules"), Path.Combine(repository, "frontend/apps/web/node_modules"));

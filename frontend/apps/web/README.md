@@ -31,7 +31,8 @@ records completed verification, reviews and scoped browser/VoiceOver observation
 P6 is complete and merged through PR #27 on 2026-10-10; its
 [merge closeout](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
 owns final verification. P7's shared demo/browser package was approved on
-2026-10-11, together with ADR-0056. Implementation follows the four-step plan.
+2026-10-11, together with ADR-0056. Step 1 implements the foreground lifecycle;
+the browser/audit proof remains Step 3.
 
 There is **no `extensions/` folder for vertical-provided components** — per
 [ADR-0018](../../../docs/decisions/0018-tenant-driven-customization-model.md),
@@ -51,9 +52,8 @@ primitives or ask LearnStack to add a new composite.
 
 ```bash
 # from the repository root, after the documented hosts/certificate preparation
-make public-env
-make public-api    # keep running in its own terminal
-make public-web    # run in a second terminal
+make demo          # production API + native web; Ctrl+C joins owned processes
+# Optional separate development/watch terminals: make public-api / make public-web
 ```
 
 Follow the root [HTTPS Quickstart](../../../README.md#quickstart) for dependencies,

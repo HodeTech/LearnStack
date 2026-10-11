@@ -172,7 +172,7 @@ changes.
 
 ```bash
 make e2e-up                                         # tmpfs-backed stack up
-COMPOSE_PROFILES=gated make e2e-up                  # include clean Valkey + Kafka
+node scripts/compose.mjs e2e --profile gated up -d  # explicit gated selection
 make e2e-down                                       # stop; tmpfs evaporates
 
 # Raw equivalent:
@@ -180,9 +180,11 @@ docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml
 COMPOSE_PROFILES=gated docker compose --env-file .env -f infra/compose/dev.yml -f infra/compose/e2e.yml up -d
 ```
 
-Phase 06 Playwright + Phase 07 SDK contract tests run against this overlay
-in CI; the Playwright project itself lives in `frontend/apps/web/e2e/` and
-arrives in its owning phase.
+P02d-7's isolated demo lifecycle uses this overlay with a unique project and
+private configuration. Its browser/Lighthouse driver remains Step 3 work.
+The full Playwright/axe suite remains Phase 06. Explicit Compose selection ignores
+ambient `COMPOSE_*` overrides; use an explicit `--profile gated` for that opt-in.
+Host ports remain fixed, so a foreign stack/listener is refused rather than stopped.
 
 ### Dev credentials are dev credentials
 
@@ -210,12 +212,11 @@ Phase 01 is complete; the remaining deferrals belong to later phases and
 NOT to this compose stack:
 
 - The .NET API host (`LearnStack.Api`) runs **outside** the compose network
-  via `dotnet run` on the developer's workstation. Moving it inside compose
+  via the production `make demo` supervisor or `make public-api` on the workstation.
+  Moving it inside compose
   is a Phase 11 (production hardening) decision — the dapr-sidecar-api
   service is already pointed at `host.docker.internal:5080` so the swap
   is a one-line `upstream` change.
 - `livekit-egress` (recording / consent) — Phase 08c.
 - OpenTelemetry Collector — Phase 11.
-- Application-level tenant seeding via `LearnStack.Tools.Seeder` —
-  Phase 02a (the `scripts/seed.sh` orchestrator stubs the activation point).
 - Production-grade Vault (HA + auto-unseal + AppRole) — Phase 11.

@@ -5846,6 +5846,43 @@ The exit verdict must state which obligations passed, identify evidence/CI/prote
 receipts and leave no unresolved 02d-owned gate or Registered/Awaiting rule. The
 maintainer's PR review and merge remain separate from implementation completion.
 
+### P02d-7 Step 1 — shared demo lifecycle (2026-10-11)
+
+**Implementation recorded; review rounds and complete startup proof pending.**
+The foreground `make demo` supervisor shares explicit Compose selection,
+PostgreSQL-before-migration readiness, full seven-service/both-realm admission,
+contextual seeding, production builds and owned process cleanup. Local data is
+retained; CI uses a unique project, disposable private configuration and the e2e
+overlay. Its browser/audit driver remains Step 3 work and is not claimed here.
+
+`DemoManifest.Create` derives all three host/locale lanes, nine URLs, ordered field
+expectations, palettes and excluded course titles from `SeedData`. Its export
+requires no database. Configuration validation uses Npgsql's real parser to
+refuse stale role/password/database/host/port combinations before infrastructure.
+The runtime environment helper is shared with the existing paired API launcher;
+migration and worker credentials are excluded. TLS prerequisites do not modify
+hosts or system trust. The exclusive demo lock never kills a recorded foreign PID.
+
+**Initial verification.** The Release Seeder build has zero warnings/errors.
+All 1,705 unit, 198 architecture, four contract, nine focused integration and
+42 Seeder integration cases pass with zero failures/skips. Focused integration
+includes eight manifest/configuration cases and the real-API/PostgreSQL local
+launcher proof without a PlatformAdmin credential. The guarded frontend runner
+passes 1,413 cases without skips/todos; the final 13-case focused suite also
+covers structured API-listener readiness and an invocation-owned native cache. Lint and typecheck pass. Node controls cover
+explicit selection, readiness refusal, runtime credential isolation, foreign
+listeners, bounded bodies, certificate mismatch, real process timeout/cancellation
+and owned trees. Complete startup and independent reviews remain pending.
+
+**Runtime prerequisite discovered.** An owned temporary test copy correctly
+refused a foreign API listener on 5080; the same project's PostgreSQL occupied
+5432. No foreign process was stopped before approval and no complete demo pass
+was claimed. The maintainer authorized temporarily stopping the two containers
+on 2026-10-11 and restarting them after validation. The full isolated run is in
+progress; local volumes are retained. The existing LearnStack PostgreSQL/Keycloak
+cannot run concurrently on the occupied database port. Startup, repeat-convergence
+and teardown proof remain Step 1 closure requirements.
+
 ### P02d-1 decision pass (2026-09-14)
 
 **Accepted — 2026-09-14, verified against `6c58343`.** The maintainer approved

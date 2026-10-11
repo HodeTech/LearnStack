@@ -2,8 +2,8 @@
 #
 # Layered on top of `dev.yml`:
 #     docker compose -f infra/compose/dev.yml -f infra/compose/e2e.yml up
-# (the canonical `make` target is `make COMPOSE=$(COMPOSE_E2E) <target>` —
-# see the repo-root `Makefile`).
+# Use `make e2e-up` / `make e2e-down`, or the isolated P02d-7 CI demo
+# lifecycle. `scripts/compose.mjs` freezes project/files/env selection.
 #
 # Why an overlay instead of a separate file: the service definitions, ports,
 # images, and credentials are identical to dev — only the *operational

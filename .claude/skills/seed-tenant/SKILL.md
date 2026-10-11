@@ -17,7 +17,8 @@ The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.m
 records the decisions. Step 4 delivers the complete inventory and contextual
 verification; both implementation review rounds and final verification passed.
 P02d-2 is merged, and P02d-4 supplies public API reads. Server ingress/transport
-belongs to P02d-5; pages and the browser demo remain P02d-6/7. Do not claim a
+belongs to P02d-5; P02d-6 pages and P02d-7 Step 1's foreground demo are delivered.
+P02d-7 Step 3 still owns browser/Lighthouse proof. Do not claim a
 rendered demo from seed alone.
 
 [SeedData](../../../backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns all demo
@@ -53,8 +54,11 @@ to a BYPASSRLS/superuser role on every physical connection.
 make seed
 ```
 
-This target depends on migration and invokes `scripts/seed.sh`, which checks compose
-health and both Keycloak realms before running the .NET tool. The direct tool runs
+This target starts the selected stack and waits for PostgreSQL before migration.
+`scripts/seed.sh` then checks full Compose health and both realm issuers before
+running the .NET tool. `scripts/compose.mjs` shares project/files/env selection
+with the demo lifecycle; inherited Compose profiles cannot widen its default set.
+The direct tool runs
 from `backend/`, where `global.json` pins the SDK:
 
 ```bash
@@ -157,8 +161,9 @@ hosts aliases and local HTTPS; Step 1 supplies the native launcher and private
 shared-source configuration. Follow [README Quickstart](../../../README.md#3-prepare-local-https-and-start-the-applications)
 for explicit CA trust/leaf creation and `make public-api` / `make public-web`.
 Repository scripts never edit hosts or system trust. P02d-5 delivers live-host
-bootstrap and locale entry; P02d-6 owns pages, and P02d-7 owns the two-site browser
-demo. No browser render is supplied by seeding alone.
+bootstrap and locale entry; P02d-6 supplies pages. `make demo` now owns the
+foreground production launch, while P02d-7 Step 3 supplies browser/audit proof.
+No browser render is supplied by seeding alone.
 
 ### 7. Reset only an explicitly disposable development environment
 
