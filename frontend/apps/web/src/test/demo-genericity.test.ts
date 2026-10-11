@@ -1,28 +1,52 @@
 // @vitest-environment node
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { demoIdentityFindings } from './demo-genericity-analysis';
-import { omitDemoSourceDirectory, productionDemoSources } from './demo-genericity-sources';
+import {
+  demoSourceClassification,
+  omitDemoSourceDirectory,
+  productionDemoSources,
+} from './demo-genericity-sources';
 import vocabulary from './fixtures/demo-identities.json';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 function productionSources(): Map<string, string> {
+  const inventory = execFileSync(
+    'git',
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '--exclude=.claude/worktrees/',
+      '-z',
+    ],
+    { cwd: root, encoding: 'utf8' },
+  )
+    .split('\0')
+    .filter(Boolean);
+  for (const path of inventory) demoSourceClassification(path);
   const files = new Map<string, string>();
   const visit = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       const name = relative(root, path).replaceAll('\\', '/');
-      if (entry.isSymbolicLink() && entry.name !== 'node_modules')
+      if (entry.isSymbolicLink() && !omitDemoSourceDirectory(name))
         throw new Error(`Unmodeled production symlink: ${name}`);
       if (entry.isDirectory()) {
         if (!omitDemoSourceDirectory(name)) visit(path);
+      } else if (entry.isSymbolicLink()) {
+        if (!omitDemoSourceDirectory(name))
+          throw new Error(`Unmodeled production symlink: ${name}`);
       } else if (
-        /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name) &&
-        !/\.d\.[cm]?[jt]sx?$/.test(entry.name)
+        demoSourceClassification(name) === 'runtime' ||
+        name === 'frontend/apps/web/src/app/globals.css'
       ) {
         files.set(name, readFileSync(path, 'utf8'));
       }
@@ -30,7 +54,11 @@ function productionSources(): Map<string, string> {
   };
   visit(join(root, 'frontend'));
   visit(join(root, 'scripts'));
-  return productionDemoSources(files);
+  return productionDemoSources(files, (from, specifier, anchors) => {
+    let resolver = createRequire(join(root, from));
+    for (const anchor of anchors) resolver = createRequire(resolver.resolve(anchor));
+    return relative(root, resolver.resolve(specifier)).replaceAll('\\', '/');
+  });
 }
 
 describe('P02d-7 exact demo identity boundary', () => {
@@ -197,7 +225,13 @@ describe('P02d-7 exact demo identity boundary', () => {
     expect(resolved.has(target)).toBe(true);
     expect(() =>
       productionDemoSources(
-        new Map([[entry, "require(require.resolve('eslint-plugin-jsx-a11y', { paths: [] }));"]]),
+        new Map([
+          [
+            entry,
+            "require(require.resolve('eslint-plugin-jsx-a11y', { paths: [require.resolve('eslint-config-next')] }));",
+          ],
+        ]),
+        (_from, name) => `frontend/node_modules/${name}/index.js`,
       ),
     ).not.toThrow();
     for (const source of [
@@ -222,8 +256,128 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/dist',
       'frontend/apps/web/scripts/coverage',
       'frontend/apps/web/src/.server',
+      'scripts/node_modules',
+      'frontend/apps/web/src/node_modules',
     ])
       expect(omitDemoSourceDirectory(path)).toBe(false);
+  });
+  it('refuses unclassified production roots and formats while retaining declared non-runtime ownership', () => {
+    for (const path of [
+      'shared/probe.mjs',
+      'frontend/apps/web/src/probe.vue',
+      'scripts/probe.runtime',
+      'backend/feature/Probe.cs',
+    ])
+      expect(() => demoSourceClassification(path)).toThrow('Unclassified');
+    for (const path of [
+      'scripts/demo.mjs',
+      'scripts/node_modules/probe/index.js',
+      'frontend/apps/web/src/test/probe.test.ts',
+    ])
+      expect(demoSourceClassification(path)).toBe('runtime');
+    for (const path of [
+      'README.md',
+      'docs/example.md',
+      'scripts/seed.sh',
+      'frontend/apps/web/src/app/globals.css',
+    ])
+      expect(demoSourceClassification(path)).toBe('other');
+  });
+  it('follows aliases, workspace exports, import-equals and transitive re-exports into exemptions', () => {
+    const entry = 'frontend/apps/web/src/server/probe.ts';
+    const helper = 'frontend/apps/web/src/test/helper.ts';
+    const configHelper = 'frontend/packages/config/helper.test.mjs';
+    for (const source of [
+      "import '@/test/helper';",
+      "export * from '@/test/helper';",
+      "import helper = require('@/test/helper');",
+      "require.resolve('@/test/helper');",
+    ]) {
+      const files = productionDemoSources(
+        new Map([
+          ['frontend/apps/web/tsconfig.json', '{"compilerOptions":{"paths":{"@/*":["./src/*"]}}}'],
+          [
+            'frontend/packages/config/package.json',
+            '{"name":"@learnstack/config","exports":{"./helper":"./helper.test.mjs"}}',
+          ],
+          [entry, source],
+          [helper, "export * from '@learnstack/config/helper';"],
+          [configHelper, `export const branch = ${JSON.stringify(identity)};`],
+        ]),
+      );
+      expect(files.has(helper)).toBe(true);
+      expect(files.has(configHelper)).toBe(true);
+      expect(
+        [...files].flatMap(([path, source]) => demoIdentityFindings(path, source, vocabulary)),
+      ).toEqual([identity]);
+    }
+  });
+  it('refuses missing, unknown-format, inherited-alias and untrusted external edges', () => {
+    const entry = 'frontend/apps/web/scripts/entry.mjs';
+    for (const edge of ['./missing.mjs', './helper.runtime', 'unknown-package', '#local'])
+      expect(() =>
+        productionDemoSources(
+          new Map([
+            [entry, `require(${JSON.stringify(edge)})`],
+            ['frontend/apps/web/scripts/helper.runtime', `specialize('${identity}')`],
+          ]),
+        ),
+      ).toThrow('Unmodeled');
+    expect(() =>
+      productionDemoSources(
+        new Map([[entry, "import 'linked-package';"]]),
+        () => '../foreign/index.js',
+      ),
+    ).toThrow('Unmodeled');
+    const helper = 'frontend/apps/web/src/test/helper.ts';
+    expect(
+      productionDemoSources(
+        new Map([
+          [entry, "import 'linked-package';"],
+          [helper, 'export const clean = 1;'],
+        ]),
+        () => helper,
+      ).has(helper),
+    ).toBe(true);
+    expect(() =>
+      productionDemoSources(
+        new Map([
+          [entry, "import 'external-package';"],
+          ['frontend/apps/web/tsconfig.json', '{"extends":"./base.json"}'],
+          [
+            'frontend/apps/web/base.json',
+            '{"compilerOptions":{"paths":{"hidden/*":["./src/test/*"]}}}',
+          ],
+        ]),
+        () => 'frontend/node_modules/external-package/index.js',
+      ),
+    ).toThrow('Unmodeled');
+  });
+  it('admits only the validated native generated-output mapping and known stylesheet', () => {
+    const entry = 'scripts/demo.mjs';
+    const source = 'frontend/apps/web/src/server/ingress.ts';
+    const config = {
+      compilerOptions: { rootDir: 'src/server', outDir: '.server' },
+      include: ['src/server/ingress.ts', 'src/server/public-admission-runtime.ts'],
+    };
+    const files = new Map([
+      [
+        entry,
+        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/src/app/globals.css';",
+      ],
+      [source, 'export const clean = true;'],
+      ['frontend/apps/web/src/app/globals.css', ':root { color: black }'],
+      ['frontend/apps/web/tsconfig.server.json', JSON.stringify(config)],
+    ]);
+    expect(productionDemoSources(files).has(source)).toBe(true);
+    files.set(
+      'frontend/apps/web/tsconfig.server.json',
+      JSON.stringify({
+        ...config,
+        compilerOptions: { ...config.compilerOptions, outDir: 'unmodeled' },
+      }),
+    );
+    expect(() => productionDemoSources(files)).toThrow('Unmodeled');
   });
   it('fails loudly on unreadable sources and an empty or malformed vocabulary', () => {
     expect(() => demoIdentityFindings('probe.ts', 'const = ;', vocabulary)).toThrow('Unreadable');

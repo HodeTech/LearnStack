@@ -16,9 +16,8 @@ public sealed partial class DomainGenericityTests
     {
         var vocabulary = DemoIdentities.Create();
         vocabulary.Values.Should().NotBeEmpty();
-        var files = ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
-            .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
-            .Where(path => Path.GetExtension(path) is ".cs" or ".json")
+        var allFiles = DemoProductionSourceCensus();
+        var files = allFiles
             // Sole authoritative tenant declaration, never the whole Seeder project.
             .Where(path => Path.GetRelativePath(RepositoryPaths.BackendSrc(), path).Replace('\\', '/')
                 != "LearnStack.Tools.Seeder/SeedData.cs").Order(StringComparer.Ordinal).ToArray();
@@ -112,6 +111,26 @@ public sealed partial class DomainGenericityTests
         foreach (var value in new[] { identity, key, Guid.Parse(id).ToString("B").ToUpperInvariant(), Guid.Parse(id).ToString("N") })
             DemoLiteralViolations("Probe.cs", $"class Probe {{ string Value = {JsonSerializer.Serialize(value)}; }}", vocabulary)
                 .Should().ContainSingle("each backend identity/customization/alternate UUID spelling must be seen");
+        var project = Path.GetFullPath("/repo/backend/src/Probe");
+        var generated = new[] { Path.Combine(project, "bin"), Path.Combine(project, "obj") };
+        foreach (var directory in new[] { "bin", "obj" })
+        {
+            BackendDemoSourceKind(Path.Combine(project, "Features", directory, "Probe.cs"), generated)
+                .Should().Be(1, "only actual project outputs are excluded");
+            BackendDemoSourceKind(Path.Combine(project, directory, "Generated.cs"), generated).Should().Be(0);
+        }
+        Action unknownFormat = () => _ = BackendDemoSourceKind(Path.Combine(project, "Probe.resx"), generated);
+        unknownFormat.Should().Throw<InvalidOperationException>();
+        Action linkedInput = () => RequireCompileCoverage([Path.Combine(project, "Probe.cs")], ["/repo/shared/Linked.cs"]);
+        linkedInput.Should().Throw<InvalidOperationException>();
+        RequireCompileCoverage([Path.Combine(project, "Probe.cs")], [Path.Combine(project, "Probe.cs")]);
+        Action dynamicCompile = () => RefuseExecutionTimeCompile("<Project><Target Name=\"Add\"><ItemGroup><Compile Include=\"../shared/Probe.cs\" /></ItemGroup></Target></Project>");
+        dynamicCompile.Should().Throw<InvalidOperationException>();
+        RefuseExecutionTimeCompile("<Project><ItemGroup><Compile Include=\"Probe.cs\" /></ItemGroup></Project>");
+        Action importedTarget = () => RefuseExecutionTimeCompile("<Project><Import Project=\"../shared.targets\" /></Project>");
+        importedTarget.Should().Throw<InvalidOperationException>();
+        Action customSdk = () => RefuseExecutionTimeCompile("<Project Sdk=\"Custom.Sdk\" />");
+        customSdk.Should().Throw<InvalidOperationException>();
         var escaped = $"\\u{(int)identity[0]:x4}{identity[1..]}";
         DemoLiteralViolations("Probe.cs", "class Probe { string Value = \"" + escaped + "\"; }", vocabulary)
             .Should().ContainSingle("Roslyn decodes escaped strings");
