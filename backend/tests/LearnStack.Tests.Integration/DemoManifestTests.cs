@@ -42,6 +42,11 @@ public sealed class DemoManifestTests
                     field.Value.Should().Be(body.RootElement.GetProperty(field.Name).GetString());
                 lane.Theme.Should().HaveCount(4);
                 lane.ExcludedTitles.Should().NotBeEmpty().And.NotContain(lane.CourseTitle);
+                var visibleMarketing = curriculum.Courses.Where(row => row.Status == "Published"
+                    && (row.OrganizationId is null || row.OrganizationId == course.OrganizationId))
+                    .SelectMany(row => row.Translations.Select(value => value.Title));
+                lane.ExcludedTitles.Should().NotIntersectWith(visibleMarketing,
+                    "published restricted courses retain public marketing under ADR-0050");
             }
         }
         manifest.Select(row => row.Fields.Count).Distinct().Should().HaveCount(2,

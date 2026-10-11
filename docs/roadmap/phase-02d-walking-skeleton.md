@@ -5848,7 +5848,7 @@ maintainer's PR review and merge remain separate from implementation completion.
 
 ### P02d-7 Step 1 — shared demo lifecycle (2026-10-11)
 
-**Implementation recorded; review rounds and complete startup proof pending.**
+**Implementation/startup and round 1 fixes verified; round 2 pending.**
 The foreground `make demo` supervisor shares explicit Compose selection,
 PostgreSQL-before-migration readiness, full seven-service/both-realm admission,
 contextual seeding, production builds and owned process cleanup. Local data is
@@ -5869,19 +5869,45 @@ All 1,705 unit, 198 architecture, four contract, nine focused integration and
 includes eight manifest/configuration cases and the real-API/PostgreSQL local
 launcher proof without a PlatformAdmin credential. The guarded frontend runner
 passes 1,413 cases without skips/todos; the final 13-case focused suite also
-covers structured API-listener readiness and an invocation-owned native cache. Lint and typecheck pass. Node controls cover
+covers structured API-listener readiness and an invocation-owned native cache.
+Lint and typecheck pass. Node controls cover
 explicit selection, readiness refusal, runtime credential isolation, foreign
 listeners, bounded bodies, certificate mismatch, real process timeout/cancellation
-and owned trees. Complete startup and independent reviews remain pending.
+and owned trees. These initial checks precede the complete startup and review
+evidence below.
 
-**Runtime prerequisite discovered.** An owned temporary test copy correctly
-refused a foreign API listener on 5080; the same project's PostgreSQL occupied
-5432. No foreign process was stopped before approval and no complete demo pass
-was claimed. The maintainer authorized temporarily stopping the two containers
-on 2026-10-11 and restarting them after validation. The full isolated run is in
-progress; local volumes are retained. The existing LearnStack PostgreSQL/Keycloak
-cannot run concurrently on the occupied database port. Startup, repeat-convergence
-and teardown proof remain Step 1 closure requirements.
+**Complete isolated lifecycle proof.** An owned temporary checkout copy starts
+all seven services with the e2e overlay, passes both realm gates, applies every
+migration chain and seeds through the application role. Its owned production
+API/native renderer passes positive lesson checks in all three seed host/locale
+lanes. Re-running the ordinary Seeder leaves the nonempty audit count unchanged.
+Teardown confirms process/project absence, removes its private configuration,
+certificate tree and lock, and releases the API/web listeners. This is a Step 1
+startup/neutrality/cleanup proof; it is not Step 3 browser/Lighthouse evidence.
+
+**Workstation port prerequisite.** The first attempt correctly refused occupied
+5080/5432 ports. After explicit maintainer authorization on 2026-10-11, the two
+foreign containers were stopped only for validation and restarted afterward;
+both returned healthy. LearnStack volumes remain intact. Its local PostgreSQL
+and Keycloak cannot run concurrently while the foreign database retains 5432;
+no port mapping or foreign project configuration was changed.
+
+**Step 1 review round 1 — `3160714..82459cb`.** Fresh GPT-6-astra and
+GPT-6.1-sol reviewers independently covered the full diff through lifecycle/
+security and evidence/corpus lenses. Four distinct findings were verified:
+selected-env migration fallback, terminal hangup cleanup, split UTF-8/byte-bound
+capture and restricted-course marketing exclusions in the demo manifest.
+Corrections add actual Make/configuration, process/signal/parent, split-output
+and marketing-disjoint controls. Combined seeding now rejects disagreeing ambient
+credentials before stack/migration actions. Default-service enumeration is shared
+as reinforcement; the suspected gated-port defect was not reproduced. The
+suspected parallel prerequisite race was rejected because global `.NOTPARALLEL`
+already serializes those acts. The 18-case focused suite, typecheck, eight
+manifest/configuration cases and all 198 architecture cases pass. Lint and the
+guarded frontend run pass all 1,420 cases with zero skips/todos. The complete
+isolated lifecycle rerun also passes real SIGHUP/repeated-signal cleanup and
+listener release. The two authorized foreign containers return healthy afterward.
+Round 2 remains pending.
 
 ### P02d-1 decision pass (2026-09-14)
 

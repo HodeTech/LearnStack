@@ -35,7 +35,9 @@ public static class DemoManifest
                 lanes.Add(new(tenant.Host, locale.Locale, tenant.DisplayName, translation.Title, lessonTranslation.Title,
                     prefix, $"{prefix}/{translation.Slug}", $"{prefix}/{translation.Slug}/lessons/{lessonTranslation.Slug}",
                     fields, theme.RootElement.EnumerateObject().ToDictionary(row => row.Name, row => row.Value.GetString()!),
-                    curriculum.Courses.Where(row => row.Status != "Published" || row.ContentAccess != "public"
+                    // Restricted courses retain public marketing; only lesson
+                    // bodies require access. Never classify their titles as leaks.
+                    curriculum.Courses.Where(row => row.Status != "Published"
                         || (row.OrganizationId is not null && row.OrganizationId != hostOrganization))
                         .SelectMany(row => row.Translations.Select(value => value.Title))
                         .Concat(SeedData.All.Where(row => row.TenantId != tenant.TenantId)

@@ -5,12 +5,17 @@ import { composeSelection } from './compose.mjs';
 import { DemoProcesses } from './demo-process.mjs';
 import { boundedBody } from './demo-http.mjs';
 
-export function healthyServices(model, rows, postgresOnly = false) {
+export function defaultServices(model) {
   const expected = Object.keys(model.services).filter(
     (key) => !model.services[key].profiles?.length,
   );
   if (expected.length !== 7 || !expected.includes('postgres') || !expected.includes('keycloak'))
     throw new Error('Default Compose inventory must contain the accepted seven services');
+  return expected;
+}
+
+export function healthyServices(model, rows, postgresOnly = false) {
+  const expected = defaultServices(model);
   const selected = postgresOnly ? ['postgres'] : expected;
   if (
     !postgresOnly &&

@@ -15,9 +15,9 @@ import { getCACertificates } from 'node:tls';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { composeSelection, repositoryRoot } from './compose.mjs';
-import { DemoCommandError, DemoProcesses } from './demo-process.mjs';
+import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { demoRequest, vacant } from './demo-http.mjs';
-import { waitCompose } from './wait-compose.mjs';
+import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
@@ -65,23 +65,11 @@ export async function startDemo(mode) {
   let locked = false;
   let disposed;
   let signalRequested = false;
-  const handlers = [];
-  const parent = process.ppid;
   const cancel = () => {
     signalRequested = true;
     controller.abort();
   };
-  for (const event of ['SIGINT', 'SIGTERM']) {
-    process.on(event, cancel);
-    handlers.push(() => process.off(event, cancel));
-  }
-  for (const stream of [process.stdout, process.stderr]) {
-    stream.on('error', cancel);
-    handlers.push(() => stream.off('error', cancel));
-  }
-  const parentWatch = setInterval(() => {
-    if (process.ppid !== parent) cancel();
-  }, 500);
+  const removeCancellation = installDemoCancellation(cancel);
   const run = (command, args, label, options = {}) =>
     processes.run(command, args, {
       cwd: repositoryRoot,
@@ -98,46 +86,49 @@ export async function startDemo(mode) {
   async function dispose() {
     disposed ??= (async () => {
       controller.abort();
-      clearInterval(parentWatch);
-      for (const remove of handlers) remove();
-      await processes.dispose();
-      // Cleanup has a separate signal: cancellation must not cancel teardown.
-      if (mode === 'ci' && startedStack) {
-        const cleanup = new DemoProcesses(new AbortController().signal);
-        try {
-          await cleanup.run(
-            'docker',
-            [...selected.args, '--profile', '*', 'down', '--volumes', '--remove-orphans'],
-            {
-              cwd: selected.cwd,
-              env: selected.env,
-              label: 'Owned Compose teardown',
-              timeout: 20000,
-            },
-          );
-          const remaining = await cleanup.run(
-            'docker',
-            [...selected.args, '--profile', '*', 'ps', '-a', '-q'],
-            {
-              cwd: selected.cwd,
-              env: selected.env,
-              label: 'Owned Compose teardown verification',
-              capture: true,
-              timeout: 5000,
-            },
-          );
-          if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
-        } finally {
-          await cleanup.dispose();
+      try {
+        await processes.dispose();
+        // Cleanup has a separate signal: cancellation must not cancel teardown.
+        if (mode === 'ci' && startedStack) {
+          const cleanup = new DemoProcesses(new AbortController().signal);
+          try {
+            await cleanup.run(
+              'docker',
+              [...selected.args, '--profile', '*', 'down', '--volumes', '--remove-orphans'],
+              {
+                cwd: selected.cwd,
+                env: selected.env,
+                label: 'Owned Compose teardown',
+                timeout: 20000,
+              },
+            );
+            const remaining = await cleanup.run(
+              'docker',
+              [...selected.args, '--profile', '*', 'ps', '-a', '-q'],
+              {
+                cwd: selected.cwd,
+                env: selected.env,
+                label: 'Owned Compose teardown verification',
+                capture: true,
+                timeout: 5000,
+              },
+            );
+            if (remaining.trim()) throw new Error('Owned Compose cleanup incomplete');
+          } finally {
+            await cleanup.dispose();
+          }
         }
+        if (ownedEnvironment !== undefined) {
+          if (readFileSync(rootEnv, 'utf8') !== ownedEnvironment)
+            throw new Error('CI environment changed; private files retained');
+          unlinkSync(rootEnv);
+        }
+        if (privateRoot) rmSync(privateRoot, { recursive: true });
+        if (locked) rmSync(lock, { recursive: true });
+      } finally {
+        // Repeated terminal signals must not interrupt asynchronous teardown.
+        removeCancellation();
       }
-      if (ownedEnvironment !== undefined) {
-        if (readFileSync(rootEnv, 'utf8') !== ownedEnvironment)
-          throw new Error('CI environment changed; private files retained');
-        unlinkSync(rootEnv);
-      }
-      if (privateRoot) rmSync(privateRoot, { recursive: true });
-      if (locked) rmSync(lock, { recursive: true });
     })();
     return disposed;
   }
@@ -330,7 +321,8 @@ export async function startDemo(mode) {
       .split('\n')
       .filter(Boolean);
     if (mode === 'ci' && existingRows.length) throw new Error('CI project must be unoccupied');
-    for (const [service, description] of Object.entries(composeModel.services)) {
+    for (const service of defaultServices(composeModel)) {
+      const description = composeModel.services[service];
       if (mode === 'local' && existingRows.includes(service)) continue;
       for (const port of description.ports ?? [])
         if (port.protocol === 'tcp' && /^\d+$/.test(String(port.published)))

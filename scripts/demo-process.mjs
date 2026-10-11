@@ -8,6 +8,27 @@ export class DemoCommandError extends Error {
   }
 }
 
+/** Terminal hangup and parent loss must enter the same owned teardown path. */
+export function installDemoCancellation(cancel) {
+  const removers = [];
+  const parent = process.ppid;
+  for (const event of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.on(event, cancel);
+    removers.push(() => process.off(event, cancel));
+  }
+  for (const stream of [process.stdout, process.stderr]) {
+    stream.on('error', cancel);
+    removers.push(() => stream.off('error', cancel));
+  }
+  const parentWatch = setInterval(() => {
+    if (process.ppid !== parent) cancel();
+  }, 500);
+  return () => {
+    clearInterval(parentWatch);
+    for (const remove of removers) remove();
+  };
+}
+
 /** Own every command tree, including setup commands, from spawn until confirmed exit. */
 export class DemoProcesses {
   #children = new Set();
@@ -35,7 +56,8 @@ export class DemoProcesses {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     this.#children.add(child);
-    let output = '';
+    const output = [];
+    let outputBytes = 0;
     let failed;
     for (const stream of [child.stdout, child.stderr]) {
       stream.once('error', () => {
@@ -46,9 +68,9 @@ export class DemoProcesses {
         try {
           observe(chunk);
           if (capture && stream === child.stdout) {
-            if (output.length + chunk.length > 2 * 1024 * 1024)
-              throw new Error('Command output exceeds bound');
-            output += chunk.toString();
+            outputBytes += chunk.length;
+            if (outputBytes > 2 * 1024 * 1024) throw new Error('Command output exceeds bound');
+            output.push(chunk);
           }
         } catch {
           failed = new Error(`${label} output refused`);
@@ -60,7 +82,11 @@ export class DemoProcesses {
       child.once('error', () => resolve({ code: 1 }));
       child.once('close', (code) => resolve({ code: code ?? 1 }));
     });
-    return { child, exit, result: () => ({ output, failed }) };
+    return {
+      child,
+      exit,
+      result: () => ({ output: Buffer.concat(output).toString('utf8'), failed }),
+    };
   }
   daemon(command, args, options) {
     const running = this.start(command, args, options);

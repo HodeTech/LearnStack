@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpsServer } from 'node:https';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,7 +16,7 @@ import {
   publicApiEnvironment,
   publicWebEnvironment,
 } from '../../../../../scripts/public-runtime.mjs';
-import { healthyServices } from '../../../../../scripts/wait-compose.mjs';
+import { defaultServices, healthyServices } from '../../../../../scripts/wait-compose.mjs';
 
 const roots: string[] = [];
 const owners: DemoProcesses[] = [];
@@ -36,6 +36,73 @@ function owner(signal = new AbortController().signal) {
 }
 
 describe('shared explicit demo stack selection', () => {
+  it('refuses stale ambient seed credentials before stack or database actions', () => {
+    const root = temporary();
+    mkdirSync(join(root, 'scripts'));
+    const script = join(root, 'scripts/seed.sh');
+    writeFileSync(script, readFileSync(new URL('../../../../../scripts/seed.sh', import.meta.url)));
+    const migration = 'Host=localhost;Username=learnstack_migration';
+    const app = 'Host=localhost;Username=learnstack_app';
+    writeFileSync(
+      join(root, 'selected.env'),
+      `ConnectionStrings__Migration=${migration}\nConnectionStrings__Default=${app}\n`,
+    );
+    const env = {
+      PATH: process.env.PATH,
+      LEARNSTACK_COMPOSE_ENV_FILE: 'selected.env',
+      ConnectionStrings__Migration: migration,
+      ConnectionStrings__Default: app,
+    };
+    const run = (environment: Record<string, string | undefined>) =>
+      spawnSync('bash', [script, '--validate-config'], {
+        cwd: root,
+        env: { ...environment, NODE_ENV: 'test' },
+        encoding: 'utf8',
+        timeout: 5000,
+      });
+    expect(run(env).status).toBe(0);
+    for (const key of ['ConnectionStrings__Migration', 'ConnectionStrings__Default']) {
+      const result = run({ ...env, [key]: 'Host=foreign;Username=stale' });
+      expect(result.error).toBeUndefined();
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('disagrees');
+      expect(result.stderr).not.toContain('foreign');
+    }
+  });
+  it('reads the selected migration env file and refuses its runtime role before any database act', () => {
+    const root = temporary();
+    writeFileSync(
+      join(root, 'Makefile'),
+      readFileSync(new URL('../../../../../Makefile', import.meta.url)),
+    );
+    mkdirSync(join(root, 'scripts'));
+    writeFileSync(
+      join(root, 'scripts/connection-string.awk'),
+      readFileSync(new URL('../../../../../scripts/connection-string.awk', import.meta.url)),
+    );
+    writeFileSync(
+      join(root, '.env'),
+      'ConnectionStrings__Migration=Username=learnstack_platform\n',
+    );
+    writeFileSync(
+      join(root, 'alternate.env'),
+      'ConnectionStrings__Migration=Username=learnstack_app\n',
+    );
+    const result = spawnSync('make', ['migrate'], {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH,
+        NODE_ENV: 'test',
+        LEARNSTACK_COMPOSE_ENV_FILE: 'alternate.env',
+      },
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("Username='learnstack_app'");
+    expect(result.stdout).not.toContain("Username='learnstack_platform'");
+  });
   it('accepts only the owned API address in a structured hosting lifetime event', () => {
     const origin = 'http://127.0.0.1:5080';
     const event = { SourceContext: 'Microsoft.Hosting.Lifetime', address: origin };
@@ -98,6 +165,9 @@ describe('shared explicit demo stack selection', () => {
       services: Object.fromEntries(names.map((name) => [name, { healthcheck: {} }])),
     };
     const rows = names.map((name) => ({ Service: name, State: 'running', Health: 'healthy' }));
+    const withGated = { services: { ...model.services, gated: { profiles: ['gated'] } } };
+    expect(defaultServices(withGated)).toEqual(names);
+    expect(healthyServices(withGated, rows)).toBe(true);
     expect(healthyServices(model, rows.slice(0, 1), true)).toBe(true);
     expect(healthyServices(model, rows)).toBe(true);
     expect(healthyServices(model, rows.slice(0, -1))).toBe(false);
@@ -252,6 +322,91 @@ describe('demo runtime boundaries', () => {
 });
 
 describe('owned real process lifecycle', () => {
+  it('captures split multibyte stdout intact and bounds accumulated bytes', async () => {
+    const processes = owner();
+    let observed: (chunk: Buffer) => void = () => {};
+    const first = new Promise<Buffer>((resolve) => {
+      observed = resolve;
+    });
+    const running = processes.start(
+      process.execPath,
+      [
+        '-e',
+        `
+      const text=Buffer.from('Ağaç duruşu');
+      const keepAlive=setInterval(()=>{},1000);
+      process.once('SIGUSR2',()=>{clearInterval(keepAlive);process.stdout.write(text.subarray(2));});
+      process.stdout.write(text.subarray(0,2));
+    `,
+      ],
+      { capture: true, label: 'Split UTF-8 control', observe: observed },
+    );
+    expect((await first).length).toBe(2);
+    running.child.kill('SIGUSR2');
+    expect((await running.exit).code).toBe(0);
+    expect(running.result().output).toBe('Ağaç duruşu');
+    await processes.dispose();
+    await expect(
+      owner().run(
+        process.execPath,
+        ['-e', "process.stdout.write(Buffer.from('ğ'.repeat(1024*1024+1)));"],
+        { capture: true, label: 'Byte bound control' },
+      ),
+    ).rejects.toThrow();
+  });
+  it('routes real terminal hangup through the supervisor cancellation path', async () => {
+    const processes = owner();
+    let ready: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const moduleUrl = new URL('../../../../../scripts/demo-process.mjs', import.meta.url).href;
+    const running = processes.start(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+      import {installDemoCancellation} from ${JSON.stringify(moduleUrl)};
+      const remove=installDemoCancellation(()=>{console.log('cancelled');remove();});
+      console.log('ready');
+    `,
+      ],
+      {
+        capture: true,
+        observe: (chunk) => {
+          if (chunk.toString().includes('ready')) ready();
+        },
+      },
+    );
+    await started;
+    running.child.kill('SIGHUP');
+    expect((await running.exit).code).toBe(0);
+    expect(running.result().output).toContain('cancelled');
+  });
+  it('cancels when the actual parent exits and leaves no owned group behind', async () => {
+    const moduleUrl = new URL('../../../../../scripts/demo-process.mjs', import.meta.url).href;
+    const watcher = `
+      import {installDemoCancellation} from ${JSON.stringify(moduleUrl)};
+      const remove=installDemoCancellation(()=>{console.log('parent-loss handled');remove();});
+      process.send('ready');
+    `;
+    const output = await owner().run(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+      import {spawn} from 'node:child_process';
+      const child=spawn(process.execPath,['--input-type=module','-e',${JSON.stringify(watcher)}],
+        {stdio:['ignore','inherit','inherit','ipc']});
+      child.once('message',()=>process.exit(0));
+    `,
+      ],
+      { capture: true, label: 'Parent-loss control', timeout: 3000 },
+    );
+    expect(output).toContain('parent-loss handled');
+  });
   it('joins a daemon and its descendant, and closes ownership against later spawns', async () => {
     const processes = owner();
     let release: (pid: number) => void = () => {};
@@ -266,8 +421,15 @@ describe('owned real process lifecycle', () => {
         `
       const {spawn}=require('node:child_process');
       const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});
+      let stopping=false;
+      const finish=()=>{if(stopping) process.exit(0);};
+      child.once('exit',finish);
+      process.on('SIGTERM',()=>{
+        stopping=true;
+        if(child.exitCode!==null || child.signalCode!==null) finish();
+        else child.kill('SIGTERM');
+      });
       console.log(child.pid);
-      process.on('SIGTERM',()=>{child.once('exit',()=>process.exit(0));child.kill('SIGTERM');});
       setInterval(()=>{},1000);
     `,
       ],

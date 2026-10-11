@@ -176,8 +176,9 @@ migrate: ## Apply every EF migration chain (platform + each module) as `learnsta
 	@#    `database update` is a no-op, but a recipe that prints the same chain
 	@#    twice reads like a bug in the recipe.
 	@migration_cs="$${ConnectionStrings__Migration:-}"; \
-	if [ -z "$$migration_cs" ] && [ -f .env ]; then \
-		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" .env \
+	migration_env="$${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"; \
+	if [ -z "$$migration_cs" ] && [ -f "$$migration_env" ]; then \
+		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" "$$migration_env" \
 			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
 	fi; \
 	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
@@ -297,8 +298,11 @@ wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
 	node scripts/wait-compose.mjs --postgres
 
 # ─── Seed ─────────────────────────────────────────────────────────────────
-.PHONY: seed
-seed: dev wait-postgres migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
+.PHONY: seed seed-config
+seed-config: .env
+	./scripts/seed.sh --validate-config
+
+seed: seed-config dev wait-postgres migrate ## Bring the stack up, apply migrations, seed demo data (idempotent).
 	./scripts/seed.sh
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────

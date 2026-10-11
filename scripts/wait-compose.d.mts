@@ -1,3 +1,6 @@
+export function defaultServices(model: {
+  services: Record<string, { profiles?: string[] }>;
+}): string[];
 export function healthyServices(
   model: {
     services: Record<string, { profiles?: string[]; healthcheck?: { disable?: boolean } }>;

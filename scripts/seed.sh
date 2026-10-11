@@ -27,6 +27,33 @@
 
 set -eu -o pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# The combined lifecycle must never start one database and migrate/seed another
+# through stale exported connection strings. Standalone `make migrate` retains
+# its explicit connection override; `make seed` validates before any stack act.
+if [[ $# -gt 1 || ($# -eq 1 && "$1" != "--validate-config") ]]; then
+    echo "seed: unsupported arguments." >&2
+    exit 2
+fi
+seed_env="${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"
+if [[ ! -f "$seed_env" ]]; then
+    echo "seed: selected environment file is missing." >&2
+    exit 1
+fi
+for _suffix in Migration Default; do
+    _name="ConnectionStrings__${_suffix}"
+    _selected=$(sed -n "s/^${_name}=//p" "$seed_env" \
+        | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
+    _ambient="${!_name:-}"
+    if [[ -z "$_selected" || (-n "$_ambient" && "$_ambient" != "$_selected") ]]; then
+        echo "seed: connection configuration disagrees with the selected environment." >&2
+        exit 1
+    fi
+done
+if [[ "${1:-}" == "--validate-config" ]]; then exit 0; fi
+
 # Readiness uses Node for bounded Compose and exact OIDC issuer checks.
 for _dep in docker node dotnet; do
     if ! command -v "$_dep" >/dev/null 2>&1; then
@@ -43,9 +70,6 @@ if ! docker compose version >/dev/null 2>&1; then
     echo "      The standalone 'docker-compose' binary is V1 and is not a substitute." >&2
     exit 1
 fi
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
 
 # One explicit selection is shared with make/demo; readiness has real command
 # and HTTP deadlines, plus exact service and both-realm issuer checks.
@@ -71,7 +95,6 @@ cyan "▶ Step 3/3: seeding the two demo tenants"
 # and this mirrors its reader, CR-strip and quote-strip included: .env.example
 # single-quotes the values.
 seed_cs="${ConnectionStrings__Default:-}"
-seed_env="${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"
 if [[ -z "$seed_cs" && -f "$seed_env" ]]; then
     seed_cs=$(sed -n "s/^ConnectionStrings__Default=//p" "$seed_env" \
         | tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$//")
