@@ -80,6 +80,15 @@ export function demoIdentityFindings(
       ts.forEachChild(node, visit);
     };
     visit(file);
+    if (/\.[jt]sx$/.test(path)) {
+      // TypeScript emits JSX entity decoding and whitespace exactly as runtime
+      // strings. Reading the emitted tree avoids inventing a second JSX parser.
+      const emitted = ts.transpileModule(source, {
+        compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext },
+        fileName: path,
+      }).outputText;
+      visit(ts.createSourceFile('jsx.js', emitted, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS));
+    }
   }
   return [
     ...new Set(values.filter((value) => identities.has(value) || ids.has(guid(value)))),

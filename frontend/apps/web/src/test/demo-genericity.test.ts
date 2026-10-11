@@ -6,27 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { demoIdentityFindings } from './demo-genericity-analysis';
+import { productionDemoSources } from './demo-genericity-sources';
 import vocabulary from './fixtures/demo-identities.json';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
-// These are test-owned proof/fixture implementations, not runtime directories.
-const testScripts = new Set([
-  'frontend/apps/web/scripts/fixture-support.mjs',
-  'frontend/apps/web/scripts/public-rendering-assertions.mjs',
-  'frontend/apps/web/scripts/stop-test-child.mjs',
-  'frontend/apps/web/scripts/verify-ingress.mjs',
-  'frontend/apps/web/scripts/verify-ingress-cleanup.mjs',
-  'frontend/apps/web/scripts/verify-ingress-controls.mjs',
-  'frontend/apps/web/scripts/verify-public-admission.mjs',
-  'frontend/apps/web/scripts/verify-public-rendering.mjs',
-  'frontend/apps/web/scripts/admission-browser.mjs',
-  'frontend/apps/web/scripts/admission-completion.mjs',
-  'frontend/apps/web/scripts/admission-hmr.mjs',
-  'frontend/apps/web/scripts/admission-hmr-watch.mjs',
-  'frontend/apps/web/scripts/development-hmr.mjs',
-]);
-const developmentData = new Set(['scripts/public-local.mjs']);
-
 function productionSources(): Map<string, string> {
   const files = new Map<string, string>();
   const visit = (directory: string) => {
@@ -36,25 +19,11 @@ function productionSources(): Map<string, string> {
       if (entry.isSymbolicLink() && entry.name !== 'node_modules')
         throw new Error(`Unmodeled production symlink: ${name}`);
       if (entry.isDirectory()) {
-        if (
-          ![
-            'node_modules',
-            '.next',
-            '.server',
-            'dist',
-            'coverage',
-            'test',
-            '__tests__',
-            '__fixtures__',
-            'fixtures',
-          ].includes(entry.name)
-        )
+        if (!['node_modules', '.next', '.server', 'dist', 'coverage'].includes(entry.name))
           visit(path);
       } else if (
         /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name) &&
-        !/\.(?:test|spec|d)\.[cm]?[jt]sx?$/.test(entry.name) &&
-        !testScripts.has(name) &&
-        !developmentData.has(name)
+        !/\.d\.[cm]?[jt]sx?$/.test(entry.name)
       ) {
         files.set(name, readFileSync(path, 'utf8'));
       }
@@ -62,7 +31,7 @@ function productionSources(): Map<string, string> {
   };
   visit(join(root, 'frontend'));
   visit(join(root, 'scripts'));
-  return files;
+  return productionDemoSources(files);
 }
 
 describe('P02d-7 exact demo identity boundary', () => {
@@ -77,6 +46,8 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/i18n/messages/en/public.json',
       'frontend/packages/sdk/src/server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
+      'frontend/apps/web/scripts/development-hmr.mjs',
+      'frontend/apps/web/scripts/stop-test-child.mjs',
       'scripts/demo.mjs',
     ])
       expect(files.has(path), `Production census includes ${path}`).toBe(true);
@@ -154,8 +125,55 @@ describe('P02d-7 exact demo identity boundary', () => {
       expect(
         demoIdentityFindings('probe.ts', `const x = ${JSON.stringify(value)};`, vocabulary),
       ).toEqual([]);
-    expect(testScripts.has('frontend/apps/web/scripts/public-server.mjs')).toBe(false);
-    expect(developmentData.has('scripts/demo.mjs')).toBe(false);
+  });
+  it('reads emitted JSX text, attributes and entities without decoding ordinary strings', () => {
+    for (const body of [
+      `<h1>${identity}</h1>`,
+      `<h1 title="${identity.replace(' ', '&#32;')}">generic</h1>`,
+      `<h1 title="${identity.replace(' ', '&#x20;')}">generic</h1>`,
+      `<h1>\n  ${identity}\n</h1>`,
+    ])
+      expect(demoIdentityFindings('probe.tsx', `const view = ${body};`, vocabulary)).toEqual([
+        identity,
+      ]);
+    expect(
+      demoIdentityFindings('probe.tsx', 'const view = <h1>independent</h1>;', vocabulary),
+    ).toEqual([]);
+    expect(
+      demoIdentityFindings(
+        'probe.tsx',
+        `const value = "${identity.replace(' ', '&#32;')}";`,
+        vocabulary,
+      ),
+    ).toEqual([]);
+  });
+  it('keeps nested runtime fixture helpers and follows runtime imports into test exclusions', () => {
+    const entry = 'frontend/apps/web/scripts/public-server.mjs';
+    for (const helper of [
+      'fixtures/select-theme.mjs',
+      'test/select-theme.mjs',
+      'select-theme.test.mjs',
+      '../src/test/select-theme.ts',
+      'verify-public-rendering.mjs',
+    ]) {
+      const target = relative(root, resolve(root, dirname(entry), helper)).replaceAll('\\', '/');
+      const files = productionDemoSources(
+        new Map([
+          [entry, `import { special } from './${helper}';`],
+          [target, `export const special = name => name === ${JSON.stringify(identity)};`],
+          [
+            'frontend/apps/web/src/test/unrelated.test.ts',
+            `const fixture = ${JSON.stringify(identity)};`,
+          ],
+        ]),
+      );
+      expect(files.has(entry)).toBe(true);
+      expect(files.has(target)).toBe(true);
+      expect(files.has('frontend/apps/web/src/test/unrelated.test.ts')).toBe(false);
+      expect(
+        [...files].flatMap(([path, source]) => demoIdentityFindings(path, source, vocabulary)),
+      ).toEqual([identity]);
+    }
   });
   it('fails loudly on unreadable sources and an empty or malformed vocabulary', () => {
     expect(() => demoIdentityFindings('probe.ts', 'const = ;', vocabulary)).toThrow('Unreadable');

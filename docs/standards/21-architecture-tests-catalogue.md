@@ -668,7 +668,11 @@ otherwise).
   come from their owning declarations. Production census includes Seeder
   orchestration, frontend packages/messages/configuration/native code; only the
   exact seed declaration and named test/development data are exempt. Complete
-  decoded values match ordinally; GUIDs match by value. The rule does not claim
+  decoded values match ordinally; GUIDs match by value. C# conditional branches
+  and UTF-8 literals and emitted JSX text/attribute values are included. Frontend
+  runtime imports cannot hide helpers behind test filenames or directories;
+  exact standalone proof/development entries retain their bounded exemptions.
+  The rule does not claim
   to prove dynamically assembled identities.
   `Production_Projects_Do_Not_Reference_The_Seeder`
   reads every non-Seeder production assembly and restore graph. Its compiled

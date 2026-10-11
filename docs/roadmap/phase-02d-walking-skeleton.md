@@ -5969,6 +5969,19 @@ HTML and Flight, successor/rebinding, original pins and the unaffected tenant.
 Lint, typecheck, formatting and all 1,442 guarded frontend cases pass with zero
 skips/todos. This is not Step 3 browser/Lighthouse evidence.
 
+**Review round 1.** Fresh GPT-6-astra and GPT-6.1-sol reviewers independently
+checked backend identity/reference coverage and frontend subjects/behavioral
+controls. Four verified omissions were fixed: conditional C# branches, UTF-8
+literals, emitted JSX values and runtime helpers hidden by test exemptions.
+The reader now exposes every conditional branch conservatively; incompatible
+combined syntax fails closed. JSX entity/whitespace handling uses TypeScript's
+emitter. Exact test directories replace name-wide directory exclusions, and
+runtime relative imports include helpers even behind test filenames. Native HMR
+and the shared process-stop helper are production subjects. Planted dirty/clean
+controls cover all four findings. Release architecture (203), guarded frontend
+(1,444), lint, typecheck, formatting and the documentation link audit pass.
+Second-round review follows the fix commit.
+
 #### P02d-7 preliminary exit evidence inventory
 
 This is an inventory, not a phase-exit verdict. Step 4 reconciles every individual
