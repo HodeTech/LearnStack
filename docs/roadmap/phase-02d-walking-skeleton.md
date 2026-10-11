@@ -1,6 +1,9 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-11).** Phase 02d **in progress**. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-11).** Phase 02d implementation and exit verification are
+> **complete**; [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
+> maintainer review and merge. The [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+> records the evidence and live protection read-back. The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -15,7 +18,7 @@
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
-> | P02d-7 | Demo, full-stack CI and exit | decision pass Accepted — 2026-10-11; [decision package](#p02d-7-decision-package-2026-10-10); Steps 1–3 complete; [Step 4](#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11) in progress |
+> | P02d-7 | Demo, full-stack CI and exit | ✅ implementation and exit verification complete — 2026-10-11; all four steps completed both independent review rounds; [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11); PR #28 review/merge pending |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -6173,7 +6176,9 @@ complete. Step 4 owns CI enforcement and phase exit; neither is claimed here.
 
 ### P02d-7 Step 4 — CI enforcement and phase exit (2026-10-11)
 
-**Implementation and both independent review rounds complete; real CI pending.**
+**Implementation, both independent review rounds and real CI complete.** The
+[CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11) records
+successful artifacts and the activated seventh required context.
 The always-running `public demo + lighthouse` job replaces the disabled
 placeholder. It installs the exact locked browser tools and managed Chromium,
 then invokes `make demo DEMO_MODE=ci` over the shared seven-service lifecycle.
@@ -6184,7 +6189,7 @@ JSON/HTML reports, screenshots and sanitized workflow/proof receipts.
 
 The [individual exit evidence matrix](phase-02d-exit-evidence.md) maps all
 36 Deliverables, 79 Completion Criteria, 39 exclusions and nine exit obligations.
-It preserves prior human/PR evidence and names outstanding final CI receipts;
+It preserves prior human/PR evidence and names the verified CI receipts;
 implementation alone does not constitute phase exit.
 
 **Criterion reconciliation.** Published roots cannot receive new translations
@@ -6283,6 +6288,71 @@ navigation additions. Fenced and inline examples are excluded from link counts.
 Both review rounds and verified fixes are complete. Actual successful Linux PR
 CI, complete artifact receipts and authorized protection activation/read-back
 remain required before a positive phase-exit verdict.
+
+#### P02d-7 CI and phase-exit closeout (2026-10-11)
+
+**Verdict: implementation and Phase 02d exit verification complete.** All four
+P7 steps completed both fresh independent review rounds; verified findings are
+fixed and committed. [PR #28](https://github.com/HodeTech/LearnStack/pull/28)
+remains open for maintainer review and merge. No merge is claimed.
+
+All seven jobs passed in the first real
+[PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383) for source
+head `8605fc94f7ba343d5cd7cc15d28001d99349735b`. GitHub tested synthetic merge
+`15109c3a80a41ee7b6d6f9832880c7b2b13877f5`, whose parents are that source and
+main `378346126949c90bb286b5217c24513fc2044f06`. The sanitized workflow receipt
+records both identities. Downloaded TRX files confirm 1,705 unit, 203 architecture,
+four contract, 180 Docker-free integration and 872 Docker integration passes:
+2,964 backend tests, zero failures/skips. All three locale/branding/combined-scope
+cases are present and Passed. Frontend job output confirms 1,444 web + 60 SDK
+passes, zero failures/skips/todos; typecheck, lint, builds and SDK drift pass.
+Meta, secret scan and OpenAPI compatibility pass too.
+
+The `public-demo-lighthouse` artifact contains exactly 27 JSON/HTML report pairs,
+nine screenshots and two sanitized receipts; no private logs, profiles, env files
+or keys are included. Report digests, nine URL/three-run census, configuration,
+invocation, build and synthetic checkout identities match. The invocation is
+`aab02c37c71c02569f71ef8829a96c09`; build is `yTmMjFs6JVE2ea_W-jFzX`.
+Node 22.23.1, Lighthouse 13.5.0, Playwright 1.64.0 and Chromium revision 1248 /
+156.0.8078.4 run on the four-CPU Ubuntu 24 hosted runner. Its sandbox-enabled
+launch passes with the exact-executable temporary AppArmor prerequisite;
+the owned policy removal passes afterward.
+
+All nine linked navigations and 24 planted visibility refusals pass. Every audit
+has normalized initial JS gzip 106,359–106,553 bytes, CLS 0 and automated
+accessibility 1. Per-URL timing medians remain advisory, not production p95.
+All 134 API observations are 200, with zero 429, malformed or pending records:
+six startup + two observer-control + 18 linked-browser + 3 × 36 audit calls.
+Both TLS refusal controls and the actual audit-timeout control pass. Keycloak is
+stopped before anonymous navigation. Setup/proof/cleanup take
+228,127 / 650,154 / 11,041 ms; the proof stays inside 12 minutes and cleanup
+inside 30 seconds. The complete job takes 15 minutes 51 seconds, within its
+20-minute ceiling and absolute setup/proof deadline.
+
+After that successful run, the authorized API update adds only
+`public demo + lighthouse` to main's required contexts. A fresh full read-back
+confirms seven GitHub Actions contexts (`app_id: 15368`), strict up-to-date
+checking, all six prior contexts retained and every unrelated protection setting
+identical to the immediately preceding API response. The current list lives in
+[CONTRIBUTING](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main).
+
+The [individual evidence matrix](phase-02d-exit-evidence.md) reconciles all
+36 deliverables, 79 criteria, 39 explicit exclusions and E01–E09. All 45 register
+rows have dated Accepted closure links; no Phase 02d-owned Registered/Awaiting
+catalogue rule remains. All four ADR-0056 rules are Implemented; corpus checks
+confirm 175 Implemented catalogue entries and 21 Active/one Adopted standards.
+The existing P6 human/VoiceOver evidence retains its original attribution and
+limits; this closeout claims no new final-head manual WCAG or zoom audit.
+Phase 05 preservation and P02b-0 premises are handed off above and in their
+owning documents; no future-phase decision is accepted by this exit.
+Closing-document checks pass all five CorpusConsistencyTests with zero skips;
+the 33 changed/new Markdown files resolve 2,197 relative links and 694 fragments
+with no errors. Added prose respects 88 columns; ADR-0056 changes are insertion-only.
+
+Closing documentation commits must also pass the seven required jobs before
+merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
+owns that moving-head result. Next after maintainer review and merge is
+**P02b-0 re-verification and decision pass**, before Phase 02b implementation.
 
 ### P02d-1 decision pass (2026-09-14)
 

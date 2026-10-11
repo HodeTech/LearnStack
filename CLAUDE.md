@@ -64,7 +64,8 @@ so a status header, a
 catalogue entry, a published count or a planted `Skip` fails the build rather than a
 reader. The whole .NET suite runs with **zero skips**, which the runner now refuses to
 let change.
-**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) is in progress**: its kickoff
+**[Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) implementation and exit
+verification are complete; PR #28 review and merge remain pending**. Its kickoff
 shipped the packet table and the decision register, and every later packet opens with
 its decision pass. **P02d-1 is complete and merged** through
 [PR #22](https://github.com/HodeTech/LearnStack/pull/22) on 2026-09-14. Education's
@@ -155,9 +156,13 @@ independent review rounds; the
 owns browser/audit implementation, passing complete local reruns and both
 completed Step 3 review rounds. The
 [Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
-owns CI enforcement, individual exit reconciliation and the outstanding real PR/
-protection receipts. Step 4 implementation and reviews are in progress.
-Phase 02d remains in progress; Phase 06 retains the full renderer/Studio expansion.
+owns CI enforcement, completed reviews and individual exit reconciliation. Its
+[CI and exit closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+verifies all seven real PR jobs, complete artifacts and live seventh-check
+activation with all other protection settings preserved. All four steps completed
+both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
+maintainer review and merge. P02b-0 re-verification/decision pass is next afterward;
+Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

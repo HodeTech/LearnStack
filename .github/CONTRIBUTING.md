@@ -61,6 +61,14 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       every other protection setting unchanged. The
       [packet delivery record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
       records the successful job and activation proof.
+    - `public demo + lighthouse` — **required since P02d-7, 2026-10-11.** The
+      first complete [real PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
+      passes before activation. Downloaded artifacts confirm all nine pages,
+      27 audits and owned cleanup. Full API read-back confirms seven GitHub
+      Actions contexts, strict up-to-date checking, all six previous contexts
+      retained and every unrelated protection setting unchanged. The
+      [CI and exit closeout](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
+      records execution, artifact validation and activation proof.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
     workspace test runner and native production/cleanup controls. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
@@ -86,13 +94,13 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     normalized gzip/CLS/automated-accessibility checks, real quota observation
     and confirmed cleanup are mandatory. Only public reports/screenshots and
     sanitized receipts are uploaded; raw logs, profiles and private TLS/env files
-    are excluded. The maintainer authorized adding it as the seventh required
-    context only after a complete successful real PR run. The
+    are excluded. The authorized seventh-context activation followed the complete
+    successful real PR run on 2026-10-11. The
     [Step 4 record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
-    owns the actual run and activation/read-back status.
+    owns the actual run and verified activation/read-back.
 
     GitHub matches required checks **by name**. The
-    [packet record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-step-4-contract-sdk-and-ci)
+    [current CI and exit record](../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
     owns execution and dated API read-back; a workflow edit alone is not a
     protection-setting change.
 - **Require conversation resolution before merging**: on.

@@ -2,6 +2,10 @@
 
 ## Status
 
+> **Delivery navigation — 2026-10-11:** [Amendment 1](#amendment-1--p02d-7-enforcement-delivery-2026-10-11)
+> records implemented proofs, passing real PR CI and required-check activation.
+> Pending statements below describe the acceptance baseline.
+
 Accepted
 
 No implementation, passing audit or gate acceptance is claimed.
@@ -294,6 +298,25 @@ Acceptance registers proof obligations, not passing tests or delivered enforceme
 
 These are registered behavioral obligations for that Node/CI proof owner, not
 existing scripts or C# test methods.
+
+## Amendments
+
+### Amendment 1 — P02d-7 enforcement delivery (2026-10-11)
+
+The four-step implementation and both independent review rounds per step are
+complete. All four behavioral rules above are Implemented with named executable
+owners. The shared demo lifecycle supplies the actual linked nine-page browser
+proof and 27 serial cold Lighthouse audits, bounded report/source admission,
+hard gzip/CLS/automated-accessibility checks, real quota accounting and confirmed
+owned cleanup. Per-URL timing medians remain advisory.
+
+The first real [PR run](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
+passes all seven jobs. Its complete sanitized artifacts and the subsequent
+authorized seventh-context activation/full protection read-back are verified in
+the [CI and exit closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
+PR #28 remains subject to maintainer review and merge. This is delivery navigation;
+the acceptance metadata, decision and feasibility obligations remain unchanged.
+Existing P6 human/VoiceOver evidence and Phase 06/11 scope retain their limits.
 
 ## References
 

@@ -1,11 +1,11 @@
 # Phase 02d — individual exit evidence
 
-**Reconciliation in progress — 2026-10-11.** P7 Steps 1–3 completed both
-independent review rounds. Step 4 implementation, its two review rounds, the
-real PR check receipts and seventh-check activation are recorded in the
-[Step 4 record](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
+**Reconciliation complete — 2026-10-11.** All four P7 steps completed both
+independent review rounds. The real PR check receipts, verified artifacts,
+seventh-check activation and positive exit verdict are recorded in the
+[CI and exit closeout](phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
 This document is an evidence index, not a new architecture decision or a merge
-approval. Its pending receipts are not passing results.
+approval. PR #28 awaits maintainer review and merge.
 
 The rows enumerate all 36 [deliverables](phase-02d-walking-skeleton.md#deliverables),
 79 [completion criteria](phase-02d-walking-skeleton.md#completion-criteria),
@@ -18,12 +18,12 @@ phase document owns the complete contract and every subordinate condition.
 
 | Code | Required receipt and present boundary |
 |---|---|
-| B | Final PR `backend` success: Release build/format, unit, architecture, contract and Docker-free integration; zero skipped tests and execution guards. Pending. |
-| I | Final PR `backend integration (Testcontainers)` success, including physical app-role/RLS/read-only production proofs. Pending. |
-| F | Final PR guarded `frontend` success: complete workspace reports, zero skipped/todo, lint, typecheck, builds and controls. Pending. |
-| O | Final PR `openapi diff` and generated SDK drift success with retained planted incompatibility controls. Pending. |
-| J | Final PR `public demo + lighthouse` success, sanitized nine-page/27-audit receipt and confirmed cleanup; then authorized seventh-context activation and complete protection read-back. Pending. |
-| M | Named source/document inspection and explicit future-owner reconciliation in Step 4. Requires both fresh review rounds. |
+| B | Real PR `backend` passes: Release build/format, 1,705 unit, 203 architecture, four contract and 180 Docker-free integration; zero failures/skips and execution guards. |
+| I | Real PR `backend integration (Testcontainers)` passes all 872 cases, including the three locale/branding/combined-scope cases and physical app-role/RLS/read-only production proofs; zero failures/skips. |
+| F | Real PR guarded `frontend` passes 1,444 web + 60 SDK cases, zero failures/skips/todos, plus lint, typecheck, builds and controls. |
+| O | Real PR `openapi diff` and generated SDK drift pass with retained planted incompatibility controls. |
+| J | Real PR `public demo + lighthouse` passes with verified nine-page/27-audit artifacts and confirmed cleanup; authorized seventh-context activation and complete protection read-back pass. |
+| M | Named source/document inspection and explicit future-owner reconciliation in Step 4; both fresh review rounds and verified fixes complete. |
 | H | Attributed carried-forward P6 manual evidence below; no new final-head human/WCAG claim. |
 | N | Conditional branch made inapplicable by its Accepted decision, as named below. |
 
@@ -31,7 +31,11 @@ Named backend classes live under `backend/tests/`; frontend tests live under
 `frontend/apps/web/src/` or `frontend/scripts/`. Partial-class filenames are
 identified separately where needed. P1–P6 refer to the merged packet records in
 [Phase 02d](phase-02d-walking-skeleton.md); Step 1–3 refer to P7's records.
-The final PR rollup and workflow artifacts, not a historic count, supply B/I/F/O/J.
+[Run 38106505383](https://github.com/HodeTech/LearnStack/actions/runs/38106505383)
+supplies B/I/F/O/J for source `8605fc9`, tested merge `15109c3`; the closeout
+records full identities and artifact validation. The
+[PR rollup](https://github.com/HodeTech/LearnStack/pull/28/checks) must also pass
+on subsequent documentation heads before merge; historic counts do not replace it.
 
 ## Local and manual evidence boundaries
 
@@ -193,7 +197,7 @@ They use the normal API-root pipeline and actual mapped-host HTTP, under
 authored while Draft; published seeded roots are not edited to create the proof.
 All five migration histories and complete pre-existing EN/TR DTOs remain equal.
 The organization writer refusal commits exactly its expected Denied audit;
-public reads remain audit Off. Final receipt I must include all three cases.
+public reads remain audit Off. Downloaded receipt I includes all three Passed cases.
 
 ## Exclusions and future owners
 
@@ -263,5 +267,6 @@ and future settings-event ownership. Phase 05 migrates the existing records; it
 does not treat reseeding as migration. Course Marketplace ADR-0049 and Phase 09a
 remain Proposed and are outside this exit.
 
-A positive phase-exit verdict requires the final receipts and both Step 4 review
-rounds above. Maintainer PR review and merge are separate actions.
+All E01–E09 obligations pass against the receipts and named evidence above, as
+recorded in the positive CI/exit closeout. Maintainer PR review and merge are
+separate actions; subsequent PR heads retain the seven required checks.

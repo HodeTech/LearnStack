@@ -64,7 +64,8 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 ## Where it is today
 
-**Phase 01 and Phase 02a are complete. Phase 02d is in progress.**
+**Phase 01 and Phase 02a are complete. Phase 02d implementation and exit
+verification are complete; PR #28 awaits maintainer review and merge.**
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -107,10 +108,13 @@ on 2026-10-10; its
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-6-merge-and-closeout-2026-10-10)
 records final verification. P02d-7's demo, Lighthouse and phase-exit
 [decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-decision-package-2026-10-10)
-and ADR-0056 were approved on 2026-10-11. Steps 1–3 deliver the shared demo,
-genericity fences and seeded browser/Lighthouse proof; the
+and ADR-0056 were approved on 2026-10-11. All four steps completed both independent
+review rounds. The shared demo, genericity fences and seeded browser/Lighthouse
+proof pass real CI; the seventh required context is active. The
 [Step 4 record](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
-owns CI enforcement, reviews and phase-exit status. The
+owns CI enforcement, reviews and the positive phase-exit verdict.
+[PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits maintainer review
+and merge; P02b-0 re-verification is next afterward. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
