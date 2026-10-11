@@ -312,6 +312,66 @@ describe('P02d-7 exact demo identity boundary', () => {
       ).toEqual([identity]);
     }
   });
+  it('includes ambiguous alias and native JS/TS targets and ignores fixture package identities', () => {
+    const entry = 'frontend/apps/web/src/server/probe.ts';
+    const alias = 'frontend/apps/web/src/test/dirty.ts';
+    const native = 'frontend/apps/web/src/test/native.js';
+    const workspace = 'frontend/packages/sdk/src/runtime.test.ts';
+    const files = productionDemoSources(
+      new Map([
+        [
+          'frontend/apps/web/tsconfig.json',
+          JSON.stringify({
+            compilerOptions: {
+              paths: {
+                '@/*': ['./src/*'],
+                '@/special/*': ['./src/test/*'],
+              },
+            },
+          }),
+        ],
+        [entry, "import '@/special/dirty'; import '@learnstack/sdk/runtime';"],
+        ['frontend/apps/web/src/special/dirty.ts', 'export const clean = true;'],
+        [alias, `export const special = ${JSON.stringify(identity)};`],
+        ['scripts/probe.cjs', "require('../frontend/apps/web/src/test/native');"],
+        ['frontend/apps/web/src/test/native.ts', 'export const clean = true;'],
+        [native, `exports.special = ${JSON.stringify(identity)};`],
+        [
+          'frontend/apps/web/src/test/package-fixture/package.json',
+          JSON.stringify({
+            name: '@learnstack/sdk',
+            exports: { './runtime': './clean.ts' },
+          }),
+        ],
+        ['frontend/apps/web/src/test/package-fixture/clean.ts', 'export const clean = true;'],
+        [
+          'frontend/packages/sdk/package.json',
+          JSON.stringify({
+            name: '@learnstack/sdk',
+            exports: { './runtime': './src/runtime.test.ts' },
+          }),
+        ],
+        [workspace, `export const special = ${JSON.stringify(identity)};`],
+      ]),
+    );
+    for (const path of [alias, native, workspace]) {
+      expect(files.has(path)).toBe(true);
+      expect(demoIdentityFindings(path, files.get(path)!, vocabulary)).toEqual([identity]);
+    }
+    for (const path of [alias, native, workspace]) files.set(path, 'export const clean = true;');
+    expect(
+      [...files].flatMap(([path, source]) => demoIdentityFindings(path, source, vocabulary)),
+    ).toEqual([]);
+    expect(() =>
+      productionDemoSources(
+        new Map([
+          [entry, "import '@learnstack/sdk/runtime';"],
+          ['frontend/packages/sdk/package.json', '{"name":"@learnstack/sdk"}'],
+          ['frontend/packages/duplicate/package.json', '{"name":"@learnstack/sdk"}'],
+        ]),
+      ),
+    ).toThrow('Unmodeled');
+  });
   it('refuses missing, unknown-format, inherited-alias and untrusted external edges', () => {
     const entry = 'frontend/apps/web/scripts/entry.mjs';
     for (const edge of ['./missing.mjs', './helper.runtime', 'unknown-package', '#local'])

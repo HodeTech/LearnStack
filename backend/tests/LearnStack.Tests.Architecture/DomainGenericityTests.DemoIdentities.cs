@@ -131,6 +131,12 @@ public sealed partial class DomainGenericityTests
         importedTarget.Should().Throw<InvalidOperationException>();
         Action customSdk = () => RefuseExecutionTimeCompile("<Project Sdk=\"Custom.Sdk\" />");
         customSdk.Should().Throw<InvalidOperationException>();
+        Action implicitImport = () => RefuseExecutionTimeCompile("<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><DirectoryBuildTargetsPath>../../tests/CensusInjection.targets</DirectoryBuildTargetsPath></PropertyGroup></Project>");
+        implicitImport.Should().Throw<InvalidOperationException>();
+        RefuseExecutionTimeCompile("<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        Action externalProject = () => RequireProductionProjectCoverage([Path.Combine(project, "Probe.csproj")], ["/repo/backend/tests/RuntimeHelper/RuntimeHelper.csproj"]);
+        externalProject.Should().Throw<InvalidOperationException>();
+        RequireProductionProjectCoverage([Path.Combine(project, "Probe.csproj")], [Path.Combine(project, "Probe.csproj")]);
         var escaped = $"\\u{(int)identity[0]:x4}{identity[1..]}";
         DemoLiteralViolations("Probe.cs", "class Probe { string Value = \"" + escaped + "\"; }", vocabulary)
             .Should().ContainSingle("Roslyn decodes escaped strings");

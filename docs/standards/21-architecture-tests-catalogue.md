@@ -677,15 +677,19 @@ otherwise).
   exact standalone proof/development entries retain their bounded exemptions.
   Generated/dependency roots are exact paths. Local module URL suffixes,
   supported tsconfig aliases, workspace exports, re-exports, import-equals and
-  literal `require.resolve` edges enter the closure. Missing/unsupported local
+  literal `require.resolve` edges enter the closure. Ambiguous local JS/TS and alias
+  targets are conservatively included; only owned workspace manifests select
+  workspace exports, and duplicate identities refuse. Missing/unsupported local
   edges and unclassified repository roots/source formats fail. Installed external
   packages are resolved under the known dependency roots; local/link targets
   enter the census or refuse. Native `.server` edges require the actual pinned
   TypeScript output mapping; the known stylesheet is an explicit inert asset.
   Backend `DomainGenericityTests.SourceCensus.cs` cross-checks the source set with
-  Release MSBuild-evaluated `Compile` inputs and actual output/intermediate roots.
+  Release MSBuild-evaluated `Compile` inputs, `ProjectReference` paths and actual
+  output/intermediate roots.
   Nested `bin`/`obj` remain authored source. Linked inputs outside the census and
-  unmodeled custom targets/imports/SDKs refuse rather than silently omit code.
+  unmodeled build properties, custom targets/imports/SDKs and references outside
+  the admitted production project set refuse rather than silently omit code.
   Dirty/clean controls cover these admission boundaries. Computed runtime imports
   fail rather than omit a helper.
   The rule does not claim

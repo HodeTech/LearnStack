@@ -134,7 +134,7 @@ export function productionDemoSources(
     throw new Error(`Unmodeled runtime import: ${path}`);
   };
   const packages = [...all]
-    .filter(([path]) => path.endsWith('/package.json'))
+    .filter(([path]) => /^frontend\/(?:apps|packages)\/[^/]+\/package\.json$/.test(path))
     .map(([path, source]) => ({
       root: posix.dirname(path),
       manifest: JSON.parse(source),
@@ -169,9 +169,14 @@ export function productionDemoSources(
   const local = (base: string, from: string): string[] => {
     if (base === 'frontend/apps/web/src/app/globals.css') return all.has(base) ? [] : refused(from);
     base = generated.get(base) ?? base;
-    const target = candidates(base).find((path) => all.has(path));
-    if (!target || !sourceExtension.test(target) || declaration.test(target)) return refused(from);
-    return [target];
+    // Conservative union: native Node and TypeScript need not choose the same candidate.
+    const targets = candidates(base).filter((path) => all.has(path));
+    if (
+      !targets.length ||
+      targets.some((target) => !sourceExtension.test(target) || declaration.test(target))
+    )
+      return refused(from);
+    return targets;
   };
   const mapped = (value: unknown, root: string, from: string): string[] => {
     if (typeof value === 'string' && value.startsWith('./'))
@@ -198,6 +203,7 @@ export function productionDemoSources(
       if (source) {
         const config = JSON.parse(source);
         if (config.compilerOptions?.baseUrl) return refused(path);
+        const aliases: string[] = [];
         for (const [pattern, replacements] of Object.entries(config.compilerOptions?.paths ?? {})) {
           const parts = pattern.split('*');
           if (parts.length > 2 || !Array.isArray(replacements) || replacements.length === 0)
@@ -209,11 +215,20 @@ export function productionDemoSources(
           if (!match) continue;
           const capture =
             parts.length === 1 ? '' : edge.slice(parts[0]!.length, edge.length - parts[1]!.length);
-          return replacements.flatMap((value) => {
-            if (typeof value !== 'string' || !value.startsWith('./') || value.split('*').length > 2)
-              return refused(path);
-            return local(posix.normalize(posix.join(directory, value.replace('*', capture))), path);
-          });
+          aliases.push(
+            ...replacements.flatMap((value) => {
+              if (
+                typeof value !== 'string' ||
+                !value.startsWith('./') ||
+                value.split('*').length > 2
+              )
+                return refused(path);
+              return local(
+                posix.normalize(posix.join(directory, value.replace('*', capture))),
+                path,
+              );
+            }),
+          );
         }
         // Inherited alias maps are not silently ignored. The shipped inherited presets have none.
         const checkExtends = (name: unknown, owner: string, seen = new Set<string>()) => {
@@ -238,13 +253,17 @@ export function productionDemoSources(
           checkExtends(inherited.extends, posix.dirname(target), seen);
         };
         checkExtends(config.extends, directory);
+        // Include every supported match instead of guessing TypeScript alias precedence.
+        if (aliases.length) return aliases;
         break;
       }
       directory = posix.dirname(directory);
     }
-    const pkg = packages.find(
+    const matches = packages.filter(
       (pkg) => edge === pkg.manifest.name || edge.startsWith(pkg.manifest.name + '/'),
     );
+    if (matches.length > 1) return refused(path);
+    const pkg = matches[0];
     if (pkg) {
       const key =
         edge === pkg.manifest.name ? '.' : './' + edge.slice(pkg.manifest.name.length + 1);

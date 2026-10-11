@@ -13,6 +13,7 @@ public sealed partial class DomainGenericityTests
         var projects = ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories))
             .Order(StringComparer.Ordinal).ToArray();
         var evaluated = projects.Select(EvaluatedDemoCompile).ToArray();
+        RequireProductionProjectCoverage(projects, evaluated.SelectMany(row => row.References));
         var outputs = evaluated.SelectMany(row => row.Outputs).Distinct(StringComparer.Ordinal).ToArray();
         var files = ProductionSourceRoots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             .Where(path => BackendDemoSourceKind(path, outputs) == 1).ToArray();
@@ -45,23 +46,44 @@ public sealed partial class DomainGenericityTests
             throw new InvalidOperationException("Unclassified Compile input; Fix: include the linked source in the supported production census.");
     }
 
+    private static void RequireProductionProjectCoverage(IEnumerable<string> projects, IEnumerable<string> references)
+    {
+        var admitted = projects.Select(Path.GetFullPath).ToHashSet(StringComparer.Ordinal);
+        if (references.Any(path => !admitted.Contains(Path.GetFullPath(path))))
+            throw new InvalidOperationException("Unclassified production ProjectReference; Fix: include its compiler inputs in the supported census.");
+    }
+
+    // Property-selected SDK hooks can import targets absent from evaluation-only Compile items.
+    // New build properties must be reviewed rather than silently expanding this bounded model.
+    private static readonly HashSet<string> DemoBuildProperties = new(StringComparer.Ordinal)
+    {
+        "AnalysisLevel", "AnalysisMode", "AssemblyName", "EnforceCodeStyleInBuild",
+        "EnforceExtendedAnalyzerRules", "GenerateDocumentationFile", "ImplicitUsings", "IsPackable",
+        "LangVersion", "ManagePackageVersionsCentrally", "NoWarn", "NuGetAuditLevel", "NuGetAuditMode",
+        "Nullable", "OutputType", "RootNamespace", "TargetFramework", "TreatWarningsAsErrors",
+        "UserSecretsId", "WarningsNotAsErrors"
+    };
+
     private static void RefuseExecutionTimeCompile(string source)
     {
         var document = XDocument.Parse(source);
         const string modulesImport = "$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))";
-        if (document.Descendants().Any(node => node.Name.LocalName is "Target" or "Sdk"
+        if (document.Root?.Elements().Any(node => node.Name.LocalName is not ("PropertyGroup" or "ItemGroup" or "Import")) == true
+            || document.Descendants().Where(node => node.Name.LocalName == "PropertyGroup")
+                .SelectMany(node => node.Elements()).Any(node => !DemoBuildProperties.Contains(node.Name.LocalName))
+            || document.Descendants().Any(node => node.Name.LocalName is "Target" or "Sdk"
                 || node.Name.LocalName == "Import" && (string?)node.Attribute("Project") != modulesImport)
             || document.Root?.Attribute("Sdk") is { } sdk && sdk.Value is not ("Microsoft.NET.Sdk" or "Microsoft.NET.Sdk.Web"))
             throw new InvalidOperationException("Execution-time Compile/import shapes are unmodeled; Fix: review compiler-input admission before introducing a custom target or import.");
     }
 
-    private static (string[] Sources, string[] Outputs) EvaluatedDemoCompile(string project)
+    private static (string[] Sources, string[] Outputs, string[] References) EvaluatedDemoCompile(string project)
     {
         using var child = new Process
         {
             StartInfo = new ProcessStartInfo("dotnet")
             {
-                ArgumentList = { "msbuild", project, "-getItem:Compile", "-getProperty:BaseOutputPath,BaseIntermediateOutputPath", "-p:Configuration=Release", "-nologo" },
+                ArgumentList = { "msbuild", project, "-getItem:Compile,ProjectReference", "-getProperty:BaseOutputPath,BaseIntermediateOutputPath", "-p:Configuration=Release", "-nologo" },
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 WorkingDirectory = Path.GetDirectoryName(project)!,
@@ -81,10 +103,12 @@ public sealed partial class DomainGenericityTests
         using var document = JsonDocument.Parse(output.Result);
         var sources = document.RootElement.GetProperty("Items").GetProperty("Compile").EnumerateArray()
             .Select(row => Path.GetFullPath(row.GetProperty("FullPath").GetString()!)).ToArray();
+        var references = document.RootElement.GetProperty("Items").GetProperty("ProjectReference").EnumerateArray()
+            .Select(row => Path.GetFullPath(row.GetProperty("FullPath").GetString()!)).ToArray();
         var properties = document.RootElement.GetProperty("Properties");
         var outputs = DemoOutputProperties
             .Select(name => properties.GetProperty(name).GetString()!)
             .Select(path => Path.GetFullPath(path.Replace('\\', Path.DirectorySeparatorChar), Path.GetDirectoryName(project)!)).ToArray();
-        return (sources, outputs);
+        return (sources, outputs, references);
     }
 }
