@@ -6417,9 +6417,9 @@ Work remains on `development`; PR #28 is not merged by this record.
    All 18 frontend genericity cases, seven backend genericity cases, all 203
    architecture cases, lint, typecheck and targeted format pass. This remains a
    bounded exact-literal/static-import fence, not arbitrary program analysis.
-3. **Proof helpers and carriers — complete.** `9a0d285` shares actual worker
-   network-inventory reconciliation and verifier advisory aggregation are shared
-   with fast dirty/clean controls. Navigation counts come from completed
+3. **Proof helpers and carriers — complete.** `9a0d285` extracts actual worker
+   network-inventory reconciliation and verifier advisory aggregation for fast
+   dirty/clean controls. Navigation counts come from completed
    observations; upload globs admit only named reports/screenshots/receipts.
    Current architecture, infrastructure, standards and route-authoring guidance
    describe delivered G44/G45 enforcement. Two first-round reviewers and a fresh
