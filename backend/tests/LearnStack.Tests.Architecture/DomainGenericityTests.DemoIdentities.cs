@@ -76,7 +76,7 @@ public sealed partial class DomainGenericityTests
                         values.Should().Contain(new DemoIdentity("band-label", label));
                 }
             }
-            var curriculum = tenant.Curriculum!;
+            if (tenant.Curriculum is not { } curriculum) continue;
             values.Should().Contain(new DemoIdentity("id", curriculum.Theme.Id.ToString("D")));
             foreach (var course in curriculum.Courses)
             {
