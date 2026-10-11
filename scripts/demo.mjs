@@ -18,7 +18,7 @@ import { composeSelection, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
 import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
-import { publicApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
+import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -391,7 +391,7 @@ export async function startDemo(mode) {
       [join(backendRoot, 'src/LearnStack.Api/bin/Release/net10.0/LearnStack.Api.dll')],
       {
         cwd: join(backendRoot, 'src/LearnStack.Api'),
-        env: publicApiEnvironment(values, configuration),
+        env: publicDemoApiEnvironment(values, configuration, privateRoot),
         label: 'Owned API',
         observe: observeApi,
       },

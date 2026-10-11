@@ -14,6 +14,7 @@ import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import { isApiListenerEvent, validateCertificate } from '../../../../../scripts/demo.mjs';
 import {
   publicApiEnvironment,
+  publicDemoApiEnvironment,
   publicWebEnvironment,
 } from '../../../../../scripts/public-runtime.mjs';
 import { defaultServices, healthyServices } from '../../../../../scripts/wait-compose.mjs';
@@ -36,6 +37,19 @@ function owner(signal = new AbortController().signal) {
 }
 
 describe('shared explicit demo stack selection', () => {
+  it.each([
+    'COMPOSE_PROFILES=gated',
+    ' export COMPOSE_PROFILES = gated',
+    'COMPOSE_FILE: foreign.yml',
+    'COMPOSE_PROJECT_NAME=foreign',
+    'COMPOSE_ENV_FILES=foreign.env',
+  ])('refuses a selected dotenv Compose control before Docker: %s', (assignment) => {
+    const root = temporary();
+    writeFileSync(join(root, '.env'), `POSTGRES_PASSWORD=private\n${assignment}\n`);
+    expect(() => composeSelection('dev', {}, root)).toThrow('Reserved COMPOSE_*');
+    writeFileSync(join(root, '.env'), '# COMPOSE_PROFILES=gated\nPOSTGRES_PASSWORD=private\n');
+    expect(() => composeSelection('dev', {}, root)).not.toThrow();
+  });
   it('refuses stale ambient seed credentials before stack or database actions', () => {
     const root = temporary();
     mkdirSync(join(root, 'scripts'));
@@ -185,6 +199,26 @@ describe('shared explicit demo stack selection', () => {
 });
 
 describe('demo runtime boundaries', () => {
+  it('isolates the Development API user-secret profile within the invocation', () => {
+    const root = temporary();
+    const env = publicDemoApiEnvironment(
+      { ConnectionStrings__Default: 'application' },
+      { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' },
+      root,
+      {
+        PATH: '/bin',
+        HOME: '/foreign-home',
+        APPDATA: '/foreign-secrets',
+        DOTNET_CLI_HOME: '/foreign',
+      },
+    );
+    expect(env.HOME).toBe(realpathSync(root));
+    expect(env.APPDATA).toBe(realpathSync(root));
+    expect(env.TMPDIR).toBe(realpathSync(root));
+    expect(env).not.toHaveProperty('DOTNET_CLI_HOME');
+    expect(env.ConnectionStrings__Default).toBe('application');
+    expect(env.ASPNETCORE_ENVIRONMENT).toBe('Development');
+  });
   it('gives native web addons an owned cache without ambient credentials or diagnostics', () => {
     const root = temporary();
     const values = {

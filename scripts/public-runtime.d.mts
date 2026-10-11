@@ -8,3 +8,9 @@ export function publicWebEnvironment(
   privateRoot: string,
   base?: Partial<NodeJS.ProcessEnv>,
 ): NodeJS.ProcessEnv;
+export function publicDemoApiEnvironment(
+  values: Record<string, string>,
+  configuration: { apiOrigin: string; secret: string },
+  privateRoot: string,
+  base?: Partial<NodeJS.ProcessEnv>,
+): NodeJS.ProcessEnv;

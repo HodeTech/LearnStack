@@ -5848,7 +5848,7 @@ maintainer's PR review and merge remain separate from implementation completion.
 
 ### P02d-7 Step 1 — shared demo lifecycle (2026-10-11)
 
-**Implementation/startup and round 1 fixes verified; round 2 pending.**
+**Both review rounds complete; round 2 fixes under final verification.**
 The foreground `make demo` supervisor shares explicit Compose selection,
 PostgreSQL-before-migration readiness, full seven-service/both-realm admission,
 contextual seeding, production builds and owned process cleanup. Local data is
@@ -5907,7 +5907,22 @@ manifest/configuration cases and all 198 architecture cases pass. Lint and the
 guarded frontend run pass all 1,420 cases with zero skips/todos. The complete
 isolated lifecycle rerun also passes real SIGHUP/repeated-signal cleanup and
 listener release. The two authorized foreign containers return healthy afterward.
-Round 2 remains pending.
+
+**Step 1 review round 2 — `3160714..4966dca`.** Fresh GPT-6-astra and
+GPT-6.1-sol reviewers independently inspected lifecycle/security and evidence/
+corpus. Both reran all 18 focused cases. Two additional findings were confirmed:
+Docker can read `COMPOSE_PROFILES` from the selected dotenv file, and Development
+API configuration can consult workstation user secrets through its profile.
+The selected-file control now refuses reserved Compose assignments, including
+export/whitespace/colon forms. A read-only real Compose control observes exactly
+seven default services and refuses the planted file profile before Docker.
+The demo API receives an empty invocation-owned HOME/APPDATA/TMPDIR; restoration
+and builds retain their own profiles. A real API/PostgreSQL test accepts the
+configured hop secret and rejects an additional secret planted in a foreign
+profile. No user profile is modified. All 24 focused lifecycle cases, typecheck
+and both real launcher cases pass with zero failures/skips. Lint, all 1,426
+guarded frontend cases and all 198 architecture cases pass. Focused fix review
+remains pending.
 
 ### P02d-1 decision pass (2026-09-14)
 

@@ -18,6 +18,17 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
+/** Development configuration must not consult the workstation's user secrets. */
+export function publicDemoApiEnvironment(values, configuration, privateRoot, base = process.env) {
+  const profile = realpathSync(privateRoot);
+  return publicApiEnvironment(values, configuration, {
+    ...base,
+    HOME: profile,
+    APPDATA: profile,
+    TMPDIR: profile,
+  });
+}
+
 /** Native configuration addons need an explicit, invocation-owned cache. */
 export function publicWebEnvironment(values, privateRoot, base = process.env) {
   const environment = {
