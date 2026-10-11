@@ -15,7 +15,7 @@
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
-> | P02d-7 | Demo, full-stack CI and exit | decision pass Accepted — 2026-10-11; [decision package](#p02d-7-decision-package-2026-10-10); Steps 1–2 complete; [Step 3 validation](#p02d-7-step-3--browser-and-audit-proof-2026-10-11) in progress |
+> | P02d-7 | Demo, full-stack CI and exit | decision pass Accepted — 2026-10-11; [decision package](#p02d-7-decision-package-2026-10-10); Steps 1–3 complete; [Step 3 validation](#p02d-7-step-3--browser-and-audit-proof-2026-10-11); Step 4 pending |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -6159,9 +6159,16 @@ The complete `38c15d9` rerun passes: setup 60,270 ms, proof 571,089 ms,
 cleanup 10,688 ms, all 27 report pairs and nine screenshots, actual soft-timeout
 refusal, nine visibility controls and 134 successful API completions, with zero
 429/malformed/pending records. The authorized foreign containers restart healthy.
-That receipt precedes round-2 fixes. A complete `39cee01` rerun is in progress;
-the subsequent shared-bound change has focused verification above and must also
-run in final CI. No final phase-exit or real-CI success is claimed here.
+That receipt precedes round-2 fixes. The complete `39cee01` rerun also passes:
+setup 60,374 ms, proof 585,644 ms and cleanup 10,719 ms. Build
+`d0bzXjXoImUdH317X83rK`, invocation `825982bee2ed568f43208368f99f332d`,
+produces all 27 report pairs, nine screenshots and 24 completed visibility
+controls. The actual soft-timeout and both TLS refusal controls pass; final
+observation contains 134 successful calls, zero 429/malformed/pending records.
+All owned cleanup checks pass and the authorized foreign containers restart.
+The subsequent shared-bound change has focused verification above and must also
+run in final CI. Both independent review rounds and fresh fix verification are
+complete. Step 4 owns CI enforcement and phase exit; neither is claimed here.
 
 ### P02d-1 decision pass (2026-09-14)
 
