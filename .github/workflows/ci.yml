@@ -380,28 +380,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Start before checkout. Reserve four minutes for the shared 30-second
+      # teardown, owned sandbox-policy cleanup and bounded receipt/artifact steps.
+      - name: Reserve demo cleanup and artifact time
+        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 16 * 60 ))" >> "$GITHUB_ENV"
+
       - name: Checkout
+        timeout-minutes: 2
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Set up .NET SDK
+        timeout-minutes: 3
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: backend/global.json
 
       - name: Set up Node.js
+        timeout-minutes: 2
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Set up pnpm
+        timeout-minutes: 1
         uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Cache NuGet packages
+        timeout-minutes: 1
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -410,20 +420,42 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Install pinned browser tools
+        timeout-minutes: 5
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
 
+      - name: Prepare sandbox-enabled managed Chromium
+        timeout-minutes: 1
+        run: |
+          node --test scripts/ci-public-chromium.test.mjs
+          node scripts/ci-public-chromium.mjs prepare
+
       # The same entrypoint owns restoration, seven-service readiness, migrations,
       # contextual seeding, native TLS, production builds and confirmed cleanup.
-      # Its 12-minute proof deadline is separate from setup and 30-second cleanup.
+      # Its internal 12-minute proof bound remains; this earlier absolute job
+      # deadline also bounds cumulative setup/build before owned teardown.
       - name: Prove the seeded production sites and budgets
         id: demo
-        run: make demo DEMO_MODE=ci
+        run: |
+          remaining=$(( PUBLIC_DEMO_DEADLINE - $(date +%s) ))
+          if [ "$remaining" -le 0 ]; then
+            echo 'Demo setup exhausted the reserved job budget.' >&2
+            exit 1
+          fi
+          # SIGINT enters the shared owner teardown; forced termination is a
+          # failed run, never passing or partial proof evidence.
+          timeout --signal=INT --kill-after=35s "${remaining}s" make demo DEMO_MODE=ci
+
+      - name: Remove only the owned Chromium sandbox profile
+        if: always()
+        timeout-minutes: 1
+        run: node scripts/ci-public-chromium.mjs cleanup
 
       - name: Record bounded workflow outcome
         if: always()
+        timeout-minutes: 1
         env:
           DEMO_OUTCOME: ${{ steps.demo.outcome }}
           CHECKOUT_SHA: ${{ github.sha }}
@@ -442,6 +474,7 @@ jobs:
 
       - name: Upload public reports and sanitized receipts only
         if: always()
+        timeout-minutes: 1
         uses: actions/upload-artifact@v4
         with:
           name: public-demo-lighthouse

@@ -6172,7 +6172,7 @@ complete. Step 4 owns CI enforcement and phase exit; neither is claimed here.
 
 ### P02d-7 Step 4 — CI enforcement and phase exit (2026-10-11)
 
-**Implementation in progress; both independent review rounds pending.**
+**Implementation delivered; round 1 fixes complete, round 2 pending.**
 The always-running `public demo + lighthouse` job replaces the disabled
 placeholder. It installs the exact locked browser tools and managed Chromium,
 then invokes `make demo DEMO_MODE=ci` over the shared seven-service lifecycle.
@@ -6218,9 +6218,45 @@ session/BFF/authenticated-rate-limit decisions.
 with zero skips. Release build has zero warnings/errors; 1,705 unit, 203 architecture,
 four contract and 180 Docker-free integration cases pass, as do all 1,500 guarded
 frontend cases. Typecheck, lint, whitespace and 2,042 relative links (666 fragments)
-pass. The complete Docker suite is running. Two fresh review rounds, a real
+pass. All 871 Docker integration cases pass with zero skips; execution guards pass.
+Two fresh review rounds, a real
 successful PR job and the authorized seventh-context activation/read-back remain.
 No PR, live check activation or phase exit is claimed yet.
+
+#### Step 4 review round 1 (2026-10-11)
+
+Fresh GPT-6-astra (xhigh) and GPT-6.1-sol (xhigh) agents reviewed
+`06d46ad..bf5bc9c` for runtime/CI ownership and corpus/exit evidence. Their
+confirmed findings concern proof completeness and CI prerequisites, not a
+production contract defect. C40–C42 now share one HTTP test: 17 requests pair
+foreign-only/shared slugs, exact-locale omissions and organization/tenant host
+controls with exact raw translation sets on each request's own enlisted
+application connection. The third-locale case now enables French on the foreign
+host and proves its positive catalog before checking the same French detail
+URLs are hidden. Missing Cache-Control can no longer bypass its assertions.
+
+The CI job starts an absolute deadline before checkout, bounds setup steps and
+interrupts the shared lifecycle by minute 16, reserving four minutes inside the
+unchanged 20-minute ceiling for owned cleanup, policy cleanup and artifacts.
+Four controls execute the actual workflow shell: first-step reservation,
+remaining-budget arguments and two exhausted-budget refusals. An actual GNU
+timeout → make → shared Node-owner experiment exits 124 only after child cleanup.
+The internal 12-minute serial proof deadline remains unchanged.
+
+The GitHub-hosted Linux prerequisite loads only an invocation-owned AppArmor
+userns profile for the exact managed Chromium when the kernel restriction needs
+it, then performs a sandbox-enabled launch smoke. Fifteen isolated controls
+exercise ownership, literal paths, failed load/removal and cleanup without
+changing workstation policy. A real Linux job remains required; the initial
+runner risk was source-supported inference, not a reproduced hosted failure.
+The exit matrix, stale review guidance, Phase 02b risk premises and mutable
+renderer/writer scope descriptions now match delivered contracts.
+
+All three focused locale/branding Docker cases pass with zero skips and the
+execution guard. The guarded frontend rerun passes 1,504 cases (1,444 web + 60
+SDK), zero failures/skips/todos; typecheck, lint, scoped backend formatting and
+whitespace pass. The initial full backend totals above precede the added combined
+case. Final complete PR CI, round 2 and protection read-back remain required.
 
 ### P02d-1 decision pass (2026-09-14)
 
@@ -6366,10 +6402,11 @@ scope, with explicit data-preservation obligations. The
 distinguish this shape from Phase 05's target hierarchy.
 
 - `Course` — tenant-owned, optionally organization-scoped, with independent
-  `draft` / `published` state under [ADR-0048](../decisions/0048-walking-skeleton-publication.md).
+  `draft` / `published` state and explicit content-access policy under
+  [ADR-0050](../decisions/0050-publication-and-course-content-access.md).
   Its title, summary and per-locale slug live in `course_translations`; its optional
-  level reference pins an exact taxonomy revision and band. G5's write validation and
-  unresolved-band presentation remain with their later packets. No versioning,
+  level reference pins an exact taxonomy revision and band. P02d-2/4 delivered
+  G5's write validation and bounded unresolved-band presentation. No versioning,
   programs or cohorts.
 - `Lesson` — ordered within a course; its title and per-locale slug likewise live in
   `lesson_translations`. Its body is drawn the way
@@ -6550,11 +6587,10 @@ module's audit catalogue and registered in both composition roots.
   [Audit Coverage Standards](../standards/18-audit-coverage.md). The command set and
   re-run behaviour are **G11**; the Customization contract the lesson writer calls, and
   which revisions it may bind, are **G12**.
-- **Tenancy commands** raise `tenancy.locale.write` (SHOULD) and `tenancy.setting.write`
-  (MUST), both `(planned)` today. The setting command lands only once **G17** is
-  answered, because no command writing `tenant_settings` precedes the `[PiiSensitive]`
-  decision ([Phase 03](phase-03-identity-admin.md)); its keys and value checks follow
-  **G16**, and it performs the contrast check
+- **Tenancy commands**, delivered in P02d-2, raise `tenancy.locale.write` (SHOULD)
+  and `tenancy.setting.write` (MUST). Accepted **G17** supplies whole-value
+  `[PiiSensitive]` redaction before setting writes; keys and value checks follow
+  Accepted **G16**, including the contrast check
   [Accessibility Standards § Color and Contrast](../standards/16-accessibility.md#color-and-contrast)
   requires before a theme token is saved, with the outcome G16 records.
 - **The Education module spec**, `docs/modules/education/` (`README.md`, `audit.md`,
@@ -6573,8 +6609,8 @@ module's audit catalogue and registered in both composition roots.
   announced context, never from a command field
   ([Security Standards § Forbidden](../standards/11-security.md#forbidden)), and a
   tenant-wide row can be updated only from a context that announces no organization. The
-  seeder announces its context today by calling `IUnitOfWork.SetTenantContextAsync`
-  itself, which ADR-0040's closed setter set does not list: **G15**.
+  seeder uses the accepted **G15** contextual composition and registered caller
+  fence; it does not directly call a tenant-context setter.
 
 Each tenant's **own** customization data — the table in § Genericity proof — is authored
 through the Customization module's commands, as Phase 02a's seed is, and presented as
@@ -6618,8 +6654,8 @@ Obligations already imposed:
 
 P02d-3 delivered **G12**'s cache contract, the loader/correctness contract (**G22**)
 and internal display fallback (**G24**) under the
-[accepted gate answers](#accepted-gate-answers). P02d-4 delivers public response
-parts; page-state behavior remains P02d-6.
+[accepted gate answers](#accepted-gate-answers). P02d-4 delivered public response
+parts; P02d-6 delivered page-state behavior.
 
 **The typed settings accessor** over `tenant_settings`, which Phase 02a left to its
 first reader, is delivered in P02d-3. Under Row Level Security a `tenant_settings`
@@ -6732,27 +6768,31 @@ The full path from
 [Phase 02a Packet 7](phase-02a-kernel-tenancy.md#delivery-record-packet-7), exercised
 for real — on the path a Server Component takes:
 
-1. The browser's `Host` reaches Next.js. Both pages are Server Components, so the API
-   call is made by the Next.js server, and the `Host` the API sees is not the visitor's.
-2. The server SDK states the visitor's host to the API over the trusted hop
-   ([ADR-0036 § Effective host and the trusted hop](../decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)),
-   whose § Consequences names `frontend/packages/sdk/src/server.ts` as the only frontend
-   place that sets the hop headers.
+1. Native HTTPS ingress validates the browser's host, physical peer and request
+   target, strips authority carriers and signs the request-local provenance envelope.
+   Middleware verifies it before making the one live site bootstrap call.
+2. The configured server caller in
+   `frontend/apps/web/src/server/configured-public-client.ts` states the verified
+   host/visitor to the API over the closed trusted hop under
+   [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) and
+   [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+   The injected SDK remains transport-policy agnostic.
 3. The API resolves that effective host through `platform_host_to_tenant` to a
    `(tenant_id, organization_id?)` pair, the singleton `ITenantContextAccessor` is
    written and the transient `ITenantContext` resolves from it on every access, the
    transaction sets `app.tenant_id` / `app.organization_id` with `SET LOCAL`, and Row
    Level Security filters every read.
-4. Whatever the edge resolves is for rendering only, and any `X-Tenant-Id` is an
-   assertion
+4. RSC consumes the verified immutable bootstrap snapshot for that request under
+   [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md). Rendering
+   contributes no tenant authority; the API owns resolution and admission
    ([Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution)).
-5. In this phase's default topology the loopback bind, not the secret, is the boundary
-   (ADR-0036 § Consequences).
+5. The private loopback hop and authenticated internal envelope preserve the
+   accepted local trust boundary; a stock Next process cannot mint admission.
 
-None of that path is wired from the renderer's side yet — § What this phase inherits
-lists the scaffolds this phase replaces. The topology and its evidence are **G33**, the
-limiter in front of it **G34**, the SDK transport **G31** and **G35**, the middleware
-and entry behaviour **G36**, and the rendering mode **G37**.
+P02d-5/6 delivered this path and its real production HTML/RSC isolation proofs.
+**G33**, **G34**, **G31**, **G35**, **G36** and **G37** are Accepted and implemented;
+their packet records retain the decisions and test receipts. P02d-7 adds the
+shared foreground lifecycle and real browser/audit enforcement.
 
 Two hosts are registered in local development, one per seed tenant:
 [Phase 02a Packet 7](phase-02a-kernel-tenancy.md#delivery-record-packet-7) wrote one
@@ -7207,8 +7247,10 @@ otherwise
 
 - In one test, a course slug that exists only in tenant B returns `200` with that course
   on tenant B's host and `404` on tenant A's host, and a `(locale, slug)` held by one
-  course in each tenant returns each host's own course, compared by id. A status alone
-  proves nothing here: a route miss and an unknown host also answer `404` with the same
+  course in each tenant returns each host's own course, compared against its exact
+  seed-derived public payload. Stable source-side IDs select the expected course;
+  accepted public DTOs expose no ID. A status alone proves nothing here: a route miss
+  and an unknown host also answer `404` with the same
   `not_found` code, and the same route's `200` is what rules them out.
 - In the same test, a course returns `200` at its slug in a locale it is translated into
   and `404` for that slug under an enabled locale it has no translation for; a lesson

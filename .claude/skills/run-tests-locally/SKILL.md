@@ -219,6 +219,22 @@ It runs nine linked product pages and 27 cold Lighthouse audits over one unchang
 API/build/database, with real admission pacing and certificate-specific trust.
 Missing browser installation fails the proof rather than skipping it.
 
+On GitHub-hosted Linux runners, run `node scripts/ci-public-chromium.mjs prepare`
+after installation and before the lifecycle, then run
+`node scripts/ci-public-chromium.mjs cleanup` in an always-running cleanup step.
+The helper discovers Playwright's exact executable and performs a sandbox-enabled
+20-second launch smoke with a disposable browser profile. If Ubuntu's AppArmor
+user-namespace restriction is enabled, it loads one invocation-owned profile
+allowing `userns` only for that exact executable; the source and ownership marker
+stay under `RUNNER_TEMP`, and cleanup unloads only that profile. It preserves the
+kernel restriction and foreign policies/files. This follows
+[Chromium's AppArmor guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)
+with a literal attachment path. The helper refuses local/self-hosted execution;
+it does not change workstation policy. Run its isolated controls with
+`node --test scripts/ci-public-chromium.test.mjs`; these use fake commands and
+an executable fixture without mutating host AppArmor. A passing Linux job remains
+required evidence of the actual runner prerequisite and complete demo/audit flow.
+
 Review `artifacts/public-demo/receipt.json`, the 27 JSON/HTML report pairs and browser
 screenshots. Proof and owned cleanup must both pass. Archive only this sanitized
 artifact directory; private configuration, certificates, keys, profiles and raw

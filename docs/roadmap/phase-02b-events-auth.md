@@ -1270,13 +1270,14 @@ shape depends on an open gate say so, and are written when that gate is Accepted
   amendment written after the code it governs is a record nobody can disagree with — the
   lesson Packet 9 recorded for its own readings. The mitigation is the decision pass
   each packet opens with: its decisions are its first commit, and its code follows them.
-- **A gate is answered before the ground it stands on exists.** Several premises the
-  register cites are code [Phase 02d](phase-02d-walking-skeleton.md) has not yet
-  written: the first `/api/v1/*` endpoints, which **G14** and **G20** bound; the local
-  hosts **G12**'s transport serves; and the socket-peer limiter G14 describes, which
-  Phase 02d's server-rendered pages reach through one peer. Earlier packets move later
-  premises the same way: the dispatcher's keyed data source can change the connection
-  allow-list before **G9** decides the job storage's entry in it. The mitigation is
+- **A gate relies on a premise that an earlier packet has moved.**
+  [Phase 02d](phase-02d-walking-skeleton.md) delivered public GET/HEAD endpoints,
+  retained native HTTPS tenant hosts and coordinated canonical visitor/physical-peer
+  admission. **G14**, **G20** and **G12** must use those delivered contracts, including
+  single-bootstrap rendering and exact peer accounting, rather than the former
+  socket-peer-only assumption. Earlier packets move later premises the same way:
+  the dispatcher's keyed data source can change the connection allow-list before
+  **G9** decides the job storage's entry in it. The mitigation is
   [Roadmap § Decision Timing](README.md#decision-timing): `P02b-0` re-verifies the
   register once Phase 02d exits, and each gate closes in the decision pass of the first
   packet it shapes.
