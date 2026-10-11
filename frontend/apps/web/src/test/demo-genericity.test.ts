@@ -389,6 +389,20 @@ describe('P02d-7 exact demo identity boundary', () => {
         () => '../foreign/index.js',
       ),
     ).toThrow('Unmodeled');
+    expect(() =>
+      productionDemoSources(
+        new Map([
+          [entry, "import 'external-package';"],
+          ['frontend/apps/web/tsconfig.json', '{"extends":"./src/test/base"}'],
+          ['frontend/apps/web/src/test/base.ts', '{}'],
+          [
+            'frontend/apps/web/src/test/base.json',
+            '{"compilerOptions":{"paths":{"hidden/*":["./*"]}}}',
+          ],
+        ]),
+        () => 'frontend/node_modules/external-package/index.js',
+      ),
+    ).toThrow('Unmodeled');
     const helper = 'frontend/apps/web/src/test/helper.ts';
     expect(
       productionDemoSources(

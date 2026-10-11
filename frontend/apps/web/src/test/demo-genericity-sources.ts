@@ -233,10 +233,9 @@ export function productionDemoSources(
         // Inherited alias maps are not silently ignored. The shipped inherited presets have none.
         const checkExtends = (name: unknown, owner: string, seen = new Set<string>()) => {
           if (name === undefined) return;
-          if (typeof name !== 'string' || seen.has(name)) return refused(path);
-          seen.add(name);
-          const target = name.startsWith('.')
-            ? candidates(posix.join(owner, name)).find((key) => all.has(key))
+          if (typeof name !== 'string') return refused(path);
+          const targets = name.startsWith('.')
+            ? local(posix.normalize(posix.join(owner, name)), path)
             : packages.flatMap((pkg) =>
                 name.startsWith(pkg.manifest.name + '/')
                   ? mapped(
@@ -245,12 +244,15 @@ export function productionDemoSources(
                       path,
                     )
                   : [],
-              )[0];
-          if (!target) return refused(path);
-          const inherited = JSON.parse(all.get(target)!);
-          if (inherited.compilerOptions?.paths || inherited.compilerOptions?.baseUrl)
-            return refused(path);
-          checkExtends(inherited.extends, posix.dirname(target), seen);
+              );
+          if (!targets.length) return refused(path);
+          for (const target of targets) {
+            if (seen.has(target)) return refused(path);
+            const inherited = JSON.parse(all.get(target)!);
+            if (inherited.compilerOptions?.paths || inherited.compilerOptions?.baseUrl)
+              return refused(path);
+            checkExtends(inherited.extends, posix.dirname(target), new Set([...seen, target]));
+          }
         };
         checkExtends(config.extends, directory);
         // Include every supported match instead of guessing TypeScript alias precedence.
