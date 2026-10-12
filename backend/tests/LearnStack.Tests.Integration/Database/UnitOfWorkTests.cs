@@ -921,6 +921,7 @@ public sealed class UnitOfWorkTests
                     new NoOpAuditStore(),
                     capture,
                     producer,
+                    new DomainEventCollector(producer, new MediatR.Mediator(scope.ServiceProvider)),
                     NullLogger<TransactionExecutionCoordinator>.Instance);
                 var outer = new TransactionBehavior<Probe, Result<string>>(coordinator);
                 var inner = new TransactionBehavior<Probe, Result<string>>(coordinator);

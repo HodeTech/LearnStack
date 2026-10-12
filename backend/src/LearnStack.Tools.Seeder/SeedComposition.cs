@@ -159,6 +159,8 @@ public static class SeedComposition
         // idempotence this actually wants.
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, DomainEventSaveChangesInterceptor>());
 
         // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
         // factory. AddMetrics is idempotent and the API host already calls it through

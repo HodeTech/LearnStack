@@ -12,6 +12,7 @@ namespace LearnStack.Application.Messaging;
 public sealed class ProducerExecution(IUnitOfWork unitOfWork)
 {
     private Invocation? _current;
+    private DomainDispatch? _dispatch;
 
     /// <summary>Whether an invocation is open, independently of tenant admission.</summary>
     public bool HasInvocation => _current is not null;
@@ -22,6 +23,12 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     /// </summary>
     internal Invocation BeginInvocation(bool isTransactionOwner, UserId? causalActor = null)
     {
+        if (_dispatch is not null)
+        {
+            Poison();
+            throw new InvalidOperationException("Domain translation cannot open another producer invocation.");
+        }
+
         if (isTransactionOwner && _current is not null)
         {
             throw new InvalidOperationException("A producer owner is already active in this scope.");
@@ -44,7 +51,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
                 .SetIdFormat(ActivityIdFormat.W3C).Start();
         }
 
-        var invocation = new Invocation(this, _current, announcement, hasOwner, ownedActivity,
+        var invocation = new Invocation(this, _current, announcement, hasOwner, isTransactionOwner, ownedActivity,
             _current is null ? causalActor : _current.CausalActor);
         _current = invocation;
         return invocation;
@@ -96,14 +103,81 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
             throw new InvalidOperationException("The event tenant must match the live announcement.");
         }
 
-        var traceparent = Activity.Current?.Id;
-        if (traceparent is null)
+        var traceparent = _dispatch?.Origin.Traceparent ?? Activity.Current?.Id;
+        if (traceparent is null || !ActivityContext.TryParse(traceparent, null, out _))
         {
             throw new InvalidOperationException("An enrolled producer requires a W3C Activity.");
         }
 
         return new IntegrationEventEnvelope(integrationEvent, traceparent,
-            announcement.OrganizationId?.Value, ActorUserId: _current!.CausalActor);
+            announcement.OrganizationId?.Value, CausationId: _dispatch?.EventId,
+            ActorUserId: _dispatch is null ? _current!.CausalActor : _dispatch.Origin.CausalActor);
+    }
+
+    /// <summary>Captures successful-save attribution without retaining ambient Activity state.</summary>
+    public Origin CaptureOrigin()
+    {
+        var announcement = RequireAnnouncement();
+        if (_dispatch is not null)
+        {
+            Poison();
+            throw new InvalidOperationException("Domain translation cannot produce more domain events.");
+        }
+
+        if (Activity.Current is not { IdFormat: ActivityIdFormat.W3C, Id: { } traceparent })
+        {
+            throw new InvalidOperationException("An enrolled producer requires a W3C Activity.");
+        }
+
+        return new Origin(this, _current!, announcement, traceparent, _current!.CausalActor);
+    }
+
+    /// <summary>Validates an origin against this physical transaction and its current owner.</summary>
+    internal void RequireOrigin(Origin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        var live = RequireAnnouncement();
+        if (!ReferenceEquals(origin.Execution, this) || live != origin.Announcement
+            || !ReferenceEquals(OwnerOf(_current!), OwnerOf(origin.Invocation)))
+        {
+            throw new InvalidOperationException("The domain event origin no longer belongs to this transaction.");
+        }
+    }
+
+    internal void RequireOwner(Invocation owner)
+    {
+        if (!ReferenceEquals(_current, owner) || !owner.IsTransactionOwner)
+        {
+            throw new InvalidOperationException("Only the active physical transaction owner can drain domain events.");
+        }
+
+        EnsureCurrentInvocation();
+    }
+
+    internal void Poison() => unitOfWork.MarkRollbackOnly();
+
+    private static Invocation OwnerOf(Invocation invocation)
+    {
+        while (invocation.Parent is not null) invocation = invocation.Parent;
+        return invocation;
+    }
+
+    /// <summary>
+    /// Installs dispatch metadata synchronously; does not reopen the originating child
+    /// or alter AsyncLocal/Activity state across an asynchronous helper boundary.
+    /// </summary>
+    public IDisposable EnterDomainDispatch(Origin origin, Guid domainEventId)
+    {
+        RequireOrigin(origin);
+        RequireOwner(_current!);
+        if (_dispatch is not null || domainEventId == Guid.Empty)
+        {
+            Poison();
+            throw new InvalidOperationException("Domain dispatch must be sequential and carry an event identity.");
+        }
+
+        _dispatch = new DomainDispatch(origin, domainEventId);
+        return new DispatchScope(this, _dispatch);
     }
 
     /// <summary>Step 7 checks enrollment and authority without requiring a produced event.</summary>
@@ -123,9 +197,53 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     public void RecordProducedWork()
     {
         _ = RequireAnnouncement();
-        for (var invocation = _current; invocation is not null; invocation = invocation.Parent)
+        RecordReceipt(_dispatch?.Origin.Invocation ?? _current!);
+    }
+
+    /// <summary>Records a saved fact against its retained invocation, including disposed children.</summary>
+    public void RecordProducedWork(Origin origin)
+    {
+        RequireOrigin(origin);
+        RecordReceipt(origin.Invocation);
+    }
+
+    private static void RecordReceipt(Invocation origin)
+    {
+        for (var invocation = origin; invocation is not null; invocation = invocation.Parent)
         {
             invocation.HasProducedWork = true;
+        }
+    }
+
+    /// <summary>Opaque attribution captured at the saving boundary.</summary>
+    public sealed class Origin
+    {
+        internal Origin(ProducerExecution execution, Invocation invocation,
+            TenantContextAnnouncement announcement, string traceparent, UserId? causalActor)
+        {
+            Execution = execution;
+            Invocation = invocation;
+            Announcement = announcement;
+            Traceparent = traceparent;
+            CausalActor = causalActor;
+        }
+
+        internal ProducerExecution Execution { get; }
+        internal Invocation Invocation { get; }
+        internal TenantContextAnnouncement Announcement { get; }
+        internal string Traceparent { get; }
+        internal UserId? CausalActor { get; }
+    }
+
+    private sealed record DomainDispatch(Origin Origin, Guid EventId);
+
+    // The collector owns the lexical scope token. ProducerExecution retains only
+    // immutable metadata, so it does not share disposal ownership with the caller.
+    private sealed class DispatchScope(ProducerExecution execution, DomainDispatch dispatch) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (ReferenceEquals(execution._dispatch, dispatch)) execution._dispatch = null;
         }
     }
 
@@ -138,12 +256,14 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
 
         internal Invocation(
             ProducerExecution execution, Invocation? parent,
-            TenantContextAnnouncement? announcement, bool hasOwner, Activity? ownedActivity, UserId? causalActor)
+            TenantContextAnnouncement? announcement, bool hasOwner, bool isTransactionOwner,
+            Activity? ownedActivity, UserId? causalActor)
         {
             _execution = execution;
             Parent = parent;
             Announcement = announcement;
             HasOwner = hasOwner;
+            IsTransactionOwner = isTransactionOwner;
             _ownedActivity = ownedActivity;
             CausalActor = causalActor;
         }
@@ -151,6 +271,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         internal Invocation? Parent { get; }
         internal TenantContextAnnouncement? Announcement { get; }
         internal bool HasOwner { get; }
+        internal bool IsTransactionOwner { get; }
         internal UserId? CausalActor { get; }
 
         /// <summary>Successful production by this invocation or any descendant.</summary>

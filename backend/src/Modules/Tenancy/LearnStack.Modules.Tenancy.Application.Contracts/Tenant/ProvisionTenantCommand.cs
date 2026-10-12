@@ -34,12 +34,11 @@ namespace LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 /// </para>
 /// <para>
 /// <b>Anything added to that transaction inherits the assumption, so read this first.</b>
-/// Two things are already scheduled inside it: the MUST-class audit write ADR-0033 puts
-/// immediately before the commit, and the outbox flush at pipeline step 7. Each would
-/// execute under a caller-chosen tenant id, and neither is refused by <c>pk_tenants</c>.
-/// Whatever lands there must not assume the announced tenant is new — or this command
-/// must start refusing a tenant that already exists, which needs a read surface it does
-/// not have today.
+/// ADR-0057 collects the completed provisioning fact only after its final successful
+/// save; owner-only translation inserts the outbox row before MUST audit and commit.
+/// These writes execute under a caller-chosen tenant id. A duplicate tenant insert
+/// therefore must fail before a creation fact can be saved; the announcement alone is
+/// never evidence that a tenant is new. Pipeline step 7 guards enrollment, not a flush.
 /// </para>
 /// <para>
 /// <b><c>[AllowsUnresolvedTenantContext]</c> and not <c>[PublicSurface]</c>.</b> The

@@ -26,8 +26,9 @@ The binding port and envelope contract is
 [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md).
 Accepted [ADR-0057](../../../docs/decisions/0057-transactional-event-production-and-completion.md)
 owns immediate producer admission, completion and payload policy. P02b-1
-Step 2 implements immediate enqueue and payload admission; successful-save
-collection and the first publisher remain subsequent P02b-1 steps.
+Steps 2/3 implement immediate enqueue, payload admission, successful-save
+collection and the completed-provisioning publisher. Step 4 owns complete
+production censuses and enforcement closeout.
 P02b-2/P02b-3 retain dispatcher/inbox decisions.
 
 ## When to use

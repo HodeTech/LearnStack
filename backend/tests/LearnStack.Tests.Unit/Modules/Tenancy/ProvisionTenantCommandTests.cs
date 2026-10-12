@@ -4,6 +4,7 @@ using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Application.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.Modules.Tenancy.Domain.Events;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -84,6 +85,22 @@ public sealed class ProvisionTenantCommandTests
 
         stores.Updated.Should().ContainSingle().Which
             .DefaultOrganizationId.Should().Be(Organization);
+    }
+
+    [Fact]
+    public async Task Only_the_final_provisioning_write_carries_the_creation_fact()
+    {
+        var (sender, _) = Build(out var stores);
+
+        (await sender.Send(Command())).IsSuccess.Should().BeTrue();
+
+        stores.TenantEventCounts.Should().Equal([0, 1],
+            "the initial insert does not claim that the organization/back-reference exists");
+        var fact = stores.Updated.Should().ContainSingle().Subject.DomainEvents
+            .Should().ContainSingle().Subject.Should().BeOfType<TenantCreatedDomainEvent>().Subject;
+        fact.TenantId.Should().Be(Tenant);
+        fact.EventId.Should().NotBeEmpty();
+        fact.OccurredAt.Should().Be(Clock.UtcNow);
     }
 
     [Fact]
@@ -406,6 +423,7 @@ public sealed class ProvisionTenantCommandTests
         services.AddSingleton<ITenantWriteStore>(recording);
         services.AddSingleton<IOrganizationWriteStore>(recording);
         services.AddSingleton<IClock>(Clock);
+        services.AddSingleton<IGuidFactory, SystemGuidFactory>();
 
         return services.BuildServiceProvider();
     }
@@ -431,6 +449,8 @@ public sealed class ProvisionTenantCommandTests
 
         public List<TenantAggregate> Updated { get; } = [];
 
+        public List<int> TenantEventCounts { get; } = [];
+
         public Task<TenantAggregate?> FindAsync(TenantId id, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Provisioning does not read a tenant.");
 
@@ -438,6 +458,7 @@ public sealed class ProvisionTenantCommandTests
             TenantAggregate aggregate, CancellationToken cancellationToken)
         {
             _writes.Add("tenant:add");
+            TenantEventCounts.Add(aggregate.DomainEvents.Count);
             AddedTenants.Add(aggregate);
             return Task.CompletedTask;
         }
@@ -446,6 +467,7 @@ public sealed class ProvisionTenantCommandTests
             TenantAggregate aggregate, CancellationToken cancellationToken)
         {
             _writes.Add("tenant:update");
+            TenantEventCounts.Add(aggregate.DomainEvents.Count);
             Updated.Add(aggregate);
             return Task.CompletedTask;
         }

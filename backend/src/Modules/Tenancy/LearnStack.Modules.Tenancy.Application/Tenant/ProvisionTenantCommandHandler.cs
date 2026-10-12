@@ -52,7 +52,8 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 internal sealed class ProvisionTenantCommandHandler(
     ITenantWriteStore tenants,
     IOrganizationWriteStore organizations,
-    IClock clock)
+    IClock clock,
+    IGuidFactory guids)
     : IRequestHandler<ProvisionTenantCommand, Result<ProvisionedTenantDto>>
 {
     public async Task<Result<ProvisionedTenantDto>> Handle(
@@ -116,7 +117,7 @@ internal sealed class ProvisionTenantCommandHandler(
         // at a row that does not exist when the tenant is inserted, and the foreign key
         // behind it is MATCH SIMPLE — which skips the check only while the column is
         // null. Setting it on the insert would defeat that and fail.
-        tenant.AssignDefaultOrganization(request.DefaultOrganizationId, clock, actor);
+        tenant.AssignDefaultOrganization(request.DefaultOrganizationId, clock, guids, actor);
         await tenants.UpdateAsync(tenant, cancellationToken);
 
         return Result.Ok(new ProvisionedTenantDto(

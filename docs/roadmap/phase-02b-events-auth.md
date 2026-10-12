@@ -13,7 +13,9 @@ implemented; both independent review rounds passed. The
 [Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) owns
 verification. Step 2 implements immediate enqueue; its
 [record](#p02b-1-step-2--immediate-outbox-production-2026-10-12) owns verification
-and both completed review rounds. Collection and the publisher remain Step 3.
+and both completed review rounds. Step 3 implements collection and the publisher;
+its [record](#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
+tracks verification and review status. Step 4 enforcement/closeout remains pending.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -530,7 +532,7 @@ remains for maintainer review; a local pass does not imply merge.
 #### Named handoff to P02b-3
 
 P02b-1 is authorized to supply the production publisher and pending rows.
-Runtime implementation is pending; dispatcher claims and delivery belong to
+Steps 1–3 implement producer runtime; dispatcher claims and delivery belong to
 P02b-2/P02b-3. P02b-3 must deliver both named defaults in
 separate one-root subscriber transactions after G1 settles distinct subscription
 identities and delivery scope, preserve any authored/lifecycle decision
@@ -751,11 +753,55 @@ Step 4 still owns the transitive producer/helper fence against publication,
 extra connections and commit ownership, alongside the complete production
 censuses. Step 3's save collector, domain causation and publisher remain pending.
 
+### P02b-1 Step 3 — Domain completion and provisioning publisher (2026-10-12)
+
+**Implemented; both independent review rounds pending.**
+
+- A shared SaveChanges interceptor snapshots only changed sources of its saving
+  context, then promotes facts after nonzero successful persistence. Failed,
+  canceled, suppressed and zero-row saves promote nothing. Separate source
+  retention clears uncollected or detached facts; it cannot promote them on an
+  unrelated save. Repeat saves do not duplicate successfully promoted facts.
+- The transaction owner alone drains the FIFO queue before producer invariants,
+  MUST audit and commit. Saved facts retain their saving invocation, generation,
+  W3C span and causal human through child disposal. Translation mints a new
+  integration identity and records the domain identity as causation. Successful
+  promotion marks every ancestor; a produced-work refusal poisons before its
+  frame resolves. Total production is bounded at 256 domain events.
+- API and Seeder install the same collector/interceptor. Owner termination and
+  scope disposal clear source lists, staged/queued facts and promotion state;
+  later successful transactions in the same DI scope cannot replay facts.
+- The tenant's initial default-organization assignment raises
+  `TenantCreatedDomainEvent`. The final successful provisioning save qualifies
+  it for outbox-only translation into `TenantCreatedIntegrationEventV1`.
+  One pending row commits with tenant, default organization/back-reference and
+  both existing MUST audit rows. No dispatch or default subscriber is delivered;
+  existing seed orchestration remains unchanged until P02b-3's named handoff.
+
+**Verification before the implementation commit.** The fresh `CI=true` Release
+build passes with zero warnings/errors; all 1,764 unit and 203 architecture cases
+pass with zero failures/skips. The final focused producer/provisioning integration
+run passes 68 cases with zero failures/skips, including both real API/Seeder
+roots, exact metadata and successful/failed MUST provisioning. A separate
+existing-flow run passes 152 integration cases with zero failures/skips,
+covering audit, UoW, public read-only and convergent seed behavior. The focused
+post-format unit rerun passes 28 provisioning/domain cases; it overlaps the full
+unit total above.
+
+The initial focused integration run exposed two fixture defects: EF refused a
+duplicate alternate key before SQL, and two fault cases tried to reuse an
+irreversibly poisoned UoW. The corrected cases reach the real database uniqueness
+failure and verify poisoned-scope refusal; a separate successful-owner case
+proves later-generation reuse without replay. The full focused rerun above is
+green. These corrections change no runtime policy and conceal no failing case.
+Step 4 still owns complete structural enforcement and catalogue promotion;
+required CI and packet completion are not claimed at this checkpoint.
+
 ### Durable outbox dispatch
 
-P02b-1 Step 2 implements `IOutbox` and replaces Packet 3's step-7 shell with
-an enrollment/invariant guard. Owner-side domain collection and the first
-publisher remain Step 3; dispatch and consumer delivery remain P02b-2/P02b-3.
+P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
+an enrollment/invariant guard, and supply owner-side domain collection and the
+first publisher. Dispatch and consumer delivery remain P02b-2/P02b-3.
 The table shipped in Packet 6.
 
 A handler calls `IOutbox.EnqueueAsync` and the row commits on the same **transaction**
@@ -836,7 +882,7 @@ defined row order. The completion criterion follows the gate, and
 
 #### Domain events collected and dispatched
 
-**Accepted, implementation pending — ADR-0057.** The shared SaveChanges
+**Implemented by P02b-1 Step 3 — ADR-0057.** The shared SaveChanges
 interceptor stages source events and promotes them only after successful
 persistence, in both API and Seeder compositions. Failed/canceled saves promote
 nothing. Collection retains source/frame attribution and transaction generation;

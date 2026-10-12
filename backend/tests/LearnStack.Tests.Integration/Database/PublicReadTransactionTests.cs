@@ -49,9 +49,11 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
             {
                 var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var capture = new AuditStateCapture();
+                var producer = new ProducerExecution(unit);
                 var behavior = new TransactionBehavior<PublicProbe, Result<string>>(
                     new TransactionExecutionCoordinator(
-                        unit, Context, Store(scope.ServiceProvider, capture), capture, new ProducerExecution(unit),
+                        unit, Context, Store(scope.ServiceProvider, capture), capture, producer,
+                        new DomainEventCollector(producer, new Mediator(scope.ServiceProvider)),
                         NullLogger<TransactionExecutionCoordinator>.Instance));
                 var reached = false;
                 var attempt = async () => await behavior.Handle(new PublicProbe(), async () =>
@@ -142,15 +144,17 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         };
         var capture = new AuditStateCapture();
         var store = Store(scope.ServiceProvider, capture);
+        var producer = new ProducerExecution(unit);
+        var collector = new DomainEventCollector(producer, new Mediator(scope.ServiceProvider));
         Func<Task> join = innerMode == TransactionMode.ReadOnly
             ? async () => await new TransactionBehavior<PublicProbe, Result<string>>(
                 new TransactionExecutionCoordinator(
-                    unit, Context, store, capture, new ProducerExecution(unit),
+                    unit, Context, store, capture, producer, collector,
                     NullLogger<TransactionExecutionCoordinator>.Instance))
                 .Handle(new PublicProbe(), next, default)
             : async () => await new TransactionBehavior<WritableProbe, Result<string>>(
                 new TransactionExecutionCoordinator(
-                    unit, Context, store, capture, new ProducerExecution(unit),
+                    unit, Context, store, capture, producer, collector,
                     NullLogger<TransactionExecutionCoordinator>.Instance))
                 .Handle(new WritableProbe(), next, default);
         await join.Should().ThrowAsync<InvalidOperationException>().WithMessage("*mixed-mode*");
@@ -210,9 +214,11 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         {
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
             var capture = new AuditStateCapture();
+            var producer = new ProducerExecution(unit);
             var behavior = new TransactionBehavior<PublicProbe, Result<string>>(
                 new TransactionExecutionCoordinator(
-                    unit, Context, Store(scope.ServiceProvider, capture), capture, new ProducerExecution(unit),
+                    unit, Context, Store(scope.ServiceProvider, capture), capture, producer,
+                    new DomainEventCollector(producer, new Mediator(scope.ServiceProvider)),
                     NullLogger<TransactionExecutionCoordinator>.Instance));
             var attempt = async () => await behavior.Handle(new PublicProbe(), () =>
             {

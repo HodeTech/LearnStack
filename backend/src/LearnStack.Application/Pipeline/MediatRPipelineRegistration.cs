@@ -55,6 +55,7 @@ public static class MediatRPipelineRegistration
         // Behaviors adapt requests; direct owners reuse these same coordinators.
         services.TryAddScoped<AuditExecutionCoordinator>();
         services.TryAddScoped<ProducerExecution>();
+        services.TryAddScoped<DomainEventCollector>();
         services.TryAddScoped<TransactionExecutionCoordinator>();
 
         // MediatR 12.x throws if no assemblies are registered for handler

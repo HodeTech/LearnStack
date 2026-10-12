@@ -415,8 +415,9 @@ Rules:
   stays assembly-qualified; runtime JSON uses frozen `PayloadJsonOptions`.
   Additional fields are identifiers only, complete canonical UTF-8 payloads fit
   the inclusive 262,144-byte cap, and JSON `metadata` is SQL NULL. This adds no
-  DDL CHECK. P02b-1 Step 2 implements immediate enqueue admission; successful-save
-  collection and publisher enforcement remain subsequent steps.
+  DDL CHECK. P02b-1 Steps 2/3 implement immediate enqueue, successful-save
+  collection and the completed-provisioning publisher; Step 4 owns the complete
+  production censuses and enforcement closeout.
 - Only the owner drains successful-save domain events before invariants/MUST
   audit/commit. Domain handlers only translate to outbox; a total 256-event bound
   permits no recursive mutation. Produced-work receipts propagate to ancestors;

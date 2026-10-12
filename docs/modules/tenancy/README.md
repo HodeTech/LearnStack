@@ -484,9 +484,11 @@ never a cross-module join
 
 ## Integration-event catalogue
 
-**No runtime publisher yet.** Accepted
+**Completed-provisioning publisher implemented by P02b-1 Step 3.** Accepted
 [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
-authorizes P02b-1's completed-provisioning publisher. It emits
+governs the publisher. The initial default-organization assignment raises
+`TenantCreatedDomainEvent`; only its successful final save qualifies it for
+owner-only translation. `TenantCreatedDomainEventHandler` emits
 `TenantCreatedIntegrationEventV1` only after tenant, default organization and
 back-reference completion; partition source is `TenantId`, payload has no extra
 fields and envelope organization is null. Enqueue reads the transaction's

@@ -3,6 +3,12 @@
 Per [Permission Standards](../../standards/19-permissions.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02b-1 Step 3 producer implemented — 2026-10-12.** The completed-provisioning
+domain translator runs only during owner completion, adds no endpoint or
+permission, and inserts a pending outbox row under the provisioning announcement.
+Existing command reachability is unchanged. The
+[integration-event catalogue](README.md#integration-event-catalogue) owns the flow.
+
 **P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
 and focused fix verification pass. Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It

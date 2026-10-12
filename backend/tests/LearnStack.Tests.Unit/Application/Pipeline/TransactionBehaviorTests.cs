@@ -12,6 +12,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Application.Pipeline;
@@ -68,6 +69,7 @@ public sealed class TransactionBehaviorTests
         var producer = new ProducerExecution(unit);
         var coordinator = new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance,
             new RecordingAuditStore(), new AuditStateCapture(), producer,
+            new DomainEventCollector(producer, Substitute.For<IPublisher>()),
             NullLogger<TransactionExecutionCoordinator>.Instance);
         var guard = new OutboxFlushBehavior<DummyCommand, Result<string>>(producer);
         var reached = false;
@@ -94,10 +96,12 @@ public sealed class TransactionBehaviorTests
     public async Task Public_surface_selects_read_only_before_announcement_and_dispatch()
     {
         var unitOfWork = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unitOfWork);
         var behavior = new TransactionBehavior<PublicQuery, Result<string>>(
             new TransactionExecutionCoordinator(
                 unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
-                new AuditStateCapture(), new ProducerExecution(unitOfWork),
+                new AuditStateCapture(), producer,
+                new DomainEventCollector(producer, Substitute.For<IPublisher>()),
                 NullLogger<TransactionExecutionCoordinator>.Instance));
 
         var result = await behavior.Handle(new PublicQuery(), () =>
@@ -489,14 +493,18 @@ public sealed class TransactionBehaviorTests
     private static TransactionBehavior<DummyCommand, Result<string>> Build(
         IUnitOfWork unitOfWork,
         RecordingAuditStore? store = null,
-        AuditStateCapture? capture = null) =>
-        new(new TransactionExecutionCoordinator(
+        AuditStateCapture? capture = null)
+    {
+        var producer = new ProducerExecution(unitOfWork);
+        return new(new TransactionExecutionCoordinator(
             unitOfWork,
             UnresolvedTenantContext.Instance,
             store ?? new RecordingAuditStore(),
             capture ?? new AuditStateCapture(),
-            new ProducerExecution(unitOfWork),
+            producer,
+            new DomainEventCollector(producer, Substitute.For<IPublisher>()),
             NullLogger<TransactionExecutionCoordinator>.Instance));
+    }
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)
     {

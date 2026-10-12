@@ -43,10 +43,10 @@ this entry audit does not replace the Accepted per-module contract.
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
 authorize immediate enqueue, owner-only completion and produced-work refusal
-protection. P02b-1 Steps 1/2 implement shared execution and immediate enqueue;
-successful-save collection and the first publisher remain Step 3. Producer
-guidance below states the accepted contract; dispatcher/inbox choices remain
-P02b-2/P02b-3.
+protection. P02b-1 Steps 1–3 implement shared execution, immediate enqueue,
+successful-save collection and the completed-provisioning publisher. Step 4 owns
+the complete production censuses and enforcement closeout. Dispatcher/inbox
+choices remain P02b-2/P02b-3.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -249,11 +249,13 @@ separately owned delivery question.
 
 ### Domain collection and owner completion
 
-**Accepted; implementation remains P02b-1 Step 3.** The shared SaveChanges
+**Implemented by P02b-1 Step 3 — ADR-0057.** The shared SaveChanges
 interceptor stages source events and promotes only after
 successful persistence, preserving source/frame attribution and generation in
-both API and Seeder compositions. Failed/canceled saves promote nothing;
-repeated saves, detach and delete cannot duplicate or lose successful events.
+both API and Seeder compositions. Only changed sources belonging to the saving
+context qualify; zero-row, failed and canceled saves promote nothing. Retaining
+a source for cleanup does not let its unsaved facts ride another source's save.
+Repeated saves, detach and delete cannot duplicate or lose successful events.
 Only the transaction owner drains the FIFO queue, at one site, before invariant
 checks and pending MUST audit/commit. A transaction holds at most 256 domain
 events; this total is not recursive cascade support.

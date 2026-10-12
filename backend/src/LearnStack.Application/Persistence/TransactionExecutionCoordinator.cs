@@ -18,6 +18,7 @@ public sealed class TransactionExecutionCoordinator(
     IAuditStore auditStore,
     IAuditStateCapture capture,
     ProducerExecution producer,
+    DomainEventCollector collector,
     ILogger<TransactionExecutionCoordinator> logger)
 {
     /// <summary>
@@ -34,7 +35,20 @@ public sealed class TransactionExecutionCoordinator(
     {
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
-        await using var scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
+        var openingOwner = !unitOfWork.HasActiveTransaction;
+        IUnitOfWorkScope scope;
+        try
+        {
+            if (openingOwner) collector.RefreshTrackedSources();
+            scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
+        }
+        catch
+        {
+            if (openingOwner) collector.Clear();
+            throw;
+        }
+
+        await using var transactionScope = scope;
         var committing = false;
 
         try
@@ -80,6 +94,7 @@ public sealed class TransactionExecutionCoordinator(
                         "The transaction is rollback-only or contains produced work in read-only mode.");
                 }
 
+                await collector.DrainAsync(invocation, cancellationToken);
                 if (invocation.HasProducedWork) _ = producer.RequireAnnouncement();
                 await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
             }
@@ -123,6 +138,12 @@ public sealed class TransactionExecutionCoordinator(
             }
 
             throw;
+        }
+        finally
+        {
+            // Announcement/setup failures also reach here. Child completion never
+            // drains or clears sources belonging to the still-open physical owner.
+            if (scope.IsOwner) collector.Clear();
         }
     }
 
