@@ -9,7 +9,7 @@ corpus and Hub premises. P02b-1's
 Accepted — 2026-10-12. G2, G3 derivation, G5 stored identities, G6 producer/common
 ownership, G18 payload and G19 flow are Accepted; remaining gate parts stay open.
 The four producer implementation steps are authorized. Step 1 lifecycle work is
-implemented; its two independent review rounds remain pending. The
+implemented; both independent review rounds passed. The
 [Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) owns
 verification. Immediate enqueue, collection and the publisher remain subsequent steps.
 
