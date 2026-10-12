@@ -63,7 +63,16 @@ public sealed class PostgresOutbox(IUnitOfWork unitOfWork, ProducerExecution pro
             throw new InvalidOperationException("The producer announcement changed before outbox INSERT.");
         }
 
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            unitOfWork.MarkRollbackOnly();
+            throw;
+        }
+
         producer.RecordProducedWork();
     }
 }

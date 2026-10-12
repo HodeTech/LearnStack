@@ -605,22 +605,28 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
         AssertClean(services);
     }
 
-    [Fact]
-    public async Task A_duplicate_EventId_fails_the_real_INSERT_without_creating_a_child_receipt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_duplicate_EventId_poisons_the_unit_without_creating_a_child_receipt(bool absorb)
     {
         await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
         await using var provider = Compose(dataSource);
         await using var scope = provider.CreateAsyncScope();
         var services = scope.ServiceProvider;
+        var unit = services.GetRequiredService<IUnitOfWork>();
         var integrationEvent = Event();
         var observed = false;
         var duplicateAttempted = false;
+        PostgresException? insertFailure = null;
 
         var run = () => RunAsync(services, async () =>
         {
             await services.GetRequiredService<IOutbox>().EnqueueAsync(integrationEvent);
-            CurrentInvocation(services).HasProducedWork.Should().BeTrue();
-            (await RowInUnitAsync(services.GetRequiredService<IUnitOfWork>(), integrationEvent.EventId)).Should().NotBeNull();
+            var parent = CurrentInvocation(services);
+            parent.HasProducedWork.Should().BeTrue();
+            unit.IsRollbackOnly.Should().BeFalse("a successful INSERT does not poison the unit");
+            (await RowInUnitAsync(unit, integrationEvent.EventId)).Should().NotBeNull();
             observed = true;
             return await services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync<Result<None>>(
                 null, TransactionMode.ReadWrite, "duplicate-child", async () =>
@@ -628,15 +634,26 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
                     CurrentInvocation(services).HasProducedWork.Should().BeFalse();
                     var enqueue = () => services.GetRequiredService<IOutbox>().EnqueueAsync(integrationEvent);
                     var failure = (await enqueue.Should().ThrowAsync<PostgresException>()).Which;
+                    insertFailure = failure;
                     failure.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+                    unit.IsRollbackOnly.Should().BeTrue("the outbox must poison before its caller can absorb the INSERT error");
                     CurrentInvocation(services).HasProducedWork.Should().BeFalse(
                         "the parent's successful INSERT cannot hide a receipt recorded before this failed INSERT");
+                    parent.HasProducedWork.Should().BeTrue("failed production cannot erase an earlier receipt");
                     duplicateAttempted = true;
+                    if (absorb) return Result.Ok(None.Value);
                     throw failure;
                 });
         });
 
-        (await run.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+        if (absorb)
+        {
+            await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
+        }
+        else
+        {
+            (await run.Should().ThrowAsync<PostgresException>()).Which.Should().BeSameAs(insertFailure);
+        }
         observed.Should().BeTrue();
         duplicateAttempted.Should().BeTrue();
         (await ReadRowAsync(schema.Postgres.AppConnectionString, integrationEvent.EventId)).Should().BeNull();

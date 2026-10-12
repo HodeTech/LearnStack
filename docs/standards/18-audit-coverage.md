@@ -374,11 +374,13 @@ Rules:
   immediately before `COMMIT`, inserting every pending intent as a complete row on the
   ambient transaction, and then records whether the commit succeeded; `AuditLogBehavior`
   reconciles on the way out, re-writing standalone whichever rows the transaction did not
-  carry. Only the **owning** unit-of-work frame (`IUnitOfWorkScope.IsOwner`) writes,
-  reports the commit boundary and clears the buffer; a joiner does none of the three,
+  carry. Only the **owning** unit-of-work frame (`IUnitOfWorkScope.IsOwner`) writes
+  pending MUST rows, reports the commit boundary and cleans up domain-event
+  collector/source state; a joiner does none of the three,
   because a joiner that reported `Committed` would claim durability for a row nothing has
-  committed and a joiner that cleared would erase the outer request's intents.
-  Only the outermost **audit** frame reconciles and clears capture. Accepted
+  committed and a joiner that cleared domain events would erase the owner's work.
+  Only the outermost `AuditExecutionCoordinator` frame reconciles standalone rows
+  and calls `IAuditStateCapture.Clear()`. Accepted
   ADR-0057 separates audit ownership from per-invocation producer receipts.
   A controlled direct owner proves common entry in P02b-1; production delivery
   opens it before handler construction in P02b-3 after G1, refuses an
@@ -576,8 +578,8 @@ observes neither a rollback nor a `42501`.
 
 One further catalogue rule holds a claim made above and belongs to neither list:
 [`AuditStateCapture_ClearedPerRequest`](21-architecture-tests-catalogue.md#auditstatecapture_clearedperrequest)
-is behavioural — `Clear()` is called exactly once, by the outermost `AuditLogBehavior`,
-and never by a joiner.
+is behavioural — `Clear()` is called exactly once, by the outermost
+`AuditExecutionCoordinator`, and never by a nested audit frame.
 
 These drive the runtime path as `learnstack_app`, except where the privilege model is
 itself the subject: `AuditLog_Update_Is_Column_Restricted` measures three layers that bind

@@ -629,9 +629,10 @@ constructing that handler. Its deferred work enters
 [`TransactionExecutionCoordinator`](../../backend/src/LearnStack.Application/Persistence/TransactionExecutionCoordinator.cs),
 then constructs and invokes the handler after announcement. Direct one-root work
 declares its own intents; nested commands retain their own, without an extra
-business row. Production delivery/inbox wiring remains P02b-3 after G1. Step 1
-supplies the common entry and producer ancestry groundwork; it does not implement
-outbox enqueue or domain-event collection.
+business row. Step 1 supplies the common entry and producer ancestry groundwork;
+Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion
+and owner-only domain drain. Dispatch remains P02b-2; production consumer
+delivery/inbox wiring remains P02b-3 after G1.
 
 ### The two catalogue faces, and the three columns nothing fills yet
 
@@ -840,8 +841,9 @@ Commit success reports Committed, an already poisoned refusal reports RolledBack
 and a genuinely uncertain commit fault reports Indeterminate. Rollback cleanup
 uses `CancellationToken.None` and cannot replace the original failure. The shared
 execution boundary creates a W3C Activity even without a telemetry listener and
-restores ancestry/Activity on disposal. Enqueue, successful-save promotion and
-owner-only domain drain remain subsequent P02b-1 steps.
+restores ancestry/Activity on disposal. P02b-1 Steps 2–3 deliver immediate outbox
+enqueue, successful-save collection/promotion and owner-only domain drain before
+MUST audit/commit. Dispatch and consumer delivery/inbox remain P02b-2/P02b-3.
 
 `IUnitOfWork` remains the seam through which every module context and `IAuditStore`
 reach the one ambient connection/transaction. Packet 6 shipped that seam and the
@@ -1780,7 +1782,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 | Phase | Deliverable |
 |-------|-------------|
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
-| P02b-1 Step 1 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; enqueue and domain collection remain later steps. |
+| P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Dispatch remains P02b-2; consumer delivery/inbox remains P02b-3. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |

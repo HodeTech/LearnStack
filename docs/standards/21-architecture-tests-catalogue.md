@@ -3155,10 +3155,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   business code runs. Verifies the envelope-to-context restoration.
 - **Source:** ADR-0032 § Sub-decision 12; Phase 02b deliverable.
 - **Type:** integration test (Testcontainers). Runs against
-  `InProcessEventBus` — which is a first-class transport with the same handler
-  interface, inbox guard and context restoration as the durable path
+  `InProcessEventBus` — which invokes the shared handler interface and restores
+  tenant context
   ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), so the assertion does
-  not wait on the Dapr adapter. **Kind:** behavioural.
+  not wait on the Dapr adapter. Consumer delivery/inbox deduplication remains
+  P02b-3 work. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 

@@ -322,13 +322,13 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    ([ADR-0044 § 3](../decisions/0044-audit-write-path.md);
    `ProvisionTenantCommand` declares two), and parking them touches no `DbContext`.
 
-   On the way out the **owning** unit-of-work frame reconciles, gated on
-   `IUnitOfWorkScope.IsOwner`: every intent whose state is anything other than
+   On the way out only the outermost `AuditExecutionCoordinator` frame reconciles:
+   every intent whose state is anything other than
    `Committed` — never written, rolled back, or a commit whose outcome is
    unknown — is written standalone with the real outcome, in its own short
    transaction. "Written" is not "committed", and a per-request flag cannot
-   observe a rollback. A joiner frame reconciles nothing, signals nothing, and
-   does not call `Clear()`; the outermost behavior clears the capture in its
+   observe a rollback. Nested audit frames reconcile nothing and never call
+   `IAuditStateCapture.Clear()`; the outermost audit coordinator clears capture in its
    `finally` ([ADR-0044 § 4](../decisions/0044-audit-write-path.md)).
 
    **Fail-closed is narrower than it reads.** An **in-transaction** MUST-class
