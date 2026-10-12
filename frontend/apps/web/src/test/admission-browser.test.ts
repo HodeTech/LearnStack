@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { assertFlightFallback } from '../../scripts/admission-browser.mjs';
+import {
+  assertFlightFallback,
+  atBrowserPhase,
+  browserFailureDetail,
+} from '../../scripts/admission-browser.mjs';
 
 const origin = 'https://fixture.localhost:3000';
 const target = '/en/courses/fixture-course';
@@ -14,6 +18,26 @@ const flight = {
 const document = { url: origin + target, type: 'Document', rsc: false, status: 200 };
 
 describe('stock browser Flight fallback observation', () => {
+  it('exposes only a closed phase when a private browser operation fails', async () => {
+    const privateValue = 'private URL, envelope and browser output';
+    const failure = await atBrowserPhase('browser-hydration', () => {
+      throw new Error(privateValue);
+    }).catch((error: Error) => error);
+    expect(browserFailureDetail(failure)).toBe(' browser-hydration');
+    expect(String(failure)).not.toContain(privateValue);
+    expect(failure).not.toHaveProperty('cause');
+    expect(browserFailureDetail({ admissionStage: privateValue })).toBe('');
+    expect(browserFailureDetail(new Error(privateValue))).toBe('');
+    expect(browserFailureDetail(null)).toBe('');
+  });
+
+  it('preserves successful browser operations and rejects unregistered phases', async () => {
+    await expect(atBrowserPhase('browser-wire', () => 42)).resolves.toBe(42);
+    await expect(atBrowserPhase('unregistered', () => 42)).rejects.toThrow(
+      'Browser diagnostic phase is registered',
+    );
+  });
+
   it.each([429, 503])('accepts one refused Flight then recovered document: %s', (status) => {
     expect(() =>
       assertFlightFallback(

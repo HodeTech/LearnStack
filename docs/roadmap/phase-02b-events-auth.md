@@ -931,11 +931,25 @@ checks 2,900 relative links and 700 fragments with no broken target; this is
 manual/local validation, not a new CI anchor gate. Added closeout prose satisfies
 the 88-column rule and `git diff --check` passes.
 
-No frontend source, OpenAPI contract or schema migration changes. The PR's
+No frontend production source, OpenAPI contract or schema migration changes. The PR's
 seven required checks provide fresh CI evidence, including frontend and the
 public demo/Lighthouse lifecycle; local success alone does not claim CI approval
 or merge. Existing Accepted ADR changes are insertion-only dated disclosures;
 ADR-0057's original acceptance content and P02b-0's entry record are preserved.
+
+#### PR #29 CI verification
+
+The first full [PR run](https://github.com/HodeTech/LearnStack/actions/runs/38228839007)
+at `1e799a8` passes six of seven required jobs, including the public demo and
+Lighthouse lifecycle. Docker integration reports 967 passed and one failed:
+the existing stock-browser admission proof exits during its `browser 429`
+phase. All other integration cases pass. The same focused proof passes locally;
+the original CI diagnostic does not identify the failing browser operation.
+
+Test-only browser diagnostics now expose closed phase names for startup,
+hydration, navigation, wire assertions and cleanup. Raw exceptions, browser
+output, URLs and private values remain excluded. Assertions, deadlines and
+production behavior are unchanged; a fresh CI result is still required.
 
 **Next: P02b-2 decision pass.** Reverify G1, G3 ordering, G4, G5 resolver policy,
 G7/G8, G17 and G18 error descriptors before implementation. ADR-0046 remains
