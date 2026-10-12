@@ -4,8 +4,10 @@
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
 records the verified exit. The
 [entry verification](#p02b-0-entry-verification-2026-10-12) reconciles the code,
-corpus and Hub premises. P02b-1's decision pass is next; its dependent gates
-remain open. No Phase 02b runtime implementation has started.
+corpus and Hub premises. P02b-1's
+[decision package](#p02b-1-proposed-decision-package-2026-10-12) and ADR-0057 are
+Proposed; its dependent gates remain open pending maintainer approval. No
+Phase 02b runtime implementation has started.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -409,6 +411,140 @@ scan found only CLAUDE.md's unchanged prohibition on local analysis references,
 not a new dependency on a private document. No local full integration, browser
 or Lighthouse rerun was needed for this documentation-only packet; the exact
 post-merge CI receipt above owns that inherited evidence.
+
+### P02b-1 proposed decision package (2026-10-12)
+
+**Proposed — approval pending.** This is the producer packet's decision pass,
+not its implementation record. The existing register remains open; its Leaning
+cells and the target sketches below are not accepted contracts.
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
+is the proposed authority for the coupled producer choices. It explicitly
+replaces ADR-0032's step-7 flush/separate event-ID column and ADR-0040's
+absorbable-failure rule only for successfully produced work. Other Accepted
+rules and historical delivery records stay intact.
+
+#### Document and code audit
+
+The decision pass re-read the inherited event, transaction and audit decisions
+(ADR-0006/0010/0032/0033/0038/0040/0042/0044), the producer/consumer architecture,
+Database/Observability/Audit/Infrastructure standards, the three module specs
+and their matrices, the production pipeline and persistence seams, the existing
+transport and both composition roots, and the actual provisioning/Seeder paths.
+The [entry audit](#p02b-0-entry-verification-2026-10-12) remains the authority for
+P02b-0 evidence; it is not rewritten as a P02b-1 delivery claim.
+
+Two independent read-only audits examined producer/audit boundaries
+(GPT-6-astra, xhigh) and real subscriber usefulness/seed compatibility
+(GPT-6.1-sol, xhigh). The following code facts shape the proposal:
+
+- The outbox DDL already exists; it has `id`, not a separate `event_id`.
+  `IOutbox` is absent and step 7 is a pass-through. A shared SaveChanges is
+  neither necessary nor sufficient; the one ambient transaction is the boundary.
+- Provisioning deliberately leaves `ITenantContext` unresolved and announces
+  its new tenant on the transaction. The Seeder has neither a guaranteed
+  correlation value nor an Activity listener. An HTTP-only enqueue check fails
+  its first real producer.
+- Joined UoW frames are not savepoints. Discarding an inner event queue cannot
+  undo its saved state or already inserted outbox row.
+- Audit entry/reconciliation is currently specific to `AuditLogBehavior`.
+  A direct delivery needs common ownership rather than pretending a nested
+  request owns a transaction it only joined.
+- Typed settings are uncached; definition reads probe fresh generations. Neither
+  needs an invented invalidation consumer. Audit already durably records source
+  changes, so an asynchronous mirror adds no honest useful effect.
+- The existing generic defaults are real data with a declared product purpose.
+  Their automatic installation changes orchestration ownership; it is not a
+  currently implemented consumer. Current seed verification pins their IDs,
+  so P02b-3 needs an explicit handoff before enabling delivery races.
+
+#### Proposed gate answers and approval boundary
+
+The ADR owns exact semantics and bounds; this table owns gate timing. Approval
+accepts this package and ADR-0057 together, followed by a decision-only acceptance
+commit and Registered catalogue obligations **before runtime code**.
+
+| Gate / part | Proposed answer | Acceptance carrier / remaining owner |
+|---|---|---|
+| G2 | Immediate ambient INSERT; step 7 checks enrollment, while the owner drains domain events before MUST audit/commit | ADR-0057; dated ADR-0032 navigation; architecture producer-pattern reconciliation |
+| G3 derivation | Explicit aggregate-ID or declared tenant-wide source; canonical key and falsifiable structural/behavioral proof | ADR-0057 and existing `Integration_Event_Declares_PartitionKey`; publish ordering remains P02b-2 |
+| G5 stored identities | Assembly-qualified type; `id = EventId`, no extra column; runtime-type JSON with existing frozen options | ADR-0057; dated ADR-0032 navigation and Database Standards alignment; resolver failure policies remain P02b-2 |
+| G6 producer/common owner | One collector/drain and reusable audit entry; outbox-only domain reactions; absorbed fail-after-produced-work poisons the unit, including descendant receipts | ADR-0057's explicit ADR-0040 partial supersession, dated ADR-0044/0033/0040 navigation; production delivery/inbox atomicity remains P02b-3 |
+| G18 payload | Identifier-only additional fields, bounded canonical payload, no copied personal data or serializer escape | ADR-0057 and dated ADR-0038 navigation; sanitized errors P02b-2, erasure inventory P02b-8 |
+| G19 | Completed tenant provisioning produces `TenantCreatedIntegrationEventV1`; two Customization subscribers initialize `card@1` and `plain@1` without overwriting | This package and ADR-0057; module-spec reconciliation on approval, publisher P02b-1, subscriptions plus Seeder handoff P02b-3 |
+
+The additional nested-refusal protection is deliberate, not a correction to an
+old statement: ADR-0040's prior rule was valid when accepted. Its exception and
+ordinary event-free refusal semantics survive. No independent scope may bypass
+the producer/audit coordinator by opening a raw transaction and calling outbox.
+
+On acceptance, reconcile the register's Vehicle cells to this new superseding
+record and dated navigation. Update current producer guidance in architecture
+15, standards 02/05/10/18/20 and the integration-event/review skills. Align this
+phase's domain-event sketch to owner-only dispatch and outbox-only reactions,
+removing its recursive-event target. Preserve consumer target guidance under
+its existing decisions until P02b-2's G1 pass.
+Align Tenancy/Customization event catalogues and Audit's consumes-none statement.
+Remove unsupported settings-invalidation promises from this phase's scope,
+deliverables and completion criteria as well as Tenancy's event catalogue:
+uncached settings need no asynchronous invalidation. A later cache introduction
+must carry its own measured need and owner; this packet does not manufacture one.
+
+#### Four implementation steps after approval
+
+All work stays on `development`. Each step includes implementation tests and
+an explicit commit, then **two independent review rounds with fresh agents**.
+Each round covers security/isolation, correctness/lifecycle, architecture/audit,
+test falsifiability and carrier accuracy. Use GPT-6-astra xhigh for transaction/
+audit risks and GPT-6.1-sol xhigh for independent structural/test/doc review;
+adjust scope rather than weakening critical review. Verify every finding before
+fixing and commit confirmed fixes; close both rounds before the next step.
+
+| Step | Deliverable | Required evidence before its review closeout |
+|---|---|---|
+| 1 — Shared execution lifecycle | Read-only transaction announcement/generation, producer invocation receipts, common audit entry/owner coordinator and guaranteed no-listener trace context; request pipeline retains existing outcomes | Owner/joiner and descendant receipts, event-free absorbed control, no context/setter expansion, same-scope cleanup, existing audit/public read-only regressions, controlled direct non-MediatR owner |
+| 2 — Immediate outbox | `IOutbox`, ambient parameterized implementation, identity/metadata/payload admission and step-7 invariant guard; both compositions wired | Real `learnstack_app` INSERT/rollback and cross-tenant refusal, exact persisted envelope/runtime round-trip, duplicate/oversized/malformed/stale/read-only refusal, no extra connection or publish, MUST-audit failure atomicity |
+| 3 — Domain completion and real publisher | Successful-save collection, owner-only FIFO drain, outbox-only translation and completed-provisioning publisher used by API and Seeder | Multi-save/detach/delete, save failure/cancellation, absorbed direct/descendant producer refusal, bounded drain, no replay after rollback/scope reuse, exact one event per successful provision and zero on rollback; response version remains accurate |
+| 4 — Enforcement and closeout | Production-subject architecture sweeps with planted controls, end-to-end producer regression, all affected docs/skills/catalogue states reconciled | Release/format and applicable complete backend suites with zero skips; exact test evidence, links/anchors and immutable ADR history; inspect required CI on the eventual PR without claiming unrun results |
+
+Use the implementation workflow's `add-integration-event`,
+`add-mediatr-handler`, `add-integration-test` and `add-architecture-test` skills
+for the relevant surfaces, plus `run-tests-locally`, `standards-check`,
+`code-review` and `commit-and-pr`. No producer schema change is proposed;
+unexpected schema needs reopen planning rather than borrowing P02b-2's lease work.
+
+No step is complete with review findings or required evidence pending. Partial
+step commits are review checkpoints, not packet delivery claims. The final PR
+remains for maintainer review; a local pass does not imply merge.
+
+#### Named handoff to P02b-3
+
+P02b-1 ships a useful production publisher and persists pending rows. Dispatcher
+claims and delivery do not run yet. P02b-3 must deliver both named defaults in
+separate one-root subscriber transactions, preserve any authored/lifecycle
+decision (including deletion), and prove redelivery and sibling failure recovery.
+It also switches built-in seed verification to owner-resolved key/version
+identity while preserving warm IDs and exact authored curriculum IDs. Fresh
+seed/dispatcher races, repeated-run neutrality, affected audit fixtures and the
+seed inventory must be verified together before that packet closes.
+
+G1/G3-ordering/G4/G5-resolution/G7/G8/G17 and G18's remaining parts remain open
+for their named packets. This approval neither decides inbox ownership nor adds
+jobs, authentication, Hub integration, Dapr or another worker process.
+
+#### Decision-draft review and validation
+
+Two fresh independent draft reviewers (GPT-6-astra xhigh for runtime/transaction
+semantics; GPT-6.1-sol xhigh for corpus/gates/seed scope) approved the proposal
+for maintainer review. Neither found a blocking issue. The corpus review's
+carrier reminder was verified and incorporated above: Backend Standards 02 and
+this phase's domain-event sketch must be reconciled on approval. These are
+decision-draft reviews, not the two review rounds each implementation step owes.
+
+The seven ADR lifecycle-parser tests pass. A local file-and-heading check resolves
+all relative links/anchors in the changed draft carriers; it is not a new CI
+anchor gate. Accepted ADR files and the P02b-0 entry record remain unchanged.
+No backend runtime suite was needed or claimed for this documentation-only
+preparation. Maintainer approval remains pending.
 
 ### Durable outbox dispatch
 

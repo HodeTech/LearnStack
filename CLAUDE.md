@@ -164,7 +164,8 @@ both review rounds. [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is 
 the [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification. P02b-0's
 [entry audit](docs/roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-is complete; P02b-1's producer decision pass is next, before runtime changes.
+is complete; P02b-1's [producer decision package](docs/roadmap/phase-02b-events-auth.md#p02b-1-proposed-decision-package-2026-10-12)
+and ADR-0057 are Proposed, awaiting approval before runtime changes.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -365,7 +366,8 @@ Then read the phase that is live and the one it stands on:
 
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
   — **the live phase**. P02b-0 entry verification is complete; P02b-1's decision
-  pass is next. Each later packet accepts its own gates before implementation.
+  package is Proposed, awaiting approval. Each later packet accepts its own gates
+  before implementation.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

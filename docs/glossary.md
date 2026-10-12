@@ -114,6 +114,9 @@ This glossary defines LearnStack-specific terms. When a term is ambiguous across
 | **Domain Event** | An event raised inside one module to express that a meaningful change happened in its aggregate. Stays inside the module. |
 | **Integration Event** | An event published outward via the outbox so that other modules or external consumers can react. |
 | **Outbox** | The transactional buffer that turns domain changes into integration events without dual-write inconsistency. |
+| **Producer frame** | Proposed per-invocation bookkeeping for event production, including nested requests. A sticky receipt records successful outbox INSERTs or domain-event promotion for the invocation and its ancestors; it is distinct from transaction and audit ownership. [ADR-0057](decisions/0057-transactional-event-production-and-completion.md) is Proposed, not implemented. |
+| **Audit frame** | The boundary grouping classified operation intents and captured changes. Nested operations contribute intents; only the outermost frame reconciles and clears them. `AuditLogBehavior` currently supplies the MediatR boundary under [ADR-0044](decisions/0044-audit-write-path.md); [Proposed ADR-0057](decisions/0057-transactional-event-production-and-completion.md) extends common entry coordination to non-MediatR owners. |
+| **Transaction announcement snapshot** | Proposed read-only record of the tenant/organization context successfully announced on one physical transaction generation. It supplies producer checks without granting a new tenant-context writer or setter. [ADR-0057](decisions/0057-transactional-event-production-and-completion.md) is Proposed, not implemented. |
 | **Learning Event** | An analytics event describing learner behavior (lesson viewed, assessment completed). |
 | **Commerce Event** | An analytics event describing the commerce funnel. |
 | **Classroom Event** | An analytics event derived from `LiveSessionEvent` streams. |

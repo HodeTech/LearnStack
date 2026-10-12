@@ -40,6 +40,13 @@ the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
 transactions, inbox and recovery. G1 settles the inbox's ownership and caller;
 this entry audit does not replace the Accepted per-module contract.
 
+The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-proposed-decision-package-2026-10-12)
+and [Proposed ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
+recommend immediate enqueue, owner-only completion and a bounded replacement of
+absorbed producer refusals. They accept no gate and change no shipped behavior.
+The producer examples below remain target guidance pending that decision's
+approval and carrier reconciliation; dispatcher/inbox choices remain P02b-2/3.
+
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
 cross-process transport LearnStack uses. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)
