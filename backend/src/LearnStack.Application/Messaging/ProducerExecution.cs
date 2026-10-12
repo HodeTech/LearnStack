@@ -18,7 +18,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     /// Enrolls after announcement. An unresolved, event-free invocation is legal;
     /// actual production must pass <see cref="RequireAnnouncement"/>.
     /// </summary>
-    public Invocation BeginInvocation(bool isTransactionOwner)
+    internal Invocation BeginInvocation(bool isTransactionOwner)
     {
         if (isTransactionOwner && _current is not null)
         {
@@ -28,7 +28,11 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         var announcement = unitOfWork.GetTenantContextAnnouncement(unitOfWork.Transaction);
         // An orphan UoW joiner is not a producer owner. It can finish event-free work,
         // but cannot enlist production on a raw transaction nobody will complete here.
-        var hasOwner = isTransactionOwner || _current?.HasOwner == true;
+        var hasOwner = isTransactionOwner
+            || (_current is { HasOwner: true, Announcement: not null } parent
+                && parent.Announcement == announcement);
+        // A retained invocation cannot lend ownership to a later raw transaction,
+        // even when Npgsql reuses the transaction object and the tenant is unchanged.
         Activity? ownedActivity = null;
         if (Activity.Current is not { IdFormat: ActivityIdFormat.W3C, Id: not null })
         {

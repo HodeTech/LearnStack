@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Application.Audit;
@@ -40,9 +41,10 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
     private static readonly ProbeContext TenantA = new();
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task An_absorbed_producer_refusal_rolls_back_direct_and_descendant_work(bool descendant)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task An_absorbed_producer_refusal_rolls_back_direct_and_descendant_work(int descendantDepth)
     {
         await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
         await using var provider = Compose(dataSource);
@@ -70,16 +72,17 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         {
             var refused = await transaction.ExecuteAsync(null, TransactionMode.ReadWrite, "refused", async () =>
             {
-                if (descendant)
+                async Task<Result<None>> DescendantAsync(int remainingDepth)
                 {
+                    if (remainingDepth == 0) return await WriteAsync();
                     var child = await transaction.ExecuteAsync(
-                        null, TransactionMode.ReadWrite, "successful-descendant", WriteAsync);
+                        null, TransactionMode.ReadWrite, "successful-descendant",
+                        () => DescendantAsync(remainingDepth - 1));
                     child.IsSuccess.Should().BeTrue();
+                    return child;
                 }
-                else
-                {
-                    (await WriteAsync()).IsSuccess.Should().BeTrue();
-                }
+
+                (await DescendantAsync(descendantDepth)).IsSuccess.Should().BeTrue();
 
                 return Result<None>.Fail(Refusal);
             });
@@ -98,6 +101,91 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         producer.HasInvocation.Should().BeFalse();
         unit.Transaction.Should().BeNull();
         unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_raw_announced_transaction_and_its_joiner_cannot_authorize_production(bool join)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
+        await using var provider = Compose(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var unit = services.GetRequiredService<IUnitOfWork>();
+        var producer = services.GetRequiredService<ProducerExecution>();
+        typeof(ProducerExecution).GetMethod("BeginInvocation",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .IsAssembly.Should().BeTrue("only the core coordinator can enroll producer ownership");
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(TenantA);
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull(
+            "missing SQL authority would be a weaker reason to refuse production");
+        producer.HasInvocation.Should().BeFalse();
+        var reached = false;
+
+        Task<Result<None>> WorkAsync()
+        {
+            reached = true;
+            var produce = () => producer.RequireAnnouncement();
+            produce.Should().Throw<InvalidOperationException>().WithMessage("*enrolled writable frame*");
+            return Task.FromResult(Result.Ok(None.Value));
+        }
+
+        if (join)
+        {
+            (await services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync(
+                null, TransactionMode.ReadWrite, "orphan-joiner", WorkAsync)).IsSuccess.Should().BeTrue();
+        }
+        else
+        {
+            (await WorkAsync()).IsSuccess.Should().BeTrue();
+        }
+
+        reached.Should().BeTrue();
+        producer.HasInvocation.Should().BeFalse();
+        unit.HasActiveTransaction.Should().BeTrue("only the raw owner resolves its transaction");
+    }
+
+    [Fact]
+    public async Task A_stale_owner_cannot_confer_production_authority_on_a_new_transaction_joiner()
+    {
+        await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
+        await using var provider = Compose(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var unit = services.GetRequiredService<IUnitOfWork>();
+        var producer = services.GetRequiredService<ProducerExecution>();
+        var coordinator = services.GetRequiredService<TransactionExecutionCoordinator>();
+        var stop = new InvalidOperationException("Stop after stale ancestry proof");
+        var reached = false;
+
+        var run = () => DirectAudit(services).ExecuteAsync(typeof(OffHandler), null,
+            () => coordinator.ExecuteAsync<Result<None>>(
+            null, TransactionMode.ReadWrite, "retained-owner", async () =>
+            {
+                var previous = producer.RequireAnnouncement();
+                await unit.CommitAsync();
+                await using var later = await unit.BeginTransactionAsync();
+                await unit.SetTenantContextAsync(TenantA);
+                unit.GetTenantContextAnnouncement(unit.Transaction)!.Generation.Should()
+                    .BeGreaterThan(previous.Generation);
+
+                (await coordinator.ExecuteAsync(null, TransactionMode.ReadWrite, "later-joiner", () =>
+                {
+                    reached = true;
+                    var produce = () => producer.RequireAnnouncement();
+                    produce.Should().Throw<InvalidOperationException>()
+                        .WithMessage("*enrolled writable frame*");
+                    return Task.FromResult(Result.Ok(None.Value));
+                })).IsSuccess.Should().BeTrue();
+
+                throw stop;
+            }), CancellationToken.None);
+
+        (await run.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(stop);
+        reached.Should().BeTrue();
+        AssertClean(services);
     }
 
     [Fact]

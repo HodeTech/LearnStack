@@ -636,6 +636,31 @@ Markdown fragments with no broken target; added prose width and
 `git diff --check` are clean.
 Required CI and final packet counts are not claimed by this local checkpoint.
 
+#### Step 1 review round 1
+
+Two fresh independent reviewers examined `b157650..cbab31a`: GPT-6-astra xhigh
+for lifecycle/security/audit and GPT-6.1-sol xhigh for proof/architecture/carriers.
+Two findings were confirmed: public `BeginInvocation(true)` could assert raw
+transaction ownership, and the receipt test did not distinguish all ancestors
+from only the immediate parent. An isolated assembly mutant implementing that
+weaker propagation still passed all original 13 direct-producer cases.
+
+Enrollment is now internal to core Application; only the common coordinator
+opens frames. Raw announced owners and orphan joiners have explicit refusal
+controls. A depth-four invocation case exercises receipt propagation past an
+intervening successful ancestor. The UoW XML comment names the common coordinator
+and adapter correctly. The reviewers' stale-ancestry observation was reproduced:
+an old owner could lend ownership to a later transaction's joiner. The new test
+failed on that behavior; inheritance now requires the parent's live announcement
+generation to match. The same test passes only after that change, with outer
+audit cleanup included. The fresh Release build has zero warnings/errors;
+the expanded focused integration run passes 129 cases with zero failures/skips,
+including all 17 direct-producer cases. The same isolated weak-propagation mutant
+now fails exactly the depth-two-descendant case (1 failed, 16 passed); restoring
+the unmodified assembly passes all 17. The complete architecture rerun passes
+203 cases with zero failures/skips. The second independent review round remains
+pending at this checkpoint.
+
 ### Durable outbox dispatch
 
 The producer side is **planned, not shipped**: `IOutbox` does not exist and Packet 3's
