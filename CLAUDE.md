@@ -178,7 +178,10 @@ completed-provisioning publisher; its
 records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
-tracks final validation and review status.
+records passing full backend verification and both completed review rounds.
+**P02b-1 is complete; PR review and merge remain pending.** The
+[packet closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
+owns delivery scope and the next P02b-2 decision pass.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

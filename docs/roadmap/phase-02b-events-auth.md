@@ -17,8 +17,10 @@ and both completed review rounds. Step 3 implements collection and the publisher
 its [record](#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
 records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
-[record](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) tracks final
-verification and review status.
+[record](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) records full
+backend verification and both completed review rounds. **P02b-1 is complete;
+PR review and merge remain pending.** The
+[packet closeout](#p02b-1-packet-closeout-2026-10-12) owns the next P02b-2 handoff.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -820,9 +822,10 @@ Complete production censuses and catalogue promotion remain Step 4 work.
 
 ### P02b-1 Step 4 — Producer enforcement and closeout (2026-10-12)
 
-**Implementation complete; full validation and independent reviews in progress.**
-Work remains on `development`. This checkpoint does not claim PR approval,
-required CI success or merge.
+**Step 4 complete; both independent review rounds passed.** Work remains on
+`development`. The packet closeout below records full local verification;
+the PR's required checks own fresh CI evidence. PR approval and merge remain
+pending.
 
 - `IntegrationEventContractTests` independently checks the complete production
   project/module-layer census, base record/required members, declared partition
@@ -880,7 +883,68 @@ The proof reviewer independently passed 261 architecture and 41 focused unit
 cases at the implementation checkpoint. Its one Minor carrier finding is fixed:
 the P02b-2 error/lease migration must account for existing P02b-1 producer rows;
 its decision pass still owns descriptor handling. Both findings were verified
-against source. Round 2 remains pending until these fixes are committed.
+against source. The fixes were committed in `98c22a8`; the runtime reviewer
+independently reran its exact twelve dirty/clean probes and confirmed both
+formerly escaping paths are caught while clean paths remain legal.
+
+#### Step 4 independent review round 2
+
+Two fresh reviewers (GPT-6-astra xhigh for runtime/security; GPT-6.1-sol xhigh
+for proof/corpus) reviewed `3473843..98c22a8` and the adjacent producer/audit
+lifecycle. Both approve with no additional runtime or guard finding. The runtime
+reviewer independently passed all 63 focused architecture cases; the proof
+reviewer independently passed all 265 architecture and 59 focused messaging
+unit cases, zero failures/skips. These cases overlap the complete run above.
+The proof reviewer's only Minor confirms the final carrier sweep: Architecture
+15's stale conditional partition-proof wording now describes the delivered
+persisted-value proof.
+
+### P02b-1 packet closeout (2026-10-12)
+
+**Complete on `development`; PR review and merge remain pending.** All four
+implementation steps completed their commits, both independent review rounds
+and verified fixes. Accepted ADR-0057 governs the delivered scope:
+
+- Shared producer/audit execution and immutable successful transaction
+  announcements, preserving ordinary event-free refusals while poisoning
+  failures after direct or descendant successful production.
+- Immediate parameterized outbox INSERT on the existing announced writable
+  transaction, exact envelope/routing/identifier payload admission and no new
+  connection, commit or transport publication.
+- Successful-save domain collection, bounded owner-only FIFO completion before
+  MUST audit/commit and one completed-provisioning publisher in API and Seeder.
+- Nonempty production censuses with independent dirty/clean and mutation
+  controls; eight producer catalogue rules are Implemented. Current architecture,
+  standards, module specs, glossary and skills reflect the delivered boundary.
+
+**Local verification:** Release build has zero warnings/errors; complete solution
+format verification and changed-code formatting pass. Per-assembly TRX counters
+record 1,764 unit, 265 architecture, four contract and 1,148 integration cases:
+**3,181 passed, zero failed/skipped**. Integration includes actual PostgreSQL
+`learnstack_app` isolation/atomicity and the existing seed/public-renderer
+regressions. Unit/contract/integration ran at the Step 4 implementation
+checkpoint; the subsequent proof-only class-dispatch fix added four architecture
+cases and reran that complete suite. Focused repeats and deliberately failing
+mutation experiments are not added to the passing total. The five corpus checks
+and seven ADR lifecycle tests pass. A local sweep of 33 changed Markdown files
+checks 2,900 relative links and 700 fragments with no broken target; this is
+manual/local validation, not a new CI anchor gate. Added closeout prose satisfies
+the 88-column rule and `git diff --check` passes.
+
+No frontend source, OpenAPI contract or schema migration changes. The PR's
+seven required checks provide fresh CI evidence, including frontend and the
+public demo/Lighthouse lifecycle; local success alone does not claim CI approval
+or merge. Existing Accepted ADR changes are insertion-only dated disclosures;
+ADR-0057's original acceptance content and P02b-0's entry record are preserved.
+
+**Next: P02b-2 decision pass.** Reverify G1, G3 ordering, G4, G5 resolver policy,
+G7/G8, G17 and G18 error descriptors before implementation. ADR-0046 remains
+reserved and undrafted; any new decision package/ADR needs maintainer approval.
+That packet owns lease/grant migration, existing-row handling, dispatcher
+credential/boot guard, claim/publish/mark, retry/terminal policy and metrics/health.
+P02b-3 subsequently owns inbox/subscriptions, both Customization defaults and
+the Seeder identity handoff after G1. Pending outbox rows do not claim delivered
+consumption; no producer work is silently transferred to those packets.
 
 ### Durable outbox dispatch
 

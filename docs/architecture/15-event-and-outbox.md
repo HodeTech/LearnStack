@@ -777,10 +777,9 @@ Consequences worth stating plainly:
   one partition. That is a deliberate throughput cost, paid only where the ordering is
   genuinely tenant-wide.
 - The column is `NOT NULL`, so the database asserts it. The catalogued
-  `Outbox_Row_Carries_Correlation_Context` integration obligation includes
-  `partition_key` when P02b-1 implements enqueue, so a new enqueue path that
-  forgets it fails in
-  CI rather than in a consumer.
+  `Outbox_Row_Carries_Correlation_Context` integration proof checks actual
+  persisted `partition_key` values in P02b-1, so a new enqueue path that forgets
+  the key fails in CI before a consumer receives it.
 
 ## Dead-letter: two sides, two failure domains
 
