@@ -243,10 +243,12 @@ Decisions made or referenced in this phase:
 - [ADR-0044 Audit Write Path](../decisions/0044-audit-write-path.md)
 - [ADR-0045 Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
   (the killswitch precedent for a mechanism shipped without its operator surface)
-- Two reserved, undrafted records this phase must Accept before its dependent packets
-  start: **ADR-0046** (event delivery, the inbox and the subscriber failure contract)
-  and **ADR-0047** (the background-job runtime), both registered in
-  [decisions/README § Open ADR Drafts](../decisions/README.md#open-adr-drafts).
+- Two reserved decisions must be Accepted before their dependent packets start:
+  [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) (delivery,
+  inbox and subscriber failure) is now Proposed in
+  [the decision index](../decisions/README.md#proposed-adrs); ADR-0047 (the job
+  runtime) remains undrafted in
+  [Open ADR Drafts](../decisions/README.md#open-adr-drafts).
 
 ## Scope
 
@@ -1175,6 +1177,10 @@ observability. They ran no tests and changed no files. The proposal uses reserve
 ADR bodies and prior dated delivery records remain intact. Approval is required
 before runtime code or the acceptance reconciliation below.
 
+The dated P02b-1 closeouts' "Next" and "reserved and undrafted" descriptions
+record the state before this package. This current package and the Proposed index
+replace those historical navigation instructions; the old records remain intact.
+
 #### Review findings and proposed answers
 
 The current bus's zero-handler success is unsafe for P1's real provisioning rows:
@@ -1188,7 +1194,7 @@ a callback that ignores its token. ADR-0046 explicitly resolves these gaps.
 | G3 ordering | Deterministic eligible selection by availability, occurrence and ID within one processor; no enqueue, commit, retry or cross-process ordering promise | P02b-2 |
 | G4 attempts and terminal state | Six committed normal claims; five published retry delays; fresh-token crash recovery; explicit terminal request and audited terminal timestamp; no seventh publish | P02b-2 |
 | G5 type and zero-subscriber policy | Declared concrete types/compatible aliases only; invalid/retired/unknown records terminalize; Pending required subscriptions preserve rows; only intentional absence acknowledges without publication | P02b-2; Active durable subscribers P02b-3 |
-| G7 terminal audit | Fenced state transition plus MUST security-event on one transaction through `WriteEventTerminalAsync`; `platform.outbox.dead_letter` now, reserved `platform.delivery.dead_letter` when P3's writer ships; failed audit retries terminalization without delivery | P02b-2 producer; P02b-3 subscriber |
+| G7 terminal audit | Fenced state transition plus MUST security-event on one transaction through `WriteEventTerminalAsync`, with a restricted transition witness binding audit tenant/org/event to the actual UPDATE result; `platform.outbox.dead_letter` now, reserved Tenancy-owned `platform.delivery.dead_letter` when P3's writer ships; failed audit retries terminalization without delivery | P02b-2 producer; P02b-3 subscriber |
 | G8 bypass | Explicit routine-dispatch exception, confined credential and exact grants; existing platform-scope entry audit unchanged | P02b-2 |
 | G17 metric dimensions | No tenant labels; registry-bounded event types; separate backlog, eligible age, deferred backlog and heartbeat; immutable gauge snapshots | P02b-2 |
 | G18 failure storage | Closed descriptor, at most 256 UTF-8 bytes with CHECK; replace free-form legacy descriptors without changing fact/state | P02b-2; erasure inventory P02b-8 |
@@ -1198,7 +1204,8 @@ a callback that ignores its token. ADR-0046 explicitly resolves these gaps.
 The exact normative replacements and additive audit seam are enumerated in
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams).
 They are not ADR-0041 errata. At acceptance, append dated disclosures to
-ADR-0003/0006/0010/0038, the bounded audit-grant replacement disclosure and
+ADR-0006/0010/0038, ADR-0003's unchanged role model and extended grant-budget
+navigation, the bounded audit-grant replacement disclosure and
 separate fifth-writer seam amendment to ADR-0044, and the same-transaction
 clarification to ADR-0033. Keep original acceptance blocks,
 decisions and earlier amendments byte-preserved. G1's rule changes are recorded
@@ -1239,9 +1246,11 @@ COMMIT starts remains Indeterminate under ADR-0033; P3 recovers from atomic
 business/inbox/ledger state rather than promise rollback at that boundary.
 
 Pending count includes all unprocessed, nonterminal rows, including delayed,
-leased, terminal-requested and manifest-deferred work. Eligible age excludes
-future availability, live leases and held/locally blocked partitions; it is zero
-when none qualify and never negative. Deferred count exposes manifest-held work.
+leased, terminal-requested and manifest-deferred work. Eligible age uses the exact
+normal-publication claim predicate: it excludes terminal requests, exhausted
+attempts, future availability, live or unrecovered expired claims, and held/locally
+blocked partitions. It is zero when none qualify and never negative. Deferred
+count exposes manifest-held work.
 Heartbeat advances only after actual bounded loop work, including an empty poll,
 not from an independent timer. Failed refresh retains the last snapshot and
 marks observation stale. Terminal-audit failure is unhealthy, never a fabricated
@@ -1280,7 +1289,8 @@ requires input. No branch switch or history rewrite is part of this package.
 2. **Durable transitions and terminal audit.** Implement parameterized claim,
    recovery, success, backoff, terminal-request and atomic terminal-audit paths.
    Add the confined fifth store method, off-path catalogue/matrix row and narrow
-   call-site guard. Prove token/expiry fences, same-worker reclaim, six-claim crash,
+   call-site/transition-witness guards. Prove token/expiry fences, same-worker
+   reclaim, six-claim crash,
    no seventh publish, uncertain completion and audit rollback on real PostgreSQL
    using actual outbox/application roles. Intentional absence and Pending holds
    must have distinct non-vacuous controls.
@@ -1308,6 +1318,9 @@ requires input. No branch switch or history rewrite is part of this package.
   publish. Reconcile lost/uncertain terminal COMMIT before retrying so a completed
   terminal audit is not duplicated. Terminal, delayed, leased, deferred and due
   rows distinguish all queue gauges.
+- Audit refusal on a terminal request with fewer than six attempts never makes
+  that row publishable again. Its pending contribution remains; its contribution
+  to oldest publish-eligible age is excluded.
 - Known V1 payloads remain readable after declared deployment aliases. Reverse
   commits, equal occurrence times and retry overtaking falsify stronger ordering.
   Unknown/retired/malformed/mismatched rows do not trigger arbitrary type loading.
@@ -1316,6 +1329,11 @@ requires input. No branch switch or history rewrite is part of this package.
 - Missing/malformed/wrong-user credentials refuse without secret text; valid
   configuration is lazy; real physical guards reject elevated/transitive roles.
   Audit INSERT is allowed; audit read/update/delete and business access are not.
+- Against the real bypass role, replace an audit draft's tenant, organization or
+  event while retaining the successful fenced transition's restricted witness.
+  Each mismatch must leave neither terminal state nor audit row committed. Prove
+  a matching organization-scoped success and rejection of stale/wrong-transaction
+  witnesses; GUC/RLS assertions cannot substitute for these controls.
 - Cancellation-ignoring operations retain safe resource ownership, cannot write
   late acknowledgements and cannot grow beyond the approved bound. A blocked or
   saturated loop becomes unhealthy while `/healthz` still returns 200.
@@ -1325,6 +1343,14 @@ requires input. No branch switch or history rewrite is part of this package.
 - Structural censuses include production subjects and planted clean/dirty cases
   for each key's resolution, publication, type loading and write confinement.
   Behavioural controls mutate lease/terminal/audit safeguards to prove sensitivity.
+
+The P02b-2 publication proof uses the shipped BackgroundService, registry and
+transition/audit stores on real PostgreSQL and actual roles. Keep real TenantCreated
+subscriptions Pending. Only isolated test composition supplies an Active synthetic
+contract and controlled transport/handler to exercise publish/mark, failures,
+recovery and deadlines; intentional absence is a separate control. Assert nonempty
+production machinery, without inventing a production subscriber. P3 owns handler
+and durable-acceptance censuses when those production subjects exist.
 
 #### Scope retained by later owners
 
@@ -1339,7 +1365,8 @@ owns brokers, cross-process evidence, purge and readiness exposure.
 
 #### Proposal review and validation (2026-10-12)
 
-Two independent review rounds completed before maintainer approval. Round 1 used
+At proposal commit `cc5de26`, two independent review rounds completed before
+maintainer approval. Round 1 used
 separate GPT-6.1-sol xhigh delivery and security/corpus reviewers. Verified fixes
 separate the audit-grant replacement from the additive fifth seam, allow safe
 terminal auditing of malformed causal metadata, scope diagnostic minimization to
@@ -1357,6 +1384,43 @@ the four changed Markdown files, prose wrapping and `git diff --check`. Prior
 P02b-0/P02b-1 dated delivery records and all Accepted ADR files are byte-preserved.
 Full runtime/Docker suites remain implementation-step obligations; no dispatcher,
 inbox or gate delivery is claimed by this proposal.
+
+#### External proposal review reconciliation (2026-10-12)
+
+Two external reports were checked against the current draft, accepted contracts,
+canonical DDL and production code. Their reported line numbers are not authority.
+This revision remains Proposed and changes no runtime or Accepted ADR body.
+
+| Finding | Verified disposition |
+|---|---|
+| Erasure assigned to Phase 11 | Already corrected in `cc5de26`: privileged redaction and its bounded caller contract belong to Phase 03; only retention purge belongs to Phase 11 |
+| Two subscription IDs conflict with `card@1` / `plain@1` | Rejected: `BuiltInCustomizations.Card` is a `BuiltInContentType`; `Plain` is a `BuiltInTaxonomy`. ADR-0057 freezes those two independent effects, not two content types. The ADR now maps each ID explicitly |
+| Bypass audit INSERT lacks row-bound identity proof | Valid: the seam now receives a restricted witness from the actual fenced UPDATE result; draft tenant/org/event/subscription must match it. Forged-identity and matching-success proofs are explicit |
+| Terminal-request normal eligibility and undefined release | Explicit predicates now exclude terminal requests/exhausted attempts; recovery is separate. Pending holds precede payload validation, even for malformed payloads. Removed the unexplained release transition; success/retry/terminal paths clear leases |
+| Inbox completion, identity grammar and replay ambiguity | Clarified uncommitted claim and atomic completion/rollback; completed inbox rows never reset; subscription IDs version deduplication semantics |
+| Grant locator, legacy batch/exactly-once/DLQ designs and metric/off-path carriers | Named exact authorities and acceptance replacements. ADR-0003's role model remains unchanged; Database Standards owns actual grants. No competing current dead-letter design remains after acceptance |
+| Envelope storage, narrow P3 SELECT, subscriber audit owner and P2 proof subjects | P3 must name durable envelope copies/references before DDL and inventory them for erasure; scheduler cannot read payload; subscriber audit is Tenancy-owned. P2 exercises shipped machinery with isolated test contracts while real subscriptions stay Pending |
+| Final acceptance/handler failure and roadmap target checks | Failed/unknown durable acceptance consumes producer attempts; only accepted deliveries isolate business retry budgets. The phase's own undated zero-subscriber/replay sketches are now named acceptance replacements |
+| Missing references and historical Next navigation | Added applicable ADR links and the ADR-0047 reservation link; added current navigation without rewriting dated P1 records. ADR-0045 is not used by this ADR and needs no artificial reference |
+
+The internal executor performs delivery, not publication; it receives no exception
+to the outbox-only publisher rule. SecurityEvent records a consequential bypass
+terminal transition, not routine polling. The selected order receives matching
+normal-claim and recovery/terminal indexes. These are contract clarifications,
+not claims that the proposed mechanisms have shipped.
+
+The revision received read-only GPT-6-astra high audit/privilege verification and
+a fresh GPT-6-sol xhigh delivery/corpus review. The latter identified the Pending
+validation priority, acceptance-failure budget and phase-carrier gaps recorded
+above. Both reviewers approved after the verified fixes; neither claimed runtime
+execution evidence.
+
+Revision validation passes: 266 Release architecture cases, seven ADR workflow
+controls, 337 local links and 124 fragments across the four proposal Markdown
+files, prose wrapping and `git diff --check`. Accepted ADR files and dated
+P02b-0/P02b-1 delivery records remain byte-preserved. Only this package and the
+Proposed ADR changed in the revision. Maintainer approval still precedes runtime
+implementation and acceptance-carrier edits.
 
 ### Durable outbox dispatch
 
