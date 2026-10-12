@@ -43,6 +43,78 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
     private static readonly ProbeContext TenantA = new();
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_leaked_frame_refuses_completion_with_a_failed_not_indeterminate_audit(bool joiner)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await SeedTenantAsync(database.AppConnectionString);
+        await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var provider = Compose(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var coordinator = services.GetRequiredService<TransactionExecutionCoordinator>();
+        var unit = services.GetRequiredService<IUnitOfWork>();
+        var capture = services.GetRequiredService<IAuditStateCapture>();
+        var id = TenantContentTypeId.From(Guid.CreateVersion7());
+        var integrationEvent = new TenantCreatedIntegrationEventV1
+        {
+            EventId = Guid.CreateVersion7(),
+            OccurredAt = services.GetRequiredService<IClock>().UtcNow,
+            TenantId = TenantA.TenantId.Value,
+        };
+        IUnitOfWorkScope? leaked = null;
+        var observed = false;
+
+        async Task<Result<None>> LeakAsync()
+        {
+            leaked = await unit.BeginTransactionAsync();
+            return Result.Ok(None.Value);
+        }
+
+        var run = () => DirectAudit(services).ExecuteAsync(typeof(DirectHandler), null,
+            () => coordinator.ExecuteAsync(null, TransactionMode.ReadWrite, "leaked-frame", async () =>
+            {
+                await SchemaQueries.AssertApplicationRoleAsync(unit.Connection);
+                await WriteContentTypeAsync(services, id);
+                await services.GetRequiredService<IOutbox>().EnqueueAsync(integrationEvent);
+                (await CountInUnitAsync(unit, "tenant_content_types", id.Value)).Should().Be(1);
+                (await CountInUnitAsync(unit, "outbox_messages", integrationEvent.EventId)).Should().Be(1);
+                observed = true;
+                if (!joiner) return await LeakAsync();
+
+                var nested = () => coordinator.ExecuteAsync(
+                    null, TransactionMode.ReadWrite, "leaking-joiner", LeakAsync);
+                await nested.Should().ThrowAsync<InvalidOperationException>().WithMessage("*innermost-first*");
+                unit.IsRollbackOnly.Should().BeTrue("absorbing the joiner's exception cannot save its transaction");
+                unit.HasActiveTransaction.Should().BeFalse("the leaked stack collapses before the owner resumes");
+                return Result.Ok(None.Value);
+            }), CancellationToken.None);
+
+        try
+        {
+            await run.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage(joiner ? "*rollback-only*" : "*innermost-first*");
+            observed.Should().BeTrue("the refusal must roll back an actual saved row");
+            unit.IsRollbackOnly.Should().BeTrue();
+            AssertClean(services);
+            capture.State.Should().Be(AuditIntentState.None, "the audit owner reconciled and cleared its frame");
+            (await CountAsync(database.AppConnectionString, "tenant_content_types", id.Value)).Should().Be(0);
+            (await CountAsync(database.AppConnectionString, "outbox_messages", integrationEvent.EventId)).Should().Be(0);
+            var row = (await AuditRowsAsync(database.AppConnectionString)).Should().ContainSingle().Subject;
+            row.Operation.Should().Be(DirectOperation);
+            row.Outcome.Should().Be("failed", "frame bookkeeping refused before any physical COMMIT");
+            row.After.Should().Contain(Key(id), "the failed row retains the positively observed attempted write");
+            var reuse = () => unit.BeginTransactionAsync();
+            await reuse.Should().ThrowAsync<InvalidOperationException>().WithMessage("*rollback-only*");
+        }
+        finally
+        {
+            if (leaked is not null) await leaked.DisposeAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]

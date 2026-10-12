@@ -373,6 +373,29 @@ public sealed class TransactionBehaviorTests
         capture.State.Should().Be(AuditIntentState.Indeterminate);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_pre_commit_frame_failure_rolls_back_without_replacing_the_original(bool rollbackFails)
+    {
+        var original = new InvalidOperationException("Frame completion refused before COMMIT");
+        var capture = new AuditStateCapture();
+        var unit = new RecordingUnitOfWork
+        {
+            CompletionFailure = original,
+            RollbackFailure = rollbackFails ? new DbTestException("rollback transport failed") : null,
+        };
+        var run = () => Build(unit, capture: capture).Handle(
+            new DummyCommand(), () => Next(unit, Result.Ok("ok")), default);
+
+        (await run.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(original);
+        unit.Calls.Should().Equal("begin", "set-tenant", "handler", "mark-rollback-only", "rollback");
+        unit.IsRollbackOnly.Should().BeTrue();
+        unit.HasActiveTransaction.Should().BeFalse();
+        unit.Committed.Should().BeFalse();
+        capture.State.Should().Be(AuditIntentState.RolledBack);
+    }
+
     [Fact]
     public async Task A_joiner_frame_writes_no_MUST_rows_and_claims_no_commit()
     {
@@ -537,6 +560,9 @@ public sealed class TransactionBehaviorTests
         /// <summary>Thrown by the outermost commit, to model a faulted COMMIT.</summary>
         public Exception? CommitFailure { get; init; }
 
+        /// <summary>Thrown while the frame is still live, before attempting COMMIT.</summary>
+        public Exception? CompletionFailure { get; init; }
+
         /// <summary>
         /// Thrown by the rollback, to model the cleanup path failing on a
         /// connection the original exception already broke.
@@ -653,7 +679,9 @@ public sealed class TransactionBehaviorTests
             public bool IsOwner => depth == 1;
 
             public Task CompleteAsync(CancellationToken cancellationToken = default) =>
-                unitOfWork.CommitAsync(cancellationToken);
+                unitOfWork.CompletionFailure is { } failure
+                    ? Task.FromException(failure)
+                    : unitOfWork.CommitAsync(cancellationToken);
 
             public Task FailAsync(CancellationToken cancellationToken = default) =>
                 unitOfWork.RollbackAsync(cancellationToken);

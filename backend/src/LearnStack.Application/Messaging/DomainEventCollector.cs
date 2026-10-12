@@ -47,6 +47,12 @@ public sealed class DomainEventCollector(ProducerExecution producer, IPublisher 
     /// Snapshots only sources this context is actually about to save. Original event lists
     /// stay intact until owner cleanup; failed saves can retry the same facts.
     /// </summary>
+    /// <remarks>
+    /// Event-bearing saves require an enrolled writable producer invocation, even when
+    /// SQL authority has already been announced. Background/admin/seed writers use the
+    /// shared execution coordinator; a raw transaction alone cannot own completion.
+    /// Event-free saves do not acquire producer authority through this collector.
+    /// </remarks>
     public void Stage(object context, IEnumerable<IHasDomainEvents> savingSources)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

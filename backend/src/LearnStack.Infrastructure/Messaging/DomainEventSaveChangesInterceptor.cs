@@ -8,6 +8,11 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace LearnStack.Infrastructure.Messaging;
 
 /// <summary>Collects domain facts only from successful saves, while retaining tracked sources for terminal cleanup.</summary>
+/// <remarks>
+/// Saving a domain fact requires the shared producer execution boundary. Staging refuses
+/// event-bearing saves before SQL when a caller opens only a raw announced transaction;
+/// the interceptor does not create an owner or dispatch on the caller's behalf.
+/// </remarks>
 public sealed class DomainEventSaveChangesInterceptor(DomainEventCollector collector) : SaveChangesInterceptor
 {
     private readonly ConditionalWeakTable<DbContext, object> _attached = new();

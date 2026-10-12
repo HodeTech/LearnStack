@@ -106,7 +106,15 @@ public sealed class TransactionExecutionCoordinator(
             }
             catch (Exception commitFailure)
             {
-                if (scope.IsOwner)
+                if (unitOfWork.HasActiveTransaction)
+                {
+                    // The adapter detaches its transaction before physical COMMIT.
+                    // A live frame therefore refused completion before COMMIT (for
+                    // example, a leaked joiner). Use the guarded rollback path,
+                    // preserving the frame error even if cleanup also fails.
+                    committing = false;
+                }
+                else if (scope.IsOwner)
                 {
                     if (unitOfWork.IsRollbackOnly) capture.MarkRolledBack();
                     else capture.MarkIndeterminate(commitFailure);

@@ -46,6 +46,50 @@ public sealed class DomainEventProductionTests(SchemaFixture schema)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Both_compositions_refuse_event_bearing_saves_without_an_enrolled_producer(bool api)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
+        await using var seed = SeedComposition.Build(dataSource, new ActingContext(), NullLoggerFactory.Instance);
+        var observation = new DispatchObservation();
+        await using var host = Host(schema.Postgres.AppConnectionString, observation);
+        TenantContentType source;
+        TenantContentType control;
+        await using (var scope = (api ? host.Services : seed).CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var unit = services.GetRequiredService<IUnitOfWork>();
+            await using var owner = await unit.BeginTransactionAsync();
+            await unit.SetTenantContextAsync(new ActingContext());
+            await SchemaQueries.AssertApplicationRoleAsync(unit.Connection);
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull();
+            services.GetRequiredService<ProducerExecution>().HasInvocation.Should().BeFalse();
+            var db = services.GetRequiredService<CustomizationDbContext>();
+
+            control = Source(services);
+            db.Add(control);
+            (await db.SaveChangesAsync()).Should().Be(1, "event-free saves do not require producer enrollment");
+            (await CountSourceInUnitAsync(unit, control.Id.Value)).Should().Be(1);
+
+            source = Source(services);
+            Raise(source, Fact());
+            db.Add(source);
+            var save = () => db.SaveChangesAsync();
+            await save.Should().ThrowAsync<InvalidOperationException>().WithMessage("*enrolled writable frame*");
+            (await CountSourceInUnitAsync(unit, source.Id.Value)).Should().Be(0,
+                "staging refuses the fact before its business INSERT");
+            source.DomainEvents.Should().ContainSingle("an unsuccessful save cannot consume the fact");
+            (await OutboxInUnitAsync(unit)).Should().BeEmpty();
+            observation.Events.Should().BeEmpty();
+        }
+
+        source.DomainEvents.Should().BeEmpty("scoped cleanup discards the refused source fact");
+        (await CountSourceAsync(schema.Postgres.AppConnectionString, source.Id.Value)).Should().Be(0);
+        (await CountSourceAsync(schema.Postgres.AppConnectionString, control.Id.Value)).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Both_compositions_automatically_promote_a_successful_save_and_clear_on_refusal(bool api)
     {
         await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
