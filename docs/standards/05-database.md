@@ -1464,9 +1464,9 @@ CREATE INDEX ix_outbox_messages_tenant_pending
     ON outbox_messages (tenant_id, available_after)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL;
 CREATE INDEX ix_outbox_messages_recovery
-    ON outbox_messages (locked_until, occurred_at, id)
+    ON outbox_messages (available_after, occurred_at, id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL
-      AND terminal_reason IS NULL AND locked_by IS NOT NULL;
+      AND terminal_reason IS NULL AND (locked_by IS NOT NULL OR attempts >= 6);
 CREATE INDEX ix_outbox_messages_terminal
     ON outbox_messages (available_after, occurred_at, id)
     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;

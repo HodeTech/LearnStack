@@ -391,6 +391,53 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         proxy.DroppedCommitResponses.Should().Be(1);
     }
 
+    [Fact]
+    public async Task A_lost_COMMIT_response_and_failed_reconciliation_preserve_both_failures_without_duplicate_audit()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync(organization: SchemaFixture.OrgA1);
+        var direct = test.Store();
+        var normal = (await direct.TryClaimAsync(NoBlockedPartitions))!;
+        (await direct.RequestTerminalAsync(normal, OutboxTerminalReason.InvalidEnvelope)).Should().BeTrue();
+        var terminal = (await direct.TryClaimTerminalAsync(NoBlockedPartitions))!;
+        await using var proxy = new CommitResponseDroppingProxy(test.OutboxConnectionString,
+            rejectReconciliationConnections: true);
+        await using var source = OutboxDispatcherDataSource.Build(proxy.ConnectionString);
+        var uncertain = test.Store(dispatchSource: source);
+
+        var attempt = () => uncertain.TryTerminalizeAsync(terminal, AttemptTraceparent)
+            .WaitAsync(TimeSpan.FromSeconds(15));
+        var exception = (await attempt.Should().ThrowAsync<AggregateException>()).Which;
+
+        exception.Message.Should().StartWith("The outbox terminal commit outcome remains unknown.");
+        exception.InnerExceptions.Should().HaveCount(2);
+        var commitFailure = exception.InnerExceptions[0];
+        var reconciliationFailure = exception.InnerExceptions[1];
+        commitFailure.Should().BeOfType<NpgsqlException>();
+        reconciliationFailure.Should().BeOfType<NpgsqlException>().And.NotBeSameAs(commitFailure);
+        commitFailure.StackTrace.Should().Contain("NpgsqlTransaction.Commit");
+        reconciliationFailure.StackTrace.Should().Contain("NpgsqlDataSource.OpenConnectionAsync")
+            .And.Contain("IsDurablyTerminalAsync");
+        proxy.DroppedCommitResponses.Should().Be(1);
+        proxy.AcceptedConnections.Should().BeGreaterThanOrEqualTo(2,
+            "the durability probe must open a fresh connection after the committed session breaks");
+        // A separate healthy source establishes the physical outcome even though
+        // the caller cannot reconcile it through the failed connection path.
+        var row = await test.ReadAsync(id);
+        row.DeadLetteredAt.Should().NotBeNull();
+        row.ProcessedAt.Should().BeNull();
+        row.TerminalReason.Should().Be("invalid_envelope");
+        row.Token.Should().BeNull();
+        row.LockedUntil.Should().BeNull();
+        (await test.AuditCountAsync()).Should().Be(1);
+        using var metadata = JsonDocument.Parse((await test.ReadAuditAsync()).Metadata);
+        metadata.RootElement.GetProperty("event_id").GetGuid().Should().Be(id);
+        (await direct.TryTerminalizeAsync(terminal, AttemptTraceparent)).Should().BeFalse();
+        (await direct.TryClaimTerminalAsync(NoBlockedPartitions)).Should().BeNull();
+        (await test.ReadAsync(id)).Should().Be(row);
+        (await test.AuditCountAsync()).Should().Be(1);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

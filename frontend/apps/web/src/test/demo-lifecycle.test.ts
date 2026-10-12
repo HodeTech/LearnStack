@@ -22,6 +22,7 @@ import {
 } from '../../../../../scripts/demo-observation.mjs';
 import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import {
+  demoFailureMessage,
   disposeDemoResources,
   isApiListenerEvent,
   validateCertificate,
@@ -67,12 +68,46 @@ describe('launcher-owned local database validation', () => {
     }
     return values;
   }
-  it.each(['simple', 'semi;colon', ' leading and trailing ', 'a"double"quote', "a'single'quote"])(
-    'accepts all four local roles with quoted password %s',
-    (password) => {
-      expect(() => validateDemoDatabaseConfiguration(databaseValues(password))).not.toThrow();
+  it.each([null, undefined])(
+    'refuses absent configuration (%s) with the fixed diagnostic',
+    (values) => {
+      expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+        /^Local demo database configuration is invalid$/,
+      );
     },
   );
+  it('reports the real database validation failure through the launcher diagnostic boundary', () => {
+    const values = databaseValues();
+    delete values.LEARNSTACK_OUTBOX_PW;
+    let failure: unknown;
+    try {
+      validateDemoDatabaseConfiguration(values);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(demoFailureMessage(failure)).toBe('Local demo database configuration is invalid');
+    const secret = randomBytes(16).toString('hex');
+    for (const message of [
+      `Provider failure: ${secret}`,
+      `Local demo database configuration is invalid: ${secret}`,
+      `Local demo database configuration is invalid\n${secret}`,
+    ]) {
+      expect(demoFailureMessage(new Error(message))).toBe(
+        'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack',
+      );
+    }
+  });
+  it.each([
+    'simple',
+    'semi;colon',
+    ' leading and trailing ',
+    '   ',
+    'a"double"quote',
+    "a'single'quote",
+  ])('accepts all four local roles with quoted password %s', (password) => {
+    expect(() => validateDemoDatabaseConfiguration(databaseValues(password))).not.toThrow();
+  });
   it('accepts supported key aliases, single quoting, loopback and the default port', () => {
     const values = databaseValues("semi;single'quote");
     for (const [suffix, role] of roles)

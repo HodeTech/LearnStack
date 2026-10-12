@@ -1,5 +1,8 @@
 using System.Data.Common;
+using System.Reflection;
+using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -16,8 +19,11 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
 {
     private const string PlatformPredecessor = "20260828085701_create_platform_infrastructure_tables";
+    private const string DispatchPredecessor = "20261012180355_add_outbox_dispatch_state";
     private const string AuditPredecessor = "20260914114341_audit_log_org_insert_scope";
     private const string SanitizedLegacy = "migration:legacy:redacted";
+    private static readonly string[] PendingPlanIdentities = ["pending.contract", "pending.alias"];
+    private static readonly string[] BlockedPlanPartitions = ["blocked"];
 
     [Fact]
     public async Task Legacy_facts_survive_up_down_reapply_and_diagnostics_are_redacted_across_tenants()
@@ -35,7 +41,7 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
         await AssertLegacyDiagnosticsAndRlsAsync(database);
         await AssertIndexAsync(database, "ix_outbox_messages_pending",
             ["available_after, occurred_at, id", "dead_lettered_at IS NULL", "terminal_reason IS NULL", "attempts < 6", "locked_by IS NULL"]);
-        await AssertIndexAsync(database, "ix_outbox_messages_recovery", ["locked_until, occurred_at, id", "locked_by IS NOT NULL"]);
+        await AssertRecoveryIndexAsync(database);
         await AssertIndexAsync(database, "ix_outbox_messages_terminal", ["terminal_reason IS NOT NULL"]);
 
         await context.GetService<IMigrator>().MigrateAsync(PlatformPredecessor);
@@ -56,6 +62,35 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
         await context.Database.MigrateAsync();
         (await FactsAsync(database)).Should().Be(facts);
         await AssertLegacyDiagnosticsAndRlsAsync(database);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Recovery_index_covers_expired_and_exhausted_selection_without_scanning_pending_backlog(bool expiredLease)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await using var context = Platform(database);
+        await context.GetService<IMigrator>().MigrateAsync(DispatchPredecessor);
+        var target = Guid.Parse("10000000-0000-0000-0000-000000000002");
+        await SeedRecoveryPlanAsync(database, target, expiredLease);
+        await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+
+        // The applied predecessor is the negative control: its leased-only
+        // predicate cannot cover the exhausted branch and requires a full scan.
+        using (var previous = await ExplainRecoveryAsync(dispatcher))
+        {
+            var nodes = PlanNodes(previous.RootElement[0].GetProperty("Plan")).ToArray();
+            IndexNames(nodes).Should().NotContain("ix_outbox_messages_recovery");
+            nodes.Sum(node => PlanRows(node, "Rows Removed by Filter")).Should().BeGreaterThanOrEqualTo(50_000);
+        }
+
+        await context.Database.MigrateAsync();
+        await AssertRecoveryPlanAsync(database, dispatcher, target);
+        await context.GetService<IMigrator>().MigrateAsync(DispatchPredecessor);
+        await AssertIndexAsync(database, "ix_outbox_messages_recovery", ["locked_until, occurred_at, id", "locked_by IS NOT NULL"]);
+        await context.Database.MigrateAsync();
+        await AssertRecoveryPlanAsync(database, dispatcher, target);
     }
 
     [Theory]
@@ -214,6 +249,103 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
             definition.Should().Contain(fragment);
         }
     }
+
+    private static Task AssertRecoveryIndexAsync(DisposableSchemaDatabase database) =>
+        AssertIndexAsync(database, "ix_outbox_messages_recovery",
+            ["available_after, occurred_at, id", "processed_at IS NULL", "dead_lettered_at IS NULL",
+             "terminal_reason IS NULL", "(locked_by IS NOT NULL) OR (attempts >= 6)"]);
+
+    private static async Task SeedRecoveryPlanAsync(DisposableSchemaDatabase database, Guid target, bool expiredLease)
+    {
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await SchemaQueries.SetTenantAsync(app, transaction, SchemaFixture.TenantA);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                INSERT INTO outbox_messages
+                    (id, tenant_id, correlation_id, type, topic, partition_key, payload, available_after)
+                SELECT uuidv7(), @tenant, 'plan-proof', 'pending.contract', 'test.topic', 'allowed', '{}', '2000-01-01'
+                FROM generate_series(1, 50000);
+                INSERT INTO outbox_messages
+                    (id, tenant_id, correlation_id, type, topic, partition_key, payload,
+                     available_after, occurred_at, attempts, locked_by, locked_until)
+                SELECT candidate.id, @tenant, 'plan-proof', candidate.type, 'test.topic', candidate.partition_key, '{}',
+                    candidate.available_after, candidate.occurred_at, CASE WHEN @expired THEN 1 ELSE 6 END,
+                    CASE WHEN @expired THEN 'expired-token' ELSE NULL END,
+                    CASE WHEN @expired THEN clock_timestamp() - interval '1 hour' ELSE NULL END
+                FROM (VALUES
+                    (@target, 'active.contract', 'allowed', '2001-01-01'::timestamptz, '2001-01-01'::timestamptz),
+                    ('10000000-0000-0000-0000-000000000003'::uuid, 'active.contract', 'allowed', '2001-01-01'::timestamptz, '2001-01-01'::timestamptz),
+                    ('10000000-0000-0000-0000-000000000001'::uuid, 'active.contract', 'allowed', '2001-01-01'::timestamptz, '2002-01-01'::timestamptz),
+                    (uuidv7(), 'active.contract', 'allowed', '2002-01-01'::timestamptz, '2000-01-01'::timestamptz),
+                    (uuidv7(), 'pending.contract', 'allowed', '2000-01-01'::timestamptz, '2000-01-01'::timestamptz),
+                    (uuidv7(), 'pending.alias', 'allowed', '2000-01-01'::timestamptz, '2000-01-01'::timestamptz),
+                    (uuidv7(), 'active.contract', 'blocked', '2000-01-01'::timestamptz, '2000-01-01'::timestamptz)
+                ) AS candidate(id, type, partition_key, available_after, occurred_at);
+                INSERT INTO outbox_messages
+                    (id, tenant_id, correlation_id, type, topic, partition_key, payload,
+                     available_after, locked_by, locked_until)
+                VALUES (uuidv7(), @tenant, 'plan-proof', 'active.contract', 'test.topic', 'allowed', '{}',
+                    '2000-01-01', 'live-token', clock_timestamp() + interval '1 hour');
+                """, ("tenant", SchemaFixture.TenantA), ("target", target), ("expired", expiredLease));
+            await transaction.CommitAsync();
+        }
+        await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        await SchemaQueries.ExecuteAsync(owner, null, "ANALYZE outbox_messages");
+    }
+
+    private static NpgsqlCommand RecoverySelection(DbConnection dispatcher)
+    {
+        // Read the production predicates so an eligibility/admission regression
+        // cannot leave this proof explaining an independently copied WHERE clause.
+        static string Predicate(string name) => (string)typeof(OutboxDispatchStore)
+            .GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+        var command = new NpgsqlCommand($"""
+            SELECT id FROM outbox_messages WHERE {Predicate("Recovery")}{Predicate("Admitted")}
+            ORDER BY available_after, occurred_at, id FOR UPDATE SKIP LOCKED LIMIT 1
+            """, (NpgsqlConnection)dispatcher);
+        command.Parameters.AddWithValue("pending", PendingPlanIdentities);
+        command.Parameters.AddWithValue("blocked", BlockedPlanPartitions);
+        return command;
+    }
+
+    private static async Task<JsonDocument> ExplainRecoveryAsync(DbConnection dispatcher)
+    {
+        await using var command = RecoverySelection(dispatcher);
+        command.CommandText = "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + command.CommandText;
+        return JsonDocument.Parse((string)(await command.ExecuteScalarAsync())!);
+    }
+
+    private static async Task AssertRecoveryPlanAsync(DisposableSchemaDatabase database, DbConnection dispatcher, Guid target)
+    {
+        await AssertRecoveryIndexAsync(database);
+        using var plan = await ExplainRecoveryAsync(dispatcher);
+        var nodes = PlanNodes(plan.RootElement[0].GetProperty("Plan")).ToArray();
+        IndexNames(nodes).Should().ContainSingle(name => name == "ix_outbox_messages_recovery");
+        nodes.Should().NotContain(node => node.GetProperty("Node Type").GetString() == "Sort"
+            || node.GetProperty("Node Type").GetString() == "Seq Scan");
+        nodes.Sum(node => PlanRows(node, "Rows Removed by Filter")).Should().BeLessThanOrEqualTo(4,
+            "only the two Pending identities, blocked partition and live lease precede the first eligible row");
+        await using var selection = RecoverySelection(dispatcher);
+        (await selection.ExecuteScalarAsync()).Should().Be(target, "recovery keeps the global three-column order and admission exclusions");
+    }
+
+    private static IEnumerable<JsonElement> PlanNodes(JsonElement node)
+    {
+        yield return node;
+        if (!node.TryGetProperty("Plans", out var children)) yield break;
+        foreach (var child in children.EnumerateArray())
+            foreach (var descendant in PlanNodes(child))
+                yield return descendant;
+    }
+
+    private static double PlanRows(JsonElement node, string property) =>
+        node.TryGetProperty(property, out var value) ? value.GetDouble() : 0;
+
+    private static IEnumerable<string?> IndexNames(IEnumerable<JsonElement> nodes) =>
+        nodes.Where(node => node.TryGetProperty("Index Name", out _))
+            .Select(node => node.GetProperty("Index Name").GetString());
 
     private static async Task AssertAuditInsertGrantAsync(DisposableSchemaDatabase database, bool expected)
     {

@@ -129,14 +129,14 @@ public sealed partial class OutboxProcessor : BackgroundService
 
     private async Task DispatchAsync(OutboxDispatchClaim claim, CancellationToken stoppingToken)
     {
-        var label = claim.Kind == OutboxClaimKind.Terminal
-            ? _reader.Read(claim).EventTypeLabel : _registry.Resolve(claim.Type).EventTypeLabel;
         if (claim.Kind == OutboxClaimKind.Normal)
         {
             await DispatchNormalAsync(claim, stoppingToken).ConfigureAwait(false);
             return;
         }
 
+        var label = claim.Kind == OutboxClaimKind.Terminal
+            ? _reader.Read(claim).EventTypeLabel : _registry.Resolve(claim.Type).EventTypeLabel;
         using var activity = _observation.BeginAttempt(claim.CorrelationId, label);
         if (claim.Kind == OutboxClaimKind.Recovery)
         {
@@ -255,7 +255,7 @@ public sealed partial class OutboxProcessor : BackgroundService
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Outbox dispatch iteration failed with outcome storage_failure.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Outbox dispatch iteration failed with outcome iteration_failed.")]
     private static partial void LogIterationFailure(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Information,

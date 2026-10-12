@@ -69,18 +69,13 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
         var liveBounds = Bounds with
         {
-            PublishTimeout = TimeSpan.FromSeconds(2),
-            LeaseDuration = TimeSpan.FromSeconds(6),
-            ProgressTimeout = TimeSpan.FromSeconds(8),
+            PublishTimeout = TimeSpan.FromSeconds(10),
+            LeaseDuration = TimeSpan.FromSeconds(30),
+            ProgressTimeout = TimeSpan.FromSeconds(45),
         };
         var partition = Guid.CreateVersion7();
         var held = test.Callbacks.Hold(partition);
-        var id = await test.InsertAsync(partition: partition);
         test.Start(liveBounds);
-        await held.Entered.Task.WaitAsync(ProofDeadline);
-        var acquired = await test.ReadAsync(id);
-        acquired.Attempts.Should().Be(1);
-        acquired.Token.Should().NotBeNullOrWhiteSpace();
         await using var contender = new WorkerApiFactory(test, test.OutboxConnectionString, liveBounds);
         OutboxProcessor? secondWorker = null;
         try
@@ -90,20 +85,40 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
                 .Should().ContainSingle().Which;
             secondWorker.Should().NotBeSameAs(test.Worker);
             var secondObservation = secondServices.GetRequiredService<OutboxObservation>();
+            await UntilAsync(() => test.Observation.IsHealthy && secondObservation.IsHealthy);
+
+            // Host construction and the first empty polls finish before the live
+            // lease begins. The whole contention proof shares a shorter deadline.
+            using var proof = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var id = await test.InsertAsync(partition: partition).WaitAsync(proof.Token);
+            await held.Entered.Task.WaitAsync(proof.Token);
+            var acquired = await test.ReadAsync(id).WaitAsync(proof.Token);
+            acquired.Attempts.Should().Be(1);
+            acquired.Token.Should().NotBeNullOrWhiteSpace();
+            var firstPrevious = test.Observation.Snapshot.LastSnapshotTimestamp;
+            var secondPrevious = secondObservation.Snapshot.LastSnapshotTimestamp;
+            await UntilAsync(() => test.Observation.Snapshot.LastSnapshotTimestamp > firstPrevious
+                || secondObservation.Snapshot.LastSnapshotTimestamp > secondPrevious, proof.Token);
+            // Either warm processor may win; the other must continue real polls
+            // while the winning processor is awaiting its callback.
+            var observer = test.Observation.Snapshot.LastSnapshotTimestamp > firstPrevious
+                ? test.Observation : secondObservation;
             for (var poll = 0; poll < 2; poll++)
             {
-                var previous = secondObservation.Snapshot.LastSnapshotTimestamp ?? long.MinValue;
-                await UntilAsync(() => secondObservation.Snapshot.LastSnapshotTimestamp > previous);
+                var previous = observer.Snapshot.LastSnapshotTimestamp;
+                await UntilAsync(() => observer.Snapshot.LastSnapshotTimestamp > previous, proof.Token);
             }
 
-            (await test.LeaseIsLiveAsync(id)).Should().BeTrue("the contention assertion must run before expiry or a timeout");
-            (await test.ReadAsync(id)).Should().Be(acquired);
+            (await test.LeaseIsLiveAsync(id).WaitAsync(proof.Token)).Should().BeTrue("the contention assertion must run before expiry or a timeout");
+            (await test.ReadAsync(id).WaitAsync(proof.Token)).Should().Be(acquired);
             test.Callbacks.Constructions.Should().Be(1);
-            secondObservation.Snapshot.Queue.PendingCount.Should().Be(1);
-            secondObservation.Snapshot.Queue.OldestEligibleAgeSeconds.Should().Be(0);
+            observer.Snapshot.Queue.PendingCount.Should().Be(1);
+            observer.Snapshot.Queue.OldestEligibleAgeSeconds.Should().Be(0);
             held.ReleaseCallback.TrySetResult();
-            await UntilAsync(async () => (await test.ReadAsync(id)).ProcessedAt is not null);
-            (await test.ReadAsync(id)).Attempts.Should().Be(1);
+            await UntilAsync(async () => (await test.ReadAsync(id)).ProcessedAt is not null, proof.Token);
+            var completed = await test.ReadAsync(id).WaitAsync(proof.Token);
+            completed.Attempts.Should().Be(1);
+            completed.Token.Should().BeNull();
             test.Callbacks.Constructions.Should().Be(1);
         }
         finally
@@ -324,6 +339,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     public async Task Shutdown_uses_one_finite_wait_for_all_four_retained_callbacks()
     {
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
+        var time = new ShutdownTimeProvider(Bounds.ShutdownTimeout);
         var held = new List<CallbackBarrier>();
         for (var index = 0; index < 4; index++)
         {
@@ -331,18 +347,25 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             held.Add(test.Callbacks.Hold(partition));
             await test.InsertAsync(partition: partition);
         }
-        test.Start();
+        test.Start(time: time);
         await Task.WhenAll(held.Select(item => item.Entered.Task)).WaitAsync(ProofDeadline);
         await UntilAsync(() => test.Observation.Snapshot.OutstandingPublishes == 4);
-        var stop = Stopwatch.StartNew();
+        time.ControlShutdownTimers();
+        var stop = test.Worker.StopAsync(CancellationToken.None);
+        await time.BudgetRegistered.Task.WaitAsync(ProofDeadline);
+        await test.Worker.ExecuteTask!.WaitAsync(ProofDeadline);
 
-        await test.Worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+        // The worker has exited, but all callback scopes remain live. Expire
+        // exactly the first deadline; a fresh drain budget must not get time.
+        stop.IsCompleted.Should().BeFalse();
+        time.Advance(Bounds.ShutdownTimeout);
+        await stop.WaitAsync(ProofDeadline);
 
-        stop.Elapsed.Should().BeLessThan(Bounds.ShutdownTimeout * 3,
-            "all live callbacks share the one shutdown budget rather than receiving successive waits");
+        test.Observation.Snapshot.OutstandingPublishes.Should().Be(4);
         foreach (var callback in held)
         {
             callback.Disposals.Should().Be(0);
+            callback.CancellationToken.IsCancellationRequested.Should().BeTrue();
             _ = callback.CancellationToken.WaitHandle;
         }
     }
@@ -382,10 +405,13 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         test.Start();
         await UntilAsync(() => test.Observation.IsHealthy);
         await test.AuditInsertGrantAsync(grant: false);
-        var id = await test.InsertAsync(type: "unknown-audit-probe");
+        var id = await test.InsertAsync(type: SensitiveCanary, correlation: SensitiveCanary);
         await UntilAsync(() => test.Observation.Snapshot.TerminalAuditFailed);
+        await UntilAsync(() => test.Logs.Text.Contains("Outbox dispatch iteration failed with outcome iteration_failed.",
+            StringComparison.Ordinal));
 
         test.Observation.IsHealthy.Should().BeFalse();
+        test.Logs.Text.Should().NotContain(SensitiveCanary);
         var row = await test.ReadAsync(id);
         row.TerminalReason.Should().Be("unknown_type");
         row.DeadLetteredAt.Should().BeNull();
@@ -405,11 +431,13 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         catch (ObjectDisposedException) { return true; }
     }
 
-    private static Task UntilAsync(Func<bool> condition) => UntilAsync(() => Task.FromResult(condition()));
+    private static Task UntilAsync(Func<bool> condition, CancellationToken cancellationToken = default)
+        => UntilAsync(() => Task.FromResult(condition()), cancellationToken);
 
-    private static async Task UntilAsync(Func<Task<bool>> condition)
+    private static async Task UntilAsync(Func<Task<bool>> condition, CancellationToken cancellationToken = default)
     {
-        using var deadline = new CancellationTokenSource(ProofDeadline);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ProofDeadline);
         while (!await condition().WaitAsync(deadline.Token)) await Task.Delay(TimeSpan.FromMilliseconds(10), deadline.Token);
     }
 
@@ -530,7 +558,79 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         DateTimeOffset AvailableAfter, string Type, string Payload);
     private sealed record TerminalAudit(string OperationType, string OperationClass, string Correlation, string Metadata);
 
-    private sealed class WorkerApiFactory(WorkerDatabase database, string? credential, OutboxDispatchOptions? bounds = null) : WebApplicationFactory<Program>
+    /// <summary>Controls shutdown deadlines while all other host timers keep running normally.</summary>
+    private sealed class ShutdownTimeProvider(TimeSpan shutdownTimeout) : TimeProvider
+    {
+        private readonly object _gate = new();
+        private readonly List<ShutdownTimer> _timers = [];
+        private bool _controlled;
+        private long? _origin;
+        private TimeSpan _elapsed;
+        private TimeSpan _lastRegistration;
+        public TaskCompletionSource BudgetRegistered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void ControlShutdownTimers() { lock (_gate) _controlled = true; }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            lock (_gate)
+            {
+                if (!_controlled || dueTime != shutdownTimeout)
+                    return System.CreateTimer(callback, state, dueTime, period);
+                period.Should().Be(Timeout.InfiniteTimeSpan);
+                _origin ??= Stopwatch.GetTimestamp();
+                var registration = _timers.Count == 0 ? TimeSpan.Zero : Stopwatch.GetElapsedTime(_origin.Value);
+                // Preserve the real ordering even below TimeSpan's resolution:
+                // a later budget cannot expire at the first budget's deadline.
+                if (_timers.Count > 0 && registration <= _lastRegistration)
+                    registration = _lastRegistration + TimeSpan.FromTicks(1);
+                _lastRegistration = registration;
+                var timer = new ShutdownTimer(this, callback, state,
+                    (_elapsed > registration ? _elapsed : registration) + dueTime);
+                _timers.Add(timer);
+                BudgetRegistered.TrySetResult();
+                return timer;
+            }
+        }
+
+        public void Advance(TimeSpan duration)
+        {
+            ShutdownTimer[] due;
+            lock (_gate)
+            {
+                _elapsed += duration;
+                due = _timers.Where(timer => timer.Due is { } at && at <= _elapsed).ToArray();
+                foreach (var timer in due) timer.Due = null;
+            }
+            foreach (var timer in due) timer.Fire();
+        }
+
+        private sealed class ShutdownTimer(ShutdownTimeProvider owner, TimerCallback callback,
+            object? state, TimeSpan due) : ITimer
+        {
+            private bool _disposed;
+            public TimeSpan? Due { get; set; } = due;
+            public void Fire() => callback(state);
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                lock (owner._gate)
+                {
+                    if (_disposed) return false;
+                    period.Should().Be(Timeout.InfiniteTimeSpan);
+                    Due = dueTime == Timeout.InfiniteTimeSpan ? null : owner._elapsed + dueTime;
+                    return true;
+                }
+            }
+            public void Dispose()
+            {
+                lock (owner._gate) { _disposed = true; Due = null; }
+            }
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
+    }
+
+    private sealed class WorkerApiFactory(WorkerDatabase database, string? credential,
+        OutboxDispatchOptions? bounds = null, TimeProvider? time = null) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -542,6 +642,11 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             {
                 services.RemoveAll<OutboxDispatchOptions>();
                 services.AddSingleton(bounds ?? Bounds);
+                if (time is not null)
+                {
+                    services.RemoveAll<TimeProvider>();
+                    services.AddSingleton(time);
+                }
                 services.RemoveAll<IntegrationEventHandlerRegistry>();
                 var handlers = IntegrationEventHandlerRegistry.Discover(typeof(WorkerHandler).Assembly);
                 handlers.All.Should().ContainSingle().Which.HandlerType.Should().Be<WorkerHandler>();
@@ -599,9 +704,9 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             catch { await test.DisposeAsync(); throw; }
         }
 
-        public void Start(OutboxDispatchOptions? bounds = null)
+        public void Start(OutboxDispatchOptions? bounds = null, TimeProvider? time = null)
         {
-            _factory = new WorkerApiFactory(this, OutboxConnectionString, bounds);
+            _factory = new WorkerApiFactory(this, OutboxConnectionString, bounds, time);
             _client = _factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("http://localhost") });
             Services.GetRequiredService<IEventBus>().Should().BeOfType<InProcessEventBus>();
         }

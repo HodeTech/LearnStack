@@ -14,6 +14,10 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     private const string Incomplete = "processed_at IS NULL AND dead_lettered_at IS NULL";
     private const string Normal = Incomplete + " AND terminal_reason IS NULL AND attempts < 6"
         + " AND available_after <= clock_timestamp() AND locked_by IS NULL";
+    private const string Recovery = Incomplete + " AND terminal_reason IS NULL"
+        + " AND (locked_by IS NOT NULL OR attempts >= 6)"
+        + " AND ((locked_by IS NOT NULL AND locked_until <= clock_timestamp())"
+        + " OR (locked_by IS NULL AND attempts >= 6))";
     private const string Admitted = " AND NOT (type = ANY(@pending)) AND NOT (partition_key = ANY(@blocked))";
     private const string ClaimColumns = "id, tenant_id, organization_id, locked_by, attempts, locked_until,"
         + " type, topic, partition_key, occurred_at, correlation_id, causation_id, actor_user_id, payload::text, metadata IS NULL";
@@ -51,9 +55,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
 
     public Task<OutboxDispatchClaim?> TryAcquireRecoveryAsync(IReadOnlyCollection<string> blockedPartitions,
         CancellationToken cancellationToken = default) =>
-        AcquireAsync(OutboxClaimKind.Recovery, Incomplete + " AND terminal_reason IS NULL AND"
-            + " ((locked_until IS NOT NULL AND locked_until <= clock_timestamp())"
-            + " OR (locked_by IS NULL AND attempts >= 6))", blockedPartitions, cancellationToken);
+        AcquireAsync(OutboxClaimKind.Recovery, Recovery, blockedPartitions, cancellationToken);
 
     public Task<OutboxDispatchClaim?> TryClaimTerminalAsync(IReadOnlyCollection<string> blockedPartitions,
         CancellationToken cancellationToken = default) =>
@@ -113,7 +115,6 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         {
             OutboxFailureReason.PublishFailed => "publish:failed:provider",
             OutboxFailureReason.PublishTimeout => "publish:timeout:deadline",
-            OutboxFailureReason.Shutdown => "publish:canceled:shutdown",
             OutboxFailureReason.UnknownOutcome => "recovery:unknown:expired",
             _ => throw new ArgumentOutOfRangeException(nameof(reason)),
         };
@@ -214,7 +215,15 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         {
             // COMMIT may have reached PostgreSQL. Reconcile on a fresh bounded connection;
             // a durable terminal row already includes its audit and must never be inserted again.
-            if (await IsDurablyTerminalAsync(claim.Id).ConfigureAwait(false)) return true;
+            try
+            {
+                if (await IsDurablyTerminalAsync(claim.Id).ConfigureAwait(false)) return true;
+            }
+            catch (Exception reconciliationFailure)
+            {
+                throw new AggregateException("The outbox terminal commit outcome remains unknown.",
+                    exception, reconciliationFailure);
+            }
             throw;
         }
     }

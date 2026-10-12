@@ -11,6 +11,10 @@ namespace LearnStack.Tests.Integration;
 /// Request/composition proofs own no background dispatcher. Production startup
 /// proofs use an ordinary factory and must supply its confined credential.
 /// </summary>
+/// <remarks>
+/// The retained private outbox health check intentionally remains Unhealthy when
+/// its worker is removed. The static <c>/healthz</c> liveness endpoint is independent.
+/// </remarks>
 public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
 {
     protected sealed override void ConfigureWebHost(IWebHostBuilder builder)

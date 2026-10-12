@@ -160,13 +160,13 @@ will raise them — which this standard requires it to do.
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
   four whose writer ships through `DeclareOffPath` today, the other five when their
-  writer lands. Producer terminal registration belongs to P02b-2; subscriber
-  terminal registration belongs to P02b-3. Both are planned until their writers ship.
+  writer lands. P02b-2 Step 2 registers the shipped producer terminal writer;
+  subscriber terminal registration remains planned for P02b-3.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**, and six do. `tenancy.killswitch.toggle` is
+- **A row can carry both markers**, and five do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —

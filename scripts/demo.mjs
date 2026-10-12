@@ -72,6 +72,18 @@ export async function disposeDemoResources({ processes, finish, teardown, remove
   await removePrivate();
 }
 
+/** Only fixed local diagnostics may leave the launcher boundary. */
+export function demoFailureMessage(error) {
+  return error instanceof DemoCommandError ||
+    (error instanceof Error &&
+      (error.message === 'Local demo database configuration is invalid' ||
+        /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
+          error.message,
+        )))
+    ? error.message
+    : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack';
+}
+
 /** Start the same seeded, production-built topology for foreground use and CI proof. */
 export async function startDemo(mode) {
   if (!['local', 'ci'].includes(mode)) throw new Error('Use make demo DEMO_MODE=local or ci');
@@ -532,15 +544,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } catch (error) {
     if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
       // Labels are fixed locally; never echo provider, configuration or build output.
-      console.error(
-        error instanceof DemoCommandError ||
-          (error instanceof Error &&
-            /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
-              error.message,
-            ))
-          ? error.message
-          : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack',
-      );
+      console.error(demoFailureMessage(error));
       process.exitCode = 1;
     }
   } finally {

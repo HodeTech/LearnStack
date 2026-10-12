@@ -16,12 +16,14 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly List<Task> _sessions = [];
     private readonly string _targetHost;
     private readonly int _targetPort;
+    private readonly bool _rejectReconciliationConnections;
     private readonly Task _accepting;
     private int _droppedCommitResponses;
     private int _acceptedConnections;
 
-    public CommitResponseDroppingProxy(string connectionString)
+    public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false)
     {
+        _rejectReconciliationConnections = rejectReconciliationConnections;
         var target = new NpgsqlConnectionStringBuilder(connectionString);
         _targetHost = target.Host ?? throw new ArgumentException("The test proxy requires a PostgreSQL host.", nameof(connectionString));
         _targetPort = target.Port;
@@ -68,6 +70,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             {
                 var client = await _listener.AcceptTcpClientAsync(_stopping.Token);
                 Interlocked.Increment(ref _acceptedConnections);
+                if (_rejectReconciliationConnections && DroppedCommitResponses != 0)
+                {
+                    // Refuse the fresh durability probe only after the real
+                    // terminal transaction committed and its response was dropped.
+                    client.Dispose();
+                    continue;
+                }
                 _sessions.Add(ForwardSessionAsync(client));
             }
         }

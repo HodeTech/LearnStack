@@ -3446,9 +3446,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   publish/mark path; real subscriptions stay Pending until P02b-3.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
-- **Type:** production architecture census with planted controls where structural;
-  real PostgreSQL/runtime integration proofs where behavioural.
-  **Kind:** structural + behavioural.
+- **Type:** real PostgreSQL/runtime integration proofs and startup composition checks.
+  **Kind:** startup + behavioural.
 - **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`,
   `OutboxProductionCompositionTests`): real provisioning rows remain unchanged
   across hosted Pending polls; aliases/malformed payloads are held before every

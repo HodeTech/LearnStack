@@ -195,8 +195,8 @@ closeout are complete; all four steps completed both independent review rounds.
 The
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
 owns local closeout evidence and CI/merge status.
-Acceptance registers six delivery obligations;
-it claims no inbox or subscriber delivery. P02b-3 still owns
+Acceptance registers six new catalogue rules; the Step 4 record owns their
+delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
 subscriptions and Seeder handoff.
 Phase 06 retains the full renderer/Studio expansion.

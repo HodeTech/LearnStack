@@ -18,8 +18,10 @@ namespace LearnStack.Tests.Contract;
 /// gated <c>MapOpenApi()</c> on <c>IsDevelopment()</c>, so the document 404'd
 /// in CI without it. Packet 4 removed that gate — the document is the contract
 /// the SDK generates from and CI diffs, so it is served in every environment —
-/// and the override now exists only to keep the contract suite on one known
-/// environment rather than on whatever the runner happens to set.
+/// and the environment override keeps the contract suite on one known environment.
+/// This served-contract fixture also removes the dispatcher worker because it owns
+/// no dispatcher database. Its retained private outbox health check intentionally
+/// remains Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
 /// </remarks>
 public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {

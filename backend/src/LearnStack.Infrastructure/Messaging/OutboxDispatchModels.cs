@@ -4,7 +4,7 @@ namespace LearnStack.Infrastructure.Messaging;
 
 public enum OutboxClaimKind { Normal, Recovery, Terminal }
 public enum OutboxTerminalReason { UnknownType, RetiredType, InvalidEnvelope, RetryExhausted }
-public enum OutboxFailureReason { PublishFailed, PublishTimeout, Shutdown, UnknownOutcome }
+public enum OutboxFailureReason { PublishFailed, PublishTimeout, UnknownOutcome }
 
 /// <summary>A committed acquisition; its token is meaningful only until database-time expiry.</summary>
 public sealed record OutboxDispatchClaim(

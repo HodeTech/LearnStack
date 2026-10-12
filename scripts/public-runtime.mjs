@@ -1,40 +1,28 @@
-import { realpathSync } from "node:fs";
-import { join } from "node:path";
+import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** Give the API its explicit application/dispatcher credentials and bounded configuration. */
-export function publicApiEnvironment(
-  values,
-  configuration,
-  base = process.env,
-) {
+export function publicApiEnvironment(values, configuration, base = process.env) {
   const environment = {};
-  for (const name of ["PATH", "HOME", "DOTNET_ROOT", "TMPDIR", "APPDATA"])
+  for (const name of ['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA'])
     if (base[name] !== undefined) environment[name] = base[name];
-  if (!values.ConnectionStrings__Default)
-    throw new Error("Application credential is missing");
+  if (!values.ConnectionStrings__Default) throw new Error('Application credential is missing');
   if (!values.ConnectionStrings__OutboxDispatcher)
-    throw new Error("Outbox dispatcher credential is missing");
+    throw new Error('Outbox dispatcher credential is missing');
   environment.ConnectionStrings__Default = values.ConnectionStrings__Default;
-  environment.ConnectionStrings__OutboxDispatcher =
-    values.ConnectionStrings__OutboxDispatcher;
+  environment.ConnectionStrings__OutboxDispatcher = values.ConnectionStrings__OutboxDispatcher;
   if (values.ConnectionStrings__PlatformAdmin)
-    environment.ConnectionStrings__PlatformAdmin =
-      values.ConnectionStrings__PlatformAdmin;
+    environment.ConnectionStrings__PlatformAdmin = values.ConnectionStrings__PlatformAdmin;
   return {
     ...environment,
-    ASPNETCORE_ENVIRONMENT: "Development",
+    ASPNETCORE_ENVIRONMENT: 'Development',
     ASPNETCORE_URLS: configuration.apiOrigin,
-    Tenancy__TrustedHop__Networks__0: "127.0.0.1/32",
+    Tenancy__TrustedHop__Networks__0: '127.0.0.1/32',
     Tenancy__TrustedHop__Secrets__0: configuration.secret,
   };
 }
 /** Development configuration must not consult the workstation's user secrets. */
-export function publicDemoApiEnvironment(
-  values,
-  configuration,
-  privateRoot,
-  base = process.env,
-) {
+export function publicDemoApiEnvironment(values, configuration, privateRoot, base = process.env) {
   const profile = realpathSync(privateRoot);
   return publicApiEnvironment(values, configuration, {
     ...base,
@@ -49,19 +37,16 @@ export function publicWebEnvironment(values, privateRoot, base = process.env) {
   const environment = {
     PATH: base.PATH,
     TMPDIR: privateRoot,
-    SWC_NATIVE_BINDING_CACHE: join(
-      realpathSync(privateRoot),
-      "swc-native-cache",
-    ),
-    NODE_ENV: "production",
-    NEXT_TELEMETRY_DISABLED: "1",
-    NODE_TLS_REJECT_UNAUTHORIZED: "1",
+    SWC_NATIVE_BINDING_CACHE: join(realpathSync(privateRoot), 'swc-native-cache'),
+    NODE_ENV: 'production',
+    NEXT_TELEMETRY_DISABLED: '1',
+    NODE_TLS_REJECT_UNAUTHORIZED: '1',
   };
   for (const key of [
-    "LEARNSTACK_PUBLIC_API_ORIGIN",
-    "LEARNSTACK_PUBLIC_HOP_SECRET",
-    "LEARNSTACK_PUBLIC_TLS_CERT",
-    "LEARNSTACK_PUBLIC_TLS_KEY",
+    'LEARNSTACK_PUBLIC_API_ORIGIN',
+    'LEARNSTACK_PUBLIC_HOP_SECRET',
+    'LEARNSTACK_PUBLIC_TLS_CERT',
+    'LEARNSTACK_PUBLIC_TLS_KEY',
   ])
     environment[key] = values[key];
   return environment;

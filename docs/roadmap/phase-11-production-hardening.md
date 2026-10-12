@@ -322,10 +322,11 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   audit row — ships in [Phase 02b](phase-02b-events-auth.md).
 - Outbox dispatcher reliability under multi-pod load. The claim protocol is already
   specified — [Events and Outbox § The claim protocol](../architecture/15-event-and-outbox.md#the-claim-protocol)
-  writes the lease, [ADR-0006 Amendment 2](../decisions/0006-events-and-outbox.md)
-  assigns its columns and grant to Phase 02b's migration, and
-  [§ The simpler alternative, and its cost](../architecture/15-event-and-outbox.md#the-simpler-alternative-and-its-cost)
-  demotes the batch-held transaction to a fallback. What this phase adds is the
+  describes [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)'s
+  single-row acquisition tokens and fenced transitions. P02b-2 implements that
+  producer protocol; P02b-3 owns durable subscriber execution. The
+  [simpler-alternative section](../architecture/15-event-and-outbox.md#the-simpler-alternative-and-its-cost)
+  records the supersession of the batch-held transaction fallback. This phase adds the
   multi-instance evidence the single-instance phase cannot produce: two real dispatcher
   processes across pods, lease-duration tuning against measured tail latency, and the
   lost-lease alert.
@@ -559,7 +560,7 @@ same `ILiveClassProvider`.
   and by the glossary, and a cross-process transport does not change it. The retry and
   dead-letter contract being exercised here is
   [Phase 02b](phase-02b-events-auth.md)'s, unchanged.
-- Two dispatcher processes in separate pods drain one pending batch with no duplicate
+- Two dispatcher processes in separate pods drain the same queue with no duplicate
   business effect; a lease that expires mid-dispatch is reclaimed, the stale processor's
   writes are no-ops under the ownership fence, and `learnstack_outbox_lease_lost_total`
   both increments and pages. The lease duration is set against measured tail latency

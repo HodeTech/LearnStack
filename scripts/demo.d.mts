@@ -1,4 +1,5 @@
 export function isApiListenerEvent(line: string, origin: string): boolean;
+export function demoFailureMessage(error: unknown): string;
 export function validateCertificate(
   certificate: Buffer,
   privateKey: Buffer,

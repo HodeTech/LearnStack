@@ -342,6 +342,8 @@ is the rule that enforces it, in force since Phase 02a Packet 10.
 
 ### The claim problem
 
+The former batch sketch exposed the released-lock defect described here; the
+single-row leased protocol below supersedes it under ADR-0046.
 `SELECT ... FOR UPDATE SKIP LOCKED` holds its row locks **only until the transaction that
 took them ends**. A processor that selects a batch, commits to release the locks, and
 *then* starts publishing has released every row it is about to work on. A second
@@ -350,10 +352,9 @@ not blocked by any lock, and dispatches the same events. The first processor the
 them processed, and nothing in the system records that they went out twice.
 
 That is why this document no longer claims "no double dispatch". The delivery contract is
-**at-least-once**, and consumer-side idempotency through `IInboxGuard` is what makes it
-safe — not the row lock. What the claim protocol buys is that duplicates come from crash
-recovery and lease expiry, which are rare and bounded, rather than from every concurrent
-poll, which is neither.
+**at-least-once**. P02b-3's transport-owned shared inbox supplies consumer-side
+idempotency; handlers do not call `IInboxGuard`. The claim protocol prevents
+concurrent live owners; crash recovery and lease expiry can still redeliver.
 
 ### The claim protocol
 

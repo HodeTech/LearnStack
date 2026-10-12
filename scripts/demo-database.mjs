@@ -69,7 +69,13 @@ function localConnectionFields(source) {
 
 /** Reject stale local credentials in the launcher without giving them to a child process. */
 export function validateDemoDatabaseConfiguration(values) {
-  if (typeof values.POSTGRES_DB !== 'string' || !values.POSTGRES_DB) throw invalidConfiguration();
+  if (
+    values === null ||
+    values === undefined ||
+    typeof values.POSTGRES_DB !== 'string' ||
+    !values.POSTGRES_DB
+  )
+    throw invalidConfiguration();
   for (const [suffix, role, passwordKey] of [
     ['Migration', 'learnstack_migration', 'LEARNSTACK_MIGRATION_PW'],
     ['Default', 'learnstack_app', 'LEARNSTACK_APP_PW'],

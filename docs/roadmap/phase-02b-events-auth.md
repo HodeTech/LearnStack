@@ -1860,6 +1860,61 @@ relative links and 490 fragments with zero errors. Final correction-head CI
 remains pending in this local receipt.
 The [PR handoff](#p02b-2-pr-handoff-2026-10-12) continues to own live PR state.
 
+### P02b-2 external review remediation (2026-10-13)
+
+Both external reports against `44089707` were treated as review evidence and
+checked against current code and Accepted ADR-0046. No new decision, consumer
+delivery or grant change is part of this correction. Existing migrations and
+Accepted ADR bodies remain unchanged.
+
+- Recovery now states its index predicate explicitly, without relying on
+  PostgreSQL to infer the lease CHECK. A new Platform migration replaces only
+  the recovery index: both expired leases and unleased exhausted rows retain
+  `(available_after, occurred_at, id)` order. Real migrated-database plans with
+  50,000 Pending rows distinguish the predecessor's scan from indexed recovery;
+  admission exclusions, ordering and down/reapply are asserted.
+- A failed durability probe after uncertain terminal COMMIT preserves both
+  exceptions, in COMMIT/probe order. The real response-dropping proxy exercises
+  that failure and independently verifies one durable terminal/audit pair and
+  no duplicate on retry. The unused persisted shutdown outcome was removed;
+  shutdown continues to leave ownership for expiry recovery.
+- The launcher exposes only the exact fixed local database diagnostic, with
+  secret-bearing prefix/unknown-message controls. Absent configuration uses the
+  same diagnostic. Root runtime-script formatting is restored. The audit marker
+  count, transport-owned inbox wording, historical batch discussion, catalogue
+  proof kind, glossary and later-phase navigation now match implementation.
+- The generic iteration diagnostic no longer mislabels every exception as a
+  storage failure. Normal dispatch avoids its unused registry lookup. Contention
+  warms both independent hosts before its live-lease deadline. Shutdown advances
+  exactly one controlled deadline with four retained callbacks; an isolated
+  second-budget mutant fails, and the rebuilt clean control passes.
+
+The remaining report suggestions were checked rather than adopted as new policy:
+
+| Concern | Disposition |
+|---|---|
+| Final `44089707` CI remains outstanding | Already resolved: all seven required jobs pass in [run 38309098697](https://github.com/HodeTech/LearnStack/actions/runs/38309098697). The earlier local receipt is dated evidence, not live state; this correction needs its own head verification |
+| Failure metric precedes a successful fence; gauges may straddle a refresh | Metrics observe attempts, not durable transitions. Every gauge reads an immutable snapshot; no scrape-wide atomicity is promised. The phase criterion below now names that exact invariant |
+| Disabled test worker leaves outbox health unhealthy | Intentional and now documented in factory remarks. The private check reports the absent worker; static `/healthz` remains liveness-only |
+| Invalid options are reported as credential failures | Not on the shipped DI path: the store validates the shared options before worker construction |
+| Alternate worker registration, duplicate short type labels, permissive terminal-request kind | No current production violation: composition census pins the sole worker; the registry has one production contract; the worker requests terminal state only from Normal claims. Recovery is deliberately used by a store fixture |
+| Witness acquisition is not compared with audit metadata | SQL fences the actual token and returns it into the transaction-bound witness. The audit draft has no acquisition field; adding one is not required by ADR-0046 |
+| Invalid causal metadata changes the original correlation | Matches ADR-0046: invalid correlation/causation/actor uses a validated attempt trace and omits invalid causal values |
+| Role guard should reject other principals inheriting dispatcher rights | The guard validates the dispatcher's effective role and escalating memberships. Reverse grant auditing is outside that connection contract; changing it would not sandbox compromised privileged SQL |
+| Ambient local credentials, migration-child environment, quoted passwords | Ambient overrides are explicit existing loader policy and tested. The administrative migration child is distinct from the confined web/Seeder children. Single/double-quote parsing is the declared closed local grammar, with existing controls; no provider mismatch was demonstrated |
+| Audit seam needs duplicate tests in another file; sub-microsecond and census optimization suggestions | The real transition tests already exercise the fifth seam and rollback substitutions. Quantization has explicit envelope controls. Duplicate tests or census caching do not repair a demonstrated contract violation |
+| ADR navigation date, test placement and optional trace descriptor | Historical ADR navigation is preserved; local-loader tests sit with that loader. Standard 09 and ADR-0046 allow optional trace data without requiring its persistence |
+
+Local validation passes 1,845 unit, 286 architecture, four contract and 175
+Docker-free integration cases, plus 97 focused Docker cases (54 store, 27
+migration, 16 worker), with zero failures/skips. Guarded frontend passes 1,616
+cases (1,556 web, 60 SDK), with zero failures/skips/todos; lint/typecheck pass.
+Release build reports zero warnings/errors; format, seven ADR-status script
+controls, 2,587 relative links and 491 fragments pass. The new regression cases
+fail their predecessor/mutant controls. Both fresh independent correction review
+rounds and complete correction-head CI remain pending in this local receipt;
+the PR description owns live head/check evidence.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
@@ -2801,8 +2856,9 @@ consumer execution; the whole phase is not complete. The
   the regenerated SDK surface.
 - Every event metric uses the literal name and bounded dimensions in
   [Observability Standards](../standards/10-observability.md#required-metrics).
-  Gauge snapshots agree atomically; Pending, deferred, terminal and normal
-  eligibility are tested as distinct states. Job dimensions remain G9/G17 work.
+  Refresh publishes one complete immutable queue snapshot; each gauge reads an
+  immutable snapshot. Pending, deferred, terminal and normal eligibility are
+  tested as distinct states. Job dimensions remain G9/G17 work.
 - **No row in the [catalogue](../standards/21-architecture-tests-catalogue.md) whose
   Phase names 02b is still Registered or Awaiting backfill.** Structural rows are green
   in the `backend` check and behavioural rows in the `backend integration` check, which
