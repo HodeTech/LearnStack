@@ -88,10 +88,12 @@ keeps the phase from re-deciding settled questions or repairing repaired defects
   [ADR-0044](../decisions/0044-audit-write-path.md). This phase adds the entry points it
   does not yet cover.
 
-What is genuinely absent: `IOutbox`, `IInboxGuard`, `inbox_messages`, the lease columns,
-`OutboxProcessor`, any `BackgroundService` or `IHostedService`, Hangfire and its package
-pins, the realm's protocol mappers, and a body for `OutboxFlushBehavior` — still
-`return next()` behind a Phase 02b `TODO`. Packet 5 shipped the `IInboxGuard` **seam**,
+At the [P02b-0 entry audit](#p02b-0-entry-verification-2026-10-12), `IOutbox`
+and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
+enqueue and the enrollment/invariant guard. Still absent are `IInboxGuard`,
+`inbox_messages`, the lease columns, `OutboxProcessor`, any `BackgroundService`
+or `IHostedService`, Hangfire and its package pins, and the realm's protocol
+mappers. Packet 5 shipped the `IInboxGuard` **seam**,
 which is the name in three comments — two XML doc comments in `SharedKernel.Messaging`
 and the composition root's transport `TODO` — and in no declaration; the guard, its
 table and its semantics are this phase's.
@@ -715,6 +717,21 @@ the convergent seeder, audit, provisioning, UoW and public read-only paths, with
 zero failures/skips. The carrier audit resolves 1,158 relative links and 216
 Markdown fragments with no broken target; added prose width, formatting and
 `git diff --check` are clean. Required CI is not claimed by this local checkpoint.
+
+#### Step 2 review round 1
+
+Two fresh independent reviewers examined `7541b73..db882e0`: GPT-6-astra xhigh
+for transaction/security/envelope correctness and GPT-6.1-sol xhigh for
+proof/architecture/carrier integrity. Both approve with no Blocker/Major
+findings. The confirmed minor finding was an undated inherited-absence paragraph
+still describing `IOutbox` and step 7 as absent. It now distinguishes the P02b-0
+entry baseline from Step 2 delivery; the frozen entry audit is unchanged.
+
+The lifecycle reviewer independently passes 79 focused unit and 29 real outbox
+integration cases, with zero failures/skips. These overlap the implementation
+runs above. The corpus reviewer independently resolves 723 relative links and
+165 fragments in changed carriers, with no unresolved target. The second fresh
+review round remains pending at this checkpoint.
 
 ### Durable outbox dispatch
 
