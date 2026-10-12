@@ -14,9 +14,9 @@
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
-(P02b-2 transition and terminal-witness proofs implemented; Step 3 hosted dispatch
-implemented with verification/reviews in progress; Step 4 enforcement and
-P02b-3 consumer proofs pending). The
+(P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
+Steps 1–3 completed both independent review rounds. Step 4 enforcement is implemented;
+validation and reviews are in progress; P02b-3 consumer proofs remain pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -109,12 +109,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**180 test methods run in
+**193 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1
-and P02b-2 Steps 2–3.
+and P02b-2 Steps 2–4.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -141,8 +141,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**190 rules in this catalogue are Implemented, and 115 of them are in that assembly.**
-The other 75 are no less binding, and most could not live there. The table says where
+**192 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
+The other 74 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1802,7 +1802,11 @@ diagnostic above row security, not the boundary, as its own note says.
   [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 - **Type:** architecture/DI census and real PostgreSQL role probes.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — acceptance authorizes P02b-2 implementation.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatcherRoleGuardTests`, `OutboxProcessorTests`): exact nonempty
+  whole-production credential/factory/consumer census, keyed registration and
+  constructor bindings, planted clean/dirty helper/delegate/async controls, and
+  real PostgreSQL role/grant/startup refusal proofs.
 - **Phase:** 02b, P02b-2.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
@@ -3371,9 +3375,12 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
-  **Kind:** behavioural.
-- **Status:** **Implemented** (`OutboxDispatchStoreTests`): committed claim/backoff,
-  expiry/reclaim, sixth-claim recovery and terminal-request refusal controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatchStoreTests`): exact production literal-SQL writer census with
+  quoted/schema/case/CTE and missing/extra-writer controls; committed claim/backoff,
+  expiry/reclaim, sixth-claim recovery and terminal-request refusal proofs. The
+  SQL census does not claim arbitrary dynamic-SQL dataflow analysis.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Terminal_Transition_And_Must_Audit_Are_Atomic`
@@ -3457,10 +3464,12 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — Step 3 runtime/observation evidence exists in
-  `OutboxProcessorTests`, `OutboxObservationTests` and
-  `OutboxProductionCompositionTests`; full production census/planted controls
-  remain Step 4.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxProcessorTests`, `OutboxObservationTests`,
+  `OutboxProductionCompositionTests`): nonempty five-subject observation graph,
+  actual gauge callbacks, async/polymorphic helpers and persistence/locator
+  capability controls; actual DI missing/duplicate/wrong-factory controls plus
+  bounded runtime, immutable snapshot, metric-label and liveness proofs.
 - **Phase:** 02b, P02b-2.
 
 ### Demand-gated: lands with its adapter
@@ -3490,11 +3499,15 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 
 - **Asserts:** no type in a module assembly takes, returns or stores `IEventBus`, and no
   module takes or stores `IServiceProvider` as a service-locator escape hatch. Constructor
-  and method parameters, return types, fields and properties are checked. The only
-  sanctioned publisher is the `OutboxProcessor`; modules write to the outbox.
+  and method parameters, return types, fields and properties are checked. A nonempty
+  whole-production publication census admits only the private task-owned publish
+  callback and the attempt constructed by `OutboxProcessor.DispatchNormalAsync`;
+  interface/concrete/delegate/async publication and unowned attempts are refused.
+  Modules write to the outbox.
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0010](../decisions/0010-cross-module-communication.md).
-- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Type:** xUnit + reflection over module assemblies and whole-production IL
+  publication census. **Kind:** structural.
 - **Status:** **Implemented** (`CrossCuttingFoundationTests`). A module holding the bus
   gets a synchronous cross-module call with no durability and no transactional
   atomicity — a fifth cross-module mechanism in everything but name, and one that looks
@@ -3503,8 +3516,11 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
   `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
   `IIntegrationEventHandler<T>`. The module sweep has had a subject since Packet 7 —
   four modules ship code — and the checker is also pointed at direct-injection,
-  method-injection and service-locator deliberate offenders in the test assembly, so a
-  clean sweep is evidence rather than an absence.
+  method-injection and service-locator deliberate offenders in the test assembly.
+  P02b-2 Step 4 adds the complete production publication fence through the same
+  canonical test; missing subjects, extra implementations/callers, delegate/async
+  escapes and unowned attempts have dirty/clean controls. This is bounded IL
+  capability inspection, not arbitrary reflection/dataflow analysis.
 - **Phase:** 02a (Packet 5).
 
 #### `Integration_Event_TopicNames_FollowConvention`

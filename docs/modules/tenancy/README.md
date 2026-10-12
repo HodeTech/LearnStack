@@ -494,8 +494,8 @@ back-reference completion; partition source is `TenantId`, payload has no extra
 fields and envelope organization is null. Enqueue reads the transaction's
 announcement while provisioning ambient context remains unresolved. State, event
 and the existing two MUST audit rows share one transaction. P02b-1 persists
-pending rows; P02b-2 Step 3 implements hosted dispatch, with verification/reviews
-in progress. P02b-3 owns consumer delivery.
+pending rows; P02b-2 Step 3 implements hosted dispatch, with both independent
+review rounds complete. P02b-3 owns consumer delivery.
 
 The subscriptions below are accepted flow contracts, not delivered handlers.
 [ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md) accepts G1's

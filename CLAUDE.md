@@ -190,8 +190,10 @@ records both completed Step 1 reviews. Step 2 implements fenced transitions and
 row-bound terminal MUST audit; both independent review rounds pass.
 Step 3 implements hosted execution and observation; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
-owns verification and reviews, which are in progress. Step 4 enforcement remains
-pending. Acceptance registers six delivery obligations;
+owns verification and both completed review rounds. Step 4 enforcement is implemented;
+validation and reviews are in progress in its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12).
+Acceptance registers six delivery obligations;
 it claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
 subscriptions and Seeder handoff.
@@ -398,8 +400,8 @@ Then read the phase that is live and the one it stands on:
   and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
   runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
   Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
-  dispatch and observation, with verification/reviews in progress. Step 4
-  enforcement remains pending.
+  dispatch and observation, with both independent review rounds complete. Step 4
+  enforcement is implemented; validation and reviews are in progress.
   P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

@@ -162,7 +162,7 @@ set, host factory ceiling and canonical RLS placement remain unchanged under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 P02b-1 Steps 2–3 deliver immediate outbox enqueue, successful-save collection
 and owner-only completion. P02b-2 Step 3 implements confined hosted dispatch;
-verification and reviews are in progress. Consumer delivery remains P02b-3.
+both independent review rounds are complete. Consumer delivery remains P02b-3.
 
 ## Default org semantics
 

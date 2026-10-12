@@ -254,7 +254,7 @@ backend treat business rejections as system failures.
 | `learnstack_entitlement_unresolved_total` | counter | — |
 
 Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
-verification and reviews are in progress. Inbox counters remain P02b-3 and job
+both independent review rounds are complete. Inbox counters remain P02b-3 and job
 metrics P02b-4. `event_type` comes only from the
 finite declared registry plus fixed unknown/retired/invalid categories. Never
 label event metrics by tenant, event, partition, subscription or trace identity.
@@ -314,7 +314,7 @@ touched.
 | Outbox dispatcher (P02b-2 Step 3) | `outbox` | No actual progress or observation refresh for 45 s, any retained callback overrun, or terminal-audit failure |
 
 The `audit` check is registered in Phase 02a Packet 9; P02b-2 Step 3 registers
-`outbox`, with verification and reviews in progress.
+`outbox`, with both independent review rounds complete.
 Both are **not mapped**: `/healthz` stays
 a liveness probe, because a process that cannot write audit rows is still worth leaving
 alive. The readiness surface that reads the check, and the deployment-level backstop that

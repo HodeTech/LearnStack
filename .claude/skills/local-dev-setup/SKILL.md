@@ -109,15 +109,18 @@ helper loads application/dispatcher database credentials and the paired hop
 network/secret;
 the web launcher captures native socket provenance before Next. Neither script
 shell-evaluates `.env`, edits hosts or installs trust. The optional web projection
-must match the root private source.
+must match the root private source. README Quickstart owns the
+[closed local demo database grammar](../../../README.md#3-prepare-local-https-and-start-the-applications)
+and its supported field aliases; it does not promise general Npgsql parsing.
 
 **Ordinary API startup.** `dotnet run` does not load `.env`. For an API-only
 session, supply `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`) through environment
 or the project's `learnstack-api-dev` user-secrets store. The mandatory API worker
 resolves its guarded source and verifies dispatcher connectivity at startup.
-The dispatcher credential belongs only to the API; `make seed` strips it, and
-the web launcher does not receive it. Both empty hop lists remain
+The dispatcher credential belongs only to the API; every Seeder invocation uses
+an explicit application-only environment, and the web launcher receives neither
+database credential. Both empty hop lists remain
 valid in every mode; a network-only or secret-only configuration is refused.
 The application connection must name `learnstack_app`; the data-source guard also
 refuses direct or transitive BYPASSRLS/superuser access. Migration credentials

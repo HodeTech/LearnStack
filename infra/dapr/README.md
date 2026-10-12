@@ -29,7 +29,7 @@ Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
   `backend/Directory.Packages.props` declares no client library for any of the
   four.
 - **P02b-2 Step 3** implements the API-host `OutboxProcessor`, with
-  verification/reviews in progress. It is the only sanctioned production caller
+  both independent review rounds complete. It is the only sanctioned production caller
   of `IEventBus.PublishAsync` per ADR-0010 Amendment 1. Modules consume
   `ICacheService` and `ISecretProvider` from 02a and enqueue through `IOutbox`;
   they never publish through `IEventBus` directly.

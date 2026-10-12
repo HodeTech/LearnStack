@@ -27,7 +27,7 @@ not land together.
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
-| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Implemented through Step 3; verification/reviews in progress; Step 4 enforcement pending |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Implemented through Step 3; both independent review rounds complete; Step 4 enforcement implemented; validation/reviews in progress |
 | `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
@@ -58,10 +58,11 @@ and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md
 authorize fenced producer recovery, atomic terminal audit and the coupled shared
 inbox/subscriber contract. Steps 1–2 implement schema/composition, fenced
 transitions and atomic terminal audit; each completed both review rounds.
-Step 3 implements hosted execution and observation, with verification/reviews
-in progress in its
+Step 3 implements hosted execution and observation, with both independent
+review rounds complete in its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
-Step 4 enforcement and P02b-3 inbox/consumer delivery remain pending. Numerical
+Step 4 enforcement is implemented; validation and reviews are in progress.
+P02b-3 inbox/consumer delivery remains pending. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 
@@ -105,8 +106,8 @@ claims one admitted row immediately before publishing and fences its acknowledge
 Required Pending subscriptions hold rows before acquisition. P02b-3 durably accepts
 required subscriptions, then executes each on its own app-role transaction. Shared
 inbox completion and business/audit/ledger completion commit together. Producer
-production and the API worker are implemented; Step 3 verification/reviews are in
-progress. Durable consumer execution remains P02b-3, and real required
+production and the API worker are implemented; both Step 3 review rounds are
+complete. Durable consumer execution remains P02b-3, and real required
 subscriptions remain Pending.
 
 ## Outbox table
@@ -125,7 +126,7 @@ establish durable publish order. Accepted P02b-2 adds paired `locked_by` /
 is a fresh acquisition token, never stable worker identity. `available_after`
 controls due time and retry backoff. Canonical DDL/indexes are in Standards 05,
 implemented by P02b-2 Step 1 with both review rounds complete. Step 3 implements
-dispatcher execution; verification and reviews are in progress.
+dispatcher execution; both independent review rounds are complete.
 
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
 
@@ -133,7 +134,7 @@ One API-host BackgroundService schedules every tenant. The existing bypass role
 uses its own named keyed, lazy data source; no Seeder/web forwarding or app-role
 membership is allowed. Configuration validates the exact username without
 connecting or disclosing parse input. Step 3 implements mandatory worker-startup
-resolution and connectivity checks; verification and reviews are in progress.
+resolution and connectivity checks; both independent review rounds are complete.
 Every new physical connection verifies exact session/current role, bounded
 attributes and no privilege-escalating membership.
 
@@ -151,8 +152,9 @@ The platform-admin gate and pre-entry audit remain unchanged. Four roles and
 separate credentials remain the closed model; the code-path and role rules are
 implemented for transition-witness construction and terminal audit in Step 2;
 both independent review rounds passed. Step 3 implements hosted execution and
-observation, with verification/reviews in progress. Credential/publication
-censuses remain Step 4.
+observation, with both independent review rounds complete. Step 4 implements
+credential/publication censuses and planted controls; final validation and
+reviews are in progress.
 
 <a id="inbox-table-per-consumer-module"></a>
 
@@ -352,8 +354,9 @@ poll, which is neither.
 
 ### The claim protocol
 
-**ADR-0046 producer runtime implemented through P02b-2 Step 3; verification and
-reviews in progress.** The processor admits a construction-free
+**ADR-0046 producer runtime implemented through P02b-2 Step 3; both independent
+review rounds complete.** Step 4 enforcement, validation and reviews are in
+progress. The processor admits a construction-free
 manifest policy before acquisition. Any required Pending subscription holds the
 contract and all aliases unchanged, even if stored payload is malformed. Active
 requires declared handler registration. Only explicit intentional absence may

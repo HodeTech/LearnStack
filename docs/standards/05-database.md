@@ -1007,7 +1007,7 @@ privileges implicitly.
 | `lesson_translations` | `SELECT, INSERT` | `SELECT` | — |
 
 ADR-0046 accepts the two P02b-2 cells above. Step 1 implements their migrations
-and exact-grant proofs; both independent review rounds remain pending in the
+and exact-grant proofs; both independent review rounds are complete in the
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12).
 Outbox status grants land in the Platform chain. The audit
 INSERT grant lands in a new Audit-chain migration after `audit_log` exists, never
@@ -1396,8 +1396,9 @@ Public read models consumed by other modules:
 The canonical
 DDL below includes lease/terminal/identity/descriptor changes. Step 2 implements
 fenced transitions and atomic terminal auditing; both review rounds passed.
-Step 3 implements hosted execution and metrics; verification/reviews are in progress.
-Step 4 enforcement remains pending. Existing
+Step 3 implements hosted execution and metrics; both independent review rounds
+are complete.
+Step 4 enforcement is implemented; validation and reviews are in progress. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form
 legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
 This specific ADR-0046 Platform migration temporarily uses owner-only `NO FORCE`
@@ -1517,7 +1518,7 @@ NULL with no caller extension channel. This is application admission, not a new
 DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implements this
 producer boundary. ADR-0046 accepts producer recovery and the shared inbox
 contract; P02b-2 Step 2 implements producer transitions and terminal audit,
-Step 3 implements hosted dispatch with verification/reviews in progress, and
+Step 3 implements hosted dispatch with both independent review rounds complete, and
 P02b-3 owns inbox/delivery runtime.
 
 `organization_id` is `uuid NULL` and mirrors the organization context of the transaction

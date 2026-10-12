@@ -672,7 +672,7 @@ declares its own intents; nested commands retain their own, without an extra
 business row. Step 1 supplies the common entry and producer ancestry groundwork;
 Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion
 and owner-only domain drain. P02b-2 Step 3 implements hosted producer dispatch,
-with verification/reviews in progress; production consumer delivery/inbox wiring
+with both independent review rounds complete; production consumer delivery/inbox wiring
 remains P02b-3 under Accepted ADR-0046.
 
 ### The two catalogue faces, and the three columns nothing fills yet
@@ -885,7 +885,7 @@ execution boundary creates a W3C Activity even without a telemetry listener and
 restores ancestry/Activity on disposal. P02b-1 Steps 2–3 deliver immediate outbox
 enqueue, successful-save collection/promotion and owner-only domain drain before
 MUST audit/commit. P02b-2 Step 3 implements hosted producer dispatch, with
-verification/reviews in progress; consumer delivery/inbox remains P02b-3.
+both independent review rounds complete; consumer delivery/inbox remains P02b-3.
 
 `IUnitOfWork` remains the seam through which every module context and `IAuditStore`
 reach the one ambient connection/transaction. Packet 6 shipped that seam and the
@@ -1719,7 +1719,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 |-------|-------------|
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Hosted dispatch is implemented in P02b-2 Step 3; consumer delivery/inbox remains P02b-3. |
-| P02b-2 Steps 1–3 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with verification/reviews in progress; Step 4 enforcement remains pending. |
+| P02b-2 Steps 1–3 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with both independent review rounds complete; Step 4 enforcement is implemented; validation and reviews are in progress. |
 | P02b-3 (Accepted contract; pending) | Shared transport-owned inbox and independent delivery ledger; per-subscription audit frames and Tenancy-owned terminal audit. Ordinary executor refuses privileged subscriptions. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |

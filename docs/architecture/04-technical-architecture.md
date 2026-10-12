@@ -189,7 +189,7 @@ flowchart LR
 - All side-effects beyond the database transaction are deferred to **integration events** written to a transactional `outbox` table in the same transaction as the domain change.
 - The API-host `OutboxProcessor` polls the outbox and publishes admitted events
   through `IEventBus`. P02b-2 Step 3 implements hosted execution, with
-  verification/reviews in progress; real required subscriptions remain Pending
+  both independent review rounds complete; real required subscriptions remain Pending
   until P02b-3 supplies durable consumer execution.
 - Idempotency keys plus consumer-side deduplication guarantee at-least-once with effective once-only semantics.
 

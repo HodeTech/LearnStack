@@ -73,9 +73,12 @@ is complete. **P02b-1 is complete and merged** through
 records transactional event production, enforcement, completed reviews and final
 CI verification under Accepted ADR-0057. P02b-2's revised package and ADR-0046
 are Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
-dispatch and observation, with verification and reviews in progress. Its
+dispatch and observation, with both independent review rounds complete. Its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
-owns current evidence. Step 4 enforcement remains pending.
+owns current evidence. Step 4 enforcement is implemented; validation and reviews
+are in progress
+in its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12).
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -126,8 +129,8 @@ owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification. P02b-0 and P02b-1 are complete; P02b-2 Step 3 implements
-the producer worker, with verification/reviews in progress and Step 4 enforcement
-pending. Consumer delivery remains P02b-3. The
+the producer worker, with both independent review rounds complete and Step 4 enforcement
+in progress. Consumer delivery remains P02b-3. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -139,7 +142,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch (Step 3 verification/reviews in progress) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch (both Step 3 review rounds complete) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
@@ -217,6 +220,17 @@ Use `make down` to stop infrastructure explicitly. A second demo invocation or a
 foreign listener is refused; no foreign process is killed. If a hard kill leaves
 `.data/demo.lock`, confirm the earlier process tree has stopped before removing
 that lock manually. Missing/stale configuration or TLS is refused without reset.
+
+Local demo database validation accepts only `Host`, `Port`, `Database`,
+`Username` and `Password`, with case-insensitive keys. Supported aliases are
+`Server` for `Host`; `User Name`, `Userid`, `User Id` and `Uid` for `Username`;
+and `Pwd` and `Psw` for `Password`. Single- or double-quoted values preserve
+whitespace and semicolons; double the matching quote to escape it. Duplicate
+canonical fields and unsupported keys are refused. Host must be `localhost` or
+`127.0.0.1`; port defaults to 5432 and must resolve to 5432. Role, password and
+database must match the root configuration. This is the closed local demo
+grammar, not general Npgsql connection-string support;
+[demo-database.mjs](scripts/demo-database.mjs) owns validation.
 
 For separate development/watch terminals, retain `make public-api` and
 `make public-web`. The CI lifecycle uses an isolated checkout/project and disposable

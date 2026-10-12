@@ -6,7 +6,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>ADR-0046: the dispatcher owns the restricted terminal-transition capability.</summary>
-public sealed class OutboxDispatchConventionTests
+public sealed partial class OutboxDispatchConventionTests
 {
     private const string KernelAssembly = "LearnStack.SharedKernel";
     private const string InfrastructureAssembly = "LearnStack.Infrastructure";

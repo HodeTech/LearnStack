@@ -455,9 +455,9 @@ Rules:
   broadcast; the outbox processor remains the only production publisher.
 - Operator routes, permissions and producer reset/fencing belong to Phase 03.
   Brokers and retention purge remain demand-gated Phase 11. P02b-2 Step 3
-  implements hosted producer dispatch, with verification/reviews in progress;
-  Step 4 enforcement remains pending. Inbox and effectively-once consumer delivery
-  remain P02b-3.
+  implements hosted producer dispatch, with both independent review rounds complete;
+  Step 4 enforcement is implemented; validation and reviews are in progress. Inbox and
+  effectively-once consumer delivery remain P02b-3.
 
 Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 

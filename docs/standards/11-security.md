@@ -245,8 +245,9 @@ for the full strategy. Standards-side:
 
 ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
 both review rounds are complete. Step 3 implements mandatory worker startup
-resolution and connectivity checks; verification/reviews are in progress.
-Step 4 credential/publication enforcement remains pending. The named keyed, lazy
+resolution and connectivity checks; both independent review rounds are complete.
+Step 4 credential/publication enforcement is implemented; validation and
+reviews are in progress. The named keyed, lazy
 dispatcher source belongs only to the API host. Configuration validates the exact
 username without connecting or
 echoing parse input. Worker startup must verify connectivity. Every new physical

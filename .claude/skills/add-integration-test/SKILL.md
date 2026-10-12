@@ -240,7 +240,7 @@ those shipped examples for Education rather than inventing an authenticated rout
 > **The `_fx.*` members in Steps 3 to 5 are illustrative.** P02b-1 implements
 > `IOutbox`; follow `OutboxProducerTests` and `TenantCreatedProducerTests` for
 > shipped producer fixtures. P02b-2 Step 3 implements the API-host dispatcher;
-> its verification/reviews are in progress, and `OutboxProcessorTests` owns its
+> its both independent review rounds are complete, and `OutboxProcessorTests` owns its
 > runtime proofs. Real subscriptions remain Pending; consumer/inbox assertions
 > belong to P02b-3. `audit_log` shipped in Packet 9: for a real audit assertion,
 > follow `AuditWorkflowTests`, which drives commands through

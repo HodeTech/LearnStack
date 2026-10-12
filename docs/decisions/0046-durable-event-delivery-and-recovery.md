@@ -430,6 +430,32 @@ Registered until P02b-3 and must not pass on an empty production-handler set.
 The package names the decisive migration, deadline, contention, recovery and
 privilege proofs.
 
+## Amendments
+
+### Amendment 1 — Producer runtime delivery (2026-10-12)
+
+P02b-2 Steps 1–3 deliver the producer runtime authorized above: schema/grants and
+confined composition, fenced claims/recovery/transitions with row-bound atomic
+terminal MUST audit, and the mandatory API-host processor with bounded
+publication ownership, observation and unmapped health. All three steps completed
+both independent review rounds. The
+[Step 3 delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+owns validation, reviewed corrections and the runtime proof scope.
+
+[Step 4 enforcement and closeout](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+implements the full production censuses and planted controls; the focused 21-case
+census/publication run passes with zero skips and the remaining role/health
+catalogue rules are Implemented. Final regression, independent reviews and
+exact-head CI remain in progress. This
+amendment records delivered producer runtime, not completed P02b-2 packet closeout
+or a merge, and changes no decision, rationale, grant budget or subscriber policy.
+
+P02b-3 remains unimplemented: durable acceptance, shared inbox/delivery ledger,
+independent subscriber retries and terminalization, both real default
+subscriptions and Seeder handoff stay with that packet. Required production
+subscriptions remain Pending; test-owned Active subscriptions supply producer
+runtime proof without claiming durable consumer delivery.
+
 ## References
 
 - [ADR-0006](0006-events-and-outbox.md), [ADR-0010](0010-cross-module-communication.md)
