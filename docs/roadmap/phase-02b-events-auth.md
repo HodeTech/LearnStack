@@ -948,8 +948,26 @@ the original CI diagnostic does not identify the failing browser operation.
 
 Test-only browser diagnostics now expose closed phase names for startup,
 hydration, navigation, wire assertions and cleanup. Raw exceptions, browser
-output, URLs and private values remain excluded. Assertions, deadlines and
-production behavior are unchanged; a fresh CI result is still required.
+output, URLs and private values remain excluded. A verified review follow-up
+also preserves the first proof failure if shutdown fails, while always running
+cleanup. Assertions, deadlines and production behavior are unchanged.
+
+At `11871a2`, the [diagnostic run](https://github.com/HodeTech/LearnStack/actions/runs/38231443960)
+passes all 968 Docker integration cases. Its non-Docker artifacts record 1,764
+unit, 265 architecture, four contract and 180 integration cases: 3,181 backend
+cases pass with zero failures/skips across both jobs. The original stock-browser
+failure did not recur; its cause remains unestablished, not claimed fixed.
+
+Both diagnostics and first-failure preservation completed two fresh independent
+review rounds. Focused browser checks pass 18 cases; final guarded frontend tests
+pass 1,542 cases across two packages with zero skips/todos. Lint/typecheck and
+the real admission integration proof pass locally. Verified CodeRabbit findings
+also reconcile delivered producer work, pending inbox delivery and process-local
+versus durable ordering in architecture/glossary/XML guidance. Five corpus
+checks and the changed-document link/anchor sweep pass after those corrections.
+The [PR's required checks](https://github.com/HodeTech/LearnStack/pull/29/checks)
+own the final-head CI verdict; passing local or intermediate evidence does not
+claim approval or merge.
 
 **Next: P02b-2 decision pass.** Reverify G1, G3 ordering, G4, G5 resolver policy,
 G7/G8, G17 and G18 error descriptors before implementation. ADR-0046 remains
