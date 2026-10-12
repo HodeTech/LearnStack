@@ -978,6 +978,41 @@ P02b-3 subsequently owns inbox/subscriptions, both Customization defaults and
 the Seeder identity handoff after G1. Pending outbox rows do not claim delivered
 consumption; no producer work is silently transferred to those packets.
 
+#### PR #29 external-review proof follow-up (2026-10-12)
+
+The review of `d37f46c..cb2bb6d` found three Minor proof gaps and no
+Blocker/Major runtime finding. Commit `d8fd919` strengthens the existing cases:
+
+- The shared execution test enqueues through the registered `IOutbox` at
+  descendant depths 0, 1 and 2. It observes both business and outbox rows inside
+  the transaction, then verifies both disappear after the absorbed refusal.
+- The committed-MUST reconciliation test requires one declared intent inside
+  the handler before checking that reconciliation writes no duplicate.
+- The nested transaction test observes zero joiner writes and one owner write
+  in the same execution, including the actual commit-state transition.
+
+Three temporary mutations independently remove the real outbox receipt, audit
+declaration and owner audit write. Their respective three, one and one target
+cases fail. Production files are restored byte-for-byte, then all 62 audit/
+transaction unit cases and 71 producer integration cases pass again.
+
+Release build has zero warnings/errors; changed C# formatting and
+`git diff --check` pass. The complete 1,764 unit and 265 architecture cases and
+the 71 focused PostgreSQL cases pass with zero failures/skips; focused repeats
+overlap these counts. This follow-up changes no production code or case count.
+
+The public-receipt suggestion needs no visibility change here: `PostgresOutbox`
+is a real cross-assembly caller; invocation receipts also serve existing
+integration proofs. A temporary probe of compiled `BeginInvocation` confirms
+that a hierarchical ambient Activity receives a valid W3C child and is restored
+on disposal. The suggested non-W3C fallback failure does not reproduce.
+
+Two fresh independent review rounds cover `cb2bb6d..d8fd919` and this follow-up
+record. Each pairs GPT-6-astra high runtime/fixture review with GPT-6.1-sol high
+proof/corpus review; all four reviewers approve without verified findings.
+Five corpus checks, seven ADR lifecycle tests and the changed-document
+link/anchor sweep pass. The PR checks own fresh final-head CI evidence.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
