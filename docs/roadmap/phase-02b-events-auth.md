@@ -1609,7 +1609,7 @@ or inbox effect is claimed.
 
 ### P02b-2 Step 3 — Hosted lifecycle and observability (2026-10-12)
 
-**Implemented; verification and independent reviews in progress.** The API owns
+**Complete; both independent review rounds passed.** The API owns
 its mandatory `OutboxProcessor` BackgroundService, guarded dispatcher-source
 startup resolution/connectivity, bounded publication lifecycle and retained
 overrun ownership. Observation supplies immutable gauge snapshots, bounded
@@ -1649,8 +1649,8 @@ Two behavioural mutations fail in the intended executed test: removing local
 partition admission permits a sibling claim before retained cleanup completes;
 removing live-lease admission permits a competing worker to claim the held row.
 Both source files are byte-restored before the clean build/unit/worker rerun.
-Step 3 round 1 is complete; round 2 follows the verified launcher correction
-below. Steps 1–2 completed both rounds in their
+Step 3 completed both independent rounds and the verified corrections below.
+Steps 1–2 completed both rounds in their
 records above. Step 4 owns full credential/publication censuses, catalogue
 enforcement and packet closeout. P02b-3 still owns durable acceptance, shared
 inbox/ledger, independent subscriber retries, both real default subscriptions and
@@ -1679,6 +1679,22 @@ and 60 SDK), with zero skips/todos; 91 demo lifecycle cases include all four-rol
 configuration and actual shell/child-environment controls. Typecheck, affected
 formatting, script syntax, diff whitespace and the delivery-record link check
 pass. These are correction receipts, not a new full-Docker rerun.
+
+#### Step 3 review round 2
+
+Fresh read-only GPT-6.1-sol xhigh security/lifecycle and GPT-6-astra xhigh
+proof/corpus reviewers examined `d4c06a46..da637e35`. Neither found a Blocker or
+Major. Security identified one operability gap: the safe startup refusal omitted
+the configuration key/form required by the accepted completion criterion. The
+fixed message now names `ConnectionStrings:OutboxDispatcher`, Npgsql key/value
+syntax and `learnstack_outbox_admin`, without provider or supplied-value text.
+The real-host negative theory asserts that guidance for missing configuration;
+all four credential cases pass after the correction. Independent review reruns
+passed 91 demo lifecycle cases, 11 focused outbox unit cases and two construction
+host cases; the security reviewer separately passed nine helper/observation cases.
+Both inspected the prior receipts and production paths. They did not claim a new
+full build or Docker rerun. Step 3 is closed; Step 4 may add the complete
+credential/publication/health censuses and close the packet.
 
 ### Durable outbox dispatch
 

@@ -149,6 +149,9 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         failure.Should().NotBeNull();
         failure.Should().BeAssignableTo<InvalidOperationException>();
         failure!.ToString().Should().NotContain(SensitiveCanary).And.NotContain(credential == string.Empty ? "Password=" : credential);
+        if (invalid == "missing")
+            failure.Message.Should().Contain("ConnectionStrings:OutboxDispatcher")
+                .And.Contain("Npgsql key/value").And.Contain("learnstack_outbox_admin");
         test.Logs.Text.Should().NotContain(SensitiveCanary);
     }
 

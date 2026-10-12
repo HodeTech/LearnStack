@@ -63,7 +63,9 @@ public sealed partial class OutboxProcessor : BackgroundService
         catch (Exception)
         {
             // No connection data, provider exception or inner exception escapes boot.
-            throw new InvalidOperationException("Outbox dispatcher startup was refused.");
+            throw new InvalidOperationException("Outbox dispatcher startup was refused. "
+                + "Configure ConnectionStrings:OutboxDispatcher in Npgsql key/value form "
+                + "for learnstack_outbox_admin and verify database connectivity.");
         }
 
         _observation.Started();
