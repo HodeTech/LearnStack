@@ -13,7 +13,7 @@ implemented; both independent review rounds passed. The
 [Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) owns
 verification. Step 2 implements immediate enqueue; its
 [record](#p02b-1-step-2--immediate-outbox-production-2026-10-12) owns verification
-and pending reviews. Collection and the publisher remain Step 3.
+and both completed review rounds. Collection and the publisher remain Step 3.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -683,7 +683,7 @@ collection or completed P02b-1 delivery.
 
 ### P02b-1 Step 2 — Immediate outbox production (2026-10-12)
 
-**Implementation checkpoint; both independent review rounds pending.**
+**Implemented; both independent review rounds complete.**
 `IOutbox.EnqueueAsync` persists immediately through the admitted producer's
 existing connection and transaction. API and Seeder register `PostgresOutbox`;
 no transport, extra connection, commit or schema migration is added.
@@ -732,6 +732,24 @@ integration cases, with zero failures/skips. These overlap the implementation
 runs above. The corpus reviewer independently resolves 723 relative links and
 165 fragments in changed carriers, with no unresolved target. The second fresh
 review round remains pending at this checkpoint.
+
+#### Step 2 review round 2 and closeout
+
+Two new independent reviewers examined `7541b73..37d95bd`: GPT-6-astra xhigh
+for runtime/security and GPT-6.1-sol xhigh for proof/architecture/carriers.
+Both approve with no Blocker/Major findings. Each independently passes 61
+focused unit, 203 architecture and 29 outbox integration cases, with zero
+failures/skips. These overlap earlier runs and are not additive suite totals.
+
+The confirmed minor test gap was transport silence: an unsubscribed event would
+not expose an accidental publish. A real API-root test now resolves a counting
+transport, positively observes the pending and committed row, and proves zero
+publishes through enqueue and owner completion. Calling that same resolved
+transport afterwards proves the counter works. The fresh Release build has zero
+warnings/errors; all 30 outbox cases pass with zero failures/skips.
+Step 4 still owns the transitive producer/helper fence against publication,
+extra connections and commit ownership, alongside the complete production
+censuses. Step 3's save collector, domain causation and publisher remain pending.
 
 ### Durable outbox dispatch
 

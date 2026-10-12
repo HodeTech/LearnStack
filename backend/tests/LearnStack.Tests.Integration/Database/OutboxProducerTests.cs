@@ -148,6 +148,43 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
         AssertClean(services);
     }
 
+    [Fact]
+    public async Task Enqueue_and_owner_completion_never_publish_to_the_transport()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var transport = new CountingEventBus();
+        await using var host = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(new ActingContext()));
+                services.AddSingleton<IEventBus>(transport);
+            });
+        });
+        await using var scope = host.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        services.GetRequiredService<IEventBus>().Should().BeSameAs(transport);
+        services.GetRequiredService<IOutbox>().Should().BeOfType<PostgresOutbox>();
+        var integrationEvent = Event();
+
+        (await RunAsync(services, async () =>
+        {
+            await services.GetRequiredService<IOutbox>().EnqueueAsync(integrationEvent);
+            (await RowInUnitAsync(services.GetRequiredService<IUnitOfWork>(), integrationEvent.EventId))
+                .Should().NotBeNull();
+            transport.Calls.Should().Be(0, "enqueue persists a row without delivering it");
+            return Result.Ok(None.Value);
+        })).IsSuccess.Should().BeTrue();
+
+        (await ReadRowAsync(database.AppConnectionString, integrationEvent.EventId)).Should().NotBeNull();
+        transport.Calls.Should().Be(0, "owner completion commits without transport publication");
+        await services.GetRequiredService<IEventBus>().PublishAsync(
+            new IntegrationEventEnvelope(integrationEvent, AmbientCorrelation));
+        transport.Calls.Should().Be(1, "the resolved transport spy must observe a real call");
+        AssertClean(services);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -914,6 +951,17 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
         typeof(IntegrationEventBase).GetProperty(nameof(IIntegrationEvent.OccurredAt))!
             .SetValue(integrationEvent, Occurred);
         return integrationEvent;
+    }
+
+    private sealed class CountingEventBus : IEventBus
+    {
+        public int Calls { get; private set; }
+
+        public Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed record OutboxRow(Guid Id, DateTimeOffset OccurredAt, Guid TenantId, Guid? OrganizationId,

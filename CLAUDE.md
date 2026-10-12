@@ -171,7 +171,8 @@ authorized. Step 1 implements the shared snapshot/producer/audit lifecycle; its
 records passing verification and both completed independent review rounds.
 Step 2 implements immediate outbox production; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-2--immediate-outbox-production-2026-10-12)
-tracks verification and pending reviews. Steps 3/4 remain pending.
+records passing verification and both completed review rounds.
+Steps 3/4 remain pending.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
