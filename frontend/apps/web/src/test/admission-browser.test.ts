@@ -5,6 +5,7 @@ import {
   assertFlightFallback,
   atBrowserPhase,
   browserFailureDetail,
+  withBrowserCleanup,
 } from '../../scripts/admission-browser.mjs';
 
 const origin = 'https://fixture.localhost:3000';
@@ -36,6 +37,39 @@ describe('stock browser Flight fallback observation', () => {
     await expect(atBrowserPhase('unregistered', () => 42)).rejects.toThrow(
       'Browser diagnostic phase is registered',
     );
+  });
+
+  it('runs cleanup and preserves the first proof failure if both operations fail', async () => {
+    const first = new Error('Private primary failure');
+    let cleaned = false;
+    const result = withBrowserCleanup(
+      () => {
+        throw first;
+      },
+      () => {
+        cleaned = true;
+        throw new Error('Private cleanup failure');
+      },
+    );
+    await expect(result).rejects.toBe(first);
+    expect(cleaned).toBe(true);
+  });
+
+  it('reports only the shutdown phase when cleanup is the sole failure', async () => {
+    const failure = await withBrowserCleanup(
+      () => 42,
+      () => {
+        throw new Error('Private cleanup failure');
+      },
+    ).catch((error: Error) => error);
+    expect(browserFailureDetail(failure)).toBe(' browser-shutdown');
+    expect(String(failure)).not.toContain('Private cleanup failure');
+    await expect(
+      withBrowserCleanup(
+        () => 42,
+        () => undefined,
+      ),
+    ).resolves.toBe(42);
   });
 
   it.each([429, 503])('accepts one refused Flight then recovered document: %s', (status) => {

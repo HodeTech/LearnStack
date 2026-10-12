@@ -41,6 +41,26 @@ export async function atBrowserPhase(phase, operation) {
   }
 }
 
+/** Cleanup always runs; its failure cannot replace an earlier proof failure. */
+export async function withBrowserCleanup(operation, cleanup) {
+  let failed = false;
+  let failure;
+  let result;
+  try {
+    result = await operation();
+  } catch (error) {
+    failed = true;
+    failure = error;
+  }
+  try {
+    await atBrowserPhase('browser-shutdown', cleanup);
+  } catch (error) {
+    if (!failed) throw error;
+  }
+  if (failed) throw failure;
+  return result;
+}
+
 /** A failed Flight must precede a fresh successful document for the same target. */
 export function assertFlightFallback(events, origin, target, status) {
   const matching = events.filter((event) => {
@@ -249,62 +269,66 @@ async function runBrowserFallback(
       return false;
     }
   };
-  try {
-    phase.value = 'browser-protocol';
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Browser protocol startup deadline')), 5000);
-      socket.once('open', () => {
-        clearTimeout(timer);
-        resolve();
+  return withBrowserCleanup(
+    async () => {
+      phase.value = 'browser-protocol';
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('Browser protocol startup deadline')),
+          5000,
+        );
+        socket.once('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        socket.once('error', () => {
+          clearTimeout(timer);
+          reject(new Error('Browser protocol startup'));
+        });
       });
-      socket.once('error', () => {
-        clearTimeout(timer);
-        reject(new Error('Browser protocol startup'));
+      await command('Network.enable');
+      await command('Page.enable');
+      await command('Runtime.enable');
+      phase.value = 'browser-navigation';
+      await command('Page.navigate', { url: origin + initialPath });
+      phase.value = 'browser-hydration';
+      await until(
+        () => evaluateBoolean('Boolean(document.querySelector(\'[data-admission-ready="true"]\'))'),
+        'Navigation probe hydration deadline',
+      );
+      phase.value = 'browser-arm';
+      await beforeNavigation();
+      events.length = 0;
+      requests.clear();
+      phase.value = 'browser-click';
+      await command('Runtime.evaluate', {
+        expression: "document.querySelector('[data-admission-navigation]').click()",
       });
-    });
-    await command('Network.enable');
-    await command('Page.enable');
-    await command('Runtime.enable');
-    phase.value = 'browser-navigation';
-    await command('Page.navigate', { url: origin + initialPath });
-    phase.value = 'browser-hydration';
-    await until(
-      () => evaluateBoolean('Boolean(document.querySelector(\'[data-admission-ready="true"]\'))'),
-      'Navigation probe hydration deadline',
-    );
-    phase.value = 'browser-arm';
-    await beforeNavigation();
-    events.length = 0;
-    requests.clear();
-    phase.value = 'browser-click';
-    await command('Runtime.evaluate', {
-      expression: "document.querySelector('[data-admission-navigation]').click()",
-    });
-    phase.value = 'browser-fallback';
-    await until(async () => {
-      const complete = await evaluateBoolean(
-        'location.pathname === ' +
-          JSON.stringify(target) +
-          ' && document.readyState === "complete" && Boolean(document.querySelector("h1"))',
-      );
-      return (
-        complete &&
-        events.some(
-          (event) =>
-            event.type === 'Document' &&
-            new URL(event.url).pathname === target &&
-            event.status === 200,
-        )
-      );
-    }, 'Stock Next document fallback deadline');
-    phase.value = 'browser-wire';
-    assertFlightFallback(events, origin, target, status);
-    phase.value = 'browser-completion';
-    await afterNavigation();
-    assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
-    return scanner;
-  } finally {
-    await atBrowserPhase('browser-shutdown', async () => {
+      phase.value = 'browser-fallback';
+      await until(async () => {
+        const complete = await evaluateBoolean(
+          'location.pathname === ' +
+            JSON.stringify(target) +
+            ' && document.readyState === "complete" && Boolean(document.querySelector("h1"))',
+        );
+        return (
+          complete &&
+          events.some(
+            (event) =>
+              event.type === 'Document' &&
+              new URL(event.url).pathname === target &&
+              event.status === 200,
+          )
+        );
+      }, 'Stock Next document fallback deadline');
+      phase.value = 'browser-wire';
+      assertFlightFallback(events, origin, target, status);
+      phase.value = 'browser-completion';
+      await afterNavigation();
+      assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
+      return scanner;
+    },
+    async () => {
       rejectPending();
       socket.terminate();
       await stopTestChild(child);
@@ -314,6 +338,6 @@ async function runBrowserFallback(
         false,
         'Browser shutdown diagnostics contain no private carrier',
       );
-    });
-  }
+    },
+  );
 }

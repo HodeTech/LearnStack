@@ -26,3 +26,7 @@ export function verifyBrowserFallback(options: {
 import type { createFixtureOwner, createPrivateScanner } from './fixture-support.mjs';
 export function browserFailureDetail(error: unknown): string;
 export function atBrowserPhase<T>(phase: string, operation: () => T | Promise<T>): Promise<T>;
+export function withBrowserCleanup<T>(
+  operation: () => T | Promise<T>,
+  cleanup: () => void | Promise<void>,
+): Promise<T>;
