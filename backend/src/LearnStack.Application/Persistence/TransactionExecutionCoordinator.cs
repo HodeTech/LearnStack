@@ -1,5 +1,6 @@
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -50,7 +51,13 @@ public sealed class TransactionExecutionCoordinator(
                 await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
             }
 
-            using var invocation = producer.BeginInvocation(scope.IsOwner);
+            // Capture causal identity at the trusted entry. Nested invocations inherit it;
+            // asynchronous work keeps SystemActor effective without impersonating a human.
+            var causalActor = tenantContext.IsResolved
+                ? tenantContext.CausalActorUserId
+                    ?? (tenantContext.UserId == UserId.SystemActor ? null : tenantContext.UserId)
+                : null;
+            using var invocation = producer.BeginInvocation(scope.IsOwner, causalActor);
             var response = await next();
             if (response.IsFailure)
             {

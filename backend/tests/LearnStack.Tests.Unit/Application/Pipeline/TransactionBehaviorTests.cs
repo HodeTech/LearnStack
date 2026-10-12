@@ -43,6 +43,54 @@ public sealed class TransactionBehaviorTests
     public sealed record PublicQuery : IRequest<Result<string>>;
 
     [Fact]
+    public async Task Step_seven_refuses_dispatch_without_an_enrolled_invocation()
+    {
+        var producer = new ProducerExecution(new RecordingUnitOfWork());
+        var guard = new OutboxFlushBehavior<DummyCommand, Result<string>>(producer);
+        var reached = false;
+        var run = () => guard.Handle(new DummyCommand(), () =>
+        {
+            reached = true;
+            return Task.FromResult(Result.Ok("ok"));
+        }, default);
+
+        await run.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*invocation*transaction*");
+        reached.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(TransactionMode.ReadWrite)]
+    [InlineData(TransactionMode.ReadOnly)]
+    public async Task Step_seven_preserves_event_free_enrollment_and_refuses_ended_authority(TransactionMode mode)
+    {
+        var unit = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unit);
+        var coordinator = new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance,
+            new RecordingAuditStore(), new AuditStateCapture(), producer,
+            NullLogger<TransactionExecutionCoordinator>.Instance);
+        var guard = new OutboxFlushBehavior<DummyCommand, Result<string>>(producer);
+        var reached = false;
+
+        (await coordinator.ExecuteAsync(null, mode, "guard-control", () => guard.Handle(new DummyCommand(), () =>
+        {
+            reached = true;
+            return Task.FromResult(Result.Ok("ok"));
+        }, default))).IsSuccess.Should().BeTrue();
+        reached.Should().BeTrue("an event-free unresolved announcement is valid");
+
+        var run = () => coordinator.ExecuteAsync(null, mode, "guard-ended", () => guard.Handle(new DummyCommand(), async () =>
+        {
+            await unit.CommitAsync();
+            return Result.Ok("ended");
+        }, default));
+        await run.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*invocation*transaction*");
+        unit.IsRollbackOnly.Should().BeTrue();
+        producer.HasInvocation.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Public_surface_selects_read_only_before_announcement_and_dispatch()
     {
         var unitOfWork = new RecordingUnitOfWork();

@@ -43,8 +43,10 @@ this entry audit does not replace the Accepted per-module contract.
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
 authorize immediate enqueue, owner-only completion and produced-work refusal
-protection. Runtime implementation is pending. Producer guidance below states
-the accepted contract; dispatcher/inbox choices remain P02b-2/P02b-3.
+protection. P02b-1 Steps 1/2 implement shared execution and immediate enqueue;
+successful-save collection and the first publisher remain Step 3. Producer
+guidance below states the accepted contract; dispatcher/inbox choices remain
+P02b-2/P02b-3.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -190,7 +192,7 @@ processed by N consumers independently).
 
 ## Producer pattern
 
-**Accepted contract, implementation pending — ADR-0057.** In an enrolled
+**Immediate enqueue implemented by P02b-1 Step 2 — ADR-0057.** In an enrolled
 producer invocation on the announced, writable ambient transaction:
 
 ```csharp
@@ -224,8 +226,10 @@ a matching generation/tenant, and writable non-poisoned state. Provisioning read
 there is no new context writer. `id` is exactly producer-supplied `EventId`, and a
 duplicate is an error. `type` keeps the assembly-qualified concrete name.
 
-The event declares its partition source as its aggregate identifier or explicit
-tenant-wide `TenantId`, in canonical GUID form; enqueue persists that key. The
+The concrete event declares `[IntegrationEventPartition(nameof(AggregateId))]`
+or explicitly `[IntegrationEventPartition(nameof(TenantId), tenantWide: true)]`.
+The named identifier must equal its canonical lowercase `D` GUID partition key;
+enqueue persists that key. The
 envelope preserves the transaction's announced organization, including for a
 non-marked event; marked events require one. Correlation, causation and causal
 actor come from the trusted execution boundary. That boundary guarantees a W3C
@@ -245,7 +249,8 @@ separately owned delivery question.
 
 ### Domain collection and owner completion
 
-The shared SaveChanges interceptor stages source events and promotes only after
+**Accepted; implementation remains P02b-1 Step 3.** The shared SaveChanges
+interceptor stages source events and promotes only after
 successful persistence, preserving source/frame attribution and generation in
 both API and Seeder compositions. Failed/canceled saves promote nothing;
 repeated saves, detach and delete cannot duplicate or lose successful events.

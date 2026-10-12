@@ -26,7 +26,9 @@ The binding port and envelope contract is
 [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md).
 Accepted [ADR-0057](../../../docs/decisions/0057-transactional-event-production-and-completion.md)
 owns immediate producer admission, completion and payload policy. P02b-1
-implementation is pending; P02b-2/P02b-3 retain dispatcher/inbox decisions.
+Step 2 implements immediate enqueue and payload admission; successful-save
+collection and the first publisher remain subsequent P02b-1 steps.
+P02b-2/P02b-3 retain dispatcher/inbox decisions.
 
 ## When to use
 
@@ -61,6 +63,7 @@ implementation is pending; P02b-2/P02b-3 retain dispatcher/inbox decisions.
 In `<Producer>.Application.Contracts/IntegrationEvents/<EventName>.cs`:
 
 ```csharp
+[IntegrationEventPartition(nameof(EnrollmentId))]
 public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
 {
     public required Guid EnrollmentId { get; init; }
@@ -87,6 +90,13 @@ five members, and every one of them is mandatory:
 - `Topic` — `abstract`; the channel, `learnstack.{module}.{aggregate}`, checked by
   `Integration_Event_TopicNames_FollowConvention`
 - `PartitionKey` — `abstract`; the ordering domain, declared by each event
+
+The concrete record declares `[IntegrationEventPartition(nameof(EnrollmentId))]`.
+Use `[IntegrationEventPartition(nameof(TenantId), tenantWide: true)]` only for an
+explicitly tenant-wide fact. The named non-nullable source must match the actual
+canonical lowercase `D` GUID key; inheriting a declaration is insufficient.
+Approved typed payload identifiers are currently `TenantId`, `OrganizationId`
+and `UserId`; module-local identifiers cross the contract as `Guid`.
 
 It supplies **no** `OrganizationId`, `CorrelationId`, `CausationId` or
 `ActorUserId`: those describe the delivery and travel on

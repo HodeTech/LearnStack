@@ -5,6 +5,7 @@ using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Validation;
 using System.Diagnostics.Metrics;
 using LearnStack.Infrastructure.Audit;
@@ -24,6 +25,7 @@ using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
 using LearnStack.SharedKernel.Time;
@@ -206,6 +208,7 @@ public static class SeedComposition
         services.TryAddSingleton<IAuditHealth, AuditHealth>();
 
         services.AddScoped<IAuditStore, PostgresAuditStore>();
+        services.TryAddScoped<IOutbox, PostgresOutbox>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built
         // at composition time and read on every request, and rebuilding it per scope would

@@ -11,7 +11,9 @@ ownership, G18 payload and G19 flow are Accepted; remaining gate parts stay open
 The four producer implementation steps are authorized. Step 1 lifecycle work is
 implemented; both independent review rounds passed. The
 [Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) owns
-verification. Immediate enqueue, collection and the publisher remain subsequent steps.
+verification. Step 2 implements immediate enqueue; its
+[record](#p02b-1-step-2--immediate-outbox-production-2026-10-12) owns verification
+and pending reviews. Collection and the publisher remain Step 3.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -677,11 +679,49 @@ statuses and counts remain unchanged. The full producer contracts still await
 Steps 2–4; this closeout does not claim automatic production receipts, domain
 collection or completed P02b-1 delivery.
 
+### P02b-1 Step 2 — Immediate outbox production (2026-10-12)
+
+**Implementation checkpoint; both independent review rounds pending.**
+`IOutbox.EnqueueAsync` persists immediately through the admitted producer's
+existing connection and transaction. API and Seeder register `PostgresOutbox`;
+no transport, extra connection, commit or schema migration is added.
+
+- Admission checks the unit's identity, live announcement/generation, writable
+  non-poisoned frame and event tenant before serialization and again immediately
+  before INSERT. Explicit aggregate or tenant-wide partition declarations must
+  match the actual canonical GUID key. Organization comes from announced SQL
+  authority, while the invocation captures the causal actor and full W3C span.
+- The row retains producer `EventId`, concrete assembly-qualified type and all
+  admitted identifier payload properties. Serializer escape shapes are refused;
+  the complete canonical UTF-8 payload has an inclusive 262,144-byte bound.
+  JSON metadata is SQL NULL. A duplicate INSERT is an error.
+- Only a successful INSERT records a sticky receipt in the invocation and all
+  ancestors. Step 7 checks live enrollment before and after dispatch; it does
+  not flush a buffer or dispatch domain events. Event-free unresolved and
+  public read-only work retain their admission semantics.
+
+**Verification before the implementation commit.** The `CI=true` Release build
+passes with zero warnings/errors. All 1,757 unit and 203 architecture cases pass
+with zero failures/skips. The new real-PostgreSQL outbox class passes all 29
+cases, including immediate visibility, atomic commit/rollback with business and
+MUST audit rows, provisioning, stale transaction-object reuse, distinct-unit
+refusal and exact canonical UTF-8 boundary values. Initial failures exposed two
+fixture assumptions (telemetry subscription and SystemActor identity); both
+fixtures were corrected before the passing run. No runtime defect is hidden by
+those corrections. Domain-save collection and its first publisher are Step 3;
+no dispatch or consumer delivery is claimed here.
+The separate existing-flow regression passes 166 integration cases, including
+the convergent seeder, audit, provisioning, UoW and public read-only paths, with
+zero failures/skips. The carrier audit resolves 1,158 relative links and 216
+Markdown fragments with no broken target; added prose width, formatting and
+`git diff --check` are clean. Required CI is not claimed by this local checkpoint.
+
 ### Durable outbox dispatch
 
-The producer side is **planned, not shipped**: `IOutbox` does not exist and Packet 3's
-`OutboxFlushBehavior` is a pass-through shell. Both land here, and so does the consumer
-side. The table shipped in Packet 6.
+P02b-1 Step 2 implements `IOutbox` and replaces Packet 3's step-7 shell with
+an enrollment/invariant guard. Owner-side domain collection and the first
+publisher remain Step 3; dispatch and consumer delivery remain P02b-2/P02b-3.
+The table shipped in Packet 6.
 
 A handler calls `IOutbox.EnqueueAsync` and the row commits on the same **transaction**
 as the aggregate change — the ambient one `IUnitOfWork` owns

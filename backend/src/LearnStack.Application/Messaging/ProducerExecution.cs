@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.Application.Messaging;
@@ -18,7 +20,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     /// Enrolls after announcement. An unresolved, event-free invocation is legal;
     /// actual production must pass <see cref="RequireAnnouncement"/>.
     /// </summary>
-    internal Invocation BeginInvocation(bool isTransactionOwner)
+    internal Invocation BeginInvocation(bool isTransactionOwner, UserId? causalActor = null)
     {
         if (isTransactionOwner && _current is not null)
         {
@@ -42,7 +44,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
                 .SetIdFormat(ActivityIdFormat.W3C).Start();
         }
 
-        var invocation = new Invocation(this, _current, announcement, hasOwner, ownedActivity);
+        var invocation = new Invocation(this, _current, announcement, hasOwner, ownedActivity,
+            _current is null ? causalActor : _current.CausalActor);
         _current = invocation;
         return invocation;
     }
@@ -67,6 +70,52 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         return live;
     }
 
+    /// <summary>Refuses a store paired with another unit, even if announcements match.</summary>
+    public TenantContextAnnouncement RequireAnnouncement(IUnitOfWork expectedUnit)
+    {
+        if (!ReferenceEquals(unitOfWork, expectedUnit))
+        {
+            throw new InvalidOperationException("The outbox must share its producer's unit of work.");
+        }
+
+        return RequireAnnouncement();
+    }
+
+    /// <summary>
+    /// Builds dispatch metadata from the admitted frame, never producer arguments.
+    /// Organization authority comes from the SQL announcement even for a tenant-wide fact.
+    /// </summary>
+    public IntegrationEventEnvelope CreateEnvelope(IIntegrationEvent integrationEvent)
+    {
+        ArgumentNullException.ThrowIfNull(integrationEvent);
+        var announcement = RequireAnnouncement();
+        if (integrationEvent.TenantId == Guid.Empty
+            || integrationEvent.TenantId == TenantId.PlatformSentinel.Value
+            || integrationEvent.TenantId != announcement.TenantId.Value)
+        {
+            throw new InvalidOperationException("The event tenant must match the live announcement.");
+        }
+
+        var traceparent = Activity.Current?.Id;
+        if (traceparent is null)
+        {
+            throw new InvalidOperationException("An enrolled producer requires a W3C Activity.");
+        }
+
+        return new IntegrationEventEnvelope(integrationEvent, traceparent,
+            announcement.OrganizationId?.Value, ActorUserId: _current!.CausalActor);
+    }
+
+    /// <summary>Step 7 checks enrollment and authority without requiring a produced event.</summary>
+    internal void EnsureCurrentInvocation()
+    {
+        if (_current is null || !unitOfWork.HasActiveTransaction
+            || _current.Announcement != unitOfWork.GetTenantContextAnnouncement(unitOfWork.Transaction))
+        {
+            throw new InvalidOperationException("The producer invocation no longer matches its transaction.");
+        }
+    }
+
     /// <summary>
     /// Called after successful outbox INSERT or successful-save promotion only.
     /// Receipts survive child disposal and queue drain; they are not pending counts.
@@ -89,18 +138,20 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
 
         internal Invocation(
             ProducerExecution execution, Invocation? parent,
-            TenantContextAnnouncement? announcement, bool hasOwner, Activity? ownedActivity)
+            TenantContextAnnouncement? announcement, bool hasOwner, Activity? ownedActivity, UserId? causalActor)
         {
             _execution = execution;
             Parent = parent;
             Announcement = announcement;
             HasOwner = hasOwner;
             _ownedActivity = ownedActivity;
+            CausalActor = causalActor;
         }
 
         internal Invocation? Parent { get; }
         internal TenantContextAnnouncement? Announcement { get; }
         internal bool HasOwner { get; }
+        internal UserId? CausalActor { get; }
 
         /// <summary>Successful production by this invocation or any descendant.</summary>
         public bool HasProducedWork { get; internal set; }
