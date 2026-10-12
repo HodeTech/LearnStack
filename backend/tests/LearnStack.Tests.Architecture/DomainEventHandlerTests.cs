@@ -134,9 +134,11 @@ public sealed class DomainEventHandlerTests
         { typeof(DirectHelper), true }, { typeof(IndirectHelper), true }, { typeof(IHelper), true },
         { typeof(InheritedHelper), true }, { typeof(InheritedDependencyHelper), true }, { typeof(IGenericHelper<ProbeDomainEvent>), true },
         { typeof(AsyncHelper), true }, { typeof(LambdaHelper), true },
+        { typeof(AbstractDispatchHelper), true }, { typeof(VirtualDispatchHelper), true },
         { typeof(PureHelper), false }, { typeof(PureIndirectHelper), false }, { typeof(IPureHelper), false },
         { typeof(PureInheritedHelper), false }, { typeof(IGenericPureHelper<ProbeDomainEvent>), false },
         { typeof(PureAsyncHelper), false }, { typeof(PureLambdaHelper), false },
+        { typeof(PureAbstractDispatchHelper), false }, { typeof(PureVirtualDispatchHelper), false },
     };
 
     [Theory]
@@ -326,7 +328,7 @@ public sealed class DomainEventHandlerTests
                     if (IsTerminal(reference, graph)) continue;
                     if (graph.Resolve(reference) is not { } helper) continue;
                     queue.Enqueue((helper, $"{current.Path} -> {Label(helper)}"));
-                    if (helper.IsInterface)
+                    if (!helper.IsSealed)
                     {
                         foreach (var implementation in graph.Implementations(helper))
                             queue.Enqueue((implementation, $"{current.Path} -> {Label(helper)} -> {Label(implementation)}"));
@@ -391,10 +393,11 @@ public sealed class DomainEventHandlerTests
         public TypeGraph(IEnumerable<ModuleDefinition> modules)
         {
             _types = modules.SelectMany(module => module.GetTypes()).ToDictionary(Key);
-            // Match generic interface definitions conservatively: all realizations are
-            // possible targets. Inherited interfaces and inherited implementations count.
+            // Match interfaces and non-sealed base classes conservatively: every
+            // production implementation/subclass is a possible virtual dispatch target.
+            // Generic definitions and inherited implementations count as well.
             _implementations = _types.Values.Where(type => !type.IsInterface)
-                .SelectMany(type => Hierarchy(type).Where(contract => Resolve(contract)?.IsInterface == true)
+                .SelectMany(type => Hierarchy(type).Where(contract => Resolve(contract) is { IsSealed: false })
                     .Select(contract => (Contract: Key(contract), Implementation: type)))
                 .GroupBy(pair => pair.Contract)
                 .ToDictionary(group => group.Key, group => group.Select(pair => pair.Implementation)
@@ -566,6 +569,27 @@ public sealed class DomainEventHandlerTests
     private sealed class GenericHelper : GenericHelperBase<ProbeDomainEvent>
     {
         public IUnitOfWork? Unit { get; }
+    }
+
+    private abstract class AbstractDispatchHelper { public abstract Type Read(); }
+    private sealed class DirtyAbstractDispatchHelper : AbstractDispatchHelper
+    {
+        public override Type Read() => typeof(IUnitOfWork);
+    }
+    private class VirtualDispatchHelper { public virtual Type Read() => typeof(Guid); }
+    private sealed class DirtyVirtualDispatchHelper : VirtualDispatchHelper
+    {
+        public override Type Read() => typeof(IUnitOfWork);
+    }
+    private abstract class PureAbstractDispatchHelper { public abstract Type Read(); }
+    private sealed class PureAbstractDispatchImplementation : PureAbstractDispatchHelper
+    {
+        public override Type Read() => typeof(Guid);
+    }
+    private class PureVirtualDispatchHelper { public virtual Type Read() => typeof(Guid); }
+    private sealed class PureVirtualDispatchImplementation : PureVirtualDispatchHelper
+    {
+        public override Type Read() => typeof(TenantId);
     }
 
     private static class AsyncHelper

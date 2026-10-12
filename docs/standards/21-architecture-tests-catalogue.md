@@ -3251,14 +3251,16 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 #### `Domain_Event_Handlers_Are_Outbox_Only`
 
 - **Asserts:** the complete production-module domain-handler census translates
-  facts to outbox only. Traverse helpers and interface targets; root mutation,
+  facts to outbox only. Traverse helpers, interface targets and derived class
+  implementations; root mutation,
   write stores, nested requests, further raises, notification publication and
   external providers are forbidden. Every forbidden path has a planted offender
   and a clean translation control, so empty subjects or shallow traversal fail.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** xUnit + reflection/IL/source scan. **Kind:** structural.
 - **Status:** **Implemented** (`DomainEventHandlerTests`); assembly-scoped transitive
-  helper/interface traversal, all production layers and dirty/clean capability controls.
+  helper/interface/derived-class traversal, all production layers and dirty/clean
+  capability controls.
   Static analysis does not claim to resolve arbitrary reflection or dynamically loaded
   code.
 - **Phase:** 02b, P02b-1.

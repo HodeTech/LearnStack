@@ -848,13 +848,39 @@ required CI success or merge.
   production from remaining dispatcher/inbox work. ADR-0057's dated Amendment 1
   links delivery without rewriting its Accepted body or prior decision records.
 
-**Verification checkpoint.** The Release build has zero warnings/errors; all
-1,764 unit, 261 architecture and four contract cases pass with zero
-failures/skips. The 59 focused producer-guard cases overlap the architecture
-total. The full integration run is in progress. It found two older test setups
-that called persistence registration without the application pipeline, leaving
-the new collector dependency absent; both fixtures now install the same shared
-application registration as production. No runtime policy was weakened.
+**Verification checkpoint.** The Release build has zero warnings/errors and the
+complete solution's format verification passes. All 1,764 unit, 261 architecture,
+four contract and 1,148 integration cases pass: 3,177 total, zero failures/skips.
+TRX counters were inspected per assembly; the 59 focused producer-guard cases
+overlap the architecture total. The first full integration run had five failures
+in two older test setups that called persistence registration without the
+application pipeline, leaving the new collector dependency absent. Both fixtures
+now install the shared application registration; the complete integration rerun
+above passes. No runtime policy was weakened. Review fixes below have their own
+verification and supersede affected counts at this checkpoint.
+
+
+#### Step 4 independent review round 1
+
+Round 1 reviewed `3473843..b6e3932` with separate GPT-6-astra xhigh
+runtime/security and GPT-6.1-sol xhigh proof/corpus reviewers. The runtime review
+found one Major structural backstop gap: both guard walks expanded interface
+implementations but missed overrides reached through abstract or non-sealed
+base-class helpers. No production handler currently uses the escaping path.
+Both walks now include derived implementations and have separate dirty/clean
+abstract and virtual dispatch controls. Reverting the walk to interface-only
+makes two domain-handler controls and one outbox control fail; restored source passes
+all 63 focused producer-guard cases and all 265 architecture cases, zero
+failures/skips. Release build has zero warnings/errors and changed C# formatting
+passes. These four additional architecture cases bring the complete backend
+verification to 3,181 cases; unchanged unit/contract/integration evidence is the
+full run above, not an additional rerun claim.
+
+The proof reviewer independently passed 261 architecture and 41 focused unit
+cases at the implementation checkpoint. Its one Minor carrier finding is fixed:
+the P02b-2 error/lease migration must account for existing P02b-1 producer rows;
+its decision pass still owns descriptor handling. Both findings were verified
+against source. Round 2 remains pending until these fixes are committed.
 
 ### Durable outbox dispatch
 
@@ -1408,8 +1434,9 @@ outside a `throw` staying clean, no `AD0001` crash — the failure mode ADR-0032
 
 The same change bounds what the durable sinks may hold, under **G18**: a sanitized
 descriptor — the exception type, the error code and the attempt's `traceparent` — with a
-length bound in the canonical DDL, applied in the same migration as the lease columns
-while nothing writes the table yet.
+length bound in the canonical DDL. P02b-2 owns that migration beside the lease
+columns and must account for existing P02b-1 producer rows; its decision pass
+settles descriptor handling before applying the bound.
 
 ### Architecture tests
 

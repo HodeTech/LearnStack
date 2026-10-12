@@ -39,12 +39,15 @@ public sealed class OutboxProducerConventionTests
         Roots(types).Select(type => type.FullName).Should().Contain(typeof(InheritedOutboxProbe).FullName!.Replace('+', '/'),
             "Fix: an inherited IOutbox implementation must remain in the production census");
         foreach (var probe in new[] { typeof(ConnectionProbe), typeof(CommitProbe), typeof(PublishProbe),
-                     typeof(InterfaceProbe), typeof(AsyncProbe), typeof(LocatorProbe) })
+                     typeof(InterfaceProbe), typeof(AsyncProbe), typeof(LocatorProbe),
+                     typeof(AbstractDispatchProbe), typeof(VirtualDispatchProbe) })
         {
             Offenders([module.GetType(probe.FullName!.Replace('+', '/'))], types).Should().NotBeEmpty(
                 $"Fix: the same producer walk must reject {probe.Name}");
         }
-        Offenders([module.GetType(typeof(CleanProbe).FullName!.Replace('+', '/'))], types).Should().BeEmpty();
+        foreach (var probe in new[] { typeof(CleanProbe), typeof(CleanAbstractDispatchProbe), typeof(CleanVirtualDispatchProbe) })
+            Offenders([module.GetType(probe.FullName!.Replace('+', '/'))], types).Should().BeEmpty(
+                $"Fix: the same producer walk must preserve clean {probe.Name}");
     }
 
     [Fact]
@@ -119,7 +122,7 @@ public sealed class OutboxProducerConventionTests
                 if (reference.FullName == "LearnStack.SharedKernel.Persistence.IUnitOfWork") continue;
                 if (!types.TryGetValue(Key(reference), out var helper)) continue;
                 queue.Enqueue(helper);
-                if (helper.IsInterface)
+                if (!helper.IsSealed)
                 {
                     foreach (var target in types.Values.Where(candidate => !candidate.IsInterface && Implements(candidate, helper, types)))
                         queue.Enqueue(target);
@@ -189,6 +192,18 @@ public sealed class OutboxProducerConventionTests
     private abstract class HelperBase : IHelper { public abstract void Run(); }
     private sealed class DirtyHelper : HelperBase { public override void Run() => ConnectionProbe.Run(); }
     private sealed class InterfaceProbe(IHelper helper) { public void Run() => helper.Run(); }
+    private abstract class AbstractDispatchHelper { public abstract void Run(); }
+    private sealed class DirtyAbstractDispatchHelper : AbstractDispatchHelper { public override void Run() => ConnectionProbe.Run(); }
+    private sealed class AbstractDispatchProbe(AbstractDispatchHelper helper) { public void Run() => helper.Run(); }
+    private class VirtualDispatchHelper { public virtual void Run() { } }
+    private sealed class DirtyVirtualDispatchHelper : VirtualDispatchHelper { public override void Run() => ConnectionProbe.Run(); }
+    private sealed class VirtualDispatchProbe(VirtualDispatchHelper helper) { public void Run() => helper.Run(); }
+    private abstract class CleanAbstractDispatchHelper { public abstract void Run(); }
+    private sealed class CleanAbstractDispatchImplementation : CleanAbstractDispatchHelper { public override void Run() { } }
+    private sealed class CleanAbstractDispatchProbe(CleanAbstractDispatchHelper helper) { public void Run() => helper.Run(); }
+    private class CleanVirtualDispatchHelper { public virtual void Run() { } }
+    private sealed class CleanVirtualDispatchImplementation : CleanVirtualDispatchHelper { public override void Run() { } }
+    private sealed class CleanVirtualDispatchProbe(CleanVirtualDispatchHelper helper) { public void Run() => helper.Run(); }
     private sealed class AsyncProbe
     {
         public static async Task Run() { await Task.Yield(); ConnectionProbe.Run(); }
