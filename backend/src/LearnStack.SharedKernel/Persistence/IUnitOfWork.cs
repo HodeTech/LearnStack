@@ -33,12 +33,10 @@ namespace LearnStack.SharedKernel.Persistence;
 /// its commit or rollback resolves its own frame and nothing else.
 /// </para>
 /// <para>
-/// What escalates a frame's failure to the whole unit is
-/// <see cref="MarkRollbackOnly"/>, and only two things call it: an exception —
-/// <c>TransactionBehavior</c> marks the unit before rolling back on one — and a
-/// caller doing so deliberately. An inner <c>Result.Fail</c> that an outer
-/// handler absorbs is not one of them, per ADR-0040 § Nesting: the outer handler
-/// took responsibility for it, and its own work still commits.
+/// Exceptions, explicit <see cref="MarkRollbackOnly"/> calls and a refused producer
+/// invocation with successfully produced work poison the unit. ADR-0057 includes
+/// descendant produced-work receipts in that refusal rule. Ordinary event-free
+/// <c>Result.Fail</c> outcomes remain absorbable under ADR-0040 § Nesting.
 /// </para>
 /// <para>
 /// <b>One command at a time.</b> One connection means the ambient transaction
@@ -140,6 +138,16 @@ public interface IUnitOfWork : IAsyncDisposable
     /// </remarks>
     bool IsTenantContextIssuedOn(DbTransaction? transaction);
 
+    /// <summary>Reads the successful tenant announcement for this unit's live transaction.</summary>
+    /// <remarks>
+    /// The immutable snapshot records normalized values actually sent to PostgreSQL and a
+    /// generation that increases with every physical transaction. Returns null for an absent
+    /// or foreign transaction, an announcement without a usable tenant, failed or canceled
+    /// setup, and after commit, rollback or disposal. Joiners reuse the owner's snapshot;
+    /// the reader grants no context-setting capability (ADR-0057).
+    /// </remarks>
+    TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction);
+
     /// <summary>
     /// Announces the tenant a provisioning request is about to create.
     /// </summary>
@@ -190,13 +198,10 @@ public interface IUnitOfWork : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>A joiner's failure does not poison the unit.</b> ADR-0040 § Nesting:
-    /// "an inner <c>Result.Fail</c> that the outer handler deliberately absorbs
-    /// is <i>not</i> a failure and does not mark it — only an exception, or an
-    /// explicit <see cref="MarkRollbackOnly"/>, does." So this resolves the
-    /// caller's frame and, on the outermost one, performs the actual
-    /// <c>ROLLBACK</c>; escalating to the whole unit is
-    /// <see cref="MarkRollbackOnly"/>'s job, and the exception path calls it.
+    /// A joiner's terminal call resolves its own frame. Escalating a failure to the
+    /// whole unit is <see cref="MarkRollbackOnly"/>'s job: the execution coordinator
+    /// marks exceptions and refusals carrying produced-work receipts before resolving
+    /// the frame. Ordinary event-free refusals remain absorbable (ADR-0057).
     /// </para>
     /// <para>
     /// <b>It is cleanup, so it never throws over the thing it is cleaning up
@@ -215,9 +220,8 @@ public interface IUnitOfWork : IAsyncDisposable
     /// of work — not just of the current transaction.
     /// </summary>
     /// <remarks>
-    /// An inner <c>Result.Fail</c> that an outer handler deliberately absorbs is
-    /// not a failure and does not mark it; an exception is, and
-    /// <c>TransactionBehavior</c> calls this before rolling back on one. Once
+    /// The execution coordinator calls this for exceptions and a refused producer
+    /// invocation with direct or descendant produced work (ADR-0057). Once
     /// marked, <see cref="CommitAsync"/> throws and
     /// <see cref="BeginTransactionAsync"/> refuses to open a new transaction on
     /// the same unit — a scope that needs a fresh one takes a fresh scope, which
@@ -290,8 +294,8 @@ public interface IUnitOfWorkScope : IAsyncDisposable
     /// <summary>
     /// Resolves this frame by failing it. On the owning frame that is the
     /// <c>ROLLBACK</c>; on a joiner it declines this frame without making the
-    /// unit unable to commit, which is ADR-0040 § Nesting's rule about an
-    /// absorbed inner failure.
+    /// unit unable to commit. The execution coordinator marks exceptions and produced-work
+    /// refusals before resolving the frame; ordinary event-free refusals remain absorbable.
     /// </summary>
     Task FailAsync(CancellationToken cancellationToken = default);
 }

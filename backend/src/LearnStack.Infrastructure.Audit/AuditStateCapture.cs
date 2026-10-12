@@ -9,7 +9,7 @@ namespace LearnStack.Infrastructure.Audit;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Scoped, and the lifetime is the request rather than the transaction.</b> That is
+/// <b>Scoped, and the lifetime is the execution rather than the transaction.</b> That is
 /// what makes <see cref="State"/> a value someone <em>sets</em> and never one this type
 /// infers: a rollback leaves every field here intact, so a buffer that guessed its own
 /// state from what it held would report durability for rows the database discarded
@@ -17,11 +17,12 @@ namespace LearnStack.Infrastructure.Audit;
 /// Amendment 2 § 2</see>).
 /// </para>
 /// <para>
-/// <b>Not thread-safe, deliberately.</b> One DI scope is one request and one logical
+/// <b>Not thread-safe, deliberately.</b> One DI scope is one execution and one logical
 /// thread of execution; a lock here would buy nothing and would suggest a concurrency
 /// this object is not designed for. Two requests get two instances. Nested requests share
 /// this one and run one inside the other, which is what makes a stack of frames a correct
-/// model of them.
+/// model of them. The common audit coordinator also uses this stack to determine which
+/// invocation owns reconciliation; no async-flow state is shared across captures.
 /// </para>
 /// <para>
 /// It lives in <c>LearnStack.Infrastructure.Audit</c> rather than in the Audit module,
@@ -64,6 +65,9 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
 
     /// <inheritdoc />
     public AuditIntentState State { get; private set; } = AuditIntentState.None;
+
+    /// <inheritdoc />
+    public bool HasOpenFrame => _openFrames.Count != 0;
 
     /// <summary>
     /// What faulted the <c>COMMIT</c>, when <see cref="State"/> is
@@ -127,7 +131,7 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
         if (_openFrames.Count == 0)
         {
             throw new InvalidOperationException(
-                "CloseFrame was called with no frame open. Every AuditLogBehavior invocation "
+                "CloseFrame was called with no frame open. Every audit coordinator invocation "
                 + "opens exactly one frame and closes it in its finally.");
         }
 

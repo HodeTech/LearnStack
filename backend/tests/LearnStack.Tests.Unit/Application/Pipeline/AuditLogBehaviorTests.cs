@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.Application.Audit;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
@@ -6,6 +7,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -98,6 +100,231 @@ public sealed class AuditLogBehaviorTests
 
         store.Standalone.Should().BeEmpty("the inner MUST row committed with the owner's transaction");
         capture.Intents.Should().BeEmpty("and the silent owner cleared on its way out");
+    }
+
+    [Fact]
+    public async Task Independent_DI_scopes_reconcile_independently_on_the_same_async_flow()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<AuditStateCapture>();
+        services.AddScoped<RecordingAuditStore>();
+        services.AddScoped(provider => Coordinator(
+            new FakeCatalog(AuditPipelineHarness.Entry(entityType: typeof(Subject))),
+            provider.GetRequiredService<RecordingAuditStore>(),
+            provider.GetRequiredService<AuditStateCapture>()));
+
+        using var provider = services.BuildServiceProvider();
+        using var outerScope = provider.CreateScope();
+        var outerCapture = outerScope.ServiceProvider.GetRequiredService<AuditStateCapture>();
+        var outerStore = outerScope.ServiceProvider.GetRequiredService<RecordingAuditStore>();
+        var outer = outerScope.ServiceProvider.GetRequiredService<AuditExecutionCoordinator>();
+
+        await outer.ExecuteAsync(
+            typeof(DummyCommand), null,
+            async () =>
+            {
+                outerCapture.Add(SubjectInsert("outer-1", "outer"));
+
+                using var innerScope = provider.CreateScope();
+                var innerCapture = innerScope.ServiceProvider.GetRequiredService<AuditStateCapture>();
+                var innerStore = innerScope.ServiceProvider.GetRequiredService<RecordingAuditStore>();
+                var inner = innerScope.ServiceProvider.GetRequiredService<AuditExecutionCoordinator>();
+                innerCapture.Should().NotBeSameAs(outerCapture);
+
+                await inner.ExecuteAsync(
+                    typeof(DummyCommand), null,
+                    () =>
+                    {
+                        innerCapture.Add(SubjectInsert("inner-1", "inner"));
+                        innerCapture.MarkRolledBack();
+                        return Task.FromResult(Result.Ok("inner"));
+                    },
+                    default);
+
+                innerStore.Standalone.Should().ContainSingle().Which.EntityId.Should().Be("inner-1");
+                innerCapture.HasOpenFrame.Should().BeFalse();
+                innerCapture.Intents.Should().BeEmpty();
+                outerCapture.HasOpenFrame.Should().BeTrue();
+                outerCapture.Intents.Should().ContainSingle();
+                outerCapture.Changes.Should().ContainSingle().Which.EntityId.Should().Be("outer-1");
+                outerStore.Standalone.Should().BeEmpty("the outer scope still owns its open execution");
+
+                outerCapture.MarkCommitted();
+                return Result.Ok("outer");
+            },
+            default);
+
+        outerCapture.HasOpenFrame.Should().BeFalse();
+        outerCapture.Intents.Should().BeEmpty();
+        outerStore.Standalone.Should().BeEmpty("the outer MUST row is already durable");
+    }
+
+    [Fact]
+    public async Task An_unregistered_direct_handler_is_refused_before_construction()
+    {
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var coordinator = Coordinator(new AuditCatalog([new DirectCatalogSource()]), store, capture);
+
+        var result = await coordinator.ExecuteAsync(
+            typeof(UnregisteredDirectHandler), null,
+            () => Task.FromResult(Result.Ok(new UnregisteredDirectHandler())),
+            default);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("audit_unclassified_operation");
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.Intents.Should().BeEmpty();
+        store.Standalone.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_direct_handler_is_classified_and_has_an_audit_frame_before_construction()
+    {
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var coordinator = Coordinator(new AuditCatalog([new DirectCatalogSource()]), store, capture);
+        var constructed = false;
+
+        var result = await coordinator.ExecuteAsync(
+            typeof(DirectAuditedHandler), null,
+            () =>
+            {
+                _ = new DirectAuditedHandler(() =>
+                {
+                    constructed = true;
+                    capture.HasOpenFrame.Should().BeTrue();
+                    capture.Intents.Should().ContainSingle().Which.Operation.Should().Be("tenancy.tenant.create");
+                    capture.Add(SubjectInsert("direct-1", "direct"));
+                });
+
+                capture.MarkRolledBack();
+                return Task.FromResult(Result.Ok("direct"));
+            },
+            default);
+
+        constructed.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
+        var row = store.Standalone.Should().ContainSingle().Subject;
+        row.EntityId.Should().Be("direct-1");
+        row.AfterState.Should().Contain("direct");
+        row.Outcome.Should().Be(AuditOutcome.Failed, "the direct owner reported that its transaction rolled back");
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.Intents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_direct_owner_registered_Off_reconciles_its_nested_request_without_a_duplicate_row()
+    {
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var coordinator = Coordinator(new AuditCatalog([new DirectCatalogSource()]), store, capture);
+        var nested = new AuditLogBehavior<DummyCommand, Result<string>>(coordinator);
+
+        await coordinator.ExecuteAsync(
+            typeof(DirectOrchestrator), null,
+            async () =>
+            {
+                capture.HasOpenFrame.Should().BeTrue("registered Off still owns an audit frame");
+                capture.Intents.Should().BeEmpty();
+
+                await nested.Handle(
+                    new DummyCommand(),
+                    () =>
+                    {
+                        capture.Add(SubjectInsert("nested-1", "nested"));
+                        return Task.FromResult(Result.Ok("nested"));
+                    },
+                    default);
+
+                capture.Intents.Should().ContainSingle().Which.Operation.Should().Be("tenancy.organization.create");
+                store.Standalone.Should().BeEmpty("the nested request cannot reconcile before the direct owner resolves");
+                capture.MarkRolledBack();
+                return Result.Ok("direct owner");
+            },
+            default);
+
+        var row = store.Standalone.Should().ContainSingle().Subject;
+        row.Operation.Should().Be("tenancy.organization.create");
+        row.EntityId.Should().Be("nested-1");
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.Intents.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("success")]
+    [InlineData("refusal")]
+    [InlineData("exception")]
+    [InlineData("cancellation")]
+    public async Task The_same_coordinator_and_capture_start_fresh_after_every_exit(string ending)
+    {
+        var capture = new AuditStateCapture();
+        var store = new RecordingAuditStore();
+        var coordinator = Coordinator(
+            new FakeCatalog(AuditPipelineHarness.Entry(entityType: typeof(Subject))), store, capture);
+        var token = new CancellationToken(canceled: ending == "cancellation");
+
+        var first = async () => await coordinator.ExecuteAsync(
+            typeof(DummyCommand), null,
+            () =>
+            {
+                capture.Add(SubjectInsert("first-1", "first"));
+                if (ending == "success")
+                {
+                    capture.MarkCommitted();
+                }
+                else
+                {
+                    capture.MarkRolledBack();
+                }
+
+                return ending switch
+                {
+                    "refusal" => Task.FromResult(Result.Fail<string>(new Error(
+                        new LocalizedMessage(LocalizedMessage.RequiredPrefix + "forbidden")))),
+                    "exception" => throw new InvalidOperationException("first execution failed"),
+                    "cancellation" => Task.FromCanceled<Result<string>>(token),
+                    _ => Task.FromResult(Result.Ok("first")),
+                };
+            },
+            token);
+
+        if (ending == "exception")
+        {
+            await first.Should().ThrowAsync<InvalidOperationException>();
+        }
+        else if (ending == "cancellation")
+        {
+            await first.Should().ThrowAsync<OperationCanceledException>();
+        }
+        else
+        {
+            var result = await first();
+            result.IsFailure.Should().Be(ending == "refusal");
+        }
+
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.Intents.Should().BeEmpty();
+        capture.Changes.Should().BeEmpty();
+        capture.State.Should().Be(AuditIntentState.None);
+        var priorRows = store.Standalone.Count;
+
+        await coordinator.ExecuteAsync(
+            typeof(DummyCommand), null,
+            () =>
+            {
+                capture.HasOpenFrame.Should().BeTrue();
+                capture.Intents.Should().ContainSingle();
+                capture.Changes.Should().BeEmpty("the previous execution's snapshots cannot replay");
+                capture.Add(SubjectInsert("second-1", "second"));
+                capture.MarkRolledBack();
+                return Task.FromResult(Result.Ok("second"));
+            },
+            default);
+
+        store.Standalone.Skip(priorRows).Should().ContainSingle().Which.EntityId.Should().Be("second-1");
+        capture.HasOpenFrame.Should().BeFalse();
+        capture.Intents.Should().BeEmpty();
     }
 
     [Fact]
@@ -576,7 +803,7 @@ public sealed class AuditLogBehaviorTests
         var store = new RecordingAuditStore();
         var handlerRan = false;
 
-        var behavior = new AuditLogBehavior<DummyCommand, Result<string>>(
+        var behavior = new AuditLogBehavior<DummyCommand, Result<string>>(new AuditExecutionCoordinator(
             new FakeCatalog(AuditPipelineHarness.Entry()),
             new FakeClassifier(),
             capture,
@@ -584,7 +811,7 @@ public sealed class AuditLogBehaviorTests
             new HarnessTenantContext(resolved: false),
             new HarnessClock(DateTimeOffset.UnixEpoch),
             new HarnessGuidFactory(),
-            NullLogger<AuditLogBehavior<DummyCommand, Result<string>>>.Instance);
+            NullLogger<AuditExecutionCoordinator>.Instance));
 
         var result = await behavior.Handle(
             new DummyCommand(),
@@ -843,7 +1070,7 @@ public sealed class AuditLogBehaviorTests
         logger.Levels.Should().NotContain(LogLevel.Critical);
         logger.Levels.Should().ContainSingle(level => level == LogLevel.Warning);
 
-        await AssertTheNextRequestIsOutermostAsync(store);
+        await AssertTheNextRequestIsOutermostAsync(store, capture);
     }
 
     [Fact]
@@ -879,7 +1106,7 @@ public sealed class AuditLogBehaviorTests
         // A programmer error nothing else reports, so this is its alert.
         logger.Levels.Should().ContainSingle(level => level == LogLevel.Critical);
 
-        await AssertTheNextRequestIsOutermostAsync(store);
+        await AssertTheNextRequestIsOutermostAsync(store, capture);
     }
 
     [Fact]
@@ -913,20 +1140,21 @@ public sealed class AuditLogBehaviorTests
     }
 
     /// <summary>
-    /// A fresh request on the same flow is the outermost frame again — which it is not when
-    /// a previous request left <c>AuditFrame</c> open.
+    /// A fresh request using the same capture is the outermost frame again — which it is
+    /// not when a previous request left its capture frame open.
     /// </summary>
-    private static async Task AssertTheNextRequestIsOutermostAsync(RecordingAuditStore store)
+    private static async Task AssertTheNextRequestIsOutermostAsync(
+        RecordingAuditStore store, AuditStateCapture capture)
     {
-        var next = new AuditStateCapture();
-        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, next);
+        capture.HasOpenFrame.Should().BeFalse();
+        var behavior = Behavior(new FakeCatalog(AuditPipelineHarness.Entry()), store, capture);
 
         await behavior.Handle(
             new DummyCommand(),
-            () => { next.MarkRolledBack(); return Task.FromResult(Result.Ok("ok")); },
+            () => { capture.MarkRolledBack(); return Task.FromResult(Result.Ok("ok")); },
             default);
 
-        next.Intents.Should().BeEmpty(
+        capture.Intents.Should().BeEmpty(
             "only an OUTERMOST frame clears, so a frame left open by the previous request "
             + "would leave this one's intents behind");
     }
@@ -938,6 +1166,31 @@ public sealed class AuditLogBehaviorTests
 
     /// <summary>A stand-in for the aggregate an intent names.</summary>
     private sealed class Subject;
+
+    private sealed class DirectOrchestrator;
+
+    private sealed class DirectAuditedHandler
+    {
+        public DirectAuditedHandler(Action onConstruction) => onConstruction();
+    }
+
+    private sealed class UnregisteredDirectHandler
+    {
+        public UnregisteredDirectHandler() =>
+            throw new InvalidOperationException("An unclassified handler must never be constructed.");
+    }
+
+    private sealed class DirectCatalogSource : IAuditCatalogSource
+    {
+        public string ModuleName => "tenancy";
+
+        public void Describe(IAuditCatalogBuilder builder)
+        {
+            builder.Off<DirectOrchestrator>();
+            builder.MustAudit<DirectAuditedHandler>("tenancy.tenant.create", OperationType.Create, typeof(Subject));
+            builder.MustAudit<DummyCommand>("tenancy.organization.create", OperationType.Create, typeof(Subject));
+        }
+    }
 
     /// <summary>Classifies the first entry at its declared tier and is cancelled on the second.</summary>
     private sealed class CancelledOnSecondClassifier : IAuditConfigService
@@ -956,7 +1209,15 @@ public sealed class AuditLogBehaviorTests
         RecordingAuditStore store,
         AuditStateCapture? capture = null,
         IAuditConfigService? classifier = null,
-        ILogger<AuditLogBehavior<DummyCommand, Result<string>>>? logger = null) =>
+        ILogger<AuditExecutionCoordinator>? logger = null) =>
+        new(Coordinator(catalog, store, capture, classifier, logger));
+
+    private static AuditExecutionCoordinator Coordinator(
+        IAuditCatalog catalog,
+        RecordingAuditStore store,
+        AuditStateCapture? capture = null,
+        IAuditConfigService? classifier = null,
+        ILogger<AuditExecutionCoordinator>? logger = null) =>
         new(
             catalog,
             classifier ?? new FakeClassifier(),
@@ -965,10 +1226,10 @@ public sealed class AuditLogBehaviorTests
             new HarnessTenantContext(),
             new HarnessClock(DateTimeOffset.UnixEpoch),
             new HarnessGuidFactory(),
-            logger ?? NullLogger<AuditLogBehavior<DummyCommand, Result<string>>>.Instance);
+            logger ?? NullLogger<AuditExecutionCoordinator>.Instance);
 
     /// <summary>Every log line the behavior writes, by level.</summary>
-    private sealed class CapturingLogger : ILogger<AuditLogBehavior<DummyCommand, Result<string>>>
+    private sealed class CapturingLogger : ILogger<AuditExecutionCoordinator>
     {
         public List<LogLevel> Levels { get; } = [];
 

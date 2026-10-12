@@ -1,6 +1,8 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
+using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
@@ -48,8 +50,9 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
                 var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var capture = new AuditStateCapture();
                 var behavior = new TransactionBehavior<PublicProbe, Result<string>>(
-                    unit, Context, Store(scope.ServiceProvider, capture), capture,
-                    NullLogger<TransactionBehavior<PublicProbe, Result<string>>>.Instance);
+                    new TransactionExecutionCoordinator(
+                        unit, Context, Store(scope.ServiceProvider, capture), capture, new ProducerExecution(unit),
+                        NullLogger<TransactionExecutionCoordinator>.Instance));
                 var reached = false;
                 var attempt = async () => await behavior.Handle(new PublicProbe(), async () =>
                 {
@@ -141,12 +144,14 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
         var store = Store(scope.ServiceProvider, capture);
         Func<Task> join = innerMode == TransactionMode.ReadOnly
             ? async () => await new TransactionBehavior<PublicProbe, Result<string>>(
-                unit, Context, store, capture,
-                NullLogger<TransactionBehavior<PublicProbe, Result<string>>>.Instance)
+                new TransactionExecutionCoordinator(
+                    unit, Context, store, capture, new ProducerExecution(unit),
+                    NullLogger<TransactionExecutionCoordinator>.Instance))
                 .Handle(new PublicProbe(), next, default)
             : async () => await new TransactionBehavior<WritableProbe, Result<string>>(
-                unit, Context, store, capture,
-                NullLogger<TransactionBehavior<WritableProbe, Result<string>>>.Instance)
+                new TransactionExecutionCoordinator(
+                    unit, Context, store, capture, new ProducerExecution(unit),
+                    NullLogger<TransactionExecutionCoordinator>.Instance))
                 .Handle(new WritableProbe(), next, default);
         await join.Should().ThrowAsync<InvalidOperationException>().WithMessage("*mixed-mode*");
         handlerInvoked.Should().BeFalse();
@@ -206,8 +211,9 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
             var capture = new AuditStateCapture();
             var behavior = new TransactionBehavior<PublicProbe, Result<string>>(
-                unit, Context, Store(scope.ServiceProvider, capture), capture,
-                NullLogger<TransactionBehavior<PublicProbe, Result<string>>>.Instance);
+                new TransactionExecutionCoordinator(
+                    unit, Context, Store(scope.ServiceProvider, capture), capture, new ProducerExecution(unit),
+                    NullLogger<TransactionExecutionCoordinator>.Instance));
             var attempt = async () => await behavior.Handle(new PublicProbe(), () =>
             {
                 unit.Mode.Should().Be(TransactionMode.ReadOnly);

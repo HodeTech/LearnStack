@@ -8,7 +8,10 @@ corpus and Hub premises. P02b-1's
 [decision package](#p02b-1-decision-package-2026-10-12) and ADR-0057 are
 Accepted — 2026-10-12. G2, G3 derivation, G5 stored identities, G6 producer/common
 ownership, G18 payload and G19 flow are Accepted; remaining gate parts stay open.
-The four producer implementation steps are authorized, with runtime work pending.
+The four producer implementation steps are authorized. Step 1 lifecycle work is
+implemented; its two independent review rounds remain pending. The
+[Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) owns
+verification. Immediate enqueue, collection and the publisher remain subsequent steps.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -419,7 +422,9 @@ post-merge CI receipt above owns that inherited evidence.
 
 **Accepted — 2026-10-12, @cemil.** The maintainer approves the revised package
 and [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
-This is the producer decision record; runtime implementation remains pending.
+This is the producer decision record. The
+[Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) tracks
+partial runtime delivery; acceptance alone closes no implementation step.
 Only the gate parts listed below are Accepted. ADR-0057 supplies the authority
 for the coupled producer choices. It explicitly
 replaces ADR-0032's step-7 flush/separate event-ID column and ADR-0040's
@@ -581,6 +586,55 @@ in that dated draft history describe the earlier review state. This acceptance
 closes only the six gate parts in the accepted table. Five canonical proofs are
 Registered; no runtime implementation, step review or runtime test is claimed
 by this decision record.
+
+### P02b-1 Step 1 — Shared execution lifecycle (2026-10-12)
+
+**Implementation checkpoint; both independent review rounds pending.** Work is
+on `development`, following the Accepted four-step package. This is not P02b-1
+completion. No immediate enqueue, successful-save event collector, publisher or
+production delivery is claimed by this step.
+
+- `IUnitOfWork.GetTenantContextAnnouncement` returns an immutable normalized
+  tenant/organization snapshot with its physical transaction generation. The
+  PostgreSQL unit captures the values actually sent to SQL, clears authority
+  before a fresh attempt and on every terminal path, and refuses absent/foreign
+  transactions. Joins reuse the owner's announcement without retargeting it.
+- Scoped `ProducerExecution` records sticky successful-production receipts on
+  an invocation and every ancestor, separately from pending event counts. The
+  common transaction coordinator poisons a refusing invocation before resolving
+  its frame when it carries such a receipt. Ordinary event-free absorbed refusals
+  retain their previous behavior. Production needs a live writable announcement
+  and an enrolled owner. A W3C Activity exists even without telemetry listeners.
+- `AuditLogBehavior` and `TransactionBehavior` are thin adapters over common
+  coordinators registered by the pipeline helper in both API and Seeder. Audit
+  classification precedes deferred direct-handler construction. Capture-owned
+  audit frames determine outer reconciliation; the UoW owner writes MUST rows
+  and reports actual commit durability. An independent DI scope has independent
+  ownership even inside another audit execution's async flow.
+- Architecture/audit/security guidance and the glossary describe the common
+  ownership seams. The closed context-writer set, eight logical announcement
+  paths, pipeline order and public read-only mode are unchanged.
+
+**Verification before the implementation commit.** A fresh `CI=true` Release
+build succeeds with zero warnings/errors. The focused pipeline unit run passes
+83 cases; the complete unit rerun passes 1,713. The focused integration run
+passes 125, including all UnitOfWork,
+ambient UoW, tenant-context guard, audit pipeline/workflow/capture, public
+read-only, provisioning, direct-producer and cross-cutting HTTP cases selected
+for this step. Both runs report zero failures and zero skips. The integration
+proofs use the application role; privileged connections only prepare fixtures.
+The new direct-producer class contributes 13 cases. Its receipts are deliberately
+recorded after positively observed writes; automatic INSERT/save-promotion
+receipt sites are Step 2/3 obligations, not evidence supplied here.
+
+The snapshot matrix adds 21 cases, including successful SQL values versus a
+mutated source context, unresolved provisioning, join/foreign/stale transaction
+checks, pooled same-session reuse, failed/cancelled announcement/setup and every
+terminal path. The final complete architecture run passes 203 cases with zero
+failures/skips. The local carrier check resolves 719 relative links and 153
+Markdown fragments with no broken target; added prose width and
+`git diff --check` are clean.
+Required CI and final packet counts are not claimed by this local checkpoint.
 
 ### Durable outbox dispatch
 

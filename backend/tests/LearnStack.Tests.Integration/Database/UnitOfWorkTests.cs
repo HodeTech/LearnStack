@@ -1,6 +1,8 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
+using LearnStack.Application.Messaging;
+using LearnStack.Application.Persistence;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
@@ -67,6 +69,339 @@ public sealed class UnitOfWorkTests
             .Should().Be(SchemaFixture.OrgA1.ToString());
 
         await unitOfWork.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task The_announcement_snapshot_records_the_scope_sent_to_Postgres()
+    {
+        var context = new MutableAnnouncementContext(
+            TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
+        using var logs = LoggerFactory.Create(logging => logging.SetMinimumLevel(LogLevel.Trace)
+            .AddProvider(new StatementObserverLogger("SELECT set_config('app.tenant_id'", () =>
+            {
+                context.TenantId = TenantId.From(SchemaFixture.TenantB);
+                context.OrganizationId = OrganizationId.From(SchemaFixture.OrgB1);
+            })));
+        await using var dataSource = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString)
+            .UseLoggerFactory(logs).Build();
+        await using var provider = BuildProvider(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var owner = await unit.BeginTransactionAsync();
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();
+
+        await unit.SetTenantContextAsync(context);
+        var snapshot = unit.GetTenantContextAnnouncement(unit.Transaction);
+        snapshot.Should().NotBeNull();
+        snapshot!.Generation.Should().BePositive();
+        snapshot.TenantId.Value.ToString().Should().Be(
+            await ReadAsync(unit, "SELECT current_setting('app.tenant_id', true)"));
+        snapshot.OrganizationId!.Value.Value.ToString().Should().Be(
+            await ReadAsync(unit, "SELECT current_setting('app.organization_id', true)"));
+        (await ReadAsync(unit, "SELECT current_user")).Should().Be("learnstack_app");
+        (await ReadAsync(unit, "SELECT (rolbypassrls OR rolsuper)::text FROM pg_roles WHERE rolname = current_user"))
+            .Should().Be("false");
+
+        context.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantB),
+            "the source changes at the driver command, after SQL parameters were captured");
+        context.OrganizationId.Should().Be(OrganizationId.From(SchemaFixture.OrgB1));
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(snapshot);
+        snapshot.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantA));
+        snapshot.OrganizationId.Should().Be(OrganizationId.From(SchemaFixture.OrgA1));
+        scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current.Should().BeNull(
+            "announcing SQL authority does not write the ambient tenant context");
+        await owner.FailAsync();
+    }
+
+    [Theory]
+    [InlineData("absent")]
+    [InlineData("zero")]
+    [InlineData("uninitialized")]
+    public async Task The_announcement_snapshot_uses_the_normalized_organization(string organizationKind)
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        OrganizationId? organization = organizationKind switch
+        {
+            "zero" => OrganizationId.From(Guid.Empty),
+            "uninitialized" => UnassignedId<OrganizationId>(),
+            _ => null,
+        };
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(new MutableAnnouncementContext(
+            TenantId.From(SchemaFixture.TenantA), organization));
+
+        var snapshot = unit.GetTenantContextAnnouncement(unit.Transaction);
+        snapshot.Should().NotBeNull();
+        snapshot!.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantA));
+        snapshot.OrganizationId.Should().BeNull();
+        (await ReadAsync(unit, "SELECT current_setting('app.organization_id', true)")).Should().BeEmpty();
+        await owner.FailAsync();
+    }
+
+    [Theory]
+    [InlineData("unresolved")]
+    [InlineData("zero")]
+    [InlineData("uninitialized")]
+    [InlineData("sentinel")]
+    public async Task An_announcement_without_a_usable_tenant_supplies_no_producer_snapshot(string tenantKind)
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        ITenantContext context = tenantKind switch
+        {
+            "zero" => Resolved(Guid.Empty, SchemaFixture.OrgA1),
+            "uninitialized" => new UninitializedIdContext(),
+            "sentinel" => Resolved(TenantId.PlatformSentinel.Value, SchemaFixture.OrgA1),
+            _ => UnresolvedTenantContext.Instance,
+        };
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(context);
+
+        unit.IsTenantContextIssuedOn(unit.Transaction).Should().BeTrue(
+            "the fail-closed announcement succeeded, even though it authorizes no producer tenant");
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();
+        (await ReadAsync(unit, "SELECT current_setting('app.tenant_id', true)")).Should().BeEmpty();
+        await owner.FailAsync();
+    }
+
+    [Fact]
+    public async Task The_provisioning_snapshot_uses_the_new_tenant_without_resolving_the_context()
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var tenant = TenantId.From(Guid.CreateVersion7());
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetProvisioningTenantContextAsync(tenant);
+
+        var snapshot = unit.GetTenantContextAnnouncement(unit.Transaction);
+        snapshot.Should().NotBeNull();
+        snapshot!.TenantId.Should().Be(tenant);
+        snapshot.OrganizationId.Should().BeNull();
+        (await ReadAsync(unit, "SELECT current_setting('app.tenant_id', true)")).Should().Be(tenant.Value.ToString());
+        (await ReadAsync(unit, "SELECT current_setting('app.organization_id', true)")).Should().BeEmpty();
+        scope.ServiceProvider.GetRequiredService<ITenantContext>().IsResolved.Should().BeFalse();
+        scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Current.Should().BeNull();
+        await owner.FailAsync();
+    }
+
+    [Fact]
+    public async Task Only_the_announced_transaction_can_read_the_owners_snapshot()
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        unit.GetTenantContextAnnouncement(null).Should().BeNull();
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        var snapshot = unit.GetTenantContextAnnouncement(unit.Transaction);
+        snapshot.Should().NotBeNull();
+        unit.GetTenantContextAnnouncement(null).Should().BeNull();
+
+        await using var elsewhere = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+        await using var foreign = await elsewhere.BeginTransactionAsync();
+        unit.GetTenantContextAnnouncement(foreign).Should().BeNull();
+
+        await using (var joiner = await unit.BeginTransactionAsync())
+        {
+            joiner.IsOwner.Should().BeFalse();
+            await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantB, SchemaFixture.OrgB1));
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(snapshot);
+            (await ReadAsync(unit, "SELECT current_setting('app.tenant_id', true)"))
+                .Should().Be(SchemaFixture.TenantA.ToString());
+            var provision = async () => await unit.SetProvisioningTenantContextAsync(
+                TenantId.From(SchemaFixture.TenantB));
+            await provision.Should().ThrowAsync<InvalidOperationException>().WithMessage("*joining frame*");
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(snapshot);
+            await joiner.CompleteAsync();
+        }
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(snapshot,
+            "resolving a joiner does not clear the owner's announcement");
+        var reannounce = async () => await unit.SetProvisioningTenantContextAsync(
+            TenantId.From(SchemaFixture.TenantB));
+        await reannounce.Should().ThrowAsync<InvalidOperationException>().WithMessage("*already been announced*");
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(snapshot);
+        await owner.FailAsync();
+    }
+
+    [Theory]
+    [InlineData("commit")]
+    [InlineData("rollback")]
+    [InlineData("dispose")]
+    [InlineData("cancelled-commit")]
+    public async Task A_terminal_boundary_discards_the_announcement_snapshot(string ending)
+    {
+        await using var provider = BuildProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var owner = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        var transaction = unit.Transaction;
+        unit.GetTenantContextAnnouncement(transaction).Should().NotBeNull();
+
+        switch (ending)
+        {
+            case "commit":
+                await owner.CompleteAsync();
+                break;
+            case "rollback":
+                await owner.FailAsync();
+                break;
+            case "dispose":
+                await unit.DisposeAsync();
+                break;
+            default:
+                {
+                    using var cancellation = new CancellationTokenSource();
+                    await cancellation.CancelAsync();
+                    var complete = async () => await owner.CompleteAsync(cancellation.Token);
+                    await complete.Should().ThrowAsync<OperationCanceledException>();
+                    break;
+                }
+        }
+
+        unit.Transaction.Should().BeNull();
+        unit.IsTenantContextIssuedOn(transaction).Should().BeFalse();
+        unit.GetTenantContextAnnouncement(transaction).Should().BeNull();
+        unit.GetTenantContextAnnouncement(null).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Reusing_a_transaction_object_requires_a_new_announcement_and_generation()
+    {
+        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        builder.ConnectionStringBuilder.MaxPoolSize = 1;
+        builder.ConnectionStringBuilder.NoResetOnClose = true;
+        await using var dataSource = builder.Build();
+        await using var provider = BuildProvider(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var stale = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        var transaction = unit.Transaction;
+        var first = unit.GetTenantContextAnnouncement(transaction)!;
+        first.Should().NotBeNull();
+        await unit.CommitAsync();
+        unit.GetTenantContextAnnouncement(transaction).Should().BeNull();
+
+        await using var current = await unit.BeginTransactionAsync();
+        unit.Transaction.Should().BeSameAs(transaction,
+            "the pinned Npgsql driver's reuse is the positive control for this stale-object proof");
+        unit.IsTenantContextIssuedOn(unit.Transaction).Should().BeFalse();
+        unit.GetTenantContextAnnouncement(transaction).Should().BeNull(
+            "object identity cannot retain an earlier physical transaction's authority");
+        (await ReadAsync(unit, "SELECT current_setting('app.tenant_id', true)")).Should().BeEmpty();
+        await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantB, SchemaFixture.OrgB1));
+        var second = unit.GetTenantContextAnnouncement(unit.Transaction)!;
+        second.Generation.Should().BeGreaterThan(first.Generation);
+        second.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantB));
+        second.OrganizationId.Should().Be(OrganizationId.From(SchemaFixture.OrgB1));
+        first.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantA));
+        await stale.CompleteAsync();
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeSameAs(second,
+            "a stale UoW frame cannot clear or resolve the next generation");
+        await current.CompleteAsync();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task A_failed_announcement_never_retains_producer_authority(bool provisioning, bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        IUnitOfWork? unit = null;
+        var armed = false;
+        var observed = false;
+        var injected = new InvalidOperationException("injected announcement failure");
+        using var logs = LoggerFactory.Create(logging => logging.SetMinimumLevel(LogLevel.Trace)
+            .AddProvider(new StatementObserverLogger("SELECT set_config('app.tenant_id'", () =>
+            {
+                if (!armed) return;
+                observed = true;
+                unit!.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull(
+                    "authority is cleared before the announcement round trip begins");
+                unit.IsTenantContextIssuedOn(unit.Transaction).Should().BeFalse();
+                if (cancel)
+                {
+                    cancellation.Cancel();
+                    cancellation.Token.ThrowIfCancellationRequested();
+                }
+                throw injected;
+            })));
+        await using var dataSource = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString)
+            .UseLoggerFactory(logs).Build();
+        await using var provider = BuildProvider(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var owner = await unit.BeginTransactionAsync();
+        if (!provisioning)
+        {
+            await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull(
+                "the ordinary setter must discard a genuinely earlier successful announcement");
+        }
+        armed = true;
+        var announce = async () =>
+        {
+            if (provisioning)
+                await unit.SetProvisioningTenantContextAsync(TenantId.From(SchemaFixture.TenantB), cancellation.Token);
+            else
+                await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantB, SchemaFixture.OrgB1), cancellation.Token);
+        };
+        if (cancel) await announce.Should().ThrowAsync<OperationCanceledException>();
+        else (await announce.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(injected);
+        observed.Should().BeTrue("the failure must reach the actual announcement command");
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();
+        unit.IsTenantContextIssuedOn(unit.Transaction).Should().BeFalse();
+        await owner.FailAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_transaction_setup_cannot_reuse_a_committed_announcement(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        IUnitOfWork? unit = null;
+        var observed = false;
+        var injected = new InvalidOperationException("injected transaction setup failure");
+        using var logs = LoggerFactory.Create(logging => logging.SetMinimumLevel(LogLevel.Trace)
+            .AddProvider(new StatementObserverLogger("SET TRANSACTION READ ONLY", () =>
+            {
+                observed = true;
+                unit!.HasActiveTransaction.Should().BeTrue();
+                unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();
+                unit.IsTenantContextIssuedOn(unit.Transaction).Should().BeFalse();
+                if (cancel)
+                {
+                    cancellation.Cancel();
+                    cancellation.Token.ThrowIfCancellationRequested();
+                }
+                throw injected;
+            })));
+        await using var dataSource = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString)
+            .UseLoggerFactory(logs).Build();
+        await using var provider = BuildProvider(dataSource);
+        await using var scope = provider.CreateAsyncScope();
+        unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using (var first = await unit.BeginTransactionAsync())
+        {
+            await unit.SetTenantContextAsync(Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull();
+            await first.CompleteAsync();
+        }
+        var begin = async () => await unit.BeginTransactionAsync(TransactionMode.ReadOnly, cancellation.Token);
+        if (cancel) await begin.Should().ThrowAsync<OperationCanceledException>();
+        else (await begin.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(injected);
+        observed.Should().BeTrue();
+        unit.Transaction.Should().BeNull();
+        unit.GetTenantContextAnnouncement(null).Should().BeNull();
+        unit.IsRollbackOnly.Should().BeTrue();
     }
 
     [Fact]
@@ -579,18 +914,16 @@ public sealed class UnitOfWorkTests
                 // owner/joiner distinction is about which frame may mark it, and two
                 // buffers would let the joiner mark its own and prove nothing.
                 var capture = new AuditStateCapture();
-                var outer = new TransactionBehavior<Probe, Result<string>>(
+                var producer = new ProducerExecution(unitOfWork);
+                var coordinator = new TransactionExecutionCoordinator(
                     unitOfWork,
                     Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
                     new NoOpAuditStore(),
                     capture,
-                    NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
-                var inner = new TransactionBehavior<Probe, Result<string>>(
-                    unitOfWork,
-                    Resolved(SchemaFixture.TenantA, SchemaFixture.OrgA1),
-                    new NoOpAuditStore(),
-                    capture,
-                    NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
+                    producer,
+                    NullLogger<TransactionExecutionCoordinator>.Instance);
+                var outer = new TransactionBehavior<Probe, Result<string>>(coordinator);
+                var inner = new TransactionBehavior<Probe, Result<string>>(coordinator);
 
                 var result = await outer.Handle(
                     new Probe(),
@@ -1057,6 +1390,8 @@ public sealed class UnitOfWorkTests
         builder.ConnectionStringBuilder.MaxPoolSize = 1;
         builder.ConnectionStringBuilder.NoResetOnClose = true;
         await using var dataSource = builder.Build();
+        string firstBackend;
+        TenantContextAnnouncement firstAnnouncement;
 
         await using (var provider = BuildProvider(dataSource))
         {
@@ -1071,21 +1406,35 @@ public sealed class UnitOfWorkTests
             // against a setter that never ran.
             (await ReadAsync(unitOfWork, "SELECT current_setting('app.tenant_id', true)"))
                 .Should().Be(SchemaFixture.TenantA.ToString());
+            firstBackend = await ReadAsync(unitOfWork, "SELECT pg_backend_pid()::text");
+            var transaction = unitOfWork.Transaction;
+            firstAnnouncement = unitOfWork.GetTenantContextAnnouncement(transaction)!;
+            firstAnnouncement.Should().NotBeNull();
 
             await unitOfWork.CommitAsync();
+            unitOfWork.GetTenantContextAnnouncement(transaction).Should().BeNull();
         }
 
-        await using var connection = await dataSource.OpenConnectionAsync();
+        await using var nextProvider = BuildProvider(dataSource);
+        await using var nextScope = nextProvider.CreateAsyncScope();
+        var next = nextScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        await using var owner = await next.BeginTransactionAsync();
+        (await ReadAsync(next, "SELECT pg_backend_pid()::text")).Should().Be(firstBackend,
+            "the proof must borrow the same physical connection without a pool reset");
+        next.IsTenantContextIssuedOn(next.Transaction).Should().BeFalse();
+        next.GetTenantContextAnnouncement(next.Transaction).Should().BeNull();
 
         foreach (var variable in new[] { "app.tenant_id", "app.organization_id" })
         {
-            await using var read = new NpgsqlCommand(
-                $"SELECT NULLIF(current_setting('{variable}', true), '')", connection);
-
-            (await read.ExecuteScalarAsync() is null or DBNull).Should().BeTrue(
+            (await ReadAsync(next, $"SELECT NULLIF(current_setting('{variable}', true), '')")).Should().BeEmpty(
                 $"{variable} was transaction-local, and the next borrower of this "
                 + "connection is another tenant's request");
         }
+
+        await next.SetTenantContextAsync(Resolved(SchemaFixture.TenantB, SchemaFixture.OrgB1));
+        next.GetTenantContextAnnouncement(next.Transaction)!.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantB));
+        firstAnnouncement.TenantId.Should().Be(TenantId.From(SchemaFixture.TenantA));
+        await owner.FailAsync();
     }
 
     [Fact]
@@ -1193,6 +1542,38 @@ public sealed class UnitOfWorkTests
     private sealed class ScopedAccessor : ITenantContextAccessor
     {
         public ITenantContext? Current { get; set; }
+    }
+
+    private sealed class MutableAnnouncementContext(TenantId tenantId, OrganizationId? organizationId) : ITenantContext
+    {
+        public bool IsResolved => true;
+        public TenantId TenantId { get; set; } = tenantId;
+        public OrganizationId? OrganizationId { get; set; } = organizationId;
+        public UserId? UserId => null;
+        public string? CorrelationId => null;
+        public string? ModuleName => "announcement-probe";
+    }
+
+    private static T UnassignedId<T>()
+    {
+        var slots = new T[1];
+        return slots[0];
+    }
+
+    private sealed class StatementObserverLogger(string statement, Action onStatement) : ILoggerProvider, ILogger
+    {
+        public ILogger CreateLogger(string categoryName) => this;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Dispose() { }
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            if (message.StartsWith("Executing command: ", StringComparison.Ordinal)
+                && message.Contains(statement, StringComparison.Ordinal))
+                onStatement();
+        }
     }
 
     /// <summary>Collects what <see cref="NpgsqlUnitOfWork"/> logged.</summary>

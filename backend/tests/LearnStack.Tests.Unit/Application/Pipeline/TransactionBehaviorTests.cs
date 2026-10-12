@@ -1,6 +1,8 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
+using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Localization;
@@ -45,8 +47,10 @@ public sealed class TransactionBehaviorTests
     {
         var unitOfWork = new RecordingUnitOfWork();
         var behavior = new TransactionBehavior<PublicQuery, Result<string>>(
-            unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
-            new AuditStateCapture(), NullLogger<TransactionBehavior<PublicQuery, Result<string>>>.Instance);
+            new TransactionExecutionCoordinator(
+                unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+                new AuditStateCapture(), new ProducerExecution(unitOfWork),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         var result = await behavior.Handle(new PublicQuery(), () =>
         {
@@ -438,12 +442,13 @@ public sealed class TransactionBehaviorTests
         IUnitOfWork unitOfWork,
         RecordingAuditStore? store = null,
         AuditStateCapture? capture = null) =>
-        new(
+        new(new TransactionExecutionCoordinator(
             unitOfWork,
             UnresolvedTenantContext.Instance,
             store ?? new RecordingAuditStore(),
             capture ?? new AuditStateCapture(),
-            NullLogger<TransactionBehavior<DummyCommand, Result<string>>>.Instance);
+            new ProducerExecution(unitOfWork),
+            NullLogger<TransactionExecutionCoordinator>.Instance));
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)
     {
@@ -483,6 +488,8 @@ public sealed class TransactionBehaviorTests
             throw new NotSupportedException("the behavior must never reach for the connection");
 
         public DbTransaction? Transaction => null;
+
+        public TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction) => null;
 
         // This double records the context it was handed rather than announcing anything,
         // and its Transaction is always null — so the honest answer tracks whether the

@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
@@ -267,6 +268,9 @@ public sealed partial class PersistenceConventionTests
         var constructor = typeof(TransactionBehavior<,>).GetConstructors().Single();
 
         constructor.GetParameters().Select(parameter => parameter.ParameterType)
+            .Should().Equal(typeof(TransactionExecutionCoordinator));
+        typeof(TransactionExecutionCoordinator).GetConstructors().Single()
+            .GetParameters().Select(parameter => parameter.ParameterType)
             .Should().Contain(typeof(IUnitOfWork))
             .And.NotContain(parameter => typeof(DbContext).IsAssignableFrom(parameter));
     }

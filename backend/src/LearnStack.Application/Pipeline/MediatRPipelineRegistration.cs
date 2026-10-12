@@ -1,6 +1,10 @@
 using FluentValidation;
+using LearnStack.Application.Audit;
+using LearnStack.Application.Messaging;
+using LearnStack.Application.Persistence;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LearnStack.Application.Pipeline;
 
@@ -46,6 +50,12 @@ public static class MediatRPipelineRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(handlerAssemblies);
+
+        // One scoped lifecycle for every entry and both API/Seeder compositions.
+        // Behaviors adapt requests; direct owners reuse these same coordinators.
+        services.TryAddScoped<AuditExecutionCoordinator>();
+        services.TryAddScoped<ProducerExecution>();
+        services.TryAddScoped<TransactionExecutionCoordinator>();
 
         // MediatR 12.x throws if no assemblies are registered for handler
         // scanning. Fall back to the LearnStack.Application assembly itself —

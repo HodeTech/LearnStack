@@ -1555,6 +1555,9 @@ public sealed class CustomizationCommandTests
         public bool IsTenantContextIssuedOn(System.Data.Common.DbTransaction? transaction) =>
             throw new NotSupportedException();
 
+        public TenantContextAnnouncement? GetTenantContextAnnouncement(System.Data.Common.DbTransaction? transaction) =>
+            throw new NotSupportedException();
+
         public Task CommitAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

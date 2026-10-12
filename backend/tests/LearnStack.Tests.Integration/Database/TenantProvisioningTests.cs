@@ -2,6 +2,8 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
+using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -300,11 +302,10 @@ public sealed class TenantProvisioningTests
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         var behavior = new TransactionBehavior<Probe, Result<string>>(
-            unitOfWork,
-            UnresolvedTenantContext.Instance,
-            new NoOpAuditStore(),
-            new AuditStateCapture(),
-            NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
+            new TransactionExecutionCoordinator(
+                unitOfWork, UnresolvedTenantContext.Instance,
+                new NoOpAuditStore(), new AuditStateCapture(), new ProducerExecution(unitOfWork),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         var write = () => behavior.Handle(
             new Probe(),
@@ -506,13 +507,12 @@ public sealed class TenantProvisioningTests
         await using var scope = provider.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
+        var unit = services.GetRequiredService<IUnitOfWork>();
         var behavior = new TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(
-            services.GetRequiredService<IUnitOfWork>(),
-            context ?? UnresolvedTenantContext.Instance,
-            new NoOpAuditStore(),
-            new AuditStateCapture(),
-            NullLogger<TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>>
-                .Instance);
+            new TransactionExecutionCoordinator(
+                unit, context ?? UnresolvedTenantContext.Instance,
+                new NoOpAuditStore(), new AuditStateCapture(), new ProducerExecution(unit),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         return await behavior.Handle(
             command,
