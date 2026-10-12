@@ -30,13 +30,15 @@ not land together.
 | Domain events collected and dispatched in-process, inside the ambient transaction | [Phase 02b](../roadmap/phase-02b-events-auth.md) | `Entity<TId>` has carried the raise-and-clear list since Phase 02a Packet 2; nothing collects it yet |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
-**`InProcessEventBus` is a first-class transport, not a stub.** It uses the same
-`IIntegrationEventHandler<T>` interface, the same `IInboxGuard` deduplication, and the
-same tenant-context restoration as the durable path. A development transport that skips
-those is a development transport that never exercises the isolation code — and it forces
-every consumer to carry two implementations, one of which is never tested against the
-other. Everything in this document about consumer obligations applies identically to both
-transports; the only difference is what carries the bytes between publish and handle.
+**`InProcessEventBus` is a first-class transport.** It already supplies the handler
+interface, scoped ambient tenant restoration and per-key serialisation. It does
+not yet open a database transaction, announce RLS context, deduplicate deliveries
+or persist retries. `IInboxGuard` is a documented seam, not a declared type.
+[Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+records that baseline. The producer/consumer diagrams and examples below describe
+the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
+transactions, inbox and recovery. G1 settles the inbox's ownership and caller;
+this entry audit does not replace the Accepted per-module contract.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -520,8 +522,9 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 ## `InProcessEventBus`
 
 Until the Dapr adapter's trigger fires, `InProcessEventBus` is the only registered
-`IEventBus`. It is a **transport**, not a shortcut, and it carries the same four
-obligations as the durable path:
+`IEventBus`. The table below states its target obligations alongside the durable
+path. Handler scopes and accessor restoration ship today; database announcement
+and inbox deduplication remain P02b-3 work, under G1/G6.
 
 | Obligation | Why it cannot be skipped in development |
 |---|---|
@@ -593,7 +596,7 @@ public sealed partial class InProcessEventBus(
         {
             tenantAccessor.Current = previous;
         }
-    }                                      // the handler calls IInboxGuard itself
+    } // Inbox ownership and its call site remain Phase 02b G1.
 }
 ```
 
@@ -618,9 +621,9 @@ handler writes to the outbox.
 What the in-process transport genuinely does **not** provide, and what therefore
 constitutes the trigger for the Dapr adapter: delivery to a second process, broker-side
 replay, and durability of the in-flight message if the process dies between publish and
-handle. The outbox row covers the third — an unhandled event has not been marked
-processed and is redelivered — which is precisely why the outbox is LearnStack-owned and
-ships before any transport.
+handle. Once P02b-1–3 deliver durable enqueue and recovery, the outbox row covers
+the third: an unhandled event has not been marked processed and is redelivered.
+The existing table alone does not provide that recovery.
 
 The composition root selects the implementation by `DeploymentMode`; modules never see
 the choice.

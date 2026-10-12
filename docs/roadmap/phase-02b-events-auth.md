@@ -1,10 +1,11 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Entry ready — 2026-10-11.** Phase 02d is complete and merged through PR #28;
+**P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-records the verified exit. P02b-0 is next and has not started. It re-verifies the
-code, corpus and Hub premises; later packets accept their own gates in their
-decision passes. This closeout starts no Phase 02b implementation.
+records the verified exit. The
+[entry verification](#p02b-0-entry-verification-2026-10-12) reconciles the code,
+corpus and Hub premises. P02b-1's decision pass is next; its dependent gates
+remain open. No Phase 02b runtime implementation has started.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -175,12 +176,14 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   this phase, on the trigger that a second contributor gains write access. The trigger
   has not fired; `P02b-8` picks them up if it does, and otherwise they travel to the
   phase that inherits them.
-- **Browser end-to-end tests.**
+- **The full authenticated browser end-to-end suite.**
   [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
-  assigns Playwright over a running stack to
-  [Phase 06](phase-06-renderer-admin-studio.md). This phase proves its browser-facing
-  claims with route-level tests in the `frontend` job and container-backed token tests
-  in `backend-integration`, and says so rather than writing "tested end to end".
+  assigns the full Playwright Test/axe suite to
+  [Phase 06](phase-06-renderer-admin-studio.md). P02d-7 already delivers a narrow
+  real-stack public browser/Lighthouse proof, which remains enforced. This phase
+  adds route-level session tests, container-backed token tests and the live cookie
+  isolation checks its completion criteria name; those do not constitute a full
+  browser-driven OIDC journey.
 - **Production realm provisioning.** Every realm change this phase makes is a
   requirement on the production identity definition
   [Phase 11](phase-11-production-hardening.md) owns; the changes here land in the dev
@@ -284,6 +287,129 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G19 | Where do the sample flow's publisher and consumer live — a fixture pair in the integration assembly, or a real event a shipped module consumes? | A real event between two shipped domain modules, because a test-assembly-only consumer leaves every module-scoped sweep with zero subjects | Phase-doc + the Tenancy module spec, which books three `learnstack.tenancy.*` rows to this phase and names Audit as a consumer of one, and the Audit module spec, which says it consumes nothing and has no inbox — a disagreement whichever pair G19 picks has to resolve. If the pick is a provisioning event, the flow needs its own proof: provisioning leaves `ITenantContext` unresolved and announces its tenant on the transaction instead, so an enqueue check that reads the ambient context would refuse the seed's own first event | P02b-1 |
 | G20 | What does an anonymous request to a **routed non-public** request type on a live tenant host answer — and does the catalogued `Backend_RequiresJwt_OnAllAuthenticatedRoutes` narrow to a surface outside tenant resolution? A second half rides with it: the shipped assertion middleware says that from this phase the refusal code differs by caller, `tenant_mismatch` for an authenticated one and `not_found` for an anonymous one, written by the middleware itself | The matrix wins on a tenant host — [row 2](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) answers 404, byte-identical to an unknown host's, and the 401 rule narrows to the surface where a 401 discloses nothing | The dated **ADR-0036** amendment G11 needs + a catalogue edit to that rule's Asserts line | P02b-5 |
 
+### P02b-0 entry verification (2026-10-12)
+
+**Complete.** This packet verifies entry premises and corrects current-state
+claims. It writes no runtime code, drafts no ADR, accepts no later packet's gate
+and introduces no glossary definition ahead of its owning decision pass.
+
+#### Baseline and inherited enforcement
+
+The audit used LearnStack `development` at
+`3e86041dc32009ae6120c8cbb1533fd5d1325465`, tree
+`7aac9df1ed19f0826b042fbd1a303dc92c9ab11a`. That commit reconciles the merged
+P02d-7 source with PR #28's squash on `main`; the
+[P7 merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+owns the merge/tree comparison and the completed phase exit.
+
+The post-merge [CI run 38129121225](https://github.com/HodeTech/LearnStack/actions/runs/38129121225)
+completed successfully on `main` at
+`d37f46ccf0ebbf909f02c81a59d9019af3e9a1ca`. A fresh branch-protection API read
+on 2026-10-12 confirmed strict up-to-date protection and all seven required
+contexts: `backend (build + unit + arch + contract)`, `frontend (typecheck + lint
++ build + test)`, `secret scan (leakwatch)`, `meta (compose + commit hygiene +
+link audit)`, `backend integration (Testcontainers)`, `openapi diff`, and
+`public demo + lighthouse`. This receipt does not claim a new local full-stack
+run or change those settings.
+
+The Hub checkout was inspected read-only at
+`6adf93638e76114eda9c18a5095d0fe3c0fd43b1`; fetched `origin/main` was
+`310f718e5f2bad0dfb51e2c307c1ec361dab5952`. The checkout is an ancestor of that
+main and their trees are identical:
+`c5c380cfee42c6a32923d26d604ada7da2d5dc45`. Its roadmap still freezes P02c-2
+onward pending the documented billing/plan-gate demand and ADR-0034 invariants.
+Its P02c-3 waits on LearnStack's durable event path, not the BFF session.
+This audit neither opens that track nor changes its contract surface.
+
+The retained public baseline is native HTTPS, signed ingress, one live
+middleware bootstrap and request-local immutable admission. Anonymous public
+reads use the host boundary, physical read-only transactions, query filters and
+RLS. They do not forward cookies or bearer credentials. The early limiter still
+coordinates 60/min canonical visitors and 600/min physical-peer acquisitions/
+allocations; known visitor refusals do not debit that peer budget. P02b-5 must
+decide authenticated accounting without weakening this pre-classification bound.
+
+#### Gate-premise audit
+
+All twenty register rows were checked against their cited records and the
+current implementation. **Verified** below means the premise is confirmed;
+it does not mean the proposed answer is Accepted. G15 remains the register's
+already-answered replay boundary. Every other row retains its decision vehicle
+and first dependent packet above.
+
+| Gate | Verified current premise and disposition | First decision consumer |
+|---|---|---|
+| G1 | No `IInboxGuard` declaration, inbox table or durable subscription failure state exists. ADR-0006/0010 still require a per-module, consumer-called inbox. Shared transport ownership remains a proposal requiring the registered record/amendments. | P02b-2 record; P02b-3 DDL |
+| G2 | `OutboxFlushBehavior` only calls `next()`; no `IOutbox` exists. Immediate enqueue versus a buffer/flush policy remains undecided, including paths outside MediatR. | P02b-1 |
+| G3 | The envelope requires a partition key and the in-process serializer orders invocation per key. The table has no durable sequence or retry ordering guarantee; key derivation and the dispatcher bound remain separate decisions. | P02b-1 derivation; P02b-2 bound |
+| G4 | The table has `attempts`, `available_after` and `processed_at`, but no explicit terminal marker or lease columns. Five published retry delays do not themselves settle attempt counting or terminal state. | P02b-2 |
+| G5 | Canonical DDL has a surrogate `id` but no `event_id`; ADR-0032 lists both. No durable type resolver or enqueue implementation resolves that mismatch yet. | P02b-1 identities; P02b-2 resolution |
+| G6 | The bus restores the accessor and creates handler scopes without opening a transaction or audit frame. Pipeline audit ownership cannot simply be assumed for delivery/domain-event owners. No aggregate currently raises a domain event. | P02b-1; P02b-3 |
+| G7 | No producer/subscriber terminal writer exists. The MUST durability contract, off-path caller restriction and transaction atomicity still apply; a multi-transaction alternative needs the vehicle the register names. | P02b-2; P02b-3 |
+| G8 | The outbox-admin role and its bounded grants exist; a running dispatcher does not. No Accepted dispatcher-specific audit exemption has been added by this audit. | P02b-2 |
+| G9 | No job runtime, package pin, storage, activator or enqueue guard is shipped. The closed four-role and tenant-context-writer contracts remain constraints, not implicit permission for a new runtime. | P02b-4, after P02b-3 |
+| G10 | The API has no JwtBearer wiring. Dev users carry slug-valued tenant attributes without explicit protocol mappers; the scalar/array and actor-UUID choices remain open. | P02b-5 |
+| G11 | The resolver's claim insertion point is reserved; membership reads still deny everyone. Tenant-only authentication on an organization host and a claimless valid token need explicit outcomes before activation. | P02b-5 |
+| G12 | Delivered HTTPS/host/hop/bootstrap behavior is retained. Dev redirects still target localhost HTTP, and `make seed` polls realm readiness without reconciling mappers or warm users. | P02b-5 client; P02b-6 realm |
+| G13 | No Auth.js session/helper exists. Access-token lifetimes in the realm and target documents differ; storage, refresh, CSRF and logout remain decisions before their first writes. | P02b-6 TTL; P02b-7 session |
+| G14 | `AuthorizationBehavior` remains pass-through. Current HTTP product operations are public reads; anonymous coordinated admission already runs before classification. A protected read census and validated-subject quota do not yet exist. | P02b-5 |
+| G15 | Replay remains an internal dispatcher operation for this phase; the operator URL/permission belongs to Phase 03. No recovery endpoint is shipped or authorized here. | Answered; P02b-3 implements |
+| G16 | Only `LS0001` is shipped. `LS0002` needs scope, token-source parity, severity/escalation and its release/catalogue entries; it is not a current build-breaking guard. | P02b-8 |
+| G17 | Metric carriers disagree on tenant-label spelling and cardinality. Dispatcher heartbeat and oldest-eligible-row age have no emitter yet. Resolve the label set before the first series ships. | P02b-2 |
+| G18 | No shipped integration payload/job argument commits this phase to PII. `last_error` is unbounded text today; the future outbox, inbox, subscriber-failure and job stores need the registered erasure inventory. | P02b-1 payload; P02b-2 failure; P02b-8 erasure |
+| G19 | No production integration event is published/consumed. Tenancy books three future topics while Audit consumes none. Typed settings are uncached, so a settings-invalidation consumer needs a real effect rather than an artificial cache. Provisioning also has an unresolved ambient context despite its transaction announcement. | P02b-1 |
+| G20 | Only public product reads are routed. Existing non-public 404/401 and authenticated assertion-code questions remain unresolved; authentication must not silently choose framework defaults over the matrix. | P02b-5 |
+
+Implementation evidence was read in the pipeline's `OutboxFlushBehavior`,
+`TransactionBehavior` and `AuditLogBehavior`; the platform infrastructure
+migration; `InProcessEventBus`, `IntegrationEventEnvelope` and
+`EventTenantContext`; API startup, resolver and rate limiter; the Keycloak realm
+exports and `scripts/seed.sh`; the uncached `TenantSettingsAccessor`; and the
+web middleware, admission/resource loaders and configured caller. Existing
+architecture and integration tests were inspected to distinguish accessor
+restoration from database announcement and durable delivery.
+
+#### Reconciliation and next packet
+
+Current-state corrections in this packet cover the separate seeder executable,
+the already-delivered public browser proof, absent API authentication, the
+organization-claim choice still owned by G11, logical session-version wording,
+future auth examples, absent delivery transactions/audit frames, planned LS0002
+severity and the existing required-check/zero-skip enforcement. Architecture 13
+now labels its identity/session diagrams as targets; Architecture 15 separates
+the shipped transport from its future inbox/transaction obligations. Accepted
+ADR bodies and historical Phase 02d delivery records remain unchanged.
+
+Other target sketches that depend on an open gate remain target sketches.
+Their packet-owned reconciliation is explicit in the register and deliverables:
+P02b-1 updates producer/domain-event/payload carriers and the sample module
+specs; P02b-2/3 update delivery, inbox, roles/grants, failure and metric carriers;
+P02b-4 owns job storage/runtime carriers; P02b-5–7 own authentication, realm,
+session and auth-skill carriers; P02b-8 owns analyzer and erasure closeout.
+The Hub's per-module inbox reference remains consistent with the current
+Accepted baseline; a different G1 decision must reconcile the cross-repo
+reference without thawing the Hub roadmap.
+
+**Next: P02b-1 decision pass.** Prepare G2, G3's derivation, G5's stored
+identities, G6, G18's payload rule and G19 as one reviewable package, including
+the domain-event mutation/dispatch boundary and every owning frame's audit
+duties. Define the first real cross-module effect before choosing its event.
+Any required ADR/amendment must be drafted and approved before implementation.
+Only then register its tests, split the implementation into reviewable steps
+and begin producer code. P02b-0 requires no new product or architecture choice
+from the maintainer.
+
+#### Validation
+
+Local Release architecture tests: **203 passed, zero failed, zero skipped**.
+ADR lifecycle/disclosure tests: **7 passed**. The changed-document sweep checked
+590 relative links and 164 Markdown fragments, with no broken target. Added
+prose satisfies the 88-column rule; `git diff --check` is clean. The residual
+scan found only CLAUDE.md's unchanged prohibition on local analysis references,
+not a new dependency on a private document. No local full integration, browser
+or Lighthouse rerun was needed for this documentation-only packet; the exact
+post-merge CI receipt above owns that inherited evidence.
+
 ### Durable outbox dispatch
 
 The producer side is **planned, not shipped**: `IOutbox` does not exist and Packet 3's
@@ -303,9 +429,10 @@ the table at all: two of the three paths never run `OutboxFlushBehavior`.
 `OutboxProcessor` is a `BackgroundService` — the shape
 [Events and Outbox § OutboxProcessor](../architecture/15-event-and-outbox.md#outboxprocessor-backgroundservice),
 ADR-0006 Amendment 1, ADR-0010 and the glossary all specify, with a 200 ms poll no job
-schedule expresses. This phase hosts it in `LearnStack.Api`, the only host that exists:
-the solution builds one runnable host, nothing in `backend/src` implements
-`IHostedService` today, the corpus's gateway route table puts `/admin/hangfire*` on that
+schedule expresses. This phase hosts it in `LearnStack.Api`, the only web host.
+`LearnStack.Tools.Seeder` is a separate one-shot executable, not a worker host.
+Nothing in `backend/src` implements `IHostedService` today. The corpus's gateway
+route table puts `/admin/hangfire*` on that
 host ([API Gateway](../architecture/30-api-gateway.md), route id 3, upstream
 `learnstack-api`), and the production image is
 [Phase 11](phase-11-production-hardening.md)'s. A second worker host is not a
@@ -625,8 +752,9 @@ or refresh-token rotation. Those live in Keycloak; the split is described in
 - **Seed users**, under **G12**: tenant users only. Operators are the `learnstack-hub`
   population and ADR-0004 Amendment 1 makes the separation a hard invariant — the
   `learnstack` realm declares no platform-admin role and should not gain one. The
-  organization dimension is not representable in a token this phase issues, so "across
-  both organizations" is not a promise this phase can keep.
+  current dev export has no organization claim. **G11** decides whether this phase
+  mints one or deliberately refuses the authenticated organization-host case;
+  "across both organizations" is not yet an accepted promise.
 - **Keycloak realm roles.** The realm ships three `tenant-*` roles with full scope on
   both clients, so they appear in every token, while roles live in LearnStack and not in
   Keycloak. Either they leave the realm or they are declared inert with a rule proving
@@ -635,13 +763,14 @@ or refresh-token rotation. Those live in Keycloak; the split is described in
 
 #### Correction: the realm emits no `tenant_id` claim at all
 
-This is the one defect in this phase's original four that the corpus has not since
-repaired, and it is the reason the cross-check cannot run today.
+This is an unimplemented prerequisite of this phase's authenticated cross-check.
 `infra/keycloak/realms/learnstack.json` stores `tenant_id` as a **user attribute** and
 declares **zero protocol mappers**. Keycloak does not put user attributes into tokens
-unless a mapper says so, so every issued JWT reaches the API with no `tenant_id` claim,
-every request resolves under the host-only ceiling, and the first layer of tenant
-defence is off with nothing reporting it.
+unless a mapper says so. The API also has no JwtBearer registration or
+`UseAuthentication` today: it does not validate those tokens or populate the
+resolver's reserved claim signal. Current public requests use the delivered
+host-only admission, query filters and Row Level Security. Authenticated behavior
+must not go live until G10–G12 settle the token and resolution contract.
 
 Three changes, and the third is the one that makes the first two take effect:
 
@@ -684,7 +813,8 @@ settles it; what the phase ships either way:
 - **Lifetimes and refresh.** One authority for the access-token TTL — four documents
   currently give four numbers, and this phase links the authority rather than adding a
   fifth. Concurrent requests arriving with a near-expiry token produce exactly one token
-  request and one `Set-Cookie`; a terminal `invalid_grant` clears the session and the
+  request and one logical replacement session version, including any cookie chunks;
+  a terminal `invalid_grant` clears the session and the
   visitor gets the public page anonymously rather than an error.
 - **Cookie scoping and CSRF.** Host-only cookies with no `Domain`, so two tenant hosts
   do not share a session, plus an `Origin` check and a session-bound token on every
@@ -709,9 +839,10 @@ settles it; what the phase ships either way:
   login completes" cannot be demonstrated, and
   `Backend_RequiresJwt_OnAllAuthenticatedRoutes` sweeps an empty route set.
 - **Auth.js and `auth()` placed in `apps/web`**, the `(studio)` / `(portal)` redirect,
-  the server SDK's bearer attachment, and server-only environment keys. One skill
-  imports `auth` from a package that does not exist and a second calls `auth()` with no
-  import at all; both are corrected here.
+  the server SDK's bearer attachment, and server-only environment keys. The
+  `add-frontend-route` and `add-feature-gated-ui` skills contain future auth
+  illustrations rather than shipped helpers; P02b-7 replaces them with the real
+  session API when it lands.
 
 ### Tenant settings eager invalidation
 
@@ -730,15 +861,16 @@ The audit pipeline lit up in
 [ADR-0033](../decisions/0033-audit-durability-model.md). This phase adds the entry
 points it does not reach, and both of Packet 9's hand-offs land here.
 
-- **The delivery path has no audit mechanism today**, and the gap is silent.
+- **The delivery path has no transaction or audit frame today.**
   [ADR-0040](../decisions/0040-ambient-unit-of-work.md#consumers-do-not-have-a-request-and-still-need-all-of-this)
-  makes an event delivery the application's second entry point, and the transport runs
-  `Begin → SetTenantContext → handler → Commit` with no MediatR behavior in the path.
-  Only `AuditLogBehavior` declares intents, only `TransactionBehavior` flushes them, and
+  assigns `Begin → SetTenantContext → handler → Commit` to this phase; the current
+  transport restores only the ambient accessor and resolves a fresh handler scope.
+  Adding that transaction alone would leave an audit gap:
+  only `AuditLogBehavior` declares intents, only `TransactionBehavior` flushes them, and
   the catalogue is keyed by request type — so a consumer that writes its own aggregate
   through its `DbContext`, which is the shape the corpus teaches as canonical, has its
-  changes captured into a buffer that holds no intent naming its type. **No row is
-  written and nothing fails.** That is the one window
+  changes would be captured into a buffer that holds no intent naming its type.
+  **No row would be written and nothing would fail.** That is the window
   [ADR-0033](../decisions/0033-audit-durability-model.md) says must not exist. **G6**
   decides it, and the case that proves it is a MUST-classified direct-write consumer,
   not only a consumer that sends a command.
@@ -811,7 +943,8 @@ and error-tracker tags. It does not cover a value already interpolated into an e
 Those sinks, not a Problem Details body, are the threat this phase's diagnostic answers
 — the response factory builds no free text from an exception message.
 
-`LS0002` is a build-breaking diagnostic, and a roadmap document is not its registry.
+`LS0002` is planned, not shipped; its initial Warning severity does not itself
+make a build fail. A roadmap document is not its diagnostic registry.
 **G16** records it the way ADR-0032 Amendment 1 recorded `LS0001`: its
 `LearnStackException-<Topic>` rule name, the project trees it runs over, what it
 inspects, its `AnalyzerReleases` row, its catalogue entry, and the condition that
@@ -895,16 +1028,14 @@ What this phase owes the catalogue beyond implementing those rows:
 
 Two notes on what "green in CI" can mean. Several of this phase's rows are behavioural
 rather than structural, and CI runs those in a separate job under a Docker trait filter,
-so "the architecture suite is green" does not reach them. That job was **not** a
-required check when this was written — CONTRIBUTING names adding it to branch protection
-as the remaining edit — and every behavioural criterion below sits in it.
-[Phase 02d](phase-02d-walking-skeleton.md) makes that edit no later than its first
-Education migration, because
-[Git Workflow Standards § Checks](../standards/14-git-workflow.md#checks) already makes
-tenant-isolation tests a merge condition. `P02b-8` re-verifies that the check is still
-required under the name the job reports, and records the date. And the executed-test
-guard counts executed tests, so a per-test skip leaves its count non-zero — the
-criterion says *not skipped*, per assembly.
+so "the architecture suite is green" does not reach them. `backend integration
+(Testcontainers)` is already a required check; the
+[P02b-0 receipt](#p02b-0-entry-verification-2026-10-12) verifies all seven current
+required contexts with strict up-to-date protection. `P02b-8` re-verifies those
+live settings under the exact reported names. `scripts/assert-tests-ran.py`
+already rejects a missing assembly, zero executed tests and any unexecuted test
+in the required assemblies; test failures additionally fail the `dotnet test`
+command. The phase retains zero skips, per assembly.
 
 ## Deliverables
 
@@ -986,7 +1117,7 @@ criterion says *not skipped*, per assembly.
 - OIDC PKCE login through the BFF on the visitor's own tenant host, a cookie session
   with host-only scoping and single-flight refresh, an `Origin` plus session-bound-token
   CSRF control, RP-initiated logout, and Auth.js wired in `apps/web` with the two
-  skills' broken `auth` references corrected.
+  skills' illustrative `auth` references replaced with the shipped helper.
 - The first authenticated `/api/v1/*` read and the first guarded page, both in the
   OpenAPI document and the regenerated SDK.
 - A Keycloak test fixture over the committed realm JSON and an in-process JWT issuer for

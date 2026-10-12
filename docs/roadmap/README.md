@@ -93,7 +93,9 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
   owns final verification and the completed phase exit.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **next: P02b-0 phase-entry re-verification; implementation not started**.
+  — **P02b-0 complete; next: P02b-1 producer decision pass**. Its
+  [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+  re-verifies the register against code, corpus and Hub; runtime work has not started.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)
