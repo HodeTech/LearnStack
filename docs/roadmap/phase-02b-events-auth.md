@@ -18,9 +18,10 @@ its [record](#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-1
 records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
 [record](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) records full
-backend verification and both completed review rounds. **P02b-1 is complete;
-PR review and merge remain pending.** The
-[packet closeout](#p02b-1-packet-closeout-2026-10-12) owns the next P02b-2 handoff.
+backend verification and both completed review rounds. **P02b-1 is complete and
+merged** through [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on
+2026-10-12. The [merge closeout](#p02b-1-merge-and-closeout-2026-10-12) owns final
+verification and the next P02b-2 decision pass.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -253,7 +254,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | Packet | Contents | Cannot start until |
 |---|---|---|
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
-| **P02b-1** | Producer: `IOutbox`, the `OutboxFlushBehavior` body, the domain-event collector and its single dispatch site, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
+| **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | Consumer: the inbox DDL, `IInboxGuard`, the per-delivery transaction, the sample flow's consumer, per-subscription attempts, the dead-letter store and its audit row, replay as a dispatcher operation | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
@@ -1107,6 +1108,56 @@ format, seven ADR lifecycle checks, the changed-document link/anchor sweep and
 `git diff --check` pass. No frontend source, schema, credential or accepted ADR
 changes. The [PR checks](https://github.com/HodeTech/LearnStack/pull/29/checks)
 own final-head CI evidence; PR review and merge remain pending.
+
+### P02b-1 merge and closeout (2026-10-12)
+
+The maintainer merged [PR #29](https://github.com/HodeTech/LearnStack/pull/29) at
+2026-10-12 13:47:58 UTC. GitHub records final PR source
+`8a97cd2b7c19bf54a1b0b1f1ad75175256417c9c` and squash merge
+`b1f6f21cab556ee7ba497dfc0d64e51b8cf1dad8`, whose parent is the previous main
+`d37f46ccf0ebbf909f02c81a59d9019af3e9a1ca`. Source and squash merge have the
+identical tree `ba6f9b552c17598ec219ec9d2fc04ef5f235eec0`. Development incorporates
+the main merge without switching branches or rewriting published history.
+
+All seven required checks pass in the
+[final PR run](https://github.com/HodeTech/LearnStack/actions/runs/38255804801)
+for that source; CodeRabbit also reports success. The tested synthetic merge is
+`50fe60560b7966a23c14ab359531aadfbf59a442`. Verified downloaded artifacts record:
+
+- **3,189 backend passes**, zero failures/skips: 1,766 unit, 266 architecture,
+  four contract, 180 Docker-free integration and 973 Docker integration cases.
+- **1,550 guarded frontend passes**: 1,490 web and 60 SDK, zero
+  failures/skips/todos; frontend lint, typecheck and builds also pass.
+- Exactly 27 matching Lighthouse JSON/HTML report pairs across nine URLs, nine
+  screenshots and matching source/checkout identities and report digests.
+  Automated accessibility is 1 throughout, CLS is 0 and maximum normalized
+  initial JS gzip is 106,552 bytes. Owned cleanup passes; timing medians remain
+  advisory. These are final PR-run results, not a claim about a post-merge run.
+
+**P02b-1 is closed.** All four steps and verified review fixes are delivered;
+their two independent review rounds remain recorded in the
+[packet closeout and follow-ups](#p02b-1-packet-closeout-2026-10-12). Earlier dated
+delivery/review records retain their historical pre-merge wording. Accepted ADRs
+and P02b-0's entry record are unchanged. Phase 02b remains in progress.
+
+**Next: P02b-2 decision pass.** Reverify G1, G3 ordering, G4, G5 resolver policy,
+G7/G8, G17 and G18 failure descriptors before dispatcher implementation.
+ADR-0046 remains reserved and undrafted; the decision package and any new ADR
+require maintainer approval before implementation. P02b-2 owns the lease/grant
+migration, existing-row handling, dispatcher credentials/boot guard,
+claim/publish/mark, retry/terminal policy and metrics/health. P02b-3 owns inbox
+delivery, the two Customization defaults subscriptions and the Seeder handoff.
+Producer rows are durable but do not yet claim delivered consumption. Background
+jobs, API authentication, realm reconciliation, BFF sessions and phase-exit
+enforcement remain with P02b-4–8 in the [packet table](#packets-and-decision-gates).
+
+**Documentation-only closeout validation.** All 266 local Release architecture
+cases and seven ADR lifecycle/workflow controls pass, zero failures/skips. The
+five changed Markdown files resolve 585 relative links and 186 fragments without
+errors; added prose wrapping and whitespace checks pass. Prior dated delivery
+records and all Accepted ADR files are byte-preserved. Full runtime suites are
+not rerun locally for this documentation-only change; the final PR artifacts
+above supply their evidence.
 
 ### Durable outbox dispatch
 

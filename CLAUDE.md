@@ -179,9 +179,10 @@ records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 records passing full backend verification and both completed review rounds.
-**P02b-1 is complete; PR review and merge remain pending.** The
-[packet closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
-owns delivery scope and the next P02b-2 decision pass.
+**P02b-1 is complete and merged** through
+[PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. The
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+owns final verification and the next P02b-2 decision pass.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -381,11 +382,10 @@ For any task, read in this order:
 Then read the phase that is live and the one it stands on:
 
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
-  — **the live phase**. P02b-0 entry verification is complete; P02b-1's decision
-  package is Accepted — 2026-10-12; Steps 1–3 implement the producer runtime,
-  and Step 4 supplies production-census enforcement and packet closeout.
-  Each later packet accepts its own gates
-  before implementation.
+  — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
+  and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
+  runtime and production-census enforcement. Next is P02b-2's decision pass;
+  each later packet accepts its own gates before implementation.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
