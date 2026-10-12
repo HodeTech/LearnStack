@@ -589,7 +589,7 @@ by this decision record.
 
 ### P02b-1 Step 1 — Shared execution lifecycle (2026-10-12)
 
-**Implementation checkpoint; both independent review rounds pending.** Work is
+**Step 1 complete; both independent review rounds passed.** Work is
 on `development`, following the Accepted four-step package. This is not P02b-1
 completion. No immediate enqueue, successful-save event collector, publisher or
 production delivery is claimed by this step.
@@ -660,6 +660,22 @@ now fails exactly the depth-two-descendant case (1 failed, 16 passed); restoring
 the unmodified assembly passes all 17. The complete architecture rerun passes
 203 cases with zero failures/skips. The second independent review round remains
 pending at this checkpoint.
+
+#### Step 1 review round 2 and closeout
+
+Two new independent reviewers examined `b157650..ab2c37d`: GPT-6-astra xhigh
+for lifecycle/security/audit and GPT-6.1-sol xhigh for proof/architecture/carriers.
+Both approve Step 1 with no Blocker/Major findings. Their independent reruns
+pass 59 audit/transaction unit cases, 73 producer/UoW integration cases and
+25 persistence architecture cases, with zero failures/skips. These are selected
+subsets of the runs above, not additional distinct test totals.
+
+The confirmed minor carrier findings are corrected in this closeout: the
+catalogue names coordinator delegation and the outer audit coordinator's clear
+ownership; the Security derivation header includes ADR-0057. Canonical rule names,
+statuses and counts remain unchanged. The full producer contracts still await
+Steps 2–4; this closeout does not claim automatic production receipts, domain
+collection or completed P02b-1 delivery.
 
 ### Durable outbox dispatch
 

@@ -168,8 +168,8 @@ is complete; P02b-1's [producer decision package](docs/roadmap/phase-02b-events-
 and ADR-0057 are Accepted — 2026-10-12. The four implementation steps are
 authorized. Step 1 implements the shared snapshot/producer/audit lifecycle; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-1--shared-execution-lifecycle-2026-10-12)
-tracks verification and the two pending independent review rounds. Steps 2–4
-remain pending.
+records passing verification and both completed independent review rounds.
+Steps 2–4 remain pending.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

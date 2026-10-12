@@ -25,6 +25,9 @@ ingress/caller and anonymous visitor budgets derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); coordinated accounting,
 native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
+Producer announcement and common execution ownership derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
 ## Threat Model Summary

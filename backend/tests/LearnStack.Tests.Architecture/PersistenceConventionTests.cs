@@ -235,8 +235,8 @@ public sealed partial class PersistenceConventionTests
     {
         // The seam exists so that the behavior owning the commit boundary never
         // has to name a module. Two assertions: the assembly takes no build-time
-        // reference to one, and the behavior's own surface names IUnitOfWork and
-        // no DbContext.
+        // reference to one, and the behavior delegates to a coordinator whose
+        // surface names IUnitOfWork and no DbContext.
         // The PROJECT file, not only the emitted assembly-reference table. The
         // compiler elides a reference whose types the IL never touches, so an
         // unused <ProjectReference> to a module would leave a reflection-only

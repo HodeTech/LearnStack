@@ -1693,8 +1693,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
-- **Asserts:** `TransactionBehavior`'s constructor names `IUnitOfWork` and no
-  `DbContext`, and `LearnStack.Application` references no module assembly — checked
+- **Asserts:** `TransactionBehavior` delegates to `TransactionExecutionCoordinator`,
+  whose constructor names `IUnitOfWork` and no `DbContext`.
+  `LearnStack.Application` references no module assembly — checked
   against the **project file** as well as the emitted assembly-reference table,
   because the compiler elides a reference whose types the IL never touches, so a
   dangling `<ProjectReference>` would leave a reflection-only check green. The
@@ -2531,8 +2532,8 @@ which decides identity, multiplicity, capture and classification;
 
 - **Asserts:** after a request completes, success or failure, the scoped
   `IAuditStateCapture` holds no changes and no intent, and its state reads `None` for the
-  next request. `Clear()` is called exactly once, by the **outermost** `AuditLogBehavior`,
-  in its `finally`.
+  next request. `Clear()` is called exactly once, by the **outermost**
+  `AuditExecutionCoordinator`, in its `finally`; `AuditLogBehavior` delegates to it.
 - **A joiner never clears.** Under [ADR-0040](../decisions/0040-ambient-unit-of-work.md)
   a nested dispatch reaches a joiner frame, and a joiner that cleared would erase the
   outer request's intents and every snapshot **before** the owner committed — the same
