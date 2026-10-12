@@ -104,7 +104,8 @@ not deferred to the showcase phase.
   review rounds; Step 3 implements hosted dispatch and observation, with
   both independent review rounds complete in its
   [delivery record](phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
-  Step 4 enforcement is implemented; validation and reviews are in progress in its
+  Step 4 enforcement and local closeout are complete; all four steps completed
+  both independent review rounds. CI/merge status lives in its
   [delivery record](phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12);
   consumer delivery remains P02b-3.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

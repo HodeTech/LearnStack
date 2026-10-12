@@ -15,8 +15,9 @@
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
 (P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
-Steps 1–3 completed both independent review rounds. Step 4 enforcement is implemented;
-validation and reviews are in progress; P02b-3 consumer proofs remain pending). The
+all four steps completed both independent review rounds and local closeout;
+the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status; P02b-3 consumer proofs remain pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -1808,9 +1809,9 @@ diagnostic above row security, not the boundary, as its own note says.
   `OutboxDispatcherRoleGuardTests`, `OutboxProcessorTests`): exact nonempty
   whole-production credential/factory/consumer census, keyed registration and
   constructor bindings, planted clean/dirty helper/delegate/async controls, and
-  real PostgreSQL role/grant/startup refusal proofs. Round 2 strengthening pins
-  exact source-reader signatures/visibility/staticness; its overload controls,
-  focused verification and fresh fix review are pending.
+  real PostgreSQL role/grant/startup refusal proofs. Exact unique literal
+  source-reader signatures, visibility and staticness reject named-method overloads;
+  the focused controls and both fresh fix reviews pass at `606362b`.
 - **Phase:** 02b, P02b-2.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
@@ -3478,8 +3479,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   actual gauge callbacks, async/production-owned polymorphic helpers and
   persistence/locator capability controls; actual DI missing/duplicate/wrong-factory
   controls plus bounded runtime, immutable snapshot, metric-label and liveness
-  proofs. Round 2 strengthening pins the external System clock and actual
-  health/observation binding; focused verification and fresh fix review are pending.
+  proofs. The external clock is pinned to the actual `TimeProvider.System` singleton,
+  and actual DI health follows Healthy → Unhealthy → Healthy against the singleton
+  observation; alternate clock and detached same-type factory controls are rejected.
+  Focused verification and both fresh fix reviews pass at `606362b`.
 - **Phase:** 02b, P02b-2.
 
 ### Demand-gated: lands with its adapter

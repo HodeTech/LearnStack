@@ -9,9 +9,10 @@ permission, and inserts a pending outbox row under the provisioning announcement
 Existing command reachability is unchanged. The
 [integration-event catalogue](README.md#integration-event-catalogue) owns the flow.
 
-**ADR-0046 implementation through P02b-2 Step 3 — 2026-10-12.** Steps 1–3
-completed both independent review rounds. Step 4 enforcement, validation and
-reviews are in progress. The API-owned dispatcher and terminal audit add no
+**ADR-0046 P02b-2 implementation locally complete — 2026-10-12.** All four steps
+completed both independent review rounds. The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
+The API-owned dispatcher and terminal audit add no
 permission key or HTTP endpoint. P02b-3's
 targeted replay is internal; Phase 03 separately decides operator permission and
 routes. Neither grants a tenant administrator bypass-role access.

@@ -27,7 +27,7 @@ not land together.
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
-| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Implemented through Step 3; both independent review rounds complete; Step 4 enforcement implemented; validation/reviews in progress |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement locally complete; all four steps completed both independent review rounds; CI/merge status: [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12) |
 | `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
@@ -61,7 +61,9 @@ transitions and atomic terminal audit; each completed both review rounds.
 Step 3 implements hosted execution and observation, with both independent
 review rounds complete in its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
-Step 4 enforcement is implemented; validation and reviews are in progress.
+Step 4 enforcement and local closeout are complete; all four steps completed both
+independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
 P02b-3 inbox/consumer delivery remains pending. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
@@ -153,8 +155,9 @@ separate credentials remain the closed model; the code-path and role rules are
 implemented for transition-witness construction and terminal audit in Step 2;
 both independent review rounds passed. Step 3 implements hosted execution and
 observation, with both independent review rounds complete. Step 4 implements
-credential/publication censuses and planted controls; final validation and
-reviews are in progress.
+credential/publication censuses and planted controls; all four steps completed
+both independent review rounds and local closeout. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
 
 <a id="inbox-table-per-consumer-module"></a>
 
@@ -354,9 +357,9 @@ poll, which is neither.
 
 ### The claim protocol
 
-**ADR-0046 producer runtime implemented through P02b-2 Step 3; both independent
-review rounds complete.** Step 4 enforcement, validation and reviews are in
-progress. The processor admits a construction-free
+**ADR-0046 producer runtime and enforcement locally complete in P02b-2; all four
+steps completed both independent review rounds.** The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. The processor admits a construction-free
 manifest policy before acquisition. Any required Pending subscription holds the
 contract and all aliases unchanged, even if stored payload is malformed. Active
 requires declared handler registration. Only explicit intentional absence may

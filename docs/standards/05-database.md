@@ -1398,7 +1398,9 @@ DDL below includes lease/terminal/identity/descriptor changes. Step 2 implements
 fenced transitions and atomic terminal auditing; both review rounds passed.
 Step 3 implements hosted execution and metrics; both independent review rounds
 are complete.
-Step 4 enforcement is implemented; validation and reviews are in progress. Existing
+Step 4 enforcement and local closeout are complete; all four steps completed both
+independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form
 legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
 This specific ADR-0046 Platform migration temporarily uses owner-only `NO FORCE`

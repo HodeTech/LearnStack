@@ -7,6 +7,11 @@ Accepted — 2026-10-12. Implementation is authorized; delivery remains pending.
 **Date:** 2026-10-12
 **Deciders:** @cemil
 
+Delivery updates: [Amendment 1](#amendment-1--producer-runtime-delivery-2026-10-12)
+and [Amendment 2](#amendment-2--producer-enforcement-and-local-closeout-2026-10-12).
+The Status above records acceptance-time state; Amendment 2 records local producer
+closeout with PR-head CI and merge pending.
+
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
 decides producer dispatch and the coupled P02b-3 subscriber state machine before
@@ -455,6 +460,29 @@ independent subscriber retries and terminalization, both real default
 subscriptions and Seeder handoff stay with that packet. Required production
 subscriptions remain Pending; test-owned Active subscriptions supply producer
 runtime proof without claiming durable consumer delivery.
+
+### Amendment 2 — Producer enforcement and local closeout (2026-10-12)
+
+P02b-2 producer runtime and enforcement are locally complete. All four
+implementation steps completed both independent review rounds. The
+[Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+records nonempty production credential/publication and observation censuses,
+planted controls, review findings and verified corrections. Test-only round-2
+fixes at `606362b` pin exact source-reader method signatures, the actual
+`TimeProvider.System` singleton and DI health binding to singleton observation.
+All 26 focused/corpus cases and both fresh fix reviews pass. The post-fix Release
+build has zero warnings/errors, all 286 architecture cases pass with zero
+failures/skips, and solution-wide format verification passes. The full 3,393-case
+backend regression predates those test-only guard fixes; the delivery record
+states its scope and applicable earlier launcher/frontend evidence.
+
+The catalogue remains 193 architecture test methods and 192 Implemented rules:
+118 in that assembly and 74 elsewhere. This amendment changes no accepted
+decision, grant budget or consumer policy. PR-head CI and merge remain pending.
+P02b-3 is unimplemented: durable acceptance, shared inbox/delivery ledger,
+independent subscriber retries/terminalization, both real default subscriptions
+and Seeder handoff remain its obligations. Required production subscriptions
+remain Pending; test-owned Active contracts prove producer runtime only.
 
 ## References
 
