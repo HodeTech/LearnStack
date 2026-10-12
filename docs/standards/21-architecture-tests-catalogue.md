@@ -3112,13 +3112,16 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 #### `Outbox_Row_Carries_Correlation_Context`
 
 - **Asserts:** every persisted `outbox_messages` row has non-null
-  `tenant_id` and `correlation_id` columns. Integration test that writes
-  through `IOutbox.EnqueueAsync` and inspects the row.
-- **Source:** ADR-0032 § Sub-decision 12;
+  `tenant_id`, full W3C `correlation_id` and `partition_key` columns. Integration
+  proof writes through `IOutbox.EnqueueAsync` and compares persisted `id` to
+  `EventId`, announced tenant/organization and the event's declared key, including
+  unresolved provisioning. A null/wrong-column control must fail.
+- **Source:** ADR-0032 § Sub-decision 12, as bounded by
+  [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md) Amendment 1.
 - **Type:** integration test (Testcontainers). **Kind:** behavioural.
 - **Status:** **Registered.**
-- **Phase:** 02b.
+- **Phase:** 02b, P02b-1.
 
 #### `Hangfire_Job_Payloads_Include_TenantId`
 
@@ -3169,18 +3172,94 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `Integration_Event_Declares_PartitionKey`
 
-- **Asserts:** every `IIntegrationEvent` resolves a non-null partition key. `PartitionKey`
-  is abstract on `IntegrationEventBase`, so the compiler already refuses an event that
-  omits it; the residual assertion is that the value is non-null and non-blank at
-  runtime. `IntegrationEventEnvelope` reads it off the event — it is deliberately **not**
-  threaded through `IEventBus` as a second parameter, which is the source of drift
-  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) removes. `InProcessEventBus`
-  serialises dispatch per key: concurrent across keys, sequential within one.
-- **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
-  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
-- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Asserts:** every concrete integration event declares its partition source:
+  the aggregate identifier, or explicit tenant-wide `TenantId`. The key is that
+  identifier's canonical GUID representation and is non-null/non-blank. A complete
+  production-module census checks declaration/derivation, with planted constant,
+  unrelated-ID and missing-declaration offenders plus clean controls. Behavioral
+  cases compare actual source/key values. The envelope reads the event's key;
+  it cannot hold a second answer. This establishes derivation, not durable order;
+  G3's publish-order half remains P02b-2.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md#ordering).
+- **Type:** xUnit + reflection/IL/source scan and value probes.
+  **Kind:** structural + behavioural.
 - **Status:** **Registered.**
-- **Phase:** 02b.
+- **Phase:** 02b, P02b-1 (derivation); P02b-2 (ordering).
+
+#### `Outbox_Enqueue_Uses_The_Announced_Transaction`
+
+- **Asserts:** enqueue uses the enrolled owner's live announced connection and
+  transaction as `learnstack_app`, for resolved and unresolved provisioning.
+  Mismatched/empty/sentinel tenants, read-only units and stale generations refuse;
+  no extra connection, commit or publish occurs. Snapshot cases cover failed or
+  canceled setup, foreign/reused transaction objects, joins and every terminal
+  boundary. No-listener trace context, exact causal/envelope metadata and runtime
+  JSON survive persistence. Complete canonical UTF-8 payloads at the inclusive
+  262,144-byte bound succeed; oversized/multibyte cases refuse before INSERT.
+  JSON metadata is SQL NULL. Duplicate INSERT fails; rollback and MUST-audit
+  failure leave source/outbox uncommitted.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration test (Testcontainers), with focused lifecycle unit cases.
+  **Kind:** behavioural.
+- **Status:** **Registered** — implementation pending.
+- **Phase:** 02b, P02b-1.
+
+#### `Producer_Failures_Poison_Produced_Work`
+
+- **Asserts:** successful outbox INSERT or successful-save event promotion leaves
+  sticky receipts in its invocation and every ancestor. Direct and descendant
+  receipts survive drain; absorbed `Result.Fail` cannot commit and poisons before
+  UoW-frame resolution. An ordinary event-free absorbed refusal still commits.
+  Failed/canceled saves do not promote; uncollected raises and unsuccessful
+  enqueue attempts do not themselves count. Terminal/same-scope reuse cases prove
+  source lists never replay into another transaction.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration and focused lifecycle unit tests. **Kind:** behavioural.
+- **Status:** **Registered** — implementation pending.
+- **Phase:** 02b, P02b-1.
+
+#### `Domain_Event_Completion_Is_Owner_Only`
+
+- **Asserts:** a single owner dispatches successful-save events FIFO before
+  invariants/MUST audit/commit; nested joiners neither dispatch nor clear owner
+  state. Repeated saves, detach/delete, rollback/cancellation, save failures and
+  terminal cleanup preserve attribution without loss/duplication. At most 256
+  events belong to the transaction; a 257th rolls back all source/outbox work.
+  Returned versions remain accurate; MUST-audit failure preserves atomicity.
+  A controlled non-MediatR owner opens the common audit frame, classifies direct
+  work and reconciles once, retaining nested command intents without duplication.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration and lifecycle unit tests. **Kind:** behavioural.
+- **Status:** **Registered** — implementation pending.
+- **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.
+
+#### `Domain_Event_Handlers_Are_Outbox_Only`
+
+- **Asserts:** the complete production-module domain-handler census translates
+  facts to outbox only. Traverse helpers and interface targets; root mutation,
+  write stores, nested requests, further raises, notification publication and
+  external providers are forbidden. Every forbidden path has a planted offender
+  and a clean translation control, so empty subjects or shallow traversal fail.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** xUnit + reflection/IL/source scan. **Kind:** structural.
+- **Status:** **Registered** — implementation pending.
+- **Phase:** 02b, P02b-1.
+
+#### `Integration_Event_Payloads_Contain_Only_Identifiers`
+
+- **Asserts:** beyond inherited identity/tenant/time and computed routing members,
+  production payload fields are GUIDs or approved strongly-typed identifiers,
+  optionally nullable. Reject text, collections, DTOs, binary/raw JSON and custom
+  serializer overrides with planted controls. A non-empty production census and
+  concrete-runtime JSON round-trip prove fields survive the frozen serializer.
+  Existing partition and announced-transaction rules own derivation, byte/metadata
+  admission and rollback/atomicity; this rule does not duplicate those names.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** xUnit + reflection/IL/source scan and serialization probes.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — implementation pending.
+- **Phase:** 02b, P02b-1.
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
 

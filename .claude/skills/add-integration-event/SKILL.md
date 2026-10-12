@@ -24,6 +24,9 @@ Amendment 1 (Dapr pub/sub dispatch),
 and [15-event-and-outbox.md](../../../docs/architecture/15-event-and-outbox.md).
 The binding port and envelope contract is
 [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md).
+Accepted [ADR-0057](../../../docs/decisions/0057-transactional-event-production-and-completion.md)
+owns immediate producer admission, completion and payload policy. P02b-1
+implementation is pending; P02b-2/P02b-3 retain dispatcher/inbox decisions.
 
 ## When to use
 
@@ -33,8 +36,10 @@ The binding port and envelope contract is
 
 ## When not to use
 
-- Two aggregates in the **same** module need to coordinate — use MediatR
-  `INotification` (a domain event) and handle it in-process inside that module.
+- A domain fact needs only in-module translation to outbox — use MediatR
+  `INotification` inside the owner transaction. Domain reactions cannot mutate
+  roots or coordinate additional writes; substantive reactions belong in an
+  integration consumer under ADR-0057.
 - The consumer can fetch the data on-demand from the producer's read API.
 - Provider webhooks (Stripe, LiveKit) — they enter via a webhook receiver that
   writes to the outbox itself, not via this skill.
@@ -43,11 +48,11 @@ The binding port and envelope contract is
 
 | Input | Required | Description |
 |-------|----------|-------------|
-| Event name | Yes | `<Verb><Aggregate>IntegrationEventV<N>`, PascalCase + version suffix. |
+| Event name | Yes | `<Aggregate><PastTenseFact>IntegrationEventV<N>`, PascalCase + version suffix. |
 | Producing module | Yes | Owns the aggregate the event describes. |
 | Consuming module(s) | Yes | At least one; can be many. |
 | Topic | Declared | The event's `Topic` override, normally `learnstack.{module}.{aggregate}`. |
-| Schema fields | Yes | `IntegrationEventBase` supplies `EventId`, `OccurredAt`, `TenantId` (all `required`) and demands `Topic` and `PartitionKey` overrides. Everything else is yours to declare. |
+| Schema fields | Yes | `IntegrationEventBase` supplies `EventId`, `OccurredAt`, `TenantId` (all `required`) and demands `Topic` and `PartitionKey` overrides. Additional fields are GUIDs or approved strongly-typed identifiers, optionally nullable; no text, DTOs, collections, binary/raw JSON or serializer overrides. |
 
 ## Workflow
 
@@ -62,18 +67,14 @@ public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
     public required Guid LearnerId { get; init; }
     public required Guid CourseVersionId { get; init; }
     public Guid? CohortId { get; init; }
-    public required string Source { get; init; }  // "manual" | "billing" | "invitation"
 
     // Both abstract on IntegrationEventBase, so this record does not compile
     // without them — deliberately, because each is a property of the event TYPE
     // and a value with two sources is a value that can disagree with itself.
     public override string Topic => "learnstack.enrollment.enrollment";
 
-    // Ordering is guaranteed per partition key and nowhere else, and the
-    // aggregate this event is about is the ordering domain. Keying on TenantId
-    // instead would serialise the tenant's whole stream onto one partition — a
-    // real throughput cost, and one worth taking deliberately rather than by
-    // inheriting a default.
+    // Declare EnrollmentId as the partition source. ADR-0057 accepts canonical
+    // identifier derivation; G3 durable publish ordering remains P02b-2.
     public override string PartitionKey => EnrollmentId.ToString();
 }
 ```
@@ -117,17 +118,36 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     // one layer in, so that spelling needs `courseVersionId.Value`.
     CourseVersionId = request.CourseVersionId,
     CohortId = request.CohortId,
-    Source = request.Source.ToString().ToLowerInvariant(),
 }, cancellationToken);
 
-await db.SaveChangesAsync(cancellationToken);   // atomic
+await db.SaveChangesAsync(cancellationToken);   // flush; owner commits state + outbox + audit
 ```
 
 Rules:
 
-- `IOutbox.EnqueueAsync` enlists in the **ambient unit of work** — the one connection and
-  transaction `IUnitOfWork` owns ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)),
-  not a module's `DbContext`. Do not open a second transaction.
+- `IOutbox.EnqueueAsync` validates and INSERTs immediately through the enrolled,
+  announced, writable ambient `IUnitOfWork.Connection`/`Transaction`. It opens
+  no connection, commits nothing and never calls `IEventBus`. The frame compares
+  the live announcement generation and event tenant, including unresolved
+  provisioning; caller snapshots are not authority. Raw transactions cannot
+  bypass producer enrollment. `id = EventId`; duplicates fail.
+- Serialize the concrete runtime event through the existing frozen
+  `IntegrationEventBase.PayloadJsonOptions`. The complete canonical UTF-8 input
+  fits `OutboxPayloadLimits.MaxBytes` (262,144 bytes inclusive) before INSERT;
+  multibyte accounting is bytes, not characters. JSON `metadata` is SQL NULL;
+  `IOutbox` accepts no arbitrary metadata. No DDL size CHECK is claimed.
+- Tenant/organization come from the transaction announcement; correlation,
+  causation and optional causal actor come from trusted execution. That boundary
+  guarantees W3C Activity without a listener. Domain translation mints a new
+  integration EventId and uses its domain EventId as causation. A non-marked
+  event does not erase an announced organization; G1 delivery scope stays open.
+- The owner drains successful-save events FIFO before invariants/MUST audit and
+  commit, at most 256 per transaction. Domain handlers only translate to outbox:
+  no mutation/write stores, nested sends, further raises, publication or providers.
+  Successful enqueue/promotion leaves sticky receipts in every ancestor;
+  `Result.Fail` with such work poisons the unit before frame resolution, even if
+  absorbed. Event-free refusals retain ADR-0040 semantics. Terminal paths discard
+  source state; joiners neither drain nor clear the owner.
 - `SaveChangesAsync` **flushes** the context; it does not commit. `TransactionBehavior` owns
   the commit boundary, so the aggregate change and the outbox row land together because they
   share that transaction — not because one `SaveChanges` wrote both.
@@ -155,13 +175,21 @@ fails the build.
 
 ### Step 4: Consumer — handler + inbox guard
 
+**Inherited target, pending P02b-2 G1 and P02b-3 delivery implementation.** This
+example does not decide inbox ownership, deduplication identity or delivery scope.
+The accepted first flow uses independent Customization `card@1`/`plain@1`
+subscriptions for `TenantCreatedIntegrationEventV1`, not an Audit mirror. G1 must
+prevent one subscription from suppressing its sibling before those handlers ship.
+P02b-3 owns create-only preservation, per-effect MUST audit and the semantic
+key/version Seeder handoff described in ADR-0057.
+
 In `<Consumer>.Application/IntegrationEvents/<HandlerName>.cs`:
 
 ```csharp
-public sealed class CreateAuditEntryOnEnrollmentCreated(
+public sealed class QueueWelcomeNotificationOnEnrollmentCreated(
     IInboxGuard inbox,
-    AuditDbContext db,
-    ILogger<CreateAuditEntryOnEnrollmentCreated> logger)
+    NotificationsDbContext db,
+    ILogger<QueueWelcomeNotificationOnEnrollmentCreated> logger)
     : IIntegrationEventHandler<EnrollmentCreatedIntegrationEventV1>
 {
     public async Task HandleAsync(
@@ -174,8 +202,9 @@ public sealed class CreateAuditEntryOnEnrollmentCreated(
         }
 
         // ... business logic ...
-        var entry = AuditEntry.FromIntegrationEvent(@event);
-        db.AuditEntries.Add(entry);
+        var dispatch = NotificationDispatch.QueueWelcome(
+            @event.LearnerId, @event.EnrollmentId);
+        db.NotificationDispatches.Add(dispatch);
 
         inbox.MarkAsProcessed(@event.EventId, @event.GetType().Name);
         await db.SaveChangesAsync(ct);   // atomic business write + inbox marker
@@ -185,7 +214,8 @@ public sealed class CreateAuditEntryOnEnrollmentCreated(
 
 Rules:
 
-- **Every** `IIntegrationEventHandler` invokes `IInboxGuard.IsAlreadyProcessedAsync`
+- Under the inherited consumer target, **every** `IIntegrationEventHandler` invokes
+  `IInboxGuard.IsAlreadyProcessedAsync`
   before any business logic. The architecture test
   `Integration_Event_Handlers_Use_InboxGuard` holds every handler to it from
   [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which ships the guard; it
@@ -222,7 +252,7 @@ construction-free registry discovers and registers its concrete handlers:
 ```csharp
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(CreateAuditEntryOnEnrollmentCreated).Assembly);
+    typeof(QueueWelcomeNotificationOnEnrollmentCreated).Assembly);
 ```
 
 Today `InProcessEventBus` resolves the concrete
@@ -234,7 +264,13 @@ remains identical across transports.
 
 ### Step 6: Tests
 
-Two tests minimum:
+Follow the canonical Registered obligations in
+[Standards 21](../../../docs/standards/21-architecture-tests-catalogue.md#events-jobs-and-correlation):
+announced transaction/admission, sticky failure receipts, owner completion,
+outbox-only handlers and identifier-only payloads; extend existing partition and
+row-context proofs. Use real production subjects and planted violations, including
+no-listener trace context, failed-save attribution, absorbed descendant refusal,
+byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 
 1. **Producer test** — exercise the handler, assert an `outbox_messages` row exists
    with the right `type`, `topic`, `payload`.
@@ -263,7 +299,7 @@ Two tests minimum:
 - **Forgetting `IInboxGuard`.** The architecture test catches it, but the symptom
   in production (Kafka redelivery → duplicate work) is silent until then.
 - **Writing the outbox row in a separate transaction.** Use `IOutbox.EnqueueAsync`
-  inside the ambient `DbContext`; never `new TransactionScope`.
+  through the enrolled ambient `IUnitOfWork`; never `new TransactionScope`.
 - **Supplying a second topic at enqueue or subscription time.** The concrete
   event's `Topic` override is the one source; persistence, envelope and transport
   forward it unchanged.

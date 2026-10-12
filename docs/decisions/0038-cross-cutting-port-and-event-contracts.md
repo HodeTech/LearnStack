@@ -212,6 +212,21 @@ The rest of this ADR is unaffected: the envelope contract, the consumer identity
 (`UserId.SystemActor` as the effective principal, `CausalActorUserId` as the human), and
 the cache-key rules all stand.
 
+### Amendment 2 — Additional producer payload policy (2026-10-12)
+
+**Status: Accepted.** [ADR-0057](0057-transactional-event-production-and-completion.md#transaction-metadata-and-payload-boundary)
+decides new producer obligations: identifier-only additional payload members,
+concrete-runtime-type serialization through the existing frozen
+`IntegrationEventBase.PayloadJsonOptions`, an inclusive 262,144-byte canonical
+UTF-8 application admission bound, and SQL NULL in `outbox_messages.metadata`.
+`IOutbox` accepts no arbitrary JSON metadata. The cap adds no DDL CHECK and does
+not equate serialized bytes with PostgreSQL's stored `jsonb` representation.
+
+This is an additive policy cross-reference, not a factual correction or a change
+to this ADR's original envelope, transport, serializer or effective/causal actor
+contracts. Identifiers minimize copied data; they are not a claim of anonymity.
+G18's failure descriptors and erasure inventory remain P02b-2 and P02b-8.
+
 ## References
 
 - [ADR-0006 — Events and Outbox](0006-events-and-outbox.md)

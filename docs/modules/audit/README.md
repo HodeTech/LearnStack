@@ -339,6 +339,13 @@ surface reads `audit_log` from the operator plane, and one that did would be a n
 — decided by ADR in both repositories, like every other.
 
 This module **consumes** none either. It has no inbox and no projection.
+Accepted [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md)
+uses completed provisioning to initialize Customization defaults; Audit is not
+its mirror consumer. Existing source MUST rows remain on the source transaction.
+The reusable execution coordinator supplies non-MediatR classification/entry,
+owner write/boundary reporting and outermost reconciliation under ADR-0044/0033.
+P02b-1 proves a controlled direct owner; P02b-3 owns production delivery and its
+per-effect audit after G1. No new audit writer or durability model is introduced.
 
 ## Permission matrix
 

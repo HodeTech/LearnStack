@@ -398,7 +398,7 @@ somebody has to remember to write. Nothing verifies that the requested id is
 unused, and the guarantee does not need it to be: the only statement the
 announcement authorises is an `INSERT` the primary key rejects when the tenant
 already exists. Anything later added inside that transaction — the MUST-class
-audit write, the outbox flush — inherits that assumption and must not rely on
+audit write, the immediate outbox INSERT — inherits that assumption and must not rely on
 the announced tenant being new.
 
 The `default_organization_id` update is separate because the composite foreign
@@ -484,17 +484,34 @@ never a cross-module join
 
 ## Integration-event catalogue
 
-**Tenancy publishes none yet.** The events below are declared by the phases that
-build their producers; listing them here with their owning phase is the
-alternative to discovering the topic name twice.
+**No runtime publisher yet.** Accepted
+[ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+authorizes P02b-1's completed-provisioning publisher. It emits
+`TenantCreatedIntegrationEventV1` only after tenant, default organization and
+back-reference completion; partition source is `TenantId`, payload has no extra
+fields and envelope organization is null. Enqueue reads the transaction's
+announcement while provisioning ambient context remains unresolved. State, event
+and the existing two MUST audit rows share one transaction. P02b-1 persists
+pending rows; P02b-2/P02b-3 own dispatch/delivery.
+
+The subscriptions below are accepted flow contracts, not delivered handlers.
+G1 must settle distinct subscription deduplication/delivery scope first.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|
-| `learnstack.tenancy.tenant` | tenant created / status changed | Tenancy | Identity, Audit | 02b |
-| `learnstack.tenancy.organization` | organization created / archived | Tenancy | Identity, Education | 02b |
-| `learnstack.tenancy.settings` | settings changed — the eager cache invalidation | Tenancy | every settings reader | 02b |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1`, completed provisioning | Tenancy | Independent Customization `card@1` and `plain@1` initializers | P02b-1 publisher; P02b-3 subscribers after G1 |
 | `learnstack.hub.entitlement` | entitlement projection refreshed | Hub adapter | entitlement cache readers | 02c |
 | `learnstack.hub.custom-domain.activated` / `.deactivated` | host mapping changed | Hub adapter | `CachedHostToTenantResolver` | 02c |
+
+Initialization is create-only for untouched built-in concepts; Draft, Active,
+Deprecated, successor and deliberately deleted definitions are preserved. Each
+P02b-3 effect owns one Customization root, generation change, inbox outcome and
+MUST audit on its delivery transaction. Customization owns UUIDv7 IDs and semantic
+key/version identity. P02b-3 moves Seeder verification away from fixed built-in
+IDs, preserves warm IDs and exact authored curriculum IDs, and proves fresh
+seed/delivery convergence. P02b-1 keeps existing seed writes. Typed settings are
+uncached; no settings-invalidation event or Audit-mirror consumer is promised.
+Future tenant-status/organization publishers need their owning feature decision.
 
 Topic names follow `learnstack.{module}.{aggregate}`;
 `Integration_Event_TopicNames_FollowConvention` is the authority for the pattern
@@ -518,7 +535,7 @@ In [audit.md](audit.md), the file
 | Host → tenant resolution (cache miss) | **< 15 ms** p95 | One indexed single-row read in its own short transaction |
 | Entitlement projection read (L1 hit) | **< 1 ms** | Read on every feature check |
 | Tenant provisioning (3 statements) | **< 100 ms** p95 | Interactive but rare |
-| Settings read for a request | **< 5 ms** p95 target, not measured | Accepted P02d-2/3: no settings cache; P02d-3 measures the ambient indexed read/merge. Phase 02b's event does not exist yet |
+| Settings read for a request | **< 5 ms** p95 target, not measured | Accepted P02d-2/3: no settings cache; P02d-3 measures the ambient indexed read/merge. No invalidation consumer/cache is promised |
 
 The two resolution numbers are the load-bearing ones: they sit in front of every
 request and are the only Tenancy work an anonymous visitor pays for.

@@ -40,12 +40,11 @@ the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
 transactions, inbox and recovery. G1 settles the inbox's ownership and caller;
 this entry audit does not replace the Accepted per-module contract.
 
-The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-proposed-decision-package-2026-10-12)
-and [Proposed ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
-recommend immediate enqueue, owner-only completion and a bounded replacement of
-absorbed producer refusals. They accept no gate and change no shipped behavior.
-The producer examples below remain target guidance pending that decision's
-approval and carrier reconciliation; dispatcher/inbox choices remain P02b-2/3.
+The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
+and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
+authorize immediate enqueue, owner-only completion and produced-work refusal
+protection. Runtime implementation is pending. Producer guidance below states
+the accepted contract; dispatcher/inbox choices remain P02b-2/P02b-3.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -191,7 +190,8 @@ processed by N consumers independently).
 
 ## Producer pattern
 
-In a module's command handler:
+**Accepted contract, implementation pending — ADR-0057.** In an enrolled
+producer invocation on the announced, writable ambient transaction:
 
 ```csharp
 public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, CancellationToken ct)
@@ -199,7 +199,7 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
     var enrollment = Enrollment.Create(cmd.LearnerId, cmd.CourseId, ...);
     _dbContext.Enrollments.Add(enrollment);
 
-    await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEvent
+    await _outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1
     {
         EventId = _guidFactory.NewUuidV7(),   // IGuidFactory, not Guid.NewGuid
         TenantId = _tenantContext.TenantId.Value,  // Guid on the wire; ITenantContext,
@@ -210,17 +210,79 @@ public async Task<Result<EnrollmentDto>> Handle(CreateEnrollmentCommand cmd, Can
         CourseId = cmd.CourseId,
     }, ct);
 
-    await _dbContext.SaveChangesAsync(ct);    // aggregate + outbox row, atomic
+    await _dbContext.SaveChangesAsync(ct);    // flush only; owner commits state + row + audit
 
     return Result<EnrollmentDto>.Ok(MapToDto(enrollment), LocalizedMessage.Of("lockey_enrollment_created"));
 }
 ```
 
-`IOutbox.EnqueueAsync` writes to the same `DbContext` (no separate transaction); commit
-is atomic with the aggregate write. It copies the event's `PartitionKey` onto the row —
-here `EnrollmentId`, the aggregate this event is about — along with the correlation id
-and organization from the ambient `ITenantContext`, which is the last point at which
-they are available. See [Ordering](#ordering).
+`IOutbox.EnqueueAsync` inserts immediately through `IUnitOfWork.Connection` and
+`Transaction`; it opens no connection, commits nothing and never calls `IEventBus`.
+Its enrolled producer frame requires a successful live transaction announcement,
+a matching generation/tenant, and writable non-poisoned state. Provisioning reads
+`GetTenantContextAnnouncement` even while ambient `ITenantContext` is unresolved;
+there is no new context writer. `id` is exactly producer-supplied `EventId`, and a
+duplicate is an error. `type` keeps the assembly-qualified concrete name.
+
+The event declares its partition source as its aggregate identifier or explicit
+tenant-wide `TenantId`, in canonical GUID form; enqueue persists that key. The
+envelope preserves the transaction's announced organization, including for a
+non-marked event; marked events require one. Correlation, causation and causal
+actor come from the trusted execution boundary. That boundary guarantees a W3C
+Activity without a telemetry listener, including the Seeder. Domain translation
+mints a new integration EventId with the domain EventId as causation. Future
+delivery-originated production uses the trusted incoming identity.
+
+Additional payload members are identifiers only, optionally nullable; text,
+collections, DTOs, binary/raw JSON and serializer overrides are excluded. The
+complete concrete-runtime JSON must fit the inclusive 262,144-byte UTF-8
+`OutboxPayloadLimits.MaxBytes` application bound before INSERT. The existing
+frozen serializer is reused. `metadata` is SQL NULL, with no arbitrary metadata
+argument. This adds no DDL CHECK or promise about stored `jsonb` byte length.
+Identifiers minimize copied data without making them anonymous. See ADR-0057
+for the exact snapshot/admission lifecycle and [Ordering](#ordering) for its
+separately owned delivery question.
+
+### Domain collection and owner completion
+
+The shared SaveChanges interceptor stages source events and promotes only after
+successful persistence, preserving source/frame attribution and generation in
+both API and Seeder compositions. Failed/canceled saves promote nothing;
+repeated saves, detach and delete cannot duplicate or lose successful events.
+Only the transaction owner drains the FIFO queue, at one site, before invariant
+checks and pending MUST audit/commit. A transaction holds at most 256 domain
+events; this total is not recursive cascade support.
+
+Domain reactions only translate facts into outbox rows. They do not write roots,
+use write stores, send nested requests, raise more events, publish notifications
+or call providers. Unexpected faults throw and roll back; expected decisions
+belong in commands or later integration consumers. This preserves returned
+versions and the one-root boundary.
+
+Successful INSERT or event promotion leaves a sticky receipt in the invocation
+frame and every ancestor. A `Result.Fail` from any such frame poisons the shared
+unit before resolving its UoW frame, even when absorbed; drain cannot erase the
+receipt. Event-free refusals retain ADR-0040's semantics. Joiners neither drain
+nor clear owner state; every terminal path discards collector/source state.
+Step 7's `OutboxFlushBehavior` is an enrollment/invariant guard.
+
+The reusable audit coordinator gives a controlled non-MediatR owner the existing
+classification, MUST-write, boundary-reporting and outer reconciliation duties.
+P02b-3 owns production delivery/inbox wiring after G1; the P02b-1 fixture proves
+that entry without claiming delivered subscribers.
+
+### First useful flow
+
+Completed provisioning produces `TenantCreatedIntegrationEventV1` on
+`learnstack.tenancy.tenant`, partitioned by TenantId, with no extra payload and
+null organization. P02b-1 persists pending rows after tenant/default organization/
+back-reference completion. P02b-3, after G1, implements independent Customization
+subscriptions for untouched `card@1` and `plain@1`; each owns one root, generation,
+inbox outcome and MUST audit. Authored/lifecycle/deletion decisions survive.
+P02b-3 owns semantic key/version Seeder verification and fresh seed/delivery
+convergence. Typed settings are uncached, definitions probe fresh generations,
+and source audit already commits; neither invalidation nor an Audit mirror is
+this flow's effect.
 
 **The payload is written by `event.ToPayloadJson()`, never by
 `JsonSerializer.Serialize(@event)`.** `EnqueueAsync` takes `IIntegrationEvent`, so the
@@ -666,9 +728,10 @@ the choice.
 
 ## Ordering
 
-Ordering is **not** guaranteed across topics, and never has been. Within one topic,
-ordering is guaranteed **per partition key** — and a partition key that nobody sets is a
-guarantee nobody has.
+P02b-1 accepts partition-source derivation under ADR-0057. It accepts no durable
+publish-order guarantee. G3's ordering half remains P02b-2; the inherited per-key
+transport target must be reconciled there against concurrent commits and retries.
+`InProcessEventBus` serializes invocation per key within its process.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
 
@@ -690,12 +753,13 @@ and builds the envelope from it. `IntegrationEventEnvelope.PartitionKey` is
 alongside the event as a separate parameter, which meant two sources with nothing
 reconciling them: measured, the transport read the parameter and never the event, and
 every test published an event whose declared key disagreed with the one passed, green.
-Ordering is guaranteed per partition key, so a key that can differ from itself is a
-guarantee that cannot be stated.
+A partition key that differs from itself cannot identify a consistent routing
+domain; deriving it does not itself establish durable publish order.
 
 Consequences worth stating plainly:
 
-- Two events about the **same** aggregate arrive in publish order at every consumer.
+- Same-aggregate events share a declared key. Durable order across commits/retries
+  remains G3's P02b-2 decision.
 - Two events about **different** aggregates may arrive in any relative order, even inside
   one topic. A consumer that needs a cross-aggregate order needs a different design —
   usually a read model, not an ordering assumption.
@@ -703,8 +767,9 @@ Consequences worth stating plainly:
   one partition. That is a deliberate throughput cost, paid only where the ordering is
   genuinely tenant-wide.
 - The column is `NOT NULL`, so the database asserts it. The catalogued
-  `Outbox_Row_Carries_Correlation_Context` integration test extends its assertion to
-  `partition_key` when the column lands, so a new enqueue path that forgets it fails in
+  `Outbox_Row_Carries_Correlation_Context` integration obligation includes
+  `partition_key` when P02b-1 implements enqueue, so a new enqueue path that
+  forgets it fails in
   CI rather than in a consumer.
 
 ## Dead-letter: two sides, two failure domains

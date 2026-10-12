@@ -4,6 +4,8 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md), [ADR 0023 — Strongly-Typed ID Source Generator](../decisions/0023-strongly-typed-id-source-generator.md), [ADR 0031 — PostgreSQL Major Version](../decisions/0031-postgresql-major-version.md), [ADR 0036 — Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Producer additions derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 
 C# / .NET conventions for LearnStack backend code.
 
@@ -228,7 +230,21 @@ Rules:
 
 - Aggregates are the only entry points for state changes.
 - Aggregate methods enforce invariants; setters are private.
-- Domain events raised from aggregate methods; collected by the unit of work and dispatched in-process inside the ambient transaction, before it commits ([ADR-0010](../decisions/0010-cross-module-communication.md) puts a domain event in the same transaction as the change that raised it). The collection and dispatch land in [Phase 02b](../roadmap/phase-02b-events-auth.md); until then an aggregate can raise and nothing hears it.
+- Domain events are raised by aggregate methods and promoted by the shared
+  SaveChanges interceptor only after successful persistence. Under Accepted
+  ADR-0057, the transaction owner drains them sequentially before producer
+  invariants, MUST audit and commit, with at most 256 per transaction. API and
+  Seeder share collection. Runtime collection/dispatch remains P02b-1 work.
+- Domain-event handlers translate facts to outbox rows only: no root/write-store
+  mutation, nested requests, further raises, notification publishing or providers.
+  Unexpected translation faults roll back; expected decisions belong in commands
+  or integration consumers. The total-count bound permits no recursive cascade.
+- Successful enqueue or successful-save promotion records sticky produced work in
+  its invocation and every ancestor. `Result.Fail` from such a frame poisons the
+  shared unit before its UoW frame resolves, including absorbed nested refusals.
+  Event-free refusals keep ADR-0040's meaning; joiners are not savepoints.
+- Completion/refusal/rollback/cancellation/fault/disposal clear collected sources
+  and generation state exactly once. A joiner cannot drain or clear owner state.
 - Avoid anemic models (data + getters/setters with logic outside).
 - Avoid primitive obsession; use value objects.
 - **Entity equality is identity equality, and it is defined once.** `Entity<TId>`
@@ -376,7 +392,8 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    **owning** frame only (`IUnitOfWorkScope.IsOwner`) — a joiner's
    `CompleteAsync` is a no-op, so a joiner that reported the boundary would
    claim durability for a row nothing has committed. First, immediately before
-   `COMMIT` it calls `IAuditStore.WritePendingAsync`, which inserts **every**
+   `COMMIT`, after owner-only domain drain and producer invariant checks under
+   ADR-0057, it calls `IAuditStore.WritePendingAsync`, which inserts **every**
    pending intent in the scope as a complete MUST-class audit row on this
    transaction — a no-op when none is pending, and a rollback plus
    `audit_unavailable` when it fails, raised as
@@ -388,13 +405,12 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    after a rollback, `Indeterminate` when `CommitAsync` faults and the
    server-side result is genuinely unknown. That signal is the only thing step
    3's reconcile pass trusts.
-7. **`OutboxFlushBehavior`** — Per
-   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md), enrols
-   `IOutbox` messages in the current transaction; the dispatcher ships them
-   through the registered `IEventBus` after commit. The registered
-   implementation is `InProcessEventBus` until the Dapr adapter's trigger
-   fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md));
-   handler code is identical either way, which is the point of the port.
+7. **`OutboxFlushBehavior`** — Retains step 7 as the producer enrollment and
+   invariant guard under Accepted ADR-0057. `IOutbox.EnqueueAsync` inserts
+   immediately through the announced ambient connection/transaction; step 7
+   neither buffers nor flushes messages nor dispatches domain events. The owner
+   completes those events before MUST audit/commit. P02b-1 implements this
+   contract; P02b-2 owns later dispatch through `IEventBus`.
 8. **Handler** — domain logic; returns `Result<T>`. **No** `throw new
    DomainException` for expected business-rule violations — use
    `Result.Fail(business_rule_violation, ...)`. The

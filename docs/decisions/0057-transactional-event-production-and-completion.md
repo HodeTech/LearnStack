@@ -2,12 +2,11 @@
 
 ## Status
 
-**Proposed — approval pending.** No producer gate is Accepted and no
-implementation is authorized by this draft. Approval includes the bounded
-supersessions below and the
-[P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-proposed-decision-package-2026-10-12).
+**Accepted — 2026-10-12.** The maintainer approves the bounded supersessions
+below and the
+[P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12).
 
-**Bounded supersession on acceptance:** ADR-0032 Sub-decision 2's step-7
+**Bounded supersession:** ADR-0032 Sub-decision 2's step-7
 completion role and Sub-decision 12 / Architecture Tests' separate `event_id`
 column; ADR-0040 § Nesting and Amendment 2's absorbable-`Result.Fail` rule only
 for successfully produced work. This new ADR supplies the changed authority.
@@ -15,7 +14,7 @@ Those records remain Accepted outside these clauses; this is not an ADR-0041
 factual correction.
 
 **Date:** 2026-10-12
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
 ## Decision Drivers
 
@@ -36,7 +35,7 @@ factual correction.
 
 ## Considered Options
 
-1. **Immediate transactional enqueue and owner-side completion** (recommended).
+1. **Immediate transactional enqueue and owner-side completion** (chosen).
    One commit boundary; all sanctioned producer paths share it.
 2. **Buffer until MediatR step 7** (rejected). Domain reactions and direct
    delivery handlers can run after that slot or without it.
@@ -52,8 +51,9 @@ factual correction.
 
 ## Decision
 
-The following contracts apply **if this proposal is accepted**. They authorize
-P02b-1 producer implementation, not dispatcher or consumer delivery claims.
+LearnStack uses immediate transactional enqueue and owner-side completion under
+the following contracts. They authorize P02b-1 producer implementation; dispatcher
+and consumer delivery remain owned by P02b-2 and P02b-3.
 
 ### Immediate enqueue and stored identity
 
@@ -69,13 +69,13 @@ Raw transactions without that frame cannot enqueue.
 - `type` retains the assembly-qualified concrete event name. P02b-2 owns the
   bounded compatibility resolver and unknown/retired/unsubscribed outcomes.
 - Payload serialization uses the concrete runtime type and the existing frozen
-  `IntegrationEventBase.PayloadJsonOptions`. The proposed
+  `IntegrationEventBase.PayloadJsonOptions`. The
   `OutboxPayloadLimits.MaxBytes = 256 * 1024` caps the complete serialized UTF-8
   payload at 262,144 bytes, inclusive; refusal happens before INSERT. This ADR
   selects a conservative application-layer bound, not a measured throughput
   limit. It matches the numerical customization-row ceiling but does not reuse
   `JsonValue.MaxRowBytes`, whose contract belongs to customization. Existing
-  outbox DDL has no payload-size CHECK; this proposal adds no migration or claim
+  outbox DDL has no payload-size CHECK; this decision adds no migration or claim
   that raw SQL is size-constrained. The stored `jsonb` representation need not
   have the same byte length as the serialized input.
 - Each concrete event declares its partition source: its aggregate identifier
@@ -298,11 +298,11 @@ worker, job runtime, cache invalidation or new Hub crossing.
 
 ## Implementation Notes
 
-On approval, accept this record before runtime code and register the canonical
-proofs below as Registered, not Implemented. Reconcile the P02b-1 gate vehicles
-and their split ownership in the phase package. The instruments are distinct:
+This acceptance precedes runtime code. The catalogue registers the canonical
+proofs below as Registered, not Implemented; the phase package records the
+P02b-1 gate vehicles and their split ownership. The instruments are distinct:
 
-| Affected contract | Instrument on acceptance | Boundary |
+| Affected contract | Acceptance instrument | Boundary |
 |---|---|---|
 | ADR-0032 Sub-decision 2, step 7 | Bounded supersession by this new ADR | Owner-side completion replaces the step-7 flush/publication role; the pipeline position survives as an invariant guard |
 | ADR-0032 Sub-decision 12 and Architecture Tests table, `event_id` | Bounded supersession by this new ADR | `id = EventId` replaces the separate column requirement in both locations; it is not asserted to have been false at acceptance |
@@ -333,10 +333,11 @@ P02b-1 must not describe those consumers as already implemented.
 
 ## Architecture Tests
 
-These are **proposed obligations**, not registered or passing tests. On approval
-the catalogue owns their names, status, kind and enforcing tests. Reuse existing
-entries for event naming/serialization, partition derivation and row correlation;
-add these names only for obligations those entries do not already cover:
+These are **Registered obligations**, not implemented or passing tests. The
+[catalogue](../standards/21-architecture-tests-catalogue.md#events-jobs-and-correlation)
+owns their names, status, kind and enforcing tests. Existing entries retain event
+naming/serialization, partition derivation and row correlation; the five additions
+cover obligations those entries do not already cover:
 
 - `Outbox_Enqueue_Uses_The_Announced_Transaction` — behavioral: resolved and
   unresolved provisioning, mismatch/read-only/stale frame refusals, same role,
