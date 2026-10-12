@@ -1074,6 +1074,40 @@ the frozen P02b-0 entry record remain byte-preserved. The
 CI verdict; local results do not establish that verdict or merge approval.
 PR review and merge remain pending.
 
+#### PR #29 outbox INSERT and ownership follow-up (2026-10-12)
+
+All four follow-up comments reproduce against `b561c8f`. Commit `96e6f4d`
+marks the existing unit rollback-only when the immediate outbox INSERT throws,
+then rethrows the same exception. Only a successful INSERT records produced
+work; validation refusals before execution retain their existing behavior.
+
+The existing duplicate-EventId regression now covers propagation and absorption
+of a real PostgreSQL INSERT failure. Both cases first fail against the old code
+at the immediate rollback-only assertion, before coordinator unwinding can
+poison the unit. The fixed cases retain the successful parent's receipt, create
+no failed-child receipt, prove original exception identity or absorbed-error
+refusal, and verify rollback and shared-state cleanup. All 31 outbox cases pass.
+
+Architecture 31 records Steps 2–3's delivered enqueue, successful-save
+collection/promotion and owner-only drain. Standards 02/18 distinguish UoW-owned
+domain collector/source cleanup from reconciliation and audit capture cleanup
+owned exclusively by the outermost `AuditExecutionCoordinator` frame. The
+catalogue no longer claims inbox parity for `InProcessEventBus`. Dispatch and
+consumer delivery/inbox remain P02b-2 and P02b-3; no ADR decision changes.
+
+Two fresh independent review rounds pair GPT-6-astra xhigh runtime review with
+GPT-6.1-sol xhigh proof/corpus review. Round 1 approves `b561c8f..96e6f4d`
+without findings. Round 2 covers the same code/document changes and this dated
+closeout; both reviewers approve without findings.
+
+Full local verification passes 1,766 unit, 266 architecture, four contract and
+1,153 integration cases: 3,189 backend cases, zero failed/skipped. Focused outbox
+repeats overlap that total. Release build has zero warnings/errors; solution
+format, seven ADR lifecycle checks, the changed-document link/anchor sweep and
+`git diff --check` pass. No frontend source, schema, credential or accepted ADR
+changes. The [PR checks](https://github.com/HodeTech/LearnStack/pull/29/checks)
+own final-head CI evidence; PR review and merge remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
