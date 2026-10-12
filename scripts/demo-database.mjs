@@ -76,11 +76,14 @@ export function validateDemoDatabaseConfiguration(values) {
     ['PlatformAdmin', 'learnstack_platform', 'LEARNSTACK_PLATFORM_PW'],
     ['OutboxDispatcher', 'learnstack_outbox_admin', 'LEARNSTACK_OUTBOX_PW'],
   ]) {
+    const password = values[passwordKey];
     const fields = localConnectionFields(values[`ConnectionStrings__${suffix}`]);
     const port = fields.get('port') ?? '5432';
     if (
+      typeof password !== 'string' ||
+      !password ||
       fields.get('username') !== role ||
-      fields.get('password') !== values[passwordKey] ||
+      fields.get('password') !== password ||
       fields.get('database') !== values.POSTGRES_DB ||
       !['localhost', '127.0.0.1'].includes(fields.get('host')) ||
       !/^\d+$/.test(port) ||

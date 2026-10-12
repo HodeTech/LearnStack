@@ -1829,6 +1829,32 @@ and delivery ledger, durable acceptance, independent subscriber retries/audit,
 both real defaults subscriptions and Seeder handoff. No consumer delivery,
 background-job or authentication completion is claimed here.
 
+### P02b-2 PR review follow-up (2026-10-13)
+
+All seven required jobs pass on PR head `a80e06d`, including the complete
+3,393-case backend regression and 1,608 frontend cases, with zero failures/skips.
+[Run 38306262165](https://github.com/HodeTech/LearnStack/actions/runs/38306262165)
+also supplies 27 matching Lighthouse JSON/HTML report pairs and nine screenshots.
+All reports have zero CLS, accessibility score 1 and normalized gzip JavaScript
+between 106,359 and 106,553 bytes. Proof finishes in 646.454 seconds; owned process,
+Compose, private-file, environment and lock cleanup all pass. These are receipts
+for that head, not evidence for a later correction.
+
+Automated PR review identified a local-launcher validation defect: omitting both
+a role's connection-string password and its selected password variable compared
+two absent values as equal. Independent reproduction accepts that invalid state
+for all four roles. Four new regression cases fail against the previous validator
+and pass after requiring a nonempty configured string password. Existing quoted
+password, whitespace and alias controls remain green; diagnostics remain fixed
+and contain no supplied configuration. No runtime dispatcher or API contract
+changes.
+
+Local verification passes 95 lifecycle cases and the guarded frontend suite's
+1,612 cases (1,552 web and 60 SDK), with zero failures/skips/todos; lifecycle cases
+are a subset, not an additional suite count. Workspace lint/typecheck pass.
+Both independent correction reviews and final correction-head CI remain pending.
+The [PR handoff](#p02b-2-pr-handoff-2026-10-12) continues to own live PR state.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

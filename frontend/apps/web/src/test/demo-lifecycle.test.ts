@@ -135,6 +135,19 @@ describe('launcher-owned local database validation', () => {
       /^Local demo database configuration is invalid$/,
     );
   });
+  it.each(roles)(
+    'refuses %s when both password sources are missing',
+    (suffix, role, passwordKey) => {
+      const values = databaseValues();
+      delete values[passwordKey];
+      values[`ConnectionStrings__${suffix}`] =
+        `Host=localhost;Port=5432;Database=learnstack;Username=${role}`;
+      expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+        /^Local demo database configuration is invalid$/,
+      );
+      expect(() => validateDemoDatabaseConfiguration(databaseValues())).not.toThrow();
+    },
+  );
   it('keeps every Seeder mode free of inherited credentials and diagnostics', () => {
     const base = {
       PATH: '/bin',
