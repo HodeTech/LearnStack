@@ -109,7 +109,7 @@ captures each flush and writes nothing. On its owning UoW frame, the coordinator
 calls `IAuditStore.WritePendingAsync` before commit and reports the actual boundary.
 The outermost `AuditExecutionCoordinator` then reconciles non-durable MUST rows
 standalone with the real outcome; SHOULD/MAY use the best-effort outbound path.
-The owner-only domain drain accepted by ADR-0057 remains subsequent P02b-1 work.
+P02b-1 Step 3 delivers ADR-0057's owner-only domain drain before MUST audit/commit.
 
 Five components, separated concerns:
 

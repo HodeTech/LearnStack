@@ -160,8 +160,9 @@ snapshots or reading an unresolved provisioning accessor. Joins reuse the same
 announcement; the snapshot cannot retarget the transaction. The closed writer
 set, host factory ceiling and canonical RLS placement remain unchanged under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
-Outbox enqueue, successful-save collection and production delivery remain later
-P02b-1/P02b-3 work.
+P02b-1 Steps 2–3 deliver immediate outbox enqueue, successful-save collection
+and owner-only completion. Dispatch and consumer delivery remain P02b-2/P02b-3
+work.
 
 ## Default org semantics
 

@@ -118,12 +118,13 @@ third document; the last time this table's policy was duplicated, the copy carri
 superseded two-permissive-policy shape that
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) corrects.
 
-Three columns exist for reasons this document owns rather than the schema, and the two
-guarantees below (ordering, single-claimant dispatch) cannot be honoured without them:
+Three columns exist for reasons this document owns rather than the schema. They
+support partition routing and the pending P02b-2 dispatch/lease decision; the
+partition column alone establishes no durable publish-order guarantee:
 
 | Column | Why it exists | Lands with |
 |---|---|---|
-| `partition_key text NOT NULL` | The ordering guarantee below is expressed entirely through this value. **The event declares it** — `PartitionKey` is abstract on `IntegrationEventBase`, so no event inherits a default — and `IOutbox.EnqueueAsync` copies it onto the row. Nothing resolves or re-derives it. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
+| `partition_key text NOT NULL` | The event's declared routing key; durable publish order remains P02b-2 G3. **The event declares it** — `PartitionKey` is abstract on `IntegrationEventBase`, so no event inherits a default — and `IOutbox.EnqueueAsync` copies it onto the row. Nothing resolves or re-derives it. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
 | `locked_by text NULL` + `locked_until timestamptz NULL` | The dispatch **lease**. A processor stamps them to claim a row, and the claim survives the claiming transaction's commit. See the claim protocol below. | The dispatcher, in [Phase 02b](../roadmap/phase-02b-events-auth.md) |
 | `available_after timestamptz NOT NULL` | Retry backoff. A failed dispatch pushes this forward instead of blocking the batch. | Already in the canonical DDL |
 
@@ -610,7 +611,7 @@ and inbox deduplication remain P02b-3 work, under G1/G6.
 | Same handler interface — `IIntegrationEventHandler<T>`, never a bare `INotificationHandler<T>` | Two interfaces means two implementations per consumer, and the one that runs in CI is not the one that runs in production |
 | Same `IInboxGuard` deduplication | Deduplication bugs are the most common integration-event defect; a transport that never delivers a duplicate never surfaces them |
 | Same tenant-context restoration from `@event.TenantId` before the handler runs | A dev path that skips it is a dev path where Row Level Security and the query filters are never exercised on the consumer side |
-| Same per-partition-key ordering | Ordering assumptions that hold only in process are discovered in production |
+| Process-local per-key invocation serialization; durable ordering remains P02b-2 G3 | A serialized development invocation does not prove publish order across concurrent commits and retries |
 
 ```csharp
 public sealed partial class InProcessEventBus(
