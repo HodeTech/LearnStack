@@ -1509,7 +1509,7 @@ terminal audit.
 
 ### P02b-2 Step 2 — Durable transitions and terminal audit (2026-10-12)
 
-**Implemented; independent review rounds pending.** `OutboxDispatchStore` uses
+**Implemented; both independent review rounds complete.** `OutboxDispatchStore` uses
 short parameterized database-time transitions. Normal acquisition commits one
 fresh token and one attempt before returning; expired ownership requires a fresh
 recovery token without another attempt. Success, failure, terminal request and
@@ -1591,6 +1591,19 @@ check makes all ten new unit cases fail. After restoration, the complete unit
 suite passes 1,835 cases, architecture passes 273 and the four new Docker cases
 pass, all with zero failures/skips. Round 2 follows the verified correction;
 hosted lifecycle remains Step 3.
+
+#### Step 2 review round 2
+
+Fresh read-only GPT-6.1-sol xhigh security/concurrency and GPT-6-astra high
+proof/corpus reviewers examined `c6ceaa9..ffce05f`. Both approved without verified
+findings. Independent Release no-build reruns passed 34 envelope/options unit
+cases, 19 dispatch/audit architecture cases and all 53 dispatch-store Docker
+cases, with zero failures/skips. The proof reviewer independently passed all seven
+dispatch capability facts and checked the real COMMIT-response-loss result in
+the restored database receipt. Both inspected the actual row-bound audit and
+routing correction rather than accepting review notes as evidence. Step 2 is
+closed; Step 3 may activate the mandatory worker and observation. No P3 delivery
+or inbox effect is claimed.
 
 ### Durable outbox dispatch
 

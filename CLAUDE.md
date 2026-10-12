@@ -187,7 +187,7 @@ Accepted — 2026-10-12.** The four implementation steps and two independent rev
 rounds per step are authorized on development. The
 [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
 records both completed Step 1 reviews. Step 2 implements fenced transitions and
-row-bound terminal MUST audit; its verification and reviews are in progress.
+row-bound terminal MUST audit; both independent review rounds pass.
 Hosted execution remains Step 3. Acceptance registers six delivery obligations;
 it claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
