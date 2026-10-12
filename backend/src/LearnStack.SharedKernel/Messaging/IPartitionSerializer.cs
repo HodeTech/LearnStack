@@ -5,11 +5,9 @@ namespace LearnStack.SharedKernel.Messaging;
 /// different ones.
 /// </summary>
 /// <remarks>
-/// This is the in-process stand-in for what a broker gives you by assigning a
-/// partition to one consumer. It exists so the development transport carries the
-/// same ordering guarantee as the durable path rather than a weaker one:
-/// ordering assumptions that hold only because everything happened to run on one
-/// thread are discovered in production.
+/// Serialization applies to invocation within this process. It does not
+/// establish durable publish order across commits and retries; P02b-2 G3 owns
+/// that decision.
 /// </remarks>
 public interface IPartitionSerializer
 {
