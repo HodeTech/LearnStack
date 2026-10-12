@@ -5,9 +5,11 @@ import {
   assertFlightFallback,
   atBrowserPhase,
   browserFailureDetail,
+  verifyBrowserFallback,
   waitForBrowserDevTools,
   withBrowserCleanup,
 } from '../../scripts/admission-browser.mjs';
+import { createFixtureOwner } from '../../scripts/fixture-support.mjs';
 
 const origin = 'https://fixture.localhost:3000';
 const target = '/en/courses/fixture-course';
@@ -104,6 +106,45 @@ describe('stock browser Flight fallback observation', () => {
     expect(String(failure)).not.toContain('Private browser shutdown output');
     expect(failure).not.toHaveProperty('cause');
   });
+
+  it.each([false, true])(
+    'trusts only branded failures at the outer boundary (branded=%s)',
+    async (branded) => {
+      const raw = Object.assign(new Error('Private browser setup value'), {
+        admissionStage: 'browser-wire',
+      });
+      const inner = branded
+        ? await atBrowserPhase('browser-wire', () => {
+            throw raw;
+          }).catch((error: Error) => error)
+        : raw;
+      const owner = createFixtureOwner();
+      try {
+        const result = await verifyBrowserFallback({
+          owner,
+          app: '',
+          root: '',
+          certificate: '',
+          get origin(): string {
+            throw inner;
+          },
+          initialPath: '',
+          target,
+          status: 503,
+          beforeNavigation: async () => undefined,
+          afterNavigation: async () => undefined,
+          secrets: [],
+        }).catch((error: Error) => error);
+        expect(browserFailureDetail(result)).toBe(branded ? ' browser-wire' : ' browser-launch');
+        expect(String(result)).not.toContain('Private browser setup value');
+        expect(result).not.toHaveProperty('cause');
+        if (branded) expect(result).toBe(inner);
+        else expect(result).not.toBe(inner);
+      } finally {
+        await owner.dispose();
+      }
+    },
+  );
 
   it('keeps the first proof failure when cleanup also detects a private carrier', async () => {
     const first = await atBrowserPhase('browser-wire', () => {

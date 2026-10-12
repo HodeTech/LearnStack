@@ -128,7 +128,7 @@ export async function verifyBrowserFallback(options) {
   try {
     return await runBrowserFallback(options, phase);
   } catch (error) {
-    if (browserFailureDetail(error)) throw error;
+    if (sanitizedFailures.has(error)) throw error;
     return atBrowserPhase(phase.value, () => {
       throw error;
     });
