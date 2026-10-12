@@ -234,7 +234,7 @@ Rules:
   SaveChanges interceptor only after successful persistence. Under Accepted
   ADR-0057, the transaction owner drains them sequentially before producer
   invariants, MUST audit and commit, with at most 256 per transaction. API and
-  Seeder share collection. Runtime collection/dispatch remains P02b-1 work.
+  Seeder share the collection/completion runtime delivered by P02b-1 Step 3.
 - Domain-event handlers translate facts to outbox rows only: no root/write-store
   mutation, nested requests, further raises, notification publishing or providers.
   Unexpected translation faults roll back; expected decisions belong in commands

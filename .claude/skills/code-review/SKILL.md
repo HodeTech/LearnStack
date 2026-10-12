@@ -300,8 +300,8 @@ Author intent: <one-paragraph restatement>
   `TenantCreatedIntegrationEventV1`; P02b-1 claims pending rows only. P02b-3 owns
   separate create-only `card@1`/`plain@1` subscriptions and Seeder identity
   handoff after G1; no settings invalidation or Audit mirror is the sample.
-  Five canonical proof obligations stay Registered until implemented; require
-  production censuses and planted offenders rather than zero-subject passes.
+  Read current producer/consumer statuses in the catalogue; require production
+  censuses and planted offenders rather than zero-subject passes.
 - **No direct write to `audit_log` / `outbox_messages` /
   `platform_entitlement_cache`.** Use `IAuditStore` / `IOutbox` /
   `IEntitlementProvider.RefreshAsync`.

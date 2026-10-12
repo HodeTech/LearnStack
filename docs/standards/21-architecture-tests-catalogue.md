@@ -10,7 +10,9 @@
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
 (replacement admission proofs implemented; both review rounds complete),
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
-(accepted 2026-10-11; browser/audit replacement proofs implemented). The
+(accepted 2026-10-11; browser/audit replacement proofs implemented),
+[ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
+(producer lifecycle, payload and production-census proofs implemented). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -103,11 +105,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**159 test methods run in
+**172 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Steps 1–3.
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3 and P02b-1.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -134,8 +136,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**175 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
-The other 67 are no less binding, and most could not live there. The table says where
+**183 rules in this catalogue are Implemented, and 113 of them are in that assembly.**
+The other 70 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3121,7 +3123,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md) Amendment 1.
 - **Type:** integration test (Testcontainers). **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OutboxProducerTests`, `TenantCreatedProducerTests`);
+  actual stored values and unresolved provisioning run as `learnstack_app`.
 - **Phase:** 02b, P02b-1.
 
 #### `Hangfire_Job_Payloads_Include_TenantId`
@@ -3168,7 +3171,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`IntegrationEventContractTests`); all production projects
+  and module layers, required base members and dirty/clean inheritance controls.
 - **Phase:** 02b.
 
 #### `Integration_Event_Declares_PartitionKey`
@@ -3185,7 +3189,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md#ordering).
 - **Type:** xUnit + reflection/IL/source scan and value probes.
   **Kind:** structural + behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`IntegrationEventContractTests`, `OutboxProducerTests`);
+  stored-source IL grammar, independently varied identifiers, dirty/clean controls and
+  persisted keys. Unsupported derivations fail loudly.
 - **Phase:** 02b, P02b-1 (derivation); P02b-2 (ordering).
 
 #### `Outbox_Enqueue_Uses_The_Announced_Transaction`
@@ -3203,7 +3209,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** integration test (Testcontainers), with focused lifecycle unit cases.
   **Kind:** behavioural.
-- **Status:** **Registered** — implementation pending.
+- **Status:** **Implemented** (`OutboxProducerConventionTests`, `OutboxProducerTests`,
+  `UnitOfWorkTests`, `ProducerExecutionTests`, `OutboxContractTests`); transitive
+  no-connection/commit/publication controls complement real transaction, byte-bound and
+  metadata cases.
 - **Phase:** 02b, P02b-1.
 
 #### `Producer_Failures_Poison_Produced_Work`
@@ -3217,7 +3226,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   source lists never replay into another transaction.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** integration and focused lifecycle unit tests. **Kind:** behavioural.
-- **Status:** **Registered** — implementation pending.
+- **Status:** **Implemented** (`ProducerExecutionTests`, `OutboxProducerTests`,
+  `DomainEventProductionTests`); actual INSERT/save receipts, every ancestor, event-free
+  controls and terminal reuse.
 - **Phase:** 02b, P02b-1.
 
 #### `Domain_Event_Completion_Is_Owner_Only`
@@ -3232,7 +3243,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   work and reconciles once, retaining nested command intents without duplication.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** integration and lifecycle unit tests. **Kind:** behavioural.
-- **Status:** **Registered** — implementation pending.
+- **Status:** **Implemented** (`DomainEventProductionTests`,
+  `TenantCreatedProducerTests`, `ProducerExecutionTests`); real save qualification,
+  FIFO/bounds, owner/common-audit atomicity and cleanup.
 - **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.
 
 #### `Domain_Event_Handlers_Are_Outbox_Only`
@@ -3244,7 +3257,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and a clean translation control, so empty subjects or shallow traversal fail.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** xUnit + reflection/IL/source scan. **Kind:** structural.
-- **Status:** **Registered** — implementation pending.
+- **Status:** **Implemented** (`DomainEventHandlerTests`); assembly-scoped transitive
+  helper/interface traversal, all production layers and dirty/clean capability controls.
+  Static analysis does not claim to resolve arbitrary reflection or dynamically loaded
+  code.
 - **Phase:** 02b, P02b-1.
 
 #### `Integration_Event_Payloads_Contain_Only_Identifiers`
@@ -3259,7 +3275,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** xUnit + reflection/IL/source scan and serialization probes.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — implementation pending.
+- **Status:** **Implemented** (`IntegrationEventContractTests`); independent reflection
+  checks, forbidden serialization/member controls and concrete runtime JSON probes.
 - **Phase:** 02b, P02b-1.
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
@@ -3339,9 +3356,10 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Implemented** (`CrossCuttingFoundationTests`). No module declares an
-  event yet, so the module sweep is vacuous today; the convention checker is pointed at
-  deliberate offenders first, so the rule can be shown to fire.
+- **Status:** **Implemented** (`CrossCuttingFoundationTests`). The production
+  census is non-empty and includes Tenancy's completed-provisioning event.
+  Deliberate invalid topics, including trailing newlines, and clean controls
+  exercise the same convention checker.
 - **Phase:** 02a (Packet 5) — lands with `InProcessEventBus`, the first transport.
 
 Writing it required a contract change. The rule reads the event **declarations**, and

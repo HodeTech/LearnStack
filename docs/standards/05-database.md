@@ -1453,8 +1453,9 @@ The producer writes concrete-runtime JSON with frozen `PayloadJsonOptions`.
 Additional payload fields are identifiers only; the complete canonical UTF-8
 payload is capped at 262,144 bytes inclusive before INSERT. `metadata` is SQL
 NULL with no caller extension channel. This is application admission, not a new
-DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implementation is
-pending; type-resolution outcomes, leases and inbox stay P02b-2/P02b-3 work.
+DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implements this
+producer boundary; type-resolution outcomes, leases and inbox stay P02b-2/P02b-3
+work.
 
 `organization_id` is `uuid NULL` and mirrors the organization context of the transaction
 that enqueued the row —

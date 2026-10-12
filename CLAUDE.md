@@ -175,7 +175,10 @@ records passing verification and both completed review rounds.
 Step 3 implements successful-save collection, owner-only completion and the
 completed-provisioning publisher; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
-tracks validation and review status. Step 4 enforcement/closeout remains pending.
+records passing verification and both completed review rounds. Step 4 adds
+production-census guards and catalogue enforcement; its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+tracks final validation and review status.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -377,7 +380,7 @@ Then read the phase that is live and the one it stands on:
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
   — **the live phase**. P02b-0 entry verification is complete; P02b-1's decision
   package is Accepted — 2026-10-12; Steps 1–3 implement the producer runtime,
-  while Step 4 owns complete enforcement and closeout.
+  and Step 4 supplies production-census enforcement and packet closeout.
   Each later packet accepts its own gates
   before implementation.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)

@@ -360,6 +360,26 @@ cover obligations those entries do not already cover:
   `Integration_Event_Declares_PartitionKey` for the declared source/derivation
   and `Outbox_Enqueue_Uses_The_Announced_Transaction` for rollback/atomicity.
 
+## Amendments
+
+### Amendment 1 — Producer implementation and enforcement (2026-10-12)
+
+P02b-1 implements this decision's producer scope. Steps 1–3 deliver the
+transaction announcement snapshot, shared producer/audit lifecycle, immediate
+outbox INSERT, successful-save collection, owner-only completion and the
+completed-provisioning publisher in both API and Seeder compositions. Step 4
+adds complete production censuses with dirty/clean controls and promotes eight
+producer rules in the
+[catalogue](../standards/21-architecture-tests-catalogue.md#events-jobs-and-correlation).
+The acceptance-time Registered statements above remain historical commitments;
+the catalogue now records their implementing tests.
+
+The [Step 4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+owns final validation, independent reviews and packet status. This delivery note
+changes no decision or original acceptance metadata. Dispatcher/lease work
+remains P02b-2; production inbox/subscriptions and the Seeder identity handoff
+remain P02b-3 after G1. Pending rows are not a claim of delivered consumption.
+
 ## References
 
 - [ADR-0006: Events and Outbox](0006-events-and-outbox.md)

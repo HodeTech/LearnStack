@@ -26,8 +26,9 @@ not land together.
 |---|---|---|
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Ships even though nothing dispatches from it yet — the schema and its ownership are a one-way door |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
-| `OutboxProcessor`, `IInboxGuard`, the claim protocol, the first real integration event | [Phase 02b](../roadmap/phase-02b-events-auth.md) | The durable dispatcher |
-| Domain events collected and dispatched in-process, inside the ambient transaction | [Phase 02b](../roadmap/phase-02b-events-auth.md) | `Entity<TId>` has carried the raise-and-clear list since Phase 02a Packet 2; nothing collects it yet |
+| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
+| `OutboxProcessor`, `IInboxGuard` and the claim protocol | [P02b-2/P02b-3](../roadmap/phase-02b-events-auth.md) | Pending durable dispatch and consumer transactions |
+| Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
 **`InProcessEventBus` is a first-class transport.** It already supplies the handler
@@ -44,8 +45,10 @@ The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decisio
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
 authorize immediate enqueue, owner-only completion and produced-work refusal
 protection. P02b-1 Steps 1–3 implement shared execution, immediate enqueue,
-successful-save collection and the completed-provisioning publisher. Step 4 owns
-the complete production censuses and enforcement closeout. Dispatcher/inbox
+successful-save collection and the completed-provisioning publisher. Step 4
+implements production-census guards and catalogue enforcement; its
+[delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+owns final verification and review status. Dispatcher/inbox
 choices remain P02b-2/P02b-3.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the

@@ -15,7 +15,10 @@ verification. Step 2 implements immediate enqueue; its
 [record](#p02b-1-step-2--immediate-outbox-production-2026-10-12) owns verification
 and both completed review rounds. Step 3 implements collection and the publisher;
 its [record](#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12)
-tracks verification and review status. Step 4 enforcement/closeout remains pending.
+records passing verification and both completed review rounds. Step 4 adds
+production-census guards and catalogue enforcement; its
+[record](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) tracks final
+verification and review status.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -430,7 +433,9 @@ post-merge CI receipt above owns that inherited evidence.
 and [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 This is the producer decision record. The
 [Step 1 record](#p02b-1-step-1--shared-execution-lifecycle-2026-10-12) tracks
-partial runtime delivery; acceptance alone closes no implementation step.
+the first runtime delivery; acceptance alone closes no implementation step. The
+[Step 4 record](#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12) owns
+final validation, reviews and the packet closeout.
 Only the gate parts listed below are Accepted. ADR-0057 supplies the authority
 for the coupled producer choices. It explicitly
 replaces ADR-0032's step-7 flush/separate event-ID column and ADR-0040's
@@ -812,6 +817,44 @@ The reviews checked real SQL/save qualification, retained child metadata,
 ancestor receipts, FIFO/count bounds, owner/audit atomicity, terminal cleanup,
 response versions and both production registrations. No runtime fix was needed.
 Complete production censuses and catalogue promotion remain Step 4 work.
+
+### P02b-1 Step 4 — Producer enforcement and closeout (2026-10-12)
+
+**Implementation complete; full validation and independent reviews in progress.**
+Work remains on `development`. This checkpoint does not claim PR approval,
+required CI success or merge.
+
+- `IntegrationEventContractTests` independently checks the complete production
+  project/module-layer census, base record/required members, declared partition
+  sources and identifier-only payloads. Stored-source IL and independently
+  varied tenant/event/aggregate identifiers exercise key derivation. Invalid
+  declarations, unrelated/constant keys, hidden members, serialization overrides
+  and disallowed payload shapes have dirty/clean controls; concrete runtime JSON
+  round-trips preserve approved identifiers. Unsupported computed partition
+  derivations fail loudly rather than silently leaving the proof's scope.
+- `DomainEventHandlerTests` follows assembly-scoped helpers, inherited/generic
+  interfaces and generated async/lambda bodies across every production project.
+  Planted roots/helpers exercise every module layer. Root/write-store mutation,
+  nested requests, further facts/notifications, connection/UoW access, provider
+  ports and service location are rejected; clean outbox translation stays clean.
+  Static IL analysis does not claim arbitrary reflection/dynamic-code coverage;
+  new provider ports need explicit capability controls.
+- `OutboxProducerConventionTests` complements real transaction proofs with
+  transitive no-new-connection, no-commit and no-publication controls. The
+  topic-convention census now requires production events and rejects trailing
+  newlines. Eight producer catalogue rules move to Implemented; delivery/inbox,
+  dispatcher, jobs and auth rules keep their named later packets.
+- Current carriers and event/architecture/review skills distinguish delivered
+  production from remaining dispatcher/inbox work. ADR-0057's dated Amendment 1
+  links delivery without rewriting its Accepted body or prior decision records.
+
+**Verification checkpoint.** The Release build has zero warnings/errors; all
+1,764 unit, 261 architecture and four contract cases pass with zero
+failures/skips. The 59 focused producer-guard cases overlap the architecture
+total. The full integration run is in progress. It found two older test setups
+that called persistence registration without the application pipeline, leaving
+the new collector dependency absent; both fixtures now install the same shared
+application registration as production. No runtime policy was weakened.
 
 ### Durable outbox dispatch
 
@@ -1381,25 +1424,25 @@ omitted.
 
 What this phase owes the catalogue beyond implementing those rows:
 
-- **New rows**, each registered in the decision pass of the first packet whose code
-  satisfies it: the same-transaction outbox write, the two domain-event rules and a
-  payload-content rule (**G18**) in `P02b-1`; the ADR-0036 middleware-ordering rule, the
+- **Producer rows delivered by P02b-1:** the announced-transaction write,
+  produced-work refusal, owner-only completion, outbox-only domain handlers and
+  identifier-only payloads. Later decision passes register and implement the
+  ADR-0036 middleware-ordering rule, the
   routable-set bound (**G14**) and the Keycloak-role-claim rule — with the realm-role
   question it answers — in `P02b-5`, where the API first reads a claim; and `LS0002`
   under its rule name (**G16**) in `P02b-8`.
 - **Widened assertions** where a catalogued rule is satisfied by the defect it exists to
-  catch. `Outbox_Row_Carries_Correlation_Context` asserts only non-nullness of two
-  columns and extends to `partition_key` and to value correctness.
+  catch. P02b-1 extends `Outbox_Row_Carries_Correlation_Context` to exact stored
+  identity, tenant/organization, full traceparent and partition values, including
+  unresolved provisioning. Its partition declaration rule combines independent
+  stored-source IL checks, varied identifier probes and real persisted keys;
+  an uninitialized instance is not a value proof. Publish ordering stays P02b-2.
   `Outbox_Claim_IsHeld_Until_Dispatch_Completes` says "exactly once" unconditionally,
   which contradicts the at-least-once contract; it narrows to live-lease contention and
   gains a redelivery companion for crash and expiry.
   `Hangfire_Job_Payloads_Include_TenantId` gains the organization, actor and traceparent
   fields. `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` gains the hanging-handler
-  case. `Integration_Event_Declares_PartitionKey` is typed as reflection over module
-  assemblies and cannot observe a runtime key — an uninitialised instance reads a zeroed
-  Guid as non-blank — while the compiler and the envelope's own guard already hold both
-  halves; it becomes a behavioural assertion over persisted rows, or is re-typed and
-  retired, in `P02b-1`'s decision pass. Two rules the catalogue stamps **02a** also
+  case. Two rules the catalogue stamps **02a** also
   widen here, so the Phase-field sweep above does not reach them: the transport arm of
   `Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`, whose second arm has no
   subject until the transport announces a tenant, and
@@ -1454,8 +1497,8 @@ command. The phase retains zero skips, per assembly.
   DB-side minting list owes. This phase states the **contract** — how long a
   `(event, consumer)` pair stays replayable — and
   [Phase 11](phase-11-production-hardening.md) picks the purge interval that honours it.
-- `IOutbox` and the `OutboxFlushBehavior` body, with the producer write model G2
-  settles.
+- `IOutbox` and the `OutboxFlushBehavior` invariant guard, delivered by P02b-1
+  under Accepted ADR-0057; immediate INSERT uses the announced transaction.
 - `TenantCreatedIntegrationEventV1` from completed provisioning; after G1, two
   independent Customization subscriptions install untouched `card@1`/`plain@1`
   defaults with one-root effects and the P02b-3 Seeder identity handoff.

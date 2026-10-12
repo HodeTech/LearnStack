@@ -27,8 +27,10 @@ The binding port and envelope contract is
 Accepted [ADR-0057](../../../docs/decisions/0057-transactional-event-production-and-completion.md)
 owns immediate producer admission, completion and payload policy. P02b-1
 Steps 2/3 implement immediate enqueue, payload admission, successful-save
-collection and the completed-provisioning publisher. Step 4 owns complete
-production censuses and enforcement closeout.
+collection and the completed-provisioning publisher. Step 4 implements the
+production censuses and catalogue enforcement; the
+[delivery record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+owns final verification and review status.
 P02b-2/P02b-3 retain dispatcher/inbox decisions.
 
 ## When to use
@@ -275,7 +277,7 @@ remains identical across transports.
 
 ### Step 6: Tests
 
-Follow the canonical Registered obligations in
+Follow the canonical producer rules and remaining consumer obligations in
 [Standards 21](../../../docs/standards/21-architecture-tests-catalogue.md#events-jobs-and-correlation):
 announced transaction/admission, sticky failure receipts, owner completion,
 outbox-only handlers and identifier-only payloads; extend existing partition and
@@ -292,9 +294,9 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 
 - `dotnet build` and `dotnet test` pass.
 - `LearnStack.Tests.Architecture` is green — `Integration_Event_TopicNames_FollowConvention`
-  runs today; `Integration_Events_Inherit_From_IntegrationEventBase` and
-  `Integration_Event_Handlers_Use_InboxGuard` are registered for
-  [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md) and run from there. Check
+  and `Integration_Events_Inherit_From_IntegrationEventBase` run today.
+  `Integration_Event_Handlers_Use_InboxGuard` remains Registered for P02b-3's
+  consumer delivery after G1. Check
   [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) for their
   status rather than assuming a net is under you.
 - An integration test confirms the round-trip: handler enqueues → outbox row
@@ -307,8 +309,9 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 - **Crossing modules with a domain event.** Domain events stay inside the module
   that owns the aggregate. The moment another module needs to react, it must be an
   integration event.
-- **Forgetting `IInboxGuard`.** The architecture test catches it, but the symptom
-  in production (Kafka redelivery → duplicate work) is silent until then.
+- **Forgetting `IInboxGuard`.** The consumer rule remains Registered until
+  P02b-3; do not infer enforcement from its name. Consumer delivery must prove
+  redelivery cannot duplicate its business effect.
 - **Writing the outbox row in a separate transaction.** Use `IOutbox.EnqueueAsync`
   through the enrolled ambient `IUnitOfWork`; never `new TransactionScope`.
 - **Supplying a second topic at enqueue or subscription time.** The concrete

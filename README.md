@@ -67,7 +67,8 @@ items, rules, custom fields and notification templates; their delivery is tracke
 **Phase 01, Phase 02a and Phase 02d are complete.** Phase 02d is merged through
 PR #28 on 2026-10-11. P02b-0's
 [entry audit](docs/roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-is complete; P02b-1's producer decision pass is next, before implementation.
+is complete. P02b-1's decision package and ADR-0057 are Accepted; its producer
+runtime is implemented, and enforcement/closeout is in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -117,7 +118,8 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 is complete; P02b-1's decision pass is next. The
+owns final verification. P02b-0 is complete; P02b-1 implements transactional
+event production. Its enforcement/closeout is in progress. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public

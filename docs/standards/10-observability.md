@@ -86,7 +86,8 @@ allocates a new integration EventId and retains the domain EventId as causation.
 Future delivery-originated production uses the trusted incoming event identity,
 with effective `UserId.SystemActor` and causal human retained separately. No
 caller-supplied header establishes causation; JSON `metadata` stays SQL NULL.
-Runtime producer enforcement is pending P02b-1.
+P02b-1 implements this producer metadata boundary in both API and Seeder.
+Production delivery context restoration remains P02b-3 work.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
 cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;
