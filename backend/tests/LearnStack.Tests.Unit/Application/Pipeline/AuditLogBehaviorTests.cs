@@ -403,7 +403,12 @@ public sealed class AuditLogBehaviorTests
 
         await behavior.Handle(
             new DummyCommand(),
-            () => { capture.MarkCommitted(); return Task.FromResult(Result.Ok("ok")); },
+            () =>
+            {
+                capture.Intents.Should().ContainSingle("a declared intent must exist before testing reconciliation");
+                capture.MarkCommitted();
+                return Task.FromResult(Result.Ok("ok"));
+            },
             default);
 
         store.Standalone.Should().BeEmpty();

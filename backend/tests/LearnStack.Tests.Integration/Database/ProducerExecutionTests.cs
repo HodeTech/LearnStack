@@ -7,10 +7,12 @@ using LearnStack.Application.Messaging;
 using LearnStack.Application.Persistence;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -27,9 +29,9 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// ADR-0057's shared execution boundary, before the actual collector/outbox arrive.
-/// Receipts below are recorded explicitly after an observed successful database write;
-/// these tests do not claim SaveChanges promotion or immediate outbox admission.
+/// ADR-0057's shared execution boundary, including real outbox receipts across
+/// direct and nested invocations. Domain save-promotion proofs live in
+/// <c>DomainEventProductionTests</c>.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
@@ -54,17 +56,22 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         var producer = services.GetRequiredService<ProducerExecution>();
         var unit = services.GetRequiredService<IUnitOfWork>();
         var id = TenantContentTypeId.From(Guid.CreateVersion7());
+        var integrationEvent = new TenantCreatedIntegrationEventV1
+        {
+            EventId = Guid.CreateVersion7(),
+            OccurredAt = services.GetRequiredService<IClock>().UtcNow,
+            TenantId = TenantA.TenantId.Value,
+        };
         var observedWrite = false;
         var absorbedRefusal = false;
 
         async Task<Result<None>> WriteAsync()
         {
             await WriteContentTypeAsync(services, id);
+            await services.GetRequiredService<IOutbox>().EnqueueAsync(integrationEvent);
             (await CountInUnitAsync(unit, "tenant_content_types", id.Value)).Should().Be(1);
+            (await CountInUnitAsync(unit, "outbox_messages", integrationEvent.EventId)).Should().Be(1);
             observedWrite = true;
-            // Step 1 tests the receipt protocol only. Step 2/3 must prove that the
-            // actual INSERT/save-promotion sites, rather than callers, record it.
-            producer.RecordProducedWork();
             return Result.Ok(None.Value);
         }
 
@@ -98,6 +105,7 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         observedWrite.Should().BeTrue("zero rows after an earlier failure would prove no rollback");
         absorbedRefusal.Should().BeTrue("the owner actually absorbed the nested Result.Fail");
         (await CountAsync(schema.Postgres.AppConnectionString, "tenant_content_types", id.Value)).Should().Be(0);
+        (await CountAsync(schema.Postgres.AppConnectionString, "outbox_messages", integrationEvent.EventId)).Should().Be(0);
         producer.HasInvocation.Should().BeFalse();
         unit.Transaction.Should().BeNull();
         unit.GetTenantContextAnnouncement(unit.Transaction).Should().BeNull();

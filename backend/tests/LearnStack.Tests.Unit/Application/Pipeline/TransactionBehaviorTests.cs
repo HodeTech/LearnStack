@@ -385,21 +385,26 @@ public sealed class TransactionBehaviorTests
         var store = new RecordingAuditStore();
         var unitOfWork = new RecordingUnitOfWork();
 
-        // The outer frame, opened by whatever dispatched this request. The behaviour's own
-        // BeginTransactionAsync then returns frame 2 — a joiner.
-        await using var outer = await unitOfWork.BeginTransactionAsync();
-
         var response = await Build(unitOfWork, store: store, capture: capture).Handle(
-            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+            new DummyCommand(), async () =>
+            {
+                var joined = await Build(unitOfWork, store: store, capture: capture).Handle(
+                    new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+                joined.IsSuccess.Should().BeTrue();
+                store.PendingWrites.Should().Be(0,
+                    "a joiner commits nothing, so it has nothing to write MUST rows onto");
+                capture.State.Should().NotBe(AuditIntentState.Committed,
+                    "only the owning frame may claim durability");
+                unitOfWork.Committed.Should().BeFalse();
+
+                return joined;
+            }, default);
 
         response.IsSuccess.Should().BeTrue();
-
-        store.PendingWrites.Should().Be(0,
-            "a joiner commits nothing, so it has nothing to write MUST rows onto");
-        capture.State.Should().NotBe(AuditIntentState.Committed,
-            "only the owning frame may claim durability");
-
-        await outer.CompleteAsync();
+        store.PendingWrites.Should().Be(1, "the physical owner must write exactly once after the joiner returns");
+        capture.State.Should().Be(AuditIntentState.Committed);
+        unitOfWork.Committed.Should().BeTrue();
     }
 
     [Fact]
