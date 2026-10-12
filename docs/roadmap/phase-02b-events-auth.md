@@ -1037,8 +1037,8 @@ errata, refresh amendment/index/example links and name concrete proof methods.
 The parallelism census includes shared Application, Infrastructure and the
 separate audit infrastructure project, with planted controls and exact-path
 exceptions for singleton cache and pre-admission host lookup flights. Test-only
-browser diagnostics distinguish launch,
-DevTools readiness and private-carrier failures; cleanup preserves the first
+browser diagnostics distinguish launch, DevTools readiness and private-carrier
+failures; cleanup preserves the first
 failure and exposes only closed phase tokens.
 
 The remaining runtime suggestions do not demonstrate a current failing path:
@@ -1052,9 +1052,26 @@ needed. The final announcement check remains defense in depth after drain.
 The earlier temporary mutations are recorded manual experiments; their target
 regression cases are permanent, without a new automated mutation-runner claim.
 
-Focused verification passes 75 producer integration and 64 audit/transaction
-unit cases, including overlap with the complete suites. Full regression and two
-fresh independent review rounds remain in progress for this remediation.
+Two fresh independent review rounds pair GPT-6-astra xhigh runtime review with
+GPT-6.1-sol xhigh proof/corpus review. Round 1 checks `75fc79b..3f4c121` and
+identifies one additional Minor in the outer browser proof: a caller-supplied
+closed phase token can masquerade as a sanitized error. Commit `9b2fcf6` requires
+the existing private brand at that boundary. Its paired actual-export cases
+first fail for the forged token, then pass while retaining genuine branded
+error identity. The first-round proof reviewer verifies the fix. Both fresh
+Round 2 reviewers approve `75fc79b..9b2fcf6` without findings.
+
+Full local verification passes 1,766 unit, 266 architecture, four contract and
+1,152 integration cases: 3,188 backend cases, zero failed/skipped. Focused
+verification passes 75 producer integration and 64 audit/transaction unit cases,
+overlapping those totals. Guarded frontend tests pass 1,550 cases across two
+packages, including 26 browser diagnostics cases, with zero skips/todos. Release
+build has zero warnings/errors; solution format, frontend lint/typecheck, seven
+ADR lifecycle checks, the changed-document link/anchor sweep and
+`git diff --check` pass. Original Accepted Status/Decision/prior amendments and
+the frozen P02b-0 entry record remain byte-preserved. The
+[PR checks](https://github.com/HodeTech/LearnStack/pull/29/checks) own the exact-head
+CI verdict; local results do not establish that verdict or merge approval.
 PR review and merge remain pending.
 
 ### Durable outbox dispatch

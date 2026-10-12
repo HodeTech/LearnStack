@@ -269,9 +269,9 @@ with its [reconciliation](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforc
 
 The [Step 4 preservation and P02b-0 handoff](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 names the retained Education data, live API/host/trust/limiter/bootstrap premises
-and the reconciled uncached-settings boundary. Phase 05 migrates the existing records; it
-does not treat reseeding as migration. Course Marketplace ADR-0049 and Phase 09a
-remain Proposed and are outside this exit.
+and the reconciled uncached-settings boundary. Phase 05 migrates the existing
+records; it does not treat reseeding as migration. Course Marketplace ADR-0049
+and Phase 09a remain Proposed and are outside this exit.
 
 All E01–E09 obligations pass against the receipts and named evidence above.
 The maintainer merged PR #28 on 2026-10-11; Phase 02d is closed. P02b-0
