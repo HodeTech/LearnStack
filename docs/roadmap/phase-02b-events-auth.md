@@ -1852,7 +1852,12 @@ changes.
 Local verification passes 95 lifecycle cases and the guarded frontend suite's
 1,612 cases (1,552 web and 60 SDK), with zero failures/skips/todos; lifecycle cases
 are a subset, not an additional suite count. Workspace lint/typecheck pass.
-Both independent correction reviews and final correction-head CI remain pending.
+Fresh sequential GPT-6.1-sol high and GPT-6-sol high correction reviewers both
+approve `a80e06d..a851b7c` with no findings. Each independently reproduces the four
+parent/current differences and passes all 95 lifecycle cases. Five Corpus cases
+and seven ADR-status script tests also pass; the final link check covers 2,586
+relative links and 490 fragments with zero errors. Final correction-head CI
+remains pending in this local receipt.
 The [PR handoff](#p02b-2-pr-handoff-2026-10-12) continues to own live PR state.
 
 ### Durable outbox dispatch
