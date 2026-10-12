@@ -1931,6 +1931,30 @@ The adjacent `IIntegrationEvent` remarks also stop promising unconditional
 partition ordering or describing the implemented contract guard as Registered.
 These are documentation corrections, with no interface or runtime change.
 
+#### External correction review round 2 and local closeout
+
+Fresh GPT-6-astra xhigh runtime/security and GPT-6.1-sol xhigh proof/corpus
+reviewers independently approve `44089707..41ac2924`, with zero findings across
+all 29 changed files. Both read the complete correction and the first round's
+source-comment fix. The runtime reviewer independently inspects the completed
+TRX counters; neither repeats the root's complete suites or mutation experiment.
+Both correction review rounds are complete. No Accepted ADR text, grant or
+consumer-delivery contract changes in this remediation.
+
+Complete local backend verification passes 3,396 cases: 1,845 unit, 286
+architecture, four contract, 175 Docker-free integration and 1,086 Docker
+integration, with zero failures/skips. The 97 focused Docker cases above are a
+subset, not additional cases. Guarded frontend passes 1,616 cases (1,556 web,
+60 SDK), with zero failures/skips/todos; lint/typecheck pass. A fresh Release
+build of `41ac2924` reports zero warnings/errors after the source-comment and
+whitespace corrections. Five corpus controls, seven ADR-status script controls,
+2,693 relative links and 500 fragments pass; historical P02b-0/P02b-1 records
+and Accepted ADR text remain preserved.
+
+Correction-head PR CI and its real demo artifacts still require independent
+verification after publication. This local receipt does not reuse the earlier
+green head as evidence; the PR description owns live head/check evidence.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
