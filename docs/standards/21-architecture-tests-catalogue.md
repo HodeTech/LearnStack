@@ -105,7 +105,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**172 test methods run in
+**173 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -1745,12 +1745,19 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
 
-- **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
+- **Asserts:** no module or shared Application/Infrastructure execution code fans
+  out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
   without an explicit type argument; no `Parallel.For`, `ForAsync`, `ForEach`, `ForEachAsync`
   or `Invoke`; no PLINQ `AsParallel()`; and no task started and stored instead of awaited, which
-  is `Task.WhenAll` written out longhand — outside an exact-path list, empty today, whose entries
-  each say why their concurrent work touches no connection. One connection means one command at a
-  time; a handler that fans out corrupts the protocol. Stricter than ADR-0040's sentence,
+  is `Task.WhenAll` written out longhand — outside an exact-path list whose entries
+  each say why their concurrent work touches no ambient connection. The entries are
+  `LearnStack.Infrastructure/Caching/InMemoryCacheService.cs`: singleton cache flights
+  race their own deadline, without a scoped unit or module context; and
+  `LearnStack.Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs`: singleton
+  host lookup flights use their own read-only connection before tenant admission.
+  The census includes the separate `LearnStack.Infrastructure.Audit` project.
+  One connection means one command at a time; a handler that fans out corrupts the
+  protocol. Stricter than ADR-0040's sentence,
   which bans two `DbContext`-bound operations: which operations are bound to the ambient
   connection cannot be read from source, and the honest rule is the one that can.
 - **Source:** ADR-0040 § Nesting.
@@ -1759,6 +1766,10 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   for module code to scan: three modules have shipped handlers since Packets 7 and 8, and
   the rule asserts it read them. Its companion, `The_Parallelism_Scan_Can_Actually_Fail`,
   feeds it each fan-out shape — a `using static` import included — and two that are not.
+  P02b-1 extends the census to shared execution state;
+  `The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions`
+  plants violations in every covered root and proves both exemptions are
+  path-specific.
 - **Phase:** 02a (Packet 6 registers it; Packet 10 implements it).
 
 ### Tenancy and isolation
@@ -3226,7 +3237,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   source lists never replay into another transaction.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** integration and focused lifecycle unit tests. **Kind:** behavioural.
-- **Status:** **Implemented** (`ProducerExecutionTests`, `OutboxProducerTests`,
+- **Status:** **Implemented** (`ProducerExecutionTests`,
+  `OutboxProducerTests.Actual_INSERT_receipts_prevent_an_absorbed_direct_or_descendant_refusal_from_committing`,
   `DomainEventProductionTests`); actual INSERT/save receipts, every ancestor, event-free
   controls and terminal reuse.
 - **Phase:** 02b, P02b-1.
@@ -3243,7 +3255,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   work and reconciles once, retaining nested command intents without duplication.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 - **Type:** integration and lifecycle unit tests. **Kind:** behavioural.
-- **Status:** **Implemented** (`DomainEventProductionTests`,
+- **Status:** **Implemented** (`DomainEventProductionTests.The_owner_drains_FIFO_across_sources_saves_delete_and_detach_without_duplicates`,
   `TenantCreatedProducerTests`, `ProducerExecutionTests`); real save qualification,
   FIFO/bounds, owner/common-audit atomicity and cleanup.
 - **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.

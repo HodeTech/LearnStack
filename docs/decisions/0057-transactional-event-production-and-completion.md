@@ -1,5 +1,12 @@
 # ADR-0057: Transactional Event Production and Completion
 
+> **Erratum — 2026-10-12.** The locator `Architecture Tests` below names no
+> ADR-0032 section. The second separate `event_id` requirement is in the
+> Phase 02b deliverables table in Implementation Notes, as present at this
+> ADR's acceptance (`b157650`). The bounded supersession and Decision are
+> unchanged. Current authority: [ADR-0032 Amendment 4](0032-exception-handling-logging-and-observability.md#amendment-4--bounded-producer-supersession-by-adr-0057-2026-10-12).
+> Recorded in [Amendment 2](#amendment-2--correct-adr-0032-clause-locators-2026-10-12).
+
 ## Status
 
 **Accepted — 2026-10-12.** The maintainer approves the bounded supersessions
@@ -302,6 +309,13 @@ This acceptance precedes runtime code. The catalogue registers the canonical
 proofs below as Registered, not Implemented; the phase package records the
 P02b-1 gate vehicles and their split ownership. The instruments are distinct:
 
+> **Erratum — 2026-10-12.** The table's `Architecture Tests table` locator is
+> false: ADR-0032's second separate `event_id` requirement is in the Phase 02b
+> deliverables table in Implementation Notes, verified at acceptance commit
+> `b157650`. [ADR-0032 Amendment 4](0032-exception-handling-logging-and-observability.md#amendment-4--bounded-producer-supersession-by-adr-0057-2026-10-12)
+> names that same location. The bounded supersession and Decision are unchanged.
+> Recorded in Amendment 2.
+
 | Affected contract | Acceptance instrument | Boundary |
 |---|---|---|
 | ADR-0032 Sub-decision 2, step 7 | Bounded supersession by this new ADR | Owner-side completion replaces the step-7 flush/publication role; the pipeline position survives as an invariant guard |
@@ -379,6 +393,28 @@ owns final validation, independent reviews and packet status. This delivery note
 changes no decision or original acceptance metadata. Dispatcher/lease work
 remains P02b-2; production inbox/subscriptions and the Seeder identity handoff
 remain P02b-3 after G1. Pending rows are not a claim of delivered consumption.
+
+### Amendment 2 — Correct ADR-0032 clause locators (2026-10-12)
+
+The bounded-supersession summary and Implementation Notes table named an
+`Architecture Tests` section/table in ADR-0032. That section does not exist.
+`git show b157650:docs/decisions/0032-exception-handling-logging-and-observability.md`
+shows the second separate `event_id` requirement under **Implementation Notes →
+Phase 02b deliverables that flow from this ADR**, alongside Sub-decision 12's
+requirement. The locator was false when this ADR was accepted at `b157650`;
+ADR-0032's own Amendment 4 already identifies the correct table.
+
+Under [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md), inline
+errata precede both affected spans; the first sits before the protected Status
+section so that the entire original section, Date and Deciders remain intact.
+The accepted body wording is retained. The mutable carriers corrected are
+[Phase 02b](../roadmap/phase-02b-events-auth.md#the-decision-register)'s G5
+register row and
+[accepted G5 answer](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12),
+plus this amendment's entry in the [ADR index](README.md).
+These are all carriers changed for this locator correction. The Decision and
+the exact bounded supersession are unchanged: the two historical separate-column
+requirements yield to `outbox_messages.id = EventId`; all other clauses survive.
 
 ## References
 

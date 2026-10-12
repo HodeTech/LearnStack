@@ -247,7 +247,7 @@ different decisions:
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | none yet — see the note below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
-| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No settings cache | No settings cache | Phase 02b owns the declared settings event; it is not implemented |
+| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No settings cache | No settings cache | No settings-invalidation event is declared; a future cached consumer needs a scope/key/freshness decision |
 | `{tenant_id}:audit:config` (per-tenant audit overrides) | 5 min | 1 h | none yet — see the note below |
 | `{tenant_id}:customization:content-types:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
 | `{tenant_id}:customization:taxonomies:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
@@ -283,9 +283,14 @@ control.
 selects no settings cache. The adapter's existing `tenancy:settings` metric spelling
 is reserved, not an active reader or a TTL promise. P02d-3 owns the typed ambient
 accessor and explicit tenant/organization scope; it adds no settings generation
-counter or out-of-band loader. Phase 02b owns the declared
-`learnstack.tenancy.settings` event. Adding a cached settings consumer requires a
-new scope/key/freshness decision before that consumer ships.
+counter or out-of-band loader. The
+[Tenancy catalogue](../modules/tenancy/README.md#integration-event-catalogue)
+declares no settings-invalidation event under
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow).
+Adding a cached settings consumer requires a new scope/key/freshness decision
+before that consumer ships. Phase 11 owns the distributed adapters on
+[their existing triggers](../roadmap/phase-11-production-hardening.md#demand-gated-building-blocks);
+those triggers do not promise a settings event.
 
 **`{tenant_id}:audit:config` has no eager invalidation, and that is a stated gap rather
 than an omission.** The projection is read by `IAuditConfigService` on the classification

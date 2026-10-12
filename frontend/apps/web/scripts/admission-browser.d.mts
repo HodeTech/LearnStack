@@ -24,8 +24,27 @@ export function verifyBrowserFallback(options: {
   readonly secrets: readonly string[];
 }): Promise<ReturnType<typeof createPrivateScanner>>;
 import type { createFixtureOwner, createPrivateScanner } from './fixture-support.mjs';
+export type BrowserPhase =
+  | 'browser-launch'
+  | 'browser-devtools'
+  | 'browser-discovery'
+  | 'browser-protocol'
+  | 'browser-navigation'
+  | 'browser-hydration'
+  | 'browser-arm'
+  | 'browser-click'
+  | 'browser-fallback'
+  | 'browser-wire'
+  | 'browser-completion'
+  | 'browser-private-carrier'
+  | 'browser-shutdown';
 export function browserFailureDetail(error: unknown): string;
-export function atBrowserPhase<T>(phase: string, operation: () => T | Promise<T>): Promise<T>;
+export function atBrowserPhase<T>(phase: BrowserPhase, operation: () => T | Promise<T>): Promise<T>;
+export function waitForBrowserDevTools(options: {
+  readonly assertActive: () => void;
+  readonly isLive: () => boolean;
+  readonly readPort: () => number | null;
+}): Promise<number>;
 export function withBrowserCleanup<T>(
   operation: () => T | Promise<T>,
   cleanup: () => void | Promise<void>,

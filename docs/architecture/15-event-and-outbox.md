@@ -312,9 +312,9 @@ public sealed class QueueWelcomeNotificationOnEnrollmentCreated(
     IInboxGuard inboxGuard,
     NotificationsDbContext db,
     ILogger<QueueWelcomeNotificationOnEnrollmentCreated> logger)
-    : IIntegrationEventHandler<EnrollmentCreatedIntegrationEvent>
+    : IIntegrationEventHandler<EnrollmentCreatedIntegrationEventV1>
 {
-    public async Task HandleAsync(EnrollmentCreatedIntegrationEvent @event, CancellationToken ct)
+    public async Task HandleAsync(EnrollmentCreatedIntegrationEventV1 @event, CancellationToken ct)
     {
         if (await inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct))
         {
@@ -751,7 +751,7 @@ a list of mechanisms:
 
 | Event shape | Partition key |
 |---|---|
-| Event about one aggregate instance (the normal case) | The aggregate id — `EnrollmentCreatedIntegrationEvent` keys on `EnrollmentId` |
+| Event about one aggregate instance (the normal case) | The aggregate id — `EnrollmentCreatedIntegrationEventV1` keys on `EnrollmentId` |
 | Event about the tenant as a whole (`TenantSuspended`, `EntitlementUpdated`) | `TenantId`, deliberately — it serialises that tenant's whole stream onto one partition |
 
 The member is **abstract rather than defaulted**, and that is the decision: a default

@@ -287,7 +287,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G2 | Does `IOutbox.EnqueueAsync` write the row immediately on the ambient transaction, or buffer for `OutboxFlushBehavior` at step 7 — and what is the flush point for the two paths that have no step 7? | Immediate write, with the behavior asserting no buffered message survives the handler | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 2's step-7 completion role, with a dated supersession disclosure in ADR-0032 at acceptance; phase-doc + [Events and Outbox § Producer pattern](../architecture/15-event-and-outbox.md#producer-pattern) | P02b-1 | Accepted — immediate enqueue/owner completion |
 | G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, enqueue order | Derivation: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md). Ordering: scoping is a phase-doc plus [§ Ordering](../architecture/15-event-and-outbox.md#ordering) edit; blocking is a dated ADR-0006 Amendment plus an index | P02b-1 (whether the key's derivation is checked structurally: the first event declares a key), P02b-2 (the ordering bound) | Derivation Accepted; ordering open (P02b-2) |
 | G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Dated ADR-0006 Amendment + the Database Standards § Outbox DDL, index and grant edits riding it | P02b-2 | Open |
-| G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Stored identities: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 12 and its Architecture Tests column list, with a dated supersession disclosure at acceptance; Database Standards alignment. Resolver outcomes remain a P02b-2 decision; replacing the type identity requires its own ADR-0006 vehicle | P02b-1 (the stored type identity and the row's identity, both written at enqueue), P02b-2 (unresolvable, retired and unsubscribed types) | Stored identities Accepted; resolution outcomes open (P02b-2) |
+| G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Stored identities: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes, with a dated supersession disclosure at acceptance; Database Standards alignment. Resolver outcomes remain a P02b-2 decision; replacing the type identity requires its own ADR-0006 vehicle | P02b-1 (the stored type identity and the row's identity, both written at enqueue), P02b-2 (unresolvable, retired and unsubscribed types) | Stored identities Accepted; resolution outcomes open (P02b-2) |
 | G6 | When the unit-of-work owner is not an `AuditLogBehavior`, who performs the four owner-side audit acts and enters the outermost audit frame — and does a state-mutating delivery declare its own intents, keyed by handler type? | The transport opens the outermost frame beside its transaction; a delivery declares its own intents and an unregistered handler is refused as an unregistered request is | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md): bounded ADR-0040 nested-failure supersession; separately enumerated additive UoW read-seam amendment; clarifying ADR-0044/0033 common-owner amendments. G1-dependent production delivery/inbox implementation remains P02b-3 | P02b-1, P02b-3 | Producer/common owner Accepted; production delivery/inbox open (P02b-3 after G1) |
 | G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | class MUST, `OperationType` `security-event`, the slug open under the § The join grammar `{module}.{resource}.{verb}`; the row written before the transition, so a failed write leaves the transition unmade and the next poll retries | Dated ADR-0033 Amendment + `DeclareOffPath` registrations + the Baseline row in [Audit Coverage Standards](../standards/18-audit-coverage.md#baseline-coverage-learnstack-core-modules). If the chosen ordering persists the terminal transition and its MUST row on **separate** transactions, that changes what ADR-0033's Decision guarantees rather than clarifying it, and the vehicle is a superseding record, not an amendment | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Open |
 | G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Dated ADR-0006 or ADR-0003 Amendment; an architecture document cannot grant it | P02b-2 | Open |
@@ -489,7 +489,7 @@ not an implementation or passing-test claim.
 |---|---|---|
 | G2 | Immediate ambient INSERT; step 7 checks enrollment, while the owner drains domain events before MUST audit/commit | ADR-0057 bounded supersession of ADR-0032 Sub-decision 2; dated supersession disclosure and architecture producer-pattern reconciliation |
 | G3 derivation | Explicit aggregate-ID or declared tenant-wide source; canonical key and falsifiable structural/behavioral proof | ADR-0057 and existing `Integration_Event_Declares_PartitionKey`; publish ordering remains P02b-2 |
-| G5 stored identities | Assembly-qualified type; `id = EventId`, no extra column; runtime-type JSON with existing frozen options | ADR-0057 bounded supersession of ADR-0032 Sub-decision 12 / Architecture Tests column list; dated supersession disclosure and Database Standards alignment; resolver failure policies remain P02b-2 |
+| G5 stored identities | Assembly-qualified type; `id = EventId`, no extra column; runtime-type JSON with existing frozen options | ADR-0057 bounded supersession of ADR-0032 Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes; dated supersession disclosure and Database Standards alignment; resolver failure policies remain P02b-2 |
 | G6 producer/common owner | One collector/drain and reusable audit entry; outbox-only domain reactions; absorbed fail-after-produced-work poisons the unit, including descendant receipts | ADR-0057 bounded ADR-0040 nested-failure supersession; separate additive UoW snapshot-reader amendment and ADR-0044/0033 clarifications; production delivery/inbox atomicity remains P02b-3 after G1 |
 | G18 payload | Identifier-only additional fields, inclusive 256 KiB canonical UTF-8 application cap, SQL NULL JSON metadata, no copied personal data or serializer escape | ADR-0057 new producer policy with dated ADR-0038 cross-reference; no outbox-size DDL CHECK claimed; sanitized errors P02b-2, erasure inventory P02b-8 |
 | G19 | Completed tenant provisioning produces `TenantCreatedIntegrationEventV1`; two Customization subscribers initialize `card@1` and `plain@1` without overwriting | This package and ADR-0057; module-spec reconciliation at acceptance, publisher P02b-1; G1 must settle independent subscription identities before P02b-3 subscriptions and Seeder handoff |
@@ -1012,6 +1012,50 @@ record. Each pairs GPT-6-astra high runtime/fixture review with GPT-6.1-sol high
 proof/corpus review; all four reviewers approve without verified findings.
 Five corpus checks, seven ADR lifecycle tests and the changed-document
 link/anchor sweep pass. The PR checks own fresh final-head CI evidence.
+
+#### PR #29 systematic-review remediation (2026-10-12)
+
+The review against `75fc79b` identifies a valid pre-COMMIT audit classification
+fault. Commit `c7dae0c` distinguishes a still-live transaction from a physical
+COMMIT whose acknowledgement failed. A live frame refusal now enters the guarded,
+uncancelled rollback path; the original error survives cleanup failure. Actual
+COMMIT faults retain the existing Indeterminate behavior.
+
+The PostgreSQL regression first fails against the old code: a leaked frame
+produces a permanent `indeterminate` audit row despite never attempting COMMIT.
+After the fix, owner and absorbed-joiner cases observe actual business/outbox
+INSERTs, then prove their rollback, a single `failed` audit row, cleared authority
+and refused same-scope reuse. Scope disposal already collapsed leaked frames in
+the old code; the review's claim that they stayed live after unwinding is not
+reproduced. Two unit cases also preserve the frame error when rollback succeeds
+or throws. API and Seeder tests document and enforce producer enrollment before
+event-bearing saves, with successful event-free raw-save controls.
+
+Other verified changes reconcile the current uncached-settings handoff without
+promising a settings event, correct ADR-0032 clause locators through ADR-0041
+errata, refresh amendment/index/example links and name concrete proof methods.
+The parallelism census includes shared Application, Infrastructure and the
+separate audit infrastructure project, with planted controls and exact-path
+exceptions for singleton cache and pre-admission host lookup flights. Test-only
+browser diagnostics distinguish launch,
+DevTools readiness and private-carrier failures; cleanup preserves the first
+failure and exposes only closed phase tokens.
+
+The remaining runtime suggestions do not demonstrate a current failing path:
+domain dispatch validates enrollment before owner access; outbox ancestry and
+JSON shape are guarded before serialization checks; the Seeder test positively
+observes promotion before its deliberate refusal; reflection and log-trigger
+changes fail their existing controls loudly. Provider-port recognition remains
+an explicitly enumerated limitation, not a future-port discovery claim. No
+runtime visibility/marker, serializer, scheduling or ConfigureAwait refactor is
+needed. The final announcement check remains defense in depth after drain.
+The earlier temporary mutations are recorded manual experiments; their target
+regression cases are permanent, without a new automated mutation-runner claim.
+
+Focused verification passes 75 producer integration and 64 audit/transaction
+unit cases, including overlap with the complete suites. Full regression and two
+fresh independent review rounds remain in progress for this remediation.
+PR review and merge remain pending.
 
 ### Durable outbox dispatch
 

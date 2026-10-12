@@ -285,21 +285,82 @@ public sealed partial class PersistenceConventionTests
         // stricter than its ADR sentence: which operations are DbContext-bound cannot be seen
         // from source, and the honest rule is that module code does not fan out at all. A
         // fan-out that touches no connection is added to ParallelSites with its reason.
-        var modules = Path.Combine(RepositoryPaths.BackendSrc(), "Modules");
-        var files = Directory.EnumerateFiles(modules, "*.cs", SearchOption.AllDirectories)
-            .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
-            .ToList();
+        // Shared application/infrastructure code also owns the scoped producer, collector,
+        // audit capture and transaction lifecycle, so it participates in the same census.
+        var sourceRoot = RepositoryPaths.BackendSrc();
+        var files = AmbientSourceFiles(sourceRoot);
 
         files.Should().Contain(file => file.EndsWith("CommandHandler.cs", StringComparison.Ordinal),
             "the premise: the scan reads the module handlers that open the unit of work's work");
+        var relativeFiles = files.Select(file => Path.GetRelativePath(sourceRoot, file).Replace('\\', '/')).ToArray();
+        relativeFiles.Should().Contain([
+            "LearnStack.Application/Messaging/ProducerExecution.cs",
+            "LearnStack.Application/Messaging/DomainEventCollector.cs",
+            "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
+        ], "the census includes shared scoped execution state, not only module callers");
+        ParallelSites.Keys.Should().BeSubsetOf(relativeFiles, "an exception must name a real scanned source file");
 
-        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
-            .Select(file => Path.GetRelativePath(modules, file).Replace('\\', '/'))
-            .Where(file => !ParallelSites.Contains(file))
-            .Should().BeEmpty(
-                "module code runs one operation at a time on the ambient connection "
-                + "(ADR-0040 § Nesting)");
+        ParallelOffenders(sourceRoot, files).Should().BeEmpty(
+            "modules and their shared execution code run one operation at a time on the ambient connection "
+            + "(ADR-0040 § Nesting)");
     }
+
+    [Fact]
+    public void The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions()
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "learnstack-parallel-census-" + Guid.NewGuid().ToString("N"));
+        string[] forbidden =
+        [
+            "Modules/Probe/Application/CommandHandler.cs",
+            "LearnStack.Application/Messaging/ProducerExecution.cs",
+            "LearnStack.Infrastructure/Messaging/DomainEventSaveChangesInterceptor.cs",
+            "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
+            "Modules/Probe/Infrastructure/Caching/InMemoryCacheService.cs",
+            "Modules/Probe/Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs",
+        ];
+        string[] ignored =
+        [
+            "LearnStack.Application/obj/Generated.cs",
+            "LearnStack.Infrastructure/bin/Generated.cs",
+        ];
+        try
+        {
+            foreach (var path in forbidden.Concat(ignored).Concat(ParallelSites.Keys))
+            {
+                var file = Path.Combine(sourceRoot, path);
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                File.WriteAllText(file, "await Task.WhenAll(first, second);");
+            }
+
+            var files = AmbientSourceFiles(sourceRoot);
+            ParallelOffenders(sourceRoot, files).Should().BeEquivalentTo(forbidden,
+                "the same production census rejects fan-out in every shared execution project and cannot lend singleton exceptions to another path");
+            ParallelSites.Values.Should().OnlyContain(reason => !string.IsNullOrWhiteSpace(reason));
+            File.WriteAllText(Path.Combine(sourceRoot, forbidden[1]), "await first; await second;");
+            ParallelOffenders(sourceRoot, files).Should().BeEquivalentTo(forbidden.Where(path => path != forbidden[1]),
+                "sequential shared execution remains legal under the same predicate");
+        }
+        finally
+        {
+            if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, recursive: true);
+        }
+    }
+
+    private static readonly string[] AmbientSourceProjects =
+        ["Modules", "LearnStack.Application", "LearnStack.Infrastructure", "LearnStack.Infrastructure.Audit"];
+
+    private static string[] AmbientSourceFiles(string sourceRoot) =>
+        AmbientSourceProjects
+            .SelectMany(project => Directory.EnumerateFiles(Path.Combine(sourceRoot, project), "*.cs", SearchOption.AllDirectories))
+            .Where(file => !Path.GetRelativePath(sourceRoot, file).Split(Path.DirectorySeparatorChar)
+                .Any(segment => segment is "bin" or "obj"))
+            .ToArray();
+
+    private static string[] ParallelOffenders(string sourceRoot, IEnumerable<string> files) =>
+        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
+            .Select(file => Path.GetRelativePath(sourceRoot, file).Replace('\\', '/'))
+            .Where(file => !ParallelSites.ContainsKey(file))
+            .ToArray();
 
     [Fact]
     public void The_Parallelism_Scan_Can_Actually_Fail()
@@ -335,16 +396,24 @@ public sealed partial class PersistenceConventionTests
     }
 
     /// <summary>
-    /// Module files allowed to fan out, by path under <c>backend/src/Modules</c>, each with why
-    /// none of its concurrent work touches the ambient connection. Empty.
+    /// Files allowed to fan out, by exact path under <c>backend/src</c>, each with why
+    /// its concurrent work does not use the scoped ambient connection.
     /// </summary>
-    private static readonly HashSet<string> ParallelSites = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
+    {
+        ["LearnStack.Infrastructure/Caching/InMemoryCacheService.cs"] =
+            "Singleton cache flights race their service-owned deadline and retain abandoned factories until termination; "
+            + "they hold no scoped unit of work or module DbContext.",
+        ["LearnStack.Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs"] =
+            "Singleton host lookup flights run before tenant admission on their own read-only connection/transaction "
+            + "and hold no scoped unit of work or module DbContext (ADR-0036 and ADR-0040).",
+    };
 
     /// <remarks>
     /// Two shapes. The named APIs, and the hand-rolled one: a call to an <c>…Async</c> method
     /// whose result is stored rather than awaited is a task already running, and two of those
-    /// are `Task.WhenAll` written out longhand. Nothing in <c>backend/src</c> does it today —
-    /// measured — so module code awaits at the call site, which is the rule.
+    /// are `Task.WhenAll` written out longhand. Scoped module and shared execution code
+    /// awaits at the call site; singleton flight exceptions are declared above.
     /// </remarks>
     private static bool FansOut(string code) =>
         FanOut().IsMatch(code) || StartedWithoutAwaiting().IsMatch(code);

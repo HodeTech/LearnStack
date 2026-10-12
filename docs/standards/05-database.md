@@ -1391,7 +1391,7 @@ CREATE TABLE outbox_messages (
     actor_user_id   uuid NULL,
     type            text NOT NULL,         -- assembly-qualified event type name
     topic           text NOT NULL,         -- "learnstack.{module}.{aggregate}"
-    partition_key   text NOT NULL,         -- ordering domain: aggregate id, else tenant_id
+    partition_key   text NOT NULL,         -- routing source: aggregate id or explicitly tenant-wide tenant_id
     payload         jsonb NOT NULL,
     metadata        jsonb NULL,            -- producer writes SQL NULL (ADR-0057)
     processed_at    timestamptz NULL,

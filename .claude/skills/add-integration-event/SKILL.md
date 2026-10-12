@@ -81,7 +81,7 @@ public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
 
     // Declare EnrollmentId as the partition source. ADR-0057 accepts canonical
     // identifier derivation; G3 durable publish ordering remains P02b-2.
-    public override string PartitionKey => EnrollmentId.ToString();
+    public override string PartitionKey => EnrollmentId.ToString("D");
 }
 ```
 

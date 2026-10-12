@@ -21,8 +21,10 @@ const browserPhases = new Set([
   'browser-fallback',
   'browser-wire',
   'browser-completion',
+  'browser-private-carrier',
   'browser-shutdown',
 ]);
+const sanitizedFailures = new WeakSet();
 
 /** Only closed phase names may cross the private fixture's diagnostic boundary. */
 export function browserFailureDetail(error) {
@@ -34,9 +36,11 @@ export async function atBrowserPhase(phase, operation) {
   assert.ok(browserPhases.has(phase), 'Browser diagnostic phase is registered');
   try {
     return await operation();
-  } catch {
+  } catch (error) {
+    if (sanitizedFailures.has(error)) throw error;
     const failure = new Error('Public admission browser proof failed');
     failure.admissionStage = phase;
+    sanitizedFailures.add(failure);
     throw failure;
   }
 }
@@ -103,6 +107,19 @@ async function until(predicate, message, timeout = 20_000) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(message);
+}
+
+/** Keep browser death distinct from a live browser's debugging readiness deadline. */
+export function waitForBrowserDevTools({ assertActive, isLive, readPort }) {
+  return atBrowserPhase('browser-devtools', () =>
+    until(async () => {
+      assertActive();
+      await atBrowserPhase('browser-launch', () => {
+        assert.equal(isLive(), true, 'The owned browser remains live');
+      });
+      return readPort();
+    }, 'Owned browser debugging deadline'),
+  );
 }
 
 /** Isolated profile and certificate-specific trust; never touches a user's browser. */
@@ -182,17 +199,15 @@ async function runBrowserFallback(
   });
   const portFile = join(profile, 'DevToolsActivePort');
   phase.value = 'browser-devtools';
-  const port = await until(() => {
-    owner.assertActive();
-    assert.equal(
-      failed || child.exitCode !== null || child.signalCode !== null,
-      false,
-      'The owned browser remains live',
-    );
-    if (!existsSync(portFile)) return null;
-    const value = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-    return Number.isInteger(value) && value > 0 && value < 65536 ? value : null;
-  }, 'Owned browser debugging deadline');
+  const port = await waitForBrowserDevTools({
+    assertActive: () => owner.assertActive(),
+    isLive: () => !failed && child.exitCode === null && child.signalCode === null,
+    readPort: () => {
+      if (!existsSync(portFile)) return null;
+      const value = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+      return Number.isInteger(value) && value > 0 && value < 65536 ? value : null;
+    },
+  });
   phase.value = 'browser-discovery';
   // eslint-disable-next-line no-restricted-globals -- Owned local browser CDP discovery, never a LearnStack API request.
   const response = await fetch('http://127.0.0.1:' + port + '/json/list', {
@@ -325,7 +340,9 @@ async function runBrowserFallback(
       assertFlightFallback(events, origin, target, status);
       phase.value = 'browser-completion';
       await afterNavigation();
-      assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
+      await atBrowserPhase('browser-private-carrier', () => {
+        assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
+      });
       return scanner;
     },
     async () => {
@@ -333,11 +350,13 @@ async function runBrowserFallback(
       socket.terminate();
       await stopTestChild(child);
       scanner.finish();
-      assert.equal(
-        scanner.leaked,
-        false,
-        'Browser shutdown diagnostics contain no private carrier',
-      );
+      await atBrowserPhase('browser-private-carrier', () => {
+        assert.equal(
+          scanner.leaked,
+          false,
+          'Browser shutdown diagnostics contain no private carrier',
+        );
+      });
     },
   );
 }
