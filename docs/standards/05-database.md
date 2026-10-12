@@ -1392,7 +1392,8 @@ Public read models consumed by other modules:
 
 ## Outbox
 
-**ADR-0046 schema implemented in P02b-2 Step 1; reviews pending.** The canonical
+**ADR-0046 schema implemented in P02b-2 Step 1; both review rounds complete.**
+The canonical
 DDL below includes lease/terminal/identity/descriptor changes. Dispatcher execution
 and terminal auditing remain later P02b-2 steps. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form

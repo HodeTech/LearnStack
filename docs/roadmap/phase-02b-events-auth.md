@@ -253,7 +253,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 |---|---|---|
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
-| **P02b-2** | **Decision Accepted; Step 1 in progress.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
+| **P02b-2** | **Decision Accepted; Step 1 complete.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
@@ -1434,7 +1434,7 @@ claim no runtime enforcement; delivery evidence belongs to each step below.
 
 ### P02b-2 Step 1 — Decision, schema and confined composition (2026-10-12)
 
-**Implemented; both independent review rounds complete; fix review pending.**
+**Implemented; both independent review rounds and fresh fix review complete.**
 Decision commit
 `192810b` precedes runtime edits. Step 1 adds the Platform-chain migration
 `20261012180355_add_outbox_dispatch_state` and Audit-chain migration
@@ -1499,6 +1499,12 @@ Release unit suite passes 1,801 cases; the complete architecture suite passes
 before Step 2 begins. Removing the closed-type check makes the new regression
 fail; restoring it makes all 17 registry cases pass. No migration, grant or
 Pending policy changed.
+
+Fresh GPT-6.1-sol high focused review of `6a13455..b6fc714` approved the correction
+without findings and independently checked its accepting/rejecting controls and
+saved TRX counters. The completed Step 1 commits are `d9bc77b`, `6a13455` and
+`b6fc714`; the next authorized implementation step is durable transitions and
+terminal audit.
 
 ### Durable outbox dispatch
 

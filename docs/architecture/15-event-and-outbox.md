@@ -116,7 +116,8 @@ establish durable publish order. Accepted P02b-2 adds paired `locked_by` /
 `locked_until` lease fields, `terminal_reason` and `dead_lettered_at`; the former
 is a fresh acquisition token, never stable worker identity. `available_after`
 controls due time and retry backoff. Canonical DDL/indexes are in Standards 05,
-implemented by P02b-2 Step 1 with reviews pending; dispatcher execution remains
+implemented by P02b-2 Step 1 with both review rounds complete; dispatcher execution
+remains
 a later step.
 
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass

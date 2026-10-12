@@ -244,7 +244,7 @@ for the full strategy. Standards-side:
 ### Confined event dispatcher
 
 ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
-reviews remain pending. Step 3 still owns mandatory worker startup resolution
+both review rounds are complete. Step 3 still owns mandatory worker startup resolution
 and connectivity proof. The named keyed, lazy dispatcher source belongs only to
 the API host. Configuration validates the exact username without connecting or
 echoing parse input. Worker startup must verify connectivity. Every new physical

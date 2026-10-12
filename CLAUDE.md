@@ -392,7 +392,8 @@ Then read the phase that is live and the one it stands on:
   — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
   and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
   runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
-  Accepted, with Step 1 in progress; producer dispatch delivery remains pending.
+  Accepted, with Step 1 and both review rounds complete; producer dispatch
+  delivery remains pending.
   P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
