@@ -80,7 +80,8 @@ for that second stage and withdrawn for the first.
 
 ### Confined event-terminal audit
 
-**Accepted ADR-0046; fifth seam pending P02b-2.** Existing four delivered writes
+**ADR-0046 fifth seam implemented in P02b-2 Step 2; reviews pending.**
+Existing four delivered writes
 retain their contracts. The new narrow method is:
 
 ```csharp
@@ -1628,7 +1629,7 @@ update it constrains.
      [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)'s
      `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
      Audit's `audit.redaction.apply` and `audit.purge.apply`. They register by slug: the
-     three whose writer ships through `DeclareOffPath`, the other six — also
+     four whose writer ships through `DeclareOffPath`, the other five — also
      `(planned)` — when their writer lands.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside
      both directions too (§ 5).
@@ -1716,7 +1717,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 |-------|-------------|
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Dispatch remains P02b-2; consumer delivery/inbox remains P02b-3. |
-| P02b-2 (Accepted; pending) | Confined producer terminal state and MUST audit through row-bound fifth seam; Audit-chain INSERT-only grant, bounded routine-dispatch exemption and decisive real-role atomicity/identity proofs. |
+| P02b-2 Steps 1–2 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Hosted dispatch and metrics remain Step 3; Step 2 reviews pending. |
 | P02b-3 (Accepted contract; pending) | Shared transport-owned inbox and independent delivery ledger; per-subscription audit frames and Tenancy-owned terminal audit. Ordinary executor refuses privileged subscriptions. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |

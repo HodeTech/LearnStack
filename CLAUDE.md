@@ -186,8 +186,10 @@ owns final verification. **P02b-2's revised decision package and ADR-0046 are
 Accepted — 2026-10-12.** The four implementation steps and two independent review
 rounds per step are authorized on development. The
 [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
-owns current progress. Acceptance reconciles delivery contracts and registers six
-rules; it claims no dispatcher, inbox or subscriber delivery. P02b-3 still owns
+records both completed Step 1 reviews. Step 2 implements fenced transitions and
+row-bound terminal MUST audit; its verification and reviews are in progress.
+Hosted execution remains Step 3. Acceptance registers six delivery obligations;
+it claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
 subscriptions and Seeder handoff.
 Phase 06 retains the full renderer/Studio expansion.

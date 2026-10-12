@@ -26,10 +26,11 @@ verification. The Accepted P02b-2 package below owns the current dispatcher work
 **P02b-2 decision pass — 2026-10-12.** The
 [decision package](#p02b-2-decision-package-2026-10-12) and
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) are Accepted.
-The four implementation steps are authorized on development. Step 1 is in
-progress; its [record](#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
-owns delivery evidence. Dispatcher delivery and all P02b-3 implementation remain
-pending.
+The four implementation steps are authorized on development. Step 1 is complete;
+its [record](#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12) owns
+delivery evidence and both completed review rounds. Step 2 implements durable
+transitions and terminal audit; verification and reviews are in progress. Hosted
+dispatcher delivery and all P02b-3 implementation remain pending.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -253,7 +254,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 |---|---|---|
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
-| **P02b-2** | **Decision Accepted; Step 1 complete.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
+| **P02b-2** | **Decision Accepted; Step 1 complete; Step 2 verification/reviews in progress.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
@@ -1505,6 +1506,74 @@ without findings and independently checked its accepting/rejecting controls and
 saved TRX counters. The completed Step 1 commits are `d9bc77b`, `6a13455` and
 `b6fc714`; the next authorized implementation step is durable transitions and
 terminal audit.
+
+### P02b-2 Step 2 — Durable transitions and terminal audit (2026-10-12)
+
+**Implemented; independent review rounds pending.** `OutboxDispatchStore` uses
+short parameterized database-time transitions. Normal acquisition commits one
+fresh token and one attempt before returning; expired ownership requires a fresh
+recovery token without another attempt. Success, failure, terminal request and
+terminalization require the current token and an unexpired lease. Five backoffs
+follow six counted normal claims; exhausted or requested work never reenters
+normal publication. Pending identities and aliases are excluded before payload
+validation in every acquisition path. Local blocked partitions receive the same
+exclusion.
+
+`OutboxEnvelopeReader` uses only the registry's concrete type and frozen options.
+It compares persisted fact/routing/time, tolerates PostgreSQL microsecond
+truncation and checks the canonical reserialization byte cap, rather than jsonb
+whitespace. Complete envelope admission precedes intentional acknowledgement;
+Pending, unknown, retired and invalid outcomes remain distinct.
+
+The fifth `IAuditStore` method preserves the existing four writes. Only
+`OutboxDispatchStore.TryTerminalizeAsync` derives the minting capability and calls
+it. The private immutable witness reads all identity and causal values from the
+actual fenced UPDATE result, including the old acquisition token. The real audit
+store requires the declared producer MUST/SecurityEvent, matching draft identity
+and the same live connection/transaction. Both writes commit together. Invalid
+causal values are omitted; invalid correlation uses a validated attempt trace.
+No audit SQL is added outside `PostgresAuditStore`. Tenancy registers the producer
+operation; the subscriber operation remains planned for P02b-3.
+
+Terminal SQL plus audit share one five-second deadline. A lost COMMIT response
+triggers a separate bounded durable-state read before returning/retrying; it
+cannot insert a second audit into a completed terminal row. A test-owned TCP
+proxy drops the real PostgreSQL COMMIT acknowledgement after physical commit,
+proves reconnection and checks one durable terminal/audit pair. Production has no
+fault hook. Failed audit retains the terminal request, including below attempt
+six, and never permits another publication.
+
+Tests use actual `learnstack_app` inserts with announced tenant/org and the
+guarded `learnstack_outbox_admin` source for transitions. Disposable databases
+isolate grant and state mutations. Nonempty whole-production Cecil censuses and
+clean/dirty controls cover witness shape, minting/fifth-write callers, async and
+delegate helpers, required catalogue injection and named dynamic type-loading
+APIs. This is a bounded IL capability check, not arbitrary reflection/dataflow
+analysis. SharedKernel has no friend assembly.
+
+Four behavioural mutation controls each fail as intended: removing lease expiry,
+admitting terminal requests for publication, omitting MUST audit and discarding
+successful uncertain-COMMIT reconciliation. Every edit is restored before the
+clean validation run. Six-attempt tests start at zero and commit all six claims;
+they cover both an explicit sixth failure and an expired sixth claim. Snapshot
+proofs distinguish due, future, leased, expired, requested, exhausted, deferred,
+locally blocked, processed and completed-terminal rows.
+
+The four transition/audit/type catalogue rules are Implemented. Hosted lifecycle,
+publication/overrun proofs, credential caller enforcement and observation remain
+Steps 3–4. Real default subscriptions stay Pending; no P02b-3 business effect,
+inbox or delivery ledger is claimed.
+
+**Verification before review:** Release solution build has zero warnings/errors;
+formatting covers all 21 changed C# files. TRX counters and process exit codes
+record zero failures/skips: complete unit 1,825, complete architecture 273,
+contract 4, complete Docker-free integration 180 and affected Docker integration
+110. The Docker slice covers `OutboxDispatchStoreTests`, `AuditStoreTests`,
+`PlatformAdminScopeTests`, `TenantAssertionAuditTests` and
+`PublicReadTransactionTests`; it is not a full Docker-suite claim. All four
+behavioural mutants fail their named tests, then the restored code passes.
+Local file/fragment, historical-record/Accepted-ADR preservation, prose-width and
+`git diff --check` controls pass. No Step 2 review completion is claimed yet.
 
 ### Durable outbox dispatch
 

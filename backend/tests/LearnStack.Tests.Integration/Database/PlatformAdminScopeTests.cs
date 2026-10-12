@@ -711,6 +711,7 @@ public sealed class PlatformAdminScopeTests
             .AddLogging()
             .AddScoped<IAuditStateCapture, AuditStateCapture>()
             .AddSingleton<IAuditHealth, AuditHealth>()
+            .AddSingleton<IAuditCatalog>(new AuditCatalog([new TenancyAuditCatalogSource()]))
             .AddSingleton(new Lazy<NpgsqlDataSource>(
                 () => throw new InvalidOperationException(
                     "The platform-scope row is written on the scope's own connection, so "
@@ -740,6 +741,14 @@ public sealed class PlatformAdminScopeTests
         public Task WriteBestEffortAsync(
             AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task WriteEventTerminalAsync(
+            AuditEntryDraft entry,
+            EventTerminalTransition transition,
+            System.Data.Common.DbConnection connection,
+            System.Data.Common.DbTransaction transaction,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The terminal-event path has its own cases.");
 
         public Task WritePlatformScopeAsync(
             AuditEntryDraft entry,

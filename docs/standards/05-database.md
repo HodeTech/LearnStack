@@ -1394,8 +1394,9 @@ Public read models consumed by other modules:
 
 **ADR-0046 schema implemented in P02b-2 Step 1; both review rounds complete.**
 The canonical
-DDL below includes lease/terminal/identity/descriptor changes. Dispatcher execution
-and terminal auditing remain later P02b-2 steps. Existing
+DDL below includes lease/terminal/identity/descriptor changes. Step 2 implements
+fenced transitions and atomic terminal auditing; its reviews remain pending.
+Hosted execution and metrics remain Step 3. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form
 legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
 This specific ADR-0046 Platform migration temporarily uses owner-only `NO FORCE`
@@ -1514,7 +1515,8 @@ payload is capped at 262,144 bytes inclusive before INSERT. `metadata` is SQL
 NULL with no caller extension channel. This is application admission, not a new
 DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implements this
 producer boundary. ADR-0046 accepts producer recovery and the shared inbox
-contract; producer runtime remains P02b-2, inbox/delivery runtime P02b-3.
+contract; P02b-2 Step 2 implements producer transitions and terminal audit,
+Step 3 owns hosted dispatch, and P02b-3 owns inbox/delivery runtime.
 
 `organization_id` is `uuid NULL` and mirrors the organization context of the transaction
 that enqueued the row —

@@ -74,6 +74,7 @@ public sealed class PostgresAuditStore : IAuditStore
     private readonly Lazy<NpgsqlDataSource> _dataSource;
     private readonly ILogger<PostgresAuditStore> _logger;
     private readonly IAuditHealth _health;
+    private readonly IAuditCatalog _catalog;
     private readonly Counter<long> _durableDuplicates;
     private readonly Counter<long> _standaloneWriteFailures;
 
@@ -82,7 +83,8 @@ public sealed class PostgresAuditStore : IAuditStore
         Lazy<NpgsqlDataSource> dataSource,
         ILogger<PostgresAuditStore> logger,
         IMeterFactory meterFactory,
-        IAuditHealth health)
+        IAuditHealth health,
+        IAuditCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
@@ -90,6 +92,7 @@ public sealed class PostgresAuditStore : IAuditStore
         _dataSource = dataSource;
         _logger = logger;
         _health = health ?? throw new ArgumentNullException(nameof(health));
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
@@ -376,6 +379,44 @@ public sealed class PostgresAuditStore : IAuditStore
         }
     }
 
+    /// <inheritdoc />
+    public async Task WriteEventTerminalAsync(
+        AuditEntryDraft entry,
+        EventTerminalTransition transition,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        transition.EnsureMatches(entry, connection, transaction);
+
+        const string operation = "platform.outbox.dead_letter";
+        if (!_catalog.TryGetOffPath(operation, out var declared)
+            || declared.Operation != operation || declared.ModuleName != "platform"
+            || declared.OperationClass != OperationClass.Must
+            || declared.OperationType != OperationType.SecurityEvent || declared.EntityType is not null
+            || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType
+            || transition.Kind != "producer" || transition.SubscriptionId is not null)
+        {
+            throw new ArgumentException("The terminal audit requires its declared producer MUST security event.", nameof(entry));
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = InsertSql;
+            command.Transaction = transaction;
+            Bind(command.Parameters, entry);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbException failure)
+        {
+            throw new AuditWriteFailedException(
+                "The terminal audit could not be written; its state transition must roll back.", failure);
+        }
+    }
+
     /// <summary>
     /// <c>BEGIN; SET LOCAL app.tenant_id; SET LOCAL app.organization_id; INSERT; COMMIT</c>
     /// on a connection of this call's own.
@@ -429,8 +470,8 @@ public sealed class PostgresAuditStore : IAuditStore
     /// <summary>Binds one row's parameters, for a command or for one command of a batch.</summary>
     /// <remarks>
     /// Onto the parameter collection rather than the command, because the in-transaction
-    /// path writes through a <see cref="DbBatch"/> and the other three through a
-    /// <see cref="DbCommand"/>, and one binding is what keeps the four writing one row
+    /// path writes through a <see cref="DbBatch"/> and the other four through a
+    /// <see cref="DbCommand"/>, and one binding is what keeps the five writing one row
     /// shape.
     /// </remarks>
     private static void Bind(DbParameterCollection parameters, AuditEntryDraft entry)

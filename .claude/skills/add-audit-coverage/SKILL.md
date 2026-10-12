@@ -109,10 +109,11 @@ parsed from the other, and three rules in `AuditCoverageTests` join them —
   `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
   `tenancy.tenant_assertion.reject`, `tenancy.tenant_assertion.anonymous_burst`,
   `platform.outbox.dead_letter` and `platform.delivery.dead_letter`, and
-  Audit's `audit.redaction.apply` and `audit.purge.apply`. The three whose writer ships are
-  registered through `DeclareOffPath`; the other six also carry `(planned)` and
-  register when their writer lands. ADR-0046 reserves the Tenancy-owned producer
-  terminal operation for P02b-2 and subscriber terminal operation for P02b-3.
+  Audit's `audit.redaction.apply` and `audit.purge.apply`. The four whose writer
+  ships are registered through `DeclareOffPath`; the other five also carry
+  `(planned)` and register when their writer lands. ADR-0046 reserves the
+  Tenancy-owned producer terminal operation for P02b-2 and subscriber terminal
+  operation for P02b-3.
 - **A row carries both markers where both are true** — off the request path *and* ahead
   of the code that will write it.
 
@@ -533,7 +534,7 @@ passes even when every policy is inert. See
   The row is composed complete at the commit boundary, `IAuditStore` has **no update
   method**. Its four delivered write methods are `WritePendingAsync`,
   `WriteStandaloneAsync`, `WriteBestEffortAsync` and `WritePlatformScopeAsync`.
-  ADR-0046 accepts a fifth, P02b-2 pending,
+  ADR-0046 adds the fifth, implemented in P02b-2 Step 2,
   `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
   DbTransaction, CancellationToken)` for confined terminal writers. Its restricted
   witness binds audit identity to the actual fenced UPDATE; handlers cannot call

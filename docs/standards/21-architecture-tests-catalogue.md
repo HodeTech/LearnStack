@@ -14,7 +14,8 @@
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
-(accepted delivery rules Registered; P02b-2/P02b-3 proofs pending). The
+(P02b-2 transition and terminal-witness proofs implemented; hosted dispatch
+and P02b-3 consumer proofs pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -107,11 +108,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**173 test methods run in
+**180 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3 and P02b-1.
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1
+and P02b-2 Step 2.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -138,8 +140,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**183 rules in this catalogue are Implemented, and 113 of them are in that assembly.**
-The other 70 are no less binding, and most could not live there. The table says where
+**187 rules in this catalogue are Implemented, and 115 of them are in that assembly.**
+The other 72 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -2645,8 +2647,8 @@ which decides identity, multiplicity, capture and classification;
     [ADR-0036 Amendment 7](../decisions/0036-tenant-resolution-trusted-inputs.md), so that
     one parser reads every audit slug and every permission key — and Audit's
     `audit.redaction.apply` and `audit.purge.apply`. They sit outside the request-type join
-    in both directions and register by slug: the three whose writer ships through
-    `DeclareOffPath` today, the other six — which also carry `(planned)` — when their
+    in both directions and register by slug: the four whose writer ships through
+    `DeclareOffPath` today, the other five — which also carry `(planned)` — when their
     writer lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
     subscriber terminal writer to P02b-3; acceptance alone registers neither slug.
 
@@ -2886,7 +2888,23 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion, `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check, `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read nothing passed as well.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts:
+  a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` —
+  with or without `ONLY`, a schema qualifier or identifier quotes, which the first
+  pattern missed until the fourth review of Packet 9 measured it; a companion,
+  `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
+  it must catch and the shapes it must not, because with no offending statement anywhere
+  the sweep passes whether it works or matches nothing; and a reflection check,
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly five write
+  methods and no update (the additive fifth terminal seam ships in P02b-2 Step 2). None
+  of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
+  11 — so the exemption set ships with the rule **empty**, as exact paths: the first
+  site to land adds its own path, so it is exempted by name rather than the pattern
+  widened. (A substring predicate stood there first, and exempted any Audit-module file
+  whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also
+  asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO
+  audit_log` — because with no offender anywhere, a sweep that read nothing passed as
+  well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
@@ -3347,7 +3365,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Implemented** (`OutboxDispatchStoreTests`): committed claim/backoff,
+  expiry/reclaim, sixth-claim recovery and terminal-request refusal controls.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Terminal_Transition_And_Must_Audit_Are_Atomic`
@@ -3361,7 +3380,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Implemented** (`OutboxDispatchStoreTests`): real-role audit-grant
+  refusal, rollback/retry and completed-row replay controls.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Terminal_Audit_Identity_Is_Row_Bound`
@@ -3376,7 +3396,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatchStoreTests`): exact nonempty production mint/write censuses with
+  planted controls and real-row identity/transaction refusal proofs.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Type_Resolution_Is_Declared_And_Bounded`
@@ -3391,7 +3413,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxEnvelopeReaderTests`, `OutboxEventRegistryTests`): declared resolver and
+  transitive production helper census, planted loading calls and envelope probes.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Pending_Subscriptions_Preserve_Events`

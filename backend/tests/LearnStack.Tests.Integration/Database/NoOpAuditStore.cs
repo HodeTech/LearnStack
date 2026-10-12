@@ -31,6 +31,14 @@ internal sealed class NoOpAuditStore : IAuditStore
     public Task WriteBestEffortAsync(AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    public Task WriteEventTerminalAsync(
+        AuditEntryDraft entry,
+        EventTerminalTransition transition,
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("The terminal-event path has its own cases.");
+
     public Task WritePlatformScopeAsync(
         AuditEntryDraft entry,
         DbConnection connection,

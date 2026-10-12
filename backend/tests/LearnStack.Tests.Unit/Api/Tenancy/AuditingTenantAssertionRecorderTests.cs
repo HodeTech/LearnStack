@@ -259,7 +259,8 @@ public sealed class AuditingTenantAssertionRecorderTests
                 () => throw new InvalidOperationException("ConnectionStrings:Default is absent.")),
             storeLogger,
             meterFactory,
-            health);
+            health,
+            new AuditCatalog([]));
 
         var counted = 0L;
         using var listener = new MeterListener();
@@ -550,6 +551,14 @@ public sealed class AuditingTenantAssertionRecorderTests
         public Task WriteBestEffortAsync(
             AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("both slugs are MUST");
+
+        public Task WriteEventTerminalAsync(
+            AuditEntryDraft entry,
+            EventTerminalTransition transition,
+            System.Data.Common.DbConnection connection,
+            System.Data.Common.DbTransaction transaction,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The terminal-event path has its own cases.");
 
         public Task WritePlatformScopeAsync(
             AuditEntryDraft entry,

@@ -159,7 +159,7 @@ will raise them — which this standard requires it to do.
   `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
-  three whose writer ships through `DeclareOffPath` today, the other six when their
+  four whose writer ships through `DeclareOffPath` today, the other five when their
   writer lands. Producer terminal registration belongs to P02b-2; subscriber
   terminal registration belongs to P02b-3. Both are planned until their writers ship.
 - **One operation, one row.** A slug is classified in exactly one row across every
@@ -502,7 +502,8 @@ table above is the policy those deliverables implement, not a description of tod
   outcomes, metrics/health and MUST-audited terminal transitions. This exception
   changes no platform-admin pre-entry audit or other bypass operation.
 - `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
-  DbTransaction, CancellationToken)` is the narrow fifth write, pending P02b-2.
+  DbTransaction, CancellationToken)` is the narrow fifth write, implemented in
+  P02b-2 Step 2; independent reviews remain pending.
   Only a successful fenced UPDATE result mints the restricted witness binding
   actual tenant/org/event/acquisition/kind/reason/attempts/subscription and live
   transaction. Validate declared MUST/SecurityEvent operation and matching draft

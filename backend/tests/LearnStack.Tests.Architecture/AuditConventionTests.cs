@@ -305,7 +305,7 @@ public sealed partial class AuditConventionTests
 
         inserting.Should().Equal(
             ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"],
-            "PostgresAuditStore's four writes are the only SQL that adds an audit row");
+            "PostgresAuditStore's five writes are the only SQL that adds an audit row");
 
         // The context's exemption is for the MAPPING: a change-tracker write placed inside
         // AuditDbContext would be invisible to the leg above, because its caller names only the
@@ -515,13 +515,13 @@ public sealed partial class AuditConventionTests
     public void IAuditStore_Exposes_No_Update_Method()
     {
         // The other half of the same claim, and the one a reader checks first. ADR-0033
-        // says four writes and no update; a fifth method whose name says otherwise would
-        // make the port contradict the table's own triggers.
+        // and ADR-0046 now authorize five writes and no update; another method would
+        // make the port contradict its closed write contract.
         typeof(IAuditStore).GetMethods()
             .Select(method => method.Name)
             .Should().BeEquivalentTo(
                 "WritePendingAsync", "WriteStandaloneAsync", "WriteBestEffortAsync",
-                "WritePlatformScopeAsync");
+                "WritePlatformScopeAsync", "WriteEventTerminalAsync");
     }
 
     /// <summary>

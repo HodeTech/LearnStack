@@ -48,7 +48,8 @@ public sealed class TenantAssertionAuditTests
             new Lazy<NpgsqlDataSource>(() => dataSource),
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
-            new AuditHealth());
+            new AuditHealth(),
+            new AuditCatalog([]));
 
         var recorder = Recorder(store, threshold: 10);
 
@@ -99,7 +100,8 @@ public sealed class TenantAssertionAuditTests
             new Lazy<NpgsqlDataSource>(() => dataSource),
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
-            new AuditHealth());
+            new AuditHealth(),
+            new AuditCatalog([]));
 
         var recorder = Recorder(store, threshold: 3);
 

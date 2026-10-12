@@ -142,7 +142,9 @@ audit commit atomically; a restricted witness binds the audit to the actual fenc
 UPDATE result, because GUCs and INSERT-only cannot tenant-bind a bypass credential.
 The platform-admin gate and pre-entry audit remain unchanged. Four roles and
 separate credentials remain the closed model; the code-path and role rules are
-Registered until their P02b-2 proof ships.
+implemented for transition-witness construction and terminal audit in Step 2;
+its independent reviews remain pending. Hosted execution and credential/publication
+censuses remain Steps 3–4.
 
 <a id="inbox-table-per-consumer-module"></a>
 
