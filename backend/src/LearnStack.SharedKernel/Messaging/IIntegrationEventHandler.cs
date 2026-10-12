@@ -13,13 +13,14 @@ namespace LearnStack.SharedKernel.Messaging;
 /// production. Both transports resolve this same contract.
 /// </para>
 /// <para>
-/// <b>A handler must call <c>IInboxGuard.IsAlreadyProcessedAsync</c> before any
-/// business logic.</b> Delivery is at-least-once by design, so deduplication is
-/// the consumer's obligation rather than the transport's. The guard, its
-/// per-module <c>inbox_messages</c> table and the architecture test that holds
-/// every handler to it, <c>Integration_Event_Handlers_Use_InboxGuard</c>, land in
-/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>;
-/// the contract is shaped for it now so no handler is written twice.
+/// Delivery is at-least-once. Under
+/// <see href="../../../../docs/decisions/0046-durable-event-delivery-and-recovery.md">ADR-0046</see>,
+/// the transport claims the shared <c>IInboxGuard</c> before constructing the
+/// handler; handlers do not call it. Business state, inbox completion and fenced
+/// delivery completion share one transaction. Durable acceptance, the shared
+/// <c>inbox_messages</c> table and the nonempty production proof for
+/// <c>Integration_Event_Handlers_Use_InboxGuard</c> belong to P02b-3.
+/// The shipped in-process baseline does not yet provide durable deduplication.
 /// </para>
 /// </remarks>
 /// <remarks>

@@ -10,15 +10,15 @@ namespace LearnStack.SharedKernel.Messaging;
 /// implementing this interface directly, so that every event carries the same
 /// identity, tenancy and ordering fields and a consumer can rely on them without
 /// knowing the type. The architecture test
-/// <c>Integration_Events_Inherit_From_IntegrationEventBase</c> is registered for
-/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>,
-/// with the first event type for it to hold to that.
+/// <c>Integration_Events_Inherit_From_IntegrationEventBase</c> is implemented by
+/// P02b-2 against the declared concrete contract registry.
 /// </remarks>
 public interface IIntegrationEvent
 {
     /// <summary>Identity for consumer-side deduplication.</summary>
     /// <remarks>
-    /// Delivery is at-least-once, so this is what <c>IInboxGuard</c> keys on.
+    /// Delivery is at-least-once; P02b-3's transport-owned shared inbox uses this
+    /// value together with tenant and stable subscription identity.
     /// It is assigned once by the producer and never re-derived — a redelivery
     /// carries the same value, which is the entire point.
     /// </remarks>
@@ -51,14 +51,14 @@ public interface IIntegrationEvent
     string Topic { get; }
 
     /// <summary>
-    /// The ordering domain this event belongs to.
+    /// The partition identity this event belongs to.
     /// </summary>
     /// <remarks>
-    /// Ordering is guaranteed per partition key and nowhere else, so a partition
-    /// key nobody sets is a guarantee nobody has. Normally the id of the
-    /// aggregate the event is about; the tenant id for events about the tenant as
-    /// a whole. Resolved once, by the producer that knows the domain, and never
-    /// re-derived downstream.
+    /// Normally the id of the aggregate the event is about; the tenant id for
+    /// events about the tenant as a whole. Resolved once by the producer, never
+    /// re-derived downstream. ADR-0046 bounds eligible selection within one
+    /// processor; this key alone promises no enqueue, commit, retry or
+    /// cross-process publication order.
     /// </remarks>
     string PartitionKey { get; }
 }

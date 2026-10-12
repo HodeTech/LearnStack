@@ -1910,10 +1910,26 @@ Docker-free integration cases, plus 97 focused Docker cases (54 store, 27
 migration, 16 worker), with zero failures/skips. Guarded frontend passes 1,616
 cases (1,556 web, 60 SDK), with zero failures/skips/todos; lint/typecheck pass.
 Release build reports zero warnings/errors; format, seven ADR-status script
-controls, 2,587 relative links and 491 fragments pass. The new regression cases
-fail their predecessor/mutant controls. Both fresh independent correction review
+controls, 2,587 relative links and 491 fragments pass. Planner predecessor and
+isolated second-budget mutant controls fail; clean counterparts pass. Both fresh
+independent correction review
 rounds and complete correction-head CI remain pending in this local receipt;
 the PR description owns live head/check evidence.
+
+#### External correction review round 1
+
+Fresh GPT-6-astra xhigh store/security and GPT-6.1-sol xhigh proof/corpus
+reviewers approve `44089707..13cd632` without introduced findings. Independent
+verification passes seven focused PostgreSQL cases and 99 lifecycle cases.
+The PostgreSQL rerun uses the existing Release binaries after a whitespace-only
+source correction; a fresh committed-source build and CI remain separate checks.
+
+The corpus reviewer finds a pre-existing adjacent source-comment contradiction:
+`IIntegrationEventHandler` still requires handler-owned per-module inboxes.
+Its remarks now name ADR-0046's transport-owned shared inbox and P02b-3 boundary.
+The adjacent `IIntegrationEvent` remarks also stop promising unconditional
+partition ordering or describing the implemented contract guard as Registered.
+These are documentation corrections, with no interface or runtime change.
 
 ### Durable outbox dispatch
 
