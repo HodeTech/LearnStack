@@ -154,3 +154,18 @@ The optional fourth segment is reserved for **Hub-side event-name suffixes only*
 LearnStack-core topics stay 3-segment by convention (`learnstack.{module}.{aggregate}`);
 the test does not reject 3-segment topics in either direction. This amendment
 clarifies the regex; no other rule changes.
+
+## Amendment 3 — Bounded inbox supersession by ADR-0046 (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+supersedes Amendment 1's own-module inbox, handler-called guard and corresponding
+`Integration_Event_Handlers_Use_InboxGuard` assertion. The
+[catalogue rule](../standards/21-architecture-tests-catalogue.md#integration_event_handlers_use_inboxguard)
+now requires transport-owned claim/completion before handler construction and
+atomic business completion. Two same-module subscriptions retain distinct stable
+identities. P02b-3 implements and proves this contract; the rule stays Registered
+until those production subjects exist.
+
+The four communication mechanisms remain unchanged. This is a bounded
+supersession, not an ADR-0041 correction. Original acceptance metadata, body and
+earlier amendments remain intact; acceptance claims no inbox delivery.

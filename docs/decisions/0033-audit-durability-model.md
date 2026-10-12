@@ -762,6 +762,23 @@ audit. P02b-1 proves a controlled non-MediatR owner; production delivery/inbox
 atomicity remains P02b-3 after G1. This is a dated clarification, not an ADR-0041
 correction. All earlier body text and acceptance metadata remain intact.
 
+## Amendment 9 — Same-transaction event terminal audit (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#atomic-terminal-audit-and-privilege-boundary)
+applies this ADR's existing MUST same-transaction guarantee to a new confined
+caller. A fenced event-terminal UPDATE and its complete MUST security-event
+INSERT commit on one caller-owned transaction, or both roll back. The narrow
+fifth `IAuditStore` write receives a restricted witness from the successful
+UPDATE result, validates its row identity and live transaction, and opens or
+commits no transaction itself. An uncertain COMMIT is reconciled from durable
+state before retry; it does not justify a second terminal audit.
+
+P02b-2 supplies the producer caller; P02b-3 supplies the subscriber caller.
+Existing four write paths, classification, refusal posture and append-only rows
+retain their contracts. This is a clarification of the guarantee's new caller,
+not an ADR-0041 correction. Original acceptance metadata, body and earlier
+amendments remain intact. Acceptance authorizes implementation, not delivery.
+
 ## References
 
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) (superseded by this ADR)

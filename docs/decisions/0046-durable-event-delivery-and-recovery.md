@@ -2,10 +2,10 @@
 
 ## Status
 
-Proposed — maintainer approval pending. No implementation or gate is complete.
+Accepted — 2026-10-12. Implementation is authorized; delivery remains pending.
 
 **Date:** 2026-10-12
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
@@ -43,11 +43,11 @@ either is implemented. Acceptance does not claim delivery.
 
 ## Decision
 
-LearnStack proposes a leased, grant-bounded outbox dispatcher with explicit
+LearnStack uses a leased, grant-bounded outbox dispatcher with explicit
 subscription readiness, fenced retries and atomic audited terminalization.
 Durable subscriber acceptance and a transport-owned shared inbox separate each
 subscription's business outcome from producer dispatch. The following contract
-becomes normative only on acceptance.
+is normative; packet delivery records own implementation evidence.
 
 ### Producer dispatch and recovery
 
@@ -395,7 +395,7 @@ The superseded consumer subscription sketch does not introduce
 `IModule.ConfigureEventHandlers`: no such repository type exists. P02b-3 uses
 the declared manifest and the actual composition APIs. Historical P02b-1 "Next"
 and "reserved and undrafted" statements are as-of records; the current P02b-2
-package and Proposed index own navigation to this drafted record.
+package and Active index own navigation to this Accepted record.
 
 ## Architecture Tests
 

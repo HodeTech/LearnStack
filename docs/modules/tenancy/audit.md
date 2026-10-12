@@ -10,6 +10,13 @@ aggregate. A failed MUST write rolls back tenant, organization and outbox togeth
 The [integration-event catalogue](README.md#integration-event-catalogue) owns the flow;
 production dispatch and subscribers remain P02b-2/P02b-3.
 
+**ADR-0046 Accepted — 2026-10-12; terminal writers pending.** The infrastructure
+operations below belong to this catalogue/matrix, without a synthetic aggregate.
+P02b-2 registers the producer terminal operation when its writer ships; P02b-3
+does the same for subscriber terminalization. Both use the restricted fifth
+audit seam on the fenced state-transition transaction. Routine confined dispatch
+has the explicit ADR-0046 exemption; platform-scope entry auditing is unchanged.
+
 **P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
 and focused fix verification pass. Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It
@@ -36,7 +43,7 @@ separate allowlist. Verification request types are Off.
 Packet 7 ships four audited root writes through three commands: Tenant and default
 Organization provisioning, a separate Organization create, and host mapping creation.
 P02d-2 adds two locale commands (SHOULD over Tenant) and one branding command (MUST over
-TenantSetting). Thirteen rows remain `(planned)`; five operations have no MediatR
+TenantSetting). Fifteen rows remain `(planned)`; seven operations have no MediatR
 request and carry `(off-path)`.
 
 All four original writes are **MUST**. Their records commit with the business state,
@@ -113,6 +120,8 @@ unmarked row is one a shipped command already raises.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
+| `outbox_messages` | `platform.outbox.dead_letter` `(off-path)` `(planned)` | **MUST** (`security-event`) | P02b-2's consequential BYPASSRLS terminal transition; state and row commit together through the row-bound fifth audit seam, with stored tenant/org/event identity and SystemActor ([ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md)) |
+| delivery ledger | `platform.delivery.dead_letter` `(off-path)` `(planned)` | **MUST** (`security-event`) | P02b-3 owns subscriber terminalization, stable subscription/event identity and the same atomic transition/audit guarantee; no writer or operation registration ships at acceptance |
 | `Tenant` | `tenancy.tenant.create` | **MUST** | The root of a customer's data; its existence is a contractual fact |
 | `Tenant` | `tenancy.tenant.change_status` `(planned)` | **MUST** | Suspension withdraws access; an operator must be able to say who and when |
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
@@ -158,7 +167,7 @@ classification and not drift — and a `(planned)` row whose command has since s
 fails, so the marker is a claim the rule re-checks on every run rather than an
 exemption.
 
-Five rows sit outside that join in both directions, each marked `(off-path)` for the
+Seven rows sit outside that join in both directions, each marked `(off-path)` for the
 reason its own cell gives: `platform.admin_scope.enter`, written on the fourth write path
 ([ADR-0044 § 10](../../decisions/0044-audit-write-path.md));
 `tenancy.killswitch.toggle`, written inside `EnterPlatformAdminScope(reason)`;
@@ -169,8 +178,10 @@ whose refreshing implementation lands in Phase 02c; and the two
 ([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md)). Three are
 registered by slug through `DeclareOffPath` because their writer ships —
 `platform.admin_scope.enter` and the two `tenancy.tenant_assertion.*` keys.
-`tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry `(planned)` and
-register by slug when Phase 03 and Phase 02c land their writers. Every other slug above is
+`tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
+`platform.outbox.dead_letter` and `platform.delivery.dead_letter` also carry
+`(planned)` and register by slug when Phase 03, Phase 02c, P02b-2 and P02b-3,
+respectively, land their writers. Every other slug above is
 joined in both directions the day its command lands.
 
 ## P02d-2 contextual verification reads

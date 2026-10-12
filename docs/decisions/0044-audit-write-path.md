@@ -1105,6 +1105,54 @@ audit. P02b-1 proves a controlled non-MediatR owner; production delivery/inbox
 atomicity remains P02b-3 after G1. This is a dated clarification, not an ADR-0041
 correction. All earlier body text and acceptance metadata remain intact.
 
+## Amendment 9 — Bounded terminal-audit grant replacement (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams)
+supersedes only § 9's `audit_log` grant cell denying every permission to
+`learnstack_outbox_admin`. P02b-2 grants INSERT-only for confined atomic terminal
+audit, through a new Audit-chain migration after the table exists. No audit
+SELECT/UPDATE/DELETE, business-table grant or privileged membership is added.
+[Database Standards](../standards/05-database.md#grant-matrix) owns the exact grants.
+
+This is a bounded new decision, not an ADR-0041 correction. Original acceptance
+metadata, body and prior amendments remain intact. The four-role model, RLS and
+append-only controls survive. Acceptance claims no runtime grant delivery.
+
+## Amendment 10 — Additive event-terminal write seam (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#atomic-terminal-audit-and-privilege-boundary)
+adds the fifth write method:
+
+```csharp
+IAuditStore.WriteEventTerminalAsync(
+    AuditEntryDraft draft,
+    EventTerminalTransition transition,
+    DbConnection connection,
+    DbTransaction transaction,
+    CancellationToken cancellationToken);
+```
+
+Only a successful fenced terminal `UPDATE ... RETURNING` mints its immutable,
+restricted transition witness. The witness binds the actual stored tenant/org,
+event, acquisition, producer/subscriber kind, reason, attempts, optional
+subscription ID and live connection/transaction. The seam checks operation,
+class/type and every corresponding draft identity before INSERT; mismatches
+require rollback of both writes. It opens/commits no transaction, and
+`PostgresAuditStore` remains the sole audit SQL writer. Existing four writes
+retain their contracts.
+
+P02b-2 admits only the producer terminal writer and Tenancy-owned off-path
+`platform.outbox.dead_letter` as MUST/SecurityEvent. P02b-3 reserves the subscriber
+writer and `platform.delivery.dead_letter` under that same owner/class/type;
+register each operation only when its writer ships. P02b-3 adds inbox/delivery
+machinery to § 7's capture exclusions with reasons, because explicit intents
+audit business effects and retry state is machinery. Those exclusions remain
+unimplemented until P02b-3.
+
+This additive seam is separate from Amendment 9's grant replacement and does not
+change ADR-0033's durability contract. Original acceptance metadata, body and
+prior amendments remain intact. Acceptance authorizes implementation, not delivery.
+
 ## References
 
 - [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) — the durability

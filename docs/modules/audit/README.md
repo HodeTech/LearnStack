@@ -28,6 +28,14 @@ module's `IUserReferenceLocator`
 retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
 written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
 
+**ADR-0046 Accepted — 2026-10-12; fifth writer pending P02b-2.** The existing
+four writes remain implemented. `WriteEventTerminalAsync` adds INSERT-only access
+for the confined outbox role and validates the audit draft against a restricted
+witness from the actual fenced terminal UPDATE on the caller's transaction.
+Terminal state and MUST audit are atomic; this is not a standalone or platform-
+scope write. Tenancy owns the producer/subscriber operation declarations in
+[its matrix](../tenancy/audit.md), with subscriber implementation in P02b-3.
+
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
 
@@ -345,7 +353,9 @@ its mirror consumer. Existing source MUST rows remain on the source transaction.
 The reusable execution coordinator supplies non-MediatR classification/entry,
 owner write/boundary reporting and outermost reconciliation under ADR-0044/0033.
 P02b-1 proves a controlled direct owner; P02b-3 owns production delivery and its
-per-effect audit after G1. No new audit writer or durability model is introduced.
+per-effect audit under ADR-0046's accepted G1 contract. Business audit retains
+the existing coordinator and durability model; explicit terminal audit uses the
+separate fifth seam described above.
 
 ## Permission matrix
 

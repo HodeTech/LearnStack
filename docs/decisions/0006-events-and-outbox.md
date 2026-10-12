@@ -103,3 +103,23 @@ nothing dispatches from it until [Phase 02b](../roadmap/phase-02b-events-auth.md
 `learnstack_outbox_admin`'s column-scoped `UPDATE` grant in the same migration — a
 column added without extending it fails at runtime with `permission denied for
 table`.
+
+## Amendment 3 — Bounded delivery supersession by ADR-0046 (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams)
+supersedes Amendment 1's consumer-side handler-called guard and own-module inbox.
+P02b-3 implements a shared transport-owned inbox keyed by tenant, stable
+subscription ID and event ID; its separate delivery ledger owns independent
+retries, terminal state and targeted replay. Publish success then means durable
+acceptance of every required delivery, not completed business effects.
+
+P02b-2 implements fresh-token leases, claim-counted attempts, explicit terminal
+requests and atomic terminal audit under ADR-0046. Required Pending subscriptions
+preserve rows before acquisition and validation; only declared intentional
+absence acknowledges without publication. The canonical DDL/grants remain in
+[Database Standards](../standards/05-database.md#outbox).
+
+These are bounded new decisions, not ADR-0041 corrections. Original bodies,
+acceptance blocks and prior amendments remain intact. Envelope contracts and
+at-least-once recovery survive; demand-gated Dapr/Kafka remain Phase 11.
+Acceptance claims no dispatcher or inbox delivery.

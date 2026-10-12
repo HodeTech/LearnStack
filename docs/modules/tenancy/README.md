@@ -497,7 +497,12 @@ and the existing two MUST audit rows share one transaction. P02b-1 persists
 pending rows; P02b-2/P02b-3 own dispatch/delivery.
 
 The subscriptions below are accepted flow contracts, not delivered handlers.
-G1 must settle distinct subscription deduplication/delivery scope first.
+[ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md) accepts G1's
+shared transport-owned inbox and separate delivery ledger. P02b-2 holds this
+contract Pending, including aliases, before claim or payload validation. P02b-3
+activates `customization.initialize-content-type-default.v1` for the `card@1`
+content type and `customization.initialize-taxonomy-default.v1` for the `plain@1`
+taxonomy together with durable acceptance; there are no placeholder handlers.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|
