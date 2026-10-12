@@ -159,6 +159,34 @@ public sealed class OutboxEventRegistryTests
     }
 
     [Fact]
+    public void Active_handlers_must_be_closed_constructible_types()
+    {
+        var open = typeof(GenericHandler<>);
+        var discovered = IntegrationEventHandlerRegistry.Discover(typeof(SampleEvent).Assembly);
+        discovered.All.Should().Contain(subscription =>
+            subscription.EventType == typeof(SampleEvent) && subscription.HandlerType == open,
+            "the discovery census alone does not reject an open handler");
+
+        var openHandlers = IntegrationEventHandlerRegistry.FromServiceDescriptors(
+            [ServiceDescriptor.Scoped(typeof(IIntegrationEventHandler<SampleEvent>), open)]);
+        var build = () => Create(
+            [OutboxEventRegistration.Required(typeof(SampleEvent),
+                [OutboxSubscriptionManifest.Active("test.sample.v1", open)])],
+            handlers: openHandlers);
+        build.Should().Throw<InvalidOperationException>().WithMessage("*concrete handler*");
+
+        var closed = typeof(GenericHandler<int>);
+        var closedHandlers = IntegrationEventHandlerRegistry.FromServiceDescriptors(
+            [ServiceDescriptor.Scoped(typeof(IIntegrationEventHandler<SampleEvent>), closed)]);
+        var control = Create(
+            [OutboxEventRegistration.Required(typeof(SampleEvent),
+                [OutboxSubscriptionManifest.Active("test.sample.v1", closed)])],
+            handlers: closedHandlers);
+        control.Resolve(typeof(SampleEvent).AssemblyQualifiedName).Disposition
+            .Should().Be(OutboxEventDisposition.Active);
+    }
+
+    [Fact]
     public void A_contract_outside_the_explicit_assembly_allowlist_is_rejected()
     {
         var build = () => OutboxEventRegistry.Create(
@@ -207,6 +235,12 @@ public sealed class OutboxEventRegistryTests
     }
 
     private sealed class SampleHandler : IIntegrationEventHandler<SampleEvent>
+    {
+        public Task HandleAsync(SampleEvent integrationEvent, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class GenericHandler<T> : IIntegrationEventHandler<SampleEvent>
     {
         public Task HandleAsync(SampleEvent integrationEvent, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;

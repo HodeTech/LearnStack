@@ -1434,7 +1434,8 @@ claim no runtime enforcement; delivery evidence belongs to each step below.
 
 ### P02b-2 Step 1 — Decision, schema and confined composition (2026-10-12)
 
-**Implemented; review round 1 complete, round 2 pending.** Decision commit
+**Implemented; both independent review rounds complete; fix review pending.**
+Decision commit
 `192810b` precedes runtime edits. Step 1 adds the Platform-chain migration
 `20261012180355_add_outbox_dispatch_state` and Audit-chain migration
 `20261012180433_grant_outbox_terminal_audit`. Existing migration bodies remain
@@ -1484,6 +1485,20 @@ Architecture 10. Both were verified and reconciled to ADR-0046's transport-owned
 P02b-3 target. Original dated notes remain intact. No runtime change was needed;
 the existing test evidence above remains applicable. The correction passes local
 file/fragment checks, prose wrapping and `git diff --check`.
+
+#### Step 1 review round 2
+
+Fresh GPT-6.1-sol xhigh security/composition and GPT-6-astra high corpus/proof
+reviewers examined `192810b..6a13455`. Corpus review approved without findings.
+The composition review verified that an open generic Active handler could match
+the discovery census despite being unconstructible. Active admission now requires
+a closed type. A regression proves discovery sees the open generic offender,
+refuses its matching manifest and accepts a closed generic control. The complete
+Release unit suite passes 1,801 cases; the complete architecture suite passes
+266, both with zero failures/skips. A fresh focused review checks this correction
+before Step 2 begins. Removing the closed-type check makes the new regression
+fail; restoring it makes all 17 registry cases pass. No migration, grant or
+Pending policy changed.
 
 ### Durable outbox dispatch
 

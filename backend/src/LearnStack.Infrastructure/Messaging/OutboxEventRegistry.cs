@@ -208,7 +208,11 @@ public sealed class OutboxEventRegistry
                     }
                 }
                 else if (subscription.Readiness == OutboxSubscriptionReadiness.Active
-                    && subscription.HandlerType is { IsClass: true, IsAbstract: false } handlerType)
+                    && subscription.HandlerType is
+                    {
+                        IsClass: true, IsAbstract: false,
+                        ContainsGenericParameters: false
+                    } handlerType)
                 {
                     if (!activeHandlers.Add((eventType, handlerType)))
                     {
