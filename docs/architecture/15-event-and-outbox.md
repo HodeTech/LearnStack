@@ -584,9 +584,9 @@ public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
 }
 ```
 
-`InProcessEventBus` honours the same key by serialising dispatch per partition key —
-concurrent across keys, sequential within one — so a consumer cannot observe an ordering
-in development that the durable transport would not also produce.
+`InProcessEventBus` serializes invocation per partition key within its process:
+concurrent across keys, sequential within one. This does not establish durable
+publish order across commits and retries; P02b-2 G3 owns that decision.
 
 Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 
