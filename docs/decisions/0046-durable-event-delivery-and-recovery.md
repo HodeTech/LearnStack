@@ -11,6 +11,9 @@ Delivery updates: [Amendment 1](#amendment-1--producer-runtime-delivery-2026-10-
 and [Amendment 2](#amendment-2--producer-enforcement-and-local-closeout-2026-10-12).
 The Status above records acceptance-time state; Amendment 2 records local producer
 closeout with PR-head CI and merge pending.
+Current CI/review/merge navigation (2026-10-12): the
+[PR handoff](../roadmap/phase-02b-events-auth.md#p02b-2-pr-handoff-2026-10-12)
+links the live PR; the delivery notes retain their as-of status.
 
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
