@@ -755,7 +755,7 @@ censuses. Step 3's save collector, domain causation and publisher remain pending
 
 ### P02b-1 Step 3 — Domain completion and provisioning publisher (2026-10-12)
 
-**Implemented; both independent review rounds pending.**
+**Implemented; both independent review rounds complete.**
 
 - A shared SaveChanges interceptor snapshots only changed sources of its saving
   context, then promotes facts after nonzero successful persistence. Failed,
@@ -796,6 +796,22 @@ proves later-generation reuse without replay. The full focused rerun above is
 green. These corrections change no runtime policy and conceal no failing case.
 Step 4 still owns complete structural enforcement and catalogue promotion;
 required CI and packet completion are not claimed at this checkpoint.
+
+#### Step 3 independent reviews
+
+Round 1 reviewed `937e36a..d6fbd85` with separate GPT-6-astra xhigh
+runtime/transaction and GPT-6.1-sol xhigh proof/corpus reviewers. Both approved
+without a verified actionable finding. The proof reviewer independently reran
+28 domain/provisioning integration and 28 focused unit cases with zero
+failures/skips. Round 2 used two new agents with the same separate lenses;
+both approved, and its proof reviewer independently repeated those same
+28 integration and 28 unit cases with zero failures/skips. These focused repeats
+overlap the implementation evidence; they are not added to its totals.
+
+The reviews checked real SQL/save qualification, retained child metadata,
+ancestor receipts, FIFO/count bounds, owner/audit atomicity, terminal cleanup,
+response versions and both production registrations. No runtime fix was needed.
+Complete production censuses and catalogue promotion remain Step 4 work.
 
 ### Durable outbox dispatch
 
