@@ -108,7 +108,7 @@ Walk the diff for correctness issues. Common shapes:
 | **Race condition** | Read-modify-write without optimistic concurrency (`row_version`) or a transaction. Cross-instance state without `ICacheService` invalidation. |
 | **Resource leak** | `DbContext` / `HttpClient` / file stream not disposed; long-lived `DaprClient` reuse via DI, not `new`. |
 | **Idempotency** | Command with external side effects (LiveKit room, Stripe charge) missing `Idempotency-Key` handling. Integration-event consumer missing `IInboxGuard.IsAlreadyProcessedAsync`. |
-| **Outbox atomicity** | Outbox row written in the same `DbContext` SaveChanges as the aggregate. No separate transaction. |
+| **Outbox atomicity** | Immediate INSERT through the enrolled, announced ambient `IUnitOfWork`; source state/outbox/MUST audit share its transaction. SaveChanges flushes only. ADR-0057 generation, tenant, read-only, payload/metadata and duplicate refusals hold. |
 | **Tenant context restoration** | Background job + integration-event handler restores `TenantContext` before any work. |
 | **Edge cases** | Empty list, zero, negative, max-int, very-long string. Test or guard. |
 | **Time / clock** | Hard-coded UTC / DateTime.Now / DateTime.UtcNow vs `IClock` injection. |
@@ -282,6 +282,26 @@ Author intent: <one-paragraph restatement>
   — a separate rule per [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md)
   and [29-dapr-integration.md § 8](../../../docs/architecture/29-dapr-integration.md);
   architecture test `Dapr_SDK_Types_NotImportedOutsideInfrastructure`.
+- **ADR-0057 producer boundaries.** Domain handlers only translate to outbox;
+  inspect helper/interface paths for mutations, write stores, nested sends,
+  further raises, notification publication and providers. Successful-save events
+  drain FIFO at one owner site before invariants/MUST audit/commit, with a total
+  256 bound. Sticky produced-work receipts reach all ancestors; absorbed
+  `Result.Fail` poisons before frame resolution. Event-free control still commits.
+  Verify failed-save attribution and cleanup on every terminal/same-scope path.
+- **ADR-0057 payload and execution.** Additional fields are identifiers only;
+  concrete-runtime frozen JSON fits the inclusive 262,144-byte UTF-8 cap; JSON
+  metadata is SQL NULL. Trusted execution supplies no-listener Activity and
+  causation/causal actor; transaction announcement supplies tenant/organization.
+  No caller header/snapshot establishes authority. Common non-MediatR audit
+  entry refuses unregistered direct mutation and reconciles only at the outer
+  frame; producer receipts are distinct. P02b-3 delivery/inbox remains open.
+- **Real flow and evidence.** Completed provisioning emits
+  `TenantCreatedIntegrationEventV1`; P02b-1 claims pending rows only. P02b-3 owns
+  separate create-only `card@1`/`plain@1` subscriptions and Seeder identity
+  handoff after G1; no settings invalidation or Audit mirror is the sample.
+  Read current producer/consumer statuses in the catalogue; require production
+  censuses and planted offenders rather than zero-subject passes.
 - **No direct write to `audit_log` / `outbox_messages` /
   `platform_entitlement_cache`.** Use `IAuditStore` / `IOutbox` /
   `IEntitlementProvider.RefreshAsync`.

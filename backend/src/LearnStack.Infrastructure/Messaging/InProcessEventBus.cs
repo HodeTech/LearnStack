@@ -10,8 +10,8 @@ namespace LearnStack.Infrastructure.Messaging;
 
 /// <summary>The process-local <see cref="IEventBus"/> transport.</summary>
 /// <remarks>
-/// It preserves the durable transport's handler contract, tenant restoration,
-/// per-partition ordering and per-subscription failure isolation. Each
+/// It supplies the shared handler contract, ambient tenant restoration,
+/// process-local per-key invocation serialization and subscription failure isolation. Each
 /// subscription is constructed once in its own async scope. Dapr becomes the
 /// adapter when ADR-0035's multi-process/replay trigger is met.
 /// </remarks>

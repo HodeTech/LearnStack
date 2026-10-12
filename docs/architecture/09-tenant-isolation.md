@@ -96,7 +96,8 @@ In text, for a reader whose renderer does not draw it:
    accessor's only member
    ([ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md)) —
    and the request continues.
-5. TransactionBehavior selects ambient mode. Default writers announce tenant first;
+5. `TransactionBehavior` selects ambient mode and delegates to
+   `TransactionExecutionCoordinator`. Default writers announce tenant first;
    physical public reads complete only the approved READ ONLY setup first, then
    announce tenant before data under [Security's rule](../standards/11-security.md#the-rule).
 6. EF Core applies the global query filter, so the SQL carries the tenant and
@@ -148,6 +149,20 @@ the behavior turns that into the session variable. It
 widens **reads** across organizations within the caller's tenant; it never widens
 writes, and it never crosses a tenant boundary. The default scope (`null` or
 `'organization'`) restricts reads to the caller's organization plus tenant-wide rows.
+
+P02b-1 Step 1 centralizes this existing general announcement path in
+[`TransactionExecutionCoordinator`](../../backend/src/LearnStack.Application/Persistence/TransactionExecutionCoordinator.cs).
+It adds no logical setter or ambient context writer. The read-only
+`GetTenantContextAnnouncement(DbTransaction?)` snapshot records successful
+normalized tenant/organization SQL and its physical transaction generation.
+Producer frames compare live generation/tenant rather than accepting caller
+snapshots or reading an unresolved provisioning accessor. Joins reuse the same
+announcement; the snapshot cannot retarget the transaction. The closed writer
+set, host factory ceiling and canonical RLS placement remain unchanged under
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+P02b-1 Steps 2–3 deliver immediate outbox enqueue, successful-save collection
+and owner-only completion. Dispatch and consumer delivery remain P02b-2/P02b-3
+work.
 
 ## Default org semantics
 

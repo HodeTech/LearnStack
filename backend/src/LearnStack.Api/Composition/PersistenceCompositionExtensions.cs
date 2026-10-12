@@ -9,6 +9,7 @@ using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.MultiTenancy;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -19,6 +20,7 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -216,6 +218,8 @@ public static class PersistenceCompositionExtensions
         // idempotence this actually wants.
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ISaveChangesInterceptor, AuditChangeTrackerInterceptor>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<ISaveChangesInterceptor, DomainEventSaveChangesInterceptor>());
 
         // PostgresAuditStore counts the durable-duplicate outcome, so it needs a meter
         // factory. AddMetrics is idempotent and the API host already calls it through
@@ -263,6 +267,7 @@ public static class PersistenceCompositionExtensions
         services.AddHealthChecks().AddCheck<AuditHealthCheck>(AuditHealthCheck.Name);
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
+        services.TryAddScoped<IOutbox, PostgresOutbox>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built
         // at composition time and read on every request, and rebuilding it per scope would

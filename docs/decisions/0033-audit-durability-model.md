@@ -740,6 +740,28 @@ Amendment 2 § 7 and Amendment 5 § 1, by the errata beside them;
 refusal writes no row; the `add-audit-coverage` skill; and `IAuditStore`'s own account of
 its standalone callers. No other Accepted ADR's body changes.
 
+## Amendment 8 — Common audit ownership outside MediatR (2026-10-12)
+
+**Status: Accepted.** [ADR-0057](0057-transactional-event-production-and-completion.md#audit-ownership-outside-mediatr)
+clarifies how a non-MediatR transaction owner performs the existing audit duties.
+The reusable execution coordinator opens the outer audit frame before handler
+construction, classifies the handler type and refuses an unregistered mutating
+handler. A direct one-root handler declares its own intents; nested commands
+retain theirs without a duplicate business row.
+
+The transaction owner drains domain events before composing and writing every
+pending MUST row, then commits and reports `Committed`, `RolledBack` or
+`Indeterminate` accurately. Only the outermost audit frame reconciles and clears
+capture. Producer invocation receipts remain distinct from audit ownership;
+joiners do not claim durability or clear the owner's capture.
+
+Classification, the MUST floor, standalone refusal posture, plural resource
+intents and the single business-transaction guarantee are unchanged. No module
+becomes an audit writer and no asynchronous audit mirror substitutes for source
+audit. P02b-1 proves a controlled non-MediatR owner; production delivery/inbox
+atomicity remains P02b-3 after G1. This is a dated clarification, not an ADR-0041
+correction. All earlier body text and acceptance metadata remain intact.
+
 ## References
 
 - [ADR-0016 Audit Log Subsystem](0016-audit-log-subsystem.md) (superseded by this ADR)

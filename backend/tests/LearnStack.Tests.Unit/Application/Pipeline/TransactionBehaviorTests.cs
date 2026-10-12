@@ -1,6 +1,8 @@
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
+using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Localization;
@@ -10,6 +12,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Application.Pipeline;
@@ -41,12 +44,65 @@ public sealed class TransactionBehaviorTests
     public sealed record PublicQuery : IRequest<Result<string>>;
 
     [Fact]
+    public async Task Step_seven_refuses_dispatch_without_an_enrolled_invocation()
+    {
+        var producer = new ProducerExecution(new RecordingUnitOfWork());
+        var guard = new OutboxFlushBehavior<DummyCommand, Result<string>>(producer);
+        var reached = false;
+        var run = () => guard.Handle(new DummyCommand(), () =>
+        {
+            reached = true;
+            return Task.FromResult(Result.Ok("ok"));
+        }, default);
+
+        await run.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*invocation*transaction*");
+        reached.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(TransactionMode.ReadWrite)]
+    [InlineData(TransactionMode.ReadOnly)]
+    public async Task Step_seven_preserves_event_free_enrollment_and_refuses_ended_authority(TransactionMode mode)
+    {
+        var unit = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unit);
+        var coordinator = new TransactionExecutionCoordinator(unit, UnresolvedTenantContext.Instance,
+            new RecordingAuditStore(), new AuditStateCapture(), producer,
+            new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+            NullLogger<TransactionExecutionCoordinator>.Instance);
+        var guard = new OutboxFlushBehavior<DummyCommand, Result<string>>(producer);
+        var reached = false;
+
+        (await coordinator.ExecuteAsync(null, mode, "guard-control", () => guard.Handle(new DummyCommand(), () =>
+        {
+            reached = true;
+            return Task.FromResult(Result.Ok("ok"));
+        }, default))).IsSuccess.Should().BeTrue();
+        reached.Should().BeTrue("an event-free unresolved announcement is valid");
+
+        var run = () => coordinator.ExecuteAsync(null, mode, "guard-ended", () => guard.Handle(new DummyCommand(), async () =>
+        {
+            await unit.CommitAsync();
+            return Result.Ok("ended");
+        }, default));
+        await run.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*invocation*transaction*");
+        unit.IsRollbackOnly.Should().BeTrue();
+        producer.HasInvocation.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Public_surface_selects_read_only_before_announcement_and_dispatch()
     {
         var unitOfWork = new RecordingUnitOfWork();
+        var producer = new ProducerExecution(unitOfWork);
         var behavior = new TransactionBehavior<PublicQuery, Result<string>>(
-            unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
-            new AuditStateCapture(), NullLogger<TransactionBehavior<PublicQuery, Result<string>>>.Instance);
+            new TransactionExecutionCoordinator(
+                unitOfWork, UnresolvedTenantContext.Instance, new RecordingAuditStore(),
+                new AuditStateCapture(), producer,
+                new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         var result = await behavior.Handle(new PublicQuery(), () =>
         {
@@ -317,6 +373,29 @@ public sealed class TransactionBehaviorTests
         capture.State.Should().Be(AuditIntentState.Indeterminate);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_pre_commit_frame_failure_rolls_back_without_replacing_the_original(bool rollbackFails)
+    {
+        var original = new InvalidOperationException("Frame completion refused before COMMIT");
+        var capture = new AuditStateCapture();
+        var unit = new RecordingUnitOfWork
+        {
+            CompletionFailure = original,
+            RollbackFailure = rollbackFails ? new DbTestException("rollback transport failed") : null,
+        };
+        var run = () => Build(unit, capture: capture).Handle(
+            new DummyCommand(), () => Next(unit, Result.Ok("ok")), default);
+
+        (await run.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(original);
+        unit.Calls.Should().Equal("begin", "set-tenant", "handler", "mark-rollback-only", "rollback");
+        unit.IsRollbackOnly.Should().BeTrue();
+        unit.HasActiveTransaction.Should().BeFalse();
+        unit.Committed.Should().BeFalse();
+        capture.State.Should().Be(AuditIntentState.RolledBack);
+    }
+
     [Fact]
     public async Task A_joiner_frame_writes_no_MUST_rows_and_claims_no_commit()
     {
@@ -329,21 +408,26 @@ public sealed class TransactionBehaviorTests
         var store = new RecordingAuditStore();
         var unitOfWork = new RecordingUnitOfWork();
 
-        // The outer frame, opened by whatever dispatched this request. The behaviour's own
-        // BeginTransactionAsync then returns frame 2 — a joiner.
-        await using var outer = await unitOfWork.BeginTransactionAsync();
-
         var response = await Build(unitOfWork, store: store, capture: capture).Handle(
-            new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+            new DummyCommand(), async () =>
+            {
+                var joined = await Build(unitOfWork, store: store, capture: capture).Handle(
+                    new DummyCommand(), () => Next(unitOfWork, Result.Ok("ok")), default);
+
+                joined.IsSuccess.Should().BeTrue();
+                store.PendingWrites.Should().Be(0,
+                    "a joiner commits nothing, so it has nothing to write MUST rows onto");
+                capture.State.Should().NotBe(AuditIntentState.Committed,
+                    "only the owning frame may claim durability");
+                unitOfWork.Committed.Should().BeFalse();
+
+                return joined;
+            }, default);
 
         response.IsSuccess.Should().BeTrue();
-
-        store.PendingWrites.Should().Be(0,
-            "a joiner commits nothing, so it has nothing to write MUST rows onto");
-        capture.State.Should().NotBe(AuditIntentState.Committed,
-            "only the owning frame may claim durability");
-
-        await outer.CompleteAsync();
+        store.PendingWrites.Should().Be(1, "the physical owner must write exactly once after the joiner returns");
+        capture.State.Should().Be(AuditIntentState.Committed);
+        unitOfWork.Committed.Should().BeTrue();
     }
 
     [Fact]
@@ -437,13 +521,18 @@ public sealed class TransactionBehaviorTests
     private static TransactionBehavior<DummyCommand, Result<string>> Build(
         IUnitOfWork unitOfWork,
         RecordingAuditStore? store = null,
-        AuditStateCapture? capture = null) =>
-        new(
+        AuditStateCapture? capture = null)
+    {
+        var producer = new ProducerExecution(unitOfWork);
+        return new(new TransactionExecutionCoordinator(
             unitOfWork,
             UnresolvedTenantContext.Instance,
             store ?? new RecordingAuditStore(),
             capture ?? new AuditStateCapture(),
-            NullLogger<TransactionBehavior<DummyCommand, Result<string>>>.Instance);
+            producer,
+            new DomainEventCollector(producer, Substitute.For<IPublisher>()),
+            NullLogger<TransactionExecutionCoordinator>.Instance));
+    }
 
     private static Task<Result<string>> Next(RecordingUnitOfWork unitOfWork, Result<string> result)
     {
@@ -471,6 +560,9 @@ public sealed class TransactionBehaviorTests
         /// <summary>Thrown by the outermost commit, to model a faulted COMMIT.</summary>
         public Exception? CommitFailure { get; init; }
 
+        /// <summary>Thrown while the frame is still live, before attempting COMMIT.</summary>
+        public Exception? CompletionFailure { get; init; }
+
         /// <summary>
         /// Thrown by the rollback, to model the cleanup path failing on a
         /// connection the original exception already broke.
@@ -483,6 +575,8 @@ public sealed class TransactionBehaviorTests
             throw new NotSupportedException("the behavior must never reach for the connection");
 
         public DbTransaction? Transaction => null;
+
+        public TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction) => null;
 
         // This double records the context it was handed rather than announcing anything,
         // and its Transaction is always null — so the honest answer tracks whether the
@@ -585,7 +679,9 @@ public sealed class TransactionBehaviorTests
             public bool IsOwner => depth == 1;
 
             public Task CompleteAsync(CancellationToken cancellationToken = default) =>
-                unitOfWork.CommitAsync(cancellationToken);
+                unitOfWork.CompletionFailure is { } failure
+                    ? Task.FromException(failure)
+                    : unitOfWork.CommitAsync(cancellationToken);
 
             public Task FailAsync(CancellationToken cancellationToken = default) =>
                 unitOfWork.RollbackAsync(cancellationToken);

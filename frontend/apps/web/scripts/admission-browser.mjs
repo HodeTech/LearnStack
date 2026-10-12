@@ -9,6 +9,62 @@ import { join } from 'node:path';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
+const browserPhases = new Set([
+  'browser-launch',
+  'browser-devtools',
+  'browser-discovery',
+  'browser-protocol',
+  'browser-navigation',
+  'browser-hydration',
+  'browser-arm',
+  'browser-click',
+  'browser-fallback',
+  'browser-wire',
+  'browser-completion',
+  'browser-private-carrier',
+  'browser-shutdown',
+]);
+const sanitizedFailures = new WeakSet();
+
+/** Only closed phase names may cross the private fixture's diagnostic boundary. */
+export function browserFailureDetail(error) {
+  return browserPhases.has(error?.admissionStage) ? ' ' + error.admissionStage : '';
+}
+
+/** Never propagate raw browser errors, URLs, output or private fixture values. */
+export async function atBrowserPhase(phase, operation) {
+  assert.ok(browserPhases.has(phase), 'Browser diagnostic phase is registered');
+  try {
+    return await operation();
+  } catch (error) {
+    if (sanitizedFailures.has(error)) throw error;
+    const failure = new Error('Public admission browser proof failed');
+    failure.admissionStage = phase;
+    sanitizedFailures.add(failure);
+    throw failure;
+  }
+}
+
+/** Cleanup always runs; its failure cannot replace an earlier proof failure. */
+export async function withBrowserCleanup(operation, cleanup) {
+  let failed = false;
+  let failure;
+  let result;
+  try {
+    result = await operation();
+  } catch (error) {
+    failed = true;
+    failure = error;
+  }
+  try {
+    await atBrowserPhase('browser-shutdown', cleanup);
+  } catch (error) {
+    if (!failed) throw error;
+  }
+  if (failed) throw failure;
+  return result;
+}
+
 /** A failed Flight must precede a fresh successful document for the same target. */
 export function assertFlightFallback(events, origin, target, status) {
   const matching = events.filter((event) => {
@@ -53,20 +109,48 @@ async function until(predicate, message, timeout = 20_000) {
   throw new Error(message);
 }
 
+/** Keep browser death distinct from a live browser's debugging readiness deadline. */
+export function waitForBrowserDevTools({ assertActive, isLive, readPort }) {
+  return atBrowserPhase('browser-devtools', () =>
+    until(async () => {
+      assertActive();
+      await atBrowserPhase('browser-launch', () => {
+        assert.equal(isLive(), true, 'The owned browser remains live');
+      });
+      return readPort();
+    }, 'Owned browser debugging deadline'),
+  );
+}
+
 /** Isolated profile and certificate-specific trust; never touches a user's browser. */
-export async function verifyBrowserFallback({
-  owner,
-  app,
-  root,
-  certificate,
-  origin,
-  initialPath,
-  target,
-  status,
-  beforeNavigation,
-  afterNavigation,
-  secrets,
-}) {
+export async function verifyBrowserFallback(options) {
+  const phase = { value: 'browser-launch' };
+  try {
+    return await runBrowserFallback(options, phase);
+  } catch (error) {
+    if (sanitizedFailures.has(error)) throw error;
+    return atBrowserPhase(phase.value, () => {
+      throw error;
+    });
+  }
+}
+
+async function runBrowserFallback(
+  {
+    owner,
+    app,
+    root,
+    certificate,
+    origin,
+    initialPath,
+    target,
+    status,
+    beforeNavigation,
+    afterNavigation,
+    secrets,
+  },
+  phase,
+) {
   const originUrl = new URL(origin);
   assert.equal(originUrl.protocol, 'https:');
   assert.equal(originUrl.origin, origin);
@@ -114,17 +198,17 @@ export async function verifyBrowserFallback({
     failed = true;
   });
   const portFile = join(profile, 'DevToolsActivePort');
-  const port = await until(() => {
-    owner.assertActive();
-    assert.equal(
-      failed || child.exitCode !== null || child.signalCode !== null,
-      false,
-      'The owned browser remains live',
-    );
-    if (!existsSync(portFile)) return null;
-    const value = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-    return Number.isInteger(value) && value > 0 && value < 65536 ? value : null;
-  }, 'Owned browser debugging deadline');
+  phase.value = 'browser-devtools';
+  const port = await waitForBrowserDevTools({
+    assertActive: () => owner.assertActive(),
+    isLive: () => !failed && child.exitCode === null && child.signalCode === null,
+    readPort: () => {
+      if (!existsSync(portFile)) return null;
+      const value = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
+      return Number.isInteger(value) && value > 0 && value < 65536 ? value : null;
+    },
+  });
+  phase.value = 'browser-discovery';
   // eslint-disable-next-line no-restricted-globals -- Owned local browser CDP discovery, never a LearnStack API request.
   const response = await fetch('http://127.0.0.1:' + port + '/json/list', {
     signal: AbortSignal.timeout(5000),
@@ -200,57 +284,79 @@ export async function verifyBrowserFallback({
       return false;
     }
   };
-  try {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Browser protocol startup deadline')), 5000);
-      socket.once('open', () => {
-        clearTimeout(timer);
-        resolve();
+  return withBrowserCleanup(
+    async () => {
+      phase.value = 'browser-protocol';
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('Browser protocol startup deadline')),
+          5000,
+        );
+        socket.once('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        socket.once('error', () => {
+          clearTimeout(timer);
+          reject(new Error('Browser protocol startup'));
+        });
       });
-      socket.once('error', () => {
-        clearTimeout(timer);
-        reject(new Error('Browser protocol startup'));
+      await command('Network.enable');
+      await command('Page.enable');
+      await command('Runtime.enable');
+      phase.value = 'browser-navigation';
+      await command('Page.navigate', { url: origin + initialPath });
+      phase.value = 'browser-hydration';
+      await until(
+        () => evaluateBoolean('Boolean(document.querySelector(\'[data-admission-ready="true"]\'))'),
+        'Navigation probe hydration deadline',
+      );
+      phase.value = 'browser-arm';
+      await beforeNavigation();
+      events.length = 0;
+      requests.clear();
+      phase.value = 'browser-click';
+      await command('Runtime.evaluate', {
+        expression: "document.querySelector('[data-admission-navigation]').click()",
       });
-    });
-    await command('Network.enable');
-    await command('Page.enable');
-    await command('Runtime.enable');
-    await command('Page.navigate', { url: origin + initialPath });
-    await until(
-      () => evaluateBoolean('Boolean(document.querySelector(\'[data-admission-ready="true"]\'))'),
-      'Navigation probe hydration deadline',
-    );
-    await beforeNavigation();
-    events.length = 0;
-    requests.clear();
-    await command('Runtime.evaluate', {
-      expression: "document.querySelector('[data-admission-navigation]').click()",
-    });
-    await until(async () => {
-      const complete = await evaluateBoolean(
-        'location.pathname === ' +
-          JSON.stringify(target) +
-          ' && document.readyState === "complete" && Boolean(document.querySelector("h1"))',
-      );
-      return (
-        complete &&
-        events.some(
-          (event) =>
-            event.type === 'Document' &&
-            new URL(event.url).pathname === target &&
-            event.status === 200,
-        )
-      );
-    }, 'Stock Next document fallback deadline');
-    assertFlightFallback(events, origin, target, status);
-    await afterNavigation();
-    assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
-    return scanner;
-  } finally {
-    rejectPending();
-    socket.terminate();
-    await stopTestChild(child);
-    scanner.finish();
-    assert.equal(scanner.leaked, false, 'Browser shutdown diagnostics contain no private carrier');
-  }
+      phase.value = 'browser-fallback';
+      await until(async () => {
+        const complete = await evaluateBoolean(
+          'location.pathname === ' +
+            JSON.stringify(target) +
+            ' && document.readyState === "complete" && Boolean(document.querySelector("h1"))',
+        );
+        return (
+          complete &&
+          events.some(
+            (event) =>
+              event.type === 'Document' &&
+              new URL(event.url).pathname === target &&
+              event.status === 200,
+          )
+        );
+      }, 'Stock Next document fallback deadline');
+      phase.value = 'browser-wire';
+      assertFlightFallback(events, origin, target, status);
+      phase.value = 'browser-completion';
+      await afterNavigation();
+      await atBrowserPhase('browser-private-carrier', () => {
+        assert.equal(scanner.leaked, false, 'Browser diagnostics contain no private carrier');
+      });
+      return scanner;
+    },
+    async () => {
+      rejectPending();
+      socket.terminate();
+      await stopTestChild(child);
+      scanner.finish();
+      await atBrowserPhase('browser-private-carrier', () => {
+        assert.equal(
+          scanner.leaked,
+          false,
+          'Browser shutdown diagnostics contain no private carrier',
+        );
+      });
+    },
+  );
 }

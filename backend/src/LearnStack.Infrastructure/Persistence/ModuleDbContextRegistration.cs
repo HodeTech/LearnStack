@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -125,6 +126,7 @@ public static class ModuleDbContextRegistration
                     + "SET LOCAL app.tenant_id.");
             }
 
+            var saveInterceptors = provider.GetServices<ISaveChangesInterceptor>().ToArray();
             var options = new DbContextOptionsBuilder<TContext>()
                 // The connection, not a connection string. contextOwnsConnection
                 // is false by this overload's contract, so disposing the context
@@ -152,7 +154,7 @@ public static class ModuleDbContextRegistration
                 // this request actually announced a tenant on.
                 .AddInterceptors(new TenantContextGuardInterceptor(unitOfWork))
                 // And whatever else the composition root registered as an
-                // ISaveChangesInterceptor — today that is AuditChangeTrackerInterceptor,
+                // ISaveChangesInterceptor, including audit and domain-event collection,
                 // which has to reach EVERY module's context because the capture is what
                 // gives an audit row its before / after state, and no module may
                 // reference the assembly it lives in (ADR-0044 § 7).
@@ -164,7 +166,7 @@ public static class ModuleDbContextRegistration
                 // same measurement the UseApplicationServiceProvider comment above
                 // records. A registration that looked wired and was not would produce
                 // audit rows with empty snapshots and no error anywhere.
-                .AddInterceptors(provider.GetServices<ISaveChangesInterceptor>())
+                .AddInterceptors(saveInterceptors)
                 .Options;
 
             // ActivatorUtilities, not Activator: a module context takes its
@@ -175,6 +177,11 @@ public static class ModuleDbContextRegistration
             // options, so it would fail to construct any context with a second
             // parameter, which is now every tenant-scoped one.
             var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);
+            foreach (var interceptor in saveInterceptors.OfType<DomainEventSaveChangesInterceptor>())
+            {
+                interceptor.Attach(context);
+            }
+
             context.Database.UseTransaction(unitOfWork.Transaction);
 
             return context;

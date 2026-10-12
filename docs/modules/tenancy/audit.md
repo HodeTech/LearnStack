@@ -3,6 +3,13 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+**P02b-1 Step 3 producer implemented — 2026-10-12.** Completed provisioning
+adds one pending outbox row before the existing two MUST rows and commit. Its
+domain translator adds no independent intent or audit operation and writes no
+aggregate. A failed MUST write rolls back tenant, organization and outbox together.
+The [integration-event catalogue](README.md#integration-event-catalogue) owns the flow;
+production dispatch and subscribers remain P02b-2/P02b-3.
+
 **P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
 and focused fix verification pass. Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It

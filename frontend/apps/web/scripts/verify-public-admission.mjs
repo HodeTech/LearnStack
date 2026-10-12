@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 import { JSDOM } from 'jsdom';
 
-import { verifyBrowserFallback } from './admission-browser.mjs';
+import { browserFailureDetail, verifyBrowserFallback } from './admission-browser.mjs';
 import { watchDevelopmentSource } from './admission-hmr-watch.mjs';
 import { verifyHmrAdmission } from './admission-hmr.mjs';
 import {
@@ -845,7 +845,9 @@ try {
     'hmr-refresh-release',
     'hmr-after',
   ]);
-  const detail = hmrStages.has(error?.admissionStage) ? ' ' + error.admissionStage : '';
+  const detail = hmrStages.has(error?.admissionStage)
+    ? ' ' + error.admissionStage
+    : browserFailureDetail(error);
   process.stderr.write('Public admission fixture failed during ' + stage + detail + '.\n');
   process.exitCode = 1;
 } finally {

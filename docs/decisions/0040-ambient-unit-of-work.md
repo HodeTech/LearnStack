@@ -669,6 +669,8 @@ architecture, module specs and catalogue.
 - [Permission Standards § Resource-scope checks](../standards/19-permissions.md)
 - [Security Standards § Tenant Context](../standards/11-security.md)
 
+## Amendments (continued)
+
 ### Amendment 9 — read-only frame delivery (2026-10-04)
 
 This delivery note changes no decision. Amendment 8 records the acceptance-time
@@ -680,3 +682,43 @@ records foundation delivery; the
 [Step 1 delivery record](../roadmap/phase-02d-walking-skeleton.md#p02d-4-step-1-authority-and-read-only-foundation)
 owns real app-role EF/SQL write refusal, writable controls and lifecycle evidence.
 The original Amendment 8 status remains historical.
+
+### Amendment 10 — Bounded produced-work refusal supersession (2026-10-12)
+
+**Status: Accepted.** [ADR-0057](0057-transactional-event-production-and-completion.md)
+supersedes § Nesting and Amendment 2's absorbable `Result.Fail` rule **only for
+successfully produced work**. A producer frame returning `Result.Fail` after its
+own or a descendant's successful outbox INSERT or successful-save event promotion
+marks the shared unit rollback-only before resolving its UoW frame. Absorption by
+an ancestor cannot commit those facts; drain/cleanup cannot erase the sticky receipt.
+Joined frames still create no savepoint.
+
+Ordinary event-free refusals, uncollected raises, failed saves and unsuccessful
+enqueue attempts do not themselves activate this additional rule. Existing
+exception and unknown-outcome failure rules survive. ADR-0057 supplies the changed
+decision; this is a bounded supersession disclosure, not an ADR-0041 correction.
+The original body, acceptance metadata and earlier amendments remain intact.
+
+### Amendment 11 — Named transaction announcement snapshot reader (2026-10-12)
+
+**Status: Accepted.** [ADR-0057](0057-transactional-event-production-and-completion.md#transaction-metadata-and-payload-boundary)
+adds this read member to `IUnitOfWork` in `SharedKernel.Persistence`:
+
+```csharp
+TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction);
+```
+
+`TenantContextAnnouncement` is an immutable snapshot with `long Generation`,
+`TenantId TenantId` and `OrganizationId? OrganizationId`. Generation increases for
+each new physical transaction. A snapshot exists only for the current non-null
+transaction after all announcement SQL succeeds and
+`IsTenantContextIssuedOn(transaction)` is true. It records normalized values sent
+by either existing sanctioned announcement method; unresolved/no-tenant, foreign,
+failed/canceled setup and terminal states return null. Clear it at transaction
+begin, before an announcement attempt, and on commit, rollback or disposal.
+Joiners reuse it and cannot retarget it. Producer frames check the live snapshot's
+generation as well as tenant, including reused transaction objects.
+
+This separately enumerated additive read seam follows Amendment 5's precedent.
+It adds no setter, ambient context writer, ownership change or savepoint. The
+bounded nested-failure supersession is Amendment 10, not this seam addition.

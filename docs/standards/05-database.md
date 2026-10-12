@@ -26,6 +26,8 @@ write path, not on the `tenants` CHECK**),
 ships unwritten**).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Producer additions derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -1380,7 +1382,7 @@ Public read models consumed by other modules:
 
 ```sql
 CREATE TABLE outbox_messages (
-    id              uuid PRIMARY KEY DEFAULT uuidv7(),
+    id              uuid PRIMARY KEY DEFAULT uuidv7(), -- producer supplies EventId
     occurred_at     timestamptz NOT NULL DEFAULT now(),
     tenant_id       uuid NOT NULL,
     organization_id uuid NULL,             -- null = tenant-wide event; see note below
@@ -1389,9 +1391,9 @@ CREATE TABLE outbox_messages (
     actor_user_id   uuid NULL,
     type            text NOT NULL,         -- assembly-qualified event type name
     topic           text NOT NULL,         -- "learnstack.{module}.{aggregate}"
-    partition_key   text NOT NULL,         -- ordering domain: aggregate id, else tenant_id
+    partition_key   text NOT NULL,         -- routing source: aggregate id or explicitly tenant-wide tenant_id
     payload         jsonb NOT NULL,
-    metadata        jsonb NULL,
+    metadata        jsonb NULL,            -- producer writes SQL NULL (ADR-0057)
     processed_at    timestamptz NULL,
     attempts        int NOT NULL DEFAULT 0,
     last_error      text NULL,
@@ -1437,6 +1439,23 @@ GRANT UPDATE (processed_at, attempts, last_error, available_after)
 -- without extending it fails at runtime with `permission denied for table`.
 -- See ADR-0006 Amendment 1 and 15-event-and-outbox.md.
 ```
+
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
+accepts `id = EventId`, supplied by the producer; the existing DDL default is
+not the producer identity source. There is no separate `event_id` column.
+Duplicate enqueue fails. `type` retains the assembly-qualified concrete name.
+`IOutbox` inserts immediately on the enrolled, announced, writable ambient
+`IUnitOfWork` connection/transaction as `learnstack_app`; it opens/commits
+nothing and calls no transport. The immutable announcement generation and tenant
+must match the producer frame, including unresolved provisioning.
+
+The producer writes concrete-runtime JSON with frozen `PayloadJsonOptions`.
+Additional payload fields are identifiers only; the complete canonical UTF-8
+payload is capped at 262,144 bytes inclusive before INSERT. `metadata` is SQL
+NULL with no caller extension channel. This is application admission, not a new
+DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implements this
+producer boundary; type-resolution outcomes, leases and inbox stay P02b-2/P02b-3
+work.
 
 `organization_id` is `uuid NULL` and mirrors the organization context of the transaction
 that enqueued the row —

@@ -824,3 +824,21 @@ glossary's `ITenantContextAccessor` entry. Not
 [Security Standards § Tenant Context](../standards/11-security.md): that section declares
 itself the authority for session-variable **placement** only, and a container lifetime is
 not a `SET LOCAL` concern.
+
+### Amendment 4 — Bounded producer supersession by ADR-0057 (2026-10-12)
+
+**Status: Accepted.** [ADR-0057](0057-transactional-event-production-and-completion.md)
+supersedes only these clauses:
+
+- **Sub-decision 2, step 7:** its `OutboxFlushBehavior` flush/publication completion
+  role is replaced by immediate ambient enqueue and transaction-owner completion.
+  Step 7 retains its pipeline position as the producer enrollment/invariant guard;
+  it neither buffers messages nor dispatches domain events.
+- **Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes:**
+  both separate `event_id` column requirements are replaced by
+  `outbox_messages.id = EventId`. There is no second surrogate/event-ID column.
+  All other envelope columns and full W3C traceparent propagation survive.
+
+These were historical decisions, not false-at-entry statements. ADR-0057 supplies
+this changed authority; this disclosure is not an ADR-0041 correction. All original
+body text, acceptance metadata, rationale and earlier amendments remain intact.

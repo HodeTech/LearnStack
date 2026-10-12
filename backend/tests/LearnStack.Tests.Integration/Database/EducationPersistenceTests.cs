@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using LearnStack.Application.Pipeline;
 using LearnStack.Api.Composition;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
@@ -286,6 +287,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddLearnStackMediatRPipeline();
         services.AddSingleton(dataSource);
         services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(tenant));
         services.AddTransient<ITenantContext>(provider =>

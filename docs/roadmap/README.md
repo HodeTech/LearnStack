@@ -45,7 +45,7 @@ not deferred to the showcase phase.
 - [Phase 01: Repository, Tooling, and Local Infrastructure](phase-01-repository-tooling.md) — **complete**
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](phase-02a-kernel-tenancy.md) — **complete** (packets 0–3, 3b and 4–10 shipped)
 - [Phase 02d: Two-Tenant Walking Skeleton](phase-02d-walking-skeleton.md) —
-  **implementation and exit verification complete; PR #28 review/merge pending**.
+  **complete and merged — 2026-10-11**.
   P02d-1 and P02d-2 complete and merged; the
   [P02d-2 closeout](phase-02d-walking-skeleton.md#p02d-2-merge-and-closeout-2026-10-02)
   records final verification. P02d-3 read internals are implemented; the
@@ -89,9 +89,18 @@ not deferred to the showcase phase.
   proof pass real CI; the seventh required context is active. The
   [Step 4 record](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
   owns CI enforcement, reviews and the positive phase-exit verdict.
-  [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits maintainer review
-  and merge. P02b-0 re-verification and decision pass are next afterward.
+  [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; its
+  [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+  owns final verification and the completed phase exit.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
+  — **P02b-0 and P02b-1 complete; P02b-1 PR review/merge pending**. Its
+  [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+  verifies the inherited baseline; Accepted ADR-0057 and the
+  [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
+  authorize the implemented lifecycle, enqueue and provisioning publisher. The
+  [P02b-1 closeout](phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
+  records full backend verification and two completed review rounds per step.
+  Next is P02b-2's decision pass; dispatcher/consumer work remains P02b-2/P02b-3.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

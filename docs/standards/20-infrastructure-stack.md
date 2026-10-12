@@ -15,6 +15,8 @@
 [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
+Producer additions derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -245,7 +247,7 @@ different decisions:
 | `{tenant_id}:hub:entitlement` (plan projection) | 60 s | 15 min (upper bound; Hub-push refresh resets it) | `learnstack.hub.entitlement` |
 | `{tenant_id}:tenancy:feature-flags` | 60 s | 15 min | none yet — see the note below |
 | `{tenant_id}:identity:permissions:{session_id}` | 60 s | session-scoped (no L2) | `learnstack.identity.role` / `.membership` events |
-| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No settings cache | No settings cache | Phase 02b owns the declared settings event; it is not implemented |
+| `{tenant_id}:tenancy:settings` (reserved; unused in P02d-2/3) | No settings cache | No settings cache | No settings-invalidation event is declared; a future cached consumer needs a scope/key/freshness decision |
 | `{tenant_id}:audit:config` (per-tenant audit overrides) | 5 min | 1 h | none yet — see the note below |
 | `{tenant_id}:customization:content-types:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
 | `{tenant_id}:customization:taxonomies:v{generation}` | 60 s | 15 min on Phase 11's trigger | Fresh durable generation, no event |
@@ -281,9 +283,14 @@ control.
 selects no settings cache. The adapter's existing `tenancy:settings` metric spelling
 is reserved, not an active reader or a TTL promise. P02d-3 owns the typed ambient
 accessor and explicit tenant/organization scope; it adds no settings generation
-counter or out-of-band loader. Phase 02b owns the declared
-`learnstack.tenancy.settings` event. Adding a cached settings consumer requires a
-new scope/key/freshness decision before that consumer ships.
+counter or out-of-band loader. The
+[Tenancy catalogue](../modules/tenancy/README.md#integration-event-catalogue)
+declares no settings-invalidation event under
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow).
+Adding a cached settings consumer requires a new scope/key/freshness decision
+before that consumer ships. Phase 11 owns the distributed adapters on
+[their existing triggers](../roadmap/phase-11-production-hardening.md#demand-gated-building-blocks);
+those triggers do not promise a settings event.
 
 **`{tenant_id}:audit:config` has no eager invalidation, and that is a stated gap rather
 than an omission.** The projection is read by `IAuditConfigService` on the classification
@@ -404,9 +411,25 @@ Rules:
 
 ## Outbox and Inbox
 
-- Every integration event is written to `outbox_messages` **in the same `DbContext`
-  transaction** as the aggregate that produced it. `IOutbox.EnqueueAsync` enrolls in
-  the ambient `DbContext`; do **not** open a new transaction.
+- Accepted ADR-0057 requires immediate `IOutbox.EnqueueAsync` INSERT through
+  the enrolled, announced, writable `IUnitOfWork.Connection`/`Transaction`.
+  It opens/commits nothing and never calls `IEventBus`. State, outbox and MUST
+  audit share that transaction, regardless of module `SaveChanges` calls.
+- Producer frames compare live announcement generation and tenant, including
+  unresolved provisioning. `id = EventId`; duplicate enqueue fails. Type identity
+  stays assembly-qualified; runtime JSON uses frozen `PayloadJsonOptions`.
+  Additional fields are identifiers only, complete canonical UTF-8 payloads fit
+  the inclusive 262,144-byte cap, and JSON `metadata` is SQL NULL. This adds no
+  DDL CHECK. P02b-1 Steps 2/3 implement immediate enqueue, successful-save
+  collection and the completed-provisioning publisher. Step 4 implements the
+  production censuses and catalogue enforcement; the
+  [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
+  owns final verification and review status.
+- Only the owner drains successful-save domain events before invariants/MUST
+  audit/commit. Domain handlers only translate to outbox; a total 256-event bound
+  permits no recursive mutation. Produced-work receipts propagate to ancestors;
+  a returning `Result.Fail` poisons the shared unit before frame resolution.
+  Joiners neither drain nor clear the owner; terminal paths discard state.
 - The shared outbox table is RLS-protected; `OutboxProcessor` connects with the
   `learnstack_outbox_admin` role that bypasses RLS.
 - `OutboxProcessor` uses `FOR UPDATE SKIP LOCKED` to allow horizontal scaling. Each

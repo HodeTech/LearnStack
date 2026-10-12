@@ -4,6 +4,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Time;
+using LearnStack.Modules.Tenancy.Domain.Events;
 
 namespace LearnStack.Modules.Tenancy.Domain;
 
@@ -124,11 +125,14 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     /// Separate from <see cref="Create"/> because the organization cannot exist
     /// before its tenant: the composite foreign key would have nothing to
     /// reference. Both statements run in one transaction, so a tenant is never
-    /// observable without a default organization.
+    /// observable without a default organization. Only the initial assignment raises
+    /// <see cref="TenantCreatedDomainEvent"/>; a later reassignment is not creation.
     /// </remarks>
-    public void AssignDefaultOrganization(OrganizationId organizationId, IClock clock, UserId updatedBy)
+    public void AssignDefaultOrganization(
+        OrganizationId organizationId, IClock clock, IGuidFactory guids, UserId updatedBy)
     {
         ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(guids);
 
         if (!organizationId.IsInitialized() || organizationId.Value == Guid.Empty)
         {
@@ -136,8 +140,18 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
                 "The default organization must be a real organization.", nameof(organizationId));
         }
 
-        MarkUpdated(clock.UtcNow, updatedBy);
+        var at = clock.UtcNow;
+        var created = DefaultOrganizationId is null
+            ? new TenantCreatedDomainEvent(Id) { EventId = guids.NewUuidV7(), OccurredAt = at }
+            : null;
+
+        MarkUpdated(at, updatedBy);
         DefaultOrganizationId = organizationId;
+
+        if (created is not null)
+        {
+            RaiseDomainEvent(created);
+        }
     }
 
     /// <summary>Moves the tenant to a new lifecycle state.</summary>

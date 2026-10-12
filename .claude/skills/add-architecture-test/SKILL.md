@@ -115,8 +115,9 @@ Patterns to follow:
 
 ### Step 4: Common architecture-test families
 
-**The shipped set is eighteen files, not a family per topic.** Add yours to the one whose
-subject it shares:
+**Choose by subject, not by ADR number.** These common families are starting
+points; inspect the test directory and catalogue for the complete shipped set.
+Add yours to the file whose subject it shares:
 
 | File | What it covers |
 |------|----------------|
@@ -130,6 +131,9 @@ subject it shares:
 | `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
 | `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
 | `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals`, the single-frontend-app rule, and the commit-subject grammar — checked by running the `commit-msg` hook. |
+| `DomainEventHandlerTests.cs` | Complete domain-handler/helper/interface census; outbox-only reactions with planted forbidden-capability controls. |
+| `IntegrationEventContractTests.cs` | Production event inheritance, explicit identifier partition derivation and identifier-only payload/serializer shape. |
+| `OutboxProducerConventionTests.cs` | Producer/helper fence against extra connections, commit ownership and direct publication. |
 | `AggregateWriteTests.cs` | The one sanctioned cross-aggregate write, and the count of aggregate roots a handler's ports can write that keeps it at one. |
 | `CustomizationRegistryTests.cs` | The closed renderer registries that exist twice — in C# and in TypeScript — and stop the two drifting. |
 | `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, the closed set of `audit_log` writers, and the `OperationType` table. |
@@ -144,7 +148,7 @@ Rules for surfaces no file covers yet — permissions, the Hub adapters and endp
 [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) against
 the phase that ships the code they inspect. Check its Status line before assuming a
 net is under you, and create a new file only when your rule's subject is not one of
-the eighteen above.
+the listed families.
 
 > **The tenancy rules live in three files, and the split is by subject, not by ADR.**
 > All three cite ADR-0036, so "put it with the other ADR-0036 rules" is not a usable

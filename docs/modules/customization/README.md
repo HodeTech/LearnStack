@@ -179,14 +179,27 @@ as `business_rule_violation` / `lockey_customization_key_already_live`. Default 
 retains ordinary revision succession. The same-row race remains typed concurrency;
 an Active winner from another revision is never retired or adopted by seed.
 
-### Primary integration-event flow: none
+### Primary integration-event flow: provisioning defaults
 
-There is no integration-event diagram because there is no integration event —
-see [§ Integration-event catalogue](#integration-event-catalogue) for why, and
-for the condition under which one becomes owed.
-[Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md)
-asks for a diagram of the primary integration-event flow; this records its
-absence rather than substituting an unrelated diagram for it.
+**Accepted flow, runtime subscriptions pending P02b-3 after G1.**
+[ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+authorizes independent `card@1` and `plain@1` initialization on completed tenant
+provisioning:
+
+```mermaid
+flowchart LR
+    T[Completed provisioning] --> O[Transactional outbox]
+    O --> D[P02b-2 dispatcher]
+    D --> C[P02b-3 card@1 subscription]
+    D --> P[P02b-3 plain@1 subscription]
+    C --> CT[One root + generation + inbox + MUST audit]
+    P --> PT[One root + generation + inbox + MUST audit]
+```
+
+Text fallback: Tenancy persists the completed-provisioning fact; after G1,
+independent subscriptions each create one untouched built-in concept on their
+own delivery transaction. One may finish before its sibling; retry completes
+an incomplete pair without overwriting tenant decisions.
 
 ### Primary read flow: resolving a tenant's shapes
 
@@ -279,10 +292,27 @@ keeps the library's types inside it.
 
 ## Integration-event catalogue
 
-**None yet.** Nothing outside this module reacts to a customization change
-through events. P02d-2 Step 1 introduces contextual exact reads for write validation;
-The public renderer in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md)
-will read through the generation-keyed cache rather than by subscription — a cache
+**No publisher or subscriber implemented yet.** Accepted ADR-0057 fixes the
+P02b-3 subscriptions below; G1 must settle distinct deduplication identities and
+delivery scope first. Each effect owns one root, generation change, inbox outcome
+and MUST audit. Customization mints UUIDv7 IDs and resolves semantic key/version
+identity; Tenancy carries neither schemas nor Customization IDs.
+
+| Consumed topic | Event | Independent effect | Owner |
+|---|---|---|---|
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | Create untouched `card@1` | P02b-3 after G1 |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | Create untouched `plain@1` | P02b-3 after G1 |
+
+Initialization preserves Draft, Active, Deprecated, successor and deliberately
+deleted definitions; it never overwrites, republishes or resurrects them. P02b-3
+switches Seeder built-in verification to owner-resolved key/version, preserves
+warm IDs and exact tenant-authored curriculum IDs, and proves concurrent fresh
+seed/delivery convergence and sibling recovery. It updates the implementation's
+creator/Seeder/Hub installation remarks when delivery exists. P02b-1 keeps
+current seed writes and pending outbox rows.
+
+No other module reacts to a customization change through events today. Public
+readers use the delivered generation-keyed cache with fresh generation probes; a cache
 key that changes is a cheaper invalidation than an event every pod has to
 receive. An event becomes owed when a second module needs to *act* on a change
 rather than merely notice it; [Phase 04](../../roadmap/phase-04-cms-media-pages.md)

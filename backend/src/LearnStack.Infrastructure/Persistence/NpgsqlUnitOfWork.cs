@@ -70,12 +70,13 @@ public sealed class NpgsqlUnitOfWork(
     /// route back to depth 0 through a *rollback* sets the sticky mark and is
     /// therefore already shut; this is the one that is not.
     /// </remarks>
-    private int _generation;
+    private long _generation;
 
     private bool _rollbackOnly;
     private bool _commitRequested;
 
     private bool _tenantContextIssued;
+    private TenantContextAnnouncement? _tenantContextAnnouncement;
     private bool _disposed;
 
     public DbConnection Connection
@@ -134,6 +135,8 @@ public sealed class NpgsqlUnitOfWork(
 
         if (_transaction is null)
         {
+            ClearTenantContextAnnouncement();
+
             try
             {
                 _connection ??= _dataSource.CreateConnection();
@@ -146,6 +149,8 @@ public sealed class NpgsqlUnitOfWork(
                 _transaction = mode == TransactionMode.ReadOnly
                     ? await _connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken)
                     : await _connection.BeginTransactionAsync(cancellationToken);
+
+                checked { _generation++; }
 
                 if (mode == TransactionMode.ReadOnly)
                 {
@@ -174,8 +179,6 @@ public sealed class NpgsqlUnitOfWork(
 
                 throw;
             }
-            _generation++;
-
             // Scoped to this transaction, like the generation above it. The flag
             // was never cleared, so a unit that committed and then opened a second
             // transaction carried the first one's request into the second one's
@@ -184,13 +187,6 @@ public sealed class NpgsqlUnitOfWork(
             // frame nobody had opened — over whatever exception was already in
             // flight.
             _commitRequested = false;
-
-            // Same reasoning, same block. This is the one place that runs exactly once
-            // per PHYSICAL transaction, so it is where per-transaction state is cleared —
-            // and nothing clears it on commit, rollback or dispose because those null
-            // _transaction, after which the reference check below fails for every
-            // argument.
-            _tenantContextIssued = false;
         }
 
         return new Frame(this, ++_depth, _generation);
@@ -217,6 +213,10 @@ public sealed class NpgsqlUnitOfWork(
             // different tenant for every statement after it.
             return;
         }
+
+        // Clear before reading or sending a new announcement. A failed or canceled
+        // attempt must not retain authority from an earlier successful one (ADR-0057).
+        ClearTenantContextAnnouncement();
 
         // Written even when the context is unresolved, and written as the empty
         // string. The policies read NULLIF(current_setting(..., true), '')::uuid,
@@ -248,26 +248,31 @@ public sealed class NpgsqlUnitOfWork(
         // paths we happened to enumerate — and it fails the way the other two arms do,
         // to the empty string, so a context carrying it reads zero rows rather than the
         // platform's (ADR-0044 Amendment 5 § 1).
-        var tenant = context.IsResolved
-            && context.TenantId.IsInitialized()
-            && context.TenantId.Value != Guid.Empty
-            && context.TenantId != TenantId.PlatformSentinel
-                ? context.TenantId.Value.ToString()
-                : string.Empty;
-
-        var organization = context.IsResolved
-            && context.OrganizationId is { } scoped
+        var resolved = context.IsResolved;
+        var candidateTenant = resolved ? context.TenantId : (TenantId?)null;
+        var tenantId = candidateTenant is { } candidate
+            && candidate.IsInitialized()
+            && candidate.Value != Guid.Empty
+            && candidate != TenantId.PlatformSentinel
+                ? candidate
+                : (TenantId?)null;
+        var candidateOrganization = resolved ? context.OrganizationId : null;
+        var organizationId = candidateOrganization is { } scoped
             && scoped.IsInitialized()
             && scoped.Value != Guid.Empty
-                ? scoped.Value.ToString()
-                : string.Empty;
+                ? scoped
+                : (OrganizationId?)null;
+        var tenant = tenantId is { } normalizedTenant ? normalizedTenant.Value.ToString() : string.Empty;
+        var organization = organizationId is { } normalizedOrganization
+            ? normalizedOrganization.Value.ToString()
+            : string.Empty;
 
         // A context that says it is resolved and yields no usable tenant is a
         // bug in whoever built it. The empty string keeps the request
         // fail-closed, but silence here is the worst possible diagnostic: every
         // query returns nothing, attributed to nobody, and the symptom looks
         // like missing data rather than a broken context.
-        if (context.IsResolved && tenant.Length == 0)
+        if (resolved && tenant.Length == 0)
         {
             LogResolvedWithoutTenant(_logger, context.GetType().Name, null);
         }
@@ -282,14 +287,10 @@ public sealed class NpgsqlUnitOfWork(
         // After the round trip, never before: the flag means the announcement actually
         // reached PostgreSQL, so a setter that threw leaves the transaction unmarked and
         // the guard refuses the commands that would have run under it.
-        //
-        // Not independently observable, and said so rather than implied. Making the
-        // announcement fail means breaking the connection under it, and this unit's
-        // disposal then throws on the dead transaction before any assertion is reached —
-        // a pre-existing shape, not this flag's. What the ordering buys is that a
-        // half-announced transaction is refused rather than trusted; no test here fails
-        // if the line moves, and none pretends to.
         _tenantContextIssued = true;
+        _tenantContextAnnouncement = tenantId is { } announcedTenant
+            ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
+            : null;
     }
 
     /// <inheritdoc />
@@ -327,6 +328,8 @@ public sealed class NpgsqlUnitOfWork(
                 + "mid-request, which is a wider capability than provisioning needs.");
         }
 
+        ClearTenantContextAnnouncement();
+
         // Value under an IsInitialized() gate, never ToString(): measured on Vogen 7, an
         // uninitialized id renders as "[UNINITIALIZED]" and reaches PostgreSQL as
         // '[UNINITIALIZED]'::uuid, which raises 22P02 rather than filtering. Guid.Empty is
@@ -358,6 +361,7 @@ public sealed class NpgsqlUnitOfWork(
             ("tenant", tenantId.Value.ToString()));
 
         _tenantContextIssued = true;
+        _tenantContextAnnouncement = new TenantContextAnnouncement(_generation, tenantId, null);
     }
 
     /// <inheritdoc />
@@ -365,6 +369,16 @@ public sealed class NpgsqlUnitOfWork(
         transaction is not null
         && ReferenceEquals(transaction, _transaction)
         && _tenantContextIssued;
+
+    /// <inheritdoc />
+    public TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction) =>
+        IsTenantContextIssuedOn(transaction) ? _tenantContextAnnouncement : null;
+
+    private void ClearTenantContextAnnouncement()
+    {
+        _tenantContextIssued = false;
+        _tenantContextAnnouncement = null;
+    }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =
         LoggerMessage.Define<string>(
@@ -417,6 +431,7 @@ public sealed class NpgsqlUnitOfWork(
         }
 
         _disposed = true;
+        ClearTenantContextAnnouncement();
 
         // A scope that ended with a live transaction has failed: committing here
         // would commit work nobody claimed was finished.
@@ -449,7 +464,7 @@ public sealed class NpgsqlUnitOfWork(
             // already been told it succeeded. Throwing from disposal is the last
             // remaining place to say otherwise, and a silent no-op on the success
             // path is the worse outcome. IUnitOfWorkScope.CompleteAsync catches
-            // this at the terminal call instead, which is why TransactionBehavior
+            // this at the terminal call instead, which is why the execution coordinator
             // uses it.
             throw new InvalidOperationException(
                 "A commit was requested but the transaction was still open at disposal, so it "
@@ -481,6 +496,7 @@ public sealed class NpgsqlUnitOfWork(
         var transaction = _transaction!;
         _transaction = null;
         _mode = null;
+        ClearTenantContextAnnouncement();
 
         try
         {
@@ -501,9 +517,9 @@ public sealed class NpgsqlUnitOfWork(
         if (--_depth > 0)
         {
             // A joiner declining its own frame. It does NOT mark the unit:
-            // ADR-0040 § Nesting reserves that for an exception or an explicit
-            // MarkRollbackOnly, because an inner Result.Fail the outer handler
-            // absorbs is the outer handler's to decide about.
+            // The execution coordinator applies MarkRollbackOnly for exceptions or
+            // refusals carrying produced work before resolving this frame. Ordinary
+            // event-free refusals remain absorbable (ADR-0040, ADR-0057).
             return;
         }
 
@@ -517,6 +533,7 @@ public sealed class NpgsqlUnitOfWork(
         _transaction = null;
         _mode = null;
         _depth = 0;
+        ClearTenantContextAnnouncement();
 
         if (transaction is null)
         {
@@ -568,7 +585,7 @@ public sealed class NpgsqlUnitOfWork(
     /// opened after this one is still open would commit nothing and report
     /// success.
     /// </remarks>
-    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth, int generation)
+    private sealed class Frame(NpgsqlUnitOfWork unitOfWork, int depth, long generation)
         : IUnitOfWorkScope
     {
         private bool _resolved;

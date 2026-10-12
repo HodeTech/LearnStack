@@ -2,6 +2,8 @@
 
 **Status:** Active
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (Sentry / OTel boundary, Serilog wiring, span attribute propagation, deployment-mode branching).
+Producer additions derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -63,7 +65,7 @@ These propagate into:
 - Background jobs (Hangfire activator + filter) — payload carries `tenant_id`
   + `correlation_id`; activator restores `ITenantContext` before invocation
 - Outbox dispatcher — row schema carries `tenant_id`, `organization_id?`,
-  `correlation_id`, `event_id`, `occurred_at`, `type`; consumer handler
+  `correlation_id`, `id` (the event's `EventId`), `occurred_at`, `type`; the consumer
   restores `ITenantContext` from the envelope and starts an `Activity` with
   `traceparent` set to the row's `correlation_id`
 - Integration event handlers
@@ -74,6 +76,18 @@ These propagate into:
   (LearnStack → Hub `POST /api/v1/internal/license/verify`, `POST
   /api/v1/usage/report`) inject the current `traceparent`. Per
   [ADR-0032 § Sub-decision 11](../decisions/0032-exception-handling-logging-and-observability.md).
+
+Accepted [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
+requires the producer execution boundary to supply a W3C Activity even without a
+telemetry listener, including the Seeder. Enqueue persists the full traceparent;
+transaction announcement supplies tenant/organization while trusted execution
+supplies correlation, causation and optional causal actor. Domain translation
+allocates a new integration EventId and retains the domain EventId as causation.
+Future delivery-originated production uses the trusted incoming event identity,
+with effective `UserId.SystemActor` and causal human retained separately. No
+caller-supplied header establishes causation; JSON `metadata` stays SQL NULL.
+P02b-1 implements this producer metadata boundary in both API and Seeder.
+Production delivery context restoration remains P02b-3 work.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
 cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;

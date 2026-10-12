@@ -2,8 +2,11 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
+using LearnStack.Application.Persistence;
+using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
@@ -11,12 +14,14 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -300,11 +305,12 @@ public sealed class TenantProvisioningTests
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         var behavior = new TransactionBehavior<Probe, Result<string>>(
-            unitOfWork,
-            UnresolvedTenantContext.Instance,
-            new NoOpAuditStore(),
-            new AuditStateCapture(),
-            NullLogger<TransactionBehavior<Probe, Result<string>>>.Instance);
+            new TransactionExecutionCoordinator(
+                unitOfWork, UnresolvedTenantContext.Instance,
+                new NoOpAuditStore(), new AuditStateCapture(),
+                scope.ServiceProvider.GetRequiredService<ProducerExecution>(),
+                scope.ServiceProvider.GetRequiredService<DomainEventCollector>(),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         var write = () => behavior.Handle(
             new Probe(),
@@ -506,13 +512,14 @@ public sealed class TenantProvisioningTests
         await using var scope = provider.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
+        var unit = services.GetRequiredService<IUnitOfWork>();
         var behavior = new TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(
-            services.GetRequiredService<IUnitOfWork>(),
-            context ?? UnresolvedTenantContext.Instance,
-            new NoOpAuditStore(),
-            new AuditStateCapture(),
-            NullLogger<TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>>
-                .Instance);
+            new TransactionExecutionCoordinator(
+                unit, context ?? UnresolvedTenantContext.Instance,
+                new NoOpAuditStore(), new AuditStateCapture(),
+                services.GetRequiredService<ProducerExecution>(),
+                services.GetRequiredService<DomainEventCollector>(),
+                NullLogger<TransactionExecutionCoordinator>.Instance));
 
         return await behavior.Handle(
             command,
@@ -541,10 +548,15 @@ public sealed class TenantProvisioningTests
             sp.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
         services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
+        services.AddScoped<ProducerExecution>();
+        services.AddScoped<DomainEventCollector>();
+        services.AddScoped<ISaveChangesInterceptor, DomainEventSaveChangesInterceptor>();
+        services.AddScoped<IOutbox, PostgresOutbox>();
         services.AddModuleDbContext<TenancyDbContext>();
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.AddSingleton<IClock>(Clock);
+        services.AddSingleton<IGuidFactory, SystemGuidFactory>();
         services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(
             typeof(ITenantWriteStore).Assembly));
 
@@ -591,6 +603,7 @@ public sealed class TenantProvisioningTests
 
         foreach (var statement in new[]
         {
+            "DELETE FROM outbox_messages WHERE tenant_id = @tenant",
             "UPDATE tenants SET default_organization_id = NULL WHERE id = @tenant",
             "DELETE FROM organizations WHERE tenant_id = @tenant",
             "DELETE FROM tenants WHERE id = @tenant",

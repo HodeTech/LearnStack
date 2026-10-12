@@ -723,9 +723,9 @@ public sealed class CrossCuttingFoundationTests
         // the envelope there was nothing to read, and this catalogued rule could
         // not be written at all.
         //
-        // No module declares an event yet, so this would be vacuous — hence the
-        // deliberate offenders below. A guard that cannot be shown to fire is
-        // not a guard.
+        // P02b-1 supplies the first real event. Require that production subject
+        // as well as deliberate offenders; neither an empty nor a blind sweep
+        // may satisfy the convention.
         FollowsTopicConvention("learnstack.enrollment.enrollment").Should().BeTrue();
         FollowsTopicConvention("learnstack.hub.entitlement").Should().BeTrue();
         FollowsTopicConvention("learnstack.hub.custom-domain.activated").Should().BeTrue();
@@ -741,24 +741,18 @@ public sealed class CrossCuttingFoundationTests
         FollowsTopicConvention("learnstack.hub.custom-domain.activated.extra").Should().BeFalse(
             "five segments");
 
-        foreach (var name in ModuleAssemblyShapes)
+        FollowsTopicConvention("learnstack.tenancy.tenant\n").Should().BeFalse("a trailing newline is not part of a topic");
+        var events = ModuleAssemblyShapes.Select(LoadAssembly).SelectMany(assembly => assembly.GetTypes())
+            .Where(type => !type.IsAbstract && !type.IsInterface
+                && typeof(LearnStack.SharedKernel.Messaging.IIntegrationEvent).IsAssignableFrom(type)).ToArray();
+        events.Should().NotBeEmpty("Fix: the module census must see P02b-1's completed-provisioning event");
+        foreach (var type in events)
         {
-            var assembly = LoadAssembly(name);
-
-            var events = assembly.GetTypes()
-                .Where(t => !t.IsAbstract
-                            && typeof(LearnStack.SharedKernel.Messaging.IIntegrationEvent)
-                                .IsAssignableFrom(t));
-
-            foreach (var type in events)
-            {
-                var topic = ((LearnStack.SharedKernel.Messaging.IIntegrationEvent)
-                    System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type)).Topic;
-
-                FollowsTopicConvention(topic).Should().BeTrue(
-                    $"{type.FullName} declares topic '{topic}', which is not "
-                    + "learnstack.{module}.{aggregate} (Standards 20 § IEventBus)");
-            }
+            var topic = ((LearnStack.SharedKernel.Messaging.IIntegrationEvent)
+                System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type)).Topic;
+            FollowsTopicConvention(topic).Should().BeTrue(
+                $"{type.FullName} declares topic '{topic}', which is not "
+                + "learnstack.{module}.{aggregate} (Standards 20 § IEventBus)");
         }
     }
 
@@ -767,12 +761,12 @@ public sealed class CrossCuttingFoundationTests
         const string segment = "[a-z][a-z0-9-]*[a-z0-9]|[a-z]";
         return System.Text.RegularExpressions.Regex.IsMatch(
                    topic,
-                   $@"^learnstack\.({segment})\.({segment})$",
+                   $@"\Alearnstack\.({segment})\.({segment})\z",
                    System.Text.RegularExpressions.RegexOptions.None,
                    TimeSpan.FromSeconds(1))
                || System.Text.RegularExpressions.Regex.IsMatch(
                    topic,
-                   $@"^learnstack\.hub\.({segment})\.({segment})$",
+                   $@"\Alearnstack\.hub\.({segment})\.({segment})\z",
                    System.Text.RegularExpressions.RegexOptions.None,
                    TimeSpan.FromSeconds(1));
     }

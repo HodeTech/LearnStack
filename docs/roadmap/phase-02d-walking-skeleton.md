@@ -1,9 +1,10 @@
 # Phase 02d: Two-Tenant Walking Skeleton
 
-> **Status (2026-10-11).** Phase 02d implementation and exit verification are
-> **complete**; [PR #28](https://github.com/HodeTech/LearnStack/pull/28) awaits
-> maintainer review and merge. The [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11)
-> records the evidence and live protection read-back. The kickoff, `P02d-0`, ships this
+> **Status (2026-10-11).** Phase 02d is **complete and merged** through
+> [PR #28](https://github.com/HodeTech/LearnStack/pull/28). The
+> [merge closeout](#p02d-7-merge-and-closeout-2026-10-11) records final verification
+> and the completed phase exit. P02b-0 phase-entry re-verification is next.
+> The kickoff, `P02d-0`, ships this
 > plan — the inherited baseline, the packet table, the decision register, criteria that
 > name their evidence, and the corrections to the documents that contradicted the phase
 > — and no code. Every later packet opens with its decision pass and updates its own
@@ -18,7 +19,7 @@
 > | P02d-4 | Public read API and contract checks | ✅ complete and merged — 2026-10-08; [merge closeout](#p02d-4-merge-and-closeout-2026-10-08) |
 > | P02d-5 | Server-rendering path | ✅ complete and merged — 2026-10-09; [merge closeout](#p02d-5-merge-and-closeout-2026-10-09) |
 > | P02d-6 | Public renderer | ✅ complete and merged — 2026-10-10; [merge closeout](#p02d-6-merge-and-closeout-2026-10-10) |
-> | P02d-7 | Demo, full-stack CI and exit | ✅ implementation and exit verification complete — 2026-10-11; all four steps completed both independent review rounds; [CI and exit closeout](#p02d-7-ci-and-phase-exit-closeout-2026-10-11); PR #28 review/merge pending |
+> | P02d-7 | Demo, full-stack CI and exit | ✅ complete and merged — 2026-10-11; all four steps completed both independent review rounds; [merge closeout](#p02d-7-merge-and-closeout-2026-10-11) |
 
 **Acceptance update — 2026-10-02.** P02d-1 remains merged. The maintainer accepted
 ADR-0050/0051 and the [P02d-2 package](#p02d-2-decision-package-2026-10-02), including
@@ -285,7 +286,7 @@ Named so that no reader has to guess, and so no later phase can assume it was do
 | Authentication, sessions, login | [Phase 02b](phase-02b-events-auth.md) |
 | Token-keyed authenticated and write rate-limit budgets, and what the pre-authentication limiter does once a caller is validated | [Phase 02b](phase-02b-events-auth.md) (G14) |
 | Keycloak realm reconciliation (a seed step that writes to Keycloak) | [Phase 02b](phase-02b-events-auth.md) (G12) |
-| The `learnstack.tenancy.settings` eager invalidation event | [Phase 02b](phase-02b-events-auth.md), per [the Tenancy spec](../modules/tenancy/README.md) |
+| Future settings caching and any required invalidation | A future cached consumer's scope/key/freshness decision; [Phase 11](phase-11-production-hardening.md#demand-gated-building-blocks) owns triggered distributed adapters. The [Tenancy catalogue](../modules/tenancy/README.md#integration-event-catalogue) declares no settings-invalidation event |
 | Isolation tests through authenticated or id-addressed routes | [Phase 02b](phase-02b-events-auth.md) |
 | Identity domain, roles, permissions, invitations; permission keys for public reads; the rule that every endpoint carries `[Authorize]` or `[AllowAnonymous]` | [Phase 03](phase-03-identity-admin.md) |
 | A tenant-scope read across all organizations on a tenant host (the `app.scope` carrier) | [Phase 03](phase-03-identity-admin.md) |
@@ -439,7 +440,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 | G20 | What mechanically backs "no production code branches on which tenant it serves"? The shipped domain-term scan strips literals and exempts seed data. (a) The mechanism and its literal source; (b) its subjects, matching and the platform built-ins; (c) its exemptions, including development hosts in frontend or infrastructure configuration; (d) whether a ban on production references to `LearnStack.Tools.Seeder` and a behavioural same-code, different-data test accompany it | A Standards 21 sibling row scanning production backend and `frontend/` sources, comments stripped, for exact identity literals read from `SeedData` (slugs, ids, hosts, display names, customization keys), built-ins excluded, with planted offenders; plus the behavioural test. The exemption policy is the owner's judgement | Detail: a Standards 21 row Registered in the first pass that uses it and Implemented before exit; a phase-doc statement in § Genericity proof. No ADR | P02d-2 (a: every seed literal lives where the source reads it), P02d-5 (c: the first host outside `SeedData`), P02d-6 (b: frontend subjects), P02d-7 (Implemented and required) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): (a) SeedData literal source and Registered guard. [Accepted — 2026-10-08](#p02d-5-accepted-answers): (c) exemptions; [Accepted — 2026-10-09](#p02d-6-accepted-answers): (b) frontend subjects; implementation and behavioral proof remain P7; [Accepted — 2026-10-11](#p02d-7-decision-package-2026-10-10): matching, canonical built-ins, Seeder-reference fence and behavioral ownership; Step 2 implements the required fences and schema-replacement companion |
 | G21 | Does the anonymous public path set any cookie — the [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) flowchart sets them — and may a public page load any cross-origin subresource, such as the CDN-hosted logo and font assets Frontend Architecture describes? | No cookies, since the locale is already in the path and a locale-less request redirects ([Localization Standards § URL Strategy](../standards/08-localization.md#url-strategy)); same-origin subresources only; both asserted by a check. Whether tenant branding may point visitors' browsers at third-party hosts is a data-protection choice for the owner | Detail: a phase-doc statement; the Standards 07 flowchart and Frontend Architecture § Theming reconciled in the deciding pass | P02d-2 (subresources, if G16 admits a URL-valued token), P02d-5 (cookies: the middleware replacement is the first code that could set one) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): subresources. Cookies remain open for P02d-5; [Accepted — 2026-10-08](#p02d-5-accepted-answers): cookies; prior subresource answer retained |
 | G22 | How does the customization definition projection load and stay correct? In the request's ambient transaction, or as a ninth out-of-band tenant-context setter (ADR-0040's set is closed at eight)? In what order are the generation and the rows read; what does an absent generation row mean; how is a cache filled inside a transaction that bumped and rolled back kept unreachable, when the bump is an upsert increment that can reissue a number; what does an absent definition set return; which families are registered, and how does the adapter's exact-tuple `cache.name` mapping match generation-embedded names; what do the TTLs bound; and is the contract batched so a public read issues a bounded number of statements? | Load in the ambient transaction; read the generation first, then the rows; fill only from non-bumping transactions; treat cache faults as misses; restate the module's cache-hit budget; a batched contract, with statement-count assertions cold and warm | Contract: the Customization spec § Primary read flow and a [Tenant Customization Model § 8.2](../architecture/32-tenant-customization-model.md#82-cache-strategy) statement on how a request learns the generation; a dated ADR-0040 amendment and a setters row only if the loader is out-of-band. Detail: the [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md) cache table, the `cache.name` mapping, the Observability Standards metrics family list | P02d-3 | [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02) |
-| G23 | The typed settings accessor and its freshness. With no `learnstack.tenancy.settings` event until Phase 02b and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound until 02b, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event row and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no settings cache in P02d-2/3. [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): typed ambient accessor/scoped merge |
+| G23 | The typed settings accessor and its freshness. With no declared settings-invalidation event and the seed writing from its own process, what bounds staleness: a TTL with a stated bound, a writer-coupled Tenancy settings generation counter, or no settings cache here? What are the accessor's name and glossary headword; how is a cached read keyed so tenant-wide and organization rows never cross organizations — a settings read depends on `app.organization_id` today, and the policy's tenant-scope read gains a carrier in Phase 03; and does its loader run in the ambient transaction? | The reviews split on freshness — a TTL bound, a counter, or no cache. For keys: tenant-wide rows loaded with an explicit `organization_id IS NULL` predicate under `CacheKey.ForTenant`, each organization's overrides under `CacheKey.ForOrganization`, merged in memory; an ambient loader. The documented tenant-only key is rejected, because it would serve one organization's overrides to another | Detail: if settings are cached, the Infrastructure Stack Standards cheat-sheet rows and `cache.name` mapping; the Tenancy spec's event catalogue and budget; a glossary headword. Contract only for a counter (the Tenancy spec, Database Standards § Table classes and § GRANT matrix) or an out-of-band loader (an ADR-0040 amendment) | P02d-2 (a counter is bumped inside the setting command's transaction), P02d-3 (name, keys, loader) | [Accepted — 2026-10-02](#p02d-2-accepted-answers): no settings cache in P02d-2/3. [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): typed ambient accessor/scoped merge |
 | G24 | Display fallback. Which document owns the chain — [Localization § Fallback Rules](../architecture/12-localization.md#fallback-rules) or [Localization Standards § Locale Model](../standards/08-localization.md#locale-model), which state different chains, while the shipped `LocalizedText.Resolve` narrows one subtag at a time and ends at the first authored value? What is the terminal state of a nullable Pattern A field and of a Pattern B label? Does a response say which locale a fallback value resolved in, so the page can mark its language (WCAG 3.1.2)? | Localization architecture owns the chain and Localization Standards links it, both recording the shipped narrowing and the first-authored terminal for labels; a nullable Pattern A field renders absent; each fallback-capable field reports its resolved locale | Detail: Localization Standards § Locale Model linking its owner, reconciled with `LocalizedText` in the same diff; the Customization contract's signature; the response schema under G26. No ADR | P02d-3 (the first caller that passes a fallback chain), P02d-4 (response fields) | [Accepted — 2026-10-02](#p02d-3-decision-package-2026-10-02): internal fallback; [Accepted — 2026-10-03](#p02d-4-accepted-answers): public response locale fields; renderer language attributes remain P02d-6 |
 | G25 | Site data and the page set. How does the renderer get the per-host data none of the Education reads returns — enabled and default locales, branding tokens, taxonomy display values, content-type field lists: fields embedded in the course reads (which cannot supply a default locale before a locale is known), a separate `[PublicSurface]` read resolved from the effective host, or the edge host lookup [Frontend Architecture Standards § Tenant Resolution](../standards/07-frontend-architecture.md#tenant-resolution) and [Infrastructure Stack Standards § Host → Tenant Resolution](../standards/20-infrastructure-stack.md#host--tenant-resolution) prescribe today, which must then state the effective host over the hop? Does the frontend ever hold a tenant or organization id? And which `(public)` pages ship — catalog, course with ordered lesson links and lesson, or two pages with bounded lesson links in the catalog response? | One `[PublicSurface]` site-data read with no host parameter, returning a closed projection and no ids, and three pages, which gives the course-detail read a consumer; one review keeps two pages with an explicit catalog outline. The first two options change what two Active standards prescribe | Contract: a phase-doc statement in § Read API and § Public renderer; for the first two options, edits to the two standards named, with an ADR if the pass judges the change non-trivial (no ADR carries the edge-lookup rule). Detail: the API Standards § Public surface rows; the Frontend Architecture sketch, sequence diagram and cache rows; the Localization architecture's edge locale sentence; the glossary; Phase 06 § What Phase 02d already shipped; Phase 05's inherited row if the course-detail read changes | P02d-4 (the endpoint set and DTOs the OpenAPI baseline freezes; a two-page answer changes the catalog response) | [Accepted — 2026-10-03](#p02d-4-accepted-answers): bootstrap and page set; page implementation remains P02d-6 |
 | G26 | The v1 public read contract. The path shape beside Phase 05's authoring `/courses/{id}` — a shared slot, a distinct public prefix, or `/courses/by-slug/{slug}`; each response as an allow-list and what it never carries; the embedded lesson list's fields, order and bound, and whether an empty list is valid; per-locale alternates; how enums and envelopes stay additive; and which Problem Details responses each operation documents, given that no non-idempotent operation documents any today and a baseline of `200`s cannot see a status change | Fields limited to what the pages render; object envelopes, extensible enums, a deny-list contract test (`tenantId`, `organizationId`, `createdBy`, `updatedBy`, `deletedAt`, `rowVersion`, `slugKey`); the embedded list carries title, slug and order under a cap; `alternates` for enabled, translated locales; one shared transformer declaring each operation's statuses as `application/problem+json`. No review settled the path | Contract: a phase-doc statement recorded before the breaking-change check stores its baseline. Detail: the OpenAPI snapshot; [API Standards § URL Structure](../standards/04-api-design.md#url-structure) for a prefix class, § Pagination for an embedded list, § OpenAPI; the gateway's public-band row. [ADR-0024](../decisions/0024-api-versioning-policy.md) settles that later additions are non-breaking | P02d-1 (whether the slug grammar must refuse GUID shapes, with G9), P02d-4 (route templates, records, snapshot) | [Accepted — 2026-09-14](#p02d-1-accepted-answers): slug grammar; [Accepted — 2026-10-03](#p02d-4-accepted-answers): route and response contracts |
@@ -6210,6 +6211,16 @@ ten lessons and 27 translations at their declared scopes, including draft and
 restricted controls. Carry those persisted fixtures through the migration;
 reseeding is not a migration strategy.
 
+> **Reconciliation — 2026-10-12.** The settings-event ownership below records
+> P7's expectation at closeout. Accepted
+> [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+> selects completed provisioning as the first useful event; the
+> [Tenancy catalogue](../modules/tenancy/README.md#integration-event-catalogue)
+> promises no settings-invalidation event. Settings remain uncached. Any future
+> cached consumer needs its scope/key/freshness decision; Phase 11 owns the
+> distributed adapters on their existing triggers, without a settings-event promise.
+> The dated handoff text is retained.
+
 **P02b-0 re-verification handoff.** Re-read the four `/api/v1/public` GET/HEAD
 pairs and contract; retained `*.learnstack.local` seed hosts over native HTTPS,
 manual local hosts/CA setup and private paired hop configuration; coordinated
@@ -6505,6 +6516,74 @@ Closing documentation commits must also pass the seven required jobs before
 merge; the [PR check rollup](https://github.com/HodeTech/LearnStack/pull/28/checks)
 owns that moving-head result. Next after maintainer review and merge is
 **P02b-0 re-verification and decision pass**, before Phase 02b implementation.
+
+### P02d-7 merge and closeout (2026-10-11)
+
+The maintainer merged [PR #28](https://github.com/HodeTech/LearnStack/pull/28) at
+2026-10-11 09:38:58 UTC. GitHub records final PR source
+`8d9d2195cfadf1d83807613ea22d792b7ce329f4` and squash merge
+`d37f46ccf0ebbf909f02c81a59d9019af3e9a1ca`, whose parent is the previous main
+`378346126949c90bb286b5217c24513fc2044f06`. Source and squash merge have the
+identical tree `7f83bee243fe17626ef10af051e54a9218fd7aaa`. Development incorporates
+the main merge without switching branches or rewriting published history.
+
+All seven required checks pass in the
+[final PR run](https://github.com/HodeTech/LearnStack/actions/runs/38127402847)
+for that source. The tested synthetic merge is
+`2d8ff6b23cd1b27691ea0038859944ca6c0ce395`, with the final source and previous
+main as parents. Independently verified downloaded receipts confirm:
+
+- **2,964 backend passes**, zero failures/skips: 1,705 unit, 203 architecture,
+  four contract, 180 Docker-free integration and 872 Docker integration cases.
+- **1,538 guarded frontend passes**: 1,478 web and 60 SDK, zero
+  failures/skips/todos; lint, typecheck, builds and SDK drift also pass.
+- Exactly 27 Lighthouse JSON/HTML report pairs, nine screenshots and two
+  sanitized receipts. Report digests, source/checkout/build/invocation identities
+  and the nine-URL/three-run census match. Normalized initial JS gzip is
+  106,358–106,552 bytes, CLS 0 and automated accessibility 1 throughout.
+  Per-URL timing medians remain advisory.
+- Nine linked navigations, 24 planted visibility refusals, both TLS refusals and
+  the actual audit-timeout control pass. All 134 API observations are 200,
+  with zero 429, malformed or pending records. Setup/proof/cleanup take
+  170,462 / 618,055 / 10,695 ms; all owned-cleanup flags pass.
+- A fresh protection read-back retains `strict: true` and all seven GitHub
+  Actions contexts, including `public demo + lighthouse`. This closeout changes
+  no protection setting.
+
+The [post-merge main run](https://github.com/HodeTech/LearnStack/actions/runs/38129121225)
+tests the squash commit separately; its result is not inferred from source CI.
+At this documentation check, five jobs pass; Docker integration and the
+demo/Lighthouse job are still running.
+
+**P02d-7 and Phase 02d are closed.** All seven implementation packets are merged;
+all four P7 steps and verified fixes retain their recorded independent reviews.
+The [individual exit evidence](phase-02d-exit-evidence.md) reconciles all
+36 deliverables, 79 completion criteria, 39 exclusions and nine exit obligations.
+Earlier dated delivery/review records, Accepted ADRs and their acceptance-time
+or pre-merge wording remain historical and unchanged. No new human/VoiceOver,
+full WCAG, zoom, production-p95 or deployment-readiness claim is added.
+
+**Next: P02b-0 — phase-entry re-verification.** The
+[Phase 02b packet table](phase-02b-events-auth.md#packets-and-decision-gates)
+requires re-reading code, corpus and Hub premises against HEAD, including the
+[P7 handoff](#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
+P02b-0 has not started; each later packet closes its own gates in its decision
+pass. No Phase 02b implementation or auth/BFF decision is accepted here.
+
+Phase 05 retains versioned-curriculum migration and preservation of existing
+Education/seed records; Phase 06 retains full renderer/Studio and Playwright
+Test/axe; Phase 07 retains enrollment, learner portal, progress and access grants.
+Phase 11 retains production hardening, telemetry and demand-gated adapters.
+Course Marketplace ADR-0049 and Phase 09a remain Proposed; commerce, commissions,
+payouts and cross-installation federation are not delivered.
+
+**Documentation-only closeout validation.** All 203 local Release architecture
+cases and seven ADR lifecycle/workflow controls pass, with zero failures/skips.
+The seven changed Markdown files resolve 1,088 relative links and 478 fragments
+with zero errors; added prose wrapping and whitespace checks pass. Prior dated
+phase delivery records and all Accepted ADR files are byte-preserved. Full runtime
+suites are not rerun locally for this documentation-only change; the final PR
+receipts above supply their evidence.
 
 ### P02d-1 decision pass (2026-09-14)
 
@@ -7201,7 +7280,7 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
 - The typed tenant and organization settings accessor over `tenant_settings`, internal
   to the backend, with its interface name and glossary headword, key composition, loader
   and staleness bound, if any (**G23**), recorded in the cheat sheet when G23 caches
-  settings, and in the Tenancy spec's event row and budget.
+  settings, and in the Tenancy spec's current event catalogue and budget.
 
 **Public API and contract checks**
 
@@ -7294,8 +7373,9 @@ catalogued legs are not implemented (**G28**), and the tenant-branching check is
 - The delivery record at exit names the Education model shipped, the preservation
   obligations G2 recorded, the seed fixtures Phase 05's migration must carry, and the
   premises this phase moved that `P02b-0` re-verifies: the first `/api/v1` endpoints,
-  G32's hosts, G34's limiter answer, G14's seed context and the
-  `learnstack.tenancy.settings` event G23 leaves to Phase 02b.
+  G32's hosts, G34's limiter answer, G14's seed context and G23's uncached
+  settings boundary. The dated P7 handoff retains its original event expectation
+  with the 2026-10-12 reconciliation beside it; no current settings event is declared.
 
 ## Completion Criteria
 

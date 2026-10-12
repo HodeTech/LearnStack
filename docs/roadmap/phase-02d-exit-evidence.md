@@ -4,8 +4,9 @@
 independent review rounds. The real PR check receipts, verified artifacts,
 seventh-check activation and positive exit verdict are recorded in the
 [CI and exit closeout](phase-02d-walking-skeleton.md#p02d-7-ci-and-phase-exit-closeout-2026-10-11).
-This document is an evidence index, not a new architecture decision or a merge
-approval. PR #28 awaits maintainer review and merge.
+This document is an evidence index, not a new architecture decision. PR #28 is
+merged; the [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+owns final verification and the completed phase exit.
 
 The rows enumerate all 36 [deliverables](phase-02d-walking-skeleton.md#deliverables),
 79 [completion criteria](phase-02d-walking-skeleton.md#completion-criteria),
@@ -20,7 +21,7 @@ phase document owns the complete contract and every subordinate condition.
 |---|---|
 | B | Real PR `backend` passes: Release build/format, 1,705 unit, 203 architecture, four contract and 180 Docker-free integration; zero failures/skips and execution guards. |
 | I | Real PR `backend integration (Testcontainers)` passes all 872 cases, including the three locale/branding/combined-scope cases and physical app-role/RLS/read-only production proofs; zero failures/skips. |
-| F | Real PR guarded `frontend` passes 1,444 web + 60 SDK cases, zero failures/skips/todos, plus lint, typecheck, builds and controls. |
+| F | Final PR guarded `frontend` passes 1,478 web + 60 SDK cases, zero failures/skips/todos, plus lint, typecheck, builds and controls. |
 | O | Real PR `openapi diff` and generated SDK drift pass with retained planted incompatibility controls. |
 | J | Real PR `public demo + lighthouse` passes with verified nine-page/27-audit artifacts and confirmed cleanup; authorized seventh-context activation and complete protection read-back pass. |
 | M | Named source/document inspection and explicit future-owner reconciliation in Step 4; both fresh review rounds and verified fixes complete. |
@@ -31,13 +32,12 @@ Named backend classes live under `backend/tests/`; frontend tests live under
 `frontend/apps/web/src/` or `frontend/scripts/`. Partial-class filenames are
 identified separately where needed. P1–P6 refer to the merged packet records in
 [Phase 02d](phase-02d-walking-skeleton.md); Step 1–3 refer to P7's records.
-[Run 38108622191](https://github.com/HodeTech/LearnStack/actions/runs/38108622191)
-supplies B/I/F/O/J for reviewed implementation source `d47ef17`, tested merge
-`ba44563`; the [exact-head verification](phase-02d-walking-skeleton.md#reviewed-implementation-head-verification-2026-10-11)
-records full identities and artifact validation. The earlier run owns
-seventh-check activation history. The
-[PR rollup](https://github.com/HodeTech/LearnStack/pull/28/checks) must also pass
-on subsequent heads before merge; historic counts do not replace it.
+[Run 38127402847](https://github.com/HodeTech/LearnStack/actions/runs/38127402847)
+supplies final B/I/F/O/J for source `8d9d219`, tested merge `2d8ff6b`; the
+[merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
+records full identities and verified artifacts. Earlier runs retain their dated
+counts and seventh-check activation history. The squash merge has the same tree
+as the final PR source; its post-merge run is identified separately.
 
 ## Local and manual evidence boundaries
 
@@ -207,12 +207,16 @@ These are explicit phase boundaries, not unfinished P7 implementations. The
 named owners' documents carry the handoff; no future decision gate is accepted
 by listing its phase here.
 
+**Reconciled — 2026-10-12.** X04 follows the Accepted P02b-1 production
+contract and current Tenancy catalogue. P7's dated handoff remains preserved
+with its [reconciliation](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11).
+
 | ID | Exclusion locator | Named owner | Evidence and boundary |
 |---|---|---|---|
 | X01 | Authentication, sessions, login | [Phase 02b](phase-02b-events-auth.md) | Phase02b P02b-5/6/7, Identity/session scope and criteria. |
 | X02 | Token-keyed authenticated and write rate-limit budgets, and what the pre-authentication limiter does once a caller is validated | [Phase 02b](phase-02b-events-auth.md) (G14) | Phase02b G14/P02b-5 and whole-chain two-principal quota criterion. |
 | X03 | Keycloak realm reconciliation (a seed step that writes to Keycloak) | [Phase 02b](phase-02b-events-auth.md) (G12) | Phase02b G12/P02b-6 and warm-realm repeat-seed criteria. |
-| X04 | The `learnstack.tenancy.settings` eager invalidation event | [Phase 02b](phase-02b-events-auth.md), per [the Tenancy spec](../modules/tenancy/README.md) | Phase 02b Event Bus scope, deliverable and completion criterion explicitly own learnstack.tenancy.settings; the Tenancy catalogue names the same owner. |
+| X04 | Future settings caching and any required invalidation | A future cached consumer's scope/key/freshness decision; [Phase 11](phase-11-production-hardening.md#demand-gated-building-blocks) owns triggered distributed adapters | The [Tenancy catalogue](../modules/tenancy/README.md#integration-event-catalogue) declares no settings-invalidation event. Typed settings are uncached; Phase 11's adapter triggers do not promise a settings event. |
 | X05 | Isolation tests through authenticated or id-addressed routes | [Phase 02b](phase-02b-events-auth.md) | Phase 02b completion criteria explicitly include authenticated and id-addressed tenant/organization isolation with app-role denial and successful controls. |
 | X06 | Identity domain, roles, permissions, invitations; permission keys for public reads; the rule that every endpoint carries `[Authorize]` or `[AllowAnonymous]` | [Phase 03](phase-03-identity-admin.md) | Phase03 Identity/authorization/invitations scope and deliverables. |
 | X07 | A tenant-scope read across all organizations on a tenant host (the `app.scope` carrier) | [Phase 03](phase-03-identity-admin.md) | Phase03 Authorization explicitly owns app.scope and tenant-wide cross-organization carrier. |
@@ -261,14 +265,14 @@ by listing its phase here.
 | E06 | G20 Implemented and green required | B/F nonempty census and dirty/clean controls, I schema-replacement companion, Step2 record. |
 | E07 | Accessibility and renderer PR record | D31/C66 PR27 link and original manual attribution plus F/I/J automated controls; no inferred new manual pass. |
 | E08 | Zero 02d Registered/Awaiting catalogue rows and standard/index alignment | Four P7 promotions with actual behavioral owners and hard CI, computed counts and Standard_Status_Headers_Match_The_Index exact-head receipt. |
-| E09 | Delivery record names moved P02b-0 premises | /api/v1 contract, *.learnstack.local native HTTPS/manual trust, visitor+peer quotas, seed default-org/tenant scopes, no-cache settings/eager event owner, single bootstrap; do not Accept auth/BFF future gates. |
+| E09 | Delivery record names moved P02b-0 premises | /api/v1 contract, *.learnstack.local native HTTPS/manual trust, visitor+peer quotas, seed default-org/tenant scopes, uncached settings with the dated future-invalidation reconciliation, single bootstrap; do not Accept auth/BFF future gates. |
 
 The [Step 4 preservation and P02b-0 handoff](phase-02d-walking-skeleton.md#p02d-7-step-4--ci-enforcement-and-phase-exit-2026-10-11)
 names the retained Education data, live API/host/trust/limiter/bootstrap premises
-and future settings-event ownership. Phase 05 migrates the existing records; it
-does not treat reseeding as migration. Course Marketplace ADR-0049 and Phase 09a
-remain Proposed and are outside this exit.
+and the reconciled uncached-settings boundary. Phase 05 migrates the existing
+records; it does not treat reseeding as migration. Course Marketplace ADR-0049
+and Phase 09a remain Proposed and are outside this exit.
 
-All E01–E09 obligations pass against the receipts and named evidence above, as
-recorded in the positive CI/exit closeout. Maintainer PR review and merge are
-separate actions; subsequent PR heads retain the seven required checks.
+All E01–E09 obligations pass against the receipts and named evidence above.
+The maintainer merged PR #28 on 2026-10-11; Phase 02d is closed. P02b-0
+re-verification is next, with no future-phase gate accepted by this closeout.

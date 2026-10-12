@@ -7,9 +7,10 @@ namespace LearnStack.SharedKernel.Identifiers;
 /// <remarks>
 /// Two minting paths exist per ADR-0031 (PostgreSQL 18) + ADR-0023:
 /// app-side <see cref="NewUuidV7"/> for aggregates that need the ID before
-/// <c>SaveChangesAsync</c>, and DB-side <c>uuidv7()</c> DEFAULT for
-/// high-volume append-only tables (<c>audit_log</c>, <c>outbox_messages</c>).
-/// This factory covers the app-side path only.
+/// <c>SaveChangesAsync</c>, and DB-side <c>uuidv7()</c> DEFAULT where a caller
+/// does not need the identity first. Audit entry IDs are supplied app-side for
+/// reconciliation, and outbox IDs reuse the integration event's app-side EventId
+/// under ADR-0057. This factory covers the app-side path only.
 /// </remarks>
 public interface IGuidFactory
 {

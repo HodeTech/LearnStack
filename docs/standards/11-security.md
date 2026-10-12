@@ -25,6 +25,9 @@ ingress/caller and anonymous visitor budgets derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); coordinated accounting,
 native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
 
+Producer announcement and common execution ownership derive from
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+
 Security is layered. No single control is sufficient. The standards here apply to every PR.
 
 ## Threat Model Summary
@@ -259,7 +262,8 @@ from; this section remains the authority for session-variable **placement** only
 ### The rule
 
 `app.tenant_id` and `app.organization_id` are announced inside the ambient
-transaction by TransactionBehavior at step 6, from the context admitted at step 4.
+transaction by the step-6 `TransactionBehavior` adapter through
+`TransactionExecutionCoordinator`, from the context admitted at step 4.
 Default ReadWrite transactions announce them as their first SQL statement.
 
 For a physical PublicSurface ReadOnly owner only,
@@ -312,9 +316,20 @@ runtime — the hatch term reads an unset variable and is never true, so reads s
 the caller's organization plus the tenant-wide rows — which is the correct default. The
 placement rule above is unchanged and governs `app.scope` the moment a carrier exists.
 
+P02b-1 Step 1 adds a read-only announcement snapshot through
+`IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
+[ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Its generation/normalized values describe successful SQL on the current physical
+transaction. It is cleared before attempts and terminal transitions. Foreign
+transactions and failed/no-tenant announcements supply no usable snapshot;
+unresolved ambient provisioning still uses its sanctioned announcement. Frames
+compare the live snapshot with their enrolled generation. This adds no setter,
+context writer, factory privilege or tenant retargeting authority.
+
 ### The out-of-band setters
 
-`TransactionBehavior` is the general case, not the only one. Eight setters exist in
+`TransactionBehavior` delegates the general announcement path to
+`TransactionExecutionCoordinator`. Eight logical setter paths exist in
 total and the set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its Amendments 3 and 7, is the authority; it is reproduced here because this section
@@ -324,7 +339,7 @@ yet:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
-| `TransactionBehavior` | ambient | — the general case |
+| `TransactionBehavior` → `TransactionExecutionCoordinator` | ambient | — the existing general announcement path; common execution adds no authority |
 | The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
 | `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
@@ -375,8 +390,9 @@ runs on it.
 eight — both narrower than an earlier wording here, and both for reasons the shipped
 mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
 every query and the database to decide something the transaction already answers.
-And of the eight setters only `TransactionBehavior`, through
-`IUnitOfWork.SetTenantContextAsync`, marks anything today: two do not exist in code yet —
+And of the eight paths, only `TransactionBehavior` through
+`TransactionExecutionCoordinator` and the sanctioned `IUnitOfWork` announcement
+methods marks the ambient transaction today: two do not exist in code yet —
 the durable idempotency store, and the integration-event transport, which matters most,
 because it is the other setter that *opens* the ambient transaction and must therefore
 announce it when Phase 02b lands it — and the five that do, `OrganizationScopeValidator`,
@@ -669,7 +685,8 @@ Security-relevant durability rules:
 - **MUST-class audit fails closed.** Its rows — one per audited
   `(resource, operation)`, not one per request — are written on the same
   **transaction** as the business write: `AuditLogBehavior` classifies and parks the
-  intents, and `TransactionBehavior` calls `IAuditStore.WritePendingAsync` on the
+  intents through `AuditExecutionCoordinator`, and
+  `TransactionExecutionCoordinator` calls `IAuditStore.WritePendingAsync` on the
   **owning** unit-of-work frame, immediately before `COMMIT`, draining every intent in
   the scope ([ADR-0044 §§ 3–4](../decisions/0044-audit-write-path.md)). So a privileged
   operation cannot commit unaudited. It also means the insert runs while

@@ -4,6 +4,14 @@ LearnStack delegates user authentication to a self-hosted identity provider rath
 
 This document covers what lives where: in Keycloak vs in LearnStack, how multi-tenant identity works, how tokens flow, and how SSO/OIDC integrations land later.
 
+**Implementation boundary — 2026-10-12.** The flows and application identity
+model below are target architecture. The dev realms exist, but API JWT validation,
+tenant claim mappers, a BFF session and mirrored users/memberships are not shipped.
+Current public sites use host-based anonymous admission without forwarding cookies
+or credentials. [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
+records the baseline; G10–G13/G20 settle token shape, resolution, session custody
+and lifetimes before their first consumers. Phase 03 owns the identity domain.
+
 ## Why Not Build It Ourselves
 
 Email + password + refresh tokens + invitation flow + password reset + email verification + audit + future SSO + future MFA is a large, security-sensitive surface. Each of these pieces is non-trivial in isolation and easy to get subtly wrong. Off-the-shelf identity systems have been hardened against the entire OWASP authentication catalogue; replicating that hardening costs months of engineering and ongoing vigilance.

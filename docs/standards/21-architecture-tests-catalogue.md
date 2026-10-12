@@ -10,7 +10,9 @@
 [ADR-0055 Public Renderer Bootstrap Failures](../decisions/0055-public-renderer-bootstrap-failures.md)
 (replacement admission proofs implemented; both review rounds complete),
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
-(accepted 2026-10-11; browser/audit replacement proofs implemented). The
+(accepted 2026-10-11; browser/audit replacement proofs implemented),
+[ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
+(producer lifecycle, payload and production-census proofs implemented). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -103,11 +105,11 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**159 test methods run in
+**173 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3 and P02d-4 Steps 1–3.
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3 and P02b-1.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -134,8 +136,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**175 rules in this catalogue are Implemented, and 108 of them are in that assembly.**
-The other 67 are no less binding, and most could not live there. The table says where
+**183 rules in this catalogue are Implemented, and 113 of them are in that assembly.**
+The other 70 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1693,8 +1695,9 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `TransactionBehavior_Does_Not_Reference_A_Module_Assembly`
 
-- **Asserts:** `TransactionBehavior`'s constructor names `IUnitOfWork` and no
-  `DbContext`, and `LearnStack.Application` references no module assembly — checked
+- **Asserts:** `TransactionBehavior` delegates to `TransactionExecutionCoordinator`,
+  whose constructor names `IUnitOfWork` and no `DbContext`.
+  `LearnStack.Application` references no module assembly — checked
   against the **project file** as well as the emitted assembly-reference table,
   because the compiler elides a reference whose types the IL never touches, so a
   dangling `<ProjectReference>` would leave a reflection-only check green. The
@@ -1742,12 +1745,19 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 
 #### `Modules_Do_Not_Parallelize_Over_The_Ambient_Connection`
 
-- **Asserts:** no module code fans out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
+- **Asserts:** no module or shared Application/Infrastructure execution code fans
+  out — no `Task.WhenAll`, `WhenAny` or `WhenEach`, with or
   without an explicit type argument; no `Parallel.For`, `ForAsync`, `ForEach`, `ForEachAsync`
   or `Invoke`; no PLINQ `AsParallel()`; and no task started and stored instead of awaited, which
-  is `Task.WhenAll` written out longhand — outside an exact-path list, empty today, whose entries
-  each say why their concurrent work touches no connection. One connection means one command at a
-  time; a handler that fans out corrupts the protocol. Stricter than ADR-0040's sentence,
+  is `Task.WhenAll` written out longhand — outside an exact-path list whose entries
+  each say why their concurrent work touches no ambient connection. The entries are
+  `LearnStack.Infrastructure/Caching/InMemoryCacheService.cs`: singleton cache flights
+  race their own deadline, without a scoped unit or module context; and
+  `LearnStack.Infrastructure/MultiTenancy/CachedHostToTenantResolver.cs`: singleton
+  host lookup flights use their own read-only connection before tenant admission.
+  The census includes the separate `LearnStack.Infrastructure.Audit` project.
+  One connection means one command at a time; a handler that fans out corrupts the
+  protocol. Stricter than ADR-0040's sentence,
   which bans two `DbContext`-bound operations: which operations are bound to the ambient
   connection cannot be read from source, and the honest rule is the one that can.
 - **Source:** ADR-0040 § Nesting.
@@ -1756,6 +1766,10 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   for module code to scan: three modules have shipped handlers since Packets 7 and 8, and
   the rule asserts it read them. Its companion, `The_Parallelism_Scan_Can_Actually_Fail`,
   feeds it each fan-out shape — a `using static` import included — and two that are not.
+  P02b-1 extends the census to shared execution state;
+  `The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions`
+  plants violations in every covered root and proves both exemptions are
+  path-specific.
 - **Phase:** 02a (Packet 6 registers it; Packet 10 implements it).
 
 ### Tenancy and isolation
@@ -2531,8 +2545,8 @@ which decides identity, multiplicity, capture and classification;
 
 - **Asserts:** after a request completes, success or failure, the scoped
   `IAuditStateCapture` holds no changes and no intent, and its state reads `None` for the
-  next request. `Clear()` is called exactly once, by the **outermost** `AuditLogBehavior`,
-  in its `finally`.
+  next request. `Clear()` is called exactly once, by the **outermost**
+  `AuditExecutionCoordinator`, in its `finally`; `AuditLogBehavior` delegates to it.
 - **A joiner never clears.** Under [ADR-0040](../decisions/0040-ambient-unit-of-work.md)
   a nested dispatch reaches a joiner frame, and a joiner that cleared would erase the
   outer request's intents and every snapshot **before** the owner committed — the same
@@ -3112,13 +3126,17 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 #### `Outbox_Row_Carries_Correlation_Context`
 
 - **Asserts:** every persisted `outbox_messages` row has non-null
-  `tenant_id` and `correlation_id` columns. Integration test that writes
-  through `IOutbox.EnqueueAsync` and inspects the row.
-- **Source:** ADR-0032 § Sub-decision 12;
+  `tenant_id`, full W3C `correlation_id` and `partition_key` columns. Integration
+  proof writes through `IOutbox.EnqueueAsync` and compares persisted `id` to
+  `EventId`, announced tenant/organization and the event's declared key, including
+  unresolved provisioning. A null/wrong-column control must fail.
+- **Source:** ADR-0032 § Sub-decision 12, as bounded by
+  [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md) Amendment 1.
 - **Type:** integration test (Testcontainers). **Kind:** behavioural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
+- **Status:** **Implemented** (`OutboxProducerTests`, `TenantCreatedProducerTests`);
+  actual stored values and unresolved provisioning run as `learnstack_app`.
+- **Phase:** 02b, P02b-1.
 
 #### `Hangfire_Job_Payloads_Include_TenantId`
 
@@ -3137,10 +3155,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   business code runs. Verifies the envelope-to-context restoration.
 - **Source:** ADR-0032 § Sub-decision 12; Phase 02b deliverable.
 - **Type:** integration test (Testcontainers). Runs against
-  `InProcessEventBus` — which is a first-class transport with the same handler
-  interface, inbox guard and context restoration as the durable path
+  `InProcessEventBus` — which invokes the shared handler interface and restores
+  tenant context
   ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), so the assertion does
-  not wait on the Dapr adapter. **Kind:** behavioural.
+  not wait on the Dapr adapter. Consumer delivery/inbox deduplication remains
+  P02b-3 work. **Kind:** behavioural.
 - **Status:** **Registered.**
 - **Phase:** 02b.
 
@@ -3164,23 +3183,116 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`IntegrationEventContractTests`); all production projects
+  and module layers, required base members and dirty/clean inheritance controls.
 - **Phase:** 02b.
 
 #### `Integration_Event_Declares_PartitionKey`
 
-- **Asserts:** every `IIntegrationEvent` resolves a non-null partition key. `PartitionKey`
-  is abstract on `IntegrationEventBase`, so the compiler already refuses an event that
-  omits it; the residual assertion is that the value is non-null and non-blank at
-  runtime. `IntegrationEventEnvelope` reads it off the event — it is deliberately **not**
-  threaded through `IEventBus` as a second parameter, which is the source of drift
-  [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) removes. `InProcessEventBus`
-  serialises dispatch per key: concurrent across keys, sequential within one.
-- **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
-  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
-- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
+- **Asserts:** every concrete integration event declares its partition source:
+  the aggregate identifier, or explicit tenant-wide `TenantId`. The key is that
+  identifier's canonical GUID representation and is non-null/non-blank. A complete
+  production-module census checks declaration/derivation, with planted constant,
+  unrelated-ID and missing-declaration offenders plus clean controls. Behavioral
+  cases compare actual source/key values. The envelope reads the event's key;
+  it cannot hold a second answer. This establishes derivation, not durable order;
+  G3's publish-order half remains P02b-2.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
+  [15-event-and-outbox.md](../architecture/15-event-and-outbox.md#ordering).
+- **Type:** xUnit + reflection/IL/source scan and value probes.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`IntegrationEventContractTests`, `OutboxProducerTests`);
+  stored-source IL grammar, independently varied identifiers, dirty/clean controls and
+  persisted keys. Unsupported derivations fail loudly.
+- **Phase:** 02b, P02b-1 (derivation); P02b-2 (ordering).
+
+#### `Outbox_Enqueue_Uses_The_Announced_Transaction`
+
+- **Asserts:** enqueue uses the enrolled owner's live announced connection and
+  transaction as `learnstack_app`, for resolved and unresolved provisioning.
+  Mismatched/empty/sentinel tenants, read-only units and stale generations refuse;
+  no extra connection, commit or publish occurs. Snapshot cases cover failed or
+  canceled setup, foreign/reused transaction objects, joins and every terminal
+  boundary. No-listener trace context, exact causal/envelope metadata and runtime
+  JSON survive persistence. Complete canonical UTF-8 payloads at the inclusive
+  262,144-byte bound succeed; oversized/multibyte cases refuse before INSERT.
+  JSON metadata is SQL NULL. Duplicate INSERT fails; rollback and MUST-audit
+  failure leave source/outbox uncommitted.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration test (Testcontainers), with focused lifecycle unit cases.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`OutboxProducerConventionTests`, `OutboxProducerTests`,
+  `UnitOfWorkTests`, `ProducerExecutionTests`, `OutboxContractTests`); transitive
+  no-connection/commit/publication controls complement real transaction, byte-bound and
+  metadata cases.
+- **Phase:** 02b, P02b-1.
+
+#### `Producer_Failures_Poison_Produced_Work`
+
+- **Asserts:** successful outbox INSERT or successful-save event promotion leaves
+  sticky receipts in its invocation and every ancestor. Direct and descendant
+  receipts survive drain; absorbed `Result.Fail` cannot commit and poisons before
+  UoW-frame resolution. An ordinary event-free absorbed refusal still commits.
+  Failed/canceled saves do not promote; uncollected raises and unsuccessful
+  enqueue attempts do not themselves count. Terminal/same-scope reuse cases prove
+  source lists never replay into another transaction.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration and focused lifecycle unit tests. **Kind:** behavioural.
+- **Status:** **Implemented** (`ProducerExecutionTests`,
+  `OutboxProducerTests.Actual_INSERT_receipts_prevent_an_absorbed_direct_or_descendant_refusal_from_committing`,
+  `DomainEventProductionTests`); actual INSERT/save receipts, every ancestor, event-free
+  controls and terminal reuse.
+- **Phase:** 02b, P02b-1.
+
+#### `Domain_Event_Completion_Is_Owner_Only`
+
+- **Asserts:** a single owner dispatches successful-save events FIFO before
+  invariants/MUST audit/commit; nested joiners neither dispatch nor clear owner
+  state. Repeated saves, detach/delete, rollback/cancellation, save failures and
+  terminal cleanup preserve attribution without loss/duplication. At most 256
+  events belong to the transaction; a 257th rolls back all source/outbox work.
+  Returned versions remain accurate; MUST-audit failure preserves atomicity.
+  A controlled non-MediatR owner opens the common audit frame, classifies direct
+  work and reconciles once, retaining nested command intents without duplication.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** integration and lifecycle unit tests. **Kind:** behavioural.
+- **Status:** **Implemented** (`DomainEventProductionTests.The_owner_drains_FIFO_across_sources_saves_delete_and_detach_without_duplicates`,
+  `TenantCreatedProducerTests`, `ProducerExecutionTests`); real save qualification,
+  FIFO/bounds, owner/common-audit atomicity and cleanup.
+- **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.
+
+#### `Domain_Event_Handlers_Are_Outbox_Only`
+
+- **Asserts:** the complete production-module domain-handler census translates
+  facts to outbox only. Traverse helpers, interface targets and derived class
+  implementations; root mutation,
+  write stores, nested requests, further raises, notification publication and
+  external providers are forbidden. Every forbidden path has a planted offender
+  and a clean translation control, so empty subjects or shallow traversal fail.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** xUnit + reflection/IL/source scan. **Kind:** structural.
+- **Status:** **Implemented** (`DomainEventHandlerTests`); assembly-scoped transitive
+  helper/interface/derived-class traversal, all production layers and dirty/clean
+  capability controls.
+  Static analysis does not claim to resolve arbitrary reflection or dynamically loaded
+  code.
+- **Phase:** 02b, P02b-1.
+
+#### `Integration_Event_Payloads_Contain_Only_Identifiers`
+
+- **Asserts:** beyond inherited identity/tenant/time and computed routing members,
+  production payload fields are GUIDs or approved strongly-typed identifiers,
+  optionally nullable. Reject text, collections, DTOs, binary/raw JSON and custom
+  serializer overrides with planted controls. A non-empty production census and
+  concrete-runtime JSON round-trip prove fields survive the frozen serializer.
+  Existing partition and announced-transaction rules own derivation, byte/metadata
+  admission and rollback/atomicity; this rule does not duplicate those names.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+- **Type:** xUnit + reflection/IL/source scan and serialization probes.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`IntegrationEventContractTests`); independent reflection
+  checks, forbidden serialization/member controls and concrete runtime JSON probes.
+- **Phase:** 02b, P02b-1.
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
 
@@ -3259,9 +3371,10 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0006](../decisions/0006-events-and-outbox.md).
 - **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
-- **Status:** **Implemented** (`CrossCuttingFoundationTests`). No module declares an
-  event yet, so the module sweep is vacuous today; the convention checker is pointed at
-  deliberate offenders first, so the rule can be shown to fire.
+- **Status:** **Implemented** (`CrossCuttingFoundationTests`). The production
+  census is non-empty and includes Tenancy's completed-provisioning event.
+  Deliberate invalid topics, including trailing newlines, and clean controls
+  exercise the same convention checker.
 - **Phase:** 02a (Packet 5) — lands with `InProcessEventBus`, the first transport.
 
 Writing it required a contract change. The rule reads the event **declarations**, and
