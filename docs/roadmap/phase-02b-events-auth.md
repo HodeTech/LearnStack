@@ -1434,7 +1434,7 @@ claim no runtime enforcement; delivery evidence belongs to each step below.
 
 ### P02b-2 Step 1 — Decision, schema and confined composition (2026-10-12)
 
-**Implemented; both independent review rounds pending.** Decision commit
+**Implemented; review round 1 complete, round 2 pending.** Decision commit
 `192810b` precedes runtime edits. Step 1 adds the Platform-chain migration
 `20261012180355_add_outbox_dispatch_state` and Audit-chain migration
 `20261012180433_grant_outbox_terminal_audit`. Existing migration bodies remain
@@ -1473,6 +1473,17 @@ separate container; destructive schema probes own disposable databases. These
 counts describe this step's completed checks, not a full Docker regression.
 The six new catalogue rules remain Registered: transition/audit/worker proof
 lands in later steps. No dispatcher execution or P02b-3 delivery is claimed.
+
+#### Step 1 review round 1
+
+Fresh read-only GPT-6-astra xhigh security/schema and GPT-6.1-sol xhigh
+corpus/test reviewers examined `192810b..d9bc77b`. Security review found no
+actionable defect. Corpus review found a stale handler-owned inbox instruction
+in the code-review skill and an unqualified historical per-module inbox note in
+Architecture 10. Both were verified and reconciled to ADR-0046's transport-owned
+P02b-3 target. Original dated notes remain intact. No runtime change was needed;
+the existing test evidence above remains applicable. The correction passes local
+file/fragment checks, prose wrapping and `git diff --check`.
 
 ### Durable outbox dispatch
 
