@@ -290,9 +290,9 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
 /// <c>AddLearnStackCrossCuttingFoundation</c> wiring so the L1 handler +
 /// ValidationBehavior tested here is the same code production runs.
 /// </summary>
-public sealed class CrossCuttingHttpFixture : WebApplicationFactory<Program>
+public sealed class CrossCuttingHttpFixture : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

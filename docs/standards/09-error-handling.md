@@ -564,7 +564,9 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 
 ## Outbox
 
-**Accepted ADR-0046; runtime delivery pending P02b-2/P02b-3.**
+**Accepted ADR-0046; producer runtime implemented through P02b-2 Step 3.**
+Step 3 verification and reviews are in progress; Step 4 enforcement remains
+pending. Subscriber delivery/retries and inbox remain P02b-3.
 
 - Each committed normal claim increments producer `attempts` once, including an
   unknown crash outcome. Six total claims use retry delays 1 s, 5 s, 30 s, 5 min

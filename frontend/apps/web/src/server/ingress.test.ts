@@ -204,6 +204,17 @@ describe('private local configuration', () => {
     ).toThrow('Conflicting public server configuration');
   });
 
+  it('loads the API dispatcher credential from the selected file or explicit environment', () => {
+    writeFileSync(join(directory, '.env'), 'ConnectionStrings__OutboxDispatcher=selected');
+    expect(loadLocalEnvironment(directory, {}).ConnectionStrings__OutboxDispatcher).toBe(
+      'selected',
+    );
+    expect(
+      loadLocalEnvironment(directory, { ConnectionStrings__OutboxDispatcher: 'explicit' })
+        .ConnectionStrings__OutboxDispatcher,
+    ).toBe('explicit');
+  });
+
   const configuration = {
     LEARNSTACK_PUBLIC_API_ORIGIN: 'http://127.0.0.1:5080',
     LEARNSTACK_PUBLIC_HOP_SECRET: secret,

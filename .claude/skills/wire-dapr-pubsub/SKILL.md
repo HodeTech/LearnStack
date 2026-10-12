@@ -130,7 +130,7 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1 { ... }, ct);
 await db.SaveChangesAsync(ct);
 ```
 
-The accepted P02b-2 `OutboxProcessor` target (BackgroundService) polls
+The API-host `OutboxProcessor` BackgroundService implemented in P02b-2 Step 3 polls
 `outbox_messages`, constructs an
 `IntegrationEventEnvelope`, and calls `IEventBus.PublishAsync(envelope)`.
 `DaprEventBus.PublishAsync` publishes to `envelope.Topic` with the envelope's

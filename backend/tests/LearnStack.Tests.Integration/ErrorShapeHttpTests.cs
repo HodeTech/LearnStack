@@ -345,9 +345,9 @@ public sealed class ErrorShapeHttpTests(ErrorShapeFixture fixture)
     }
 }
 
-public sealed class ErrorShapeFixture : WebApplicationFactory<Program>
+public sealed class ErrorShapeFixture : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

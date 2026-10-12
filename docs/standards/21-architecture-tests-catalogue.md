@@ -14,8 +14,9 @@
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
-(P02b-2 transition and terminal-witness proofs implemented; hosted dispatch
-and P02b-3 consumer proofs pending). The
+(P02b-2 transition and terminal-witness proofs implemented; Step 3 hosted dispatch
+implemented with verification/reviews in progress; Step 4 enforcement and
+P02b-3 consumer proofs pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -113,7 +114,7 @@ not implemented is the failure mode this column exists to prevent.
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1
-and P02b-2 Step 2.
+and P02b-2 Steps 2–3.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -140,8 +141,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**187 rules in this catalogue are Implemented, and 115 of them are in that assembly.**
-The other 72 are no less binding, and most could not live there. The table says where
+**190 rules in this catalogue are Implemented, and 115 of them are in that assembly.**
+The other 75 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3337,7 +3338,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   Phase 02b deliverable.
 - **Type:** **integration** test (Testcontainers). **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxPublishAttemptTests`):
+  actual hosted ordinary-failure, retained-scope/cleanup, partition hold, four-task
+  saturation and finite-shutdown proofs; hostile synchronous construction and
+  cancellation callbacks retain ownership through completion.
 - **Phase:** 02b.
 
 #### `Outbox_Claim_IsHeld_Until_Dispatch_Completes`
@@ -3351,7 +3355,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 - **Type:** **integration** test (Testcontainers, two independent instances).
   **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`):
+  two actual API workers contend while a live publication is held; committed
+  leases, repeat reads, expiry/reclaim and stale transitions have real-role
+  controls. Removing live-lease admission makes the hosted contention proof fail.
 - **Phase:** 02b.
 
 #### `Outbox_Retry_And_Terminal_Transitions_Are_Fenced`
@@ -3430,7 +3437,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`,
+  `OutboxProductionCompositionTests`): real provisioning rows remain unchanged
+  across hosted Pending polls; aliases/malformed payloads are held before every
+  acquisition path. Test-owned Active handlers publish/mark, while explicit
+  intentional absence acknowledges without construction.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Health_And_Metrics_Are_Bounded`
@@ -3446,7 +3457,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production architecture census with planted controls where structural;
   real PostgreSQL/runtime integration proofs where behavioural.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — no implementation evidence yet.
+- **Status:** **Registered** — Step 3 runtime/observation evidence exists in
+  `OutboxProcessorTests`, `OutboxObservationTests` and
+  `OutboxProductionCompositionTests`; full production census/planted controls
+  remain Step 4.
 - **Phase:** 02b, P02b-2.
 
 ### Demand-gated: lands with its adapter

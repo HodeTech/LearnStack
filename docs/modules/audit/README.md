@@ -3,7 +3,7 @@
 **Status:** Design stable, write path implemented. Shipped today: the two tables and
 their isolation, the three append-only layers, the SharedKernel ports and value types,
 `AuditDbContext`, and — in `LearnStack.Infrastructure.Audit` — `AuditStateCapture`,
-`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all four write methods, the
+`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all five write methods, the
 merged `AuditCatalog` and `AuditConfigService`, registered at both composition roots and
 attached to every module's `DbContext`. The pipeline is lit: `AuditLogBehavior`
 classifies and parks intents at step 3 and reconciles in its `finally`,
@@ -28,7 +28,8 @@ module's `IUserReferenceLocator`
 retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
 written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
 
-**ADR-0046 Accepted — 2026-10-12; fifth writer pending P02b-2.** The existing
+**ADR-0046 fifth writer implemented in P02b-2 Step 2 — 2026-10-12; both review
+rounds complete.** The existing
 four writes remain implemented. `WriteEventTerminalAsync` adds INSERT-only access
 for the confined outbox role and validates the audit draft against a restricted
 witness from the actual fenced terminal UPDATE on the caller's transaction.

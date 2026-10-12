@@ -32,8 +32,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class TenancyWriterTests(SchemaFixture schema, WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
+    : IClassFixture<ConstructionOnlyApiFactory>
 {
     private const string Theme = """{"primary":"#2345aa","background":"#ffffff","foreground":"#111111","muted":"#555555"}""";
     private const string OtherTheme = """{"primary":"#663399","background":"#ffffff","foreground":"#000000","muted":"#444444"}""";

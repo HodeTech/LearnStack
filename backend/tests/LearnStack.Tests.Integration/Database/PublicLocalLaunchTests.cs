@@ -11,7 +11,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-/// <summary>Exercises the actual local API launcher with only the application credential.</summary>
+/// <summary>Exercises the actual local API launcher with explicit application and dispatcher credentials.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
@@ -107,6 +107,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
                 process.StartInfo.ArgumentList.Add("api");
             }
             process.StartInfo.Environment["ConnectionStrings__Default"] = fixture.AppConnectionString;
+            process.StartInfo.Environment["ConnectionStrings__OutboxDispatcher"] = fixture.OutboxConnectionString;
             process.StartInfo.Environment["LEARNSTACK_PUBLIC_API_ORIGIN"] = "http://127.0.0.1:0";
             process.StartInfo.Environment["LEARNSTACK_PUBLIC_HOP_SECRET"] = Secret;
             // API configuration validates paths but does not open renderer TLS files.

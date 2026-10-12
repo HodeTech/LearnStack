@@ -29,11 +29,11 @@ namespace LearnStack.Tests.Integration;
 /// exactly the entries the discovered sources declare — no source missing, none extra.
 /// </para>
 /// </remarks>
-public sealed class CompositionRootCatalogueTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CompositionRootCatalogueTests : IClassFixture<ConstructionOnlyApiFactory>
 {
     private readonly WebApplicationFactory<Program> _factory;
 
-    public CompositionRootCatalogueTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public CompositionRootCatalogueTests(ConstructionOnlyApiFactory factory) => _factory = factory;
 
     [Fact]
     public void The_API_root_builds_the_discovered_catalogue()

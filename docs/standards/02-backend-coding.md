@@ -410,7 +410,8 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    immediately through the announced ambient connection/transaction; step 7
    neither buffers nor flushes messages nor dispatches domain events. The owner
    completes those events before MUST audit/commit. P02b-1 implements this
-   contract; P02b-2 owns later dispatch through `IEventBus`.
+   contract; P02b-2 Step 3 implements hosted dispatch through `IEventBus`, with
+   verification and reviews in progress.
 8. **Handler** — domain logic; returns `Result<T>`. **No** `throw new
    DomainException` for expected business-rule violations — use
    `Result.Fail(business_rule_violation, ...)`. The

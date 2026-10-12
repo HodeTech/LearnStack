@@ -30,8 +30,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class EducationWriterTests(SchemaFixture schema, WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
+    : IClassFixture<ConstructionOnlyApiFactory>
 {
     private const string StringSchema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}""";
     private const string NumberSchema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"number"}},"required":["text"],"additionalProperties":false}""";

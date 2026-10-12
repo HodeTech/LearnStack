@@ -1,4 +1,7 @@
+using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
@@ -29,6 +32,24 @@ public static class OutboxCompositionExtensions
             OutboxDispatcherDataSource.Key,
             (provider, key) => new Lazy<NpgsqlDataSource>(
                 () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+
+        services.TryAddSingleton(new OutboxDispatchOptions());
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<OutboxEnvelopeReader>();
+        services.TryAddSingleton<OutboxObservation>();
+        services.TryAddSingleton(provider => new OutboxDispatchStore(
+            provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key),
+            provider.GetRequiredService<OutboxEventRegistry>(),
+            provider.GetRequiredService<OutboxDispatchOptions>(),
+            provider.GetRequiredService<IGuidFactory>(),
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<IServiceScopeFactory>()));
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(OutboxProcessor)))
+        {
+            services.AddHostedService<OutboxProcessor>();
+            services.AddHealthChecks().AddCheck<OutboxHealthCheck>(OutboxHealthCheck.Name);
+        }
         return services;
     }
 }

@@ -27,8 +27,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed partial class CustomizationProjectionTests(SchemaFixture schema, WebApplicationFactory<Program> factory, ITestOutputHelper output)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class CustomizationProjectionTests(SchemaFixture schema, ConstructionOnlyApiFactory factory, ITestOutputHelper output)
+    : IClassFixture<ConstructionOnlyApiFactory>
 {
     private static readonly Dictionary<string, string> Label = new() { ["en"] = "Label", ["tr"] = "Etiket" };
     private const string Profile = """

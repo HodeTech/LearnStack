@@ -133,7 +133,7 @@ public sealed class DeploymentModeCompositionTests
     /// itself reads.
     /// </remarks>
     private static WebApplicationFactory<Program> For(string mode) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Deployment:Mode", mode);
             builder.UseSetting("ErrorTracking:Sentry:Dsn", DevelopmentShapedDsn);

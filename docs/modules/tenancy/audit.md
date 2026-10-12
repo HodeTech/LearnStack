@@ -8,9 +8,11 @@ adds one pending outbox row before the existing two MUST rows and commit. Its
 domain translator adds no independent intent or audit operation and writes no
 aggregate. A failed MUST write rolls back tenant, organization and outbox together.
 The [integration-event catalogue](README.md#integration-event-catalogue) owns the flow;
-production dispatch and subscribers remain P02b-2/P02b-3.
+P02b-2 Step 3 implements hosted producer dispatch, with verification/reviews in
+progress; subscribers remain P02b-3.
 
-**ADR-0046 producer terminal writer implemented — 2026-10-12; reviews pending.**
+**ADR-0046 producer terminal writer implemented — 2026-10-12; both review rounds
+complete.**
 The infrastructure operations below belong to this catalogue/matrix, without a
 synthetic aggregate. P02b-2 Step 2 registers the delivered producer terminal
 operation; P02b-3 registers subscriber terminalization when its writer ships.

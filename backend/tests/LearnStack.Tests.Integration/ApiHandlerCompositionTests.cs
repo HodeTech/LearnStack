@@ -31,12 +31,12 @@ namespace LearnStack.Tests.Integration;
 /// </remarks>
 [Trait(Database.RequiresDocker.Key, Database.RequiresDocker.Value)]
 [Collection(Database.SharedSchema.Name)]
-public sealed class ApiHandlerCompositionTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ApiHandlerCompositionTests : IClassFixture<ConstructionOnlyApiFactory>
 {
     private readonly WebApplicationFactory<Program> _factory;
     private readonly Database.SchemaFixture _schema;
 
-    public ApiHandlerCompositionTests(WebApplicationFactory<Program> factory, Database.SchemaFixture schema)
+    public ApiHandlerCompositionTests(ConstructionOnlyApiFactory factory, Database.SchemaFixture schema)
     {
         _factory = factory;
         _schema = schema;

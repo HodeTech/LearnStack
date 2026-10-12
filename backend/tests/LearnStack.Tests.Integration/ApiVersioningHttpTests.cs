@@ -279,9 +279,9 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
 /// declaring <c>v2</c> — plus a second live major so the per-document
 /// filtering has something to filter.
 /// </summary>
-public sealed class ApiVersioningFixture : WebApplicationFactory<Program>
+public sealed class ApiVersioningFixture : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

@@ -275,7 +275,11 @@ export function loadLocalEnvironment(
     if (new Set(values).size > 1) throw new Error('Conflicting public server configuration');
     if (values[0] !== undefined) result[key] = values[0];
   }
-  for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__PlatformAdmin']) {
+  for (const key of [
+    'ConnectionStrings__Default',
+    'ConnectionStrings__PlatformAdmin',
+    'ConnectionStrings__OutboxDispatcher',
+  ]) {
     if (environment[key] !== undefined) result[key] = environment[key];
   }
   return result;

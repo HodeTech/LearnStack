@@ -92,7 +92,7 @@ describe('shared explicit demo stack selection', () => {
       expect(result.stderr).not.toContain('foreign');
     }
   });
-  it('launches the argument-free Seeder from the documented shell path', () => {
+  it('launches the argument-free Seeder without selected or ambient dispatcher credentials', () => {
     const root = temporary();
     for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
     for (const file of ['seed.sh', 'connection-string.awk'])
@@ -102,13 +102,13 @@ describe('shared explicit demo stack selection', () => {
       );
     writeFileSync(
       join(root, '.env'),
-      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\n',
+      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\nConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin\n',
     );
     for (const [name, body] of Object.entries({
       docker: '[ "$*" = "compose version" ]',
       node: '[ "$*" = "scripts/wait-compose.mjs" ]',
       dotnet:
-        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$PWD" = "$TEST_ROOT/backend" ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && printf launched > "$TEST_ROOT/launched"',
+        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$PWD" = "$TEST_ROOT/backend" ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && [ -z "${ConnectionStrings__OutboxDispatcher+x}" ] && printf launched > "$TEST_ROOT/launched"',
     }))
       writeFileSync(join(root, 'bin', name), `#!/bin/sh\n${body}\n`, { mode: 0o700 });
     const launch = () =>
@@ -118,6 +118,7 @@ describe('shared explicit demo stack selection', () => {
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
           TEST_ROOT: root,
           NODE_ENV: 'test',
+          ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
         },
         encoding: 'utf8',
         timeout: 5000,
@@ -255,7 +256,10 @@ describe('demo runtime boundaries', () => {
   it('isolates the Development API user-secret profile within the invocation', () => {
     const root = temporary();
     const env = publicDemoApiEnvironment(
-      { ConnectionStrings__Default: 'application' },
+      {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      },
       { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' },
       root,
       {
@@ -270,6 +274,7 @@ describe('demo runtime boundaries', () => {
     expect(env.TMPDIR).toBe(realpathSync(root));
     expect(env).not.toHaveProperty('DOTNET_CLI_HOME');
     expect(env.ConnectionStrings__Default).toBe('application');
+    expect(env.ConnectionStrings__OutboxDispatcher).toBe('dispatcher');
     expect(env.ASPNETCORE_ENVIRONMENT).toBe('Development');
   });
   it('gives native web addons an owned cache without ambient credentials or diagnostics', () => {
@@ -280,9 +285,15 @@ describe('demo runtime boundaries', () => {
       LEARNSTACK_PUBLIC_TLS_CERT: '/owned/cert',
       LEARNSTACK_PUBLIC_TLS_KEY: '/owned/key',
       ConnectionStrings__Migration: 'owner',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
     };
     expect(
-      publicWebEnvironment(values, root, { PATH: '/bin', DEBUG: '*', HOME: '/foreign' }),
+      publicWebEnvironment(values, root, {
+        PATH: '/bin',
+        DEBUG: '*',
+        HOME: '/foreign',
+        ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
+      }),
     ).toEqual({
       PATH: '/bin',
       TMPDIR: root,
@@ -295,9 +306,12 @@ describe('demo runtime boundaries', () => {
       ),
     });
   });
-  it('passes only request runtime credentials and explicit hop configuration', () => {
+  it('passes only explicit API credentials and hop configuration', () => {
     const env = publicApiEnvironment(
-      { ConnectionStrings__Default: 'application' },
+      {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      },
       { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' },
       {
         PATH: '/bin',
@@ -311,12 +325,34 @@ describe('demo runtime boundaries', () => {
     expect(env).toEqual({
       PATH: '/bin',
       ConnectionStrings__Default: 'application',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
       ASPNETCORE_ENVIRONMENT: 'Development',
       ASPNETCORE_URLS: 'http://127.0.0.1:5080',
       Tenancy__TrustedHop__Networks__0: '127.0.0.1/32',
       Tenancy__TrustedHop__Secrets__0: 'private',
     });
   });
+  it.each(['ConnectionStrings__Default', 'ConnectionStrings__OutboxDispatcher'])(
+    'requires explicit %s even when the ambient environment has it',
+    (missing) => {
+      const values: Record<string, string> = {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      };
+      const configuration = { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' };
+      const ambient = { ...values };
+      delete values[missing];
+      expect(() => publicApiEnvironment(values, configuration, {})).toThrow(
+        'credential is missing',
+      );
+      expect(() => publicApiEnvironment(values, configuration, ambient)).toThrow(
+        'credential is missing',
+      );
+      expect(() => publicDemoApiEnvironment(values, configuration, temporary(), ambient)).toThrow(
+        'credential is missing',
+      );
+    },
+  );
   it('refuses a foreign listener without closing it', async () => {
     const server = createServer();
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

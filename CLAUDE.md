@@ -188,7 +188,10 @@ rounds per step are authorized on development. The
 [Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
 records both completed Step 1 reviews. Step 2 implements fenced transitions and
 row-bound terminal MUST audit; both independent review rounds pass.
-Hosted execution remains Step 3. Acceptance registers six delivery obligations;
+Step 3 implements hosted execution and observation; its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+owns verification and reviews, which are in progress. Step 4 enforcement remains
+pending. Acceptance registers six delivery obligations;
 it claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
 subscriptions and Seeder handoff.
@@ -394,8 +397,9 @@ Then read the phase that is live and the one it stands on:
   — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
   and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
   runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
-  Accepted, with Step 1 and both review rounds complete; producer dispatch
-  delivery remains pending.
+  Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
+  dispatch and observation, with verification/reviews in progress. Step 4
+  enforcement remains pending.
   P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
@@ -645,7 +649,8 @@ rules:
   rows directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`, `IOutbox`.
   Only ADR-0046's confined dispatcher writes outbox status through fenced
   parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
-  share one transaction. That accepted exception remains pending P02b-2 delivery.
+  share one transaction. P02b-2 Step 2 implements that accepted exception; both
+  independent review rounds passed.
 - Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
   `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
   ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with

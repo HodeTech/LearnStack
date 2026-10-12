@@ -532,7 +532,7 @@ passes even when every policy is inert. See
   aggregate into another module's context inverts the dependency direction.
 - **`UPDATE`ing an audit row to add detail after the fact.** There is no second phase.
   The row is composed complete at the commit boundary, `IAuditStore` has **no update
-  method**. Its four delivered write methods are `WritePendingAsync`,
+  method**. Its original four write methods are `WritePendingAsync`,
   `WriteStandaloneAsync`, `WriteBestEffortAsync` and `WritePlatformScopeAsync`.
   ADR-0046 adds the fifth, implemented in P02b-2 Step 2,
   `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,

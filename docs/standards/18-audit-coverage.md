@@ -503,7 +503,7 @@ table above is the policy those deliverables implement, not a description of tod
   changes no platform-admin pre-entry audit or other bypass operation.
 - `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
   DbTransaction, CancellationToken)` is the narrow fifth write, implemented in
-  P02b-2 Step 2; independent reviews remain pending.
+  P02b-2 Step 2; both independent review rounds passed.
   Only a successful fenced UPDATE result mints the restricted witness binding
   actual tenant/org/event/acquisition/kind/reason/attempts/subscription and live
   transaction. Validate declared MUST/SecurityEvent operation and matching draft

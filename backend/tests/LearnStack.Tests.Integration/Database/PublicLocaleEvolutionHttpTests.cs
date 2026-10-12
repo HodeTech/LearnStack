@@ -32,8 +32,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 [Collection(SharedSchema.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
+    : IClassFixture<ConstructionOnlyApiFactory>
 {
     private const string Root = "/api/v1/public/courses";
     private const string Site = "/api/v1/public/site";

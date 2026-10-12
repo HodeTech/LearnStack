@@ -35,7 +35,7 @@ namespace LearnStack.Api.Composition;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>One data source, and it must be the application role's.</b>
+/// <b>Module contexts share the application-role data source.</b>
 /// <c>ConnectionStrings:Default</c> names <c>learnstack_app</c>, which is
 /// <c>NOBYPASSRLS</c> and holds <c>USAGE</c> but not <c>CREATE</c> on schema
 /// <c>public</c>. <c>ConnectionStrings:Migration</c> is never read here — that
@@ -62,8 +62,8 @@ namespace LearnStack.Api.Composition;
 /// <para>
 /// <b>Built lazily; validated eagerly when there is anything to validate.</b>
 /// The data source is a singleton whose factory runs when something first needs a
-/// connection, so a <c>WebApplicationFactory</c> test — and a deployment serving
-/// only platform hosts — carries no database it does not use. The two checks above
+/// connection, so a construction-only <c>WebApplicationFactory</c> test carries
+/// no application database it does not use. The two checks above
 /// are not deferred with it: a present <c>ConnectionStrings:Default</c> is
 /// name-checked at <c>AddLearnStackPersistence</c> time, because a string naming
 /// <c>learnstack_migration</c> is precisely the ownership mistake this guard exists
@@ -93,7 +93,7 @@ public static class PersistenceCompositionExtensions
 {
     private const string DefaultConnectionName = "Default";
 
-    /// <summary>The one role a runtime process may connect as.</summary>
+    /// <summary>The role required by the application data source.</summary>
     internal const string RuntimeRole = ApplicationDataSource.RuntimeRole;
 
     public static IServiceCollection AddLearnStackPersistence(

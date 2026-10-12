@@ -153,7 +153,7 @@ Auto-instrument:
 - Entity Framework Core queries.
 - MediatR commands and queries.
 - Hangfire job invocations.
-- Outbox dispatcher attempts (P02b-2 target; no batch span).
+- Outbox dispatcher attempts (P02b-2 Step 3; no batch span).
 - Valkey client calls.
 - SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
@@ -253,8 +253,9 @@ backend treat business rejections as system failures.
 | `learnstack_entitlement_source_total` | counter | `source` |
 | `learnstack_entitlement_unresolved_total` | counter | — |
 
-Outbox metrics above are Accepted under ADR-0046 and pending P02b-2; inbox
-counters remain P02b-3 and job metrics P02b-4. `event_type` comes only from the
+Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
+verification and reviews are in progress. Inbox counters remain P02b-3 and job
+metrics P02b-4. `event_type` comes only from the
 finite declared registry plus fixed unknown/retired/invalid categories. Never
 label event metrics by tenant, event, partition, subscription or trace identity.
 
@@ -272,7 +273,8 @@ health bound. Failure retains the prior snapshot and reports unhealthy. The
 own deadlines and task limits. Dispatcher-owned logs/spans use validated
 correlation and bounded outcomes, without exception text/stacks, payload, raw
 stored type or connection data. P02b-3 reconciles existing transport/consumer
-exception telemetry before Active consumers; no current minimization is claimed.
+exception telemetry before Active consumers; no current transport/consumer
+minimization is claimed.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
@@ -309,9 +311,10 @@ touched.
 | Check | Registered as | Unhealthy when |
 |---|---|---|
 | Audit write path | `audit` | The most recent MUST-class standalone audit write failed and no later one has succeeded |
-| Outbox dispatcher (P02b-2 target) | `outbox` | No actual progress or observation refresh for 45 s, any retained callback overrun, or terminal-audit failure |
+| Outbox dispatcher (P02b-2 Step 3) | `outbox` | No actual progress or observation refresh for 45 s, any retained callback overrun, or terminal-audit failure |
 
-The `audit` check is registered in Phase 02a Packet 9; P02b-2 registers `outbox`.
+The `audit` check is registered in Phase 02a Packet 9; P02b-2 Step 3 registers
+`outbox`, with verification and reviews in progress.
 Both are **not mapped**: `/healthz` stays
 a liveness probe, because a process that cannot write audit rows is still worth leaving
 alive. The readiness surface that reads the check, and the deployment-level backstop that

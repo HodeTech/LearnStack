@@ -71,7 +71,11 @@ is complete. **P02b-1 is complete and merged** through
 [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
 records transactional event production, enforcement, completed reviews and final
-CI verification under Accepted ADR-0057. Next is P02b-2's decision pass.
+CI verification under Accepted ADR-0057. P02b-2's revised package and ADR-0046
+are Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
+dispatch and observation, with verification and reviews in progress. Its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+owns current evidence. Step 4 enforcement remains pending.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -121,8 +125,9 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 and P02b-1 are complete; dispatcher and consumer
-work remain P02b-2/P02b-3. The
+owns final verification. P02b-0 and P02b-1 are complete; P02b-2 Step 3 implements
+the producer worker, with verification/reviews in progress and Step 4 enforcement
+pending. Consumer delivery remains P02b-3. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -134,7 +139,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability and transactional event production | Authentication and durable event dispatch/consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch (Step 3 verification/reviews in progress) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
@@ -226,7 +231,10 @@ Readiness is <http://127.0.0.1:5080/healthz> for the API and
 <https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
 this launcher. Both processes read the same private root source; a web `.env.local`
 projection is optional and must match. No shell evaluates the values. Ordinary
-no-hop API startup remains supported outside this paired renderer recipe.
+no-hop API startup remains supported outside this paired renderer recipe; supply
+both `ConnectionStrings:Default` (`learnstack_app`) and
+`ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`). The mandatory
+API worker verifies dispatcher connectivity at startup.
 
 **P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default

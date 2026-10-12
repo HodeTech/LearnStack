@@ -24,10 +24,11 @@ not land together.
 
 | Piece | Owning phase | State |
 |---|---|---|
-| `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Ships even though nothing dispatches from it yet — the schema and its ownership are a one-way door |
+| `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
-| `OutboxProcessor`, `IInboxGuard` and the claim protocol | [P02b-2/P02b-3](../roadmap/phase-02b-events-auth.md) | Pending durable dispatch and consumer transactions |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Implemented through Step 3; verification/reviews in progress; Step 4 enforcement pending |
+| `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
@@ -49,15 +50,20 @@ successful-save collection and the completed-provisioning publisher. Step 4
 implements production-census guards and catalogue enforcement; its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status. ADR-0046 accepts dispatcher/inbox
-contracts; implementation remains P02b-2/P02b-3.
+contracts; producer dispatch is implemented through P02b-2 Step 3, while
+inbox/consumer implementation remains P02b-3.
 
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)
 authorize fenced producer recovery, atomic terminal audit and the coupled shared
-inbox/subscriber contract. Step 1 schema/composition is implemented with reviews
-pending; no dispatcher or inbox delivery
-is claimed by acceptance. Numerical runtime bounds live in the package, canonical
-DDL/grants in Standards 05 and metric names in Standards 10.
+inbox/subscriber contract. Steps 1–2 implement schema/composition, fenced
+transitions and atomic terminal audit; each completed both review rounds.
+Step 3 implements hosted execution and observation, with verification/reviews
+in progress in its
+[delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
+Step 4 enforcement and P02b-3 inbox/consumer delivery remain pending. Numerical
+runtime bounds live in the package, canonical DDL/grants in Standards 05 and
+metric names in Standards 10.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -98,8 +104,10 @@ Text fallback: the producer commits state, outbox and audit together. The worker
 claims one admitted row immediately before publishing and fences its acknowledgement.
 Required Pending subscriptions hold rows before acquisition. P02b-3 durably accepts
 required subscriptions, then executes each on its own app-role transaction. Shared
-inbox completion and business/audit/ledger completion commit together. Only producer
-production exists today; worker and delivery execution remain their named packets.
+inbox completion and business/audit/ledger completion commit together. Producer
+production and the API worker are implemented; Step 3 verification/reviews are in
+progress. Durable consumer execution remains P02b-3, and real required
+subscriptions remain Pending.
 
 ## Outbox table
 
@@ -116,19 +124,18 @@ establish durable publish order. Accepted P02b-2 adds paired `locked_by` /
 `locked_until` lease fields, `terminal_reason` and `dead_lettered_at`; the former
 is a fresh acquisition token, never stable worker identity. `available_after`
 controls due time and retry backoff. Canonical DDL/indexes are in Standards 05,
-implemented by P02b-2 Step 1 with both review rounds complete; dispatcher execution
-remains
-a later step.
+implemented by P02b-2 Step 1 with both review rounds complete. Step 3 implements
+dispatcher execution; verification and reviews are in progress.
 
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
 
 One API-host BackgroundService schedules every tenant. The existing bypass role
 uses its own named keyed, lazy data source; no Seeder/web forwarding or app-role
 membership is allowed. Configuration validates the exact username without
-connecting or disclosing parse input. Step 3 will require worker-startup
-connectivity; every new
-physical connection verifies exact session/current role, bounded attributes and
-no privilege-escalating membership.
+connecting or disclosing parse input. Step 3 implements mandatory worker-startup
+resolution and connectivity checks; verification and reviews are in progress.
+Every new physical connection verifies exact session/current role, bounded
+attributes and no privilege-escalating membership.
 
 [Database Standards](../standards/05-database.md#grant-matrix) owns the exact grant
 budget: named outbox status UPDATEs and audit INSERT-only in P02b-2, with no audit
@@ -143,8 +150,9 @@ UPDATE result, because GUCs and INSERT-only cannot tenant-bind a bypass credenti
 The platform-admin gate and pre-entry audit remain unchanged. Four roles and
 separate credentials remain the closed model; the code-path and role rules are
 implemented for transition-witness construction and terminal audit in Step 2;
-its independent reviews remain pending. Hosted execution and credential/publication
-censuses remain Steps 3–4.
+both independent review rounds passed. Step 3 implements hosted execution and
+observation, with verification/reviews in progress. Credential/publication
+censuses remain Step 4.
 
 <a id="inbox-table-per-consumer-module"></a>
 
@@ -344,7 +352,8 @@ poll, which is neither.
 
 ### The claim protocol
 
-**Accepted ADR-0046 target; runtime P02b-2.** The processor admits a construction-free
+**ADR-0046 producer runtime implemented through P02b-2 Step 3; verification and
+reviews in progress.** The processor admits a construction-free
 manifest policy before acquisition. Any required Pending subscription holds the
 contract and all aliases unchanged, even if stored payload is malformed. Active
 requires declared handler registration. Only explicit intentional absence may

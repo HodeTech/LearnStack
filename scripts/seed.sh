@@ -126,7 +126,8 @@ fi
 # Run from `backend/`, where the SDK pin lives (`backend/global.json`): from the
 # repository root no global.json applies and whichever SDK is newest answers, which is
 # not the one CI and `make migrate` use.
-if ! (cd backend && ConnectionStrings__Default="$seed_cs" \
+# The dispatcher belongs to the API host, even when exported by the caller.
+if ! (cd backend && unset ConnectionStrings__OutboxDispatcher && ConnectionStrings__Default="$seed_cs" \
         dotnet run --project src/LearnStack.Tools.Seeder); then
     red "seed: tenant seeding failed."
     red "  Has the schema been applied? → make migrate"

@@ -6,8 +6,9 @@ of the [module spec](README.md).
 Accepted [ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md)
 adds the confined terminal-audit seam in P02b-2, not an Audit-module operation.
 `platform.outbox.dead_letter` and P02b-3's `platform.delivery.dead_letter` belong
-to [Tenancy's off-path matrix](../tenancy/audit.md); both writers remain pending
-at decision acceptance. Phase 03 owns privileged erasure execution and its bounded
+to [Tenancy's off-path matrix](../tenancy/audit.md). P02b-2 Step 2 implements
+the producer writer, with both review rounds complete; the subscriber writer
+remains P02b-3. Phase 03 owns privileged erasure execution and its bounded
 caller contract; Phase 11 owns retention purge.
 
 **The module that owns the log is audited like any other.** Reading someone's audit

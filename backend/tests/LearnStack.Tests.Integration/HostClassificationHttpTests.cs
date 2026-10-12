@@ -305,7 +305,7 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
 }
 
 /// <summary>A host whose resolver is a stub, so no database is involved.</summary>
-public sealed class HostClassificationFixture : WebApplicationFactory<Program>
+public sealed class HostClassificationFixture : ConstructionOnlyApiFactory
 {
     public const string OrganizationHost = "branch.example.com";
     public const string TenantHost = "school.example.com";
@@ -318,7 +318,7 @@ public sealed class HostClassificationFixture : WebApplicationFactory<Program>
 
     public StubResolver Resolver { get; } = new();
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

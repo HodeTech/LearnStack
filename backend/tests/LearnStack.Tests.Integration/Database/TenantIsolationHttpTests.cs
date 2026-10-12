@@ -326,7 +326,7 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
 /// <c>SeedRunner</c> and serves HTTP, and sharing would make the schema suite's exact row
 /// counts depend on whether these tests ran first.
 /// </remarks>
-public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed class TenantIsolationFixture : ConstructionOnlyApiFactory, IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();
 
@@ -442,7 +442,7 @@ public sealed class TenantIsolationFixture : WebApplicationFactory<Program>, IAs
         return client;
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

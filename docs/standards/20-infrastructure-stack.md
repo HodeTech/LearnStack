@@ -454,8 +454,10 @@ Rules:
   retries/terminal/replay. Targeted replay invokes one internal executor, never
   broadcast; the outbox processor remains the only production publisher.
 - Operator routes, permissions and producer reset/fencing belong to Phase 03.
-  Brokers and retention purge remain demand-gated Phase 11. Acceptance claims no
-  dispatcher, inbox or effectively-once delivery implementation.
+  Brokers and retention purge remain demand-gated Phase 11. P02b-2 Step 3
+  implements hosted producer dispatch, with verification/reviews in progress;
+  Step 4 enforcement remains pending. Inbox and effectively-once consumer delivery
+  remain P02b-3.
 
 Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
@@ -644,7 +646,7 @@ are the Hub's public API, governed by the Hub repository.
   `AuditLogBehavior`; there is no per-module audit code.
 - `IAuditStore` is the only sanctioned write path; the architecture test
   `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it. The
-  delivered store carries **four** write methods and no update method:
+  original four write methods retain their contracts, with no update method:
   `WritePendingAsync` on the ambient transaction, the two
   standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
   `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —
@@ -656,8 +658,9 @@ are the Hub's public API, governed by the Hub repository.
 
 Accepted ADR-0046 adds the confined fifth method
 `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
-DbTransaction, CancellationToken)`; P02b-2 implementation remains pending. Its
-restricted witness comes only from the actual successful fenced terminal UPDATE.
+DbTransaction, CancellationToken)`, implemented in P02b-2 Step 2 with both
+independent review rounds complete. The delivered store has five write methods.
+Its restricted witness comes only from the actual successful fenced terminal UPDATE.
 The store validates declared operation/class/type, row identity and live caller
 transaction, then INSERTs without opening/committing a transaction. Existing four
 writes retain their contracts. The terminal UPDATE and audit commit together, or

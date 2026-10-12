@@ -115,9 +115,9 @@ public sealed class RateLimitForwardedForTests(ForwardedForHostFixture fixture)
 
 
 /// <summary>A host used by nothing else, so its exhausted budget poisons nothing.</summary>
-public class RateLimitedHostFixture : WebApplicationFactory<Program>
+public class RateLimitedHostFixture : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

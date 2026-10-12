@@ -1,5 +1,8 @@
+using LearnStack.Api.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace LearnStack.Tests.Contract;
@@ -23,5 +26,14 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
+        // This served-contract proof owns no dispatcher database. Remove only
+        // that worker; production startup tests retain the mandatory registration.
+        builder.ConfigureTestServices(services =>
+        {
+            foreach (var descriptor in services.Where(descriptor =>
+                         descriptor.ServiceType == typeof(IHostedService)
+                         && descriptor.ImplementationType == typeof(OutboxProcessor)).ToArray())
+                services.Remove(descriptor);
+        });
     }
 }

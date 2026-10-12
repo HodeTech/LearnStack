@@ -161,8 +161,8 @@ announcement; the snapshot cannot retarget the transaction. The closed writer
 set, host factory ceiling and canonical RLS placement remain unchanged under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 P02b-1 Steps 2–3 deliver immediate outbox enqueue, successful-save collection
-and owner-only completion. Dispatch and consumer delivery remain P02b-2/P02b-3
-work.
+and owner-only completion. P02b-2 Step 3 implements confined hosted dispatch;
+verification and reviews are in progress. Consumer delivery remains P02b-3.
 
 ## Default org semantics
 

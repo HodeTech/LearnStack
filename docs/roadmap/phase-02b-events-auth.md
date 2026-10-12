@@ -29,8 +29,11 @@ verification. The Accepted P02b-2 package below owns the current dispatcher work
 The four implementation steps are authorized on development. Step 1 is complete;
 its [record](#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12) owns
 delivery evidence and both completed review rounds. Step 2 implements durable
-transitions and terminal audit; verification and reviews are in progress. Hosted
-dispatcher delivery and all P02b-3 implementation remain pending.
+transitions and terminal audit; both independent review rounds pass. Step 3
+implements hosted lifecycle and observation; its
+[record](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) owns
+verification/reviews, which are in progress. Step 4 enforcement and P02b-3
+implementation remain pending.
 
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
@@ -99,21 +102,20 @@ keeps the phase from re-deciding settled questions or repairing repaired defects
 
 At the [P02b-0 entry audit](#p02b-0-entry-verification-2026-10-12), `IOutbox`
 and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
-enqueue and the enrollment/invariant guard. Still absent are `IInboxGuard`,
-`inbox_messages`, the delivered dispatcher, any `BackgroundService`
-or `IHostedService`, Hangfire and its package pins, and the realm's protocol
-mappers. Packet 5 shipped the `IInboxGuard` **seam**,
-which is the name in three comments — two XML doc comments in `SharedKernel.Messaging`
-and the composition root's transport `TODO` — and in no declaration; the guard, its
-table and its semantics are this phase's.
+enqueue and the enrollment/invariant guard. P02b-2 Step 3 implements the
+API-host `OutboxProcessor` BackgroundService, with verification/reviews in
+progress. Still absent are `IInboxGuard`, `inbox_messages`, Hangfire and its
+package pins, and the realm's protocol mappers. Packet 5 documented a planned
+`IInboxGuard` seam in comments, without an interface declaration. P02b-3 owns its
+shared transport implementation and table under ADR-0046.
 
 ### What this phase is not
 
 **It is not the phase where a transport is chosen.** `IEventBus` and `InProcessEventBus`
 shipped in [Phase 02a Packet 5](phase-02a-kernel-tenancy.md) as a **first-class
-transport** — the same `IIntegrationEventHandler<T>`, the same `IInboxGuard` seam, the
-same tenant-context restoration as any durable path. Phase 02b adds *durability and
-redelivery* on top of that transport; it does not add a second one.
+transport** with the shared `IIntegrationEventHandler<T>` contract and
+tenant-context restoration. P02b-3 adds shared inbox durability and independent
+subscription redelivery on top of that transport; it does not add a second one.
 
 The Dapr pub/sub and Kafka adapters are **not in this phase**. Both are demand-gated to
 [Phase 11](phase-11-production-hardening.md) by
@@ -254,7 +256,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 |---|---|---|
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
-| **P02b-2** | **Decision Accepted; Step 1 complete; Step 2 verification/reviews in progress.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
+| **P02b-2** | **Decision Accepted; Steps 1–2 complete; Step 3 in progress.** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
 | **P02b-3** | Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
@@ -1605,11 +1607,62 @@ routing correction rather than accepting review notes as evidence. Step 2 is
 closed; Step 3 may activate the mandatory worker and observation. No P3 delivery
 or inbox effect is claimed.
 
+### P02b-2 Step 3 — Hosted lifecycle and observability (2026-10-12)
+
+**Implemented; verification and independent reviews in progress.** The API owns
+its mandatory `OutboxProcessor` BackgroundService, guarded dispatcher-source
+startup resolution/connectivity, bounded publication lifecycle and retained
+overrun ownership. Observation supplies immutable gauge snapshots, bounded
+producer diagnostics and the registered, unmapped `outbox` health check.
+`/healthz` remains liveness-only. Paired API launchers supply application and
+confined dispatcher credentials; Seeder strips the dispatcher credential and
+web receives neither database credential.
+
+**Verification before review:** the Release solution build reports zero
+warnings/errors. TRX counters record zero failures/skips in the complete unit
+suite (1,845), contract suite (4), Docker-free integration suite (182), restored
+architecture suite (273), and the actual-host PostgreSQL `OutboxProcessorTests`
+slice (16). Worker helper/observation unit cases are included in the unit total.
+The initial architecture run exposed the newly registered worker in the global
+keyed-resolution allowlist; the exact outbox-key allowance is corrected and the
+restored 273-case run passes. This is a focused Docker-runtime receipt, not a
+full Docker-suite claim. All three actual API-launcher cases also pass after
+correcting the environment reader to accept the explicit dispatcher credential.
+The two affected frontend files pass 116 tests; web lint and typecheck pass.
+Whitespace verification passes for all 39 changed C# files; affected TypeScript
+and runtime-script Prettier checks, script syntax, diff whitespace and 2,172
+relative links/396 fragments pass. Historical producer delivery records and
+Accepted ADR bodies remain byte-preserved.
+
+`OutboxProcessorTests` covers actual registration/guarded boot, invalid credential
+refusal, real provisioning Pending holds, poison/ordinary failure progression,
+explicit intentional absence, retained callback/cleanup ownership, four-task
+saturation and finite shutdown. Observation tests cover monotonic stale health,
+failed-refresh retention, terminal-audit failure, finite metric labels and fresh
+trace identity, with bounded canonical correlation reconstructed from parsed
+identity rather than optional traceparent extensions. Two independent actual API
+workers prove no second publication/claim while the first live lease is held.
+Never-blocks, live-ownership and Pending catalogue rules are Implemented. The full
+health production census/planted controls remain Step 4; that rule is Registered.
+
+Two behavioural mutations fail in the intended executed test: removing local
+partition admission permits a sibling claim before retained cleanup completes;
+removing live-lease admission permits a competing worker to claim the held row.
+Both source files are byte-restored before the clean build/unit/worker rerun.
+Both independent review rounds remain pending; neither has started.
+Steps 1–2 completed both rounds in their
+records above. Step 4 owns full credential/publication censuses, catalogue
+enforcement and packet closeout. P02b-3 still owns durable acceptance, shared
+inbox/ledger, independent subscriber retries, both real default subscriptions and
+Seeder handoff. Real required subscriptions remain Pending; no consumer business
+effect is claimed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
 an enrollment/invariant guard, and supply owner-side domain collection and the
-first publisher. Dispatch and consumer delivery remain P02b-2/P02b-3.
+first publisher. P02b-2 Step 3 implements hosted producer dispatch, with
+verification/reviews in progress; consumer delivery remains P02b-3.
 The table shipped in Packet 6.
 
 A handler calls `IOutbox.EnqueueAsync` and the row commits on the same **transaction**
@@ -1628,7 +1681,7 @@ cannot enqueue. Production delivery wiring remains P02b-3.
 ADR-0006 Amendment 1, ADR-0010 and the glossary all specify, with a 200 ms poll no job
 schedule expresses. This phase hosts it in `LearnStack.Api`, the only web host.
 `LearnStack.Tools.Seeder` is a separate one-shot executable, not a worker host.
-Nothing in `backend/src` implements `IHostedService` today. The corpus's gateway
+P02b-2 Step 3 registers the mandatory hosted processor. The corpus's gateway
 route table puts `/admin/hangfire*` on that
 host ([API Gateway](../architecture/30-api-gateway.md), route id 3, upstream
 `learnstack-api`), and the production image is
@@ -1641,8 +1694,8 @@ Dapr trigger verbatim — so it stays with Phase 11.
 - `ConnectionStrings:OutboxDispatcher` carries the `learnstack_outbox_admin` credential,
   registered as a keyed data source behind a `Lazy<>` with a boot-time role guard, on
   the pattern `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` already holds.
-  `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` is **Awaiting backfill** in
-  the catalogue and is carried here or nowhere.
+  `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` remains **Registered**
+  in the catalogue until Step 4 supplies its full credential caller census.
 - The three carriers that say the credential lives in "the worker host" —
   [Database Standards § Database roles](../standards/05-database.md#database-roles),
   `architecture/15` and `.env.example` — are derived cells, not a topology decision;

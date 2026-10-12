@@ -319,9 +319,9 @@ public sealed class TenantWideOrganizationAssertionTests(TenantWideFixture fixtu
 /// </summary>
 public sealed class TenantWideFixture : ResolvedTenantFixture
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
-        base.ConfigureWebHost(builder);
+        base.ConfigureTestHost(builder);
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<ITenantContext>();
@@ -468,13 +468,13 @@ public sealed class AssertionRecorderCompositionTests(RegisteredRecorderFixture 
 /// misconfigured variants take their override through
 /// <see cref="MisconfiguredBurstFixture"/>, which a case builds directly.
 /// </remarks>
-public sealed class RegisteredRecorderFixture : WebApplicationFactory<Program>;
+public sealed class RegisteredRecorderFixture : ConstructionOnlyApiFactory;
 
 /// <summary>The real host with one burst setting bent out of shape.</summary>
 public sealed class MisconfiguredBurstFixture(string key, string value)
-    : WebApplicationFactory<Program>
+    : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
@@ -485,12 +485,12 @@ public sealed class MisconfiguredBurstFixture(string key, string value)
     }
 }
 
-public class ResolvedTenantFixture : WebApplicationFactory<Program>
+public class ResolvedTenantFixture : ConstructionOnlyApiFactory
 {
     public static readonly Guid TenantId = Guid.Parse("018f4d40-0000-7000-8000-0000000000aa");
     public static readonly Guid OrganizationId = Guid.Parse("018f4d40-0000-7000-8000-0000000000bb");
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
