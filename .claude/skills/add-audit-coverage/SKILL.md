@@ -105,12 +105,14 @@ parsed from the other, and three rules in `AuditCoverageTests` join them —
   whose command has since shipped **fails**.
 - **`(off-path)`** marks an operation that is not a MediatR request at all. Those rows
   sit outside the request-type join in both directions and register by slug rather than
-  by type. Seven rows carry it: Tenancy's `platform.admin_scope.enter`,
+  by type. Nine rows carry it: Tenancy's `platform.admin_scope.enter`,
   `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
-  `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
+  `tenancy.tenant_assertion.reject`, `tenancy.tenant_assertion.anonymous_burst`,
+  `platform.outbox.dead_letter` and `platform.delivery.dead_letter`, and
   Audit's `audit.redaction.apply` and `audit.purge.apply`. The three whose writer ships are
-  registered through `DeclareOffPath`; the other four also carry `(planned)` and register
-  when their writer lands.
+  registered through `DeclareOffPath`; the other six also carry `(planned)` and
+  register when their writer lands. ADR-0046 reserves the Tenancy-owned producer
+  terminal operation for P02b-2 and subscriber terminal operation for P02b-3.
 - **A row carries both markers where both are true** — off the request path *and* ahead
   of the code that will write it.
 
@@ -529,8 +531,13 @@ passes even when every policy is inert. See
   aggregate into another module's context inverts the dependency direction.
 - **`UPDATE`ing an audit row to add detail after the fact.** There is no second phase.
   The row is composed complete at the commit boundary, `IAuditStore` has **no update
-  method** — it has four *write* methods, `WritePendingAsync`, `WriteStandaloneAsync`,
-  `WriteBestEffortAsync` and `WritePlatformScopeAsync`, and that is a different thing —
+  method**. Its four delivered write methods are `WritePendingAsync`,
+  `WriteStandaloneAsync`, `WriteBestEffortAsync` and `WritePlatformScopeAsync`.
+  ADR-0046 accepts a fifth, P02b-2 pending,
+  `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
+  DbTransaction, CancellationToken)` for confined terminal writers. Its restricted
+  witness binds audit identity to the actual fenced UPDATE; handlers cannot call
+  this seam. None is an update method,
   and `learnstack_app` holds no `UPDATE` privilege on `audit_log`.
 - **Truncating snapshots silently.** Over `JsonValue.MaxRowBytes` the value becomes the
   elision record of Step 4b, in the column's own JSON type. Never an empty object, never

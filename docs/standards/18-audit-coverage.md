@@ -10,6 +10,8 @@ subsystem's context),
 [01-architecture-standards.md](01-architecture-standards.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -151,18 +153,20 @@ will raise them — which this standard requires it to do.
 - **`(planned)` is re-checked, not an escape.** A row still marked `(planned)` whose
   command has since shipped **fails**. The marker is a claim the rule tests on every run,
   which is what stops the scoping from becoming a hole.
-- **`(off-path)` is for operations that are not MediatR requests at all.** Seven rows
-  carry it: Tenancy's `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
+- **`(off-path)` is for operations that are not MediatR requests at all.** Nine rows
+  carry it: Tenancy's `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
+  `platform.delivery.dead_letter`, `tenancy.killswitch.toggle`,
   `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
-  three whose writer ships through `DeclareOffPath` today, the other four when their
-  writer lands.
+  three whose writer ships through `DeclareOffPath` today, the other six when their
+  writer lands. Producer terminal registration belongs to P02b-2; subscriber
+  terminal registration belongs to P02b-3. Both are planned until their writers ship.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
+- **A row can carry both markers**, and six do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —
@@ -383,7 +387,7 @@ Rules:
   and calls `IAuditStateCapture.Clear()`. Accepted
   ADR-0057 separates audit ownership from per-invocation producer receipts.
   A controlled direct owner proves common entry in P02b-1; production delivery
-  opens it before handler construction in P02b-3 after G1, refuses an
+  opens it before handler construction in P02b-3 under ADR-0046, refuses an
   unregistered mutating handler and declares direct one-root intents. Nested
   commands keep their own intents without a duplicate business row. Modules see
   none of this plumbing; the MUST floor and standalone refusal posture survive.
@@ -492,7 +496,25 @@ table above is the policy those deliverables implement, not a description of tod
 - Failed `denied` outcomes are audited even though no state changed.
 - Background jobs that mutate MUST-audit resources receive the `actor` via job payload (operator id, or the seed of a system actor with a stable id) and write the entry under that identity.
 - Integration event handlers that mutate state are treated as actors of type `system` and audited accordingly.
-- Platform-bypass code paths (`IgnoreQueryFilters()` etc.) write a `security-event` entry on every invocation.
+- Platform-bypass code paths (`IgnoreQueryFilters()` etc.) write a `security-event`
+  entry on every invocation, with ADR-0046's confined routine dispatcher exception:
+  polling/claim/mark uses exact grant confinement, bounded structured attempt
+  outcomes, metrics/health and MUST-audited terminal transitions. This exception
+  changes no platform-admin pre-entry audit or other bypass operation.
+- `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
+  DbTransaction, CancellationToken)` is the narrow fifth write, pending P02b-2.
+  Only a successful fenced UPDATE result mints the restricted witness binding
+  actual tenant/org/event/acquisition/kind/reason/attempts/subscription and live
+  transaction. Validate declared MUST/SecurityEvent operation and matching draft
+  before INSERT; mismatch rolls back both writes. No transaction is opened or
+  committed by the seam. `PostgresAuditStore` remains the sole audit SQL writer.
+  Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and reserved
+  `platform.delivery.dead_letter` (P02b-3); register only with each writer.
+  Outcome success records terminal state, not publication. Invalid causal metadata
+  is omitted and a fresh validated attempt trace is used. Closed terminal values
+  live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.
+  Audit refusal retries terminalization without delivery. Because the bypass
+  role ignores RLS, witness/call-path proof binds identity, not announced GUCs.
 - Entering `EnterPlatformAdminScope(reason)` writes that row through
   `IAuditStore.WritePlatformScopeAsync` — a fourth **write** method, not an update
   method — on the scope's own platform-role connection and **before** the operation
@@ -503,7 +525,8 @@ table above is the policy those deliverables implement, not a description of tod
   disposed without `CommitAsync` rolls back, taking the record of the bypass with it. That
   is the row [Database Standards § How `EnterPlatformAdminScope(reason)` reaches
   `learnstack_platform`](05-database.md) calls "committed on its own".
-- **The row's tenant is the tenant the ambient transaction announced**, never a value off
+- **An ordinary audit intent's tenant is the tenant the ambient transaction
+  announced**, never a value off
   the request payload: `ITenantContext.TenantId` under a resolved context,
   `IProvisionsTenant.ProvisioningTenantId` for provisioning under an unresolved one, and
   `TenantId.PlatformSentinel` — the reserved `00000000-0000-7000-8000-000000000002`, not

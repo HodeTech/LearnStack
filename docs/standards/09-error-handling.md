@@ -8,6 +8,8 @@ Public UI message mapping derives from [ADR-0027](../decisions/0027-frontend-i18
 and the [Accepted P02d-6 package](../roadmap/phase-02d-walking-skeleton.md#p02d-6-decision-package-2026-10-09).
 Bootstrap response ownership and renderer Retry-After qualification derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -562,9 +564,28 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 
 ## Outbox
 
-- Outbox dispatcher catches all exceptions from a handler, logs them, increments `attempts`, sets `available_after = now() + backoff`.
-- Poison messages (max attempts reached) are dead-lettered.
-- Dashboard alert when dead-letter count > 0.
+**Accepted ADR-0046; runtime delivery pending P02b-2/P02b-3.**
+
+- Each committed normal claim increments producer `attempts` once, including an
+  unknown crash outcome. Six total claims use retry delays 1 s, 5 s, 30 s, 5 min
+  and 1 h. Expired claims recover with fresh tokens; claim six cannot publish again.
+- Required Pending subscriptions preserve rows before acquisition/validation.
+  Only declared intentional absence may acknowledge without publication.
+- Unknown/retired/invalid records request explicit terminalization. Terminal
+  requests never publish; terminal UPDATE and MUST audit share one transaction.
+  Audit refusal retains terminal work for retry and makes health unhealthy.
+- Every success/failure/recovery/terminal transition is token- and expiry-fenced.
+  A timeout bounds the wait; cancel and retain the task-owned scope until actual
+  completion. Late results cannot acknowledge or overwrite a new owner.
+- Persist only closed stage/reason/category codes, optional allowlisted SQLSTATE
+  and validated attempt traceparent in `last_error`, at most 256 UTF-8 bytes.
+  Dispatcher logs/traces likewise exclude exception text/stacks, payloads, raw
+  stored type and connection data. Existing transport exception telemetry is a
+  P02b-3 reconciliation obligation before Active production consumers.
+- After P02b-3 durable acceptance, subscriber business failure spends only its
+  independent ledger budget. Failed/unknown acceptance still spends producer
+  attempts. Subscriber retry invokes one internal delivery executor, never a
+  broadcast; operator recovery routes and producer reset/fencing are Phase 03.
 
 ## Webhooks
 

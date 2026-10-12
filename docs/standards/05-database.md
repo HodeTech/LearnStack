@@ -28,6 +28,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -886,7 +888,7 @@ closed; a fifth role requires an ADR.
 | `learnstack_migration` | `ConnectionStrings:Migration` | the deploy job / `make migrate` only — **never** in API or worker runtime configuration | `dotnet ef database update`; **owns** every table | `NOBYPASSRLS`; `FORCE ROW LEVEL SECURITY` denies ownership any bypass |
 | `learnstack_app` | `ConnectionStrings:Default` | API host, worker host | every request-path and job-path `DbContext` | `NOBYPASSRLS` |
 | `learnstack_platform` | `ConnectionStrings:PlatformAdmin` | API host, worker host | `EnterPlatformAdminScope(reason)` and nothing else | `BYPASSRLS` |
-| `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | the worker host that runs `OutboxProcessor` | `OutboxProcessor` and nothing else | `BYPASSRLS` |
+| `learnstack_outbox_admin` | `ConnectionStrings:OutboxDispatcher` | API host only; never Seeder or web | confined dispatcher infrastructure only | `BYPASSRLS` |
 
 **Passwords arrive from the environment, through `\getenv`.** The four
 `:'name'` placeholders below are **psql client variables**, and the
@@ -992,17 +994,27 @@ privileges implicitly.
 | `platform_host_to_tenant` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `platform_killswitches` | `SELECT` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
-| `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after)` |
+| `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
 | `tenant_content_types` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_level_taxonomies` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_level_taxonomy_items` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `customization_generations` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
-| `audit_log` | `SELECT, INSERT` | `SELECT, INSERT, DELETE`, `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)` | — |
+| `audit_log` | `SELECT, INSERT` | `SELECT, INSERT, DELETE`, `UPDATE (actor_email, ip_address, user_agent, before_state, after_state, changes)` | `INSERT` only (P02b-2 Step 1) |
 | `audit_config` | `SELECT` | `SELECT` | — |
 | `courses` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
 | `lessons` | `SELECT, INSERT, UPDATE` | `SELECT` | — |
 | `course_translations` | `SELECT, INSERT` | `SELECT` | — |
 | `lesson_translations` | `SELECT, INSERT` | `SELECT` | — |
+
+ADR-0046 accepts the two P02b-2 cells above. Step 1 implements their migrations
+and exact-grant proofs; both independent review rounds remain pending in the
+[delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12).
+Outbox status grants land in the Platform chain. The audit
+INSERT grant lands in a new Audit-chain migration after `audit_log` exists, never
+in initdb. No audit SELECT/UPDATE/DELETE, business access or role membership is
+added. P02b-3 separately enumerates column-level scheduling grants on its delivery
+ledger; it grants no envelope/payload SELECT to the bypass scheduler and only
+RLS-protected acceptance/completion permissions to `learnstack_app`.
 
 The four Education grants are **implemented in P02d-1 Step 2** and checked against
 the applied schema. Root UPDATE supports publication and concurrency;
@@ -1380,6 +1392,20 @@ Public read models consumed by other modules:
 
 ## Outbox
 
+**ADR-0046 schema implemented in P02b-2 Step 1; reviews pending.** The canonical
+DDL below includes lease/terminal/identity/descriptor changes. Dispatcher execution
+and terminal auditing remain later P02b-2 steps. Existing
+migrations remain immutable; a new Platform-chain migration replaces free-form
+legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
+This specific ADR-0046 Platform migration temporarily uses owner-only `NO FORCE`
+for that platform-wide diagnostic backfill, then restores `FORCE` before commit.
+The migration is atomic: any failure rolls back both the data change and the
+security setting. It widens no runtime policy, role or grant and does not change
+the per-tenant data-migration rule above. Invalid legacy identities fail the whole
+migration for explicit repair; facts/state are not silently rewritten. Existing
+attempts above six remain representable and route
+to terminalization, never another normal publication.
+
 ```sql
 CREATE TABLE outbox_messages (
     id              uuid PRIMARY KEY DEFAULT uuidv7(), -- producer supplies EventId
@@ -1397,15 +1423,47 @@ CREATE TABLE outbox_messages (
     processed_at    timestamptz NULL,
     attempts        int NOT NULL DEFAULT 0,
     last_error      text NULL,
-    available_after timestamptz NOT NULL DEFAULT now()
+    available_after timestamptz NOT NULL DEFAULT now(),
+    locked_by       text NULL,             -- fresh canonical UUID acquisition token
+    locked_until    timestamptz NULL,
+    terminal_reason text NULL,
+    dead_lettered_at timestamptz NULL,
+    CONSTRAINT ck_outbox_messages_identity CHECK (
+        id <> '00000000-0000-0000-0000-000000000000'::uuid
+        AND tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,
+                             '00000000-0000-7000-8000-000000000002'::uuid)
+        AND (organization_id IS NULL OR
+             organization_id <> '00000000-0000-0000-0000-000000000000'::uuid)),
+    CONSTRAINT ck_outbox_messages_attempts CHECK (attempts >= 0),
+    CONSTRAINT ck_outbox_messages_last_error_size CHECK (
+        last_error IS NULL OR octet_length(last_error) <= 256),
+    CONSTRAINT ck_outbox_messages_lease CHECK (
+        (locked_by IS NULL AND locked_until IS NULL) OR
+        (locked_by IS NOT NULL AND length(locked_by) > 0 AND locked_until IS NOT NULL)),
+    CONSTRAINT ck_outbox_messages_terminal_reason CHECK (
+        terminal_reason IS NULL OR terminal_reason IN (
+            'unknown_type', 'retired_type', 'invalid_envelope', 'retry_exhausted')),
+    CONSTRAINT ck_outbox_messages_state CHECK (
+        (processed_at IS NULL OR
+            (dead_lettered_at IS NULL AND terminal_reason IS NULL AND locked_by IS NULL))
+        AND (dead_lettered_at IS NULL OR
+            (processed_at IS NULL AND terminal_reason IS NOT NULL AND locked_by IS NULL)))
 );
 
 CREATE INDEX ix_outbox_messages_pending
-    ON outbox_messages (available_after)
-    WHERE processed_at IS NULL;
+    ON outbox_messages (available_after, occurred_at, id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL
+      AND terminal_reason IS NULL AND attempts < 6 AND locked_by IS NULL;
 CREATE INDEX ix_outbox_messages_tenant_pending
     ON outbox_messages (tenant_id, available_after)
-    WHERE processed_at IS NULL;
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL;
+CREATE INDEX ix_outbox_messages_recovery
+    ON outbox_messages (locked_until, occurred_at, id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL
+      AND terminal_reason IS NULL AND locked_by IS NOT NULL;
+CREATE INDEX ix_outbox_messages_terminal
+    ON outbox_messages (available_after, occurred_at, id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
 
 ALTER TABLE outbox_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outbox_messages FORCE  ROW LEVEL SECURITY;
@@ -1425,7 +1483,8 @@ CREATE POLICY outbox_messages_isolation ON outbox_messages
 GRANT SELECT, INSERT ON outbox_messages TO learnstack_app;
 GRANT SELECT, DELETE ON outbox_messages TO learnstack_platform;
 GRANT SELECT ON outbox_messages TO learnstack_outbox_admin;
-GRANT UPDATE (processed_at, attempts, last_error, available_after)
+GRANT UPDATE (processed_at, attempts, last_error, available_after,
+              locked_by, locked_until, terminal_reason, dead_lettered_at)
     ON outbox_messages TO learnstack_outbox_admin;
 
 -- The OutboxProcessor connects as learnstack_outbox_admin, which holds BYPASSRLS so it
@@ -1434,10 +1493,9 @@ GRANT UPDATE (processed_at, attempts, last_error, available_after)
 -- learnstack_app, inside the business transaction, and WITH CHECK pins the row to the
 -- caller's tenant. BYPASSRLS bypasses policies, not GRANTs — the column list above is
 -- what actually bounds the dispatcher, and SELECT ... FOR UPDATE SKIP LOCKED works with
--- a column-level UPDATE grant, so no table-wide UPDATE is needed. When locked_by and
--- locked_until land in Phase 02b, that migration extends this grant; a column added
--- without extending it fails at runtime with `permission denied for table`.
--- See ADR-0006 Amendment 1 and 15-event-and-outbox.md.
+-- a column-level UPDATE grant, so no table-wide UPDATE is needed. The P02b-2 migration
+-- adds the status columns and their grants together. INSERT-only on audit_log belongs
+-- in the Audit chain, not this DDL. See ADR-0046 and 15-event-and-outbox.md.
 ```
 
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -1454,8 +1512,8 @@ Additional payload fields are identifiers only; the complete canonical UTF-8
 payload is capped at 262,144 bytes inclusive before INSERT. `metadata` is SQL
 NULL with no caller extension channel. This is application admission, not a new
 DDL CHECK or a claim about stored `jsonb` byte length. P02b-1 implements this
-producer boundary; type-resolution outcomes, leases and inbox stay P02b-2/P02b-3
-work.
+producer boundary. ADR-0046 accepts producer recovery and the shared inbox
+contract; producer runtime remains P02b-2, inbox/delivery runtime P02b-3.
 
 `organization_id` is `uuid NULL` and mirrors the organization context of the transaction
 that enqueued the row —
@@ -1484,6 +1542,36 @@ on developer discipline. The earlier justification for nullability — that APIS
 [Phase 11](../roadmap/phase-11-production-hardening.md): the column exists from Phase 02a,
 so its contract cannot rest on a component that is not there yet. The architecture deep dive
 lives in [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
+
+
+Normal publication eligibility requires no processed/dead-lettered/terminal-request
+state, fewer than six attempts, due availability, no lease awaiting recovery and
+manifest/local-partition admission. Required Pending contracts and aliases are
+excluded before acquisition and payload validation. Every transition checks ID,
+current token and database-time unexpired lease. Recovery first replaces an
+expired token; attempts count committed normal claims only. Terminalization
+claims without incrementing attempts or publishing, then writes terminal state
+and its MUST audit atomically. See
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#producer-dispatch-and-recovery).
+
+## Inbox
+
+**Accepted contract; DDL/grants pending P02b-3.** One shared tenant-owned
+`inbox_messages` deduplicates by `(tenant_id, subscription_id, event_id)`.
+The transport's uncommitted claim precedes handler construction; completed inbox,
+business state, produced outbox, MUST audit and fenced ledger completion share
+one announced app-role transaction. Rollback removes a new claim; completed rows
+are never reset by targeted replay. A separate delivery ledger owns attempts,
+leases, terminal/replay state and retained validated envelopes.
+
+P02b-3 supplies canonical DDL, table-class assignments, exact RLS/grants and
+ADR-0023's minting-list correction before runtime. It first chooses durable
+envelope copies/references and their retention dependency; P02b-8 inventories
+every retained store for erasure. The bypass scheduler receives only enumerated
+identity/routing/lease/status column SELECT and status UPDATE, never payload
+SELECT; the app role receives tenant-RLS-protected acceptance/completion,
+including the named completion-column UPDATE, never cross-tenant scheduling.
+The canonical RLS templates remain in [Table classes](#table-classes).
 
 ## Idempotency
 

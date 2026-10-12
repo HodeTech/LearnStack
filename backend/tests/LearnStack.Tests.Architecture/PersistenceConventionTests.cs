@@ -170,12 +170,13 @@ public sealed partial class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Eight files under backend/src may reach for a connection at all: the five
+        // Nine files under backend/src may reach for a connection at all: the five
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
         // module helper, which passes a connection rather than a string; the API's
         // separately guarded platform-role builder; and the shared application-role
-        // builder used by both runtime hosts. A ninth is a new decision.
+        // builder used by both runtime hosts; and ADR-0046's confined dispatcher
+        // builder. Another site requires a new decision, not a wildcard exemption.
         //
         // The scan covers the raw constructors as well as `UseNpgsql` and
         // `AddDbContext`, because a call site that opened its own
@@ -214,6 +215,7 @@ public sealed partial class PersistenceConventionTests
             // Both runtime hosts delegate application-role construction to this
             // shared guard; the API retains its separate platform-role builder.
             "Persistence/ApplicationDataSource.cs",
+            "Messaging/OutboxDispatcherDataSource.cs",
         ]);
     }
 

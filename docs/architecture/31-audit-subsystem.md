@@ -3,6 +3,7 @@
 **Derives from:** [ADR-0033](../decisions/0033-audit-durability-model.md)
 (supersedes [ADR-0016](../decisions/0016-audit-log-subsystem.md)),
 [ADR-0044 (The Audit Write Path)](../decisions/0044-audit-write-path.md),
+[ADR-0046 (Durable Event Delivery and Recovery)](../decisions/0046-durable-event-delivery-and-recovery.md),
 [ADR-0057 (Transactional Event Production and Completion)](../decisions/0057-transactional-event-production-and-completion.md),
 [ADR-0017 (Tenant + Organization)](../decisions/0017-tenant-organization-hierarchy.md),
 [18-audit-coverage.md](../standards/18-audit-coverage.md).
@@ -76,6 +77,44 @@ two ownership questions are distinct.
 Redaction, projection and external fan-out happen after the commit, reading the committed
 row; none of them updates it. ADR-0016's "audit never blocks business logic" is preserved
 for that second stage and withdrawn for the first.
+
+### Confined event-terminal audit
+
+**Accepted ADR-0046; fifth seam pending P02b-2.** Existing four delivered writes
+retain their contracts. The new narrow method is:
+
+```csharp
+IAuditStore.WriteEventTerminalAsync(
+    AuditEntryDraft draft,
+    EventTerminalTransition transition,
+    DbConnection connection,
+    DbTransaction transaction,
+    CancellationToken cancellationToken);
+```
+
+A successful fenced terminal `UPDATE ... RETURNING` alone mints the immutable
+restricted witness. It binds actual stored tenant/org/event, acquisition,
+producer/subscriber kind, closed reason, attempts, optional subscription ID and
+live connection/transaction. The store checks declared MUST/SecurityEvent
+operation, draft identity and transaction before INSERT, opens/commits nothing
+and remains the sole audit SQL writer. Mismatch rolls back both state and audit.
+GUCs cannot bind a bypass INSERT; real tenant/org/event/transaction mismatch proofs
+and a matching organization-scoped positive control are required.
+
+P02b-2 supplies `platform.outbox.dead_letter`; P02b-3 supplies reserved
+`platform.delivery.dead_letter`, both off-path under Tenancy. Register each only
+when its writer ships. Outcome success describes terminal state, not publication;
+invalid causal fields are omitted in favor of a fresh validated attempt trace.
+Closed terminal values use bounded metadata; `Reason` stays for platform entry.
+Audit failure retains terminal work for retry without delivery; uncertain COMMIT
+is reconciled before retry and cannot duplicate a completed terminal audit.
+
+The existing outbox role gains audit INSERT-only in the Audit chain, with exact
+grants owned by [Database Standards](../standards/05-database.md#grant-matrix).
+Routine confined poll/claim/mark uses the accepted bounded audit exemption;
+platform-admin pre-entry audit and other bypass operations are unchanged.
+P02b-3 adds inbox/delivery machinery to capture exclusions with reasons, because
+explicit intents audit business effects; these exclusions remain pending P3.
 
 ## 2. Pipeline overview
 
@@ -632,7 +671,7 @@ declares its own intents; nested commands retain their own, without an extra
 business row. Step 1 supplies the common entry and producer ancestry groundwork;
 Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion
 and owner-only domain drain. Dispatch remains P02b-2; production consumer
-delivery/inbox wiring remains P02b-3 after G1.
+delivery/inbox wiring remains P02b-3 under Accepted ADR-0046.
 
 ### The two catalogue faces, and the three columns nothing fills yet
 
@@ -1467,128 +1506,21 @@ retention purge, § 9). It is not an exception carved out of the append-only rul
 convention — it is the shape the `audit_log_append_only_guard` trigger in § 7 was written
 to permit, and nothing else.
 
-```csharp
-// LearnStack.Modules.Audit.Infrastructure.IntegrationEvents
-public sealed class UserGdprDeletedIntegrationEventHandler(
-    AuditDbContext db,
-    IPlatformAdminScope platformScope,
-    IAuditStore auditStore,
-    IInboxGuard inboxGuard,
-    IClock clock,                    // the draft's Timestamp; the column's DEFAULT is a backstop
-    IGuidFactory guidFactory,        // AuditEntryId has no New() (ADR-0023 Amendment 9)
-    IEnumerable<IUserReferenceLocator> userReferenceLocators)
-    : IIntegrationEventHandler<UserGdprDeletedIntegrationEvent>
-{
-    public async Task HandleAsync(UserGdprDeletedIntegrationEvent @event, CancellationToken ct)
-    {
-        // 1. Idempotent: inbox guard.
-        if (await inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct)) return;
+**Phase 03 target; no privileged consumer is shipped.** ADR-0046 requires a
+separate privileged execution contract before this consumer can become Active.
+P02b-3's ordinary app-role executor refuses privileged subscriptions. Its shared
+inbox cannot atomically complete a platform-role transaction on another connection.
+The former handler-owned inbox sketch is superseded as the current target.
 
-        // 2. learnstack_app holds no UPDATE privilege on audit_log, so the redaction runs
-        //    as learnstack_platform — on the HANDLE's connection. The injected
-        //    AuditDbContext is bound to IUnitOfWork.Connection (ADR-0040) and stays on
-        //    the request's learnstack_app connection whatever scope surrounds it, so
-        //    issuing the UPDATE through `db` would raise 42501 rather than redact
-        //    anything. Entering the scope writes its own SecurityEvent row, committed
-        //    before the handle is returned (ADR-0044 § 10).
-        await using var handle = await platformScope.EnterAsync(
-            reason: $"gdpr-redaction:{@event.UserId}", ct);
-
-        // 3. Actor PII only. The payload columns are NOT touched here. A blanket
-        //    jsonb_set('{redacted}', 'true') would (a) not redact anything — it adds a
-        //    flag and leaves the PII in place — and (b) raise
-        //    'cannot set path in scalar' on any snapshot that is a JSON scalar or
-        //    array. Payload redaction belongs to the per-module locator below, which
-        //    knows which JSON paths in its own snapshots reference a user.
-        await using (var redact = handle.Connection.CreateCommand())
-        {
-            redact.Transaction = handle.Transaction;
-            redact.CommandText = @"
-                UPDATE audit_log
-                SET actor_email = '***REDACTED***',   -- SensitiveTokenCatalog.RedactedValue
-                    ip_address  = NULL,
-                    user_agent  = '***REDACTED***'
-                WHERE actor_user_id = @actor
-                  AND tenant_id     = @tenant";
-            redact.Parameters.Add(new NpgsqlParameter("actor", @event.UserId));
-            redact.Parameters.Add(new NpgsqlParameter("tenant", @event.TenantId));
-            await redact.ExecuteNonQueryAsync(ct);
-        }
-
-        // 4. Payload references, per module. Each locator issues column-restricted
-        //    UPDATEs against before_state / after_state / changes only — on the same
-        //    handle, because they need the same privilege for the same reason.
-        foreach (var locator in userReferenceLocators)
-            await locator.RedactReferencesAsync(handle, @event.UserId, @event.TenantId, ct);
-
-        // 5. The result row — ON THE HANDLE'S TRANSACTION, before its commit. The redaction
-        //    is a MUST-class security event, and the row recording it commits with the
-        //    redaction or not at all (Audit Coverage: a MUST row is never written after the
-        //    transaction it describes has committed). An earlier version of this listing
-        //    committed the handle first and wrote the row standalone afterwards: a process
-        //    that stopped between the two left rows permanently redacted and no record of
-        //    it. The scope-entry row step 2 committed proves the scope was entered, not what
-        //    was done inside it — two events, two rows.
-        //
-        //    THE PORT DOES NOT SANCTION THIS CALL YET. WritePlatformScopeAsync writes on a
-        //    caller's platform transaction, and its contract admits one caller: the scope's
-        //    own entry row. Phase 03 extends it to this second, bounded caller — or gives the
-        //    result row a method of its own — by amending ADR-0044 § 10 before the handler
-        //    lands. The ORDER shown here is what that decision may not change.
-        //
-        //    Constructed explicitly: AuditEntryDraft has no factory, AuditEntryId has no
-        //    New() (ADR-0023 Amendment 9), and Timestamp comes from IClock. Every member is
-        //    `required`, so the compiler refuses a construction that omits one and every
-        //    value arrives under its own name — ELEVEN of the twenty-two fields are string?,
-        //    six of them consecutive, and a transposition lands in the one table whose rows
-        //    nothing can correct. The metadata carries the event id: see step 6.
-        await auditStore.WritePlatformScopeAsync(
-            new AuditEntryDraft
-            {
-                Id              = AuditEntryId.From(guidFactory.NewUuidV7()),
-                TenantId        = TenantId.From(@event.TenantId),
-                OrganizationId  = null,
-                ActorUserId     = null,
-                ActorEmail      = null,
-                ModuleName      = "audit",
-                Operation       = "audit.redaction.apply",
-                OperationType   = OperationType.SecurityEvent,
-                OperationClass  = OperationClass.Must,
-                EntityType      = null,
-                EntityId        = null,
-                Outcome         = AuditOutcome.Success,
-                ErrorKey        = null,
-                Reason          = $"gdpr-redaction:{@event.UserId}",
-                BeforeState     = null,
-                AfterState      = null,
-                Changes         = null,
-                CorrelationId   = null,
-                IpAddress       = null,
-                UserAgent       = null,
-                Timestamp       = clock.UtcNow,
-                Metadata        = JsonSerializer.Serialize(
-                                      new { subjectUserId = @event.UserId, eventId = @event.EventId }),
-            },
-            handle.Connection,
-            handle.Transaction,
-            ct);
-
-        // The redaction, the locators' updates and the row recording them: one commit.
-        await handle.CommitAsync(ct);
-
-        // 6. The inbox mark. It cannot join that commit — it is learnstack_app work on the
-        //    ambient connection, a different connection from the handle's — so a process
-        //    that stops between the two leaves the event unmarked, and it is delivered
-        //    again. The redelivery must therefore be harmless, and Phase 03 makes it so with
-        //    the port decision above: the redaction is idempotent by construction (the same
-        //    columns set to the same sentinel), and before redacting, the handler looks on
-        //    the handle for a result row whose metadata carries this event id — finding one,
-        //    it marks the inbox and stops, so one erasure never records two results.
-        inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);
-    }
-}
-```
+Phase 03 uses audited `EnterPlatformAdminScope(reason)` and specifies bounded
+result-audit access before the handler ships. Scope entry commits its own audit
+before work; the redaction and its MUST result audit then share the platform
+working transaction. Per-module `IUserReferenceLocator` implementations redact
+only declared payload references through that same handle. Idempotent progress
+and durable event reconciliation prevent duplicate result audits after a crash;
+no two-connection atomicity or external exactly-once effect is promised. The
+ordinary event-terminal fifth seam authorizes no privileged redaction caller.
+Phase 11 owns retention purge, not redaction.
 
 `actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
@@ -1689,14 +1621,15 @@ update it constrains.
      `(planned)` row whose command has since shipped **fails**, which is what stops the
      marker from becoming an escape.
    - *Off the request path.* Operations that are not MediatR requests at all carry
-     `(off-path)` and are outside both directions. Seven rows carry it — Tenancy's
-     `platform.admin_scope.enter`, `tenancy.killswitch.toggle`,
+     `(off-path)` and are outside both directions. Nine rows carry it — Tenancy's
+     `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
+     `platform.delivery.dead_letter`, `tenancy.killswitch.toggle`,
      `tenancy.entitlement.refresh` and
      [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)'s
      `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
      Audit's `audit.redaction.apply` and `audit.purge.apply`. They register by slug: the
-     three whose writer ships through `DeclareOffPath`, the other four — also `(planned)` —
-     when their writer lands.
+     three whose writer ships through `DeclareOffPath`, the other six — also
+     `(planned)` — when their writer lands.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside
      both directions too (§ 5).
 2. `AuditEntry_Inherits_Entity_Not_AuditableEntity` — append-only by construction: an
@@ -1783,6 +1716,8 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 |-------|-------------|
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Dispatch remains P02b-2; consumer delivery/inbox remains P02b-3. |
+| P02b-2 (Accepted; pending) | Confined producer terminal state and MUST audit through row-bound fifth seam; Audit-chain INSERT-only grant, bounded routine-dispatch exemption and decisive real-role atomicity/identity proofs. |
+| P02b-3 (Accepted contract; pending) | Shared transport-owned inbox and independent delivery ledger; per-subscription audit frames and Tenancy-owned terminal audit. Ordinary executor refuses privileged subscriptions. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |

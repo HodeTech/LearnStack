@@ -21,7 +21,11 @@ ADR-0035's Phase 11 trigger has fired, also wire the Dapr adapter without changi
 that contract. The wiring contract is in
 [ADR-0038](../../../docs/decisions/0038-cross-cutting-port-and-event-contracts.md) and
 [29-dapr-integration.md](../../../docs/architecture/29-dapr-integration.md);
-this skill is the **mechanical** check-list.
+this skill is the **mechanical** check-list. Accepted
+[ADR-0046](../../../docs/decisions/0046-durable-event-delivery-and-recovery.md)
+adds construction-free stable subscription identities, Pending/Active readiness
+and durable acceptance. Those consumer components remain P02b-3 work; Phase 11
+must preserve their contracts rather than reintroduce handler-owned deduplication.
 
 ## When to use
 
@@ -126,7 +130,8 @@ await outbox.EnqueueAsync(new EnrollmentCreatedIntegrationEventV1 { ... }, ct);
 await db.SaveChangesAsync(ct);
 ```
 
-The `OutboxProcessor` (BackgroundService) polls `outbox_messages`, constructs an
+The accepted P02b-2 `OutboxProcessor` target (BackgroundService) polls
+`outbox_messages`, constructs an
 `IntegrationEventEnvelope`, and calls `IEventBus.PublishAsync(envelope)`.
 `DaprEventBus.PublishAsync` publishes to `envelope.Topic` with the envelope's
 delivery fields as metadata — see
@@ -152,23 +157,32 @@ register the concrete handler type:
 ```csharp
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(CreateAuditEntryOnUserDeleted).Assembly);
+    typeof(QueueWelcomeNotificationOnEnrollmentCreated).Assembly);
 ```
 
 There is no shipped `AddDaprSubscription<T>` helper or `[Topic]` attribute. Do
 not invent one. The event declares its topic and the construction-free handler
 registry supplies the current subscription metadata.
 
-The future Phase 11 subscription pipeline must preserve this behavior:
+P02b-3 adds the declared manifest: stable versioned subscription IDs, compatible
+aliases, and required Pending/Active readiness. Pending subscriptions hold producer
+rows before acquisition; Active publish returns only after every matching delivery
+is durably accepted. A separate executor owns independent per-subscription retries,
+terminal state and targeted replay. Neither publication nor replay invokes healthy
+sibling business handlers again. No current registration helper is claimed here.
+
+The future Phase 11 subscription pipeline must preserve the accepted behavior:
 
 1. The sidecar **discovers** subscriptions with `GET /dapr/subscribe`, which returns
    the topic-to-route table; it then **delivers** each event with an HTTP `POST` to the
    route that table named. They are two different calls, and there is no endpoint
    called `/dapr/subscribe-endpoint`.
-2. LearnStack's Phase 11 Dapr adapter deserialises the envelope, restores
-   `TenantContext` from the event and envelope, and resolves the matching
-   `IIntegrationEventHandler<T>` directly from DI.
-3. The `IIntegrationEventHandler<T>` runs with `IInboxGuard` protection.
+2. The adapter validates the envelope and durably accepts deliveries before
+   acknowledging the broker; transport acceptance is separate from business work.
+3. The executor opens the common app-role transaction, restores tenant and
+   envelope organization, and acquires the shared inbox claim before resolving
+   `IIntegrationEventHandler<T>`. Inbox completion, business state, produced
+   outbox, MUST audit and fenced delivery completion commit atomically.
 
 ### Step 5: Current transport (`InProcessEventBus`)
 
@@ -229,20 +243,19 @@ await daprClient.PublishByteEventAsync(
     });
 ```
 
-Kafka guarantees ordering **within a partition**. Cross-partition ordering does
-not exist; design around it.
+ADR-0046 guarantees deterministic eligible selection by availability, occurrence
+and ID within one processor. It promises no enqueue, commit, retry or cross-process
+order. Kafka partition ordering cannot strengthen the producer guarantee; document
+any future broker-specific bound in Phase 11.
 
 ### Step 8: Observability
 
-Phase 11 must add and verify the transport metrics governed by the observability
-standard; they are not automatic in the current in-process implementation:
-
-- `learnstack_outbox_dispatch_duration_seconds{event_type}`
-- `learnstack_outbox_dispatch_failed_total{event_type}`
-- `learnstack_inbox_dedup_total{module, event_type}`
-
-Keep tags low-cardinality and confirm the names against the implementation and
-dashboard when the adapter lands.
+[Observability Standards](../../../docs/standards/10-observability.md#required-metrics)
+owns event metric names, bounded dimensions, snapshot gauges and health deadlines.
+P02b-2 implements producer dispatch diagnostics; P02b-3 implements subscriber
+execution/dedup diagnostics and minimizes the existing transport diagnostics.
+Phase 11 adds adapter binding evidence. Do not move these producer/subscriber
+obligations to the adapter or infer delivery from a registered metric name.
 
 ## Validation
 
@@ -253,8 +266,9 @@ dashboard when the adapter lands.
 - When doing Phase 02b consumer work, add/keep its registered inheritance and
   inbox-guard rules. When doing Phase 11 adapter work, add/keep the Dapr binding
   and direct-provider boundary rules owned by that phase.
-- Today, an in-process integration test confirms publish → dispatch → consume →
-  inbox marker and the current transport's consumer span.
+- The current baseline has no durable inbox. P02b-3 must prove acceptance plus
+  atomic inbox/business completion, concurrent duplicates, independent sibling
+  retries, sticky timeout and uncertain-COMMIT recovery on the real delivery path.
 - When Phase 11's adapter exists, its Dapr/Testcontainers binding test and
   transport metrics pass as additional validation.
 
@@ -275,9 +289,9 @@ dashboard when the adapter lands.
 - **Switching on deployment mode before the trigger.** All modes use
   `InProcessEventBus` today. Add the Dapr branch only with the Phase 11 adapter
   and its integration suite.
-- **Ordering assumption across topics.** Kafka does not order across topics or
-  cross-partition within a topic. If your design needs strict ordering, use
-  partition keys and document the assumption.
+- **Assuming partition keys prove publish order.** The producer promises only
+  deterministic eligible selection. Retries and concurrent commits can reorder
+  delivery even when the future broker preserves its own partition order.
 - **Component YAML drift between dev and prod.** Keep one canonical YAML in
   `infra/dapr/components/`; environment overrides only via Vault-injected
   metadata fields (broker URL, auth).

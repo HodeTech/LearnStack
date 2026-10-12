@@ -21,11 +21,13 @@ internal sealed class DisposableSchemaDatabase : IAsyncDisposable
         MigrationConnectionString = For(postgres.MigrationConnectionString);
         AppConnectionString = For(postgres.AppConnectionString);
         PlatformConnectionString = For(postgres.PlatformConnectionString);
+        OutboxConnectionString = For(postgres.OutboxConnectionString);
     }
 
     public string MigrationConnectionString { get; }
     public string AppConnectionString { get; }
     public string PlatformConnectionString { get; }
+    public string OutboxConnectionString { get; }
 
     public static async Task<DisposableSchemaDatabase> CreateAsync(
         PostgresFixture postgres, bool applyMigrations = true)

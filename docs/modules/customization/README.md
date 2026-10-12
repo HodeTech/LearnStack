@@ -181,9 +181,10 @@ an Active winner from another revision is never retired or adopted by seed.
 
 ### Primary integration-event flow: provisioning defaults
 
-**Accepted flow, runtime subscriptions pending P02b-3 after G1.**
+**Accepted ADR-0046/0057 flow; runtime subscriptions pending P02b-3.**
 [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
-authorizes independent `card@1` and `plain@1` initialization on completed tenant
+authorizes independent `card@1` content-type and `plain@1` taxonomy initialization
+on completed tenant
 provisioning:
 
 ```mermaid
@@ -196,7 +197,7 @@ flowchart LR
     P --> PT[One root + generation + inbox + MUST audit]
 ```
 
-Text fallback: Tenancy persists the completed-provisioning fact; after G1,
+Text fallback: Tenancy persists the completed-provisioning fact; in P02b-3,
 independent subscriptions each create one untouched built-in concept on their
 own delivery transaction. One may finish before its sibling; retry completes
 an incomplete pair without overwriting tenant decisions.
@@ -293,15 +294,17 @@ keeps the library's types inside it.
 ## Integration-event catalogue
 
 **No publisher or subscriber implemented yet.** Accepted ADR-0057 fixes the
-P02b-3 subscriptions below; G1 must settle distinct deduplication identities and
-delivery scope first. Each effect owns one root, generation change, inbox outcome
+useful effects; ADR-0046 fixes the stable identities and shared transport-owned
+inbox. P02b-2 manifests both required subscriptions Pending, holding real rows and
+aliases before acquisition/validation; P02b-3 activates both with durable
+acceptance. Each effect owns one root, generation change, inbox outcome
 and MUST audit. Customization mints UUIDv7 IDs and resolves semantic key/version
 identity; Tenancy carries neither schemas nor Customization IDs.
 
-| Consumed topic | Event | Independent effect | Owner |
-|---|---|---|---|
-| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | Create untouched `card@1` | P02b-3 after G1 |
-| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | Create untouched `plain@1` | P02b-3 after G1 |
+| Consumed topic | Event | Stable subscription | Independent effect | Owner |
+|---|---|---|---|---|
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-content-type-default.v1` | Create untouched `card@1` content type (`BuiltInCustomizations.Card`) | P02b-3; Pending until then |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-taxonomy-default.v1` | Create untouched `plain@1` taxonomy (`BuiltInCustomizations.Plain`) | P02b-3; Pending until then |
 
 Initialization preserves Draft, Active, Deprecated, successor and deliberately
 deleted definitions; it never overwrites, republishes or resurrects them. P02b-3

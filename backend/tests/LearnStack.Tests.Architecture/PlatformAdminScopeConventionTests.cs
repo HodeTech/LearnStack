@@ -27,6 +27,11 @@ public sealed class PlatformAdminScopeConventionTests
     private const string CompositionFile =
         "LearnStack.Api/Composition/PersistenceCompositionExtensions.cs";
 
+    // A distinct keyed credential, confined by ADR-0046. Naming it explicitly
+    // preserves this global resolution fence while permitting its approved root.
+    private const string OutboxCompositionFile =
+        "LearnStack.Api/Composition/OutboxCompositionExtensions.cs";
+
     [Fact]
     public void Platform_DataSource_Resolved_Only_By_PlatformAdminScope()
     {
@@ -48,7 +53,7 @@ public sealed class PlatformAdminScopeConventionTests
             .ToList();
 
         resolvers.Should().BeEquivalentTo(
-            [ScopeFile, CompositionFile],
+            [ScopeFile, CompositionFile, OutboxCompositionFile],
             "the scope injects the keyed source and the composition root registers it; a "
             + "third resolver is a second path to a credential that sees every tenant");
 
@@ -65,8 +70,11 @@ public sealed class PlatformAdminScopeConventionTests
         // is a rule matching its own vocabulary rather than a credential.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "GetConnectionString", except: null)
             .Should().BeEquivalentTo(
-                [CompositionFile],
-                "one file reads credentials, so one file decides what is done with them");
+                [CompositionFile, OutboxCompositionFile],
+                "each credential has an explicitly confined composition root");
+
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxCompositionFile))
+            .Should().NotContain("PlatformAdmin", "outbox composition must never read the platform credential");
 
         // Leg 2b — the OTHER way to read the same value. GetConnectionString(name) is
         // sugar for configuration[$"ConnectionStrings:{name}"], so the indexer form

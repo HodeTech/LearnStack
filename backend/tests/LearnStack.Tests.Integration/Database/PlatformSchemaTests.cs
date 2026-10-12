@@ -80,14 +80,13 @@ public sealed class PlatformSchemaTests
     }
 
     [Fact]
-    public async Task TheDispatcherHoldsExactlyTheFourColumnUpdateGrant()
+    public async Task TheDispatcherHoldsExactlyTheEightStatusColumnUpdateGrant()
     {
         // BYPASSRLS bypasses policies, not GRANTs, so this column list is the
         // whole of the bound on learnstack_outbox_admin. SELECT ... FOR UPDATE
         // SKIP LOCKED works with a column-level grant, so no table-wide UPDATE is
-        // needed — and when locked_by / locked_until land in Phase 02b, that
-        // migration extends this grant or the dispatcher fails at runtime with
-        // `permission denied for table`.
+        // needed. ADR-0046 extends the original four columns only with the lease
+        // pair and terminal request/commit markers; payload and identity stay read-only.
         await using var connection = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
         await using var command = new NpgsqlCommand(
             """
@@ -99,7 +98,7 @@ public sealed class PlatformSchemaTests
             """, (NpgsqlConnection)connection);
 
         (await command.ExecuteScalarAsync()).Should()
-            .Be("attempts,available_after,last_error,processed_at");
+            .Be("attempts,available_after,dead_lettered_at,last_error,locked_by,locked_until,processed_at,terminal_reason");
     }
 
     [Fact]

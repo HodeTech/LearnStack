@@ -2,6 +2,7 @@ using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
@@ -83,8 +84,9 @@ namespace LearnStack.Api.Composition;
 /// resolution boundary.
 /// </para>
 /// <para>
-/// <c>ConnectionStrings:OutboxDispatcher</c> is still deliberately absent; it lands
-/// with its consumer in Phase 02b.
+/// <c>ConnectionStrings:OutboxDispatcher</c> is keyed and lazy through the separate
+/// confined outbox composition. Its mandatory worker startup verifies connectivity;
+/// module contexts and the Seeder never resolve it (ADR-0046).
 /// </para>
 /// </remarks>
 public static class PersistenceCompositionExtensions
@@ -99,6 +101,15 @@ public static class PersistenceCompositionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddLearnStackOutboxDispatcher(configuration);
+        services.TryAddSingleton(provider => OutboxEventRegistry.Create(
+            [OutboxEventRegistration.Required(
+                typeof(TenantCreatedIntegrationEventV1),
+                [OutboxSubscriptionManifest.Pending("customization.initialize-content-type-default.v1"),
+                 OutboxSubscriptionManifest.Pending("customization.initialize-taxonomy-default.v1")])],
+            [], provider.GetRequiredService<IntegrationEventHandlerRegistry>(),
+            [typeof(TenantCreatedIntegrationEventV1).Assembly]));
 
         var connectionString = configuration.GetConnectionString(DefaultConnectionName);
 

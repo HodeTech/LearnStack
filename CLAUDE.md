@@ -182,7 +182,14 @@ records passing full backend verification and both completed review rounds.
 **P02b-1 is complete and merged** through
 [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. The
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
-owns final verification and the next P02b-2 decision pass.
+owns final verification. **P02b-2's revised decision package and ADR-0046 are
+Accepted — 2026-10-12.** The four implementation steps and two independent review
+rounds per step are authorized on development. The
+[Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
+owns current progress. Acceptance reconciles delivery contracts and registers six
+rules; it claims no dispatcher, inbox or subscriber delivery. P02b-3 still owns
+durable acceptance, shared inbox/ledger, independent retries, both real default
+subscriptions and Seeder handoff.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -384,8 +391,9 @@ Then read the phase that is live and the one it stands on:
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
   — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
   and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
-  runtime and production-census enforcement. Next is P02b-2's decision pass;
-  each later packet accepts its own gates before implementation.
+  runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
+  Accepted, with Step 1 in progress; producer dispatch delivery remains pending.
+  P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
@@ -630,9 +638,11 @@ rules:
   `ISecretProvider`.
 - Read `DeploymentMode` from inside a module — the composition root
   branches once, modules never.
-- Write `audit_log`, `platform_entitlement_cache`, or `outbox_messages`
-  directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`,
-  `IOutbox`.
+- Write `audit_log`, `platform_entitlement_cache`, or producer `outbox_messages`
+  rows directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`, `IOutbox`.
+  Only ADR-0046's confined dispatcher writes outbox status through fenced
+  parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
+  share one transaction. That accepted exception remains pending P02b-2 delivery.
 - Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
   `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
   ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with

@@ -17,6 +17,8 @@ Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -27,8 +29,9 @@ intent multiplicity, capture, classification, and which assembly each type lives
 [ADR-0028](../decisions/0028-audit-log-partition-management.md) owns the `audit_log`
 **partition lifecycle**. This standard records that partitioning is demand-gated, where
 the audit types live, and that modules never write `audit_log` directly. Assembly
-placement and the four-method write path in § Audit Plumbing are ADR-0044's, which is
-why it — alone of the three — is also named in the header above.
+placement and the delivered four-method write path in § Audit Plumbing are ADR-0044's;
+ADR-0046 adds the pending confined fifth seam; both write-path authorities are
+named in the header above.
 
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
@@ -181,10 +184,15 @@ adapter replaces `InProcessEventBus`.
   [21-architecture-tests-catalogue.md](21-architecture-tests-catalogue.md).
 - Hub-side topics use the same `learnstack.hub.*` prefix
   (`learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`).
-- Consumers implement `IIntegrationEventHandler<TEvent>` and **must** invoke
-  `IInboxGuard.IsAlreadyProcessedAsync` before any business logic. Phase 02b adds the
-  architecture test `Integration_Event_Handlers_Use_InboxGuard` with the first real
-  consumers; it is registered in the catalogue today.
+- Consumers implement `IIntegrationEventHandler<TEvent>`. Accepted ADR-0046 assigns
+  shared inbox claim/completion to the transport, before handler construction.
+  `Integration_Event_Handlers_Use_InboxGuard` is Registered for P02b-3's nonempty
+  production census and real atomicity/duplicate proofs; handlers do not own the guard.
+- Construction-free readiness declares Pending, Active or intentional absence.
+  Any required Pending subscription holds its contract/aliases before acquisition
+  and validation; Active declarations require actual handler registration.
+  P02b-3 publish success means every required subscription was durably accepted;
+  later execution failures belong to independent subscription ledgers.
 - Cross-instance L1-cache invalidation rides on `learnstack.cache.invalidation` (a
   small payload of `(tenant_id, cache_key)`). Modules that maintain L1 caches subscribe
   here.
@@ -430,16 +438,24 @@ Rules:
   permits no recursive mutation. Produced-work receipts propagate to ancestors;
   a returning `Result.Fail` poisons the shared unit before frame resolution.
   Joiners neither drain nor clear the owner; terminal paths discard state.
-- The shared outbox table is RLS-protected; `OutboxProcessor` connects with the
-  `learnstack_outbox_admin` role that bypasses RLS.
-- `OutboxProcessor` uses `FOR UPDATE SKIP LOCKED` to allow horizontal scaling. Each
-  message has its own transaction; one failure does not roll back the batch.
-- Retry backoff: 1s, 5s, 30s, 5min, 1h. After max retries (5), the message is
-  dead-lettered and surfaces via the `OutboxStatusEndpoints` admin API; manual
-  intervention is required.
-- Consumers are **idempotent** via per-module `inbox_messages` tables. The
-  `IInboxGuard.MarkAsProcessed(eventId, eventTypeName)` write enrolls in the consumer's
-  business `DbContext` so the inbox marker and the business write commit atomically.
+- ADR-0046 accepts a single just-in-time normal claim with a fresh acquisition
+  token and database-time lease. Every transition is token/expiry fenced; expired
+  claims recover before publication. Six claims total use delays 1 s, 5 s, 30 s,
+  5 min and 1 h. Terminal requests never publish or increment attempts; explicit
+  terminal state commits atomically with MUST audit through the confined fifth seam.
+- P02b-2's API-owned dispatcher source uses the existing bypass role with exact
+  status grants and audit INSERT-only. [Database Standards](05-database.md#grant-matrix)
+  owns grants and canonical schema. No batch-held fallback, EF set-based write,
+  arbitrary type loading or free-form persisted exception descriptor is permitted.
+- P02b-3 implements the shared transport-owned inbox keyed by tenant/subscription/
+  event. Its claim precedes handler construction; business state, inbox completion,
+  produced outbox, MUST audit and fenced ledger completion share the app-role owner.
+  Independent delivery ledgers retain validated envelopes and own subscriber
+  retries/terminal/replay. Targeted replay invokes one internal executor, never
+  broadcast; the outbox processor remains the only production publisher.
+- Operator routes, permissions and producer reset/fencing belong to Phase 03.
+  Brokers and retention purge remain demand-gated Phase 11. Acceptance claims no
+  dispatcher, inbox or effectively-once delivery implementation.
 
 Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
@@ -627,9 +643,9 @@ are the Hub's public API, governed by the Hub repository.
   classification per [18-audit-coverage.md](18-audit-coverage.md)) and the MediatR
   `AuditLogBehavior`; there is no per-module audit code.
 - `IAuditStore` is the only sanctioned write path; the architecture test
-  `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it. The store
-  carries **four** write
-  methods and no update method: `WritePendingAsync` on the ambient transaction, the two
+  `Modules_Do_Not_Write_AuditLog_Directly` is the rule that enforces it. The
+  delivered store carries **four** write methods and no update method:
+  `WritePendingAsync` on the ambient transaction, the two
   standalone writers (`WriteStandaloneAsync`, `WriteBestEffortAsync`), and
   `WritePlatformScopeAsync`, whose only caller is `EnterPlatformAdminScope(reason)` —
   it writes its security-event row on its own platform-role connection before the
@@ -637,6 +653,17 @@ are the Hub's public API, governed by the Hub repository.
   operation that later fails is still recorded
   ([ADR-0044 § 10](../decisions/0044-audit-write-path.md),
   [05-database.md § How `EnterPlatformAdminScope(reason)` reaches `learnstack_platform`](05-database.md)).
+
+Accepted ADR-0046 adds the confined fifth method
+`WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
+DbTransaction, CancellationToken)`; P02b-2 implementation remains pending. Its
+restricted witness comes only from the actual successful fenced terminal UPDATE.
+The store validates declared operation/class/type, row identity and live caller
+transaction, then INSERTs without opening/committing a transaction. Existing four
+writes retain their contracts. The terminal UPDATE and audit commit together, or
+both roll back. Tenancy owns producer terminal audit in P02b-2 and subscriber
+terminal audit in P02b-3. See
+[Audit Coverage](18-audit-coverage.md#required-behaviours).
 
 ## Background Jobs and Hangfire
 
