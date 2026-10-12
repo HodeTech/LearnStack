@@ -1796,8 +1796,10 @@ diagnostic above row security, not the boundary, as its own note says.
   lazy `ConnectionStrings:OutboxDispatcher` source in the API host. Seeder/web and
   arbitrary keyed/service-provider resolution are refused. Physical connections
   verify the exact outbox role, bounded attributes and memberships. A nonempty
-  production census has planted clean/dirty resolution and registration controls;
-  real role/grant probes include valid and elevated/transitive negative controls.
+  production census has planted clean/dirty resolution and registration controls.
+  Named worker/store source readers require unique literal method signatures,
+  visibility and staticness; a same-name overload grants no authority. Real
+  role/grant probes include valid and elevated/transitive negative controls.
 - **Source:** [05-database.md § GRANT matrix](05-database.md#grant-matrix);
   [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 - **Type:** architecture/DI census and real PostgreSQL role probes.
@@ -1806,7 +1808,9 @@ diagnostic above row security, not the boundary, as its own note says.
   `OutboxDispatcherRoleGuardTests`, `OutboxProcessorTests`): exact nonempty
   whole-production credential/factory/consumer census, keyed registration and
   constructor bindings, planted clean/dirty helper/delegate/async controls, and
-  real PostgreSQL role/grant/startup refusal proofs.
+  real PostgreSQL role/grant/startup refusal proofs. Round 2 strengthening pins
+  exact source-reader signatures/visibility/staticness; its overload controls,
+  focused verification and fresh fix review are pending.
 - **Phase:** 02b, P02b-2.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
@@ -3459,6 +3463,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   Due/delayed/leased/deferred/terminal-requested/terminal rows distinguish gauges.
   Labels and diagnostics prohibit unbounded identities or sensitive
   exception/type/payload/connection data; /healthz remains liveness-only.
+  Polymorphic helper traversal covers production-owned contracts. The external
+  clock is pinned to the actual singleton `TimeProvider.System` instance; actual
+  DI health must follow Healthy → Unhealthy → Healthy on its singleton observation,
+  refusing a same-type detached factory.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
 - **Type:** production architecture census with planted controls where structural;
@@ -3467,9 +3475,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Implemented** (`OutboxDispatchConventionTests`,
   `OutboxProcessorTests`, `OutboxObservationTests`,
   `OutboxProductionCompositionTests`): nonempty five-subject observation graph,
-  actual gauge callbacks, async/polymorphic helpers and persistence/locator
-  capability controls; actual DI missing/duplicate/wrong-factory controls plus
-  bounded runtime, immutable snapshot, metric-label and liveness proofs.
+  actual gauge callbacks, async/production-owned polymorphic helpers and
+  persistence/locator capability controls; actual DI missing/duplicate/wrong-factory
+  controls plus bounded runtime, immutable snapshot, metric-label and liveness
+  proofs. Round 2 strengthening pins the external System clock and actual
+  health/observation binding; focused verification and fresh fix review are pending.
 - **Phase:** 02b, P02b-2.
 
 ### Demand-gated: lands with its adapter

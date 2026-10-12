@@ -160,6 +160,30 @@ public sealed partial class OutboxDispatchConventionTests
             ObservationRegistrationOffenders(modified).Should().NotBeEmpty("Fix: detect " + replacement + " health registration");
         }
         ObservationRegistrationOffenders(ObservationServices()).Should().BeEmpty();
+        foreach (var replacement in new[] { "missing", "duplicate", "instance", "factory" })
+        {
+            IServiceCollection modified = ObservationServices();
+            var clock = modified.Single(descriptor => descriptor.ServiceType == typeof(TimeProvider));
+            modified.Remove(clock);
+            if (replacement == "duplicate") { modified.Add(clock); modified.Add(clock); }
+            if (replacement == "instance") modified.AddSingleton<TimeProvider>(new AlternateTimeProvider());
+            if (replacement == "factory") modified.AddSingleton<TimeProvider>(_ => new AlternateTimeProvider());
+            ObservationRegistrationOffenders(modified).Should().NotBeEmpty("Fix: reject " + replacement + " production clock registration");
+        }
+        var detachedServices = ObservationServices();
+        using var detachedProvider = detachedServices.BuildServiceProvider();
+        using var detached = new OutboxObservation(TimeProvider.System, new OutboxDispatchOptions(),
+            detachedProvider.GetRequiredService<OutboxEventRegistry>());
+        detachedServices.PostConfigure<HealthCheckServiceOptions>(options =>
+        {
+            options.Registrations.Remove(options.Registrations.Single(item => item.Name == OutboxHealthCheck.Name));
+            options.Registrations.Add(new HealthCheckRegistration(OutboxHealthCheck.Name,
+                _ => new OutboxHealthCheck(detached), HealthStatus.Unhealthy, []));
+        });
+        ObservationRegistrationOffenders(detachedServices).Should().NotBeEmpty(
+            "Fix: a same-type check disconnected from the worker's singleton observation must fail");
+        ObservationRegistrationOffenders(ObservationServices()).Should().BeEmpty(
+            "Fix: the exact production clock and singleton health binding must remain the clean control");
     }
 
     /// <summary>
@@ -334,10 +358,36 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "hosted-service descriptor types", workers.Select(descriptor => descriptor.ImplementationType?.FullName ?? "non-type registration"),
             [typeof(OutboxProcessor).FullName!, "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
+        // The helper graph walks production contracts. Its one framework-owned
+        // virtual clock capability is admitted only as the shipped system instance.
+        var clocks = services.Where(descriptor => descriptor.ServiceType == typeof(TimeProvider)).ToArray();
+        if (clocks.Length != 1 || clocks[0].Lifetime != ServiceLifetime.Singleton
+            || !ReferenceEquals(clocks[0].ImplementationInstance, TimeProvider.System))
+        {
+            offenders.Add("Observation requires its exact singleton system clock registration");
+            return offenders;
+        }
         using var provider = services.BuildServiceProvider();
         var checks = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations
             .Where(check => check.Name == OutboxHealthCheck.Name).ToArray();
-        if (checks.Length != 1 || checks[0].Factory(provider).GetType() != typeof(OutboxHealthCheck)) offenders.Add("Private outbox health registration");
+        var check = checks.Length == 1 ? checks[0].Factory(provider) : null;
+        if (check is not OutboxHealthCheck) offenders.Add("Private outbox health registration");
+        else
+        {
+            var observation = provider.GetRequiredService<OutboxObservation>();
+            observation.Started();
+            observation.Progress();
+            observation.Refreshed(new OutboxQueueSnapshot(0, 0, 0));
+            var context = new HealthCheckContext { Registration = checks[0] };
+            if (check.CheckHealthAsync(context).GetAwaiter().GetResult().Status != HealthStatus.Healthy)
+                offenders.Add("Registered check does not follow healthy singleton observation");
+            observation.TerminalAuditFailed();
+            if (check.CheckHealthAsync(context).GetAwaiter().GetResult().Status != HealthStatus.Unhealthy)
+                offenders.Add("Registered check does not follow failed singleton observation");
+            observation.TerminalAuditSucceeded();
+            if (check.CheckHealthAsync(context).GetAwaiter().GetResult().Status != HealthStatus.Healthy)
+                offenders.Add("Registered check does not follow recovered singleton observation");
+        }
         if (provider.GetRequiredKeyedService<Lazy<Npgsql.NpgsqlDataSource>>(OutboxDispatcherDataSource.Key).IsValueCreated)
             offenders.Add("Observation forced dispatcher source construction");
         return offenders;
@@ -371,4 +421,6 @@ public sealed partial class OutboxDispatchConventionTests
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
+
+    private sealed class AlternateTimeProvider : TimeProvider;
 }

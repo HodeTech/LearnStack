@@ -24,6 +24,11 @@ public sealed partial class OutboxDispatchConventionTests
     private const string BoundaryTransport = "LearnStack.Infrastructure.Messaging.InProcessEventBus";
     private const string BoundaryDataSource = "Npgsql.NpgsqlDataSource";
     private const string BoundaryLazySource = "System.Lazy`1<Npgsql.NpgsqlDataSource>";
+    private const string BoundaryTask = "System.Threading.Tasks.Task";
+    private const string BoundaryBooleanTask = "System.Threading.Tasks.Task`1<System.Boolean>";
+    private const string BoundaryCancellation = "System.Threading.CancellationToken";
+    private const string BoundaryClaim = "LearnStack.Infrastructure.Messaging.OutboxDispatchClaim";
+    private const string BoundaryStrings = "System.Collections.Generic.IReadOnlyCollection`1<System.String>";
 
     /// <summary>
     /// ADR-0046: census every production assembly, exact keyed factories and parameter
@@ -120,6 +125,42 @@ public sealed partial class OutboxDispatchConventionTests
             var method = AddCall(worker, "UnrelatedStoreConsumer", store.Methods.Single(method => method.Name == "TryClaimAsync"), OpCodes.Call);
             return () => worker.Methods.Remove(method);
         }, CredentialOffenders);
+        var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
+        foreach (var name in new[] { "ExecuteAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
+            AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
+                AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
+        AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
+            AddBoundaryFieldGetter(boundaryWorker, "StartAsync", "_source"), CredentialOffenders);
+        foreach (var name in new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" })
+            AssertMutation(census, "a public raw-source overload borrowing the approved store name " + name, () =>
+                AddBoundaryFieldGetter(store, name, "_source"), CredentialOffenders);
+        foreach (var method in new[] { boundaryWorker.Methods.Single(item => item.Name == "StartAsync"),
+                     store.Methods.Single(item => item.Name == "ReadSnapshotAsync") })
+        {
+            AssertMutation(census, "a changed source-reader visibility", () =>
+                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                    (method.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Private), CredentialOffenders);
+            AssertMutation(census, "a static source reader replacing its approved instance binding", () =>
+                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                    method.Attributes | MethodAttributes.Static), CredentialOffenders);
+            AssertMutation(census, "a changed source-reader return type", () =>
+            {
+                var original = method.ReturnType;
+                method.ReturnType = method.Module.TypeSystem.Object;
+                return () => method.ReturnType = original;
+            }, CredentialOffenders);
+            AssertMutation(census, "a changed source-reader parameter type", () =>
+            {
+                var parameter = method.Parameters[0];
+                var original = parameter.ParameterType;
+                parameter.ParameterType = method.Module.TypeSystem.Int32;
+                return () => parameter.ParameterType = original;
+            }, CredentialOffenders);
+        }
+        var dispatch = boundaryWorker.Methods.Single(method => method.Name == "DispatchAsync");
+        AssertMutation(census, "a public store-consumer method replacing its private binding", () =>
+            ChangeAttributes(() => dispatch.Attributes, value => dispatch.Attributes = value,
+                (dispatch.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), CredentialOffenders);
     }
 
     [Fact]
@@ -351,6 +392,17 @@ public sealed partial class OutboxDispatchConventionTests
         return () => module.Types.Remove(type);
     }
 
+    private static Action AddBoundaryFieldGetter(TypeDefinition type, string name, string fieldName)
+    {
+        var field = type.Fields.Single(item => item.Name == fieldName);
+        var method = new MethodDefinition(name, MethodAttributes.Public, field.FieldType);
+        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ldfld, field));
+        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+        type.Methods.Add(method);
+        return () => type.Methods.Remove(method);
+    }
+
     private static ServiceCollection BoundaryRegistrations()
     {
         var services = new ServiceCollection();
@@ -485,14 +537,31 @@ public sealed partial class OutboxDispatchConventionTests
                     offenders.Add(MethodId(method) + ": dispatcher credential spelling outside its reader");
             }
         }
-        var workerConstructor = types[(BoundaryApi, BoundaryWorker)].Methods.Single(method => method.IsConstructor && !method.IsStatic);
+        var worker = types[(BoundaryApi, BoundaryWorker)];
+        var workerConstructor = BoundaryWorkerConstructor(offenders, worker);
         var scopeConstructor = types[(InfrastructureAssembly, BoundaryPlatform)].Methods.Single(method => method.IsConstructor && !method.IsStatic);
         CheckSet(offenders, "keyed parameter bindings", injections,
-            [MethodId(workerConstructor) + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key,
+            [workerConstructor + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key,
              MethodId(scopeConstructor) + ":" + BoundaryLazySource + ":" + PlatformAdminScope.PlatformDataSourceKey]);
-        CheckSourceFieldAccess(offenders, census, types[(BoundaryApi, BoundaryWorker)], ["StartAsync"]);
-        CheckSourceFieldAccess(offenders, census, types[(InfrastructureAssembly, Store)],
-            ["AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync"]);
+        CheckSourceFieldAccess(offenders, census, worker, workerConstructor,
+            [RequireBoundaryMethod(offenders, worker, "StartAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation)]);
+        var store = types[(InfrastructureAssembly, Store)];
+        var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
+            BoundaryLazySource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
+            "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
+            "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
+        CheckSourceFieldAccess(offenders, census, store, storeConstructor,
+        [
+            RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + BoundaryClaim + ">", MethodAttributes.Private,
+                "LearnStack.Infrastructure.Messaging.OutboxClaimKind", "System.String", BoundaryStrings, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, store, "UpdateAsync", BoundaryBooleanTask, MethodAttributes.Private,
+                BoundaryClaim, "System.String", "System.String", "System.String", BoundaryCancellation, "System.String"),
+            RequireBoundaryMethod(offenders, store, "TryTerminalizeAsync", BoundaryBooleanTask, MethodAttributes.Public,
+                BoundaryClaim, "System.String", BoundaryCancellation),
+            RequireBoundaryMethod(offenders, store, "IsDurablyTerminalAsync", BoundaryBooleanTask, MethodAttributes.Private, "System.Guid"),
+            RequireBoundaryMethod(offenders, store, "ReadSnapshotAsync", "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.OutboxQueueSnapshot>",
+                MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
+        ]);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
         return offenders;
     }
@@ -509,10 +578,16 @@ public sealed partial class OutboxDispatchConventionTests
                 && method.DeclaringType.FullName != Store && ReferencesStore(method)).Select(MethodId))
             .Distinct(StringComparer.Ordinal);
         var worker = census.Types[(BoundaryApi, BoundaryWorker)];
-        var workerMethods = worker.Methods.Where(method => method.IsConstructor && !method.IsStatic
-            || method.Name is "ExecuteAsync" or "DispatchAsync" or "DispatchNormalAsync" or "RefreshAsync");
+        var workerMethods = new[]
+        {
+            BoundaryWorkerConstructor(offenders, worker),
+            RequireBoundaryMethod(offenders, worker, "ExecuteAsync", BoundaryTask, MethodAttributes.Family, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, worker, "DispatchAsync", BoundaryTask, MethodAttributes.Private, BoundaryClaim, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, worker, "DispatchNormalAsync", BoundaryTask, MethodAttributes.Private, BoundaryClaim, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, worker, "RefreshAsync", BoundaryTask, MethodAttributes.Private, "System.Boolean", BoundaryCancellation),
+        };
         CheckSet(offenders, "privileged store consumers", owners,
-            workerMethods.Select(MethodId).Concat([MethodId(composition), MethodId(factory)]));
+            workerMethods.Concat([MethodId(composition), MethodId(factory)]));
         // Only an attribute-linked Store state machine may carry its own captured
         // instance. A similarly named nested type gains no authority from its name.
         var stateMachines = OwnedBodies(census).Where(item => item.Body.Name == "MoveNext" && item.Body != item.Owner
@@ -551,7 +626,7 @@ public sealed partial class OutboxDispatchConventionTests
         || (type is TypeSpecification specification && ContainsStore(specification.ElementType));
 
     private static void CheckSourceFieldAccess(SortedSet<string> offenders, ProductionCensus census,
-        TypeDefinition type, string[] readers)
+        TypeDefinition type, string constructor, string[] readers)
     {
         var fields = type.Fields.Where(field => field.Name == "_source").ToArray();
         if (fields.Length != 1 || !fields[0].IsPrivate || !fields[0].IsInitOnly || fields[0].IsStatic
@@ -563,11 +638,29 @@ public sealed partial class OutboxDispatchConventionTests
             .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, type)
                 && field.Name == fields[0].Name)
             .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name));
-        var expected = type.Methods.Where(method => method.IsConstructor && !method.IsStatic)
-            .Select(method => MethodId(method) + ":stfld")
-            .Concat(type.Methods.Where(method => readers.Contains(method.Name, StringComparer.Ordinal))
-                .Select(method => MethodId(method) + ":ldfld"));
+        var expected = new[] { constructor + ":stfld" }.Concat(readers.Select(reader => reader + ":ldfld"));
         CheckSet(offenders, TypeId(type) + " privileged source field access", actual, expected);
+    }
+
+    private static string BoundaryWorkerConstructor(SortedSet<string> offenders, TypeDefinition worker) =>
+        RequireBoundaryMethod(offenders, worker, ".ctor", "System.Void", MethodAttributes.Public,
+            BoundaryLazySource, Store, "LearnStack.Infrastructure.Messaging.OutboxEnvelopeReader",
+            "LearnStack.Infrastructure.Messaging.OutboxEventRegistry", "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions",
+            "System.TimeProvider", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory", "LearnStack.Api.Messaging.OutboxObservation",
+            "Microsoft.Extensions.Logging.ILogger`1<" + BoundaryWorker + ">");
+
+    private static string RequireBoundaryMethod(SortedSet<string> offenders, TypeDefinition type, string name,
+        string result, MethodAttributes visibility, params string[] parameters)
+    {
+        // Expected authority comes from this fixed contract, never from all current
+        // methods sharing a permitted name. A new overload cannot authorize itself.
+        var expected = Key(type).Assembly + ":" + result + " " + type.FullName + "::" + name + "(" + string.Join(",", parameters) + ")";
+        var declarations = type.Methods.Where(method => method.Name == name).ToArray();
+        if (declarations.Length != 1 || declarations[0].IsStatic || declarations[0].HasGenericParameters
+            || (declarations[0].Attributes & MethodAttributes.MemberAccessMask) != visibility
+            || declarations[0].ReturnType.FullName != result || !ParametersMatch(declarations[0], parameters))
+            offenders.Add(expected + ": requires exactly one instance declaration with its approved signature and visibility");
+        return expected;
     }
 
     private static void CheckCapturedKeyResolver(SortedSet<string> offenders, ProductionCensus census,

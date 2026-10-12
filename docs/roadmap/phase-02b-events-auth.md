@@ -1700,7 +1700,8 @@ credential/publication/health censuses and close the packet.
 
 ### P02b-2 Step 4 — Enforcement and closeout (2026-10-12)
 
-**Implementation complete; validation and independent reviews in progress.**
+**Implementation delivered; review fixes, validation and independent reviews in
+progress.**
 Steps 1–3 completed both independent review rounds; Step 3 is closed at `02540d0`.
 Step 4 adds nonempty whole-production credential/publication censuses, exact
 keyed factories and consumer bindings, and planted helper/delegate/async controls.
@@ -1708,10 +1709,13 @@ Only the processor constructs the task-owned publication attempt; its private
 callback is the sole event-bus publication path. The existing canonical module
 bus rule now also enforces that complete production fence.
 
-The five-subject observation graph follows async and polymorphic helpers,
-rejects persistence/service-locator capabilities, and inspects actual gauge
-callbacks. Actual DI controls reject missing/duplicate workers/checks and wrong
-factories. The literal-SQL census admits only exact producer enqueue, dispatcher
+The five-subject observation graph follows async and production-owned
+polymorphic contracts, rejects persistence/service-locator capabilities, and
+inspects actual gauge callbacks. Actual DI controls reject missing/duplicate
+workers/checks and wrong factories. Round 2 strengthening of exact credential
+reader signatures, the external clock pin and actual health/observation binding
+is in progress; its focused verification and fresh fix review remain pending.
+The literal-SQL census admits only exact producer enqueue, dispatcher
 status-transition and migration backfill methods; quoted/schema/case/CTE and
 missing/extra-writer controls prove its reach. These are bounded IL/literal-SQL
 checks, not arbitrary reflection or dynamic-SQL dataflow analysis.
@@ -1762,6 +1766,30 @@ again after the adjacent argument-mutation controls, with zero failures/skips.
 The full regression above predates these test-only changes. The proof reviewer
 independently passed 26 existing focused/corpus cases, with zero failures/skips;
 neither reviewer claimed a new full suite. Round 2 remains pending.
+
+#### Step 4 review round 2
+
+Fresh read-only GPT-6.1-sol xhigh boundary and GPT-6-astra xhigh proof reviewers
+examined `02540d05..2f8693e`. They verified three test-guard gaps without finding
+a current production defect. Named worker/store source-reader overloads could
+self-authorize; an external `TimeProvider` subclass was invisible to the
+production-owned contract graph and DI checks; a same-type health factory detached
+from the singleton observation passed the returned-type check.
+
+The fixes are being implemented: pin unique literal source-reader method
+signatures, visibility and staticness with overload controls; require the actual
+`TimeProvider.System` singleton instance with missing/duplicate/alternate-instance
+and factory controls; and exercise the actual DI-registered health check through
+Healthy → Unhealthy → Healthy against the singleton observation, with a detached
+factory dirty control. The polymorphic graph covers production-owned contracts;
+the external clock is admitted only through the explicit System-instance pin.
+No test method, catalogue rule or published count is added.
+
+Post-round-1 verification at `2f8693e` passes the full 286-case architecture suite
+and five Corpus cases; the Release build has zero warnings/errors. These receipts
+predate the round-2 fixes. Focused verification of those fixes and fresh fix review
+remain pending. No passing correction, final review approval or packet closeout
+is claimed here.
 
 ### Durable outbox dispatch
 
