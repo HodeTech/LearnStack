@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Messaging;
@@ -584,6 +585,44 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         snapshot.DeferredCount.Should().Be(2);
         snapshot.OldestEligibleAgeSeconds.Should().Be(0);
         (await test.AuditCountAsync()).Should().Be(0, "provisioning audits are separate from the terminal operation");
+    }
+
+    [Theory]
+    [InlineData("Topic", false)]
+    [InlineData("Topic", true)]
+    [InlineData("PartitionKey", false)]
+    [InlineData("PartitionKey", true)]
+    public async Task Stored_routing_corruption_requests_terminal_without_acknowledging_the_fact(string property, bool missing)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var fact = new DispatchEventV1
+        {
+            EventId = Guid.CreateVersion7(),
+            TenantId = SchemaFixture.TenantA,
+            OccurredAt = Occurred,
+            SubjectId = Guid.CreateVersion7(),
+        };
+        var payload = JsonNode.Parse(fact.ToPayloadJson())!.AsObject();
+        if (missing) payload.Remove(property);
+        else payload[property] = "private-invalid-routing";
+        var id = await test.InsertAsync(fact: fact, payload: payload.ToJsonString());
+        var registry = EligibleRegistry();
+        var store = test.Store(registry: registry);
+        var claim = (await store.TryClaimAsync(NoBlockedPartitions))!;
+
+        var result = new OutboxEnvelopeReader(registry).Read(claim);
+
+        result.TerminalReason.Should().Be(OutboxTerminalReason.InvalidEnvelope);
+        result.Envelope.Should().BeNull();
+        (await store.RequestTerminalAsync(claim, result.TerminalReason!.Value)).Should().BeTrue();
+        (await store.TryClaimAsync(NoBlockedPartitions)).Should().BeNull();
+        var terminal = (await store.TryClaimTerminalAsync(NoBlockedPartitions))!;
+        (await store.TryTerminalizeAsync(terminal, AttemptTraceparent)).Should().BeTrue();
+        var row = await test.ReadAsync(id);
+        row.ProcessedAt.Should().BeNull();
+        row.DeadLetteredAt.Should().NotBeNull();
+        (await test.AuditCountAsync()).Should().Be(1);
+        (await test.ReadAuditAsync()).Metadata.Should().NotContain("private-invalid-routing");
     }
 
     [Fact]

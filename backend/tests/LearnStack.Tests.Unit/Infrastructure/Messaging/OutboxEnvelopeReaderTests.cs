@@ -81,6 +81,39 @@ public sealed class OutboxEnvelopeReaderTests
         result.Envelope.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("Topic", "missing")]
+    [InlineData("Topic", "changed")]
+    [InlineData("Topic", "null")]
+    [InlineData("Topic", "number")]
+    [InlineData("Topic", "object")]
+    [InlineData("PartitionKey", "missing")]
+    [InlineData("PartitionKey", "changed")]
+    [InlineData("PartitionKey", "null")]
+    [InlineData("PartitionKey", "number")]
+    [InlineData("PartitionKey", "object")]
+    public void Stored_get_only_routing_fields_must_exist_and_match_the_row(string property, string mutation)
+    {
+        var claim = Claim(Fact());
+        var root = JsonNode.Parse(claim.Payload)!.AsObject();
+        if (mutation == "missing") root.Remove(property);
+        else root[property] = mutation switch
+        {
+            "changed" => JsonValue.Create("private-invalid-routing"),
+            "null" => null,
+            "number" => JsonValue.Create(42),
+            "object" => new JsonObject(),
+            _ => throw new ArgumentOutOfRangeException(nameof(mutation)),
+        };
+
+        var result = Reader().Read(claim with { Payload = root.ToJsonString() });
+
+        result.TerminalReason.Should().Be(OutboxTerminalReason.InvalidEnvelope);
+        result.EventTypeLabel.Should().Be("invalid");
+        result.Envelope.Should().BeNull();
+        Reader().Read(claim).Envelope.Should().NotBeNull("the unchanged control must still be admitted");
+    }
+
     [Fact]
     public void PostgreSQL_microsecond_truncation_preserves_valid_occurrence_identity()
     {

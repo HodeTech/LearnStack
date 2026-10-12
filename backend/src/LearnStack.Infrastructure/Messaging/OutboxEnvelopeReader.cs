@@ -25,7 +25,16 @@ public sealed class OutboxEnvelopeReader(OutboxEventRegistry registry)
                 || claim.TenantId == TenantId.PlatformSentinel.Value || claim.OrganizationId == Guid.Empty)
                 return Invalid();
 
-            var fact = JsonSerializer.Deserialize(claim.Payload, resolution.EventType!,
+            using var document = JsonDocument.Parse(claim.Payload);
+            var root = document.RootElement;
+            // Read the stored routing fields before deserialization: get-only
+            // properties would otherwise silently regenerate missing or altered values.
+            if (root.ValueKind != JsonValueKind.Object
+                || root.GetProperty(nameof(IIntegrationEvent.Topic)).GetString() != claim.Topic
+                || root.GetProperty(nameof(IIntegrationEvent.PartitionKey)).GetString() != claim.PartitionKey)
+                return Invalid();
+
+            var fact = root.Deserialize(resolution.EventType!,
                 IntegrationEventBase.PayloadJsonOptions) as IntegrationEventBase;
             if (fact is null) return Invalid();
             var serialized = OutboxEventContract.Serialize(fact);

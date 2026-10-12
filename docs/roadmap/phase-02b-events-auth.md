@@ -1573,7 +1573,24 @@ contract 4, complete Docker-free integration 180 and affected Docker integration
 `PublicReadTransactionTests`; it is not a full Docker-suite claim. All four
 behavioural mutants fail their named tests, then the restored code passes.
 Local file/fragment, historical-record/Accepted-ADR preservation, prose-width and
-`git diff --check` controls pass. No Step 2 review completion is claimed yet.
+`git diff --check` controls pass.
+
+#### Step 2 review round 1
+
+Fresh read-only GPT-6-astra xhigh security/concurrency and GPT-6.1-sol xhigh
+proof/corpus reviewers examined `c6ceaa9..7976113`. The proof review approved;
+its independent rerun passed 273 architecture and 24 focused unit cases. The
+security review reproduced a stored-routing gap: deserialization regenerates
+get-only Topic/PartitionKey values, masking changed or absent payload members.
+The reader now checks those required string members in the original JSON before
+using the declared CLR contract, then compares the reconstructed routing with
+the row. Ten unit mutation cases and four real-database cases cover changed,
+missing and malformed routing, terminal-only progression and minimized audit.
+The unchanged payload remains an admitted control. Removing the original-field
+check makes all ten new unit cases fail. After restoration, the complete unit
+suite passes 1,835 cases, architecture passes 273 and the four new Docker cases
+pass, all with zero failures/skips. Round 2 follows the verified correction;
+hosted lifecycle remains Step 3.
 
 ### Durable outbox dispatch
 
