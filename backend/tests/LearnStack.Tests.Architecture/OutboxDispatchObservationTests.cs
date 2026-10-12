@@ -134,6 +134,17 @@ public sealed partial class OutboxDispatchConventionTests
         services.Add(worker);
         ObservationRegistrationOffenders(services).Should().NotBeEmpty("Fix: duplicate workers must be detected");
         services.Remove(worker);
+        foreach (var extra in new[]
+                 {
+                     ServiceDescriptor.Singleton<IHostedService>(provider => ActivatorUtilities.CreateInstance<OutboxProcessor>(provider)),
+                     ServiceDescriptor.Singleton<IHostedService>(new UnrelatedHostedService()),
+                 })
+        {
+            services.Add(extra);
+            ObservationRegistrationOffenders(services).Should().NotBeEmpty("Fix: factory and instance hosted-service duplicates must be detected");
+            services.Remove(extra);
+        }
+        ObservationRegistrationOffenders(services).Should().BeEmpty("Fix: restoring the descriptor set must restore the clean control");
         foreach (var replacement in new[] { "missing", "duplicate", "wrong-factory" })
         {
             var modified = ObservationServices();
@@ -178,6 +189,12 @@ public sealed partial class OutboxDispatchConventionTests
                      "DELETE FROM ONLY public.outbox_messages", "UPDATE /* review */ public.outbox_messages SET attempts=0",
                      "MERGE INTO outbox_messages USING x ON true WHEN MATCHED THEN DELETE",
                      "COPY public.outbox_messages FROM STDIN", "TRUNCATE TABLE public.outbox_messages",
+                     "UPDATE outbox_messages/* review */ SET attempts=0",
+                     "INSERT/* review */INTO outbox_messages(id) VALUES(NULL)",
+                     "DELETE/* review */FROM outbox_messages WHERE true",
+                     "TRUNCATE TABLE another_table, outbox_messages",
+                     "TRUNCATE ONLY another_table, ONLY public.\"outbox_messages\" RESTART IDENTITY",
+                     "TRUNCATE TABLE another_table, outbox_messages*",
                  })
             AssertMutation(census, "an unauthorized literal SQL writer: " + sql, () => AddSqlProbe(application, sql), OutboxSqlOffenders);
         AssertMutation(census, "an extra helper on the allowed store", () =>
@@ -209,7 +226,8 @@ public sealed partial class OutboxDispatchConventionTests
         using var census = ProductionCensus.Read();
         var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
         foreach (var sql in new[] { "SELECT * FROM outbox_messages FOR UPDATE SKIP LOCKED",
-                     "UPDATE another_outbox_messages SET attempts=0", "INSERT INTO outbox_messages_archive VALUES (1)" })
+                     "UPDATE another_outbox_messages SET attempts=0", "INSERT INTO outbox_messages_archive VALUES (1)",
+                     "TRUNCATE TABLE another_table, outbox_messages_archive" })
         {
             var undo = AddSqlProbe(application, sql);
             try { OutboxSqlOffenders(census).Should().BeEmpty("Fix: admitted reads and unrelated table writes must stay clean"); }
@@ -217,10 +235,17 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
+    private const string SqlGap = "(?:\\s|/\\*.*?\\*/|--[^\\r\\n]*(?:\\r?\\n|$))";
+    private const string SqlIdentifier = "(?:\"[^\"]+\"|[a-z_][a-z0-9_$]*)";
+    private const string SqlQualifier = "(?:" + SqlIdentifier + SqlGap + "*\\." + SqlGap + "*)?";
+    private const string OutboxTarget = SqlQualifier + "(?:\"outbox_messages\"|outbox_messages)";
     private static readonly Regex OutboxMutation = new(
-        "\\b(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM|MERGE\\s+INTO|COPY|TRUNCATE(?:\\s+TABLE)?)"
-        + "(?:\\s|/\\*.*?\\*/|--[^\\r\\n]*(?:\\r?\\n|$))+(?:ONLY\\s+)?"
-        + "(?:(?:\"[^\"]+\"|[a-z_][a-z0-9_$]*)\\s*\\.\\s*)?(?:\"outbox_messages\"|outbox_messages)(?=\\s|[;(]|$)",
+        "\\b(?:INSERT" + SqlGap + "+INTO|UPDATE|DELETE" + SqlGap + "+FROM|MERGE" + SqlGap + "+INTO|COPY)"
+        + SqlGap + "+(?:ONLY" + SqlGap + "+)?" + OutboxTarget + "(?=" + SqlGap + "|[;(*]|$)"
+        + "|\\bTRUNCATE" + SqlGap + "+(?:TABLE" + SqlGap + "+)?"
+        + "(?:(?:ONLY" + SqlGap + "+)?" + SqlQualifier + SqlIdentifier + "(?:" + SqlGap + "*\\*)?"
+        + SqlGap + "*," + SqlGap + "*)*(?:ONLY" + SqlGap + "+)?" + OutboxTarget
+        + "(?=" + SqlGap + "|[,*;]|$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline, TimeSpan.FromSeconds(1));
 
     private static SortedSet<string> OutboxSqlOffenders(ProductionCensus census)
@@ -303,9 +328,12 @@ public sealed partial class OutboxDispatchConventionTests
     private static SortedSet<string> ObservationRegistrationOffenders(IServiceCollection services)
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
-        var workers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
-            && descriptor.ImplementationType == typeof(OutboxProcessor)).ToArray();
-        if (workers.Length != 1 || workers[0].Lifetime != ServiceLifetime.Singleton) offenders.Add("Mandatory singleton worker registration");
+        // Include the framework health publisher in the complete descriptor set so
+        // factory/instance duplicates cannot hide behind the dispatcher type filter.
+        var workers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).ToArray();
+        CheckSet(offenders, "hosted-service descriptor types", workers.Select(descriptor => descriptor.ImplementationType?.FullName ?? "non-type registration"),
+            [typeof(OutboxProcessor).FullName!, "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
+        if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
         using var provider = services.BuildServiceProvider();
         var checks = provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations
             .Where(check => check.Name == OutboxHealthCheck.Name).ToArray();
@@ -336,5 +364,11 @@ public sealed partial class OutboxDispatchConventionTests
     {
         public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
             Task.FromResult(HealthCheckResult.Healthy());
+    }
+
+    private sealed class UnrelatedHostedService : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

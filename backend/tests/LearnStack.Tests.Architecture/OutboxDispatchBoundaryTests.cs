@@ -163,6 +163,37 @@ public sealed partial class OutboxDispatchConventionTests
                 && instruction.Operand is FieldReference field && field.FullName == captured.FullName);
             AssertMutation(census, "a factory capturing a different key instead of its registered key", () =>
                 ReplaceInstruction(assignment.Previous!, OpCodes.Ldstr, "unrelated-key"), CredentialOffenders);
+            var provider = (FieldReference)call.Previous.Previous!.Previous!.Operand;
+            foreach (var field in new[] { captured, provider })
+            {
+                AssertMutation(census, "the real lazy callback overwriting captured " + field.Name, () =>
+                    InsertCaptureMutation(leaf, field, address: false), CredentialOffenders);
+                AssertMutation(census, "the actual factory overwriting captured " + field.Name + " after its original assignment", () =>
+                    InsertCaptureMutation(factory, field, address: false, afterCapture: true), CredentialOffenders);
+                AssertMutation(census, "a closure helper overwriting captured " + field.Name, () =>
+                {
+                    var helper = new MethodDefinition("RewriteCapturedField", MethodAttributes.Private, leaf.Module.TypeSystem.Void);
+                    helper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    leaf.DeclaringType.Methods.Add(helper);
+                    var undo = InsertCaptureMutation(helper, field, address: false);
+                    return () => { undo(); leaf.DeclaringType.Methods.Remove(helper); };
+                }, CredentialOffenders);
+                AssertMutation(census, "the real lazy callback exposing the address of captured " + field.Name, () =>
+                    InsertCaptureMutation(leaf, field, address: true), CredentialOffenders);
+                var parameter = factory.Parameters[field == captured ? 1 : 0];
+                foreach (var opcode in new[] { OpCodes.Starg, OpCodes.Starg_S, OpCodes.Ldarga, OpCodes.Ldarga_S })
+                    AssertMutation(census, "the actual factory mutating or exposing its " + parameter.Name + " argument through " + opcode, () =>
+                    {
+                        var address = opcode == OpCodes.Ldarga || opcode == OpCodes.Ldarga_S;
+                        var replacement = parameter.ParameterType.FullName == "System.Object"
+                            ? Instruction.Create(OpCodes.Ldstr, PlatformAdminScope.PlatformDataSourceKey) : Instruction.Create(OpCodes.Ldnull);
+                        var inserted = address
+                            ? new[] { Instruction.Create(opcode, parameter), Instruction.Create(OpCodes.Pop) }
+                            : [replacement, Instruction.Create(opcode, parameter)];
+                        for (var index = 0; index < inserted.Length; index++) factory.Body.Instructions.Insert(index, inserted[index]);
+                        return () => { foreach (var instruction in inserted) factory.Body.Instructions.Remove(instruction); };
+                    }, CredentialOffenders);
+            }
         }
 
         var root = census.Types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
@@ -289,6 +320,26 @@ public sealed partial class OutboxDispatchConventionTests
         return () => { instruction.OpCode = originalCode; instruction.Operand = originalOperand; };
     }
 
+    private static Action InsertCaptureMutation(MethodDefinition method, FieldReference field, bool address, bool afterCapture = false)
+    {
+        var instructions = method.Body.Instructions;
+        var index = afterCapture ? instructions.IndexOf(instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
+            && instruction.Operand is FieldReference assigned && assigned.FullName == field.FullName)) + 1 : 0;
+        var replacement = field.FieldType.FullName == "System.Object"
+            ? Instruction.Create(OpCodes.Ldstr, PlatformAdminScope.PlatformDataSourceKey) : Instruction.Create(OpCodes.Ldnull);
+        // The factory still has the freshly captured closure on its stack; an
+        // instance callback/helper uses its own closure. Neither removes the real
+        // capture or changes the recognized resolver tail.
+        var inserted = new[]
+        {
+            Instruction.Create(afterCapture ? OpCodes.Dup : OpCodes.Ldarg_0),
+            address ? Instruction.Create(OpCodes.Ldflda, field) : replacement,
+            address ? Instruction.Create(OpCodes.Pop) : Instruction.Create(OpCodes.Stfld, field),
+        };
+        for (var offset = 0; offset < inserted.Length; offset++) instructions.Insert(index + offset, inserted[offset]);
+        return () => { foreach (var instruction in inserted) instructions.Remove(instruction); };
+    }
+
     private static Action AddStringProbe(ModuleDefinition module, string name, string value)
     {
         var type = AddProbe(module, name);
@@ -369,7 +420,7 @@ public sealed partial class OutboxDispatchConventionTests
                 var leaf = leafType.Methods.SingleOrDefault(method => MethodId(method) == MethodId(leaves[0]));
                 if (leaf is null) { offenders.Add("Missing lazy delegate: " + leaves[0].FullName); continue; }
                 expectedResolvers.Add(MethodId(leaf));
-                CheckCapturedKeyResolver(offenders, factory, leaf);
+                CheckCapturedKeyResolver(offenders, census, factory, leaf);
             }
 
             // Pin registration keys independently from callback keys. A changed key in
@@ -519,7 +570,8 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, TypeId(type) + " privileged source field access", actual, expected);
     }
 
-    private static void CheckCapturedKeyResolver(SortedSet<string> offenders, MethodDefinition factory, MethodDefinition leaf)
+    private static void CheckCapturedKeyResolver(SortedSet<string> offenders, ProductionCensus census,
+        MethodDefinition factory, MethodDefinition leaf)
     {
         // Recognize this one compiler-emitted closure: (provider, key) =>
         // new Lazy<NpgsqlDataSource>(() => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)).
@@ -532,14 +584,28 @@ public sealed partial class OutboxDispatchConventionTests
             || GenericService(target) != BoundaryDataSource || keyField is null || providerField is null
             || call.Previous!.OpCode != OpCodes.Ldfld || call.Previous.Previous!.OpCode != OpCodes.Ldarg_0
             || call.Previous.Previous.Previous!.OpCode != OpCodes.Ldfld
-            || !CapturesParameter(factory, keyField, 1) || !CapturesParameter(factory, providerField, 0))
+            || !CapturesParameter(census, factory, keyField, 1) || !CapturesParameter(census, factory, providerField, 0))
             offenders.Add(MethodId(leaf) + ": lazy resolver must forward its own registered key and provider unchanged");
     }
 
-    private static bool CapturesParameter(MethodDefinition factory, FieldReference field, int parameter) =>
-        factory.Body.Instructions.Count(instruction => instruction.OpCode == OpCodes.Stfld
-            && instruction.Operand is FieldReference assigned && assigned.FullName == field.FullName
-            && LoadsArgument(instruction.Previous, parameter + (factory.HasThis ? 1 : 0))) == 1;
+    private static bool CapturesParameter(ProductionCensus census, MethodDefinition factory, FieldReference field, int parameter)
+    {
+        var argument = factory.Parameters[parameter];
+        if (factory.Body.Instructions.Any(instruction => instruction.Operand is ParameterDefinition target && target == argument
+            && (instruction.OpCode == OpCodes.Starg || instruction.OpCode == OpCodes.Starg_S
+                || instruction.OpCode == OpCodes.Ldarga || instruction.OpCode == OpCodes.Ldarga_S))) return false;
+        // The matching original capture is insufficient: a later callback/helper
+        // write can replace the key or provider while preserving that instruction.
+        // Close every direct write and address escape of this exact captured field.
+        var mutations = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
+            .SelectMany(method => method.Body.Instructions.Where(instruction =>
+                    instruction.Operand is FieldReference assigned && SameType(assigned.DeclaringType, field.DeclaringType)
+                    && assigned.Name == field.Name && (instruction.OpCode == OpCodes.Stfld || instruction.OpCode == OpCodes.Stsfld
+                        || instruction.OpCode == OpCodes.Ldflda || instruction.OpCode == OpCodes.Ldsflda))
+                .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
+        return mutations.Length == 1 && mutations[0].Method == factory && mutations[0].Instruction.OpCode == OpCodes.Stfld
+            && LoadsArgument(mutations[0].Instruction.Previous, parameter + (factory.HasThis ? 1 : 0));
+    }
 
     private static bool LoadsArgument(Instruction? instruction, int index) => instruction is not null && (index switch
     {

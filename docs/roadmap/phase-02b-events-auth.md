@@ -1716,7 +1716,7 @@ status-transition and migration backfill methods; quoted/schema/case/CTE and
 missing/extra-writer controls prove its reach. These are bounded IL/literal-SQL
 checks, not arbitrary reflection or dynamic-SQL dataflow analysis.
 
-**Verification in progress:** the full Release solution build reports zero
+**Verification before review:** the full Release solution build reports zero
 warnings/errors, and solution-wide `dotnet format --verify-no-changes --no-restore`
 passes. All 21 focused census/publication cases pass with zero skips,
 including compiled actual production subjects and every planted control. Role
@@ -1724,16 +1724,44 @@ and Health catalogue rules are Implemented; Retry also names its canonical
 architecture method. The source/catalogue recount is 193 architecture test
 methods, 192 Implemented rules, 118 in that assembly and 74 elsewhere.
 
-Full Release regression, mandatory Docker proofs, applicable launcher/frontend
-checks and both Step 4 review rounds remain in progress. Final packet closeout
-also requires the seven existing CI checks at the exact PR head. This focused
-receipt claims no completed full regression, Step 4 review round, PR-head CI,
-packet closeout or merge.
+The full Release backend regression passes 3,393 cases with zero failures/skips:
+1,845 unit, 286 architecture, four contract, 175 Docker-free integration and
+1,083 Docker integration. TRX counters were inspected directly; the nonempty-run
+guard passes. The three additional case-insensitive credential-alias controls
+also pass in the focused seven-case run. Step 3's corrected launcher/frontend
+receipt remains the applicable local evidence: 91 lifecycle cases and 1,608
+frontend cases. These checks are not claimed as new Step 4 frontend reruns.
+The full PR-range documentation check passes 2,555 relative links/459 fragments,
+and all seven ADR-status script tests pass. Historical records and Accepted ADR
+text remain preserved. Independent reviews and exact-head CI still gate final
+packet closeout; no merge is claimed.
 
 P02b-3 still owns durable acceptance, shared inbox/ledger, independent subscriber
 retries, both real default subscriptions and Seeder handoff. Required production
 subscriptions remain Pending; test-owned Active contracts prove producer runtime
 without claiming consumer business effects.
+
+#### Step 4 review round 1
+
+Fresh read-only GPT-6-astra xhigh boundary and GPT-6.1-sol xhigh proof/corpus
+reviewers examined `02540d05..d2531f2`. They reproduced three structural test gaps,
+without finding a current production dispatcher defect. Captured key/provider
+fields could be reassigned after their original capture; valid comment-separated
+SQL and a later `TRUNCATE` target escaped the literal matcher; an additional
+factory-based hosted worker escaped the descriptor type filter.
+
+The fixes close all three: captured-field mutations are restricted to the exact
+factory parameter assignment, SQL recognizes those literal token separators and
+all listed truncate targets, and the actual hosted descriptor set includes only
+the singleton dispatcher and framework health publisher. Added dirty controls
+cover key/provider writes in the factory, callback and helper, field/argument
+address escapes and argument reassignment, SQL variants, and factory/instance
+worker duplicates. No test method or catalogue count is added. All 21 focused
+cases pass after the three corrections; the final seven boundary cases pass
+again after the adjacent argument-mutation controls, with zero failures/skips.
+The full regression above predates these test-only changes. The proof reviewer
+independently passed 26 existing focused/corpus cases, with zero failures/skips;
+neither reviewer claimed a new full suite. Round 2 remains pending.
 
 ### Durable outbox dispatch
 
