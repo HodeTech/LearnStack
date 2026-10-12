@@ -51,6 +51,13 @@ implements production-census guards and catalogue enforcement; its
 owns final verification and review status. Dispatcher/inbox
 choices remain P02b-2/P02b-3.
 
+The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
+and [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) propose
+leased producer recovery, atomic terminal audit and the coupled shared-inbox
+subscriber contract. They await maintainer approval; no remaining gate or runtime
+delivery is complete. The target examples below remain subject to that decision
+pass and must not be copied as an implemented dispatcher.
+
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
 cross-process transport LearnStack uses. [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)

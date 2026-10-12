@@ -23,6 +23,12 @@ merged** through [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on
 2026-10-12. The [merge closeout](#p02b-1-merge-and-closeout-2026-10-12) owns final
 verification and the next P02b-2 decision pass.
 
+**P02b-2 decision pass — 2026-10-12.** The
+[reviewed proposal](#p02b-2-decision-package-2026-10-12) and
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) are Proposed,
+awaiting maintainer approval. No dispatcher implementation has started and no
+remaining gate closes from this draft.
+
 **Phase 02d handoff — 2026-10-11.** P02b-0 re-verifies the delivered `/api/v1`
 public contracts, native HTTPS on retained `*.learnstack.local` seed hosts,
 manual hosts/trust setup and the shared private hop-secret source. ADR-0053/0054
@@ -286,12 +292,12 @@ premise a row cites is re-verified at that pass rather than trusted.
 |---|---|---|---|---|---|
 | G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages`, transport-claimed; the terminal state in its own store so "the inbox row is not marked processed" stays true | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-2 (the record and its amendments: the dispatcher's retry state and a failed delivery's next attempt are one state machine), P02b-3 (Database Standards § Inbox and the ADR-0023 erratum) | Open |
 | G2 | Does `IOutbox.EnqueueAsync` write the row immediately on the ambient transaction, or buffer for `OutboxFlushBehavior` at step 7 — and what is the flush point for the two paths that have no step 7? | Immediate write, with the behavior asserting no buffered message survives the handler | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 2's step-7 completion role, with a dated supersession disclosure in ADR-0032 at acceptance; phase-doc + [Events and Outbox § Producer pattern](../architecture/15-event-and-outbox.md#producer-pattern) | P02b-1 | Accepted — immediate enqueue/owner completion |
-| G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, enqueue order | Derivation: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md). Ordering: scoping is a phase-doc plus [§ Ordering](../architecture/15-event-and-outbox.md#ordering) edit; blocking is a dated ADR-0006 Amendment plus an index | P02b-1 (whether the key's derivation is checked structurally: the first event declares a key), P02b-2 (the ordering bound) | Derivation Accepted; ordering open (P02b-2) |
-| G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Dated ADR-0006 Amendment + the Database Standards § Outbox DDL, index and grant edits riding it | P02b-2 | Open |
+| G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, deterministic eligible selection; no enqueue/commit-order guarantee | Derivation: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md). Ordering: Proposed ADR-0046 and the P02b-2 package, followed by [§ Ordering](../architecture/15-event-and-outbox.md#ordering) alignment at acceptance | P02b-1 (whether the key's derivation is checked structurally: the first event declares a key), P02b-2 (the ordering bound) | Derivation Accepted; ordering open (P02b-2) |
+| G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Proposed ADR-0046 + dated ADR-0006 disclosure at acceptance; Database Standards § Outbox DDL, index and grant edits | P02b-2 | Open |
 | G5 | Does the stored event identity stay the assembly-qualified type name with declared compatibility mappings, and what happens to an unresolvable type, a retired type and an event with no subscriber? And what is the **row's** identity — a surrogate `id` plus an `event_id` column, or `EventId` as the key — given that two documents list an `event_id` the canonical DDL does not have? | Keep the type identity, add a bounded resolver reading through `PayloadJsonOptions` and declared mappings; dead-letter a retired type at once rather than spending its attempt budget; reconcile the row's column list in one direction | Stored identities: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 12 and the Phase 02b deliverables table in Implementation Notes, with a dated supersession disclosure at acceptance; Database Standards alignment. Resolver outcomes remain a P02b-2 decision; replacing the type identity requires its own ADR-0006 vehicle | P02b-1 (the stored type identity and the row's identity, both written at enqueue), P02b-2 (unresolvable, retired and unsubscribed types) | Stored identities Accepted; resolution outcomes open (P02b-2) |
 | G6 | When the unit-of-work owner is not an `AuditLogBehavior`, who performs the four owner-side audit acts and enters the outermost audit frame — and does a state-mutating delivery declare its own intents, keyed by handler type? | The transport opens the outermost frame beside its transaction; a delivery declares its own intents and an unregistered handler is refused as an unregistered request is | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md): bounded ADR-0040 nested-failure supersession; separately enumerated additive UoW read-seam amendment; clarifying ADR-0044/0033 common-owner amendments. G1-dependent production delivery/inbox implementation remains P02b-3 | P02b-1, P02b-3 | Producer/common owner Accepted; production delivery/inbox open (P02b-3 after G1) |
-| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | class MUST, `OperationType` `security-event`, the slug open under the § The join grammar `{module}.{resource}.{verb}`; the row written before the transition, so a failed write leaves the transition unmade and the next poll retries | Dated ADR-0033 Amendment + `DeclareOffPath` registrations + the Baseline row in [Audit Coverage Standards](../standards/18-audit-coverage.md#baseline-coverage-learnstack-core-modules). If the chosen ordering persists the terminal transition and its MUST row on **separate** transactions, that changes what ADR-0033's Decision guarantees rather than clarifying it, and the vehicle is a superseding record, not an amendment | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Open |
-| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Dated ADR-0006 or ADR-0003 Amendment; an architecture document cannot grant it | P02b-2 | Open |
+| G7 | For a dead-letter transition: what class, what `OperationType`, what slug, on which transaction, in what order against the state change, with what failure posture — and may a second non-MediatR caller reach `IAuditStore.WriteStandaloneAsync`? | MUST `security-event`; producer `platform.outbox.dead_letter` and reserved P3 `platform.delivery.dead_letter`; fenced terminal transition and audit INSERT on the same short transaction through a narrow fifth write seam; failed audit retries terminalization without publication | Proposed ADR-0046 + bounded ADR-0044 audit-grant replacement, separate additive fifth-writer seam amendment and ADR-0033 same-transaction clarification at acceptance; `DeclareOffPath` registration and Audit Coverage baseline | P02b-2 (the producer dead-letter row its criteria assert), P02b-3 | Open |
+| G8 | Does the dispatcher's `BYPASSRLS` use carry a per-invocation `security-event` row, or is it exempt — and on what written terms? | Exempt, on three terms: the bypass is grant-bounded and code-path-confined, dispatch attempts are logged rather than audited, and the dead-letter transitions are the audited events | Proposed ADR-0046 explicitly replaces the routine-dispatch coverage rule and bounds the ADR-0003 grant extension; dated disclosures at acceptance, not an ADR-0041 correction | P02b-2 | Open |
 | G9 | Which record decides the background-job runtime — its storage under the closed four-role model, the single tenant-context writer, the job frame's transaction owner, the enqueue-site rule *and who may enqueue whose job type*, the retry contract (whose class, slug and posture adopt **G7**'s), the tenantless platform-job class a purge needs, the ADR-0035 classification, the queue grammar, and the package pins with their licence verdict? | One record answering all of it; a job reaches the database only through `ISender`, which leaves ADR-0040's closed setter set at eight | **ADR-0047** + a dated ADR-0003 Amendment for the storage + a dated **ADR-0036 Amendment** (or an erratum) if the job-path writer is not the `JobActivator` its § Rules names in the closed four-caller set, then Standards 05 and Standards 20 | P02b-4 | Open |
 | G10 | Does the active tenant travel as a scalar `tenant_id` claim, a `memberships` array, or both — and what value does `UserId` hold? | The scalar claim, whose 02b source is an admin-set user attribute; a second UUID-valued `user_id` attribute for the actor, with `sub` staying Keycloak's subject | Phase-doc: [ADR-0036 § What is out of scope](../decisions/0036-tenant-resolution-trusted-inputs.md#what-is-out-of-scope-and-what-is-not) hands the shape to this phase by name. Reconcile `architecture/13`'s array sketch in the same change | P02b-5 | Open |
 | G11 | Which [ADR-0036 matrix](../decisions/0036-tenant-resolution-trusted-inputs.md#the-reconciliation-matrix) rows resolve in this phase, given that row 10 consults a reader that denies everyone — and what row covers a signature-valid token carrying no `tenant_id` claim on a tenant host? | Either mint `organization_id` scoped to the host's organization, which makes row 10 need no membership read, or declare the organization host's authenticated 404 and test it as the expected outcome | A dated **ADR-0036** amendment plus errata beside § Staging across packets and the 2026-09-02 erratum, both of which assign row 10 to this phase without noting that its `M covers (T, O)` term is denied until Phase 03 — which groups it with rows 7 and 14 rather than with 6 and 9 | P02b-5 | Open |
@@ -1159,6 +1165,199 @@ records and all Accepted ADR files are byte-preserved. Full runtime suites are
 not rerun locally for this documentation-only change; the final PR artifacts
 above supply their evidence.
 
+### P02b-2 decision package (2026-10-12)
+
+**Proposed — approval pending.** The documentation/code audit used `development`
+at `b1f6df34b1d0db9dff77b355743d7bf8885947b3`, the P02b-1 merge closeout.
+Three independent read-only audits covered delivery, privilege/audit and runtime/
+observability. They ran no tests and changed no files. The proposal uses reserved
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md); Accepted
+ADR bodies and prior dated delivery records remain intact. Approval is required
+before runtime code or the acceptance reconciliation below.
+
+#### Review findings and proposed answers
+
+The current bus's zero-handler success is unsafe for P1's real provisioning rows:
+their consumers do not exist until P3. Separately, the outbox role cannot write
+the MUST audit required by terminalization, and cancellation alone cannot bound
+a callback that ignores its token. ADR-0046 explicitly resolves these gaps.
+
+| Gate / concern | Proposed answer | Delivery owner |
+|---|---|---|
+| G1 subscriber identity and isolation | Shared transport-owned inbox keyed by tenant, stable subscription ID and event ID; separate delivery ledger owns attempts, terminal state and targeted replay | Contract now; implementation P02b-3 |
+| G3 ordering | Deterministic eligible selection by availability, occurrence and ID within one processor; no enqueue, commit, retry or cross-process ordering promise | P02b-2 |
+| G4 attempts and terminal state | Six committed normal claims; five published retry delays; fresh-token crash recovery; explicit terminal request and audited terminal timestamp; no seventh publish | P02b-2 |
+| G5 type and zero-subscriber policy | Declared concrete types/compatible aliases only; invalid/retired/unknown records terminalize; Pending required subscriptions preserve rows; only intentional absence acknowledges without publication | P02b-2; Active durable subscribers P02b-3 |
+| G7 terminal audit | Fenced state transition plus MUST security-event on one transaction through `WriteEventTerminalAsync`; `platform.outbox.dead_letter` now, reserved `platform.delivery.dead_letter` when P3's writer ships; failed audit retries terminalization without delivery | P02b-2 producer; P02b-3 subscriber |
+| G8 bypass | Explicit routine-dispatch exception, confined credential and exact grants; existing platform-scope entry audit unchanged | P02b-2 |
+| G17 metric dimensions | No tenant labels; registry-bounded event types; separate backlog, eligible age, deferred backlog and heartbeat; immutable gauge snapshots | P02b-2 |
+| G18 failure storage | Closed descriptor, at most 256 UTF-8 bytes with CHECK; replace free-form legacy descriptors without changing fact/state | P02b-2; erasure inventory P02b-8 |
+| Credential topology | API-owned keyed lazy source; exact physical outbox-role checks; boot connectivity; no Seeder/web credential propagation | P02b-2 |
+| G6/G19 dependency | Preserve common owner, envelope organization and effective SystemActor; activate both real defaults subscriptions only with durable acceptance and Seeder handoff | P02b-3 |
+
+The exact normative replacements and additive audit seam are enumerated in
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams).
+They are not ADR-0041 errata. At acceptance, append dated disclosures to
+ADR-0003/0006/0010/0038, the bounded audit-grant replacement disclosure and
+separate fifth-writer seam amendment to ADR-0044, and the same-transaction
+clarification to ADR-0033. Keep original acceptance blocks,
+decisions and earlier amendments byte-preserved. G1's rule changes are recorded
+now but their implementation remains Registered for P3.
+
+#### Runtime bounds and observation
+
+These are approval candidates, not implemented defaults. Options reject invalid
+or unbounded values at composition; tests can inject time and tighter positive
+bounds. Lease ownership always uses PostgreSQL time, never a caller's clock.
+
+| Setting / policy | Initial approved candidate |
+|---|---|
+| Worker and claim capacity | One worker; one just-in-time normal claim |
+| Idle poll | 200 ms |
+| SQL operation / complete terminal transaction deadline | 5 s |
+| Publish wait deadline | 10 s |
+| Lease | 30 s; validate margin for publish plus fenced transition |
+| Progress health bound | 45 s without actual completed progress |
+| Snapshot refresh | After completed iterations; idle target 5 s; stale at the 45 s health bound |
+| Cancellation-ignoring callbacks | At most four retained tasks; block their partitions; unhealthy while any remain; stop new claims at four |
+| Shutdown wait | At most 30 s; retain live task-owned resources until completion or process exit |
+| Attempts and backoff | Six normal claims total; 1 s, 5 s, 30 s, 5 min, 1 h |
+| Durable failure descriptor | Closed vocabulary, at most 256 UTF-8 bytes |
+
+A publish timeout cancels the callback and persists its fenced failure, or leaves
+an unknown outcome for expired-lease recovery if persistence fails. The callback
+keeps ownership of its scope until actual completion; its late result cannot
+acknowledge the row. Exclude its partition from new local claims until it finishes.
+Unrelated partitions can progress within the four-task allowance. Saturation
+stops acquisition and reports unhealthy; no unbounded detached-task replacement
+or forced managed-task termination is claimed. P3 must also fence its business
+transaction before enabling Active production subscribers.
+
+Its completion gate must reject a canceled/timed-out attempt before COMMIT even
+if failure persistence did not replace its token. Cancellation after physical
+COMMIT starts remains Indeterminate under ADR-0033; P3 recovers from atomic
+business/inbox/ledger state rather than promise rollback at that boundary.
+
+Pending count includes all unprocessed, nonterminal rows, including delayed,
+leased, terminal-requested and manifest-deferred work. Eligible age excludes
+future availability, live leases and held/locally blocked partitions; it is zero
+when none qualify and never negative. Deferred count exposes manifest-held work.
+Heartbeat advances only after actual bounded loop work, including an empty poll,
+not from an independent timer. Failed refresh retains the last snapshot and
+marks observation stale. Terminal-audit failure is unhealthy, never a fabricated
+successful empty queue. `/healthz` remains liveness-only.
+
+Standards 10 owns the final metric inventory at acceptance. Preserve existing
+outbox duration/failure/dead-letter/lease-loss names with registry-bounded
+`event_type` where applicable. Add unlabelled
+`learnstack_outbox_oldest_eligible_age_seconds`,
+`learnstack_outbox_deferred_count` and
+`learnstack_outbox_heartbeat_age_seconds`; pending count becomes unlabelled.
+Inbox counters remain reserved for P3, and job metrics for P4. Gauge callbacks
+perform no SQL. Dispatcher-owned logs, traces and failure descriptors use validated
+correlation and bounded outcomes, without exception text, payload, raw stored type
+or connection data. Current bus/consumer exception telemetry is a separate P3
+reconciliation obligation before Active production subscriptions; this packet
+does not claim that existing transport diagnostics are already minimized.
+
+#### Four implementation steps after approval
+
+Each step implements and commits on `development`, then runs two fresh independent
+review rounds. Verify findings against current code, fix valid findings, validate
+and commit fixes before the next round/step. A clean review needs no empty commit.
+The loop continues automatically unless a blocker or new maintainer decision
+requires input. No branch switch or history rewrite is part of this package.
+
+1. **Decision reconciliation, schema and confined composition.** Accept ADR-0046
+   and the gate parts above before code. Register catalogue obligations; update
+   canonical Outbox DDL/indexes/grants, metric labels, audit policy, architecture
+   and glossary. Add Platform-chain lease/terminal/descriptor/identity migration
+   and Audit-chain INSERT-grant migration. Declare registry/aliases/readiness,
+   keyed credential validation and physical-role guard. Adapt test-owned host
+   composition explicitly; production registration stays enabled. Validate exact
+   privilege sets, forward/down/reapply and invalid legacy input. No handler or
+   arbitrary type is constructed to discover subscription metadata.
+2. **Durable transitions and terminal audit.** Implement parameterized claim,
+   recovery, success, backoff, terminal-request and atomic terminal-audit paths.
+   Add the confined fifth store method, off-path catalogue/matrix row and narrow
+   call-site guard. Prove token/expiry fences, same-worker reclaim, six-claim crash,
+   no seventh publish, uncertain completion and audit rollback on real PostgreSQL
+   using actual outbox/application roles. Intentional absence and Pending holds
+   must have distinct non-vacuous controls.
+3. **Hosted lifecycle and observability.** Activate the API BackgroundService;
+   implement bounded waits/overruns/shutdown, progress health, safe traces and
+   snapshot metrics. Adapt the API launcher/demo environment allowlist and its
+   proofs without forwarding the credential to web/Seeder. Prove production
+   registration, startup rejection/valid controls, poison-row progress, ignored
+   cancellation, safe disposal and continued unrelated work within the bound.
+4. **Enforcement and closeout.** Complete production-census and planted controls,
+   full Release regression/format, mandatory Docker proofs and applicable demo/
+   frontend tooling checks. Reconcile current-state docs, actual test counts,
+   catalogue status and seven existing CI checks at the exact PR head. Create the
+   PR for maintainer review only after every step/review is complete; claim no
+   merge or P3 delivery from P2 closeout.
+
+#### Decisive proof obligations
+
+- Two independent processors contend under live leases; a release-on-read mutant
+  fails. Expiry allows redelivery; both stale success and stale failure lose the
+  token fence, including reacquisition by the same worker identity. This is not
+  a claim of two separate processes or exactly-once publication.
+- Retry boundaries use controllable time/database availability, not wall-clock
+  sleeps. Crash recovery after claim six and audit refusal cannot cause a seventh
+  publish. Reconcile lost/uncertain terminal COMMIT before retrying so a completed
+  terminal audit is not duplicated. Terminal, delayed, leased, deferred and due
+  rows distinguish all queue gauges.
+- Known V1 payloads remain readable after declared deployment aliases. Reverse
+  commits, equal occurrence times and retry overtaking falsify stronger ordering.
+  Unknown/retired/malformed/mismatched rows do not trigger arbitrary type loading.
+- Real TenantCreated rows survive repeated Pending polls without attempts or
+  constructions. P3's activation proof must later deliver them to both stable IDs.
+- Missing/malformed/wrong-user credentials refuse without secret text; valid
+  configuration is lazy; real physical guards reject elevated/transitive roles.
+  Audit INSERT is allowed; audit read/update/delete and business access are not.
+- Cancellation-ignoring operations retain safe resource ownership, cannot write
+  late acknowledgements and cannot grow beyond the approved bound. A blocked or
+  saturated loop becomes unhealthy while `/healthz` still returns 200.
+- Before P3 activates subscribers, its proof must include failed timeout
+  persistence followed by late business completion and timeout during physical
+  COMMIT on the final subscriber claim; atomic ledger/inbox state decides recovery.
+- Structural censuses include production subjects and planted clean/dirty cases
+  for each key's resolution, publication, type loading and write confinement.
+  Behavioural controls mutate lease/terminal/audit safeguards to prove sensitivity.
+
+#### Scope retained by later owners
+
+P3 owns shared Inbox/delivery DDL and RLS, per-subscription business/audit frames,
+retries, terminal audit and targeted replay, both Customization defaults and
+Seeder identity handoff. That boundary is required by the packet dependency,
+not an unowned deferral. The companion Hub roadmap's per-module inbox reference
+needs a coordinated dependency-pointer update before P3 closeout; Hub remains
+roadmap owner and this package adds no Hub endpoint or runtime work. P4 owns jobs;
+Phase 03 owns operator routes/permissions; P02b-8 owns erasure inventory; Phase 11
+owns brokers, cross-process evidence, purge and readiness exposure.
+
+#### Proposal review and validation (2026-10-12)
+
+Two independent review rounds completed before maintainer approval. Round 1 used
+separate GPT-6.1-sol xhigh delivery and security/corpus reviewers. Verified fixes
+separate the audit-grant replacement from the additive fifth seam, allow safe
+terminal auditing of malformed causal metadata, scope diagnostic minimization to
+the dispatcher, and require atomic subscriber ledger completion plus a sticky
+timeout gate. Cancellation after physical COMMIT starts remains Indeterminate.
+Both reviewers approved the corrected proposal.
+
+Round 2 used fresh GPT-6.1-sol xhigh delivery and GPT-6-astra high corpus/privilege
+reviewers. Both approved without actionable findings. Reviews were read-only;
+they did not run runtime suites or claim implementation evidence.
+
+Documentation-only validation passes: 266 local Release architecture cases,
+seven ADR lifecycle/workflow controls, 329 local links and 119 fragments across
+the four changed Markdown files, prose wrapping and `git diff --check`. Prior
+P02b-0/P02b-1 dated delivery records and all Accepted ADR files are byte-preserved.
+Full runtime/Docker suites remain implementation-step obligations; no dispatcher,
+inbox or gate delivery is claimed by this proposal.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
@@ -1236,10 +1435,11 @@ Dapr trigger verbatim — so it stays with Phase 11.
 `partition_key` is on the row and `InProcessEventBus` serialises per key within a
 process. What a key guarantees across commits, retries and processes is **G3**: no
 column obtainable from `outbox_messages` carries an unconditional per-key publish-order
-guarantee — `occurred_at` is the transaction's start time and is identical for every row
-one transaction writes, the `uuidv7()` id is minted at `INSERT`, a failed row's
-`available_after` moves past its own successor, and an unordered `RETURNING` has no
-defined row order. The completion criterion follows the gate, and
+guarantee. P02b-1 supplies the fact's occurrence time and EventId explicitly at
+enqueue; neither establishes commit order. A failed row's `available_after`
+moves past its own successor, and an unordered `RETURNING` has no defined row
+order. G3's proposed selection bound is in the P02b-2 package; it is not an
+enqueue-order promise. The completion criterion follows the gate, and
 [§ Ordering](../architecture/15-event-and-outbox.md#ordering) is edited to match it.
 
 #### Domain events collected and dispatched
