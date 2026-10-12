@@ -1615,8 +1615,8 @@ startup resolution/connectivity, bounded publication lifecycle and retained
 overrun ownership. Observation supplies immutable gauge snapshots, bounded
 producer diagnostics and the registered, unmapped `outbox` health check.
 `/healthz` remains liveness-only. Paired API launchers supply application and
-confined dispatcher credentials; Seeder strips the dispatcher credential and
-web receives neither database credential.
+confined dispatcher credentials; every Seeder invocation uses an explicit
+application-only environment, and web receives neither database credential.
 
 **Verification before review:** the Release solution build reports zero
 warnings/errors. TRX counters record zero failures/skips in the complete unit
@@ -1649,13 +1649,36 @@ Two behavioural mutations fail in the intended executed test: removing local
 partition admission permits a sibling claim before retained cleanup completes;
 removing live-lease admission permits a competing worker to claim the held row.
 Both source files are byte-restored before the clean build/unit/worker rerun.
-Both independent review rounds remain pending; neither has started.
-Steps 1–2 completed both rounds in their
+Step 3 round 1 is complete; round 2 follows the verified launcher correction
+below. Steps 1–2 completed both rounds in their
 records above. Step 4 owns full credential/publication censuses, catalogue
 enforcement and packet closeout. P02b-3 still owns durable acceptance, shared
 inbox/ledger, independent subscriber retries, both real default subscriptions and
 Seeder handoff. Real required subscriptions remain Pending; no consumer business
 effect is claimed.
+
+#### Step 3 review round 1
+
+Fresh read-only GPT-6-astra xhigh security/lifecycle and GPT-6.1-sol xhigh
+proof/corpus reviewers examined `d4c06a46..756c8523`. Security approved without
+verified findings. The proof reviewer found that the demo's pre-existing
+`--validate-demo-config` invocation forwarded all four credentials to Seeder,
+contradicting the new confinement claim. Validation now runs inside the launcher
+with a closed local connection grammar; the obsolete Seeder mode is removed.
+Manifest and convergence modes share the same explicit child allowlist, and
+standalone `make seed` uses it too, excluding ambient aliases and role passwords.
+Stale role/password/database/host/port and malformed configuration controls move
+with their owner instead of weakening the check. The complete Docker integration
+regression at the implementation commit passes 1,083 cases with zero failures or
+skips. This supplements the focused pre-review receipt above; final packet
+verification will rerun the changed tooling and actual PR-head CI.
+The correction's Release build has zero warnings/errors; the Docker-free
+integration run passes 175 cases after seven obsolete parser cases moved to the
+launcher suite. The guarded complete frontend run passes 1,608 cases (1,548 web
+and 60 SDK), with zero skips/todos; 91 demo lifecycle cases include all four-role
+configuration and actual shell/child-environment controls. Typecheck, affected
+formatting, script syntax, diff whitespace and the delivery-record link check
+pass. These are correction receipts, not a new full-Docker rerun.
 
 ### Durable outbox dispatch
 

@@ -20,6 +20,7 @@ import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 import { apiCompletionObserver } from './demo-observation.mjs';
+import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -242,6 +243,7 @@ export async function startDemo(mode) {
       await run('dotnet', [seederDll, '--demo-manifest'], 'Seed-derived manifest', {
         capture: true,
         cwd: backendRoot,
+        env: publicSeederEnvironment(),
       }),
     );
     const hosts = [...new Set(manifest.map((lane) => lane.host))];
@@ -313,12 +315,7 @@ export async function startDemo(mode) {
     const values = loadLocalEnvironment(repositoryRoot, process.env);
     const configuration = publicServerConfiguration(values, repositoryRoot);
     await vacant(Number(new URL(configuration.apiOrigin).port || '80'));
-    await run(
-      'dotnet',
-      [seederDll, '--validate-demo-config'],
-      'Local database configuration validation',
-      { cwd: backendRoot, env: { ...process.env, ...rawValues } },
-    );
+    validateDemoDatabaseConfiguration(rawValues);
     const certificate = readFileSync(configuration.certificate);
     const leaf = validateCertificate(certificate, readFileSync(configuration.privateKey), [
       ...hosts,
@@ -391,11 +388,7 @@ export async function startDemo(mode) {
     await waitCompose(selected, processes, controller.signal);
     await run('dotnet', [seederDll], 'Contextual seed convergence', {
       cwd: backendRoot,
-      env: {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME,
-        ConnectionStrings__Default: rawValues.ConnectionStrings__Default,
-      },
+      env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
       timeout: 180000,
     });
     if (mode === 'ci') {

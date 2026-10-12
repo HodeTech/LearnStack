@@ -126,9 +126,19 @@ fi
 # Run from `backend/`, where the SDK pin lives (`backend/global.json`): from the
 # repository root no global.json applies and whichever SDK is newest answers, which is
 # not the one CI and `make migrate` use.
-# The dispatcher belongs to the API host, even when exported by the caller.
-if ! (cd backend && unset ConnectionStrings__OutboxDispatcher && ConnectionStrings__Default="$seed_cs" \
-        dotnet run --project src/LearnStack.Tools.Seeder); then
+# The API's dispatcher credential and its aliases never enter the Seeder process.
+# Node is already required above and shares the demo's exact child allowlist.
+if ! ConnectionStrings__Default="$seed_cs" node --input-type=module <<'NODE'
+import { spawnSync } from 'node:child_process';
+import { publicSeederEnvironment } from './scripts/demo-database.mjs';
+const result = spawnSync('dotnet', ['run', '--project', 'src/LearnStack.Tools.Seeder'], {
+  cwd: 'backend',
+  env: publicSeederEnvironment(process.env.ConnectionStrings__Default),
+  stdio: 'inherit',
+});
+process.exit(result.status ?? 1);
+NODE
+then
     red "seed: tenant seeding failed."
     red "  Has the schema been applied? → make migrate"
     exit 1
