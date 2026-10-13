@@ -2673,7 +2673,7 @@ package; production subscriptions remain Pending.
 
 ### P02b-3 Step 3 — business owner and completion gate (2026-10-13)
 
-**Implementation delivered; review round 1 complete, round 2 pending.**
+**Complete; both independent review rounds complete.**
 The closed prepared-owner entry announces the routing tenant/org and binds the
 actual frame, unit, transaction and generation before retained-envelope loading.
 Full validated event context replaces any inherited caller context before module
@@ -2750,6 +2750,25 @@ run and `PublicServerRenderingTests`, whose long frontend proof remains in the
 full Step 6 regression. Together these runs pass 1,410 integration cases. The
 catalogue correction and review record pass link/fragment, historical-preservation
 and whitespace checks. Fresh round 2 follows the correction commit.
+
+#### Step 3 review round 2 and closeout
+
+Two new reviewers independently inspect `81ab105..5a8b85d`, including the verified
+round-one correction. GPT-6-sol/high approves the runtime/security/concurrency
+path with zero actionable findings and independently passes 22 focused unit and
+37 integration cases. A fresh GPT-6-astra/high evidence reviewer approves with
+zero Blocker/Major/Minor findings and independently passes those 22 unit, 37
+integration and two owner-census cases. All reruns have zero failures/skips.
+Full-suite and compiled-mutation receipts are inspected rather than rerun by
+these reviewers. The initially selected evidence reviewer could not start because
+its model was at capacity; it supplies no review evidence and was replaced by
+the fresh reviewer named above.
+
+Implementation is `77890ea`; `5a8b85d` records the broader regression and fixes the
+verified catalogue attribution. No runtime review fix is required. Earlier
+Accepted ADR text and historical delivery records remain intact. Step 4 follows
+automatically under the accepted package; no new decision or privilege expansion
+is needed for its independent subscriber scheduler.
 
 ### Durable outbox dispatch
 
