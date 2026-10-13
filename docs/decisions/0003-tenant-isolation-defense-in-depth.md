@@ -473,3 +473,19 @@ visible to the application's separate connection and is not a valid test setup.
 - [PostgreSQL 18: Constraints](https://www.postgresql.org/docs/18/ddl-constraints.html)
 - [PostgreSQL 18: Generated columns](https://www.postgresql.org/docs/18/ddl-generated-columns.html)
 - [Education module spec](../modules/education/README.md)
+
+## Amendment 7 — Event-delivery grant-budget extension (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#atomic-terminal-audit-and-privilege-boundary)
+retains Amendment 3's four roles, separate credentials and RLS postures. Its
+bounded grant-budget extension is canonical in
+[Database Standards](../standards/05-database.md#grant-matrix): P02b-2 adds
+named outbox status-column UPDATEs and INSERT-only on `audit_log` for confined,
+atomic terminal auditing. P02b-3 adds only its separately enumerated delivery
+scheduling grants, without envelope/payload SELECT or business-table access.
+
+This is an additive navigation disclosure, not an ADR-0041 correction or a claim
+that this ADR contained an outbox-only grant clause. Original acceptance metadata,
+body and prior amendments remain intact. Acceptance authorizes implementation;
+[P02b-2's delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
+owns evidence. The platform-admin gate and pre-entry audit remain unchanged.

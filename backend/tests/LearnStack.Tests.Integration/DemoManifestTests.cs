@@ -1,7 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
-using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -59,54 +58,5 @@ public sealed class DemoManifestTests
         }
         manifest.Select(row => row.Fields.Count).Distinct().Should().HaveCount(2,
             "the browser proof must observe two genuinely distinct authored shapes");
-    }
-
-    [Theory]
-    [InlineData("Default", "Username=learnstack_platform")]
-    [InlineData("Migration", "Username=learnstack_app")]
-    [InlineData("Default", "Host=remote.example")]
-    [InlineData("Default", "Port=5433")]
-    [InlineData("Default", "Database=other")]
-    [InlineData("Default", "Password=stale")]
-    public void Demo_configuration_refuses_stale_or_privileged_connection_values(string key, string replacement)
-    {
-        var values = Configuration();
-        DemoDatabaseConfiguration.IsValid(values).Should().BeTrue();
-        values[$"ConnectionStrings__{key}"] += ";" + replacement;
-        DemoDatabaseConfiguration.IsValid(values).Should().BeFalse();
-    }
-
-    [Fact]
-    public void Demo_configuration_refuses_missing_and_malformed_values()
-    {
-        DemoDatabaseConfiguration.IsValid(new Dictionary<string, string>()).Should().BeFalse();
-        var values = Configuration();
-        values["ConnectionStrings__Default"] = "not a connection string";
-        DemoDatabaseConfiguration.IsValid(values).Should().BeFalse();
-    }
-
-    private static Dictionary<string, string> Configuration()
-    {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal) { ["POSTGRES_DB"] = "demo" };
-        foreach (var (suffix, role, key) in new[]
-        {
-            ("Migration", "learnstack_migration", "LEARNSTACK_MIGRATION_PW"),
-            ("Default", "learnstack_app", "LEARNSTACK_APP_PW"),
-            ("PlatformAdmin", "learnstack_platform", "LEARNSTACK_PLATFORM_PW"),
-            ("OutboxDispatcher", "learnstack_outbox_admin", "LEARNSTACK_OUTBOX_PW"),
-        })
-        {
-            // Ephemeral parser inputs only: no service uses these credentials.
-            var password = Guid.NewGuid().ToString("N");
-            values[key] = password;
-            values[$"ConnectionStrings__{suffix}"] = new NpgsqlConnectionStringBuilder
-            {
-                Host = "localhost",
-                Database = "demo",
-                Username = role,
-                Password = password,
-            }.ConnectionString;
-        }
-        return values;
     }
 }

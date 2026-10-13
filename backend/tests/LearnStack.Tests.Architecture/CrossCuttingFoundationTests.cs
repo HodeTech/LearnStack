@@ -774,6 +774,8 @@ public sealed class CrossCuttingFoundationTests
     [Fact]
     public void Modules_Do_Not_Inject_IEventBus_Directly()
     {
+        OutboxDispatchConventionTests.AssertOnlyWorkerPublishes();
+
         // Standards 20 § IEventBus: the only sanctioned publisher is the
         // OutboxProcessor. A module that injects IEventBus gets a synchronous
         // cross-module call with no durability and no transactional atomicity —

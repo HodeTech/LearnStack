@@ -1,5 +1,8 @@
+using LearnStack.Api.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace LearnStack.Tests.Contract;
@@ -15,13 +18,24 @@ namespace LearnStack.Tests.Contract;
 /// gated <c>MapOpenApi()</c> on <c>IsDevelopment()</c>, so the document 404'd
 /// in CI without it. Packet 4 removed that gate — the document is the contract
 /// the SDK generates from and CI diffs, so it is served in every environment —
-/// and the override now exists only to keep the contract suite on one known
-/// environment rather than on whatever the runner happens to set.
+/// and the environment override keeps the contract suite on one known environment.
+/// This served-contract fixture also removes the dispatcher worker because it owns
+/// no dispatcher database. Its retained private outbox health check intentionally
+/// remains Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
 /// </remarks>
 public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
+        // This served-contract proof owns no dispatcher database. Remove only
+        // that worker; production startup tests retain the mandatory registration.
+        builder.ConfigureTestServices(services =>
+        {
+            foreach (var descriptor in services.Where(descriptor =>
+                         descriptor.ServiceType == typeof(IHostedService)
+                         && descriptor.ImplementationType == typeof(OutboxProcessor)).ToArray())
+                services.Remove(descriptor);
+        });
     }
 }

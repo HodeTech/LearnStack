@@ -129,11 +129,12 @@ Add yours to the file whose subject it shares:
 | `ApiConventionTests.cs` | Live majors, forwarded headers, required `Deployment:Mode`, unversioned route prefixes. |
 | `CrossCuttingFoundationTests.cs` | Pipeline order, `Result<T>` returns, topic naming, and the direct-reference bans (Sentry, `DeploymentMode`, `IEventBus`, the cache clients, the Hub, provider SDK exceptions). |
 | `RequestSurfaceTests.cs` | What the step-4 authority ceiling admits: the two request markers, their permitted sets, the shape of the attributes themselves, and the ban on request shapes MediatR runs with no pipeline. |
-| `PlatformAdminScopeConventionTests.cs` | The single sanctioned `BYPASSRLS` path: who may resolve the keyed platform data source, where connection strings are read, the entry gate, and what the scope must not touch. |
+| `PlatformAdminScopeConventionTests.cs` | The platform-admin `BYPASSRLS` path: who may resolve its keyed data source, where connection strings are read, the entry gate, and what the scope must not touch. ADR-0046 separately confines the dispatcher credential. |
 | `RepositoryLayoutTests.cs` | `No_Source_Folder_Named_Verticals`, the single-frontend-app rule, and the commit-subject grammar — checked by running the `commit-msg` hook. |
 | `DomainEventHandlerTests.cs` | Complete domain-handler/helper/interface census; outbox-only reactions with planted forbidden-capability controls. |
 | `IntegrationEventContractTests.cs` | Production event inheritance, explicit identifier partition derivation and identifier-only payload/serializer shape. |
 | `OutboxProducerConventionTests.cs` | Producer/helper fence against extra connections, commit ownership and direct publication. |
+| `OutboxDispatchConventionTests` (partial files) | Whole-production dispatcher credentials/publication, exact literal-SQL writers and memory-only observation/registration censuses, with compiled clean/dirty controls. |
 | `AggregateWriteTests.cs` | The one sanctioned cross-aggregate write, and the count of aggregate roots a handler's ports can write that keeps it at one. |
 | `CustomizationRegistryTests.cs` | The closed renderer registries that exist twice — in C# and in TypeScript — and stop the two drifting. |
 | `AuditConventionTests.cs` | The audit aggregate's shape, the closed-set columns against their `CHECK`s, append-only enforcement at the source level, the closed set of `audit_log` writers, and the `OperationType` table. |

@@ -375,8 +375,12 @@ domain the diff doesn't touch.
   [30-api-gateway.md § 2](../../../docs/architecture/30-api-gateway.md).
 - [ ] Hub contract surface still satisfies ADR-0034's two invariants; any new
   endpoint carries its ADR and lands in both repositories.
-- [ ] Outbox + inbox usage correct (atomic with aggregate write; inbox guard
-  in every consumer).
+- [ ] Producer INSERT uses its announced transaction. ADR-0046 dispatcher
+  transitions use fresh tokens and atomic terminal audit; transport-owned shared
+  inbox acquisition precedes handler construction (P02b-3 pending).
+- [ ] Manifest readiness preserves required Pending rows. Active publication
+  means durable acceptance; subscriber retry/terminal/replay state is independent
+  of the producer budget. Check catalogue status before claiming enforcement.
 
 ### Step 4 — Architecture-test coverage
 

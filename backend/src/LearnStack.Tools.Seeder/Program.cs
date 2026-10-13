@@ -15,15 +15,6 @@ if (args is ["--demo-manifest"])
     Console.WriteLine(JsonSerializer.Serialize(DemoManifest.Create(), JsonSerializerOptions.Web));
     return 0;
 }
-if (args is ["--validate-demo-config"])
-{
-    // Configuration arrives via the environment, never credential-bearing argv.
-    var values = Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
-        .ToDictionary(row => (string)row.Key, row => (string)row.Value!, StringComparer.Ordinal);
-    if (DemoDatabaseConfiguration.IsValid(values)) return 0;
-    Console.Error.WriteLine("demo: database configuration disagrees with the selected local stack.");
-    return 2;
-}
 if (args.Length != 0)
 {
     Console.Error.WriteLine("seed: unsupported arguments.");

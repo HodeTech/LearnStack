@@ -4,6 +4,8 @@
 **Derives from:** [ADR 0002 — Initial Architecture](../decisions/0002-initial-architecture.md), [ADR 0006 — Events and Outbox](../decisions/0006-events-and-outbox.md) (outbox + tenant-context propagation across async boundaries), [ADR 0032 — Exception Handling, Logging, and Observability Architecture](../decisions/0032-exception-handling-logging-and-observability.md) (Sentry / OTel boundary, Serilog wiring, span attribute propagation, deployment-mode branching).
 Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -151,7 +153,7 @@ Auto-instrument:
 - Entity Framework Core queries.
 - MediatR commands and queries.
 - Hangfire job invocations.
-- Outbox dispatcher batches.
+- Outbox dispatcher attempts (P02b-2 Step 3; no batch span).
 - Valkey client calls.
 - SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
@@ -223,9 +225,16 @@ backend treat business rejections as system failures.
 | `learnstack_http_request_duration_seconds` | histogram | route, method, status |
 | `learnstack_http_request_total` | counter | route, method, status |
 | `learnstack_db_query_duration_seconds` | histogram | module, operation |
-| `learnstack_outbox_pending_count` | gauge | tenant |
+| `learnstack_outbox_pending_count` | gauge | — |
 | `learnstack_outbox_dispatch_duration_seconds` | histogram | event_type |
 | `learnstack_outbox_dispatch_failed_total` | counter | event_type |
+| `learnstack_outbox_deadletter_total` | counter | event_type |
+| `learnstack_outbox_lease_lost_total` | counter | — |
+| `learnstack_outbox_oldest_eligible_age_seconds` | gauge | — |
+| `learnstack_outbox_deferred_count` | gauge | — |
+| `learnstack_outbox_heartbeat_age_seconds` | gauge | — |
+| `learnstack_inbox_dedup_total` | counter | module, event_type (P02b-3 reserved) |
+| `learnstack_inbox_deadletter_total` | counter | module, event_type (P02b-3 reserved) |
 | `learnstack_job_duration_seconds` | histogram | job_name |
 | `learnstack_job_failed_total` | counter | job_name |
 | `learnstack_provider_request_duration_seconds` | histogram | provider, operation, outcome |
@@ -243,6 +252,29 @@ backend treat business rejections as system failures.
 | `learnstack_audit_standalone_duplicates_total` | counter | `operation` |
 | `learnstack_entitlement_source_total` | counter | `source` |
 | `learnstack_entitlement_unresolved_total` | counter | — |
+
+Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
+both independent review rounds are complete. Inbox counters remain P02b-3 and job
+metrics P02b-4. `event_type` comes only from the
+finite declared registry plus fixed unknown/retired/invalid categories. Never
+label event metrics by tenant, event, partition, subscription or trace identity.
+
+Pending count includes all unprocessed, non-dead-lettered rows, including delayed,
+leased, terminal-requested and manifest-deferred work. Oldest eligible age uses
+the exact normal claim predicate, excluding future, exhausted, terminal-requested,
+live/unrecovered-expired leases and manifest/local partition holds. It is zero
+when no row qualifies and never negative. Deferred count isolates manifest holds.
+Heartbeat advances after actual bounded loop work, including empty polls.
+
+Gauges read immutable memory snapshots and perform no SQL. Refresh follows
+completed iterations, targets 5 s idle and becomes stale at the approved 45 s
+health bound. Failure retains the prior snapshot and reports unhealthy. The
+[P02b-2 bounds](../roadmap/phase-02b-events-auth.md#runtime-bounds-and-observation)
+own deadlines and task limits. Dispatcher-owned logs/spans use validated
+correlation and bounded outcomes, without exception text/stacks, payload, raw
+stored type or connection data. P02b-3 reconciles existing transport/consumer
+exception telemetry before Active consumers; no current transport/consumer
+minimization is claimed.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
@@ -279,8 +311,11 @@ touched.
 | Check | Registered as | Unhealthy when |
 |---|---|---|
 | Audit write path | `audit` | The most recent MUST-class standalone audit write failed and no later one has succeeded |
+| Outbox dispatcher (P02b-2 Step 3) | `outbox` | No actual progress or observation refresh for 45 s, any retained callback overrun, or terminal-audit failure |
 
-The `audit` check is registered in Phase 02a Packet 9 and **not mapped**: `/healthz` stays
+The `audit` check is registered in Phase 02a Packet 9; P02b-2 Step 3 registers
+`outbox`, with both independent review rounds complete.
+Both are **not mapped**: `/healthz` stays
 a liveness probe, because a process that cannot write audit rows is still worth leaving
 alive. The readiness surface that reads the check, and the deployment-level backstop that
 stops serving past a configured unhealthy window, are demand-gated to
@@ -347,7 +382,7 @@ The first set of dashboards (Phase 11 deliverable):
 |-------|-----------|----------|
 | API 5xx rate | > 1% for 5 min | page |
 | API latency p95 | > 2× budget for 10 min | page |
-| Outbox pending count | > 10k for 10 min | page |
+| Outbox oldest eligible age / heartbeat | > 45 s; validate production window in Phase 11 | page |
 | Background job failures | > 5% for 10 min | page |
 | Classroom join failure | > 5% for 5 min | page |
 | Disk usage (DB) | > 80% | warn |

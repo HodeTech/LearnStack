@@ -315,7 +315,7 @@ public sealed class PublicReadTransactionTests(SchemaFixture schema)
     private static PostgresAuditStore Store(IServiceProvider services, AuditStateCapture capture) => new(
         capture, new Lazy<NpgsqlDataSource>(services.GetRequiredService<NpgsqlDataSource>),
         NullLogger<PostgresAuditStore>.Instance,
-        services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>(), new AuditHealth());
+        services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>(), new AuditHealth(), new AuditCatalog([]));
 
     private static async Task AssertRoleAsync(IUnitOfWork unit)
     {

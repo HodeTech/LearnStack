@@ -1,6 +1,9 @@
 using System.Reflection;
 using FluentAssertions;
+using LearnStack.Api.Messaging;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -27,6 +30,12 @@ public sealed class PlatformAdminScopeConventionTests
     private const string CompositionFile =
         "LearnStack.Api/Composition/PersistenceCompositionExtensions.cs";
 
+    // A distinct keyed credential, confined by ADR-0046. Naming it explicitly
+    // preserves this global resolution fence while permitting its approved root.
+    private const string OutboxCompositionFile =
+        "LearnStack.Api/Composition/OutboxCompositionExtensions.cs";
+    private const string OutboxWorkerFile = "LearnStack.Api/Messaging/OutboxProcessor.cs";
+
     [Fact]
     public void Platform_DataSource_Resolved_Only_By_PlatformAdminScope()
     {
@@ -48,9 +57,17 @@ public sealed class PlatformAdminScopeConventionTests
             .ToList();
 
         resolvers.Should().BeEquivalentTo(
-            [ScopeFile, CompositionFile],
-            "the scope injects the keyed source and the composition root registers it; a "
-            + "third resolver is a second path to a credential that sees every tenant");
+            [ScopeFile, CompositionFile, OutboxCompositionFile, OutboxWorkerFile],
+            "the platform scope and the separately confined dispatcher are the only "
+            + "credential consumers, alongside their composition roots");
+
+        typeof(OutboxProcessor).GetConstructors().SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.GetCustomAttribute<FromKeyedServicesAttribute>())
+            .OfType<FromKeyedServicesAttribute>().Should().ContainSingle().Which.Key
+            .Should().Be(OutboxDispatcherDataSource.Key,
+                "permitting the worker file must not permit the platform credential");
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxWorkerFile))
+            .Should().NotContain("PlatformAdmin");
 
         // Leg 2 — IConfiguration.GetConnectionString is called in exactly one file under
         // backend/src. Not "every credential is read in one file": the two design-time
@@ -65,8 +82,11 @@ public sealed class PlatformAdminScopeConventionTests
         // is a rule matching its own vocabulary rather than a credential.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "GetConnectionString", except: null)
             .Should().BeEquivalentTo(
-                [CompositionFile],
-                "one file reads credentials, so one file decides what is done with them");
+                [CompositionFile, OutboxCompositionFile],
+                "each credential has an explicitly confined composition root");
+
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxCompositionFile))
+            .Should().NotContain("PlatformAdmin", "outbox composition must never read the platform credential");
 
         // Leg 2b — the OTHER way to read the same value. GetConnectionString(name) is
         // sugar for configuration[$"ConnectionStrings:{name}"], so the indexer form

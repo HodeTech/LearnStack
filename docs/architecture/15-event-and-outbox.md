@@ -24,10 +24,11 @@ not land together.
 
 | Piece | Owning phase | State |
 |---|---|---|
-| `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Ships even though nothing dispatches from it yet — the schema and its ownership are a one-way door |
+| `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
-| `OutboxProcessor`, `IInboxGuard` and the claim protocol | [P02b-2/P02b-3](../roadmap/phase-02b-events-auth.md) | Pending durable dispatch and consumer transactions |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement locally complete; all four steps completed both independent review rounds; CI/merge status: [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12) |
+| `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
@@ -38,8 +39,8 @@ or persist retries. `IInboxGuard` is a documented seam, not a declared type.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
 records that baseline. The producer/consumer diagrams and examples below describe
 the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
-transactions, inbox and recovery. G1 settles the inbox's ownership and caller;
-this entry audit does not replace the Accepted per-module contract.
+transactions, inbox and recovery. Accepted ADR-0046 now assigns inbox ownership
+and stable subscriber identity; implementation remains P02b-3.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -48,8 +49,24 @@ protection. P02b-1 Steps 1–3 implement shared execution, immediate enqueue,
 successful-save collection and the completed-provisioning publisher. Step 4
 implements production-census guards and catalogue enforcement; its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
-owns final verification and review status. Dispatcher/inbox
-choices remain P02b-2/P02b-3.
+owns final verification and review status. ADR-0046 accepts dispatcher/inbox
+contracts; producer dispatch is implemented through P02b-2 Step 3, while
+inbox/consumer implementation remains P02b-3.
+
+The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
+and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)
+authorize fenced producer recovery, atomic terminal audit and the coupled shared
+inbox/subscriber contract. Steps 1–2 implement schema/composition, fenced
+transitions and atomic terminal audit; each completed both review rounds.
+Step 3 implements hosted execution and observation, with both independent
+review rounds complete in its
+[delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
+Step 4 enforcement and local closeout are complete; all four steps completed both
+independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
+P02b-3 inbox/consumer delivery remains pending. Numerical
+runtime bounds live in the package, canonical DDL/grants in Standards 05 and
+metric names in Standards 10.
 
 [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md) stands as the
 decision that Dapr is the
@@ -69,44 +86,31 @@ decides when it arrives, and the answer is "when a second process exists".
 
 ```mermaid
 sequenceDiagram
-    participant Module as Owning Module
+    participant Producer as Owning module
     participant DB as PostgreSQL
-    participant Outbox as outbox_messages
-    participant Processor as OutboxProcessor (BackgroundService)
+    participant Worker as OutboxProcessor
     participant Bus as IEventBus
-    participant Transport as Transport (in-process dispatcher, or Dapr to Kafka)
-    participant Consumer as Consuming Module
-    participant Inbox as inbox_messages
-
-    Module->>DB: Aggregate state change
-    Module->>Outbox: INSERT outbox row (same transaction)
-    DB->>DB: COMMIT (atomic: aggregate + outbox row)
-
-    loop Polling (every 200ms; configurable)
-        Processor->>Outbox: CLAIM — UPDATE SET locked_by, locked_until<br/>WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)<br/>RETURNING *; the claim survives the COMMIT
-        Processor->>Bus: PublishAsync(envelope)<br/>topic + correlation from the row
-        Bus->>Transport: deliver
-        Processor->>Outbox: UPDATE processed_at = now()<br/>WHERE id = @id AND locked_by = @me
-    end
-
-    Transport->>Consumer: deliver to subscribed handler
-    Consumer->>Consumer: Restore tenant context from event.TenantId
-    Consumer->>Inbox: IsAlreadyProcessedAsync(event.EventId)
-    alt Already processed
-        Inbox-->>Consumer: skip
-    else New event
-        Consumer->>Consumer: Handle business logic
-        Consumer->>Inbox: MarkAsProcessed(event.EventId, event type name)
-        Consumer->>DB: SaveChangesAsync (business write + inbox marker, atomic)
-    end
+    participant Executor as P02b-3 delivery executor
+    Producer->>DB: State + outbox + MUST audit on one transaction
+    Producer->>DB: COMMIT
+    Worker->>DB: Claim one eligible row, fresh token + lease + attempt
+    Worker->>Bus: Publish validated envelope outside claim transaction
+    Bus->>DB: P02b-3 durable acceptance of required subscriptions
+    Worker->>DB: Fenced processed transition
+    Executor->>DB: App-role transaction + tenant/org announcement
+    Executor->>DB: Shared inbox claim before handler construction
+    Executor->>DB: Business + inbox + outbox + MUST audit + fenced completion
+    Executor->>DB: COMMIT
 ```
 
-Read as text: the producer writes the aggregate change and the outbox row in one
-transaction. A processor **claims** a batch of unprocessed rows by stamping a lease on
-them, and the claim outlives the claiming transaction. It publishes each claimed row and
-marks it processed only if it still holds the lease. The transport delivers to the
-consumer, which restores tenant context, deduplicates through its inbox, and commits the
-business write and the inbox marker together.
+Text fallback: the producer commits state, outbox and audit together. The worker
+claims one admitted row immediately before publishing and fences its acknowledgement.
+Required Pending subscriptions hold rows before acquisition. P02b-3 durably accepts
+required subscriptions, then executes each on its own app-role transaction. Shared
+inbox completion and business/audit/ledger completion commit together. Producer
+production and the API worker are implemented; both Step 3 review rounds are
+complete. Durable consumer execution remains P02b-3, and real required
+subscriptions remain Pending.
 
 ## Outbox table
 
@@ -118,81 +122,59 @@ third document; the last time this table's policy was duplicated, the copy carri
 superseded two-permissive-policy shape that
 [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) corrects.
 
-Three columns exist for reasons this document owns rather than the schema. They
-support partition routing and the pending P02b-2 dispatch/lease decision; the
-partition column alone establishes no durable publish-order guarantee:
-
-| Column | Why it exists | Lands with |
-|---|---|---|
-| `partition_key text NOT NULL` | The event's declared routing key; durable publish order remains P02b-2 G3. **The event declares it** — `PartitionKey` is abstract on `IntegrationEventBase`, so no event inherits a default — and `IOutbox.EnqueueAsync` copies it onto the row. Nothing resolves or re-derives it. | The table itself, in [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) — a producer-side column is cheaper to ship with the table than to backfill |
-| `locked_by text NULL` + `locked_until timestamptz NULL` | The dispatch **lease**. A processor stamps them to claim a row, and the claim survives the claiming transaction's commit. See the claim protocol below. | The dispatcher, in [Phase 02b](../roadmap/phase-02b-events-auth.md) |
-| `available_after timestamptz NOT NULL` | Retry backoff. A failed dispatch pushes this forward instead of blocking the batch. | Already in the canonical DDL |
-
-Both additions go into the canonical DDL in Standards 05 when their phase ships; this
-document does not carry a second copy of the table.
-
-The pending index therefore covers `(available_after)` filtered on
-`processed_at IS NULL`, and the claim predicate additionally reads
-`locked_until IS NULL OR locked_until < now()`.
+The routing key is declared by the event and copied to persistence. It does not
+establish durable publish order. Accepted P02b-2 adds paired `locked_by` /
+`locked_until` lease fields, `terminal_reason` and `dead_lettered_at`; the former
+is a fresh acquisition token, never stable worker identity. `available_after`
+controls due time and retry backoff. Canonical DDL/indexes are in Standards 05,
+implemented by P02b-2 Step 1 with both review rounds complete. Step 3 implements
+dispatcher execution; both independent review rounds are complete.
 
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
 
-The OutboxProcessor must dispatch events for **every** tenant from a single
-BackgroundService instance; setting `app.tenant_id` per row would defeat the
-`FOR UPDATE SKIP LOCKED` batching pattern. The role bypasses RLS by design, and
-the bypass is bounded by:
+One API-host BackgroundService schedules every tenant. The existing bypass role
+uses its own named keyed, lazy data source; no Seeder/web forwarding or app-role
+membership is allowed. Configuration validates the exact username without
+connecting or disclosing parse input. Step 3 implements mandatory worker-startup
+resolution and connectivity checks; both independent review rounds are complete.
+Every new physical connection verifies exact session/current role, bounded
+attributes and no privilege-escalating membership.
 
-- **Scope by grant, and grant is the only bound.** `BYPASSRLS` bypasses *policies*, not
-  `GRANT`s: a role holding the attribute with no privilege on a table gets
-  `permission denied for table`. The role holds `SELECT` on `outbox_messages` plus a
-  **column-level** `UPDATE (processed_at, attempts, last_error, available_after)` — and
-  nothing anywhere else. It has no `DELETE` (purging processed rows is a
-  `learnstack_platform` operation) and cannot touch `payload`, `tenant_id`, `topic` or
-  `type`. `SELECT … FOR UPDATE SKIP LOCKED` works with a column-level `UPDATE` grant, so
-  the claim protocol needs no table-wide `UPDATE`. When `locked_by` and `locked_until`
-  land in [Phase 02b](../roadmap/phase-02b-events-auth.md), that migration extends the
-  column list; a column added without extending it fails at runtime with
-  `permission denied for table`, which is the intended loud failure. Because grant scope
-  is the *only* thing bounding the bypass, no privilege is ever granted to `PUBLIC` and
-  no `ALTER DEFAULT PRIVILEGES` grant exists — either would silently un-bound this role
-  the next time a table is created.
-- **No connection sharing.** The role has its own login credential and its own
-  connection string (`ConnectionStrings:OutboxDispatcher`), present only in the worker
-  host that runs `OutboxProcessor`. It is not reached by `SET ROLE` from
-  `learnstack_app`, which is not a member of it. No MediatR handler or API endpoint ever
-  runs under this role (architecture test
-  `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` enforces this).
-- **Audited on use**. Every dispatch attempt produces a structured log entry
-  with `event_id`, `tenant_id`, `event_type`, and outcome. Bypass-as-such is
-  not separately audited (the dispatch outcome is); a misuse pattern would
-  surface as out-of-band tenants in the dispatch log.
-- **Permission rationale anchored in ADR-0006 Amendment 1**. The outbox-as-
-  durable-buffer + Dapr-as-transport pattern requires a single batch-fetcher;
-  the RLS bypass is the minimum privilege escalation that makes that pattern
-  work. It is not an exception to ADR-0003 — it is the only legitimate path.
+[Database Standards](../standards/05-database.md#grant-matrix) owns the exact grant
+budget: named outbox status UPDATEs and audit INSERT-only in P02b-2, with no audit
+read/update/delete or business access. P02b-3 may add only enumerated delivery
+identity/routing/lease/status SELECT and status UPDATE, never payload SELECT.
+It executes business work separately as `learnstack_app` under tenant RLS.
 
-`learnstack_outbox_admin` is one of the **four** roles in the database model fixed by
-[ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md) —
-`learnstack_migration` (owner, `NOBYPASSRLS`), `learnstack_app` (runtime,
-`NOBYPASSRLS`), `learnstack_platform` (audited cross-tenant admin, `BYPASSRLS`), and
-this one. Cross-tenant audit reads use `learnstack_platform` through the audited
-`EnterPlatformAdminScope(reason)` path; there is no separate audit role. Adding a fifth
-role requires an ADR — every `BYPASSRLS` role is a hole in the isolation model that has
-to earn its existence by grant scope, DI-scope isolation, and log discoverability.
+Routine confined poll/claim/mark writes bounded structured outcomes and metrics,
+under ADR-0046's explicit audit exemption. Terminal state and MUST/SecurityEvent
+audit commit atomically; a restricted witness binds the audit to the actual fenced
+UPDATE result, because GUCs and INSERT-only cannot tenant-bind a bypass credential.
+The platform-admin gate and pre-entry audit remain unchanged. Four roles and
+separate credentials remain the closed model; the code-path and role rules are
+implemented for transition-witness construction and terminal audit in Step 2;
+both independent review rounds passed. Step 3 implements hosted execution and
+observation, with both independent review rounds complete. Step 4 implements
+credential/publication censuses and planted controls; all four steps completed
+both independent review rounds and local closeout. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
 
-## Inbox table (per consumer module)
+<a id="inbox-table-per-consumer-module"></a>
 
-```sql
-CREATE TABLE inbox_messages (
-    event_id        uuid PRIMARY KEY,
-    event_type      text NOT NULL,
-    received_at     timestamptz NOT NULL DEFAULT now(),
-    processed_at    timestamptz NULL
-);
-```
+## Inbox table (shared, transport-owned)
 
-Each module has its own inbox table; deduplication is per-module (a single event can be
-processed by N consumers independently).
+**Accepted ADR-0046 target; implementation P02b-3.** One tenant-owned
+`inbox_messages` deduplicates `(tenant_id, subscription_id, event_id)`. The
+transport claims before handler construction on the same announced app-role
+transaction as business work. New claims roll back on failure; only successful
+completion persists a completed row. Completed rows are never reset by replay.
+
+The separate delivery ledger retains validated envelopes and owns independent
+attempts, availability, leases and terminal/replay state. P02b-3 chooses envelope
+copies/references and retention dependencies before its canonical DDL, then
+P02b-8 inventories all retained stores for erasure. DDL, class/RLS and exact grants
+belong in [Database Standards § Inbox](../standards/05-database.md#inbox); this
+document carries no second schema.
 
 ## Producer pattern
 
@@ -279,7 +261,7 @@ Step 7's `OutboxFlushBehavior` is an enrollment/invariant guard.
 
 The reusable audit coordinator gives a controlled non-MediatR owner the existing
 classification, MUST-write, boundary-reporting and outer reconciliation duties.
-P02b-3 owns production delivery/inbox wiring after G1; the P02b-1 fixture proves
+P02b-3 owns delivery/inbox wiring under ADR-0046; the P02b-1 fixture proves
 that entry without claiming delivered subscribers.
 
 ### First useful flow
@@ -287,8 +269,9 @@ that entry without claiming delivered subscribers.
 Completed provisioning produces `TenantCreatedIntegrationEventV1` on
 `learnstack.tenancy.tenant`, partitioned by TenantId, with no extra payload and
 null organization. P02b-1 persists pending rows after tenant/default organization/
-back-reference completion. P02b-3, after G1, implements independent Customization
-subscriptions for untouched `card@1` and `plain@1`; each owns one root, generation,
+back-reference completion. P02b-3 implements independent Customization
+subscriptions for the untouched `card@1` content type (`BuiltInCustomizations.Card`)
+and `plain@1` taxonomy (`BuiltInCustomizations.Plain`); each owns one root, generation,
 inbox outcome and MUST audit. Authored/lifecycle/deletion decisions survive.
 P02b-3 owns semantic key/version Seeder verification and fresh seed/delivery
 convergence. Typed settings are uncached, definitions probe fresh generations,
@@ -307,35 +290,27 @@ everything.
 
 ## Consumer pattern
 
-```csharp
-public sealed class QueueWelcomeNotificationOnEnrollmentCreated(
-    IInboxGuard inboxGuard,
-    NotificationsDbContext db,
-    ILogger<QueueWelcomeNotificationOnEnrollmentCreated> logger)
-    : IIntegrationEventHandler<EnrollmentCreatedIntegrationEventV1>
-{
-    public async Task HandleAsync(EnrollmentCreatedIntegrationEventV1 @event, CancellationToken ct)
-    {
-        if (await inboxGuard.IsAlreadyProcessedAsync(@event.EventId, ct))
-        {
-            logger.LogDebug("Duplicate event {EventId} skipped", @event.EventId);
-            return;
-        }
+**Accepted target, unimplemented until P02b-3.** Each subscription has an explicit
+stable `{module}.{subscription}.v{N}` ID, independent of handler class/assembly.
+ADR-0046 owns its closed grammar and version/migration rules. The transport opens
+an app-role transaction, restores validated tenant and organization, announces RLS
+context, and claims the shared inbox before constructing the handler. Absence of
+the organization marker never erases a present envelope organization; a marked
+event requires one. Effective actor is `UserId.SystemActor`; human actor remains
+causal metadata.
 
-        // Business logic: the consumer writes its OWN module's aggregate, through its
-        // own DbContext. Not another module's tables, and never audit_log — see below.
-        var dispatch = NotificationDispatch.QueueWelcome(@event.LearnerId, @event.EnrollmentId);
-        db.NotificationDispatches.Add(dispatch);
+The common transaction/audit owner classifies the handler and refuses undeclared
+mutating work. A handler changes only its own root and saves; it calls neither
+`IInboxGuard` nor `IEventBus` nor `IAuditStore`. The owner drains produced facts,
+writes MUST audit and completes inbox/ledger atomically. Before COMMIT, ledger
+completion checks the current token and database-time expiry, plus a sticky gate
+that refuses timed-out/canceled execution. Zero rows or a closed gate poison and
+roll back the whole transaction. Cancellation after physical COMMIT starts is
+Indeterminate; recover from atomic durable state, not a rollback assumption.
 
-        inboxGuard.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);   // business write + inbox marker, atomic
-    }
-}
-```
-
-The handler's effective identity is `UserId.SystemActor` (see [Rules](#rules)), and
-[Audit Coverage Standards](../standards/18-audit-coverage.md) treats a state-mutating
-handler as a `system` actor for audit purposes. The handler composes no audit row itself.
+External effects require provider idempotency and reconciliation. Privileged
+Audit erasure belongs to its separate Phase 03 execution contract; P3's ordinary
+executor refuses it. An app-role inbox cannot make two connections atomic.
 
 ### Audit rides this outbox for fan-out, never for the audit row
 
@@ -367,6 +342,8 @@ is the rule that enforces it, in force since Phase 02a Packet 10.
 
 ### The claim problem
 
+The former batch sketch exposed the released-lock defect described here; the
+single-row leased protocol below supersedes it under ADR-0046.
 `SELECT ... FOR UPDATE SKIP LOCKED` holds its row locks **only until the transaction that
 took them ends**. A processor that selects a batch, commits to release the locks, and
 *then* starts publishing has released every row it is about to work on. A second
@@ -375,136 +352,71 @@ not blocked by any lock, and dispatches the same events. The first processor the
 them processed, and nothing in the system records that they went out twice.
 
 That is why this document no longer claims "no double dispatch". The delivery contract is
-**at-least-once**, and consumer-side idempotency through `IInboxGuard` is what makes it
-safe — not the row lock. What the claim protocol buys is that duplicates come from crash
-recovery and lease expiry, which are rare and bounded, rather than from every concurrent
-poll, which is neither.
+**at-least-once**. P02b-3's transport-owned shared inbox supplies consumer-side
+idempotency; handlers do not call `IInboxGuard`. The claim protocol prevents
+concurrent live owners; crash recovery and lease expiry can still redeliver.
 
 ### The claim protocol
 
-The row lock has to survive the transaction that takes it, which means the claim must be
-**written to the row**, not held in the lock table:
+**ADR-0046 producer runtime and enforcement locally complete in P02b-2; all four
+steps completed both independent review rounds.** The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. The processor admits a construction-free
+manifest policy before acquisition. Any required Pending subscription holds the
+contract and all aliases unchanged, even if stored payload is malformed. Active
+requires declared handler registration. Only explicit intentional absence may
+acknowledge without publication; zero handler discovery is not that policy.
 
-```csharp
-public sealed class OutboxProcessor : BackgroundService
-{
-    private const int BatchSize = 100;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(200);
-    private static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(60);
+One short transaction claims one eligible row immediately before invocation,
+assigns a fresh canonical UUID token to `locked_by`, stamps `locked_until` and
+increments `attempts` once. Stable worker identity is diagnostic context only.
+Normal eligibility excludes processed, dead-lettered, terminal-requested and
+exhausted rows; it requires due availability, no unrecovered lease and manifest/
+local-partition admission. Selection is `(available_after, occurred_at, id)`.
+Database time governs eligibility and expiry.
 
-    private readonly string _processorId = $"{Environment.MachineName}:{Guid.NewGuid():N}";
+For admitted records, resolve only declared concrete contracts and explicit
+compatible aliases/retirements. Never load arbitrary assemblies or CLR types from
+stored text. Deserialize with frozen options; validate row/envelope identity,
+tenant, topic, partition, occurrence and canonical UTF-8 payload bound. Timestamp
+comparison accounts for PostgreSQL microsecond precision. Invalid/unknown/retired
+records request terminalization with a closed reason.
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            using var scope = _serviceProvider.CreateAsyncScope();
-            var processed = await ProcessBatchAsync(scope.ServiceProvider, ct);
+Every success, failure, recovery and terminal transition checks row ID, current
+token and unexpired lease. Recovery atomically replaces an expired token first.
+Zero rows means lost ownership and permits no late acknowledgement, error change,
+lease clearance or audit. Expired claims 1–5 enter backoff; claim six can only
+terminalize. Six normal claims total use 1 s, 5 s, 30 s, 5 min and 1 h delays.
+A committed claim counts even if a crash makes publication unknown.
 
-            if (processed == 0)
-                await Task.Delay(PollInterval, ct);
-        }
-    }
+A terminal request is not completed dead-letter state. Terminalization acquires
+without another attempt or publication, then atomically writes terminal state
+and MUST audit using the row-bound transition witness. Audit failure retains the
+request for retry. Success/retry/terminal transitions clear leases in the same
+short transaction. Uncertain COMMIT is reconciled from durable state before retry.
 
-    private async Task<int> ProcessBatchAsync(IServiceProvider services, CancellationToken ct)
-    {
-        var db = services.GetRequiredService<OutboxDbContext>();
-        var eventBus = services.GetRequiredService<IEventBus>();
-        // Connection runs as learnstack_outbox_admin: BYPASSRLS skips the policy,
-        // and the GRANT is what bounds what it can reach (see § the bypass bounds).
-
-        // 1. CLAIM. One statement, its own short transaction. The lease is written to the
-        //    row, so it outlives the commit that releases the physical locks.
-        var batch = await db.Set<OutboxMessage>()
-            .FromSqlInterpolated($@"
-                UPDATE outbox_messages
-                   SET locked_by    = {_processorId},
-                       locked_until = now() + {LeaseDuration},
-                       attempts     = attempts + 1
-                 WHERE id IN (
-                       SELECT id FROM outbox_messages
-                        WHERE processed_at IS NULL
-                          AND available_after <= now()
-                          AND (locked_until IS NULL OR locked_until < now())
-                        ORDER BY occurred_at
-                        LIMIT {BatchSize}
-                          FOR UPDATE SKIP LOCKED)
-             RETURNING *")
-            .ToListAsync(ct);
-
-        if (batch.Count == 0) return 0;
-
-        // 2. PUBLISH. One short transaction per message. A single poisoned message does
-        //    not roll back the batch.
-        foreach (var msg in batch)
-        {
-            await using var perMessageTx = await db.Database.BeginTransactionAsync(ct);
-            try
-            {
-                var eventInstance = JsonSerializer.Deserialize(msg.Payload, Type.GetType(msg.Type)!);
-                await eventBus.PublishAsync(
-                    new IntegrationEventEnvelope(
-                        (IIntegrationEvent)eventInstance!,
-                        msg.CorrelationId,
-                        msg.OrganizationId,
-                        msg.CausationId,
-                        msg.ActorUserId is { } actor ? UserId.From(actor) : null),
-                    ct);
-                msg.MarkProcessed(_clock.UtcNow, _processorId);   // no-op if the lease was lost
-            }
-            catch (Exception ex)
-            {
-                msg.RecordFailure(ex.Message, GetBackoffDuration(msg.Attempts));
-                _logger.LogWarning(ex, "Outbox dispatch failed for {EventId} (attempt {Attempt})",
-                    msg.Id, msg.Attempts);
-            }
-            await db.SaveChangesAsync(ct);
-            await perMessageTx.CommitAsync(ct);
-        }
-        return batch.Count;
-    }
-}
-```
-
-`MarkProcessed` writes `processed_at` **and** clears the lease under the predicate
-`locked_by = @me`, so a processor whose lease expired mid-batch — because the transport
-hung past `LeaseDuration` — cannot overwrite the state of whichever processor took the
-row next. A lost lease is logged at warning level and surfaces on the
-`learnstack_outbox_lease_lost_total` counter; a non-zero rate means `LeaseDuration` is
-shorter than the transport's tail latency and must be raised.
+Publish deadlines bound waiting, not arbitrary callback lifetime. Retain and
+observe a cancellation-ignoring task's scope until it finishes; block its local
+partition and fence its late result. Unrelated keys progress within the approved
+four-task limit; any overrun is unhealthy and saturation stops new claims.
+Shutdown waits at most the package's finite bound, without disposing live resources.
 
 ### The simpler alternative, and its cost
 
-Holding one transaction open across the whole batch — `BEGIN`, `SELECT ... FOR UPDATE
-SKIP LOCKED`, publish each, `UPDATE processed_at`, `COMMIT` — is also correct, and is an
-acceptable implementation of the same contract. Its costs are real and must be accepted
-knowingly:
-
-- The transaction stays open for the duration of every network publish in the batch,
-  pinning the `VACUUM` horizon and the oldest transaction id for that long.
-- One poisoned message rolls back the batch unless every publish is wrapped in a
-  savepoint, which reintroduces most of the complexity the approach was meant to avoid.
-- A crash mid-batch republishes everything already published in it.
-
-The lease is the specified design. The batch-held transaction is the acceptable fallback
-if a deployment cannot add the two columns. Whichever ships, the choice is made once, in
-[Phase 02b](../roadmap/phase-02b-events-auth.md), and written into the dispatcher — not
-left to each reader of this document.
+The former batch-held transaction fallback is superseded by ADR-0046. P02b-2 uses
+one just-in-time leased claim and short fenced transitions; it holds no transaction
+across publication. A deployment-specific alternative requires a new decision.
 
 ### What the processor guarantees
 
-- **At-least-once delivery.** Duplicates are expected; consumers deduplicate through
-  `IInboxGuard`. This is the contract, not a defect.
-- **At most one active claimant per row.** Two processors cannot both hold a live lease
-  on the same row, so concurrent polling does not multiply dispatches. Duplicates arise
-  only from lease expiry and crash recovery.
-- **Batch independence.** Each message gets its own transaction; one failure does not
-  roll back the batch.
-- **Bounded retry.** Failed messages retry with exponential backoff (1s, 5s, 30s, 5min,
-  1h). On reaching `MaxAttempts` the row moves to the producer-side dead-letter state
-  described below.
-- **Horizontal scalability.** `SKIP LOCKED` plus the lease predicate lets N processors
-  across N pods drain the same table without coordination.
+- At most one live owner per row under token/expiry fencing. Crash or lease expiry
+  can redeliver; transport publication is at-least-once.
+- Deterministic selection for one processor without failure, with no enqueue,
+  commit, retry or cross-process order promise.
+- Ordinary failure and bounded overruns permit unrelated eligible work to progress.
+- Pending real subscriptions retain useful facts until P02b-3 activates durable
+  acceptance. No placeholder consumer or global worker-disable switch is used.
+- Terminal state commits with MUST audit; it does not prove that a timed-out
+  transport never accepted the event. P02b-3's inbox is still required.
 
 ## `IEventBus` and `IntegrationEventEnvelope`
 
@@ -586,7 +498,8 @@ public sealed class DaprEventBus(DaprClient daprClient) : IEventBus
 
 `InProcessEventBus` serializes invocation per partition key within its process:
 concurrent across keys, sequential within one. This does not establish durable
-publish order across commits and retries; P02b-2 G3 owns that decision.
+publish order across commits and retries; ADR-0046 accepts only deterministic
+eligible selection within one processor.
 
 Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 
@@ -601,119 +514,34 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 
 ## `InProcessEventBus`
 
-Until the Dapr adapter's trigger fires, `InProcessEventBus` is the only registered
-`IEventBus`. The table below states its target obligations alongside the durable
-path. Handler scopes and accessor restoration ship today; database announcement
-and inbox deduplication remain P02b-3 work, under G1/G6.
+`InProcessEventBus` remains the only registered transport in every deployment
+mode until ADR-0035's Phase 11 trigger fires. The shipped baseline constructs one
+async scope per discovered subscription, restores ambient tenant/organization,
+serializes invocation per key and collects constructor/handler/disposal failures.
+It opens no business transaction and has no durable inbox or subscriber ledger.
+Its current exception logs/spans need P02b-3's bounded diagnostic reconciliation
+before Active production consumers; P02b-2 minimizes its own dispatcher path.
 
-| Obligation | Why it cannot be skipped in development |
-|---|---|
-| Same handler interface — `IIntegrationEventHandler<T>`, never a bare `INotificationHandler<T>` | Two interfaces means two implementations per consumer, and the one that runs in CI is not the one that runs in production |
-| Same `IInboxGuard` deduplication | Deduplication bugs are the most common integration-event defect; a transport that never delivers a duplicate never surfaces them |
-| Same tenant-context restoration from `@event.TenantId` before the handler runs | A dev path that skips it is a dev path where Row Level Security and the query filters are never exercised on the consumer side |
-| Process-local per-key invocation serialization; durable ordering remains P02b-2 G3 | A serialized development invocation does not prove publish order across concurrent commits and retries |
+P02b-3 changes publish success to durable acceptance of every required delivery.
+Duplicate acceptance is idempotent; partial or unknown acceptance can be retried.
+The independent scheduler then invokes one internal delivery executor for each
+subscription, with the shared inbox and app-role owner described above. Subscriber
+business failure spends neither sibling nor producer attempts after acceptance.
+The executor never rebroadcasts and receives no publication-rule exception.
 
-```csharp
-public sealed partial class InProcessEventBus(
-    IServiceScopeFactory scopeFactory,
-    ITenantContextAccessor tenantAccessor,
-    IPartitionSerializer partitions,
-    IntegrationEventHandlerRegistry handlers,
-    ILogger<InProcessEventBus> logger) : IEventBus
-{
-    public Task PublishAsync(
-        IntegrationEventEnvelope envelope, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(envelope);
-
-        // Returned as a cancelled task rather than thrown inline: a
-        // fire-and-forget call site must not crash its caller synchronously.
-        if (ct.IsCancellationRequested) return Task.FromCanceled(ct);
-
-        return partitions.RunSequentiallyFor(
-            envelope.PartitionKey, () => DispatchAsync(envelope, ct));
-    }
-
-    private async Task DispatchAsync(IntegrationEventEnvelope envelope, CancellationToken ct)
-    {
-        // The outer save/restore covers the FULL dispatch. Context is set before
-        // subscription lookup and therefore before any handler can be resolved;
-        // constructors observe the event tenant rather than the publisher tenant.
-        var previous = tenantAccessor.Current;
-        tenantAccessor.Current = EventTenantContext.FromEnvelope(envelope);
-
-        try
-        {
-            var subscriptions = handlers.For(envelope.Event.GetType());
-            List<Exception>? failures = null;
-
-            foreach (var subscription in subscriptions)
-            {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    // DeliverAsync creates ONE ASYNC SCOPE and resolves exactly
-                    // this subscription's concrete handler. A constructor or
-                    // disposal failure cannot deny a healthy sibling. It also
-                    // starts the subscription's consumer activity and supplies
-                    // its module name through EventTenantContext.
-                    await DeliverAsync(subscription, envelope, ct);
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw; // shutdown: do not start later subscriptions
-                }
-                catch (Exception ex)
-                {
-                    // Poison-message containment remains per subscription.
-                    (failures ??= []).Add(ex);
-                }
-            }
-
-            // One failure rethrown as itself; several as an AggregateException.
-        }
-        finally
-        {
-            tenantAccessor.Current = previous;
-        }
-    } // Inbox ownership and its call site remain Phase 02b G1.
-}
-```
-
-The listing is abridged — the shipped class also logs each failure with event, tenant
-and partition key, refuses a `null` Task from a handler by name, and wraps an
-`OperationCanceledException` raised by a token other than the publish token, so an
-outbox processor cannot read "the handler gave up" as "we are shutting down". See
-`backend/src/LearnStack.Infrastructure/Messaging/InProcessEventBus.cs`.
-
-**`PartitionSerializer` refuses reentrant work for the key it is already inside.**
-Queuing work for a key from within that key's own work is a deadlock by construction:
-the new unit chains behind a tail that cannot complete until the current one returns.
-An earlier attempt ran such a call inline, reasoning the caller *is* the sequence — which
-is unsound, because an `AsyncLocal` marker flows into every task started inside a unit,
-so a fire-and-forget spawn inherited it and ran concurrently with the unit it should have
-queued behind. Detection is the same either way; only the action differs. A false
-positive that throws is loud and diagnosable; one that runs inline is a silent
-concurrency violation. The caller that hits it is publishing from inside a handler,
-which [Standards 20](../standards/20-infrastructure-stack.md) already forbids — a
-handler writes to the outbox.
-
-What the in-process transport genuinely does **not** provide, and what therefore
-constitutes the trigger for the Dapr adapter: delivery to a second process, broker-side
-replay, and durability of the in-flight message if the process dies between publish and
-handle. Once P02b-1–3 deliver durable enqueue and recovery, the outbox row covers
-the third: an unhandled event has not been marked processed and is redelivered.
-The existing table alone does not provide that recovery.
-
-The composition root selects the implementation by `DeploymentMode`; modules never see
-the choice.
+`PartitionSerializer` refuses reentrant work for its current key. Queuing behind
+itself would deadlock; running inline would let inherited AsyncLocal state permit
+concurrent work. Handlers produce outbox rows rather than publish directly.
+Process-local serialization does not strengthen durable ordering. Extraction to
+a second process remains the named Phase 11 trigger, with the same accepted
+identity, envelope, acceptance and independent execution contracts.
 
 ## Rules
 
 - Integration events are **versioned**. Breaking changes ship a new versioned record
   (`UserCreatedIntegrationEventV2`); old version remains supported during a migration
   window.
-- Consumers are **idempotent** via `IInboxGuard` (per-module inbox table).
+- Consumers are **idempotent** through the shared transport-owned inbox (P02b-3).
 - Mandatory on every integration event: `EventId`, `TenantId`, `OccurredAt`,
   `PartitionKey`. The first three are `required`; the fourth is abstract.
 - Declared by the event and read by the envelope: `Topic`, the channel
@@ -740,8 +568,9 @@ the choice.
 ## Ordering
 
 P02b-1 accepts partition-source derivation under ADR-0057. It accepts no durable
-publish-order guarantee. G3's ordering half remains P02b-2; the inherited per-key
-transport target must be reconciled there against concurrent commits and retries.
+publish-order guarantee. ADR-0046 selects eligible rows in total order
+`(available_after, occurred_at, id)` for one processor without failure. This is no
+enqueue/commit/retry/cross-process promise; strict head-of-line blocking is rejected.
 `InProcessEventBus` serializes invocation per key within its process.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
@@ -769,8 +598,8 @@ domain; deriving it does not itself establish durable publish order.
 
 Consequences worth stating plainly:
 
-- Same-aggregate events share a declared key. Durable order across commits/retries
-  remains G3's P02b-2 decision.
+- Same-aggregate events share a declared key. Retry overtaking and reverse commits
+  can change arrival order; equal occurrence times use ID only as a selection tie.
 - Two events about **different** aggregates may arrive in any relative order, even inside
   one topic. A consumer that needs a cross-aggregate order needs a different design —
   usually a read model, not an ordering assumption.
@@ -784,48 +613,32 @@ Consequences worth stating plainly:
 
 ## Dead-letter: two sides, two failure domains
 
-The distinction the earlier draft of this document missed: a producer-side dispatch
-success means "the transport accepted the bytes". It says nothing about whether any
-consumer processed them. The two sides fail independently and need separate handling.
+Producer acceptance and subscriber business completion are independent outcomes.
+A timeout can leave acceptance unknown, so producer terminal state does not imply
+that no subscription accepted the fact.
 
 ### Producer side — dispatch never succeeded
 
-The outbox row reaches `MaxAttempts` without a successful `PublishAsync`.
-
-- The row stays in the table with `processed_at IS NULL`, `attempts >= MaxAttempts`, and
-  the final `last_error`.
-- `available_after` is pushed beyond the retry horizon so the poller stops picking it up.
-- It surfaces on the `OutboxStatusEndpoints` admin API and on the
-  `learnstack_outbox_deadletter_total{event_type}` counter; the alert is on the counter's
-  rate, not on the table's size.
-- Recovery is a manual replay: an operator clears the lease, resets `attempts`, and
-  resets `available_after`.
+Invalid/unknown/retired records or exhausted claims request `terminal_reason`.
+Normal publication excludes that row permanently. The terminalizer writes
+`dead_lettered_at` and Tenancy-owned `platform.outbox.dead_letter` MUST/SecurityEvent
+on one fenced transaction, retaining the envelope for investigation. Audit failure
+retains terminal work for retry without publication; completed terminal rows leave
+pending gauges. A far-future availability time is never a terminal marker.
+Phase 03 must decide producer reset/fencing before any operator replay endpoint.
 
 ### Subscriber side — dispatch succeeded, handling did not
 
-A consumer's handler throws on every attempt: a malformed payload, a schema version it
-cannot read, a permanently failing downstream dependency. The producer's row is long
-since `processed_at`-stamped, and no amount of producer-side retry will help.
+**P02b-3 target.** Each stable subscription has its own durable ledger budget,
+retained envelope and terminal/replay state. Terminal failure leaves no completed
+inbox row and writes Tenancy-owned `platform.delivery.dead_letter` atomically with
+terminal state. No `learnstack.dlq.*` topic or duplicate dead-letter table is needed.
 
-- The transport retries the handler with backoff. On exhausting its retry policy it
-  routes the message to a **dead-letter topic**, `learnstack.dlq.{module}` — one per
-  subscribing module, three segments, satisfying
-  `Dapr_PubSub_TopicNames_FollowConvention`. Under Dapr this is the subscription's
-  `deadLetterTopic`; under `InProcessEventBus` the equivalent is a row in
-  `dead_letter_messages` carrying the same envelope.
-- **The inbox row is not marked processed.** A dead-lettered message has not been
-  handled, and recording it as handled would make a later replay a silent no-op.
-- Every module subscribes to its own dead-letter topic with a handler that does nothing
-  but persist the envelope, emit `learnstack_inbox_deadletter_total{module, event_type}`,
-  and raise an operational alert. A dead-letter topic nobody consumes is a queue that
-  grows until the broker's retention silently deletes the evidence.
-- Recovery is an operator-initiated replay from the dead-letter store back onto the
-  original topic. Because the inbox never marked the event processed, the replayed
-  message is handled normally; because `IInboxGuard` is still in the path, a replay that
-  races a late success is still idempotent.
-- Poison-message containment is per subscription. One module's dead-lettered event does
-  not block another module's consumption of the same topic — each subscription has its
-  own offset and its own dead-letter path.
+Targeted internal replay resets only that subscription with fresh ownership fencing
+and invokes its executor, never `PublishAsync`. Completed siblings remain inbox
+deduplicated; a completed inbox is never reset. Phase 03 owns operator permission,
+HTTP routes and the separately decided producer replay contract. P02b-8 owns erasure
+inventory, Phase 03 privileged redaction and Phase 11 retention purge.
 
 ## Service extraction readiness
 
@@ -850,13 +663,13 @@ separate service later:
 - `Integration_Events_Inherit_From_IntegrationEventBase` — every type implementing
   `IIntegrationEvent` extends `IntegrationEventBase` (which carries `EventId`,
   `OccurredAt`, `TenantId` and declares `Topic` / `PartitionKey`).
-- `Integration_Event_Handlers_Use_InboxGuard` — every `IIntegrationEventHandler<T>`
-  implementation invokes `IInboxGuard.IsAlreadyProcessedAsync` before processing.
+- `Integration_Event_Handlers_Use_InboxGuard` — Registered for P02b-3's shared
+  transport-owned claim before construction and atomic fenced completion.
 - `Dapr_PubSub_TopicNames_FollowConvention` — Phase 11 checks that Dapr component
   bindings agree with the already-validated topics declared by events. It is not a
   current `[Topic]`-attribute scan; no such attribute exists.
 - `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` — integration test asserts one
-  poisoned message doesn't prevent others in the batch from processing.
+  failed attempt or bounded overrun permits unrelated eligible work to progress.
 - `Integration_Event_Handler_Restores_Tenant_Context` — catalogued in
   [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md); runs
   against whichever transport is registered, so `InProcessEventBus` is held to the same
@@ -870,23 +683,24 @@ separate service later:
 
 ## Observability
 
-- Outbox lag: `learnstack_outbox_pending_count{tenant_id}` (gauge).
-- Dispatch duration: `learnstack_outbox_dispatch_duration_seconds{event_type}` (histogram).
-- Dispatch failures: `learnstack_outbox_dispatch_failed_total{event_type}` (counter).
-- Producer-side dead letter: `learnstack_outbox_deadletter_total{event_type}` (counter).
-- Lost leases: `learnstack_outbox_lease_lost_total` (counter) — non-zero means the lease
-  is shorter than the transport's tail latency.
-- Inbox dedup: `learnstack_inbox_dedup_total{module, event_type}` (counter).
-- Subscriber-side dead letter: `learnstack_inbox_deadletter_total{module, event_type}`
-  (counter).
+[Observability Standards § Required Metrics](../standards/10-observability.md#required-metrics)
+owns names, labels and queue semantics. P02b-2 emits unlabelled pending, deferred,
+oldest-eligible-age and heartbeat gauges from immutable snapshots, plus bounded
+attempt duration/failure/terminal/lease-loss observations. Gauges perform no SQL;
+refresh failure preserves stale data and makes health unhealthy. Per-attempt spans
+and closed diagnostics contain no raw exception/type/payload/connection data.
 
-The two dead-letter counters are **separate signals on separate dashboards**. A
-producer-side spike means the transport is down; a subscriber-side spike means a handler
-or a payload is broken. Collapsing them into one "events failed" number destroys the only
-information that distinguishes the two incidents. Once the Dapr adapter lands, both sit
-alongside Dapr's own `dapr_component_pubsub_*` metrics.
+P02b-3 adds dedup/subscriber-terminal counters with bounded module/event-type labels.
+Producer and subscriber terminal outcomes remain separate observations: acceptance
+failure and business execution failure have different retry owners. Metrics are
+process observations, not an exactly-once durable event ledger. `outbox` is
+registered and not publicly mapped; `/healthz` remains liveness-only, with Phase 11
+owning readiness exposure and dashboards.
 
 ## References
+
+- [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) — accepted
+  bounded delivery supersessions, readiness, terminal audit and shared inbox contract.
 
 - ADR-0006 (Amendment 1) — Events and Outbox; dispatch transport.
 - ADR-0010 (Amendment 1) — Cross-Module Communication; outbox dispatch target.

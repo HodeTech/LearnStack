@@ -237,15 +237,19 @@ those shipped examples for Education rather than inventing an authenticated rout
 
 ### Step 3: Outbox round-trip
 
-> **Steps 3 to 5 are the shape, not today's API.** `IOutbox` and the outbox
-> dispatcher do not exist yet — Phase 02b owns both. `audit_log` shipped in Packet 9:
-> for a real audit assertion, follow `AuditWorkflowTests`, which drives commands through
+> **The `_fx.*` members in Steps 3 to 5 are illustrative.** P02b-1 implements
+> `IOutbox`; follow `OutboxProducerTests` and `TenantCreatedProducerTests` for
+> shipped producer fixtures. P02b-2 Step 3 implements the API-host dispatcher;
+> both independent review rounds are complete, and `OutboxProcessorTests` owns its
+> runtime proofs. Real subscriptions remain Pending; consumer/inbox assertions
+> belong to P02b-3. `audit_log` shipped in Packet 9: for a real audit assertion,
+> follow `AuditWorkflowTests`, which drives commands through
 > the seeder's composition root on `SchemaFixture` as `learnstack_app` and reads the
 > persisted columns. The durable `IIdempotencyStore` ships on the trigger
 > [ADR-0037 Amendment 1](../../../docs/decisions/0037-idempotency-key-contract.md)
 > names: the first `[Idempotent]` endpoint, or the first deployment running more
-> than one instance. Packet 6 shipped the `idempotency_keys` table, not the store. The `_fx.*` members below are illustrative of what those phases will
-> provide. The schema examples above use `PostgresFixture`, `SchemaFixture` and
+> than one instance. Packet 6 shipped the `idempotency_keys` table, not the store.
+> The schema examples above use `PostgresFixture`, `SchemaFixture` and
 > `SchemaQueries`; production public HTTP cases use the separately shipped fixtures
 > linked above. Write against those delivered APIs until the owning phase lands.
 
@@ -268,8 +272,8 @@ public async Task CreateEnrollment_publishes_EnrollmentCreated_via_outbox()
 }
 ```
 
-To assert the consumer side too, run the outbox processor synchronously in the
-test:
+The future P02b-3 consumer-side assertion below is illustrative; the shipped
+worker has no `_fx.RunOutboxProcessorOnceAsync()` fixture API:
 
 ```csharp
 await _fx.RunOutboxProcessorOnceAsync();

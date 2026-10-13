@@ -8,7 +8,19 @@ adds one pending outbox row before the existing two MUST rows and commit. Its
 domain translator adds no independent intent or audit operation and writes no
 aggregate. A failed MUST write rolls back tenant, organization and outbox together.
 The [integration-event catalogue](README.md#integration-event-catalogue) owns the flow;
-production dispatch and subscribers remain P02b-2/P02b-3.
+P02b-2 implements hosted producer dispatch and production-census enforcement.
+All four steps completed both independent review rounds and local closeout.
+The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. Subscribers remain P02b-3.
+
+**ADR-0046 producer terminal writer implemented — 2026-10-12; both review rounds
+complete.**
+The infrastructure operations below belong to this catalogue/matrix, without a
+synthetic aggregate. P02b-2 Step 2 registers the delivered producer terminal
+operation; P02b-3 registers subscriber terminalization when its writer ships.
+Both use the restricted fifth audit seam on the fenced state-transition transaction.
+Routine confined dispatch has the explicit ADR-0046 exemption; platform-scope
+entry auditing is unchanged.
 
 **P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
 and focused fix verification pass. Site bootstrap
@@ -36,8 +48,9 @@ separate allowlist. Verification request types are Off.
 Packet 7 ships four audited root writes through three commands: Tenant and default
 Organization provisioning, a separate Organization create, and host mapping creation.
 P02d-2 adds two locale commands (SHOULD over Tenant) and one branding command (MUST over
-TenantSetting). Thirteen rows remain `(planned)`; five operations have no MediatR
-request and carry `(off-path)`.
+TenantSetting). P02b-2 Step 2 adds the producer terminal MUST security-event writer.
+Fourteen rows remain `(planned)`; seven operations have no MediatR request and
+carry `(off-path)`.
 
 All four original writes are **MUST**. Their records commit with the business state,
 under [ADR-0033](../../decisions/0033-audit-durability-model.md). The branding writer
@@ -102,7 +115,7 @@ already the permission key, and the first two segments of the two keys have to a
 so the spelling changes in both files or in neither.
 
 **A cell carries its slug and, where the row is not joined by request type, every marker
-that applies** — a row can carry both, and two do
+that applies** — a row can carry both
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). `(planned)` is a row
 classified ahead of the command that will raise it — the classification
 [Audit Coverage](../../standards/18-audit-coverage.md) asks for *before* the command
@@ -113,6 +126,8 @@ unmarked row is one a shipped command already raises.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
+| `outbox_messages` | `platform.outbox.dead_letter` `(off-path)` | **MUST** (`security-event`) | P02b-2 Step 2's consequential BYPASSRLS terminal transition; state and row commit together through the row-bound fifth audit seam, with stored tenant/org/event identity and SystemActor ([ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md)) |
+| delivery ledger | `platform.delivery.dead_letter` `(off-path)` `(planned)` | **MUST** (`security-event`) | P02b-3 owns subscriber terminalization, stable subscription/event identity and the same atomic transition/audit guarantee; no writer or operation registration ships at acceptance |
 | `Tenant` | `tenancy.tenant.create` | **MUST** | The root of a customer's data; its existence is a contractual fact |
 | `Tenant` | `tenancy.tenant.change_status` `(planned)` | **MUST** | Suspension withdraws access; an operator must be able to say who and when |
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
@@ -153,24 +168,30 @@ in both directions ([ADR-0044 § 6](../../decisions/0044-audit-write-path.md)).
 ([ADR-0044 Amendment 3](../../decisions/0044-audit-write-path.md)). Catalogue → matrix
 is total: every entry this module's `IAuditCatalogSource` registers has a row here
 carrying the same slug, and one that does not fails. Matrix → catalogue binds only to a
-slug whose request type **exists**, which is why the thirteen `(planned)` rows are
+slug whose request type **exists**, which is why the remaining `(planned)` rows are
 classification and not drift — and a `(planned)` row whose command has since shipped
 fails, so the marker is a claim the rule re-checks on every run rather than an
 exemption.
 
-Five rows sit outside that join in both directions, each marked `(off-path)` for the
+Seven rows sit outside that join in both directions, each marked `(off-path)` for the
 reason its own cell gives: `platform.admin_scope.enter`, written on the fourth write path
 ([ADR-0044 § 10](../../decisions/0044-audit-write-path.md));
 `tenancy.killswitch.toggle`, written inside `EnterPlatformAdminScope(reason)`;
 `tenancy.entitlement.refresh`, whose writer is `IEntitlementProvider.RefreshAsync` and
-whose refreshing implementation lands in Phase 02c; and the two
+whose refreshing implementation lands in Phase 02c; the two
 `tenancy.tenant_assertion.*` keys, written by a non-MediatR caller reaching
 `IAuditStore.WriteStandaloneAsync`
-([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md)). Three are
+([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md));
+`platform.outbox.dead_letter`, written with its fenced producer terminal UPDATE
+through `IAuditStore.WriteEventTerminalAsync`; and `platform.delivery.dead_letter`,
+whose subscriber writer belongs to P02b-3. Four are
 registered by slug through `DeclareOffPath` because their writer ships —
-`platform.admin_scope.enter` and the two `tenancy.tenant_assertion.*` keys.
-`tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry `(planned)` and
-register by slug when Phase 03 and Phase 02c land their writers. Every other slug above is
+`platform.admin_scope.enter`, `platform.outbox.dead_letter` and the two
+`tenancy.tenant_assertion.*` keys.
+`tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
+and `platform.delivery.dead_letter` also carry
+`(planned)` and register by slug when Phase 03, Phase 02c and P02b-3,
+respectively, land their writers. Every other slug above is
 joined in both directions the day its command lands.
 
 ## P02d-2 contextual verification reads

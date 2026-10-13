@@ -1,13 +1,16 @@
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** Keep privileged setup/worker credentials and arbitrary configuration out of runtime. */
+/** Give the API its explicit application/dispatcher credentials and bounded configuration. */
 export function publicApiEnvironment(values, configuration, base = process.env) {
   const environment = {};
   for (const name of ['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA'])
     if (base[name] !== undefined) environment[name] = base[name];
   if (!values.ConnectionStrings__Default) throw new Error('Application credential is missing');
+  if (!values.ConnectionStrings__OutboxDispatcher)
+    throw new Error('Outbox dispatcher credential is missing');
   environment.ConnectionStrings__Default = values.ConnectionStrings__Default;
+  environment.ConnectionStrings__OutboxDispatcher = values.ConnectionStrings__OutboxDispatcher;
   if (values.ConnectionStrings__PlatformAdmin)
     environment.ConnectionStrings__PlatformAdmin = values.ConnectionStrings__PlatformAdmin;
   return {

@@ -20,6 +20,7 @@ import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 import { apiCompletionObserver } from './demo-observation.mjs';
+import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -69,6 +70,18 @@ export async function disposeDemoResources({ processes, finish, teardown, remove
       'Owned cleanup could not be confirmed; private files retained',
     );
   await removePrivate();
+}
+
+/** Only fixed local diagnostics may leave the launcher boundary. */
+export function demoFailureMessage(error) {
+  return error instanceof DemoCommandError ||
+    (error instanceof Error &&
+      (error.message === 'Local demo database configuration is invalid' ||
+        /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
+          error.message,
+        )))
+    ? error.message
+    : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack';
 }
 
 /** Start the same seeded, production-built topology for foreground use and CI proof. */
@@ -242,6 +255,7 @@ export async function startDemo(mode) {
       await run('dotnet', [seederDll, '--demo-manifest'], 'Seed-derived manifest', {
         capture: true,
         cwd: backendRoot,
+        env: publicSeederEnvironment(),
       }),
     );
     const hosts = [...new Set(manifest.map((lane) => lane.host))];
@@ -313,12 +327,7 @@ export async function startDemo(mode) {
     const values = loadLocalEnvironment(repositoryRoot, process.env);
     const configuration = publicServerConfiguration(values, repositoryRoot);
     await vacant(Number(new URL(configuration.apiOrigin).port || '80'));
-    await run(
-      'dotnet',
-      [seederDll, '--validate-demo-config'],
-      'Local database configuration validation',
-      { cwd: backendRoot, env: { ...process.env, ...rawValues } },
-    );
+    validateDemoDatabaseConfiguration(rawValues);
     const certificate = readFileSync(configuration.certificate);
     const leaf = validateCertificate(certificate, readFileSync(configuration.privateKey), [
       ...hosts,
@@ -391,11 +400,7 @@ export async function startDemo(mode) {
     await waitCompose(selected, processes, controller.signal);
     await run('dotnet', [seederDll], 'Contextual seed convergence', {
       cwd: backendRoot,
-      env: {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME,
-        ConnectionStrings__Default: rawValues.ConnectionStrings__Default,
-      },
+      env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
       timeout: 180000,
     });
     if (mode === 'ci') {
@@ -539,15 +544,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   } catch (error) {
     if (runtime?.mode !== 'local' || !runtime.signalRequested()) {
       // Labels are fixed locally; never echo provider, configuration or build output.
-      console.error(
-        error instanceof DemoCommandError ||
-          (error instanceof Error &&
-            /^(?:Use make demo|Port \d+ is occupied|Another demo owns|TLS leaf|Seed hosts|Environment disagrees|CI requires)/.test(
-              error.message,
-            ))
-          ? error.message
-          : 'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack',
-      );
+      console.error(demoFailureMessage(error));
       process.exitCode = 1;
     }
   } finally {

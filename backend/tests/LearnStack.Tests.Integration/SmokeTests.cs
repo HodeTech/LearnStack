@@ -5,13 +5,13 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration;
 
-public sealed class SmokeTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SmokeTests : IClassFixture<ConstructionOnlyApiFactory>
 {
     private static readonly Uri HealthzPath = new("/healthz", UriKind.Relative);
 
     private readonly WebApplicationFactory<Program> _factory;
 
-    public SmokeTests(WebApplicationFactory<Program> factory)
+    public SmokeTests(ConstructionOnlyApiFactory factory)
     {
         _factory = factory;
     }

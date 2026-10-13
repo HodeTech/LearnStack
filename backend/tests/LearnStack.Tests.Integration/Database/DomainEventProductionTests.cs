@@ -797,7 +797,7 @@ public sealed class DomainEventProductionTests(SchemaFixture schema)
 
     private static WebApplicationFactory<Program> Host(
         string connectionString, DispatchObservation observation, ITenantContext? context = null) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", connectionString);
             builder.ConfigureServices(services =>

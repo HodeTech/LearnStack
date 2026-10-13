@@ -1227,11 +1227,12 @@ public sealed class TenancySchemaTests
             "learnstack_platform tenant_level_taxonomy_items SELECT",
             "learnstack_platform customization_generations SELECT",
             "learnstack_outbox_admin outbox_messages SELECT",
+            "learnstack_outbox_admin audit_log INSERT",
 
             // The Audit chain. learnstack_platform's column-restricted UPDATE on
             // audit_log does NOT appear here — information_schema.role_table_grants
             // reports table-level privileges only — so the six-column list has its own
-            // assertion in AuditSchemaTests, the way the dispatcher's four-column grant
+            // assertion in AuditSchemaTests, the way the dispatcher's eight-column grant
             // on outbox_messages does in PlatformSchemaTests. A matrix row missing its
             // column half reads as a narrower grant than the one that shipped.
             "learnstack_app audit_log INSERT,SELECT",
@@ -1248,6 +1249,6 @@ public sealed class TenancySchemaTests
             "learnstack_platform lesson_translations SELECT",
         ],
         "every line is one line of the migration chains' grant matrices, and "
-        + "learnstack_outbox_admin holds nothing beyond the outbox");
+        + "learnstack_outbox_admin holds only outbox SELECT/status UPDATE and terminal audit INSERT");
     }
 }

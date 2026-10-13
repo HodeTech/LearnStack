@@ -2,6 +2,7 @@ using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
@@ -34,7 +35,7 @@ namespace LearnStack.Api.Composition;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>One data source, and it must be the application role's.</b>
+/// <b>Module contexts share the application-role data source.</b>
 /// <c>ConnectionStrings:Default</c> names <c>learnstack_app</c>, which is
 /// <c>NOBYPASSRLS</c> and holds <c>USAGE</c> but not <c>CREATE</c> on schema
 /// <c>public</c>. <c>ConnectionStrings:Migration</c> is never read here — that
@@ -61,8 +62,8 @@ namespace LearnStack.Api.Composition;
 /// <para>
 /// <b>Built lazily; validated eagerly when there is anything to validate.</b>
 /// The data source is a singleton whose factory runs when something first needs a
-/// connection, so a <c>WebApplicationFactory</c> test — and a deployment serving
-/// only platform hosts — carries no database it does not use. The two checks above
+/// connection, so a construction-only <c>WebApplicationFactory</c> test carries
+/// no application database it does not use. The two checks above
 /// are not deferred with it: a present <c>ConnectionStrings:Default</c> is
 /// name-checked at <c>AddLearnStackPersistence</c> time, because a string naming
 /// <c>learnstack_migration</c> is precisely the ownership mistake this guard exists
@@ -83,15 +84,16 @@ namespace LearnStack.Api.Composition;
 /// resolution boundary.
 /// </para>
 /// <para>
-/// <c>ConnectionStrings:OutboxDispatcher</c> is still deliberately absent; it lands
-/// with its consumer in Phase 02b.
+/// <c>ConnectionStrings:OutboxDispatcher</c> is keyed and lazy through the separate
+/// confined outbox composition. Its mandatory worker startup verifies connectivity;
+/// module contexts and the Seeder never resolve it (ADR-0046).
 /// </para>
 /// </remarks>
 public static class PersistenceCompositionExtensions
 {
     private const string DefaultConnectionName = "Default";
 
-    /// <summary>The one role a runtime process may connect as.</summary>
+    /// <summary>The role required by the application data source.</summary>
     internal const string RuntimeRole = ApplicationDataSource.RuntimeRole;
 
     public static IServiceCollection AddLearnStackPersistence(
@@ -99,6 +101,15 @@ public static class PersistenceCompositionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddLearnStackOutboxDispatcher(configuration);
+        services.TryAddSingleton(provider => OutboxEventRegistry.Create(
+            [OutboxEventRegistration.Required(
+                typeof(TenantCreatedIntegrationEventV1),
+                [OutboxSubscriptionManifest.Pending("customization.initialize-content-type-default.v1"),
+                 OutboxSubscriptionManifest.Pending("customization.initialize-taxonomy-default.v1")])],
+            [], provider.GetRequiredService<IntegrationEventHandlerRegistry>(),
+            [typeof(TenantCreatedIntegrationEventV1).Assembly]));
 
         var connectionString = configuration.GetConnectionString(DefaultConnectionName);
 

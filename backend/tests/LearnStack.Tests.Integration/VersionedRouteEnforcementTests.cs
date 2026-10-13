@@ -211,7 +211,7 @@ public sealed class TestControllerFilter(params Type[] keep) : IApplicationModel
 /// The production host, with no test controllers added — its endpoint set is
 /// exactly what a deployed instance serves.
 /// </summary>
-public sealed class ProductionHostFixture : WebApplicationFactory<Program>
+public sealed class ProductionHostFixture : ConstructionOnlyApiFactory
 {
     private IReadOnlyList<string>? _patterns;
 
@@ -223,7 +223,7 @@ public sealed class ProductionHostFixture : WebApplicationFactory<Program>
             .Select(endpoint => (endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/'))
             .Where(pattern => pattern.Length > 0)];
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
@@ -231,9 +231,9 @@ public sealed class ProductionHostFixture : WebApplicationFactory<Program>
 }
 
 /// <summary>Host that admits exactly one probe controller, to prove a guard fires.</summary>
-public sealed class ProbeHostFixture(Type controller) : WebApplicationFactory<Program>
+public sealed class ProbeHostFixture(Type controller) : ConstructionOnlyApiFactory
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

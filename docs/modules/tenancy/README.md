@@ -494,10 +494,18 @@ back-reference completion; partition source is `TenantId`, payload has no extra
 fields and envelope organization is null. Enqueue reads the transaction's
 announcement while provisioning ambient context remains unresolved. State, event
 and the existing two MUST audit rows share one transaction. P02b-1 persists
-pending rows; P02b-2/P02b-3 own dispatch/delivery.
+pending rows; P02b-2 implements hosted dispatch and production-census enforcement.
+All four steps completed both independent review rounds and local closeout.
+The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. P02b-3 owns consumer delivery.
 
 The subscriptions below are accepted flow contracts, not delivered handlers.
-G1 must settle distinct subscription deduplication/delivery scope first.
+[ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md) accepts G1's
+shared transport-owned inbox and separate delivery ledger. P02b-2 holds this
+contract Pending, including aliases, before claim or payload validation. P02b-3
+activates `customization.initialize-content-type-default.v1` for the `card@1`
+content type and `customization.initialize-taxonomy-default.v1` for the `plain@1`
+taxonomy together with durable acceptance; there are no placeholder handlers.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|

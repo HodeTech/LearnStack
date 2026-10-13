@@ -175,13 +175,13 @@ public sealed class HostClassificationMeter : ICollectionFixture<HostClassificat
 }
 
 /// <summary>A host whose resolver maps one tenant host and nothing else.</summary>
-public sealed class AuthorityCeilingFixture : WebApplicationFactory<Program>
+public sealed class AuthorityCeilingFixture : ConstructionOnlyApiFactory
 {
     public const string TenantHost = "school.example.com";
 
     public static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-0000000000d1");
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

@@ -40,9 +40,9 @@ flowchart LR
   end
 
   subgraph backend["LearnStack Backend"]
-    api[ASP.NET Core API<br/>Modular Monolith]
+    api[ASP.NET Core API<br/>Modular Monolith + OutboxProcessor]
     daprd1[Dapr sidecar]
-    workers[Hangfire Workers<br/>jobs + outbox dispatcher]
+    workers[Hangfire Workers<br/>background jobs]
   end
 
   subgraph hubplane["LearnStack Hub (separate codebase)"]
@@ -173,13 +173,13 @@ See [Database Standards](../standards/05-database.md).
 flowchart LR
   trans[Module transaction]
   outbox[(outbox table)]
-  dispatcher[Outbox dispatcher<br/>Hangfire recurring job]
+  dispatcher[API OutboxProcessor<br/>BackgroundService]
   bus[In-process event bus]
   handlers[Integration event handlers]
   externals[External calls<br/>email / search index / etc.]
 
   trans -- domain change + integration event row --> outbox
-  dispatcher -- pull batch --> outbox
+  dispatcher -- claim one admitted row --> outbox
   dispatcher -- dispatch --> bus
   bus --> handlers
   bus --> externals
@@ -187,7 +187,10 @@ flowchart LR
 ```
 
 - All side-effects beyond the database transaction are deferred to **integration events** written to a transactional `outbox` table in the same transaction as the domain change.
-- A dispatcher polls the outbox and dispatches events to in-process handlers and external systems.
+- The API-host `OutboxProcessor` polls the outbox and publishes admitted events
+  through `IEventBus`. P02b-2 Step 3 implements hosted execution, with
+  both independent review rounds complete; real required subscriptions remain Pending
+  until P02b-3 supplies durable consumer execution.
 - Idempotency keys plus consumer-side deduplication guarantee at-least-once with effective once-only semantics.
 
 Full details: [Events & Outbox](15-event-and-outbox.md).

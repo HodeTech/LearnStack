@@ -55,7 +55,7 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
         var context = new ActingContext(OrganizationId.From(SchemaFixture.OrgA1));
         await using var seed = Compose(dataSource, context);
-        await using var host = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.ConfigureServices(services => services.AddSingleton<ITenantContextAccessor>(
@@ -153,7 +153,7 @@ public sealed class OutboxProducerTests(SchemaFixture schema)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         var transport = new CountingEventBus();
-        await using var host = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.ConfigureServices(services =>

@@ -44,7 +44,7 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
 
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
         await using var seed = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
-        await using var host = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.ConfigureServices(services => services.AddSingleton<ITenantContextAccessor>(

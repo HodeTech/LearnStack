@@ -28,11 +28,11 @@ Phase ownership (per [phase-02a](../../docs/roadmap/phase-02a-kernel-tenancy.md)
   familiarity only — no backend code path reaches them, and
   `backend/Directory.Packages.props` declares no client library for any of the
   four.
-- **Phase 02b** wires the `OutboxProcessor`, which is the only sanctioned
-  caller of `IEventBus.PublishAsync` per ADR-0010 Amendment 1. Modules
-  therefore *consume* `ICacheService` and `ISecretProvider` from 02a but
-  do not *write* to `IEventBus` directly until the outbox path exists in
-  02b.
+- **P02b-2 Step 3** implements the API-host `OutboxProcessor`, with
+  both independent review rounds complete. It is the only sanctioned production caller
+  of `IEventBus.PublishAsync` per ADR-0010 Amendment 1. Modules consume
+  `ICacheService` and `ISecretProvider` from 02a and enqueue through `IOutbox`;
+  they never publish through `IEventBus` directly.
 
 Service invocation, workflow, bindings, **actors**, configuration, and
 distributed lock are **not adopted**; if a future need appears the gate is a
@@ -138,7 +138,7 @@ YAML metadata field.
   the interfaces and default adapters shipped in Phase 02a; Dapr-backed
   adapters belong to Phase 11 (see § Phase ownership above).
 - Outbox dispatcher (`OutboxProcessor` polling + dispatch) — Phase 02b.
-- Per-module `inbox_messages` table + `IInboxGuard` — Phase 02b.
+- Shared transport-owned `inbox_messages` table + `IInboxGuard` — P02b-3.
 - Production Vault setup (HA mode, auto-unseal, AppRole policies) — Phase 11.
 - Additional sidecars for the Hub overlay (separate app id, separate
   consumer group) — Phase 02c.

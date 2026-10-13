@@ -15,7 +15,7 @@ namespace LearnStack.Modules.Tenancy.Application.Audit;
 /// <para>
 /// <b>Only the operations whose command exists.</b>
 /// <see href="../../../../../docs/modules/tenancy/audit.md">The matrix</see> carries
-/// thirteen more rows marked <c>(planned)</c> — classification ahead of code — and
+/// additional rows marked <c>(planned)</c> — classification ahead of code — and
 /// registering one of those would claim a writer that does not exist, which is the half
 /// of the join that has no way to notice.
 /// </para>
@@ -78,6 +78,8 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
             // to name the same one.
             .DeclareOffPath(
                 "platform.admin_scope.enter", OperationType.SecurityEvent, OperationClass.Must)
+            .DeclareOffPath(
+                "platform.outbox.dead_letter", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(
                 "tenancy.tenant_assertion.reject", OperationType.SecurityEvent, OperationClass.Must)
             .DeclareOffPath(

@@ -12,7 +12,12 @@
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
 (accepted 2026-10-11; browser/audit replacement proofs implemented),
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
-(producer lifecycle, payload and production-census proofs implemented). The
+(producer lifecycle, payload and production-census proofs implemented),
+[ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
+(P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
+all four steps completed both independent review rounds and local closeout;
+the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status; P02b-3 consumer proofs remain pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -105,11 +110,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**173 test methods run in
+**194 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3 and P02b-1.
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1
+and P02b-2 Steps 2–4.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -136,8 +142,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**183 rules in this catalogue are Implemented, and 113 of them are in that assembly.**
-The other 70 are no less binding, and most could not live there. The table says where
+**192 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
+The other 74 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1787,14 +1793,34 @@ diagnostic above row security, not the boundary, as its own note says.
 
 #### `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor`
 
-- **Asserts:** `ConnectionStrings:OutboxDispatcher` is resolved by `OutboxProcessor`
-  and nothing else. A `GRANT` names a role, not a code path — every handler in the
-  API process runs as the same role — so code-path confinement of a `BYPASSRLS`
-  credential is carried here or nowhere.
-- **Source:** [05-database.md § GRANT matrix](05-database.md); ADR-0003 Amendment 3.
-- **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
-- **Status:** **Awaiting backfill** — cited by the standard, no dispatcher yet.
-- **Phase:** 02b.
+- **Asserts:** only the confined dispatcher infrastructure resolves the named keyed,
+  lazy `ConnectionStrings:OutboxDispatcher` source in the API host. Seeder/web and
+  arbitrary keyed/service-provider resolution are refused. Physical connections
+  verify the exact outbox role, bounded attributes and memberships, including
+  direct/transitive incoming membership from other non-superuser roles. A nonempty
+  production census has planted clean/dirty resolution and registration controls.
+  Named worker/store source readers require unique literal method signatures,
+  visibility and staticness; a same-name overload grants no authority. Real
+  role/grant probes include valid and elevated/transitive negative controls.
+- **Source:** [05-database.md § GRANT matrix](05-database.md#grant-matrix);
+  [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+- **Type:** architecture/DI census and real PostgreSQL role probes.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatcherRoleGuardTests`, `OutboxProcessorTests`): exact nonempty
+  whole-production credential/factory/consumer census, keyed registration and
+  constructor bindings, planted clean/dirty helper/delegate/async controls, and
+  real PostgreSQL role/grant/startup refusal proofs. Exact unique literal
+  source-reader signatures, visibility and staticness reject named-method overloads;
+  those focused controls and both fresh fix reviews passed at `606362b`.
+  [OutboxDispatchConventionTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys](../../backend/tests/LearnStack.Tests.Architecture/OutboxDispatchBoundaryTests.cs)
+  plants actual compiled concatenation, interpolation, formatting and configuration
+  indexer calls, with clean configuration/dictionary/diagnostic controls.
+  [OutboxDispatcherRoleGuardTests.App_membership_in_the_dispatcher_is_refused_directly_and_transitively_then_restoration_connects](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatcherRoleGuardTests.cs)
+  proves an existing app session can escalate through the planted grant, then
+  verifies refusal on a new dispatcher physical connection and successful
+  connection after grant removal, for both direct and transitive membership.
+- **Phase:** 02b, P02b-2.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
 
@@ -2631,16 +2657,18 @@ which decides identity, multiplicity, capture and classification;
     the reverse, which also carries the anti-rot check and a guard against sweeping no rows
     at all.
   - **Off the request path.** Some audited operations are not MediatR requests at all.
-    Seven rows carry `(off-path)`: Tenancy's `platform.admin_scope.enter`,
+    Nine rows carry `(off-path)`: Tenancy's `platform.admin_scope.enter`,
+    `platform.outbox.dead_letter`, `platform.delivery.dead_letter`,
     `tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
     `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst` —
     snake_case within each segment since
     [ADR-0036 Amendment 7](../decisions/0036-tenant-resolution-trusted-inputs.md), so that
     one parser reads every audit slug and every permission key — and Audit's
     `audit.redaction.apply` and `audit.purge.apply`. They sit outside the request-type join
-    in both directions and register by slug: the three whose writer ships through
-    `DeclareOffPath` today, the other four — which also carry `(planned)` — when their
-    writer lands.
+    in both directions and register by slug: the four whose writer ships through
+    `DeclareOffPath` today, the other five — which also carry `(planned)` — when their
+    writer lands. ADR-0046 assigns the producer terminal writer to P02b-2 and the
+    subscriber terminal writer to P02b-3; acceptance alone registers neither slug.
 
   Stated as one unconditional join, the rule is red on its first run: the two shipped
   matrices classify many more operations than `backend/src/Modules` has request types, and
@@ -2878,7 +2906,23 @@ which decides identity, multiplicity, capture and classification;
 - **Source:** ADR-0033 (carried from ADR-0016);
   [31-audit-subsystem.md § 10](../architecture/31-audit-subsystem.md).
 - **Type:** xUnit + source / migration scan. **Kind:** structural.
-- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts: a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` — with or without `ONLY`, a schema qualifier or identifier quotes, which the first pattern missed until the fourth review of Packet 9 measured it; a companion, `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes it must catch and the shapes it must not, because with no offending statement anywhere the sweep passes whether it works or matches nothing; and a reflection check, `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly four write methods and no update. None of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase 11 — so the exemption set ships with the rule **empty**, as exact paths: the first site to land adds its own path, so it is exempted by name rather than the pattern widened. (A substring predicate stood there first, and exempted any Audit-module file whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO audit_log` — because with no offender anywhere, a sweep that read nothing passed as well.
+- **Status:** **Implemented** (`AuditConventionTests`, Packet 9 step 8), in three parts:
+  a source sweep over `backend/src` for an `UPDATE` or `DELETE` targeting `audit_log` —
+  with or without `ONLY`, a schema qualifier or identifier quotes, which the first
+  pattern missed until the fourth review of Packet 9 measured it; a companion,
+  `The_AppendOnly_Sweep_Can_Actually_Fail`, that checks the pattern against the shapes
+  it must catch and the shapes it must not, because with no offending statement anywhere
+  the sweep passes whether it works or matches nothing; and a reflection check,
+  `IAuditStore_Exposes_No_Update_Method`, that `IAuditStore` exposes exactly five write
+  methods and no update (the additive fifth terminal seam ships in P02b-2 Step 2). None
+  of the three sanctioned redaction sites exists yet — they land in Phase 03 and Phase
+  11 — so the exemption set ships with the rule **empty**, as exact paths: the first
+  site to land adds its own path, so it is exempted by name rather than the pattern
+  widened. (A substring predicate stood there first, and exempted any Audit-module file
+  whose path contained "Redaction".) Since the fifth review of Packet 9 the sweep also
+  asserts its premise — it must have read `PostgresAuditStore`'s own `INSERT INTO
+  audit_log` — because with no offender anywhere, a sweep that read nothing passed as
+  well.
 - **Phase:** 02a (Packet 9).
 
 #### `Every_PII_Module_RegistersUserReferenceLocator`
@@ -3165,13 +3209,20 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `Integration_Event_Handlers_Use_InboxGuard`
 
-- **Asserts:** every `IIntegrationEventHandler<T>` calls
-  `IInboxGuard.IsAlreadyProcessedAsync` before any business logic.
-- **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
-  [ADR-0006](../decisions/0006-events-and-outbox.md).
-- **Type:** xUnit + IL / source scan. **Kind:** structural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
+- **Asserts:** the transport claims the shared inbox before constructing each
+  declared subscription's handler. Business state, completed inbox, produced
+  outbox, MUST audit and fenced ledger completion share the announced app-role
+  transaction. Concurrent duplicates serialize; two same-module subscriptions
+  have distinct identities. Stale tokens, expired leases and a closed timeout
+  gate roll back all business work. Completed inbox rows survive targeted replay.
+  A nonempty production census and planted dirty/clean controls prevent an empty
+  handler set from appearing enforced.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership),
+  superseding ADR-0006/0010's handler-called guard assertion.
+- **Type:** architecture call-path census and integration tests (Testcontainers).
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — transport-owned inbox/delivery remains unimplemented.
+- **Phase:** 02b, P02b-3.
 
 #### `Integration_Events_Inherit_From_IntegrationEventBase`
 
@@ -3196,15 +3247,16 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   unrelated-ID and missing-declaration offenders plus clean controls. Behavioral
   cases compare actual source/key values. The envelope reads the event's key;
   it cannot hold a second answer. This establishes derivation, not durable order;
-  G3's publish-order half remains P02b-2.
+  ADR-0046 defines eligible-selection order and its limits.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
+  [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#producer-dispatch-and-recovery);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md#ordering).
 - **Type:** xUnit + reflection/IL/source scan and value probes.
   **Kind:** structural + behavioural.
 - **Status:** **Implemented** (`IntegrationEventContractTests`, `OutboxProducerTests`);
   stored-source IL grammar, independently varied identifiers, dirty/clean controls and
   persisted keys. Unsupported derivations fail loudly.
-- **Phase:** 02b, P02b-1 (derivation); P02b-2 (ordering).
+- **Phase:** 02b, P02b-1 (derivation); P02b-2 (selection-order bounds).
 
 #### `Outbox_Enqueue_Uses_The_Announced_Transaction`
 
@@ -3296,25 +3348,163 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
 
-- **Asserts:** one poisoned message does not prevent the rest of its batch from being
-  dispatched.
+- **Asserts:** ordinary publication failure permits unrelated eligible work to
+  progress. A callback ignoring cancellation retains its live task-owned scope,
+  blocks its own partition and makes health unhealthy; unrelated keys progress
+  within the approved four-task bound. Saturation stops acquisition, late results
+  cannot acknowledge, and shutdown waits finitely without disposing live resources.
 - **Source:** [15-event-and-outbox.md § Architecture tests](../architecture/15-event-and-outbox.md);
   Phase 02b deliverable.
 - **Type:** **integration** test (Testcontainers). **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxPublishAttemptTests`):
+  actual hosted ordinary-failure, retained-scope/cleanup, partition hold, four-task
+  saturation and finite-shutdown proofs; hostile synchronous construction and
+  cancellation callbacks retain ownership through completion.
 - **Phase:** 02b.
 
 #### `Outbox_Claim_IsHeld_Until_Dispatch_Completes`
 
-- **Asserts:** two concurrent `OutboxProcessor` instances draining one pending batch
-  dispatch each message **exactly once** — the claim is held for the duration of the
-  dispatch, not released when the row is read. Requires **two** processors: a
-  single-processor test passes against the broken protocol.
+- **Asserts:** two independent processor instances have at most one live owner of
+  a row. A claim commits before publication and is fenced by a fresh acquisition
+  token and database-time lease. Release-on-read controls fail. Expiry/crash permits
+  redelivery; same-worker reacquisition rejects both stale success and stale failure.
+  This proves live ownership and at-least-once recovery, not exactly-once publication.
 - **Source:** [Phase 02b](../roadmap/phase-02b-events-auth.md);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
-- **Type:** **integration** test (Testcontainers, two processes). **Kind:** behavioural.
-- **Status:** **Registered.**
+- **Type:** **integration** test (Testcontainers, two independent instances).
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`):
+  two actual API workers contend while a live publication is held; committed
+  leases, repeat reads, expiry/reclaim and stale transitions have real-role
+  controls. Removing live-lease admission makes the hosted contention proof fail.
 - **Phase:** 02b.
+
+#### `Outbox_Retry_And_Terminal_Transitions_Are_Fenced`
+
+- **Asserts:** Normal claims count once, stop at six and use the five approved delays.
+  Expired claims require fresh-token recovery; a sixth expired claim never publishes a
+  seventh time. Every transition checks identity, token and database-time expiry.
+  Terminal requests never reenter normal publication, including after audit refusal.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** production architecture census with planted controls where structural;
+  real PostgreSQL/runtime integration proofs where behavioural.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatchStoreTests`): exact production literal-SQL writer census with
+  quoted/schema/case/CTE and missing/extra-writer controls; committed claim/backoff,
+  expiry/reclaim, sixth-claim recovery and terminal-request refusal proofs. The
+  SQL census does not claim arbitrary dynamic-SQL dataflow analysis.
+- **Phase:** 02b, P02b-2.
+
+#### `Outbox_Terminal_Transition_And_Must_Audit_Are_Atomic`
+
+- **Asserts:** The fenced terminal UPDATE and MUST/SecurityEvent INSERT commit
+  together. Failed audit or stale ownership commits neither; terminalization retries
+  never publish. Unknown COMMIT reconciles durable state before retry and cannot
+  duplicate the terminal audit. Exact real-role grants allow only the declared writes.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** integration tests (Testcontainers), including physical COMMIT-response
+  loss and real-role grant controls.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`OutboxDispatchStoreTests`,
+  `OutboxDispatchMigrationTests`), with these proofs:
+  [OutboxDispatchStoreTests.Refused_audit_rolls_back_the_terminal_update_and_retains_the_request_for_audited_retry](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.Expiry_alone_refuses_every_transition_without_changing_state](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.A_lost_physical_COMMIT_response_reconciles_durable_terminal_state_without_duplicate_audit](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.A_lost_COMMIT_response_and_failed_reconciliation_preserve_both_failures_without_duplicate_audit](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  and [OutboxDispatchMigrationTests.Outbox_role_has_no_audit_read_mutation_or_business_access](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchMigrationTests.cs)
+  prove audit-grant refusal, atomic rollback/retry, stale ownership, durable
+  reconciliation and completed-row replay without duplicate audit.
+- **Phase:** 02b, P02b-2.
+
+#### `Outbox_Terminal_Audit_Identity_Is_Row_Bound`
+
+- **Asserts:** Only the successful fenced UPDATE result mints a restricted
+  EventTerminalTransition witness. A nonempty production mint/call-site census has
+  planted clean/dirty controls. Real bypass-role proofs substitute tenant,
+  organization, event and transaction against that witness and roll back both writes;
+  matching organization-scoped identity succeeds.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** production architecture census with planted controls where structural;
+  real PostgreSQL/runtime integration proofs where behavioural.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxDispatchStoreTests`): exact nonempty production mint/write censuses with
+  planted controls and real-row identity/transaction refusal proofs.
+- **Phase:** 02b, P02b-2.
+
+#### `Outbox_Type_Resolution_Is_Declared_And_Bounded`
+
+- **Asserts:** Only declared concrete contract identities and explicit compatible
+  aliases resolve; collisions refuse composition. Unknown/retired/malformed/mismatched
+  data terminalizes without arbitrary type loading. Frozen options, canonical UTF-8
+  admission, microsecond timestamp comparison and full row/envelope agreement have
+  positive and negative controls.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** production architecture census with planted controls where structural;
+  real PostgreSQL/runtime integration proofs where behavioural.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxEnvelopeReaderTests`, `OutboxEventRegistryTests`): declared resolver and
+  transitive production helper census, planted loading calls and envelope probes.
+- **Phase:** 02b, P02b-2.
+
+#### `Outbox_Pending_Subscriptions_Preserve_Events`
+
+- **Asserts:** Real TenantCreated rows and aliases remain unchanged through repeated
+  Pending polls, even with malformed stored payloads: no acquisition, attempts,
+  validation or handler construction. Declared intentional absence is a distinct
+  tested acknowledgement policy. Test-owned Active contracts exercise the shipped
+  publish/mark path; real subscriptions stay Pending until P02b-3.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** integration tests (Testcontainers) and unit tests of production
+  composition and manifest refusal.
+  **Kind:** startup + behavioural.
+- **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`,
+  `OutboxProductionCompositionTests`, `OutboxEventRegistryTests`), with these proofs:
+  [OutboxProcessorTests.Real_provisioning_rows_remain_Pending_across_hosted_polls_without_construction_or_mutation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs),
+  [OutboxDispatchStoreTests.Real_TenantCreated_contracts_and_aliases_are_held_before_any_payload_validation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxProductionCompositionTests.Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
+  and [OutboxEventRegistryTests.Active_manifest_and_discovered_handlers_must_match_in_both_directions](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Messaging/OutboxEventRegistryTests.cs)
+  prove real Pending holds and composition refusal. Test-owned Active publication
+  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
+  [OutboxProcessorTests.Explicit_intentional_absence_acknowledges_without_constructing_a_handler](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs)
+  proves the distinct intentional-absence policy.
+- **Phase:** 02b, P02b-2.
+
+#### `Outbox_Health_And_Metrics_Are_Bounded`
+
+- **Asserts:** Production worker registration, bounded deadlines/overruns/shutdown and
+  real progress health have nonempty subjects and planted controls. Gauge callbacks
+  read immutable snapshots without SQL; failed refresh retains stale data.
+  Due/delayed/leased/deferred/terminal-requested/terminal rows distinguish gauges.
+  Labels and diagnostics prohibit unbounded identities or sensitive
+  exception/type/payload/connection data; /healthz remains liveness-only.
+  Polymorphic helper traversal covers production-owned contracts. The external
+  clock is pinned to the actual singleton `TimeProvider.System` instance; actual
+  DI health must follow Healthy → Unhealthy → Healthy on its singleton observation,
+  refusing a same-type detached factory.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
+  [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
+- **Type:** production architecture census with planted controls where structural;
+  real PostgreSQL/runtime integration proofs where behavioural.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `OutboxProcessorTests`, `OutboxObservationTests`,
+  `OutboxProductionCompositionTests`): nonempty five-subject observation graph,
+  actual gauge callbacks, async/production-owned polymorphic helpers and
+  persistence/locator capability controls; actual DI missing/duplicate/wrong-factory
+  controls plus bounded runtime, immutable snapshot, metric-label and liveness
+  proofs. The external clock is pinned to the actual `TimeProvider.System` singleton,
+  and actual DI health follows Healthy → Unhealthy → Healthy against the singleton
+  observation; alternate clock and detached same-type factory controls are rejected.
+  Focused verification and both fresh fix reviews pass at `606362b`.
+- **Phase:** 02b, P02b-2.
 
 ### Demand-gated: lands with its adapter
 
@@ -3343,11 +3533,15 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
 
 - **Asserts:** no type in a module assembly takes, returns or stores `IEventBus`, and no
   module takes or stores `IServiceProvider` as a service-locator escape hatch. Constructor
-  and method parameters, return types, fields and properties are checked. The only
-  sanctioned publisher is the `OutboxProcessor`; modules write to the outbox.
+  and method parameters, return types, fields and properties are checked. A nonempty
+  whole-production publication census admits only the private task-owned publish
+  callback and the attempt constructed by `OutboxProcessor.DispatchNormalAsync`;
+  interface/concrete/delegate/async publication and unowned attempts are refused.
+  Modules write to the outbox.
 - **Source:** [20-infrastructure-stack.md § `IEventBus`](20-infrastructure-stack.md);
   [ADR-0010](../decisions/0010-cross-module-communication.md).
-- **Type:** xUnit + reflection over module assemblies. **Kind:** structural.
+- **Type:** xUnit + reflection over module assemblies and whole-production IL
+  publication census. **Kind:** structural.
 - **Status:** **Implemented** (`CrossCuttingFoundationTests`). A module holding the bus
   gets a synchronous cross-module call with no durability and no transactional
   atomicity — a fifth cross-module mechanism in everything but name, and one that looks
@@ -3356,8 +3550,11 @@ registered, which is the shape of gap this catalogue exists to close. It is ther
   `LearnStack.SharedKernel.Messaging` for `IIntegrationEvent` and
   `IIntegrationEventHandler<T>`. The module sweep has had a subject since Packet 7 —
   four modules ship code — and the checker is also pointed at direct-injection,
-  method-injection and service-locator deliberate offenders in the test assembly, so a
-  clean sweep is evidence rather than an absence.
+  method-injection and service-locator deliberate offenders in the test assembly.
+  P02b-2 Step 4 adds the complete production publication fence through the same
+  canonical test; missing subjects, extra implementations/callers, delegate/async
+  escapes and unowned attempts have dirty/clean controls. This is bounded IL
+  capability inspection, not arbitrary reflection/dataflow analysis.
 - **Phase:** 02a (Packet 5).
 
 #### `Integration_Event_TopicNames_FollowConvention`

@@ -67,10 +67,18 @@ items, rules, custom fields and notification templates; their delivery is tracke
 **Phase 01, Phase 02a and Phase 02d are complete.** Phase 02d is merged through
 PR #28 on 2026-10-11. P02b-0's
 [entry audit](docs/roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-is complete. **P02b-1 is complete; PR review and merge remain pending.** Its
-[packet closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
-records transactional event production, enforcement and both review rounds per
-step under Accepted ADR-0057.
+is complete. **P02b-1 is complete and merged** through
+[PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+records transactional event production, enforcement, completed reviews and final
+CI verification under Accepted ADR-0057. P02b-2's revised package and ADR-0046
+are Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
+dispatch and observation, with both independent review rounds complete. Its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+owns its runtime evidence. Step 4 enforcement and local closeout are complete;
+all four steps completed both independent review rounds. CI and merge status
+live in the
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12).
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -120,8 +128,10 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 and P02b-1 are complete; dispatcher and consumer
-work remain P02b-2/P02b-3. The
+owns final verification. P02b-0 and P02b-1 are complete; P02b-2 producer dispatch
+and enforcement are locally complete, with both independent review rounds complete
+for all four steps; the Step 4 record above owns CI/merge status. Consumer
+delivery remains P02b-3. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -133,7 +143,7 @@ page consumers and P02d-7 the two-host browser demo.
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability and transactional event production | Authentication and durable event dispatch/consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch with production-census enforcement (all four P02b-2 steps and both review rounds locally complete) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and
@@ -212,6 +222,17 @@ foreign listener is refused; no foreign process is killed. If a hard kill leaves
 `.data/demo.lock`, confirm the earlier process tree has stopped before removing
 that lock manually. Missing/stale configuration or TLS is refused without reset.
 
+Local demo database validation accepts only `Host`, `Port`, `Database`,
+`Username` and `Password`, with case-insensitive keys. Supported aliases are
+`Server` for `Host`; `User Name`, `Userid`, `User Id` and `Uid` for `Username`;
+and `Pwd` and `Psw` for `Password`. Single- or double-quoted values preserve
+whitespace and semicolons; double the matching quote to escape it. Duplicate
+canonical fields and unsupported keys are refused. Host must be `localhost` or
+`127.0.0.1`; port defaults to 5432 and must resolve to 5432. Role, password and
+database must match the root configuration. This is the closed local demo
+grammar, not general Npgsql connection-string support;
+[demo-database.mjs](scripts/demo-database.mjs) owns validation.
+
 For separate development/watch terminals, retain `make public-api` and
 `make public-web`. The CI lifecycle uses an isolated checkout/project and disposable
 configuration through `make demo DEMO_MODE=ci`. Install its locked managed browser
@@ -225,7 +246,10 @@ Readiness is <http://127.0.0.1:5080/healthz> for the API and
 <https://localhost:3000/api/healthz> for the web listener. `pnpm dev/start` also use
 this launcher. Both processes read the same private root source; a web `.env.local`
 projection is optional and must match. No shell evaluates the values. Ordinary
-no-hop API startup remains supported outside this paired renderer recipe.
+no-hop API startup remains supported outside this paired renderer recipe; supply
+both `ConnectionStrings:Default` (`learnstack_app`) and
+`ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`). The mandatory
+API worker verifies dispatcher connectivity at startup.
 
 **P02d-5 is complete: ingress, visitor budgets and public entry.** The web
 bootstraps the captured host through the API, redirects using enabled/default

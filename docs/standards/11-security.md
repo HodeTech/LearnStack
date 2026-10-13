@@ -24,6 +24,8 @@ Public-read additions derive from
 ingress/caller and anonymous visitor budgets derive from
 [ADR-0053](../decisions/0053-trusted-public-server-rendering.md); coordinated accounting,
 native admission and redirect/query rules derive from [ADR-0054](../decisions/0054-bounded-public-renderer-admission.md).
+Delivery/recovery additions derive from
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 Producer announcement and common execution ownership derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -238,6 +240,36 @@ for the full strategy. Standards-side:
 - The `app.tenant_id` and `app.organization_id` session variables are set with
   `SET LOCAL` inside the ambient transaction — see § Tenant Context immediately below,
   which is the single authority for that placement.
+
+### Confined event dispatcher
+
+ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
+both review rounds are complete. Step 3 implements mandatory worker startup
+resolution and connectivity checks; both independent review rounds are complete.
+Step 4 credential/publication enforcement and local closeout are complete; all
+four steps completed both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status. The named keyed, lazy
+dispatcher source belongs only to the API host. Configuration validates the exact
+username without connecting or
+echoing parse input. Worker startup must verify connectivity. Every new physical
+connection verifies exact session/current
+`learnstack_outbox_admin`, BYPASSRLS, NOSUPERUSER, NOCREATEDB, NOCREATEROLE,
+NOREPLICATION and no outgoing role membership or incoming membership by a
+non-superuser, directly or transitively. Superusers inherently reach every role;
+this check detects grant drift on a new physical connection, not continuous
+revocation of an existing session. No Seeder/web forwarding or shared app
+credential is allowed. [Database Standards](05-database.md#grant-matrix)
+owns exact status grants and audit INSERT-only; no business access or audit read,
+update or delete is admitted.
+
+Routine confined poll/claim/mark receives ADR-0046's bounded audit exception;
+terminal state is MUST/SecurityEvent and atomic with its row-bound witness audit.
+INSERT-only and GUCs cannot tenant-bind a bypass credential. Real mismatch controls
+must roll back terminal state and audit together. Existing platform-admin entry
+audit and gate stay unchanged. P02b-3 opens separate app-role business scopes,
+restores validated tenant/organization and announces RLS context before reading
+the envelope and constructing a handler. The ordinary executor refuses privileged
+subscriptions until their Phase 03 execution contract exists.
 
 ## Tenant Context
 
@@ -671,7 +703,8 @@ and the edge has no way to know it.
 
 ## Audit Log
 
-Every privileged operation writes an audit log entry per
+Every privileged operation writes an audit log entry, subject to the confined
+routine dispatcher exception above, per
 [ADR-0033 Audit Durability Model](../decisions/0033-audit-durability-model.md)
 (supersedes ADR-0016),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md) and the

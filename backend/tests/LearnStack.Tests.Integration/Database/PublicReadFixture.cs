@@ -26,10 +26,11 @@ public sealed class PublicReadTestGroup : ICollectionFixture<PublicReadFixture>
 }
 
 /// <summary>Production API composition, seeded through real writers in an isolated four-role database.</summary>
-public sealed class PublicReadFixture : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();
     public string AppConnectionString => _postgres.AppConnectionString;
+    public string OutboxConnectionString => _postgres.OutboxConnectionString;
     public PublicReadObservation Observation { get; } = new();
 
     public async Task InitializeAsync()
@@ -68,7 +69,7 @@ public sealed class PublicReadFixture : WebApplicationFactory<Program>, IAsyncLi
         }
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);

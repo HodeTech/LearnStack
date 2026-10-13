@@ -227,6 +227,26 @@ to this ADR's original envelope, transport, serializer or effective/causal actor
 contracts. Identifiers minimize copied data; they are not a claim of anonymity.
 G18's failure descriptors and erasure inventory remain P02b-2 and P02b-8.
 
+### Amendment 3 — Bounded publish-outcome supersession by ADR-0046 (2026-10-12)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+supersedes only § Event contract's immediate constructor/invocation/disposal
+failure outcome and the requirement that future adapters preserve that outcome.
+When P02b-3 installs durable acceptance, `PublishAsync` succeeds after every
+required subscription is durably accepted. Unknown/failed acceptance remains a
+producer retry; independent subscription execution owns later handler failures.
+Retries invoke the internal delivery executor, never another broadcast.
+
+The non-generic envelope signature, frozen serializer, effective SystemActor,
+causal identity, organization restoration, per-key serialization and outbox-only
+publication survive. Pending readiness holds in P02b-2 preserve the real
+TenantCreated facts until both P02b-3 consumers are Active. Diagnostic
+minimization of current transport/consumer exception telemetry is also P02b-3.
+
+This is a bounded new decision, not an ADR-0041 correction. Original acceptance
+metadata, body and earlier amendments remain intact. Acceptance claims no durable
+acceptance or consumer delivery.
+
 ## References
 
 - [ADR-0006 — Events and Outbox](0006-events-and-outbox.md)

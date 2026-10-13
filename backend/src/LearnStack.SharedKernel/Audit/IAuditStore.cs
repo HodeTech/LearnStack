@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Persistence;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Four writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Five writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -25,6 +25,11 @@ namespace LearnStack.SharedKernel.Audit;
 /// None of the first three could serve it: the row runs on a connection the request
 /// path does not own, as a role the other three never use, and <em>before</em> the
 /// operation it describes. "No update method" is untouched — this is a fourth write.
+/// </para>
+/// <para>
+/// ADR-0046 adds <see cref="WriteEventTerminalAsync"/> as the fifth write: a
+/// terminal transition and its MUST row share the dispatcher's own transaction,
+/// with a restricted witness binding the draft to the actual fenced UPDATE.
 /// </para>
 /// </remarks>
 public interface IAuditStore
@@ -116,6 +121,22 @@ public interface IAuditStore
     /// </remarks>
     Task WritePlatformScopeAsync(
         AuditEntryDraft entry,
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Inserts a MUST terminal audit on the successful transition's live transaction.</summary>
+    /// <remarks>
+    /// The producer transition store is the only caller in P02b-2. The operation
+    /// must be declared off-path as MUST/SecurityEvent, and the draft must match
+    /// the actual UPDATE result carried by <paramref name="transition"/>.
+    /// Any mismatch or write failure requires the caller to roll back the state
+    /// transition. This seam opens and commits no transaction. P02b-3 owns the
+    /// future subscriber writer; the existing four writes retain their contracts.
+    /// </remarks>
+    Task WriteEventTerminalAsync(
+        AuditEntryDraft entry,
+        EventTerminalTransition transition,
         DbConnection connection,
         DbTransaction transaction,
         CancellationToken cancellationToken = default);

@@ -3,10 +3,11 @@ name: add-integration-event
 description: >
   Publish or consume an integration event across modules using the outbox pattern,
   `IEventBus` (`InProcessEventBus` today; Dapr pub/sub → Kafka on the Phase 11
-  trigger), and per-module inbox idempotency.
+  trigger), and shared transport-owned inbox idempotency.
   USE FOR: declaring a new versioned `<Something>IntegrationEventVN`, wiring a
   module to publish it via `IOutbox.EnqueueAsync`, and wiring another module to
-  consume it via `IIntegrationEventHandler<T>` + `IInboxGuard`. DO NOT USE FOR:
+  consume it via `IIntegrationEventHandler<T>` under the transport-owned inbox
+  boundary. DO NOT USE FOR:
   intra-module domain events (those use plain MediatR `INotification`,
   in-process), provider webhook receivers (they have their own pattern), or
   Hub-side events (those live in the `learnstack-hub` repo).
@@ -31,7 +32,10 @@ collection and the completed-provisioning publisher. Step 4 implements the
 production censuses and catalogue enforcement; the
 [delivery record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status.
-P02b-2/P02b-3 retain dispatcher/inbox decisions.
+Accepted [ADR-0046](../../../docs/decisions/0046-durable-event-delivery-and-recovery.md)
+owns dispatcher recovery, subscription readiness and the shared inbox contract.
+P02b-2 implements producer dispatch; P02b-3 still owns durable acceptance,
+independent execution, canonical inbox/ledger DDL and real subscriptions.
 
 ## When to use
 
@@ -80,7 +84,7 @@ public sealed record EnrollmentCreatedIntegrationEventV1 : IntegrationEventBase
     public override string Topic => "learnstack.enrollment.enrollment";
 
     // Declare EnrollmentId as the partition source. ADR-0057 accepts canonical
-    // identifier derivation; G3 durable publish ordering remains P02b-2.
+    // identifier derivation; ADR-0046 bounds eligible selection, not publish order.
     public override string PartitionKey => EnrollmentId.ToString("D");
 }
 ```
@@ -153,7 +157,8 @@ Rules:
   causation and optional causal actor come from trusted execution. That boundary
   guarantees W3C Activity without a listener. Domain translation mints a new
   integration EventId and uses its domain EventId as causation. A non-marked
-  event does not erase an announced organization; G1 delivery scope stays open.
+  event does not erase an announced organization. ADR-0046 preserves that envelope
+  organization during delivery; a non-marked type never widens its scope.
 - The owner drains successful-save events FIFO before invariants/MUST audit and
   commit, at most 256 per transaction. Domain handlers only translate to outbox:
   no mutation/write stores, nested sends, further raises, publication or providers.
@@ -186,94 +191,65 @@ neither derives a second answer. The architecture test
 `Integration_Event_TopicNames_FollowConvention` enforces the pattern; deviation
 fails the build.
 
-### Step 4: Consumer — handler + inbox guard
+### Step 4: Consumer — transport-owned inbox boundary
 
-**Inherited target, pending P02b-2 G1 and P02b-3 delivery implementation.** This
-example does not decide inbox ownership, deduplication identity or delivery scope.
-The accepted first flow uses independent Customization `card@1`/`plain@1`
-subscriptions for `TenantCreatedIntegrationEventV1`, not an Audit mirror. G1 must
-prevent one subscription from suppressing its sibling before those handlers ship.
-P02b-3 owns create-only preservation, per-effect MUST audit and the semantic
-key/version Seeder handoff described in ADR-0057.
+**Accepted target, pending P02b-3 implementation.** The transport owns the shared
+`inbox_messages` guard; business handlers do not inject or call `IInboxGuard`.
+Deduplication is `(tenant_id, subscription_id, event_id)`, with a stable versioned
+subscription ID independent of handler type names. The separate delivery ledger
+owns attempts, leases, terminal state and targeted replay.
 
-In `<Consumer>.Application/IntegrationEvents/<HandlerName>.cs`:
+Before constructing a handler, the executor opens an app-role unit of work,
+announces envelope tenant and organization, and acquires the uncommitted inbox
+claim. Completed duplicates skip construction. The completed inbox marker,
+business changes, produced outbox, MUST audit and fenced ledger completion commit
+on that one transaction; rollback removes a new claim. A replay never resets a
+completed inbox row or republishes to healthy siblings.
 
-```csharp
-public sealed class QueueWelcomeNotificationOnEnrollmentCreated(
-    IInboxGuard inbox,
-    NotificationsDbContext db,
-    ILogger<QueueWelcomeNotificationOnEnrollmentCreated> logger)
-    : IIntegrationEventHandler<EnrollmentCreatedIntegrationEventV1>
-{
-    public async Task HandleAsync(
-        EnrollmentCreatedIntegrationEventV1 @event, CancellationToken ct)
-    {
-        if (await inbox.IsAlreadyProcessedAsync(@event.EventId, ct))
-        {
-            logger.LogDebug("Duplicate event {EventId} skipped", @event.EventId);
-            return;
-        }
+The effective actor is `UserId.SystemActor`; an envelope's human actor remains
+separate trusted causal metadata. Envelope organization is preserved even for a
+non-marked event type. Restore context before resolving any handler, store or
+module `DbContext`, and restore the caller's context afterwards.
 
-        // ... business logic ...
-        var dispatch = NotificationDispatch.QueueWelcome(
-            @event.LearnerId, @event.EnrollmentId);
-        db.NotificationDispatches.Add(dispatch);
+A handler constructor only assigns fields. Construction, execution and disposal
+failures belong to that subscription's own retry budget. Timeouts poison the
+transaction owner; late work cannot commit success. An uncertain physical COMMIT
+is Indeterminate and recovers from atomic ledger/inbox state. Ordinary app-role
+delivery refuses privileged erasure work; Phase 03 owns that separate audited
+boundary. External effects need idempotency keyed by subscription/event, or an
+outbox intent; database rollback alone cannot undo them.
 
-        inbox.MarkAsProcessed(@event.EventId, @event.GetType().Name);
-        await db.SaveChangesAsync(ct);   // atomic business write + inbox marker
-    }
-}
-```
-
-Rules:
-
-- Under the inherited consumer target, **every** `IIntegrationEventHandler` invokes
-  `IInboxGuard.IsAlreadyProcessedAsync`
-  before any business logic. The architecture test
-  `Integration_Event_Handlers_Use_InboxGuard` holds every handler to it from
-  [Phase 02b](../../../docs/roadmap/phase-02b-events-auth.md), which ships the guard; it
-  is registered, not running, until then.
-- `MarkAsProcessed` writes on the same **transaction** as the business write — the ambient
-  one the transport opens per delivery through `IUnitOfWork`
-  ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)) — so the inbox marker
-  and the business write commit atomically.
-- The **transport** — not middleware — restores tenant context from
-  `@event.TenantId` before your handler runs, and puts the publisher's own back
-  afterwards. Read it through `ITenantContext` as usual; don't read it from
-  anywhere else.
-- **Organization comes from the envelope, and it has to.** An earlier version of
-  this skill said it was deliberately not restored, reasoning that inventing an
-  organization scope would narrow queries the producer never narrowed. Under the
-  canonical Row Level Security policy the reasoning inverts: with
-  `app.organization_id` unset, an organization-scoped row evaluates
-  `false OR NULL OR NULL`, and a NULL policy result is false — so an absent
-  organization *hides* every organization-scoped row and `WITH CHECK` rejects
-  writing one. Widening is the `app.scope = 'tenant'` hatch, not an absent value.
-- **The effective actor is always `UserId.SystemActor`.** A human named by the
-  envelope remains separate causal audit metadata (`CausalActorUserId`); an
-  asynchronous consumer never impersonates that human.
-- **Your handler's constructor must do nothing but assign fields.** Each
-  subscription gets its own async DI scope and exactly one handler construction.
-  Constructor, handler and disposal failures are contained to that subscription,
-  so healthy siblings still run.
+The first real flow has two independent Customization subscriptions:
+`customization.initialize-content-type-default.v1` installs `card@1` content type;
+`customization.initialize-taxonomy-default.v1` installs `plain@1` taxonomy. Both
+remain Pending until P02b-3 supplies durable acceptance, create-only preservation,
+per-effect MUST audit and the semantic key/version Seeder handoff. Neither may
+suppress its sibling or overwrite authored, retired or deleted definitions.
 
 ### Step 5: Subscription registration
 
-Today, expose the consumer assembly to the composition root so the
-construction-free registry discovers and registers its concrete handlers:
+The current baseline exposes the consumer assembly to the composition root so the
+construction-free registry discovers and registers its concrete handlers. This
+abridged assembly-registration example uses the shipped public module marker;
+retain the other module assemblies in the actual composition root:
 
 ```csharp
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(QueueWelcomeNotificationOnEnrollmentCreated).Assembly);
+    typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
 ```
 
 Today `InProcessEventBus` resolves the concrete
 `IIntegrationEventHandler<T>` directly from DI in that subscription's async
 scope. MediatR is not involved. There is no shipped
-`AddDaprSubscription<T>` helper; do not invent one. Phase 11's Dapr adapter
-invokes the same event-declared topic and handler contract, so the handler code
-remains identical across transports.
+`AddDaprSubscription<T>` helper; do not invent one. P02b-2's construction-free
+manifest implements stable subscription IDs, compatible
+type aliases and required Pending/Active readiness. Pending holds the producer row
+before acquisition or payload validation. Only explicit intentional absence may
+acknowledge a known type without publication. P02b-3 makes Active publication mean
+durable acceptance of all matching deliveries, independently of business handling.
+Do not invent a registration API before its implementation ships. Phase 11 must
+preserve these contracts when it adds Dapr.
 
 ### Step 6: Tests
 
@@ -287,8 +263,10 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 
 1. **Producer test** — exercise the handler, assert an `outbox_messages` row exists
    with the right `type`, `topic`, `payload`.
-2. **Consumer test** — feed the event into the handler twice; assert the business
-   write happens exactly once (idempotency via `IInboxGuard`).
+2. **Consumer test, P02b-3** — deliver duplicates through the real transport and
+   ledger, including concurrent duplicates and sibling subscriptions. Assert one
+   completed inbox/business effect per subscription/event, atomic rollback,
+   independent retry budgets and recovery after an uncertain final-claim COMMIT.
 
 ## Validation
 
@@ -296,22 +274,22 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 - `LearnStack.Tests.Architecture` is green — `Integration_Event_TopicNames_FollowConvention`
   and `Integration_Events_Inherit_From_IntegrationEventBase` run today.
   `Integration_Event_Handlers_Use_InboxGuard` remains Registered for P02b-3's
-  consumer delivery after G1. Check
+  transport-owned consumer delivery. Check
   [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) for their
   status rather than assuming a net is under you.
-- An integration test confirms the round-trip: handler enqueues → outbox row
-  created → outbox processor dispatches → consumer handles + writes business
-  state + inbox row.
-- Sending the same event twice writes the consumer's business state exactly once.
+- P02b-2 proves producer recovery and terminal audit independently of Pending
+  subscriptions. P02b-3 proves the round-trip through durable acceptance and the
+  shared inbox; do not claim that proof before those components ship.
+- P02b-3 duplicate delivery yields one committed business effect per subscription.
 
 ## Common pitfalls
 
 - **Crossing modules with a domain event.** Domain events stay inside the module
   that owns the aggregate. The moment another module needs to react, it must be an
   integration event.
-- **Forgetting `IInboxGuard`.** The consumer rule remains Registered until
-  P02b-3; do not infer enforcement from its name. Consumer delivery must prove
-  redelivery cannot duplicate its business effect.
+- **Moving the inbox guard into a handler.** The transport must claim before
+  construction. The rule remains Registered until P02b-3; its name alone proves
+  no enforcement. Redelivery must preserve independent sibling effects.
 - **Writing the outbox row in a separate transaction.** Use `IOutbox.EnqueueAsync`
   through the enrolled ambient `IUnitOfWork`; never `new TransactionScope`.
 - **Supplying a second topic at enqueue or subscription time.** The concrete

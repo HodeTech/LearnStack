@@ -107,7 +107,7 @@ Walk the diff for correctness issues. Common shapes:
 | **Async/await** | `.Result` / `.Wait()` deadlock risk; cancellation token threaded through; `ConfigureAwait(false)` where the library expects it. |
 | **Race condition** | Read-modify-write without optimistic concurrency (`row_version`) or a transaction. Cross-instance state without `ICacheService` invalidation. |
 | **Resource leak** | `DbContext` / `HttpClient` / file stream not disposed; long-lived `DaprClient` reuse via DI, not `new`. |
-| **Idempotency** | Command with external side effects (LiveKit room, Stripe charge) missing `Idempotency-Key` handling. Integration-event consumer missing `IInboxGuard.IsAlreadyProcessedAsync`. |
+| **Idempotency** | Command with external side effects (LiveKit room, Stripe charge) missing `Idempotency-Key` handling. Under ADR-0046, transport claims the shared inbox before handler construction; P02b-3 implements it. Handlers do not call the guard themselves. |
 | **Outbox atomicity** | Immediate INSERT through the enrolled, announced ambient `IUnitOfWork`; source state/outbox/MUST audit share its transaction. SaveChanges flushes only. ADR-0057 generation, tenant, read-only, payload/metadata and duplicate refusals hold. |
 | **Tenant context restoration** | Background job + integration-event handler restores `TenantContext` before any work. |
 | **Edge cases** | Empty list, zero, negative, max-int, very-long string. Test or guard. |

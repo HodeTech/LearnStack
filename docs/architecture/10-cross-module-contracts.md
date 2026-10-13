@@ -13,6 +13,14 @@ Modules collaborate only through explicit contracts. This keeps the modular mono
 > (Mechanism #2), and read-model projections (Mechanism #4) are unchanged. See
 > [15-event-and-outbox.md](15-event-and-outbox.md) for the full producer/consumer flow.
 
+**2026-10-12 delivery decision.**
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) supersedes the
+2026-08-26 note's per-module inbox placement: P02b-3 owns a shared transport-claimed
+inbox keyed by tenant, stable subscription and event. Claiming precedes handler
+construction; handlers do not call the guard. The four communication mechanisms
+and demand-gated broker trigger remain unchanged. This records the accepted target,
+not delivered subscriber machinery.
+
 ## Allowed Contract Types
 
 ```mermaid

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpsServer } from 'node:https';
@@ -10,6 +11,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { composeSelection } from '../../../../../scripts/compose.mjs';
+import {
+  publicSeederEnvironment,
+  validateDemoDatabaseConfiguration,
+} from '../../../../../scripts/demo-database.mjs';
 import { boundedBody, demoRequest, vacant } from '../../../../../scripts/demo-http.mjs';
 import {
   apiCompletionObserver,
@@ -17,6 +22,7 @@ import {
 } from '../../../../../scripts/demo-observation.mjs';
 import { DemoProcesses } from '../../../../../scripts/demo-process.mjs';
 import {
+  demoFailureMessage,
   disposeDemoResources,
   isApiListenerEvent,
   validateCertificate,
@@ -44,6 +50,173 @@ function owner(signal = new AbortController().signal) {
   owners.push(processes);
   return processes;
 }
+
+describe('launcher-owned local database validation', () => {
+  const roles = [
+    ['Migration', 'learnstack_migration', 'LEARNSTACK_MIGRATION_PW'],
+    ['Default', 'learnstack_app', 'LEARNSTACK_APP_PW'],
+    ['PlatformAdmin', 'learnstack_platform', 'LEARNSTACK_PLATFORM_PW'],
+    ['OutboxDispatcher', 'learnstack_outbox_admin', 'LEARNSTACK_OUTBOX_PW'],
+  ] as const;
+  const databasePassword = randomBytes(16).toString('hex');
+  function databaseValues(password = databasePassword) {
+    const values: Record<string, string> = { POSTGRES_DB: 'learnstack' };
+    for (const [suffix, role, passwordKey] of roles) {
+      values[passwordKey] = password;
+      values[`ConnectionStrings__${suffix}`] =
+        `Host=localhost;Port=5432;Database=learnstack;Username=${role};Password="${password.replaceAll('"', '""')}"`;
+    }
+    return values;
+  }
+  it.each([null, undefined])(
+    'refuses absent configuration (%s) with the fixed diagnostic',
+    (values) => {
+      expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+        /^Local demo database configuration is invalid$/,
+      );
+    },
+  );
+  it('reports the real database validation failure through the launcher diagnostic boundary', () => {
+    const values = databaseValues();
+    delete values.LEARNSTACK_OUTBOX_PW;
+    let failure: unknown;
+    try {
+      validateDemoDatabaseConfiguration(values);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(demoFailureMessage(failure)).toBe('Local demo database configuration is invalid');
+    const secret = randomBytes(16).toString('hex');
+    for (const message of [
+      `Provider failure: ${secret}`,
+      `Local demo database configuration is invalid: ${secret}`,
+      `Local demo database configuration is invalid\n${secret}`,
+    ]) {
+      expect(demoFailureMessage(new Error(message))).toBe(
+        'demo: startup/proof failed; inspect prerequisites, TLS, configuration and selected stack',
+      );
+    }
+  });
+  it.each([
+    'simple',
+    'semi;colon',
+    ' leading and trailing ',
+    '   ',
+    'a"double"quote',
+    "a'single'quote",
+  ])('accepts all four local roles with quoted password %s', (password) => {
+    expect(() => validateDemoDatabaseConfiguration(databaseValues(password))).not.toThrow();
+  });
+  it('accepts supported key aliases, single quoting, loopback and the default port', () => {
+    const values = databaseValues("semi;single'quote");
+    for (const [suffix, role] of roles)
+      values[`ConnectionStrings__${suffix}`] =
+        ` Server = 127.0.0.1 ; Database = learnstack ; User ID = ${role} ; Pwd = 'semi;single''quote' ;`;
+    expect(() => validateDemoDatabaseConfiguration(values)).not.toThrow();
+  });
+  it.each(
+    roles.flatMap(([suffix]) =>
+      [
+        ['role', (value: string) => value.replace(/Username=[^;]+/, 'Username=foreign')],
+        ['password', (value: string) => value.replace(/Password=.*/, 'Password=foreign')],
+        ['database', (value: string) => value.replace('Database=learnstack', 'Database=foreign')],
+        ['host', (value: string) => value.replace('Host=localhost', 'Host=foreign')],
+        ['port', (value: string) => value.replace('Port=5432', 'Port=5433')],
+        ['malformed', (value: string) => value + ';Password="unclosed'],
+      ].map(([field, mutate]) => ({ suffix, field, mutate })),
+    ),
+  )('refuses $suffix $field without exposing configuration', ({ suffix, mutate }) => {
+    const values = databaseValues();
+    const key = `ConnectionStrings__${suffix}`;
+    if (typeof mutate !== 'function') throw new Error('Missing mutation');
+    values[key] = mutate(values[key] ?? '');
+    expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+      /^Local demo database configuration is invalid$/,
+    );
+  });
+  const applicationConnection = databaseValues().ConnectionStrings__Default!;
+  it.each([
+    applicationConnection.replace(/Password=.*/, 'Password="unclosed'),
+    applicationConnection.replace(/Password=.*/, 'Password="closed"junk'),
+    applicationConnection.replace(/Password=.*/, 'Password=plain"quote'),
+    applicationConnection + ';UID=learnstack_platform',
+    applicationConnection + ';Unknown=value',
+    applicationConnection.replace('Host', 'H o s t'),
+    applicationConnection.replace('Port=5432', 'Port=nope'),
+    applicationConnection.replace('Port=5432', 'Port=5432.0'),
+    applicationConnection.replace(/;Password=.*/, ''),
+    applicationConnection.replace(';Username=learnstack_app', ''),
+    applicationConnection.replace(';Database=learnstack', ''),
+    applicationConnection.replace(/^[^;]+;/, ''),
+    applicationConnection.replace(/Password=.*/, 'Password='),
+    ['postgres://learnstack_app', databasePassword + '@localhost/learnstack'].join(':'),
+    '',
+  ])('refuses unsupported or malformed local connection syntax %#', (connection) => {
+    const values = databaseValues();
+    values.ConnectionStrings__Default = connection;
+    expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+      /^Local demo database configuration is invalid$/,
+    );
+  });
+  it.each([
+    ...roles.map(([suffix]) => `ConnectionStrings__${suffix}`),
+    ...roles.map(([, , key]) => key),
+    'POSTGRES_DB',
+  ])('requires selected configuration %s', (missing) => {
+    const values = databaseValues();
+    delete values[missing];
+    expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+      /^Local demo database configuration is invalid$/,
+    );
+  });
+  it.each(roles)(
+    'refuses %s when both password sources are missing',
+    (suffix, role, passwordKey) => {
+      const values = databaseValues();
+      delete values[passwordKey];
+      values[`ConnectionStrings__${suffix}`] =
+        `Host=localhost;Port=5432;Database=learnstack;Username=${role}`;
+      expect(() => validateDemoDatabaseConfiguration(values)).toThrowError(
+        /^Local demo database configuration is invalid$/,
+      );
+      expect(() => validateDemoDatabaseConfiguration(databaseValues())).not.toThrow();
+    },
+  );
+  it('keeps every Seeder mode free of inherited credentials and diagnostics', () => {
+    const base = {
+      PATH: '/bin',
+      HOME: '/home',
+      DOTNET_ROOT: '/dotnet',
+      TMPDIR: '/tmp',
+      APPDATA: '/profile',
+      ConnectionStrings__Default: 'ambient-application',
+      ConnectionStrings__Migration: 'owner',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      CONNECTIONSTRINGS__OUTBOXDISPATCHER: 'uppercase-dispatcher',
+      'ConnectionStrings:OutboxDispatcher': 'colon-dispatcher',
+      LEARNSTACK_OUTBOX_PW: 'dispatcher-password',
+      DEBUG: '*',
+    };
+    const prerequisites = {
+      PATH: '/bin',
+      HOME: '/home',
+      DOTNET_ROOT: '/dotnet',
+      TMPDIR: '/tmp',
+      APPDATA: '/profile',
+    };
+    expect(publicSeederEnvironment(undefined, base)).toEqual(prerequisites);
+    expect(publicSeederEnvironment('selected-application', base)).toEqual({
+      ...prerequisites,
+      ConnectionStrings__Default: 'selected-application',
+    });
+    const source = readFileSync(
+      new URL('../../../../../scripts/demo.mjs', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('--validate-demo-config');
+  });
+});
 
 describe('shared explicit demo stack selection', () => {
   it.each([
@@ -92,23 +265,23 @@ describe('shared explicit demo stack selection', () => {
       expect(result.stderr).not.toContain('foreign');
     }
   });
-  it('launches the argument-free Seeder from the documented shell path', () => {
+  it('launches the argument-free Seeder without selected or ambient dispatcher credentials', () => {
     const root = temporary();
     for (const directory of ['scripts', 'backend', 'bin']) mkdirSync(join(root, directory));
-    for (const file of ['seed.sh', 'connection-string.awk'])
+    for (const file of ['seed.sh', 'connection-string.awk', 'demo-database.mjs'])
       writeFileSync(
         join(root, 'scripts', file),
         readFileSync(new URL(`../../../../../scripts/${file}`, import.meta.url)),
       );
     writeFileSync(
       join(root, '.env'),
-      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\n',
+      'ConnectionStrings__Migration=Username=learnstack_migration\nConnectionStrings__Default=Username=learnstack_app\nConnectionStrings__OutboxDispatcher=Username=learnstack_outbox_admin\n',
     );
     for (const [name, body] of Object.entries({
       docker: '[ "$*" = "compose version" ]',
-      node: '[ "$*" = "scripts/wait-compose.mjs" ]',
+      node: 'if [ "$*" = "scripts/wait-compose.mjs" ]; then exit 0; fi\nexec "$REAL_NODE" "$@"',
       dotnet:
-        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$PWD" = "$TEST_ROOT/backend" ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && printf launched > "$TEST_ROOT/launched"',
+        '[ "$#" = 3 ] && [ "$1" = run ] && [ "$2" = --project ] && [ "$3" = src/LearnStack.Tools.Seeder ] && [ "$(basename "$PWD")" = backend ] && [ "$ConnectionStrings__Default" = Username=learnstack_app ] && [ "$HOME" = /seed-home ] && [ -n "$PATH" ] && [ -z "${ConnectionStrings__OutboxDispatcher+x}" ] && [ -z "${CONNECTIONSTRINGS__OUTBOXDISPATCHER+x}" ] && [ -z "${LEARNSTACK_OUTBOX_PW+x}" ] && ! env | /usr/bin/grep -q "^ConnectionStrings:OutboxDispatcher=" && printf launched > ../launched',
     }))
       writeFileSync(join(root, 'bin', name), `#!/bin/sh\n${body}\n`, { mode: 0o700 });
     const launch = () =>
@@ -117,7 +290,13 @@ describe('shared explicit demo stack selection', () => {
         env: {
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
           TEST_ROOT: root,
+          REAL_NODE: process.execPath,
+          HOME: '/seed-home',
           NODE_ENV: 'test',
+          ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
+          CONNECTIONSTRINGS__OUTBOXDISPATCHER: 'ambient-alias',
+          'ConnectionStrings:OutboxDispatcher': 'ambient-colon-alias',
+          LEARNSTACK_OUTBOX_PW: 'ambient-password',
         },
         encoding: 'utf8',
         timeout: 5000,
@@ -128,8 +307,8 @@ describe('shared explicit demo stack selection', () => {
     writeFileSync(
       script,
       readFileSync(script, 'utf8').replace(
-        'dotnet run --project src/LearnStack.Tools.Seeder',
-        'dotnet run --project src/LearnStack.Tools.Seeder --nologo',
+        "['run', '--project', 'src/LearnStack.Tools.Seeder']",
+        "['run', '--project', 'src/LearnStack.Tools.Seeder', '--nologo']",
       ),
     );
     const refused = launch();
@@ -255,7 +434,10 @@ describe('demo runtime boundaries', () => {
   it('isolates the Development API user-secret profile within the invocation', () => {
     const root = temporary();
     const env = publicDemoApiEnvironment(
-      { ConnectionStrings__Default: 'application' },
+      {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      },
       { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' },
       root,
       {
@@ -270,6 +452,7 @@ describe('demo runtime boundaries', () => {
     expect(env.TMPDIR).toBe(realpathSync(root));
     expect(env).not.toHaveProperty('DOTNET_CLI_HOME');
     expect(env.ConnectionStrings__Default).toBe('application');
+    expect(env.ConnectionStrings__OutboxDispatcher).toBe('dispatcher');
     expect(env.ASPNETCORE_ENVIRONMENT).toBe('Development');
   });
   it('gives native web addons an owned cache without ambient credentials or diagnostics', () => {
@@ -280,9 +463,15 @@ describe('demo runtime boundaries', () => {
       LEARNSTACK_PUBLIC_TLS_CERT: '/owned/cert',
       LEARNSTACK_PUBLIC_TLS_KEY: '/owned/key',
       ConnectionStrings__Migration: 'owner',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
     };
     expect(
-      publicWebEnvironment(values, root, { PATH: '/bin', DEBUG: '*', HOME: '/foreign' }),
+      publicWebEnvironment(values, root, {
+        PATH: '/bin',
+        DEBUG: '*',
+        HOME: '/foreign',
+        ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
+      }),
     ).toEqual({
       PATH: '/bin',
       TMPDIR: root,
@@ -295,9 +484,12 @@ describe('demo runtime boundaries', () => {
       ),
     });
   });
-  it('passes only request runtime credentials and explicit hop configuration', () => {
+  it('passes only explicit API credentials and hop configuration', () => {
     const env = publicApiEnvironment(
-      { ConnectionStrings__Default: 'application' },
+      {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      },
       { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' },
       {
         PATH: '/bin',
@@ -311,12 +503,34 @@ describe('demo runtime boundaries', () => {
     expect(env).toEqual({
       PATH: '/bin',
       ConnectionStrings__Default: 'application',
+      ConnectionStrings__OutboxDispatcher: 'dispatcher',
       ASPNETCORE_ENVIRONMENT: 'Development',
       ASPNETCORE_URLS: 'http://127.0.0.1:5080',
       Tenancy__TrustedHop__Networks__0: '127.0.0.1/32',
       Tenancy__TrustedHop__Secrets__0: 'private',
     });
   });
+  it.each(['ConnectionStrings__Default', 'ConnectionStrings__OutboxDispatcher'])(
+    'requires explicit %s even when the ambient environment has it',
+    (missing) => {
+      const values: Record<string, string> = {
+        ConnectionStrings__Default: 'application',
+        ConnectionStrings__OutboxDispatcher: 'dispatcher',
+      };
+      const configuration = { apiOrigin: 'http://127.0.0.1:5080', secret: 'private' };
+      const ambient = { ...values };
+      delete values[missing];
+      expect(() => publicApiEnvironment(values, configuration, {})).toThrow(
+        'credential is missing',
+      );
+      expect(() => publicApiEnvironment(values, configuration, ambient)).toThrow(
+        'credential is missing',
+      );
+      expect(() => publicDemoApiEnvironment(values, configuration, temporary(), ambient)).toThrow(
+        'credential is missing',
+      );
+    },
+  );
   it('refuses a foreign listener without closing it', async () => {
     const server = createServer();
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

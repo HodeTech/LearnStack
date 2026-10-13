@@ -179,9 +179,26 @@ records passing verification and both completed review rounds. Step 4 adds
 production-census guards and catalogue enforcement; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 records passing full backend verification and both completed review rounds.
-**P02b-1 is complete; PR review and merge remain pending.** The
-[packet closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
-owns delivery scope and the next P02b-2 decision pass.
+**P02b-1 is complete and merged** through
+[PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. The
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+owns final verification. **P02b-2's revised decision package and ADR-0046 are
+Accepted — 2026-10-12.** The four implementation steps and two independent review
+rounds per step are authorized on development. The
+[Step 1 record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-1--decision-schema-and-confined-composition-2026-10-12)
+records both completed Step 1 reviews. Step 2 implements fenced transitions and
+row-bound terminal MUST audit; both independent review rounds pass.
+Step 3 implements hosted execution and observation; its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
+owns verification and both completed review rounds. Step 4 enforcement and local
+closeout are complete; all four steps completed both independent review rounds.
+The
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns local closeout evidence and CI/merge status.
+Acceptance registers six new catalogue rules; the Step 4 record owns their
+delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3 still owns
+durable acceptance, shared inbox/ledger, independent retries, both real default
+subscriptions and Seeder handoff.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -381,11 +398,14 @@ For any task, read in this order:
 Then read the phase that is live and the one it stands on:
 
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md)
-  — **the live phase**. P02b-0 entry verification is complete; P02b-1's decision
-  package is Accepted — 2026-10-12; Steps 1–3 implement the producer runtime,
-  and Step 4 supplies production-census enforcement and packet closeout.
-  Each later packet accepts its own gates
-  before implementation.
+  — **the live phase**. P02b-0 entry verification is complete; P02b-1 is complete
+  and merged through PR #29 on 2026-10-12. Its four steps deliver the producer
+  runtime and production-census enforcement. P02b-2's revised package/ADR-0046 are
+  Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
+  dispatch and observation, with both independent review rounds complete. Step 4
+  enforcement and local closeout are complete; all four steps completed both
+  independent review rounds; the Step 4 record above owns CI/merge status.
+  P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
@@ -630,9 +650,12 @@ rules:
   `ISecretProvider`.
 - Read `DeploymentMode` from inside a module — the composition root
   branches once, modules never.
-- Write `audit_log`, `platform_entitlement_cache`, or `outbox_messages`
-  directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`,
-  `IOutbox`.
+- Write `audit_log`, `platform_entitlement_cache`, or producer `outbox_messages`
+  rows directly — use `IAuditStore`, `IEntitlementProvider.RefreshAsync`, `IOutbox`.
+  Only ADR-0046's confined dispatcher writes outbox status through fenced
+  parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
+  share one transaction. P02b-2 Step 2 implements that accepted exception; both
+  independent review rounds passed.
 - Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
   `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
   ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with

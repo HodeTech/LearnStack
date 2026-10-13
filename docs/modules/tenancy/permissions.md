@@ -9,6 +9,14 @@ permission, and inserts a pending outbox row under the provisioning announcement
 Existing command reachability is unchanged. The
 [integration-event catalogue](README.md#integration-event-catalogue) owns the flow.
 
+**ADR-0046 P02b-2 implementation locally complete — 2026-10-12.** All four steps
+completed both independent review rounds. The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+owns CI/merge status.
+The API-owned dispatcher and terminal audit add no
+permission key or HTTP endpoint. P02b-3's
+targeted replay is internal; Phase 03 separately decides operator permission and
+routes. Neither grants a tenant administrator bypass-role access.
+
 **P02d-4 Step 2 implemented — 2026-10-03.** Both review rounds
 and focused fix verification pass. Site bootstrap
 is a marked GET/HEAD request, audit Off and without a permission key or grant. It

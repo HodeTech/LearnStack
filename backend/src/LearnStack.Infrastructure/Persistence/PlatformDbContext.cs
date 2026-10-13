@@ -11,9 +11,9 @@ namespace LearnStack.Infrastructure.Persistence;
 /// are reached through SharedKernel ports by any module's handler and read by
 /// infrastructure that belongs to none of them. <c>IIdempotencyStore</c> ships
 /// today, behind <c>InMemoryIdempotencyStore</c> until its ADR-0035 trigger
-/// fires; <c>IOutbox</c> does not exist yet and lands with the dispatcher in
-/// <see href="../../../../docs/roadmap/phase-02b-events-auth.md">Phase 02b</see>.
-/// Nothing writes either table at runtime — Packet 6 shipped the tables. Putting
+/// fires; <c>IOutbox</c> enqueues immediately on the ambient transaction under
+/// <see href="../../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>.
+/// Dispatcher leases and terminal state are decided by ADR-0046. Putting
 /// them in a module's context would make every other module's use of the outbox a
 /// dependency on that module — the shape
 /// <see href="../../../../docs/architecture/15-event-and-outbox.md">15-event-and-outbox.md</see>
@@ -21,15 +21,11 @@ namespace LearnStack.Infrastructure.Persistence;
 /// module.
 /// </para>
 /// <para>
-/// It is the second <c>DbContext</c>, and that does <b>not</b> yet make
-/// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see>'s
-/// central property testable. That property is several contexts enlisted on one
-/// connection so <c>SET LOCAL</c> protects every statement, and the enlistment
-/// machinery — <c>IUnitOfWork</c>, the shared registration helper, the
-/// <c>TransactionBehavior</c> body — lands in step 6; ADR-0040 § What Packet 6
-/// can and cannot prove says the property becomes observable in Phase 03, with
-/// the second <b>module</b> context. This context exists for the reason below and
-/// no other.
+/// This migration-only context has no tracked entities. Runtime outbox SQL uses
+/// the announced <c>IUnitOfWork</c> connection, while confined dispatch uses its
+/// own role and short transactions. Module contexts enlist through the shared
+/// <see href="../../../../docs/decisions/0040-ambient-unit-of-work.md">ADR-0040</see>
+/// registration and never acquire a dispatcher connection.
 /// </para>
 /// <para>
 /// Both tables are <b>tenant-owned, tenant-wide</b> despite living outside a

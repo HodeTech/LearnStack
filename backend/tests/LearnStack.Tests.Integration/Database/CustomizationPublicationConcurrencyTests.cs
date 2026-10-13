@@ -26,8 +26,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schema, WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
+    : IClassFixture<ConstructionOnlyApiFactory>
 {
     [Theory]
     [InlineData(false, false)]

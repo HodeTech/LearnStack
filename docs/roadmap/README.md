@@ -93,14 +93,21 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
   owns final verification and the completed phase exit.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 and P02b-1 complete; P02b-1 PR review/merge pending**. Its
+  — **P02b-0 and P02b-1 complete; P02b-1 merged through PR #29 on 2026-10-12**. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
   authorize the implemented lifecycle, enqueue and provisioning publisher. The
-  [P02b-1 closeout](phase-02b-events-auth.md#p02b-1-packet-closeout-2026-10-12)
-  records full backend verification and two completed review rounds per step.
-  Next is P02b-2's decision pass; dispatcher/consumer work remains P02b-2/P02b-3.
+  [P02b-1 merge closeout](phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
+  records final CI verification and the completed delivery/review history.
+  P02b-2's revised package and ADR-0046 are Accepted. Steps 1–2 completed both
+  review rounds; Step 3 implements hosted dispatch and observation, with
+  both independent review rounds complete in its
+  [delivery record](phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
+  Step 4 enforcement and local closeout are complete; all four steps completed
+  both independent review rounds. CI/merge status lives in its
+  [delivery record](phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12);
+  consumer delivery remains P02b-3.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

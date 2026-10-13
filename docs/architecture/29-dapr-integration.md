@@ -2,7 +2,8 @@
 
 **Derives from:** [ADR-0038](../decisions/0038-cross-cutting-port-and-event-contracts.md),
 [ADR-0006](../decisions/0006-events-and-outbox.md),
-[ADR-0010](../decisions/0010-cross-module-communication.md).
+[ADR-0010](../decisions/0010-cross-module-communication.md),
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 
 > **Read this first.** This document describes Dapr in the present tense as the **target
 > design**. Per [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) no Dapr
@@ -210,12 +211,13 @@ developer starts the gated sidecar for inspection. It is a **transport, not a st
 construction-free subscription metadata, gives each subscription one consumer activity
 and one async DI scope, restores tenant and module context before resolving exactly one
 concrete `IIntegrationEventHandler<T>`, and restores the publisher's context after the
-full dispatch. It leaves `IInboxGuard` deduplication to the handler exactly as the
-durable path does and preserves per-partition-key ordering. A default path that skipped
-those is a path where the isolation code is never exercised — see
-[15-event-and-outbox.md](15-event-and-outbox.md), which owns the implementation, and
-[ADR-0035](../decisions/0035-demand-gated-infrastructure.md), which makes the four
-obligations a condition of the gating.
+full dispatch. It serializes invocation per partition key within its process;
+it opens no business transaction and implements no durable inbox or subscriber ledger.
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) assigns shared
+`IInboxGuard` claim/completion to the transport before handler construction, with
+implementation in P02b-3. Handlers do not call the guard. Phase 11's Dapr adapter
+preserves that accepted contract. See [15-event-and-outbox.md](15-event-and-outbox.md)
+for the shipped baseline and the P02b-3 durable acceptance/execution target.
 
 ## 4. Cache implementation (DaprCacheService)
 

@@ -3,7 +3,7 @@
 **Status:** Design stable, write path implemented. Shipped today: the two tables and
 their isolation, the three append-only layers, the SharedKernel ports and value types,
 `AuditDbContext`, and — in `LearnStack.Infrastructure.Audit` — `AuditStateCapture`,
-`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all four write methods, the
+`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all five write methods, the
 merged `AuditCatalog` and `AuditConfigService`, registered at both composition roots and
 attached to every module's `DbContext`. The pipeline is lit: `AuditLogBehavior`
 classifies and parks intents at step 3 and reconciles in its `finally`,
@@ -27,6 +27,15 @@ module's `IUserReferenceLocator`
 ([Audit Subsystem § 10](../../architecture/31-audit-subsystem.md)). Partitioning and the
 retention purge land in [Phase 11](../../roadmap/phase-11-production-hardening.md) against
 written triggers ([ADR-0035](../../decisions/0035-demand-gated-infrastructure.md)).
+
+**ADR-0046 fifth writer implemented in P02b-2 Step 2 — 2026-10-12; both review
+rounds complete.** The existing
+four writes remain implemented. `WriteEventTerminalAsync` adds INSERT-only access
+for the confined outbox role and validates the audit draft against a restricted
+witness from the actual fenced terminal UPDATE on the caller's transaction.
+Terminal state and MUST audit are atomic; this is not a standalone or platform-
+scope write. Tenancy owns the producer/subscriber operation declarations in
+[its matrix](../tenancy/audit.md), with subscriber implementation in P02b-3.
 
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -345,7 +354,9 @@ its mirror consumer. Existing source MUST rows remain on the source transaction.
 The reusable execution coordinator supplies non-MediatR classification/entry,
 owner write/boundary reporting and outermost reconciliation under ADR-0044/0033.
 P02b-1 proves a controlled direct owner; P02b-3 owns production delivery and its
-per-effect audit after G1. No new audit writer or durability model is introduced.
+per-effect audit under ADR-0046's accepted G1 contract. Business audit retains
+the existing coordinator and durability model; explicit terminal audit uses the
+separate fifth seam described above.
 
 ## Permission matrix
 
