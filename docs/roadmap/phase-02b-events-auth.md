@@ -2648,6 +2648,17 @@ controls, format verification and whitespace checks pass. These are local receip
 no PR-head CI or subscriber-owner delivery is claimed. Both fresh review receipts
 follow below before Step 3 begins.
 
+#### Step 2 review round 1
+
+A fresh GPT-6-astra/high reviewer examined every file in `80a3261..78992fc` and
+approves with zero Blocker/Major findings. It independently passes all 36 new
+acceptance/inbox Docker cases; the other local receipts above were inspected,
+not rerun. One Minor catalogue link still named the renamed immediate-handler
+worker proof. Root verifies the method rename and updates the label to the actual
+acceptance proof. No runtime change is needed. Documentation links/fragments,
+historical-record preservation and whitespace checks pass after the correction.
+The second fresh review follows the correction commit.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

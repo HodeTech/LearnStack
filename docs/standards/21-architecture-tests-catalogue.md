@@ -3472,7 +3472,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   [OutboxProductionCompositionTests.Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
   and [OutboxEventRegistryTests.Active_manifest_and_discovered_handlers_must_match_in_both_directions](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Messaging/OutboxEventRegistryTests.cs)
   prove real Pending holds and composition refusal. Test-owned Active publication
-  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
+  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_following_acceptance_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
   [OutboxProcessorTests.Explicit_intentional_absence_acknowledges_without_constructing_a_handler](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs)
   proves the distinct intentional-absence policy.
 - **Phase:** 02b, P02b-2.
