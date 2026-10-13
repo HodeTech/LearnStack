@@ -68,7 +68,6 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                         AND (dead_lettered_at IS NULL OR
                              (processed_at IS NULL AND terminal_reason IS NOT NULL AND locked_by IS NULL)))
                 );
-                
                 CREATE INDEX ix_event_deliveries_tenant_id_organization_id
                     ON event_deliveries (tenant_id, organization_id);
                 CREATE INDEX ix_event_deliveries_pending
@@ -82,7 +81,6 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                 CREATE INDEX ix_event_deliveries_terminal
                     ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
                     WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
-                
                 ALTER TABLE event_deliveries ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE event_deliveries FORCE ROW LEVEL SECURITY;
                 CREATE POLICY event_deliveries_isolation ON event_deliveries
@@ -109,7 +107,6 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                 CREATE TRIGGER tg_event_deliveries_organization_id_immutable
                     BEFORE UPDATE ON event_deliveries
                     FOR EACH ROW EXECUTE FUNCTION fn_organization_id_immutable();
-                
                 CREATE TABLE inbox_messages (
                     tenant_id       uuid NOT NULL,
                     subscription_id text NOT NULL,
@@ -128,7 +125,6 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                 CREATE POLICY inbox_messages_isolation ON inbox_messages
                     USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
                     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
-                
                 CREATE FUNCTION fn_inbox_messages_immutable() RETURNS trigger
                 LANGUAGE plpgsql AS $$
                 BEGIN
@@ -142,7 +138,6 @@ namespace LearnStack.Infrastructure.Persistence.Migrations
                 CREATE TRIGGER tg_inbox_messages_no_truncate
                     BEFORE TRUNCATE ON inbox_messages
                     FOR EACH STATEMENT EXECUTE FUNCTION fn_inbox_messages_immutable();
-                
                 GRANT SELECT ON event_deliveries, inbox_messages TO learnstack_app;
                 GRANT INSERT (tenant_id, subscription_id, event_id, organization_id, occurred_at,
                               correlation_id, causation_id, actor_user_id, type, topic, partition_key, payload)
