@@ -4,8 +4,9 @@
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
 P02b-3's [decision package](#p02b-3-decision-package-2026-10-13) is Accepted;
-Steps 1–5 completed both independent review rounds;
-[Step 6](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13) is in progress.
+All six steps completed implementation and both independent review rounds.
+[Step 6](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13) owns
+validation and PR/CI handoff; PR review and merge remain pending.
 P02b-4–8 remain unimplemented.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -269,7 +270,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
-| **P02b-3** | [Decision package Accepted](#p02b-3-decision-package-2026-10-13); implementation in progress. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
+| **P02b-3** | **Implementation and both review rounds complete** ([Step 6](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)); PR review and merge pending. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real default subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
@@ -297,7 +298,7 @@ premise a row cites is re-verified at that pass rather than trusted.
 
 | # | Question | Leaning | Vehicle | Blocks | Status |
 |---|---|---|---|---|---|
-| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages` keyed by tenant/stable subscription/event, transport-claimed before construction; a separate delivery ledger owns retries, terminal state and targeted replay; completion shares the business/audit/outbox transaction | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-2 (the record and its amendments: the dispatcher's retry state and a failed delivery's next attempt are one state machine), P02b-3 (Database Standards § Inbox and the ADR-0023 erratum) | Accepted — 2026-10-12; decision/amendments delivered; P02b-3 Steps 1–5 implement subscriber runtime, inbox and defaults; Step 6 enforcement/closeout in progress |
+| G1 | What is the subscriber's fate when its handler exhausts retries, and what is the inbox table — one shared or per module, keyed `event_id` or `(tenant_id, consumer, event_id)`, claimed by the handler or by the transport? Three arms travel with it: the class of consumer whose effect cannot share the inbox transaction (an external call, the platform-scope erasure handler the Audit spec already carries) and what "effectively once" means for it; whether an event without the organization marker is delivered tenant-wide regardless of the producing request's organization; and whether the inbox entity joins [ADR-0044 § 7](../decisions/0044-audit-write-path.md)'s named audit-capture exclusion list once a delivery declares intents | One shared tenant-owned `inbox_messages` keyed by tenant/stable subscription/event, transport-claimed before construction; a separate delivery ledger owns retries, terminal state and targeted replay; completion shares the business/audit/outbox transaction | **ADR-0046** + a dated **ADR-0006 Amendment** (or an explicit supersession note in ADR-0046 naming Amendment 1's consumer-side paragraph, which fixes the per-module inbox) + a dated **ADR-0010 Amendment**, because its § Idempotency makes two things mandatory that the shared-table leaning changes — the inbox is "the module's **own** inbox table", and the guard is called by the consumer — + the `Integration_Event_Handlers_Use_InboxGuard` assertion re-written in the same record to name whoever ends up owning the call, since a transport-claimed delivery fails a structural rule that looks for the call inside the handler + Database Standards § Inbox + an ADR-0041 erratum beside ADR-0023's minting list | P02b-2 (the record and its amendments: the dispatcher's retry state and a failed delivery's next attempt are one state machine), P02b-3 (Database Standards § Inbox and the ADR-0023 erratum) | Accepted — 2026-10-12; decision/amendments delivered; P02b-3 Steps 1–6 implement subscriber runtime, inbox, defaults and production enforcement; Step 6 record owns PR/CI status |
 | G2 | Does `IOutbox.EnqueueAsync` write the row immediately on the ambient transaction, or buffer for `OutboxFlushBehavior` at step 7 — and what is the flush point for the two paths that have no step 7? | Immediate write, with the behavior asserting no buffered message survives the handler | [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md) bounded supersession of ADR-0032 Sub-decision 2's step-7 completion role, with a dated supersession disclosure in ADR-0032 under this acceptance; phase-doc + [Events and Outbox § Producer pattern](../architecture/15-event-and-outbox.md#producer-pattern) | P02b-1 | Accepted — immediate enqueue/owner completion |
 | G3 | What replaces the unconditional same-key publish-order promise — a scoped bound, or strict per-key head-of-line blocking — and is the key's derivation checkable structurally, given that [§ Ordering](../architecture/15-event-and-outbox.md#ordering) admits an aggregate id or a deliberately declared tenant-wide key and nothing else? | Scope it: no column in `outbox_messages` carries an unconditional per-key guarantee, so the honest bound is one processor, no failure, deterministic eligible selection; no enqueue/commit-order guarantee | Derivation: [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md). Ordering: Accepted ADR-0046 and the P02b-2 package, followed by [§ Ordering](../architecture/15-event-and-outbox.md#ordering) alignment under this acceptance | P02b-1 (whether the key's derivation is checked structurally: the first event declares a key), P02b-2 (the ordering bound) | Derivation and ordering Accepted; scoped ordering runtime [implemented in P02b-2](#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12); complete and merged; [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns CI/review/merge state |
 | G4 | What counts as an attempt, what is `MaxAttempts` bound to, and what marker keeps a terminal row terminal as the clock advances? | Six attempts (one immediate plus the five documented delays) and an explicit terminal column, because a pushed-out `available_after` stops being terminal and never leaves the pending gauge | Accepted ADR-0046 + dated ADR-0006 disclosure under this acceptance; Database Standards § Outbox DDL, index and grant edits | P02b-2 | Accepted — 2026-10-12; producer attempts/terminal state [implemented](#p02b-2-step-2--durable-transitions-and-terminal-audit-2026-10-12) |
@@ -2961,7 +2962,7 @@ carriers, full regression, demo/Lighthouse and PR-head CI verification.
 
 ### P02b-3 Step 6 — production enforcement and PR closeout (2026-10-13)
 
-**Implementation and first review fixes complete; second review round pending.**
+**Implementation and both independent review rounds complete; PR handoff follows.**
 Step 5 is closed at `ac7bbee` before these changes. This step completes nonempty
 production handler/manifest and call-path controls, extends aggregate/audit
 coverage to integration handlers, reconciles current carriers and performs full
@@ -3072,8 +3073,33 @@ claims; those verified carriers are corrected. The new ADR-0046 delivery note
 stays only in its dated Amendment 3, with mutable-index navigation; no new top
 navigation is inserted into the Accepted body.
 
-The second fresh review round and exact-head PR/CI verification follow before
-packet closeout. P02b-4–8 are unimplemented.
+#### Step 6 review round 2 and local closeout
+
+Three new independent agents reviewed the full `ac7bbee..84995d3` Step 6 range:
+GPT-6-astra/xhigh covered capability/lifecycle enforcement; GPT-6.1-sol/xhigh
+covered audit/aggregate/root/tracing proofs; GPT-6-sol/high covered the corpus.
+The technical slices approve without an actionable finding. Independent runs
+pass eight capability cases, twenty aggregate/audit cases and five real root/
+HTTP/delivery cases, all with zero skips. A separate compiled probe detects
+seven additional dirty generic/inherited/async/iterator/closure/local-function/
+permutation shapes and leaves two unused-handler-argument controls clean.
+
+The corpus reviewer approves with minor current-pointer corrections in
+architecture 10/15, Standards 20 and the producer catalogue entry. Root verified
+and fixed them, preserving Step 5 as dated evidence and linking current status
+to this record; the reviewer rechecked the edits. A final glossary clarification
+states context precedes business construction/DI resolution, while metadata
+registry discovery happens earlier. Root verified the actual executor ordering.
+Five corpus consistency cases and link/fragment checks pass; these final fixes
+change documents only. No open verified finding remains from either round.
+
+All six P02b-3 steps completed their implementation commits and both independent
+review rounds. The local full-suite, focused fix and demo receipts retain the
+explicit scopes above; no final-head CI success is inferred from them. The PR
+handoff below will own the live seven-check verification and maintainer review.
+This completes P02b-3 implementation and local review, not a merge or the whole
+Phase 02b. P02b-4–8 remain unimplemented; the next packet is P02b-4's background-
+job decision pass, including the reserved ADR-0047 before runtime work.
 
 ### Durable outbox dispatch
 

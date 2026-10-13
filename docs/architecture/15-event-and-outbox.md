@@ -71,7 +71,9 @@ P02b-3 implements consumer execution through Step 3 and independent scheduling,
 terminalization, replay and bounded observation in Step 4. Its production default
 subscriptions are Active with Step 5 initialization and semantic Seeder handoff. The
 [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns current validation/review status. Numerical
+records that step's validation and reviews; the
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current enforcement, validation and review/PR status. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 

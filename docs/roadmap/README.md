@@ -108,8 +108,9 @@ not deferred to the showcase phase.
   inbox/ledger, independent subscriber retries, both real default subscriptions
   and semantic Seeder handoff. Its
   [Step 6 record](phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-  owns current enforcement/regression/review status; PR review and merge remain
-  pending. Background jobs, API authentication, realm reconciliation, BFF sessions
+  records completed enforcement/regression and both review rounds for all six
+  steps; PR review and merge remain pending. Background jobs, API authentication,
+  realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)

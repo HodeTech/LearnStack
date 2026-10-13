@@ -3355,7 +3355,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Implemented** (`DomainEventProductionTests.The_owner_drains_FIFO_across_sources_saves_delete_and_detach_without_duplicates`,
   `TenantCreatedProducerTests`, `ProducerExecutionTests`); real save qualification,
   FIFO/bounds, owner/common-audit atomicity and cleanup.
-- **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.
+- **Phase:** 02b, P02b-1; P02b-3 Steps 1–5 deliver production subscriber execution.
 
 #### `Domain_Event_Handlers_Are_Outbox_Only`
 

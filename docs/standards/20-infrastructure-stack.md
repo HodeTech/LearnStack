@@ -472,7 +472,9 @@ Rules:
   transactional execution and independent scheduling/terminalization/replay. Its
   real defaults are Active with Step 5 initialization and semantic Seeder handoff. The
   [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-  owns current validation/review status.
+  records that step's validation and reviews. The
+  [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+  owns current enforcement, validation and review/PR status.
 - Controlled subscriber tasks retain their actual app-role scope through
   cancellation callbacks and cleanup. Timeout closes the sticky commit gate
   before invoking callbacks. Acknowledged durability survives cleanup faults;

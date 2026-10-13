@@ -26,9 +26,11 @@ durable acceptance, transport-owned inbox/business completion and independent
 subscriber scheduling, terminal audit and internal replay. The
 [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
 owns passing proofs and both completed review rounds. Production default
-subscriptions activate together in Step 5 with the shared initializer/Seeder
+subscriptions activated together in Step 5 with the shared initializer/Seeder
 handoff; its [record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns current validation/review status.
+records that step's validation and reviews. The
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current enforcement, validation and review/PR status.
 
 ## Allowed Contract Types
 

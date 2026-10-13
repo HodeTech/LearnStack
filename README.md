@@ -136,8 +136,8 @@ owns final source/merge verification. P02b-3 Steps 1–5 implement durable accep
 shared inbox/ledger, independent subscriber scheduling and both useful defaults
 with semantic Seeder handoff. Its
 [Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns current enforcement/regression/review status; PR review and merge remain
-pending. The
+owns completed enforcement/regression and both review rounds for all six steps;
+PR review and merge remain pending. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
