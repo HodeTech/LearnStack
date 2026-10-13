@@ -2962,7 +2962,9 @@ carriers, full regression, demo/Lighthouse and PR-head CI verification.
 
 ### P02b-3 Step 6 — production enforcement and PR closeout (2026-10-13)
 
-**Implementation and both independent review rounds complete; PR handoff follows.**
+**Implementation and both independent review rounds complete.**
+[PR #31](https://github.com/HodeTech/LearnStack/pull/31) is open for maintainer
+review; merge remains pending.
 Step 5 is closed at `ac7bbee` before these changes. This step completes nonempty
 production handler/manifest and call-path controls, extends aggregate/audit
 coverage to integration handlers, reconciles current carriers and performs full
@@ -3100,6 +3102,28 @@ handoff below will own the live seven-check verification and maintainer review.
 This completes P02b-3 implementation and local review, not a merge or the whole
 Phase 02b. P02b-4–8 remain unimplemented; the next packet is P02b-4's background-
 job decision pass, including the reserved ADR-0047 before runtime work.
+
+### P02b-3 PR handoff (2026-10-13)
+
+[PR #31](https://github.com/HodeTech/LearnStack/pull/31) compares `development`
+with `main`. The six-step implementation and both independent review rounds
+are complete; initial enforcement is `82623d8`, verified first-round fixes are
+`84995d3`, and local review/document closeout is `a8e9c9d`. The
+[Step 6 record](#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns scoped local validation, independent receipts and corrected findings.
+This handoff changes documents only and introduces no new implementation scope.
+
+The [live PR checks](https://github.com/HodeTech/LearnStack/pull/31/checks) own
+exact-head CI results. All seven required contexts remain active with strict
+up-to-date protection: backend, frontend, secret scan, meta, backend integration,
+OpenAPI diff and public demo/Lighthouse. The initial published head started CI;
+this documentation receipt receives its own final-head run. No pending or
+superseded run is counted as success. Maintainer review and merge remain pending.
+
+P02b-4's background-job decision pass is next after this packet's review. It
+must draft and obtain approval for the reserved ADR-0047 before runtime work.
+Authentication, realm reconciliation, BFF/session and phase exit remain
+P02b-5–8; Phase 02b is not complete.
 
 ### Durable outbox dispatch
 
