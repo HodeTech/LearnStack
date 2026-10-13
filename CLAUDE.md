@@ -197,9 +197,12 @@ closeout are complete; all four steps completed both independent review rounds.
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns final source/merge verification and CI evidence.
 Acceptance registers six new catalogue rules; the Step 4 record owns their
-delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3 still owns
-durable acceptance, shared inbox/ledger, independent retries, both real default
-subscriptions and Seeder handoff.
+delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
+[decision package](docs/roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+is Accepted — 2026-10-13. Six implementation steps, each with commit and two
+independent review rounds, deliver durable acceptance, shared inbox/ledger,
+independent retries, both real defaults and Seeder handoff. Implementation is in
+progress; production subscriptions remain Pending until the complete path is ready.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

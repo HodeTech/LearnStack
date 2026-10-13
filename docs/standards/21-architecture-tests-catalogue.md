@@ -3506,6 +3506,90 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   Focused verification and both fresh fix reviews pass at `606362b`.
 - **Phase:** 02b, P02b-2.
 
+#### `Integration_Event_Publication_Is_Durable_Acceptance`
+
+- **Asserts:** Publish success means every required stable subscription has an
+  immutable, durably accepted envelope without business-handler construction.
+  Identical duplicates are idempotent, conflicting copies are refused and
+  partial/uncertain acceptance retries safely without spending subscriber budgets.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** real PostgreSQL/app-role integration and construction controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Retries_And_Replay_Are_Subscription_Scoped`
+
+- **Asserts:** Independent subscription attempts/backoff/leases, terminal requests
+  and replay preserve sibling and producer outcomes. Actual completion is fenced
+  with the business transaction and sticky timeout gate; final-claim unknown
+  COMMIT recovers from atomic inbox/ledger state. Replay resets one terminal
+  ledger pair only, never its completed inbox or a healthy sibling.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** real PostgreSQL worker/owner integration, controlled cancellation,
+  lost-COMMIT and state-transition mutants. **Kind:** behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Terminal_Audit_Identity_Is_Row_Bound`
+
+- **Asserts:** The successful fenced subscriber terminal UPDATE alone mints a
+  restricted witness binding actual tenant/org/subscription/event/token and live
+  transaction. Mismatched draft identities/operation/class/type/transaction and
+  failed audit roll back both writes; uncertain COMMIT never duplicates terminal
+  audit. The scheduler has no retained payload/causal-envelope SELECT privilege.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#atomic-terminal-audit-and-privilege-boundary)
+  and [ADR-0044 Amendment 11](../decisions/0044-audit-write-path.md#amendment-11--shared-delivery-capture-exclusions-2026-10-13).
+- **Type:** nonempty production mint/writer census with dirty/clean controls and
+  real-role atomic transition integration. **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Execution_And_Observation_Are_Bounded`
+
+- **Asserts:** Actual API subscriber worker, deadlines, ignored cancellation and
+  disposal retain safe task-owned resources within the accepted capacity/shutdown
+  bounds. Postcommit cleanup cannot undo/repeat a durable business effect. Closed
+  diagnostics/finite labels, exact snapshot cadence and prior-snapshot retention
+  preserve truthful registered health; gauge callbacks execute no SQL.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#diagnostics-and-execution-bounds)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** production registration/observation/call-path census with planted
+  dirty/clean controls, unit probes and real worker integration.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
+#### `Customization_Default_Initialization_Preserves_Touched_Concepts`
+
+- **Asserts:** Both actual default subscriptions create one untouched root each
+  with owner-minted UUIDv7, one generation bump and MUST audit. Any Draft, Active,
+  Deprecated, successor-only or soft-deleted concept is preserved. Semantic-key
+  serialization makes competing registration and initialization converge without
+  overwrite, republish or resurrection; each effect has independent inbox state.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** actual consumer integration, lifecycle/race/atomic-audit controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
+#### `Seeder_BuiltIns_Use_Semantic_Identity`
+
+- **Asserts:** Seeder discovers and exactly verifies built-ins by semantic
+  key/version while preserving warm/generated IDs and authored exact IDs/pins.
+  It uses the ordinary app-role pipeline without a worker or dispatcher credential;
+  reruns are neutral, conflicting lifecycle/shape refuses without overwrite, and
+  fresh seeding/delivery races converge in both winning orders.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** actual Seeder/module/worker integration with warm-ID and race controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-3 implementation pending.
+- **Phase:** 02b, P02b-3.
+
 ### Demand-gated: lands with its adapter
 
 These rules are agreed but cannot be written until the technology they constrain is

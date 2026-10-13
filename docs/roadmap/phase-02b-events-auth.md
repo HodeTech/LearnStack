@@ -3,8 +3,8 @@
 **Current status — 2026-10-13.** P02b-0 through P02b-2 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
-P02b-3's [decision pass](#p02b-3-decision-package-2026-10-13) is in review;
-subscriber/inbox delivery and P02b-4–8 remain unimplemented.
+P02b-3's [decision package](#p02b-3-decision-package-2026-10-13) is Accepted;
+its six-step implementation is in progress. P02b-4–8 remain unimplemented.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -266,7 +266,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
-| **P02b-3** | [Decision pass in review](#p02b-3-decision-package-2026-10-13); runtime unimplemented. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
+| **P02b-3** | [Decision package Accepted](#p02b-3-decision-package-2026-10-13); implementation in progress. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
@@ -2136,7 +2136,9 @@ above supply their evidence.
 
 ### P02b-3 decision package (2026-10-13)
 
-**Proposed — maintainer review pending. No P02b-3 runtime is implemented.**
+**Accepted — 2026-10-13, @cemil.** The maintainer approves the complete package
+and six implementation steps, each with commit and two independent review rounds.
+Acceptance precedes runtime implementation; it claims no delivered subscriber.
 The audit baseline is `development` at
 `652004290c9696e65e68817f223839d4a0f02137`, after PR #30's verified merge.
 Three independent read-only audits covered the accepted contracts, storage/
@@ -2179,7 +2181,7 @@ These gaps are expected P02b-3 work; they are not retroactive P02b-2 failures.
 Required production manifests stay Pending until acceptance, execution and Seeder
 handoff are ready together. Test-owned Active contracts exercise earlier steps.
 
-#### Proposed storage and authority details
+#### Accepted storage and authority details
 
 1. **Two shared infrastructure tables.** `event_deliveries` retains one copy of
    the validated producer envelope per `(tenant_id, subscription_id, event_id)`.
@@ -2237,7 +2239,7 @@ grants sandbox arbitrary compromised app SQL. Likewise, the terminal audit's
 tenant binding is the row witness, not BYPASSRLS GUCs. No tenant-status lookup is
 added as an asynchronous hold/drop policy; Phase 02c retains that decision.
 
-#### Proposed execution, retries and replay
+#### Accepted execution, retries and replay
 
 Each attempt owns a fresh app-role scope. Announce the validated routing tenant/
 organization before resolving a module context, read and revalidate the retained
@@ -2258,7 +2260,7 @@ admission is an unknown/Indeterminate outcome, not guaranteed rollback. Durable
 inbox/ledger state decides recovery, including an uncertain sixth-attempt COMMIT.
 This adds no IUnitOfWork session setter, retargeting or independent business commit.
 
-| Policy | Proposed initial bound |
+| Policy | Accepted initial bound |
 |---|---|
 | Host and acquisition | API-owned subscriber worker; one just-in-time normal claim; reuse the confined keyed dispatcher source |
 | Normal claims | Six per subscription/event, including claims whose execution outcome is unknown |
@@ -2314,7 +2316,7 @@ refresh failure preserves the prior snapshot and reports stale/unhealthy state.
 Producer and subscriber attempt/failure/terminal/dedup signals remain distinct.
 The API's `/healthz` and anonymous public contract remain unchanged.
 
-#### Proposed defaults and Seeder handoff
+#### Accepted defaults and Seeder handoff
 
 The two stable identities remain
 `customization.initialize-content-type-default.v1` (`card@1` content type) and
@@ -2410,7 +2412,7 @@ inventing alternate names for their claim/owner/scope assertions. Extend the
 existing credential confinement census only for the named subscriber scheduler/
 store; business handlers and application execution never receive bypass access.
 
-#### Six proposed implementation steps
+#### Six accepted implementation steps
 
 Each step commits on `development`, then completes two fresh independent review
 rounds. Verify findings against current code, fix valid findings, validate and
@@ -2503,6 +2505,17 @@ clean. Every Accepted ADR and all earlier P02b delivery/review receipts remain
 byte-preserved. This is documentation validation, not a P02b-3 runtime test run.
 The package remains Proposed until explicit maintainer approval; that approval
 and the registered obligations precede the first runtime implementation commit.
+
+#### Maintainer acceptance (2026-10-13)
+
+The maintainer's explicit answer, "Paketi onaylıyorum; implementasyona geç",
+accepts this package after both decision-package reviews. Their preceding receipt
+records the pre-approval state. The six steps and two-round loop are authorized
+on development. G1/G6/G7/G19 keep their accepted architectural answers; concrete
+storage, authority, execution/replay, default and Seeder details now have this
+accepted vehicle. Catalogue additions remain Registered until their proofs ship.
+The decision acceptance, ADR-0023 erratum and ADR-0044 capture clarification are
+committed before the first P02b-3 runtime change.
 
 ### Durable outbox dispatch
 

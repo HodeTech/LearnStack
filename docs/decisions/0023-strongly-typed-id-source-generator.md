@@ -260,6 +260,13 @@ Three things outweighed the appeal:
 > surrogate column. See Amendment 4. Current authority: [Database Standards §
 > Idempotency](../standards/05-database.md).
 
+> **Erratum — 2026-10-13.** The DB-side list below includes `inbox_messages`.
+> It reuses the producer's EventId; it does not mint a second UUID. At acceptance
+> commit `da1d37e3`, Architecture 15's Inbox fence already declares `event_id uuid
+> PRIMARY KEY` without a default, and its consumer supplies `@event.EventId`.
+> The UUIDv7 Decision is unchanged. Current authority: [Database Standards §
+> Inbox](../standards/05-database.md#inbox). Recorded in Amendment 10.
+
 - **UUIDv7 minting:**
   - DB-side (`gen_uuid_v7()` per ADR-0031) for `audit_log`, `outbox_messages`,
     `inbox_messages`, `idempotency_keys` — high-volume append-only tables.
@@ -548,6 +555,25 @@ them two identities, which is precisely the pair a reader is meant to recognise 
 commit-in-doubt event. `DEFAULT uuidv7()` stays on the column as a backstop for a row
 inserted by something other than `PostgresAuditStore`; every row the store writes carries
 an id the store supplied.
+
+### Amendment 10 — Inbox identity reuses the producer EventId (2026-10-13)
+
+The Implementation Notes DB-side minting list named `inbox_messages`, although
+its deduplication identity is the incoming producer EventId. This was false when
+the list entered the record:
+`git show da1d37e3:docs/architecture/15-event-and-outbox.md` shows an
+`event_id uuid PRIMARY KEY` inbox with no default and a consumer passing
+`@event.EventId`. Under ADR-0041, an inline erratum precedes the original list;
+the body, Decision, acceptance metadata and earlier amendments remain intact.
+
+[ADR-0046](0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+adds tenant and stable subscription to that natural identity; it still mints no
+surrogate. P02b-3 implements the shared table under its
+[accepted package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+Carriers changed for this correction are this erratum/amendment, the ADR index,
+Database Standards' Inbox/Identifiers text and the phase package. Database
+Standards already excludes inbox from DB-side minting; its canonical DDL lands
+with Step 1. This note changes no UUIDv7 source decision.
 
 ## References
 

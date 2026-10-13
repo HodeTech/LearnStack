@@ -1153,6 +1153,26 @@ This additive seam is separate from Amendment 9's grant replacement and does not
 change ADR-0033's durability contract. Original acceptance metadata, body and
 prior amendments remain intact. Acceptance authorizes implementation, not delivery.
 
+## Amendment 11 — Shared delivery capture exclusions (2026-10-13)
+
+**Status: Accepted.** [ADR-0046](0046-durable-event-delivery-and-recovery.md#bounded-supersession-and-additive-seams)
+and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+add `InboxMessage` and `EventDelivery` to § 7's named capture exclusions. The inbox
+is transport-owned completion identity; the delivery ledger retains envelopes
+and retry/terminal machinery. Neither is a second business aggregate. Explicit
+handler/nested-command intents continue to capture and audit all business effects.
+The runtime exclusion list and its planted controls land with P02b-3; acceptance
+does not claim those tests or subscriber delivery already exist.
+
+Amendment 10's fifth seam already authorizes the subscriber terminal writer and
+`platform.delivery.dead_letter`. P02b-3 binds that operation to an actual-row
+subscriber transition witness on the same transaction; register the off-path
+MUST/SecurityEvent operation only with its writer. No new audit method, standalone
+terminal writer, grant beyond ADR-0046 or changed durability rule is introduced.
+The original body, Decision, acceptance metadata and earlier amendments survive.
+This is the additive clarification ADR-0046 requires, not a factual erratum or
+a normative supersession.
+
 ## References
 
 - [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) — the durability
