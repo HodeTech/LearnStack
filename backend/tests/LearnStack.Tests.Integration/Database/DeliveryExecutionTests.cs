@@ -97,6 +97,50 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Durable_acceptance_does_not_wait_for_same_partition_handler_or_acknowledged_cleanup(bool holdCleanup)
+    {
+        await using var fixture = await Fixture.CreateAsync(schema);
+        var first = Fact();
+        var claim = await fixture.AcceptAndClaimAsync(first);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (holdCleanup) fixture.Observation.CleanupMode = "hang";
+        else fixture.Observation.AfterSave = async () =>
+        {
+            entered.TrySetResult();
+            await release.Task;
+        };
+        var gate = new DeliveryCommitGate();
+        var execution = fixture.Executor.ExecuteAsync(claim, gate);
+        Task<DeliveryClaim>? accepting = null;
+        try
+        {
+            await (holdCleanup ? fixture.Observation.CleanupEntered.Task : entered.Task)
+                .WaitAsync(TimeSpan.FromSeconds(10));
+            gate.CommitAcknowledged.Should().Be(holdCleanup);
+            var next = first with { EventId = Guid.CreateVersion7() };
+            next.PartitionKey.Should().Be(first.PartitionKey);
+            accepting = fixture.AcceptAndClaimAsync(next);
+            var accepted = await accepting.WaitAsync(TimeSpan.FromSeconds(5));
+
+            accepted.EventId.Should().Be(next.EventId, "the real bus durably accepted another event while execution was held");
+            execution.IsCompleted.Should().BeFalse();
+            fixture.Observation.Constructions.Should().Be(1, "acceptance constructs no second handler");
+            gate.CommitAcknowledged.Should().Be(holdCleanup);
+        }
+        finally
+        {
+            release.TrySetResult();
+            fixture.Observation.CleanupRelease.TrySetResult();
+            await execution.WaitAsync(TimeSpan.FromSeconds(10));
+            if (accepting is not null) await accepting.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        (await fixture.StateAsync(first)).Processed.Should().BeTrue();
+    }
+
+    [Theory]
     [InlineData("handler")]
     [InlineData("constructor")]
     [InlineData("null-task")]

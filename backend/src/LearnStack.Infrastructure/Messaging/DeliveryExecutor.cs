@@ -67,7 +67,10 @@ public sealed class DeliveryExecutor(
         // The registration touches only the atomic gate, never a live connection.
         using var registration = cancellationToken.Register(static state => ((DeliveryCommitGate)state!).Close(), gate);
         DeliveryExecutionResult result = new(DeliveryExecutionOutcome.Failed, false, false);
-        await partitions.RunSequentiallyFor(claim.PartitionKey, async () =>
+        // Acceptance must not queue behind a subscriber's live callback or cleanup.
+        // Validated event partitions are canonical UUIDs; this internal lane cannot
+        // collide with the bus's raw acceptance lane. Consumer ordering stays local.
+        await partitions.RunSequentiallyFor("delivery:" + claim.PartitionKey, async () =>
         {
             result = await ExecuteOwnedAsync(claim, gate, control, cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);

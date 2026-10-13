@@ -2772,7 +2772,7 @@ is needed for its independent subscriber scheduler.
 
 ### P02b-3 Step 4 — subscriber scheduling, terminalization and replay (2026-10-13)
 
-**Implemented and locally validated; both independent reviews pending.**
+**Implemented; round 1 and its verified correction complete, round 2 pending.**
 The API-owned subscriber worker shares the existing confined keyed data source,
 with no new role, migration or credential reader. Its store claims one exact
 tenant/subscription/event tuple, selects routing/status columns only, and uses
@@ -2829,6 +2829,34 @@ The catalogue now records 205 architecture methods and 196 Implemented rules,
 120 in the architecture assembly and 76 elsewhere. Consumer-handler censuses,
 production activation and defaults/Seeder proofs remain Steps 5–6. Earlier dated
 receipts retain their original counts and pending status.
+
+#### Step 4 review round 1
+
+Two fresh read-only reviewers inspected `3411424..262d4b2`:
+
+- **Runtime/security — GPT-6-astra, high:** one verified Major. Subscriber
+  execution and durable acceptance used the same singleton/raw partition lane;
+  a retained handler or postcommit cleanup could delay producer acceptance and
+  consume producer timeout/capacity. Its independent rerun passed 66 focused
+  PostgreSQL and eight focused unit cases, showing the missing combined scenario.
+- **Proofs/docs — GPT-6-sol, high:** Approve, no Blocker/Major/Minor/Suggestion.
+  It inspected production capability censuses, actual-role/worker tests and
+  documentation/history without independently rerunning the suites.
+
+Root verified the shared lane and separates only the internal execution lane
+with a fixed `delivery:` prefix. Validated event partitions remain canonical UUIDs;
+consumer serialization and raw scheduler partition holds remain intact. A live
+subscriber cannot delay a new same-partition publication's durable acceptance.
+Two real-bus/PostgreSQL regressions hold the actual handler or acknowledged-COMMIT
+cleanup and accept a second same-partition event before releasing the first.
+In an isolated source copy, restoring the shared raw lane makes both cases fail;
+no production source or branch is mutated for that control. This implements the
+accepted independent failure domains and introduces no new policy or ADR.
+Correction validation passes the Release build with zero warnings/errors, 1,855
+unit cases, 41 affected architecture cases and 101 store/worker/executor PostgreSQL
+cases, with zero failures/skips. Both isolated restored-baseline cases pass again.
+Format, whitespace and the 1,818-link/398-fragment document sweep pass; the next
+fresh review round follows the correction commit.
 
 ### Durable outbox dispatch
 

@@ -346,8 +346,10 @@ The controlled execution task owns construction, cancellation callbacks and actu
 scope cleanup. Timeout closes its sticky commit gate before asynchronous callbacks.
 An acknowledged COMMIT remains definitive through faulty or overlong cleanup;
 unacknowledged commit admission requires durable reconciliation. Retained tasks
-block their local partition and consume the accepted four-task capacity until
-actual completion. Shutdown uses one finite wait shared with the host token.
+block their local execution partition and consume the accepted four-task capacity
+until actual completion. Acceptance and execution use separate serializer lanes;
+a held subscriber never queues new durable acceptance behind its callback/cleanup.
+Shutdown uses one finite wait shared with the host token.
 Numerical bounds and validation/review evidence belong to the
 [accepted package and Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
 

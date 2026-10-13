@@ -475,7 +475,8 @@ Rules:
 - Controlled subscriber tasks retain their actual app-role scope through
   cancellation callbacks and cleanup. Timeout closes the sticky commit gate
   before invoking callbacks. Acknowledged durability survives cleanup faults;
-  retained tasks block their local partition and consume bounded capacity.
+  retained tasks block their local execution partition and consume bounded capacity.
+  Acceptance uses a separate serializer lane and never waits for subscriber cleanup.
   Shutdown observes one total finite budget and the host token.
 - Subscriber observation emits the nine instruments defined by
   [Observability Standards](10-observability.md#required-metrics), with finite
