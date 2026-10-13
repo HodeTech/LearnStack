@@ -2883,7 +2883,7 @@ Step 5 follows automatically with useful consumers and semantic Seeder handoff.
 
 ### P02b-3 Step 5 — useful defaults and semantic seed handoff (2026-10-13)
 
-**Implementation in progress; both independent review rounds pending.**
+**Implementation complete; round 1 complete, round 2 pending.**
 Step 4 is closed before these changes. This step implements the accepted pair of
 one-root initializers and shared transaction-owned concept serialization, then
 moves built-in seed verification to semantic identity. Authored identities and
@@ -2914,7 +2914,28 @@ database gates coordinate real writes without a production registration hook.
 The race observer uses the app role so PostgreSQL exposes its own role's lock
 waits; the earlier owner-role observer could not see app-role activity and failed
 the fixture, rather than detecting a product defect. The corrected full flow
-passes all eight cases. Two fresh sequential review receipts follow before Step 6.
+passes all eight cases. The existing publication concurrency suite also passes
+all ten cases, and the guarded frontend run passes 1,616 cases with zero
+skips/todos. Two fresh sequential review receipts follow before Step 6.
+
+#### Step 5 review round 1
+
+Three fresh read-only reviewers examined `94d7d6b..d53ae27` before the second
+round. GPT-6-astra xhigh reviewed production correctness, isolation and races;
+GPT-6.1-sol xhigh reviewed proof quality and Seeder convergence; both approve with
+no findings. They independently reran 92 integration cases and 100 focused
+integration/unit cases respectively, all passing with zero skips. These overlap
+root's receipts and are independent reruns, not additional distinct test cases.
+
+GPT-6-sol high identified four mutable Architecture 31 passages still describing
+real defaults as Pending, and the standards-check skill still describing inbox
+acquisition as pending. Root verified both against the Active bindings and owner
+path, corrected those current-state carriers and extended the phasing table to
+Step 5. The historical ADR and Step 1–4 receipts remain unchanged. Root's updated
+document check passes 2,209 relative links and 480 fragments with no errors;
+the reviewer independently passes all five corpus guards. No runtime correction
+was needed. Missing full-packet ADR delivery notes are not a Step 5 finding:
+Step 6 owns them after production-census enforcement and final regression.
 
 ### Durable outbox dispatch
 

@@ -174,7 +174,8 @@ Five components, separated concerns:
    catches/rethrows unexpected failures and reconciles in `finally` at the
    outermost capture frame. `AuditLogBehavior` remains its step-3 request adapter.
    The same entry serves direct owners and P02b-3 Step 3's delivery executor;
-   real default subscriptions remain Pending until Step 5.
+   Step 5 activates both real defaults with Off-classified coordinators and nested
+   MUST-classified initializer commands.
 5. **`PlatformAdminScope`** — the one writer outside the pipeline. `EnterAsync` records
    `platform.admin_scope.enter` through `IAuditStore.WritePlatformScopeAsync`, on the
    scope's own platform-role connection and transaction, **before** the operation runs
@@ -679,8 +680,8 @@ Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promoti
 and owner-only domain drain. P02b-2 Step 3 implements hosted producer dispatch,
 with both independent review rounds complete. P02b-3 Step 3 implements the
 app-role delivery owner and per-subscription audit frames; Step 4 implements
-independent scheduling and terminal audit. Production defaults remain Pending
-until Step 5 under Accepted ADR-0046.
+independent scheduling and terminal audit. Step 5 activates both real defaults
+and semantic Seeder handoff under Accepted ADR-0046.
 
 ### The two catalogue faces, and the three columns nothing fills yet
 
@@ -894,7 +895,7 @@ enqueue, successful-save collection/promotion and owner-only domain drain before
 MUST audit/commit. P02b-2 Step 3 implements hosted producer dispatch, with
 both independent review rounds complete. P02b-3 Steps 1–4 implement shared
 storage, acceptance, app-role business ownership and independent scheduling;
-production defaults remain Pending until Step 5.
+Step 5 activates both real defaults and semantic Seeder handoff.
 
 `IUnitOfWork` remains the seam through which every module context and `IAuditStore`
 reach the one ambient connection/transaction. Packet 6 shipped that seam and the
@@ -1729,7 +1730,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Hosted dispatch is implemented in P02b-2 Step 3; consumer delivery/inbox remains P02b-3. |
 | P02b-2 Steps 1–4 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with both independent review rounds complete; Step 4 enforcement and local closeout are complete; all four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) owns CI/merge status. |
-| P02b-3 Steps 1–4 | Shared transport-owned inbox and retained delivery envelopes, durable acceptance, per-subscription audit frames and fenced business completion; independent scheduling/replay and Tenancy-owned subscriber terminal audit through the row-bound fifth seam. Ordinary executor refuses privileged subscriptions. Production defaults remain Pending until Step 5; the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13) owns validation/review status. |
+| P02b-3 Steps 1–5 | Shared transport-owned inbox and retained delivery envelopes, durable acceptance, per-subscription audit frames and fenced business completion; independent scheduling/replay and Tenancy-owned subscriber terminal audit through the row-bound fifth seam. Ordinary executor refuses privileged subscriptions. Both real default subscriptions are Active with nested initializer MUST audits and semantic Seeder handoff; the [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13) owns validation/review status. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |

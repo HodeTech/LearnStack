@@ -377,7 +377,8 @@ domain the diff doesn't touch.
   endpoint carries its ADR and lands in both repositories.
 - [ ] Producer INSERT uses its announced transaction. ADR-0046 dispatcher
   transitions use fresh tokens and atomic terminal audit; transport-owned shared
-  inbox acquisition precedes handler construction (P02b-3 pending).
+  inbox acquisition precedes handler construction (P02b-3 Steps 2–3 delivered;
+  Step 5 activates both real defaults).
 - [ ] Manifest readiness preserves required Pending rows. Active publication
   means durable acceptance; subscriber retry/terminal/replay state is independent
   of the producer budget. Check catalogue status before claiming enforcement.
