@@ -2594,7 +2594,7 @@ under the accepted package; production subscriptions remain Pending.
 
 ### P02b-3 Step 2 — durable acceptance and inbox primitives (2026-10-13)
 
-**Implemented; independent review rounds pending.** `InProcessEventBus` now
+**Implemented; both independent review rounds complete.** `InProcessEventBus` now
 validates the concrete canonical contract and required Active manifest, restores
 publication context before creating a fresh application scope, and commits all
 subscription envelope copies in one announced transaction. It constructs no
@@ -2658,6 +2658,18 @@ worker proof. Root verifies the method rename and updates the label to the actua
 acceptance proof. No runtime change is needed. Documentation links/fragments,
 historical-record preservation and whitespace checks pass after the correction.
 The second fresh review follows the correction commit.
+
+#### Step 2 review round 2 and closeout
+
+A fresh GPT-6.1-sol/high reviewer independently examines all changed files in
+`80a3261..bce0bc7` and approves with zero Blocker/Major findings. It independently
+passes 36 acceptance/inbox, 18 producer-worker, ten focused publication/composition
+unit and all 287 architecture cases, with zero failures/skips. It reports one
+Minor XML-comment grammar error; root verifies and removes the extra word.
+Documentation/fragment, historical-preservation and whitespace checks pass.
+Implementation is `78992fc`; `bce0bc7` corrects the verified round-one reference.
+No runtime fixes were required. Step 3 follows automatically under the accepted
+package; production subscriptions remain Pending.
 
 ### Durable outbox dispatch
 

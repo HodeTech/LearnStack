@@ -29,7 +29,7 @@ namespace LearnStack.SharedKernel.Messaging;
 /// <b>Invariant on purpose.</b> Declaring <c>in TEvent</c> would promise a
 /// variance the container does not honour: measured, a handler registered for a
 /// base event type compiles, registers, and is never invoked, because
-/// <c>GetServices</c> matches the closed generic exactly — and "no handler" is
+/// <c>GetServices</c> matches the closed generic exactly — and "no handler"
 /// was not an error in the immediate-broadcast baseline, so publication could
 /// report success having reached nobody. The durable registry now refuses
 /// undeclared contracts and requires exact Active handler declarations.
