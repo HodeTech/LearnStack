@@ -2772,7 +2772,7 @@ is needed for its independent subscriber scheduler.
 
 ### P02b-3 Step 4 — subscriber scheduling, terminalization and replay (2026-10-13)
 
-**Implemented; round 1 and its verified correction complete, round 2 pending.**
+**Complete; both independent review rounds and the verified correction complete.**
 The API-owned subscriber worker shares the existing confined keyed data source,
 with no new role, migration or credential reader. Its store claims one exact
 tenant/subscription/event tuple, selects routing/status columns only, and uses
@@ -2857,6 +2857,29 @@ unit cases, 41 affected architecture cases and 101 store/worker/executor Postgre
 cases, with zero failures/skips. Both isolated restored-baseline cases pass again.
 Format, whitespace and the 1,818-link/398-fragment document sweep pass; the next
 fresh review round follows the correction commit.
+
+#### Step 4 review round 2 and closeout
+
+Two new read-only reviewers independently inspected `3411424..14d5f93`, including
+the complete Step 4 implementation and round 1 correction:
+
+- **Runtime/security — GPT-6-astra, high:** Approve, zero
+  Blocker/Major/Minor/Suggestion. Independently passed 101 PostgreSQL cases,
+  16 lifecycle/observation/commit-gate unit cases and 36 architecture cases,
+  with zero failures/skips. It verified lane separation, fresh-clock fences,
+  row-bound terminal audit, exact replay and actual resource ownership.
+- **Proofs/docs — GPT-6.1-sol, high:** Approve, zero
+  Blocker/Major/Minor/Suggestion. Independently passed 101 PostgreSQL cases,
+  41 architecture cases including all five corpus guards, and eight unit cases,
+  with zero failures/skips. It verified the corrected binary's new tests/lane,
+  planted census controls, catalogue counts and preserved historical records.
+
+Both reviews used existing Release artifacts without independently rebuilding or
+rerunning the isolated mutant. Their receipts distinguish actual reruns from
+inspection of root's earlier build/format/link/mutant evidence. Neither changed
+files or GitHub. The correction is committed at `14d5f93`; root's restored mutant
+baseline passes both cases after the old-lane mutant failed both. Step 4 is closed;
+Step 5 follows automatically with useful consumers and semantic Seeder handoff.
 
 ### Durable outbox dispatch
 
