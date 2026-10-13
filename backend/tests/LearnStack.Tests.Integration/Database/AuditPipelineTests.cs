@@ -88,10 +88,8 @@ public sealed class AuditPipelineTests : IAsyncLifetime
             "tenancy.organization.create",
             "tenancy.organization.create",
             "tenancy.hostmapping.write",
-            "customization.content_type.register",
-            "customization.content_type.publish",
-            "customization.level_taxonomy.register",
-            "customization.level_taxonomy.publish");
+            "customization.content_type.initialize",
+            "customization.level_taxonomy.initialize");
 
         rows.Count(row => row.Operation == "tenancy.organization.create").Should().Be(2,
             "the seed creates a second organization with CreateOrganizationCommand, and "
@@ -354,7 +352,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // The repeated commands REFUSE, and every refusal is recorded. That is the point rather
         // than an inconvenience: a repeated provisioning attempt is exactly the shape a
         // probe takes, and Audit Coverage justifies the whole `denied` class with it.
-        rows.Count(row => row.Outcome == "success").Should().Be(8,
+        rows.Count(row => row.Outcome == "success").Should().Be(6,
             "the first run's rows are untouched");
 
         rows.Where(row => row.Outcome != "success").Should().NotBeEmpty(
@@ -485,10 +483,8 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         "tenancy.tenant.create",
         "tenancy.organization.create",
         "tenancy.hostmapping.write",
-        "customization.content_type.register",
-        "customization.content_type.publish",
-        "customization.level_taxonomy.register",
-        "customization.level_taxonomy.publish",
+        "customization.content_type.initialize",
+        "customization.level_taxonomy.initialize",
     ];
 
     /// <summary>

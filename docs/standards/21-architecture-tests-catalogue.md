@@ -17,7 +17,8 @@
 (P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
 all four steps completed both independent review rounds; packet complete and merged;
 the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-owns CI/merge status; P02b-3 consumer proofs remain pending). The
+owns CI/merge status; P02b-3 Steps 1–5 implement consumer runtime and defaults;
+Step 6 retains production-census enforcement and full packet closeout). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -142,8 +143,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**196 rules in this catalogue are Implemented, and 120 of them are in that assembly.**
-The other 76 are no less binding, and most could not live there. The table says where
+**198 rules in this catalogue are Implemented, and 120 of them are in that assembly.**
+The other 78 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3594,7 +3595,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
 - **Type:** actual consumer integration, lifecycle/race/atomic-audit controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** — `CustomizationDefaultInitializationTests`,
+  `CustomizationDefaultDeliveryTests` (P02b-3 Step 5): app-role lifecycle,
+  ordinary-registration races, backlog/fresh delivery and atomic audit proofs.
 - **Phase:** 02b, P02b-3.
 
 #### `Seeder_BuiltIns_Use_Semantic_Identity`
@@ -3608,7 +3611,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
 - **Type:** actual Seeder/module/worker integration with warm-ID and race controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** — `SeederTests`,
+  `CustomizationDefaultDeliveryTests` (P02b-3 Step 5): generated/warm identity,
+  exact-shape/lifecycle refusal, neutral reruns and both Seeder/delivery race orders.
 - **Phase:** 02b, P02b-3.
 
 ### Demand-gated: lands with its adapter

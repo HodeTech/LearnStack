@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Branding;
@@ -70,6 +71,30 @@ internal static class SeedVerification
     }
     private static bool LocaleMatches(TenantLocaleSeedDto row, SeedLocale expected) =>
         row.Locale == expected.Locale && row.IsEnabled == expected.IsEnabled && row.IsDefault == expected.IsDefault && row.Sort == expected.Sort;
+
+    internal static bool BuiltInContentType(ContentTypeSeedDto? row, SeedTenant tenant)
+    {
+        if (row is null) return false;
+        Require(row.Id != Guid.Empty && row.TenantId == tenant.TenantId && row.Key == BuiltInCustomizations.Card.Key
+            && row.SchemaVersion == BuiltInCustomizations.SchemaVersion && row.Status == "Active"
+            && JsonEqual(row.DisplayNameJson, JsonSerializer.Serialize(BuiltInCustomizations.Card.DisplayName))
+            && JsonEqual(row.JsonSchema, BuiltInCustomizations.Card.JsonSchema)
+            && row.RendererKey == BuiltInCustomizations.Card.RendererKey, tenant, "built-in content type");
+        return true;
+    }
+
+    internal static bool BuiltInTaxonomy(TaxonomySeedDto? row, SeedTenant tenant)
+    {
+        if (row is null) return false;
+        Require(row.Id != Guid.Empty && row.TenantId == tenant.TenantId && row.Key == BuiltInCustomizations.Plain.Key
+            && row.SchemaVersion == BuiltInCustomizations.SchemaVersion && row.Status == "Active"
+            && JsonEqual(row.DisplayNameJson, JsonSerializer.Serialize(BuiltInCustomizations.Plain.DisplayName))
+            && row.Items.Length == BuiltInCustomizations.Plain.Bands.Count
+            && row.Items.All(actual => BuiltInCustomizations.Plain.Bands.Any(band => actual.Key == band.Key && actual.Sort == band.Sort
+                && JsonEqual(actual.DisplayNameJson, JsonSerializer.Serialize(band.DisplayName)) && actual.Metadata is null)),
+            tenant, "built-in level taxonomy");
+        return true;
+    }
 
     internal static bool ContentType(ContentTypeSeedDto? row, SeedContentType expected, SeedTenant tenant, bool published)
     {

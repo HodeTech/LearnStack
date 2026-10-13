@@ -16,7 +16,11 @@ description: >
 The [P02d-2 accepted package](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-2-decision-package-2026-10-02)
 records the decisions. Step 4 delivers the complete inventory and contextual
 verification; both implementation review rounds and final verification passed.
-P02d-2 is merged, and P02d-4 supplies public API reads. Server ingress/transport
+P02d-2 is merged, and P02d-4 supplies public API reads. The accepted
+[P02b-3 package](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+adds shared create-only defaults and the semantic built-in handoff; its
+[Step 5 record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns current validation/review status. Server ingress/transport
 belongs to P02d-5; P02d-6 pages and P02d-7's shared foreground/CI demo are delivered.
 Step 3 supplies the narrow browser/Lighthouse proof; its
 [delivery record](../../../docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-step-3--browser-and-audit-proof-2026-10-11)
@@ -74,7 +78,9 @@ that file. There is no `make seed-tenant`, `infra/seed/`, or seed-reset command.
 
 ### 2. Read the declaration
 
-The existing fixed tenant, organization, host and built-in IDs are preserved.
+Fixed tenant, organization, host and authored curriculum IDs are preserved.
+P02b-3 discovers built-ins by semantic key/version and verifies their complete
+Active shape while retaining the stored ID; new built-ins mint owner UUIDv7 IDs.
 English's host remains tenant-wide; Yoga's host maps to Studio One. The exact
 [accepted inventory](../../../docs/roadmap/phase-02d-walking-skeleton.md#seed-inventory-and-ownership)
 and `SeedData` own the choices; this skill does not keep a second literal list.
@@ -94,7 +100,9 @@ URLs or logo are seeded. Restricted publication grants no anonymous lesson acces
    and host mapping. The tenant starts Trial. Provisioning alone writes the
    sanctioned Tenant/Organization pair ([ADR-0042](../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)).
 2. Enabled locales, with the declared default first.
-3. Built-in and tenant-specific definitions, each registered then published.
+3. The two built-ins through separate shared initialization commands; each new
+   root is Active at one save, generation bump and MUST audit. Tenant-authored
+   definitions retain separate exact-ID registration and publication.
 4. Complete branding, in tenant-wide scope.
 5. Draft Course/Lesson creation and each translation, followed by each selected
    publication. Course and Lesson publication remain independent.
@@ -116,7 +124,11 @@ IDs; contract-local IDs cross the module boundary as Guid under ADR-0023.
 - Missing acts write through the ordinary command.
 - Completed acts skip before invoking a writer, so the second completed run changes
   no root, timestamp, version, generation or audit row.
-- Creation accepts only the declared Draft intermediate or intended final state
+- Built-ins require exact Active version/shape but allow matching warm/generated
+  IDs. Any Draft, deprecated, deleted or successor history is preserved; a failed
+  demo postcondition refuses without overwrite. Initialization and registration
+  share the transaction-owned semantic concept lock.
+- Authored creation accepts only the declared Draft intermediate or intended final state
   with matching immutable data. Definition creation accepts Draft/Active, with a
   separate publication act verifying Active.
 - Existing translations are checked before draft-only insertion. JSON object
@@ -134,7 +146,8 @@ IDs; contract-local IDs cross the module boundary as Guid under ADR-0023.
 The process entry point exits 2 for missing connection configuration, 1 for a
 refused credential or run failure, and 0 for a completed run. Completed acts remain
 durable; a later explicit run resumes the remaining acts. If a different revision
-becomes Active between registration's pre-read and post-read, the newly committed
+becomes Active between authored registration's pre-read and post-read, the newly
+committed
 Draft, generation increment and audit remain durable; the run refuses and requires
 explicit operator reconciliation. It does not retire either revision or undo an
 already committed act.

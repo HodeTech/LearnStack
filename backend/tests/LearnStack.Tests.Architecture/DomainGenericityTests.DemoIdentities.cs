@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Tools.Seeder;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -35,6 +36,15 @@ public sealed partial class DomainGenericityTests
         var vocabulary = DemoIdentities.Create();
         var values = vocabulary.Values;
         values.Select(row => row.Kind).Distinct().Should().BeEquivalentTo(IdentityKinds);
+
+        values.Should().Contain(new DemoIdentity("content-type-key", BuiltInCustomizations.Card.Key))
+            .And.Contain(new DemoIdentity("taxonomy-key", BuiltInCustomizations.Plain.Key));
+        foreach (var band in BuiltInCustomizations.Plain.Bands)
+        {
+            values.Should().Contain(new DemoIdentity("band-key", band.Key));
+            foreach (var label in band.DisplayName.Values)
+                values.Should().Contain(new DemoIdentity("band-label", label));
+        }
 
         foreach (var tenant in SeedData.All)
         {

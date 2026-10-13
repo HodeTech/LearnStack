@@ -28,7 +28,7 @@ not land together.
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
 | `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
-| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–4 implement schema, acceptance/inbox, transactional business execution and independent scheduling/terminalization/replay; production defaults remain Pending until Step 5 |
+| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–4 implement schema, acceptance/inbox, transactional business execution and independent scheduling/terminalization/replay; Step 5 activates both real defaults and semantic Seeder handoff |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
@@ -38,7 +38,7 @@ announced application transaction. It constructs no business handler. Step 1
 supplies the shared ledger/inbox schema; Step 2 declares `IInboxGuard` and its
 transaction-bound claim primitive. Step 3 implements the business owner and
 completion gate; Step 4 adds independent scheduling, terminalization, replay and
-bounded observation. Production defaults remain Pending until Step 5.
+bounded observation. Step 5 activates both real defaults and semantic Seeder handoff.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
 and examples below describe the complete ADR-0046 target, not a claim that every
@@ -68,8 +68,8 @@ independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth
 owns CI/merge status.
 P02b-3 implements consumer execution through Step 3 and independent scheduling,
 terminalization, replay and bounded observation in Step 4. Its production default
-subscriptions remain Pending until Step 5. The
-[Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
+subscriptions are Active with Step 5 initialization and semantic Seeder handoff. The
+[Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 owns current validation/review status. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
@@ -116,7 +116,7 @@ required subscriptions, then executes each on its own app-role transaction. Shar
 inbox completion and business/audit/ledger completion commit together. Producer
 production and the API producer worker are implemented; both producer Step 3
 review rounds are complete. P02b-3 Steps 1–4 implement durable consumer acceptance,
-execution and scheduling; real required subscriptions remain Pending until Step 5.
+execution and scheduling; Step 5 activates both real required subscriptions.
 
 ## Outbox table
 
@@ -301,7 +301,7 @@ everything.
 ## Consumer pattern
 
 **Owner implemented by P02b-3 Step 3; scheduler implemented by Step 4.**
-Production defaults remain Pending until Step 5.
+Step 5 activates both real defaults and semantic Seeder handoff.
 Each subscription has an explicit
 stable `{module}.{subscription}.v{N}` ID, independent of handler class/assembly.
 ADR-0046 owns its closed grammar and version/migration rules. The transport opens

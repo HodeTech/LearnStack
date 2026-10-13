@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Messaging;
@@ -34,7 +35,7 @@ public sealed class OutboxProductionCompositionTests
     }
 
     [Fact]
-    public void Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers()
+    public void Real_provisioning_contract_activates_both_distinct_default_consumers_with_exact_handler_bindings()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Configuration.Sources.Clear();
@@ -49,15 +50,20 @@ public sealed class OutboxProductionCompositionTests
             "the construction-free foundation resolves the transport without database registration");
         var identity = typeof(TenantCreatedIntegrationEventV1).AssemblyQualifiedName!;
 
-        registry.PendingIdentities.Should().ContainSingle().Which.Should().Be(identity);
+        registry.PendingIdentities.Should().BeEmpty();
         var resolution = registry.Resolve(identity);
         resolution.EventType.Should().Be<TenantCreatedIntegrationEventV1>();
-        resolution.Disposition.Should().Be(OutboxEventDisposition.Pending);
+        resolution.Disposition.Should().Be(OutboxEventDisposition.Active);
         resolution.Subscriptions.Select(subscription => subscription.Id).Should().BeEquivalentTo(
             ["customization.initialize-content-type-default.v1", "customization.initialize-taxonomy-default.v1"]);
         resolution.Subscriptions.Should().OnlyContain(subscription =>
-            subscription.Readiness == OutboxSubscriptionReadiness.Pending && subscription.HandlerType == null);
-        handlers.For(typeof(TenantCreatedIntegrationEventV1)).Should().BeEmpty(
-            "P02b-3 Step 5 activates both real consumers only after execution is complete");
+            subscription.Readiness == OutboxSubscriptionReadiness.Active);
+        resolution.Subscriptions.Single(subscription => subscription.Id == "customization.initialize-content-type-default.v1")
+            .HandlerType.Should().Be<InitializeContentTypeDefaultHandler>();
+        resolution.Subscriptions.Single(subscription => subscription.Id == "customization.initialize-taxonomy-default.v1")
+            .HandlerType.Should().Be<InitializeTaxonomyDefaultHandler>();
+        handlers.All.Should().HaveCount(2, "both production consumers must be discovered");
+        handlers.For(typeof(TenantCreatedIntegrationEventV1)).Select(subscription => subscription.HandlerType)
+            .Should().BeEquivalentTo([typeof(InitializeContentTypeDefaultHandler), typeof(InitializeTaxonomyDefaultHandler)]);
     }
 }

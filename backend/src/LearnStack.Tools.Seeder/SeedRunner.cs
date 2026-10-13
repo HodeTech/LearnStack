@@ -55,6 +55,7 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
             foreach (var locale in curriculum.Locales.OrderByDescending(locale => locale.IsDefault).ThenBy(locale => locale.Sort))
                 await ActAsync(tenant, context, "locale", ReadTenant, row => SeedVerification.Locale(row, locale, tenant),
                     row => new AddTenantLocaleCommand(Version(row), locale.Locale, locale.IsEnabled, locale.IsDefault, locale.Sort), ct);
+        await SeedBuiltInsAsync(tenant, context, ct);
         foreach (var type in SeedData.ContentTypes(tenant)) await SeedContentTypeAsync(tenant, context, type, ct);
         foreach (var taxonomy in SeedData.Taxonomies(tenant)) await SeedTaxonomyAsync(tenant, context, taxonomy, ct);
         if (tenant.Curriculum is not { } content) return;
@@ -64,6 +65,35 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
             _ => new SetTenantBrandingCommand(content.Theme.Id, content.Theme.Value, null), ct);
         foreach (var course in content.Courses) await SeedCourseAsync(tenant, course, ct);
         foreach (var course in content.Courses) await PublishCourseAsync(tenant, course, ct);
+    }
+
+    private async Task SeedBuiltInsAsync(SeedTenant tenant, ITenantContext context, CancellationToken ct)
+    {
+        async Task<ContentTypeSeedDto?> ReadContentType()
+        {
+            var active = (await ReadAsync(context, new GetActiveContentTypeSeedRevisionQuery(BuiltInCustomizations.Card.Key), ct)).State;
+            if (active is null) return null;
+            SeedVerification.Require(active.Id != Guid.Empty, tenant, "built-in content type identity");
+            var row = (await ReadAsync(context, new GetContentTypeSeedStateQuery(active.Id), ct)).State;
+            SeedVerification.Require(row is not null && row.Id == active.Id, tenant, "built-in content type identity");
+            return row;
+        }
+        await ActAsync(tenant, context, "built-in content type", ReadContentType,
+            row => SeedVerification.BuiltInContentType(row, tenant),
+            _ => new InitializeTenantContentTypeDefaultCommand(), ct);
+
+        async Task<TaxonomySeedDto?> ReadTaxonomy()
+        {
+            var active = (await ReadAsync(context, new GetActiveTaxonomySeedRevisionQuery(BuiltInCustomizations.Plain.Key), ct)).State;
+            if (active is null) return null;
+            SeedVerification.Require(active.Id != Guid.Empty, tenant, "built-in level taxonomy identity");
+            var row = (await ReadAsync(context, new GetTaxonomySeedStateQuery(active.Id), ct)).State;
+            SeedVerification.Require(row is not null && row.Id == active.Id, tenant, "built-in level taxonomy identity");
+            return row;
+        }
+        await ActAsync(tenant, context, "built-in level taxonomy", ReadTaxonomy,
+            row => SeedVerification.BuiltInTaxonomy(row, tenant),
+            _ => new InitializeTenantLevelTaxonomyDefaultCommand(), ct);
     }
 
     private async Task SeedContentTypeAsync(SeedTenant tenant, ITenantContext context, SeedContentType type, CancellationToken ct)

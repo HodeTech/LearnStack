@@ -497,19 +497,20 @@ and the existing two MUST audit rows share one transaction. P02b-1 persists
 pending rows; P02b-2 implements hosted dispatch and production-census enforcement.
 All four steps completed both independent review rounds and local closeout.
 The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-owns CI/merge status. P02b-3 owns consumer delivery.
+owns CI/merge status. P02b-3 Steps 1–4 implement consumer ownership and scheduling;
+Step 5 supplies the two actual default subscriptions and semantic Seeder handoff.
 
-The subscriptions below are accepted flow contracts, not delivered handlers.
-[ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md) accepts G1's
-shared transport-owned inbox and separate delivery ledger. P02b-2 holds this
-contract Pending, including aliases, before claim or payload validation. P02b-3
-activates `customization.initialize-content-type-default.v1` for the `card@1`
-content type and `customization.initialize-taxonomy-default.v1` for the `plain@1`
-taxonomy together with durable acceptance; there are no placeholder handlers.
+P02b-3 Step 5 activates both real Customization subscriptions together over
+[ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md)'s shared
+transport-owned inbox and independent delivery ledger. The stable identities are
+`customization.initialize-content-type-default.v1` for `card@1` content type and
+`customization.initialize-taxonomy-default.v1` for `plain@1` taxonomy. The
+[Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns validation/review status; neither subscription is a placeholder.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|
-| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1`, completed provisioning | Tenancy | Independent Customization `card@1` and `plain@1` initializers | P02b-1 publisher; P02b-3 subscribers after G1 |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1`, completed provisioning | Tenancy | Independent Customization `card@1` and `plain@1` initializers | P02b-1 publisher; P02b-3 Step 5 subscribers |
 | `learnstack.hub.entitlement` | entitlement projection refreshed | Hub adapter | entitlement cache readers | 02c |
 | `learnstack.hub.custom-domain.activated` / `.deactivated` | host mapping changed | Hub adapter | `CachedHostToTenantResolver` | 02c |
 
@@ -517,9 +518,9 @@ Initialization is create-only for untouched built-in concepts; Draft, Active,
 Deprecated, successor and deliberately deleted definitions are preserved. Each
 P02b-3 effect owns one Customization root, generation change, inbox outcome and
 MUST audit on its delivery transaction. Customization owns UUIDv7 IDs and semantic
-key/version identity. P02b-3 moves Seeder verification away from fixed built-in
-IDs, preserves warm IDs and exact authored curriculum IDs, and proves fresh
-seed/delivery convergence. P02b-1 keeps existing seed writes. Typed settings are
+key/version identity. Seeder verifies exact Active built-in shape by semantic
+identity, preserves warm IDs and keeps authored curriculum IDs/pins exact.
+The shared initializers preserve any existing revision or tombstone. Typed settings are
 uncached; no settings-invalidation event or Audit-mirror consumer is promised.
 Future tenant-status/organization publishers need their owning feature decision.
 

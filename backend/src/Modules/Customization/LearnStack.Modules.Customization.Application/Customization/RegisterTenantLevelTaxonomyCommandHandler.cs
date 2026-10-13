@@ -81,6 +81,7 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
 
         try
         {
+            await taxonomies.LockConceptAsync(request.Key, cancellationToken);
             await taxonomies.AddAsync(taxonomy, cancellationToken);
         }
         catch (AggregateConflictException conflict)

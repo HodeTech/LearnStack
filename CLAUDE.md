@@ -214,8 +214,11 @@ business owner and completion gate; its
 owns validation and both completed review rounds. Step 4 adds independent
 subscriber scheduling, terminal audit, replay and bounded observation; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
-owns current validation/review status. Production subscriptions remain Pending
-until the complete path is ready.
+owns validation and both completed review rounds. Step 5 implements useful
+defaults and semantic seed handoff; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns current validation/review status. Both real default subscriptions are Active;
+Step 6 retains production-census enforcement and full packet closeout.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

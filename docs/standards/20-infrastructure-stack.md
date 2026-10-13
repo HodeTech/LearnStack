@@ -86,8 +86,8 @@ Rules that follow from this:
   subscriptions, restoring context before its fresh application scope. Publication
   constructs no handler. The shared transport-owned `IInboxGuard` claim primitive
   and Step 3's business owner/executor are implemented; Step 4 implements
-  independent scheduling, terminalization and replay. Production defaults remain
-  Pending until Step 5 under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+  independent scheduling, terminalization and replay. Step 5 activates both real
+  defaults with semantic Seeder handoff under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
   Phase 11's adapter must preserve that consumer contract.
 - **A demand-gated block is not "deferred".** It qualifies only with all four of: a
   port, a working default implementation, an owning phase, and a written trigger. If a
@@ -469,8 +469,8 @@ Rules:
   both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
   owns CI/merge status. P02b-3 Steps 1–4 implement shared storage, durable acceptance,
   transactional execution and independent scheduling/terminalization/replay. Its
-  real defaults remain Pending until Step 5. The
-  [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
+  real defaults are Active with Step 5 initialization and semantic Seeder handoff. The
+  [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
   owns current validation/review status.
 - Controlled subscriber tasks retain their actual app-role scope through
   cancellation callbacks and cleanup. Timeout closes the sticky commit gate

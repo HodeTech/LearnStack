@@ -13,7 +13,7 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Each method saves.</b> The two aggregates carry no EF relationship to each
+/// <b>Each write method saves.</b> The two aggregates carry no EF relationship to each
 /// other, so batching into one <c>SaveChanges</c> leaves the order EF sends them
 /// unspecified — and publishing depends on it: the incumbent's deprecation has to
 /// reach PostgreSQL before the successor's publication, or the partial index
@@ -41,6 +41,12 @@ namespace LearnStack.Modules.Customization.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenantContentTypeStore(CustomizationDbContext db, CustomizationReadState reads) : ITenantContentTypeStore
 {
+    public Task LockConceptAsync(string key, CancellationToken cancellationToken = default) =>
+        CustomizationConceptHistory.LockAsync(db, taxonomy: false, key, cancellationToken);
+
+    public Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default) =>
+        CustomizationConceptHistory.ExistsAsync(db, taxonomy: false, key, cancellationToken);
+
     public Task AddAsync(
         TenantContentType aggregate, CancellationToken cancellationToken = default)
     {
@@ -81,6 +87,12 @@ public sealed class TenantContentTypeStore(CustomizationDbContext db, Customizat
 /// </remarks>
 public sealed class TenantLevelTaxonomyStore(CustomizationDbContext db, CustomizationReadState reads) : ITenantLevelTaxonomyStore
 {
+    public Task LockConceptAsync(string key, CancellationToken cancellationToken = default) =>
+        CustomizationConceptHistory.LockAsync(db, taxonomy: true, key, cancellationToken);
+
+    public Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default) =>
+        CustomizationConceptHistory.ExistsAsync(db, taxonomy: true, key, cancellationToken);
+
     public Task AddAsync(
         TenantLevelTaxonomy aggregate, CancellationToken cancellationToken = default)
     {

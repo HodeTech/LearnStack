@@ -34,8 +34,11 @@ production censuses and catalogue enforcement; the
 owns final verification and review status.
 Accepted [ADR-0046](../../../docs/decisions/0046-durable-event-delivery-and-recovery.md)
 owns dispatcher recovery, subscription readiness and the shared inbox contract.
-P02b-2 implements producer dispatch; P02b-3 still owns durable acceptance,
-independent execution, canonical inbox/ledger DDL and real subscriptions.
+P02b-2 implements producer dispatch; P02b-3 Steps 1–4 implement durable
+acceptance, shared inbox/ledger storage, independent execution and scheduling.
+Step 5 supplies the real default subscriptions and semantic Seeder handoff; the
+[delivery record](../../../docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns validation/review status.
 
 ## When to use
 
@@ -193,7 +196,7 @@ fails the build.
 
 ### Step 4: Consumer — transport-owned inbox boundary
 
-**Accepted target, pending P02b-3 implementation.** The transport owns the shared
+**P02b-3 owner implemented.** The transport owns the shared
 `inbox_messages` guard; business handlers do not inject or call `IInboxGuard`.
 Deduplication is `(tenant_id, subscription_id, event_id)`, with a stable versioned
 subscription ID independent of handler type names. The separate delivery ledger
@@ -221,9 +224,9 @@ outbox intent; database rollback alone cannot undo them.
 
 The first real flow has two independent Customization subscriptions:
 `customization.initialize-content-type-default.v1` installs `card@1` content type;
-`customization.initialize-taxonomy-default.v1` installs `plain@1` taxonomy. Both
-remain Pending until P02b-3 supplies durable acceptance, create-only preservation,
-per-effect MUST audit and the semantic key/version Seeder handoff. Neither may
+`customization.initialize-taxonomy-default.v1` installs `plain@1` taxonomy.
+P02b-3 activates both together with create-only preservation, classified nested
+initialization commands and the semantic key/version Seeder handoff. Neither may
 suppress its sibling or overwrite authored, retired or deleted definitions.
 
 ### Step 5: Subscription registration
@@ -239,9 +242,13 @@ builder.AddLearnStackCrossCuttingFoundation(
     typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
 ```
 
-Today `InProcessEventBus` resolves the concrete
-`IIntegrationEventHandler<T>` directly from DI in that subscription's async
-scope. MediatR is not involved. There is no shipped
+The independent `DeliveryExecutor` resolves the concrete
+`IIntegrationEventHandler<T>` from its owned async scope after validation, inbox
+claim and classification. A coordinating handler may send one classified nested
+command through MediatR. Check that command's `Result`; a refusal must fail the
+consumer with a bounded exception rather than silently complete its inbox. The
+two default coordinators are explicitly Off; their commands own the MUST intents.
+There is no shipped
 `AddDaprSubscription<T>` helper; do not invent one. P02b-2's construction-free
 manifest implements stable subscription IDs, compatible
 type aliases and required Pending/Active readiness. Pending holds the producer row

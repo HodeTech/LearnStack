@@ -2881,6 +2881,41 @@ files or GitHub. The correction is committed at `14d5f93`; root's restored mutan
 baseline passes both cases after the old-lane mutant failed both. Step 4 is closed;
 Step 5 follows automatically with useful consumers and semantic Seeder handoff.
 
+### P02b-3 Step 5 — useful defaults and semantic seed handoff (2026-10-13)
+
+**Implementation in progress; both independent review rounds pending.**
+Step 4 is closed before these changes. This step implements the accepted pair of
+one-root initializers and shared transaction-owned concept serialization, then
+moves built-in seed verification to semantic identity. Authored identities and
+exact pins retain their existing contract. Both production subscriptions activate
+together only after the initializer and Seeder paths are ready.
+
+The initial implementation supplies two Off-classified subscriber coordinators
+and two MUST-classified initializer commands. Both production manifests are Active
+and bind the discovered handlers exactly. Each untouched concept is published
+before its single save, with one generated UUIDv7 identity, generation bump and
+resource audit. Every existing lifecycle/revision is preserved under the same
+transaction-owned concept lock used by ordinary registration.
+
+Seeder discovers the exact Active built-in by key, verifies its full shape and
+retains the discovered identity. Authored identities/pins remain strict. Fresh
+seed inventory retains all definitions/content but uses six customization
+generation bumps per tenant and 86 audit rows, replacing the earlier two-step
+register/publish treatment of four built-ins. The P02d seed receipts remain
+historical evidence of their original behavior.
+
+Initial validation: full CI-mode Release build has zero warnings/errors; all
+1,862 unit and 298 architecture cases pass. Focused app-role integration passes
+24 initialization cases, 83 Seeder/audit/projection/manifest cases and eight real
+API delivery cases, all with zero failures/skips. The real flow covers stored
+backlog, fresh provisioning, audit-failure rollback/recovery, duplicate acceptance
+and Seeder/subscriber races for both concepts in both winning orders. Test-owned
+database gates coordinate real writes without a production registration hook.
+The race observer uses the app role so PostgreSQL exposes its own role's lock
+waits; the earlier owner-role observer could not see app-role activity and failed
+the fixture, rather than detecting a product defect. The corrected full flow
+passes all eight cases. Two fresh sequential review receipts follow before Step 6.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

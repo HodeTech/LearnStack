@@ -177,11 +177,12 @@ Contextual Off queries check the logical key's Active identity before registrati
 Convergent seed also passes true: a different Active revision is refused before mutation
 as `business_rule_violation` / `lockey_customization_key_already_live`. Default false
 retains ordinary revision succession. The same-row race remains typed concurrency;
-an Active winner from another revision is never retired or adopted by seed.
+an Active winner from another revision is never retired or adopted by authored seed.
+Built-ins use the separate semantic initialization path described below.
 
 ### Primary integration-event flow: provisioning defaults
 
-**Accepted ADR-0046/0057 flow; runtime subscriptions pending P02b-3.**
+**Implemented by P02b-3 Step 5; validation/review status is recorded below.**
 [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
 authorizes independent `card@1` content-type and `plain@1` taxonomy initialization
 on completed tenant
@@ -293,26 +294,32 @@ keeps the library's types inside it.
 
 ## Integration-event catalogue
 
-**No publisher or subscriber implemented yet.** Accepted ADR-0057 fixes the
-useful effects; ADR-0046 fixes the stable identities and shared transport-owned
-inbox. P02b-2 manifests both required subscriptions Pending, holding real rows and
-aliases before acquisition/validation; P02b-3 activates both with durable
-acceptance. Each effect owns one root, generation change, inbox outcome
-and MUST audit. Customization mints UUIDv7 IDs and resolves semantic key/version
+Customization publishes no event and implements two subscribers. ADR-0057 fixes
+the useful effects; ADR-0046 fixes their stable identities and transport-owned
+inbox. P02b-3 Step 5 activates both real subscriptions together over durable
+acceptance and the semantic Seeder handoff. Each effect owns one root, generation
+change, inbox outcome and MUST audit. Customization mints UUIDv7 IDs and resolves
+semantic key/version
 identity; Tenancy carries neither schemas nor Customization IDs.
 
 | Consumed topic | Event | Stable subscription | Independent effect | Owner |
 |---|---|---|---|---|
-| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-content-type-default.v1` | Create untouched `card@1` content type (`BuiltInCustomizations.Card`) | P02b-3; Pending until then |
-| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-taxonomy-default.v1` | Create untouched `plain@1` taxonomy (`BuiltInCustomizations.Plain`) | P02b-3; Pending until then |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-content-type-default.v1` | Create untouched `card@1` content type (`BuiltInCustomizations.Card`) | P02b-3 Step 5; Active |
+| `learnstack.tenancy.tenant` | `TenantCreatedIntegrationEventV1` | `customization.initialize-taxonomy-default.v1` | Create untouched `plain@1` taxonomy (`BuiltInCustomizations.Plain`) | P02b-3 Step 5; Active |
 
 Initialization preserves Draft, Active, Deprecated, successor and deliberately
-deleted definitions; it never overwrites, republishes or resurrects them. P02b-3
-switches Seeder built-in verification to owner-resolved key/version, preserves
-warm IDs and exact tenant-authored curriculum IDs, and proves concurrent fresh
-seed/delivery convergence and sibling recovery. It updates the implementation's
-creator/Seeder/Hub installation remarks when delivery exists. P02b-1 keeps
-current seed writes and pending outbox rows.
+deleted definitions; it never overwrites, republishes or resurrects them. Each
+parameterless initializer takes its tenant from trusted context, acquires the
+transaction-owned semantic lock shared by ordinary registration, then checks all
+revision/status/deletion history under RLS. A new root is validated and Active
+before one save, generation bump and MUST audit; a preserved attempt changes no
+root or generation. The coordinating handlers are explicitly Off and send one
+classified nested command, refusing a failed result rather than completing inbox.
+
+Seeder discovers built-ins by key/version and verifies their exact Active shape,
+retaining warm/generated IDs. Authored curriculum identities/pins stay exact.
+The [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns initialization, race and Seeder validation/review status.
 
 No other module reacts to a customization change through events today. Public
 readers use the delivered generation-keyed cache with fresh generation probes; a cache

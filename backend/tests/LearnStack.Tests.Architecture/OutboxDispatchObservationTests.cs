@@ -347,7 +347,8 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Configuration.Sources.Clear();
-        builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development);
+        builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development,
+            typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
         IServiceCollection services = new ServiceCollection();
         // Import the construction-free manifest from its real registration site.
         // This guard isolates persistence's worker/check set; unrelated framework

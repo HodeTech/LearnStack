@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -72,7 +73,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
-        var incumbent = Tenant.BuiltInContentTypeId;
+        var incumbent = await BuiltInIdAsync(dataSource, taxonomy: false);
         var successor = Guid.CreateVersion7();
 
         await using (var provider = Compose(dataSource))
@@ -91,9 +92,8 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
 
         var rows = (await RowsAsync()).Where(row => row.Operation == "customization.content_type.publish").ToList();
 
-        // The FIRST publication — the seed's — and the replacement: one row each.
-        rows.Select(row => row.EntityId).Should().BeEquivalentTo(
-            [incumbent.ToString(), successor.ToString()]);
+        // Initialization creates the incumbent Active; only the successor is published.
+        rows.Should().ContainSingle().Which.EntityId.Should().Be(successor.ToString());
 
         var replacement = rows.Single(row => row.EntityId == successor.ToString());
         replacement.Outcome.Should().Be("success");
@@ -116,7 +116,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
 
-        var incumbent = Tenant.BuiltInTaxonomyId;
+        var incumbent = await BuiltInIdAsync(dataSource, taxonomy: true);
         var successor = Guid.CreateVersion7();
 
         await using (var provider = Compose(dataSource))
@@ -135,8 +135,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
 
         var rows = (await RowsAsync()).Where(row => row.Operation == "customization.level_taxonomy.publish").ToList();
 
-        rows.Select(row => row.EntityId).Should().BeEquivalentTo(
-            [incumbent.ToString(), successor.ToString()]);
+        rows.Should().ContainSingle().Which.EntityId.Should().Be(successor.ToString());
 
         var replacement = rows.Single(row => row.EntityId == successor.ToString());
         replacement.Outcome.Should().Be("success");
@@ -192,7 +191,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // And only this aggregate: the seed's own taxonomy — a different instance of the
         // same type, registered in another request — is not in this row.
         row.AfterState.Should().NotContain(BuiltInCustomizations.Plain.Bands[0].DisplayName["en"]);
-        row.Changes.Should().NotContain(Tenant.BuiltInTaxonomyId.ToString());
+        row.Changes.Should().NotContain((await BuiltInIdAsync(dataSource, taxonomy: true)).ToString());
     }
 
     [Fact]
@@ -281,6 +280,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
 
         var intentId = AuditEntryId.From(Guid.CreateVersion7());
         var firstBand = BuiltInCustomizations.Plain.Bands[0].Key;
+        var builtInId = TenantLevelTaxonomyId.From(await BuiltInIdAsync(dataSource, taxonomy: true));
 
         await using var provider = Compose(dataSource);
         await using (var scope = provider.CreateAsyncScope())
@@ -310,7 +310,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             var db = services.GetRequiredService<CustomizationDbContext>();
             var taxonomy = await db.TenantLevelTaxonomies
                 .Include(candidate => candidate.Items.Where(band => band.Key == firstBand))
-                .SingleAsync(candidate => candidate.Id == TenantLevelTaxonomyId.From(Tenant.BuiltInTaxonomyId));
+                .SingleAsync(candidate => candidate.Id == builtInId);
 
             taxonomy.Items.Should().ContainSingle("the premise: the load brought one band");
             db.Entry(taxonomy).Collection(nameof(TenantLevelTaxonomy.Items)).IsLoaded.Should().BeTrue(
@@ -453,10 +453,11 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // the reconcile's standalone row names the instance it refused.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await SeedAsync(dataSource);
+        var builtInId = await BuiltInIdAsync(dataSource, taxonomy: false);
 
         await using (var provider = Compose(dataSource))
         {
-            var refused = await SendAsync(provider, new PublishTenantContentTypeCommand(Tenant.BuiltInContentTypeId));
+            var refused = await SendAsync(provider, new PublishTenantContentTypeCommand(builtInId));
             refused.IsFailure.Should().BeTrue("the precondition: that revision is already live");
         }
 
@@ -467,7 +468,7 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         // field detail of that error and not a column.
         row.Outcome.Should().Be("failed");
         row.ErrorKey.Should().Be("lockey_business_rule_violation");
-        row.EntityId.Should().Be(Tenant.BuiltInContentTypeId.ToString());
+        row.EntityId.Should().Be(builtInId.ToString());
         row.ActorUserId.Should().Be(Actor);
         row.CorrelationId.Should().Be(Correlation);
     }
@@ -534,6 +535,19 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             NullLogger<SeedRunner>.Instance);
 
         (await runner.RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+    }
+
+    private static async Task<Guid> BuiltInIdAsync(NpgsqlDataSource source, bool taxonomy)
+    {
+        await using var provider = Compose(source);
+        await using var scope = provider.CreateAsyncScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var result = taxonomy
+            ? await sender.Send(new GetActiveTaxonomySeedRevisionQuery(BuiltInCustomizations.Plain.Key))
+            : await sender.Send(new GetActiveContentTypeSeedRevisionQuery(BuiltInCustomizations.Card.Key));
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.State.Should().NotBeNull();
+        return result.Value!.State!.Id;
     }
 
     /// <summary>The seeder's graph, acting for the tenant as an authenticated principal would.</summary>

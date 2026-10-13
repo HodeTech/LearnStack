@@ -266,10 +266,12 @@ Routine confined poll/claim/mark receives ADR-0046's bounded audit exception;
 terminal state is MUST/SecurityEvent and atomic with its row-bound witness audit.
 INSERT-only and GUCs cannot tenant-bind a bypass credential. Real mismatch controls
 must roll back terminal state and audit together. Existing platform-admin entry
-audit and gate stay unchanged. P02b-3 opens separate app-role business scopes,
-restores validated tenant/organization and announces RLS context before reading
-the envelope and constructing a handler. The ordinary executor refuses privileged
-subscriptions until their Phase 03 execution contract exists.
+audit and gate stay unchanged. P02b-3 Steps 3–4 implement separate app-role
+business scopes, restore validated tenant/organization and announce RLS context
+before reading the envelope and constructing a handler. The subscriber scheduler
+shares the confined source for enumerated routing/status columns; it receives no
+payload, causal-envelope or inbox SELECT privilege. The ordinary executor refuses
+privileged subscriptions until their Phase 03 execution contract exists.
 
 ## Tenant Context
 

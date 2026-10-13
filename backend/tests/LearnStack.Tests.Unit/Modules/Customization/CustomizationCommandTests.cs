@@ -2,7 +2,9 @@ using FluentAssertions;
 using FluentValidation;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
@@ -76,6 +78,103 @@ public sealed class CustomizationCommandTests
             items ?? [new TaxonomyItemInput("beginner", Label("Beginner"), 0)]);
 
     // ── The write path ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Initialization_creates_the_complete_active_content_type_with_a_generated_id_in_one_write()
+    {
+        var gate = new RecordingGate();
+        var (sender, stores) = Build(gate: gate);
+
+        (await sender.Send(new InitializeTenantContentTypeDefaultCommand())).IsSuccess.Should().BeTrue();
+
+        stores.Coordination.Should().Equal("content-type:lock:card", "content-type:history:card", "content-type:add:Active", "generation:bump");
+        stores.Writes.Should().Equal("content-type:add", "generation:bump");
+        var root = stores.ContentTypes.Values.Should().ContainSingle().Which;
+        root.Id.Value.Should().Be(ContentTypeId);
+        root.TenantId.Should().Be(Tenant);
+        root.Key.Should().Be("card");
+        root.SchemaVersion.Should().Be(1);
+        root.SchemaRevision.Should().Be(0);
+        root.DisplayName.Should().Be(LocalizedText.From(BuiltInCustomizations.Card.DisplayName));
+        root.JsonSchema.Should().Be(BuiltInCustomizations.Card.JsonSchema);
+        root.RendererKey.Should().Be(BuiltInCustomizations.Card.RendererKey);
+        root.CreatedAt.Should().Be(Clock.UtcNow);
+        root.CreatedBy.Should().Be(UserId.SystemActor);
+        gate.Admitted.Should().Equal(BuiltInCustomizations.Card.JsonSchema);
+    }
+
+    [Fact]
+    public async Task Initialization_creates_the_complete_active_taxonomy_and_its_bands_in_one_write()
+    {
+        var (sender, stores) = Build();
+
+        (await sender.Send(new InitializeTenantLevelTaxonomyDefaultCommand())).IsSuccess.Should().BeTrue();
+
+        stores.Coordination.Should().Equal("taxonomy:lock:plain", "taxonomy:history:plain", "taxonomy:add:Active", "generation:bump");
+        stores.Writes.Should().Equal("taxonomy:add", "generation:bump");
+        var root = stores.AddedTaxonomies.Should().ContainSingle().Which;
+        root.Id.Value.Should().Be(ContentTypeId, "the factory, not a demo constant, owns identity");
+        root.TenantId.Should().Be(Tenant);
+        root.Key.Should().Be("plain");
+        root.SchemaVersion.Should().Be(1);
+        root.DisplayName.Should().Be(LocalizedText.From(BuiltInCustomizations.Plain.DisplayName));
+        root.Items.Select(item => (item.Key, item.DisplayName, item.Sort, item.Metadata)).Should().Equal(
+            BuiltInCustomizations.Plain.Bands.Select(band => (band.Key, LocalizedText.From(band.DisplayName), band.Sort, (string?)null)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_preserves_successor_only_history_without_validation_or_writes(bool taxonomy)
+    {
+        var gate = new RecordingGate();
+        var (sender, stores) = Build(gate: gate);
+        if (taxonomy) await sender.Send(RegisterTaxonomy(key: "plain", version: 2));
+        else await sender.Send(RegisterContentType(key: "card", version: 2));
+        stores.Writes.Clear();
+        stores.Coordination.Clear();
+        gate.Admitted.Clear();
+
+        var result = taxonomy
+            ? await sender.Send(new InitializeTenantLevelTaxonomyDefaultCommand())
+            : await sender.Send(new InitializeTenantContentTypeDefaultCommand());
+
+        result.IsSuccess.Should().BeTrue();
+        if (taxonomy) stores.Coordination.Should().Equal("taxonomy:lock:plain", "taxonomy:history:plain");
+        else stores.Coordination.Should().Equal("content-type:lock:card", "content-type:history:card");
+        stores.Writes.Should().BeEmpty();
+        gate.Admitted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Initialization_refuses_a_failed_builtin_schema_gate_before_any_write()
+    {
+        var (sender, stores) = Build(admitSchemas: false);
+        (await sender.Send(new InitializeTenantContentTypeDefaultCommand())).IsFailure.Should().BeTrue();
+        stores.Writes.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Each_consumer_throws_a_bounded_exception_when_its_initializer_refuses(bool taxonomy)
+    {
+        var (sender, stores) = Build(resolved: false);
+        var message = new TenantCreatedIntegrationEventV1
+        {
+            EventId = ContentTypeId,
+            TenantId = Tenant.Value,
+            OccurredAt = Clock.UtcNow,
+        };
+        Func<Task> execute = taxonomy
+            ? () => new InitializeTaxonomyDefaultHandler(sender).HandleAsync(message)
+            : () => new InitializeContentTypeDefaultHandler(sender).HandleAsync(message);
+        (await execute.Should().ThrowAsync<InvalidOperationException>()).WithMessage(taxonomy
+            ? "Taxonomy default initialization was refused."
+            : "Content type default initialization was refused.");
+        stores.Writes.Should().BeEmpty();
+        stores.Coordination.Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Registering_a_content_type_writes_a_draft_and_bumps_the_generation()
@@ -1274,6 +1373,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<IAuditSubject>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
         services.AddSingleton<IClock>(Clock);
+        services.AddSingleton<IGuidFactory>(new FixedGuidFactory(ContentTypeId));
         services.AddSingleton<IUnitOfWork, RecordingUnitOfWork>();
         services.AddSingleton<ITenantContext>(
             resolved ? new ResolvedContext(Tenant) : new UnresolvedTenantContext());
@@ -1298,6 +1398,32 @@ public sealed class CustomizationCommandTests
         private long _generation;
 
         public List<string> Writes { get; } = [];
+
+        public List<string> Coordination { get; } = [];
+
+        Task ITenantContentTypeStore.LockConceptAsync(string key, CancellationToken cancellationToken)
+        {
+            Coordination.Add("content-type:lock:" + key);
+            return Task.CompletedTask;
+        }
+
+        Task ITenantLevelTaxonomyStore.LockConceptAsync(string key, CancellationToken cancellationToken)
+        {
+            Coordination.Add("taxonomy:lock:" + key);
+            return Task.CompletedTask;
+        }
+
+        Task<bool> ITenantContentTypeStore.HasConceptHistoryAsync(string key, CancellationToken cancellationToken)
+        {
+            Coordination.Add("content-type:history:" + key);
+            return Task.FromResult(ContentTypes.Values.Any(root => root.Key == key));
+        }
+
+        Task<bool> ITenantLevelTaxonomyStore.HasConceptHistoryAsync(string key, CancellationToken cancellationToken)
+        {
+            Coordination.Add("taxonomy:history:" + key);
+            return Task.FromResult(Taxonomies.Values.Any(root => root.Key == key));
+        }
 
         /// <summary>Every instance a handler designated as its audit row's subject, in order.</summary>
         /// <remarks>
@@ -1357,6 +1483,7 @@ public sealed class CustomizationCommandTests
         {
             Conflict();
             Writes.Add("content-type:add");
+            Coordination.Add("content-type:add:" + aggregate.Status);
             ContentTypes[aggregate.Id.Value] = aggregate;
             return Task.CompletedTask;
         }
@@ -1387,6 +1514,7 @@ public sealed class CustomizationCommandTests
         {
             Conflict();
             Writes.Add("taxonomy:add");
+            Coordination.Add("taxonomy:add:" + aggregate.Status);
             Taxonomies[aggregate.Id.Value] = aggregate;
             AddedTaxonomies.Add(aggregate);
             return Task.CompletedTask;
@@ -1436,6 +1564,7 @@ public sealed class CustomizationCommandTests
         public Task<long> BumpAsync(TenantId tenantId, CancellationToken cancellationToken = default)
         {
             Writes.Add("generation:bump");
+            Coordination.Add("generation:bump");
             return Task.FromResult(++_generation);
         }
 
