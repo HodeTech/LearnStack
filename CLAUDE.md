@@ -205,7 +205,10 @@ independent retries, both real defaults and Seeder handoff. Implementation is in
 progress; Step 1 implements shared storage and privilege proofs, and both
 independent review rounds are complete. Its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
-owns verification and review status. Production subscriptions remain Pending until
+owns verification and review status. Step 2 implements durable acceptance and
+inbox primitives; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
+owns validation and review status. Production subscriptions remain Pending until
 the complete path is ready.
 Phase 06 retains the full renderer/Studio expansion.
 

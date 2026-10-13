@@ -28,19 +28,20 @@ not land together.
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
 | `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
-| `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
+| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Step 1 schema and Step 2 acceptance/inbox primitive implemented; business owner and independent scheduling remain Steps 3–4 |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
-**`InProcessEventBus` is a first-class transport.** It already supplies the handler
-interface, scoped ambient tenant restoration and per-key serialisation. It does
-not yet open a database transaction, announce RLS context, deduplicate deliveries
-or persist retries. `IInboxGuard` is a documented seam, not a declared type.
+**`InProcessEventBus` is a first-class transport.** P02b-3 Step 2 changes publish
+success to durable acceptance of all required subscription envelopes on a fresh,
+announced application transaction. It constructs no business handler. Step 1
+supplies the shared ledger/inbox schema; Step 2 declares `IInboxGuard` and its
+transaction-bound claim primitive. Business owner completion and independent
+subscriber scheduling remain Steps 3–4; production defaults remain Pending.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-records that baseline. The producer/consumer diagrams and examples below describe
-the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
-transactions, inbox and recovery. Accepted ADR-0046 now assigns inbox ownership
-and stable subscriber identity; implementation remains P02b-3.
+records the earlier immediate-invocation baseline. The producer/consumer diagrams
+and examples below describe the complete ADR-0046 target, not a claim that every
+P02b-3 step has shipped.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -515,19 +516,21 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 ## `InProcessEventBus`
 
 `InProcessEventBus` remains the only registered transport in every deployment
-mode until ADR-0035's Phase 11 trigger fires. The shipped baseline constructs one
-async scope per discovered subscription, restores ambient tenant/organization,
-serializes invocation per key and collects constructor/handler/disposal failures.
-It opens no business transaction and has no durable inbox or subscriber ledger.
-Its current exception logs/spans need P02b-3's bounded diagnostic reconciliation
-before Active production consumers; P02b-2 minimizes its own dispatcher path.
+mode until ADR-0035's Phase 11 trigger fires. P02b-3 Step 2 restores the validated
+publication context before creating one fresh acceptance scope, announces its
+app-role transaction and persists all required Active subscriptions atomically.
+It never resolves a business handler. Identical canonical envelopes are idempotent;
+conflicting or inaccessible copies refuse without changing earlier rows. Matching
+partial acceptance can be completed, and uncertain COMMIT remains producer-retryable.
+Pending, unknown and retired contracts cannot silently acknowledge zero deliveries;
+only explicitly declared intentional absence succeeds without ledger writes.
 
-P02b-3 changes publish success to durable acceptance of every required delivery.
-Duplicate acceptance is idempotent; partial or unknown acceptance can be retried.
-The independent scheduler then invokes one internal delivery executor for each
-subscription, with the shared inbox and app-role owner described above. Subscriber
-business failure spends neither sibling nor producer attempts after acceptance.
-The executor never rebroadcasts and receives no publication-rule exception.
+Per-key serialization covers publication acceptance inside this process. Handler
+construction, execution, cancellation and cleanup no longer belong to publish.
+Steps 3–4 supply the independent internal executor and scheduler, with the shared
+inbox and app-role owner described above. Subscriber business failure then spends
+neither sibling nor producer attempts after acceptance. The executor never
+rebroadcasts and receives no publication-rule exception.
 
 `PartitionSerializer` refuses reentrant work for its current key. Queuing behind
 itself would deadlock; running inline would let inherited AsyncLocal state permit
@@ -571,7 +574,7 @@ P02b-1 accepts partition-source derivation under ADR-0057. It accepts no durable
 publish-order guarantee. ADR-0046 selects eligible rows in total order
 `(available_after, occurred_at, id)` for one processor without failure. This is no
 enqueue/commit/retry/cross-process promise; strict head-of-line blocking is rejected.
-`InProcessEventBus` serializes invocation per key within its process.
+`InProcessEventBus` serializes acceptance per key within its process.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
 

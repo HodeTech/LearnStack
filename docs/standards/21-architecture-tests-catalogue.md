@@ -142,8 +142,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**192 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
-The other 74 are no less binding, and most could not live there. The table says where
+**193 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
+The other 75 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3516,7 +3516,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
 - **Type:** real PostgreSQL/app-role integration and construction controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** (`DurableEventAcceptanceTests`, `InboxGuardTests`,
+  `OutboxProcessorTests`, P02b-3 Step 2). Includes independent publisher transactions,
+  blocked duplicate commit/rollback, immutable collisions, dropped COMMIT response,
+  constructor refusal controls and the actual producer worker's durable handoff.
 - **Phase:** 02b, P02b-3.
 
 #### `Delivery_Retries_And_Replay_Are_Subscription_Scoped`

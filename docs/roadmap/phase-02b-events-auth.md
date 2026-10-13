@@ -2592,6 +2592,62 @@ whitespace checks pass. Implementation commits are `6b1efef` and `ad57a1b`;
 `fe6f9c7` closes the verified round-one proof gap. Step 2 follows automatically
 under the accepted package; production subscriptions remain Pending.
 
+### P02b-3 Step 2 — durable acceptance and inbox primitives (2026-10-13)
+
+**Implemented; independent review rounds pending.** `InProcessEventBus` now
+validates the concrete canonical contract and required Active manifest, restores
+publication context before creating a fresh application scope, and commits all
+subscription envelope copies in one announced transaction. It constructs no
+business handler. Exact identity plus canonical immutable fields distinguishes
+idempotent duplicates from conflicting or inaccessible organization copies.
+Matching subsets complete; a later collision rolls back earlier new copies.
+Uncertain acceptance COMMIT remains producer-retryable. Only explicit intentional
+absence may acknowledge without deliveries; Pending/unknown/retired contracts
+refuse rather than silently reach zero handlers.
+
+`IInboxGuard`/`PostgresInboxGuard` claim only the tuple on the live, writable,
+unpoisoned announced app-role transaction. PostgreSQL uniqueness waits for a
+competing transaction: commit yields an existing identity; rollback permits a new
+claim. The primitive owns neither connection nor commit. Business completion,
+classification, independent execution and timeout gates remain Steps 3–4;
+production default subscriptions remain Pending until Step 5's complete path.
+
+`DurableEventAcceptanceTests` and `InboxGuardTests` exercise 36 PostgreSQL cases:
+construction-free acceptance, immutable-field collisions and JSON key-order
+equivalence, matching/conflicting subsets, independent publishers and forced
+unique-key waits in both commit/rollback orders, uncertain COMMIT acknowledgement,
+actual tenant/org scope, fresh owner transactions, cancellation and inbox admission.
+The fixture uses the production AsyncLocal accessor; a forced blocked publication
+shares its provider with another tenant's independent successful publication.
+Their blocker observers own finite cancellation deadlines. Root corrected the
+initial duplicate test's shared process serializer before claiming SQL concurrency.
+The canonical durable-acceptance catalogue rule is Implemented; the larger handler/
+inbox ownership and production census rules remain Registered.
+
+The former 32 immediate-handler bus unit cases no longer describe publish success.
+Eight publication unit cases cover refusal boundaries, canonical runtime routing,
+context before scope construction and restoration, intentional absence and queued
+cancellation. Actual handler construction, invocation, internal handler dispatch,
+per-subscription scopes, causal actor/trace, foreign cancellation, async faults and
+cleanup are explicit Step 3/4 obligations; this step claims none of those execution
+proofs. Existing producer worker timing/cleanup proofs use a disclosed scoped
+publication wrapper around the real acceptance adapter. It deliberately models
+cancellation-ignoring publication and real DI cleanup ownership. A separate
+unwrapped-worker case proves durable acceptance without business construction.
+
+#### Step 2 validation before review
+
+The final `CI=true` Release solution build reports zero warnings/errors. The unit
+suite passes 1,823 cases and architecture passes 287, with no failures/skips.
+The 36 acceptance/inbox cases plus all 18 producer-worker cases pass together
+(54 Docker cases). Foundation's canonical manifest registration replaces two
+old Persistence-only composition fixture assumptions; the fixtures now exercise
+the actual registration without opening a database or adding a second manifest.
+The focused composition/corpus run also passes seven cases. Seven ADR-status
+controls, format verification and whitespace checks pass. These are local receipts;
+no PR-head CI or subscriber-owner delivery is claimed. Both fresh review receipts
+follow below before Step 3 begins.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

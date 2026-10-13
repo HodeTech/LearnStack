@@ -24,7 +24,11 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-/// <summary>The registered production worker, real PostgreSQL roles and actual transport scopes.</summary>
+/// <summary>The registered producer worker and real PostgreSQL publication acceptance.</summary>
+/// <remarks>
+/// A test-owned scoped wrapper controls publication/cancellation/cleanup timing around
+/// the actual durable transport. Subscriber business execution belongs to its own worker.
+/// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
 public sealed class OutboxProcessorTests(SchemaFixture schema)
@@ -36,7 +40,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     private static readonly OutboxDispatchOptions Bounds = new()
     {
         SqlTimeout = TimeSpan.FromSeconds(1),
-        PublishTimeout = TimeSpan.FromMilliseconds(150),
+        PublishTimeout = TimeSpan.FromMilliseconds(500),
         LeaseDuration = TimeSpan.FromSeconds(3),
         IdlePoll = TimeSpan.FromMilliseconds(20),
         ProgressTimeout = TimeSpan.FromSeconds(5),
@@ -61,6 +65,44 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         (await reader.ReadAsync()).Should().BeTrue();
         reader.GetString(0).Should().Be(OutboxDispatcherDataSource.Role);
         reader.GetString(1).Should().Be(OutboxDispatcherDataSource.Role);
+    }
+
+    [Fact]
+    public async Task A_real_unwrapped_publication_acknowledges_retained_delivery_without_business_construction()
+    {
+        await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        test.Start(Bounds with
+        {
+            PublishTimeout = TimeSpan.FromSeconds(10),
+            LeaseDuration = TimeSpan.FromSeconds(30),
+            ProgressTimeout = TimeSpan.FromSeconds(45),
+        }, controlPublication: false);
+        await UntilAsync(async () => (await test.ReadAsync(id)).ProcessedAt is not null);
+
+        test.Callbacks.Publications.Should().Be(0, "this proof uses the shipped transport without the timing wrapper");
+        var producer = await test.ReadAsync(id);
+        producer.Attempts.Should().Be(1);
+        await using var app = await PostgresFixture.OpenAsync(test.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(app, transaction, SchemaFixture.TenantA);
+        await using var delivery = new NpgsqlCommand("""
+            SELECT subscription_id, payload::text, processed_at FROM event_deliveries
+            WHERE tenant_id = @tenant AND event_id = @event
+            """, (NpgsqlConnection)app, (NpgsqlTransaction)transaction);
+        delivery.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+        delivery.Parameters.AddWithValue("event", id);
+        await using var reader = await delivery.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetString(0).Should().Be("test.worker.v1");
+        using var actual = System.Text.Json.JsonDocument.Parse(reader.GetString(1));
+        using var expected = System.Text.Json.JsonDocument.Parse(producer.Payload);
+        System.Text.Json.JsonElement.DeepEquals(actual.RootElement, expected.RootElement).Should().BeTrue();
+        reader.IsDBNull(2).Should().BeTrue("publication accepts durable work; the subscriber has not executed it");
+        (await reader.ReadAsync()).Should().BeFalse();
+        // WorkerHandler's constructor throws, so reaching durable acknowledgement
+        // also proves that publication did not construct its business graph.
     }
 
     [Fact]
@@ -111,7 +153,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
 
             (await test.LeaseIsLiveAsync(id).WaitAsync(proof.Token)).Should().BeTrue("the contention assertion must run before expiry or a timeout");
             (await test.ReadAsync(id).WaitAsync(proof.Token)).Should().Be(acquired);
-            test.Callbacks.Constructions.Should().Be(1);
+            test.Callbacks.Publications.Should().Be(1);
             observer.Snapshot.Queue.PendingCount.Should().Be(1);
             observer.Snapshot.Queue.OldestEligibleAgeSeconds.Should().Be(0);
             held.ReleaseCallback.TrySetResult();
@@ -119,7 +161,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             var completed = await test.ReadAsync(id).WaitAsync(proof.Token);
             completed.Attempts.Should().Be(1);
             completed.Token.Should().BeNull();
-            test.Callbacks.Constructions.Should().Be(1);
+            test.Callbacks.Publications.Should().Be(1);
         }
         finally
         {
@@ -189,7 +231,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         (await test.ReadAsync(id)).Should().Be(before);
         before.Type.Should().Be(typeof(TenantCreatedIntegrationEventV1).AssemblyQualifiedName);
         before.Attempts.Should().Be(0);
-        test.Callbacks.Constructions.Should().Be(0);
+        test.Callbacks.Publications.Should().Be(0);
         test.Observation.Snapshot.Queue.PendingCount.Should().Be(1);
         test.Observation.Snapshot.Queue.DeferredCount.Should().Be(1);
         (await test.ReadTerminalAuditsAsync()).Should().BeEmpty();
@@ -240,12 +282,12 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         test.Observation.Snapshot.Queue.Should().NotBeSameAs(initial.Queue);
         test.Observation.Snapshot.Queue.PendingCount.Should().Be(0);
         test.Observation.Snapshot.LastSnapshotTimestamp.Should().Be(bounds.SnapshotInterval.Ticks);
-        test.Callbacks.Constructions.Should().Be(3);
+        test.Callbacks.Publications.Should().Be(3);
         test.Observation.IsHealthy.Should().BeTrue();
     }
 
     [Fact]
-    public async Task A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses()
+    public async Task A_poison_first_row_terminalizes_with_MUST_audit_and_following_acceptance_progresses()
     {
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
         using var traces = new DispatcherTraces();
@@ -260,7 +302,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         row.TerminalReason.Should().Be("unknown_type");
         row.Attempts.Should().Be(1);
         row.ProcessedAt.Should().BeNull();
-        test.Callbacks.Constructions.Should().Be(1);
+        test.Callbacks.Publications.Should().Be(1);
         var audit = (await test.ReadTerminalAuditsAsync()).Should().ContainSingle().Which;
         audit.OperationClass.Should().Be("Must");
         audit.OperationType.Should().Be("SecurityEvent");
@@ -276,7 +318,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     }
 
     [Fact]
-    public async Task Ordinary_handler_failure_persists_a_closed_descriptor_and_allows_following_work()
+    public async Task Publication_failure_persists_a_closed_descriptor_and_allows_following_work()
     {
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
         using var traces = new DispatcherTraces();
@@ -293,7 +335,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         row.Attempts.Should().Be(1);
         row.Token.Should().BeNull();
         row.ProcessedAt.Should().BeNull();
-        test.Callbacks.Constructions.Should().Be(2);
+        test.Callbacks.Publications.Should().Be(2);
         test.Logs.Text.Should().NotContain(SensitiveCanary);
         traces.Records.Should().NotBeEmpty();
         string.Join("\n", traces.Records).Should().NotContain(SensitiveCanary);
@@ -316,7 +358,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         await UntilAsync(async () => (await test.ReadAsync(id)).ProcessedAt is not null);
 
         (await test.ReadAsync(id)).Attempts.Should().Be(1);
-        test.Callbacks.Constructions.Should().Be(0);
+        test.Callbacks.Publications.Should().Be(0);
         (await test.ReadTerminalAuditsAsync()).Should().BeEmpty();
     }
 
@@ -353,7 +395,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         failed.ProcessedAt.Should().BeNull("late callback success cannot acknowledge a timed-out claim");
         failed.Attempts.Should().Be(1);
         failed.Token.Should().BeNull();
-        held.Disposals.Should().Be(2, "the released partition subsequently constructs and disposes its sibling's handler");
+        held.Disposals.Should().Be(2, "the released partition subsequently publishes and disposes its sibling's acceptance scope");
     }
 
     [Fact]
@@ -376,7 +418,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         await test.NextSnapshotAsync();
 
         (await test.ReadAsync(fifth)).Attempts.Should().Be(0, "the four retained callbacks exhaust the global allowance");
-        test.Callbacks.Constructions.Should().Be(4);
+        test.Callbacks.Publications.Should().Be(4);
         test.Observation.IsHealthy.Should().BeFalse();
         held[0].ReleaseCallback.TrySetResult();
         await UntilAsync(async () => (await test.ReadAsync(fifth)).ProcessedAt is not null);
@@ -506,19 +548,35 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         public override string PartitionKey => SubjectId.ToString("D");
     }
 
-    /// <summary>One discovered, configurable real-bus handler; no production subscription is activated.</summary>
-    public sealed class WorkerHandler(CallbackControls controls, ITenantContextAccessor accessor)
-        : IIntegrationEventHandler<WorkerEventV1>, IAsyncDisposable
+    /// <summary>Manifest metadata only: publication must never construct business handlers.</summary>
+    public sealed class WorkerHandler : IIntegrationEventHandler<WorkerEventV1>
     {
-        private readonly CallbackControls _controls = controls.RecordConstruction();
+        public WorkerHandler() => throw new InvalidOperationException("Publication constructed a business handler.");
+        public Task HandleAsync(WorkerEventV1 integrationEvent, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Publication invoked a business handler.");
+    }
+
+    /// <summary>Controllable publication around the real acceptance adapter, not a consumer.</summary>
+    private sealed class ControlledPublicationBus(InProcessEventBus inner, PublicationScope scope) : IEventBus
+    {
+        public async Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            await scope.EnterAsync(envelope, cancellationToken);
+            // Deliberately model an adapter that ignores cancellation after entry.
+            // Its late successful acceptance must never acknowledge an expired attempt.
+            await inner.PublishAsync(envelope, CancellationToken.None);
+        }
+    }
+
+    /// <summary>The production publish attempt owns this real DI scope through async cleanup.</summary>
+    private sealed class PublicationScope(CallbackControls controls) : IAsyncDisposable
+    {
+        private readonly CallbackControls _controls = controls.RecordPublication();
         private CallbackBarrier? _barrier;
 
-        public Task HandleAsync(WorkerEventV1 integrationEvent, CancellationToken cancellationToken)
+        public Task EnterAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
         {
-            accessor.Current.Should().NotBeNull();
-            accessor.Current!.TenantId.Value.Should().Be(integrationEvent.TenantId);
-            accessor.Current.UserId.Should().Be(UserId.SystemActor);
-            _barrier = _controls.Enter(integrationEvent.SubjectId, cancellationToken);
+            _barrier = _controls.Enter(Guid.Parse(envelope.PartitionKey), cancellationToken);
             if (_barrier.Failure is { } failure) throw failure;
             if (_barrier.SynchronousBlock) _barrier.ReleaseCallback.Task.GetAwaiter().GetResult();
             return _barrier.ReleaseCallback.Task;
@@ -536,8 +594,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     public sealed class CallbackControls
     {
         private readonly ConcurrentDictionary<Guid, CallbackBarrier> _partitions = new();
-        private int _constructions;
-        public int Constructions => Volatile.Read(ref _constructions);
+        private int _publications;
+        public int Publications => Volatile.Read(ref _publications);
 
         public CallbackBarrier Hold(Guid partition, bool holdCleanup = false, bool synchronousBlock = false)
         {
@@ -549,9 +607,9 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         public void Fail(Guid partition, Exception failure) => _partitions.TryAdd(partition,
             new CallbackBarrier(false, false, false) { Failure = failure }).Should().BeTrue();
 
-        public CallbackControls RecordConstruction()
+        public CallbackControls RecordPublication()
         {
-            Interlocked.Increment(ref _constructions);
+            Interlocked.Increment(ref _publications);
             return this;
         }
 
@@ -687,7 +745,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     }
 
     private sealed class WorkerApiFactory(WorkerDatabase database, string? credential,
-        OutboxDispatchOptions? bounds = null, TimeProvider? time = null) : WebApplicationFactory<Program>
+        OutboxDispatchOptions? bounds = null, TimeProvider? time = null,
+        bool controlPublication = true) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -705,7 +764,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
                     services.AddSingleton(time);
                 }
                 services.RemoveAll<IntegrationEventHandlerRegistry>();
-                var handlers = IntegrationEventHandlerRegistry.Discover(typeof(WorkerHandler).Assembly);
+                var handlers = IntegrationEventHandlerRegistry.FromServiceDescriptors(
+                    [ServiceDescriptor.Scoped<IIntegrationEventHandler<WorkerEventV1>, WorkerHandler>()]);
                 handlers.All.Should().ContainSingle().Which.HandlerType.Should().Be<WorkerHandler>();
                 services.AddSingleton(handlers);
                 services.RemoveAll<OutboxEventRegistry>();
@@ -720,6 +780,17 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
                 ], [], handlers, [typeof(WorkerEventV1).Assembly, typeof(TenantCreatedIntegrationEventV1).Assembly]));
                 services.AddSingleton(database.Callbacks);
                 services.AddScoped<WorkerHandler>();
+                // Preserve the shipped selection factory and wrap only this fixture's
+                // publication. The worker still owns a real async DI scope and the
+                // inner adapter persists actual subscription envelopes as learnstack_app.
+                if (controlPublication)
+                {
+                    var transport = services.Single(descriptor => descriptor.ServiceType == typeof(IEventBus));
+                    services.RemoveAll<IEventBus>();
+                    services.AddSingleton(provider => (InProcessEventBus)transport.ImplementationFactory!(provider));
+                    services.AddScoped<PublicationScope>();
+                    services.AddScoped<IEventBus, ControlledPublicationBus>();
+                }
                 services.AddSingleton<ILogger<OutboxProcessor>>(database.Logs);
             });
         }
@@ -761,11 +832,12 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             catch { await test.DisposeAsync(); throw; }
         }
 
-        public void Start(OutboxDispatchOptions? bounds = null, TimeProvider? time = null)
+        public void Start(OutboxDispatchOptions? bounds = null, TimeProvider? time = null, bool controlPublication = true)
         {
-            _factory = new WorkerApiFactory(this, OutboxConnectionString, bounds, time);
+            _factory = new WorkerApiFactory(this, OutboxConnectionString, bounds, time, controlPublication);
             _client = _factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("http://localhost") });
-            Services.GetRequiredService<IEventBus>().Should().BeOfType<InProcessEventBus>();
+            if (controlPublication) Services.GetRequiredService<InProcessEventBus>().Should().BeOfType<InProcessEventBus>();
+            else Services.GetRequiredService<IEventBus>().Should().BeOfType<InProcessEventBus>();
         }
 
         public async Task NextSnapshotAsync()

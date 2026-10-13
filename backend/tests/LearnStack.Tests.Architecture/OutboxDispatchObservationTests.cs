@@ -3,6 +3,8 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -341,10 +343,19 @@ public sealed partial class OutboxDispatchConventionTests
         return offenders;
     }
 
-    private static ServiceCollection ObservationServices()
+    private static IServiceCollection ObservationServices()
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(IntegrationEventHandlerRegistry.Discover());
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Configuration.Sources.Clear();
+        builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development);
+        IServiceCollection services = new ServiceCollection();
+        // Import the construction-free manifest from its real registration site.
+        // This guard isolates persistence's worker/check set; unrelated framework
+        // hosted services from Foundation are not its subject.
+        foreach (var descriptor in builder.Services.Where(descriptor =>
+                     descriptor.ServiceType == typeof(IntegrationEventHandlerRegistry)
+                     || descriptor.ServiceType == typeof(OutboxEventRegistry)))
+            services.Add(descriptor);
         services.AddLearnStackPersistence(new ConfigurationBuilder().Build());
         return services;
     }

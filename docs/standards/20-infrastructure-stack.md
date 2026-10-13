@@ -81,10 +81,11 @@ Rules that follow from this:
   written against the port and holds for the default implementation too. If a rule only
   makes sense for the vendor adapter, it is a rule about the adapter and belongs in that
   adapter's section, not in module guidance.
-- **`InProcessEventBus` is a first-class transport, not a stub.** It uses
-  `IIntegrationEventHandler<T>` and restores tenant context before handler resolution.
-  Durable acceptance and the shared transport-owned `IInboxGuard` remain P02b-3
-  work under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+- **`InProcessEventBus` is a first-class transport, not a stub.** P02b-3 Step 2
+  implements durable acceptance for declared `IIntegrationEventHandler<T>`
+  subscriptions, restoring context before its fresh application scope. Publication
+  constructs no handler. The shared transport-owned `IInboxGuard` claim primitive
+  is implemented; business owner/executor and scheduling remain Steps 3–4 under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
   Phase 11's adapter must preserve that consumer contract.
 - **A demand-gated block is not "deferred".** It qualifies only with all four of: a
   port, a working default implementation, an owning phase, and a written trigger. If a

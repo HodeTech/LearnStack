@@ -1575,7 +1575,8 @@ and its MUST audit atomically. See
 
 ## Inbox
 
-**P02b-3 Step 1 implements the shared schema; runtime remains pending.**
+**P02b-3 Step 1 implements the shared schema; Step 2 implements acceptance and
+inbox claims. Business completion and scheduling remain Steps 3–4.**
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
 and the [accepted P02b-3 package](../roadmap/phase-02b-events-auth.md#accepted-storage-and-authority-details)
 define transport-owned deduplication and independent subscription delivery.

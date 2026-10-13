@@ -14,7 +14,7 @@ namespace LearnStack.SharedKernel.Messaging;
 /// transport resolving <c>IIntegrationEventHandler&lt;TEvent&gt;</c> would then
 /// look for a handler of <c>IIntegrationEvent</c>, which no concrete consumer
 /// implements. The publish would reach zero handlers and report success. Both
-/// transports resolve by the event's <b>runtime</b> type instead.
+/// transports resolve the declared policy by the event's <b>runtime</b> type instead.
 /// </para>
 /// <para>
 /// The envelope carries the dispatch metadata the outbox row holds and the event
@@ -24,7 +24,12 @@ namespace LearnStack.SharedKernel.Messaging;
 /// </remarks>
 public interface IEventBus
 {
-    /// <summary>Publishes one envelope, ordered against others sharing its partition key.</summary>
+    /// <summary>Durably accepts one envelope, ordered against others sharing its partition key.</summary>
+    /// <remarks>
+    /// Success means every required subscription has a durable delivery identity,
+    /// or the validated contract explicitly declares intentional absence. It does
+    /// not acknowledge business execution. Failed or unknown acceptance is retryable.
+    /// </remarks>
     Task PublishAsync(
         IntegrationEventEnvelope envelope,
         CancellationToken cancellationToken = default);

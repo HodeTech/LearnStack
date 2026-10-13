@@ -307,7 +307,7 @@ public sealed class OutboxEventRegistry
         !string.IsNullOrWhiteSpace(identity)
         && string.Equals(identity, identity.Trim(), StringComparison.Ordinal);
 
-    private static bool ValidSubscriptionId(string? id)
+    internal static bool ValidSubscriptionId(string? id)
     {
         if (id is null) return false;
 
