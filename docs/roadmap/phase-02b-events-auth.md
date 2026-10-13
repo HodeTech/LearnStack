@@ -2517,6 +2517,43 @@ accepted vehicle. Catalogue additions remain Registered until their proofs ship.
 The decision acceptance, ADR-0023 erratum and ADR-0044 capture clarification are
 committed before the first P02b-3 runtime change.
 
+### P02b-3 Step 1 — shared storage and privileges (2026-10-13)
+
+**Implemented; independent review rounds pending.** Decision acceptance
+`63363ac` precedes this runtime change. EF generated Platform migration
+`20261013083903_add_event_delivery_and_inbox`; its raw infrastructure tables add
+no EF entity or model snapshot change. Standards 05 owns the complete applied
+DDL, table classes, constraints, total-order indexes and exact column grants.
+
+The org-scoped ledger retains a subscription envelope independently of producer
+retention. The tenant-wide inbox uses the producer event identity and subscription
+without a surrogate; database guards refuse UPDATE, DELETE and TRUNCATE even as
+the owner. No P3 role receives purge privileges. The app role accepts only immutable
+envelope columns and completes only `processed_at`; the scheduler receives routing/
+status columns and nine scheduling UPDATE columns, excluding payload, causal
+metadata, inbox access and business completion. Completed rows retain inert lease
+provenance and are excluded from every scheduler index. Real subscriptions remain
+Pending; this step claims no acceptance or business-delivery runtime.
+
+`EventDeliveryMigrationTests` exercises 73 real-PostgreSQL cases: permitted SQL,
+exact grants and forbidden capabilities, tuple identity/ASCII grammar/state,
+immutable guards with removed-trigger dirty controls, matching index/order plans,
+producer-retention independence, canonical-document catalog parity and disposable
+Down/reapply. The existing all-table fixture now seeds both stores for both tenants,
+including distinct ledger organizations, and marks fixture ledger canaries complete.
+The general isolation, scope-hatch, foreign-write and grant sweeps include them.
+Standalone Platform migration proofs install Tenancy's shared organization guard
+first, matching the documented deployment sequence; historical migrations are intact.
+
+Validation before the implementation commit: Release build with `CI=true` has
+zero warnings/errors; 164 focused schema/migration integration cases and all 287
+architecture cases pass, zero failures/skips. The seven ADR-status controls pass.
+Format and whitespace validation pass; 1,180 relative links and 286 fragments
+resolve without errors. Earlier receipts and Accepted ADR text remain intact.
+Unit/frontend/runtime-worker suites are
+not rerun for this schema-only step. Subsequent steps own acceptance, execution,
+subscriber scheduling, useful defaults and full packet regression.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

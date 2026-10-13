@@ -49,8 +49,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(26L,
-            "eight tenancy tables, three platform tables, four customization tables, "
+        (await CountAsync(connection, TablesQuery)).Should().Be(28L,
+            "eight tenancy tables, five platform tables, four customization tables, "
             + "two audit tables, four Education tables, and five history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
@@ -77,7 +77,7 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // A successful Down must also leave a state that can be installed again.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(26L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(28L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);

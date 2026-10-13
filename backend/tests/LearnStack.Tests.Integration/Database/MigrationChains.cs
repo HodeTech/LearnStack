@@ -33,12 +33,7 @@ internal static class MigrationChains
     /// <summary>Applies every chain, as <c>learnstack_migration</c>.</summary>
     public static async Task ApplyAllAsync(string migrationConnectionString)
     {
-        await using (var tenancy = new TenancyDbContext(
-            Options<TenancyDbContext>(migrationConnectionString, TenancyDbContextFactory.HistoryTable),
-            StaticTenantContextAccessor.Unresolved))
-        {
-            await tenancy.Database.MigrateAsync();
-        }
+        await ApplyTenancyAsync(migrationConnectionString);
 
         await using (var platform = new PlatformDbContext(
             Options<PlatformDbContext>(migrationConnectionString, PlatformDbContextFactory.HistoryTable)))
@@ -72,6 +67,15 @@ internal static class MigrationChains
             Options<EducationDbContext>(migrationConnectionString, EducationDbContextFactory.HistoryTable),
             StaticTenantContextAccessor.Unresolved);
         await education.Database.MigrateAsync();
+    }
+
+    /// <summary>Installs the shared scope function before a dependent chain is tested alone.</summary>
+    public static async Task ApplyTenancyAsync(string migrationConnectionString)
+    {
+        await using var tenancy = new TenancyDbContext(
+            Options<TenancyDbContext>(migrationConnectionString, TenancyDbContextFactory.HistoryTable),
+            StaticTenantContextAccessor.Unresolved);
+        await tenancy.Database.MigrateAsync();
     }
 
     /// <summary>The history table every chain declares, for a fixture that counts them.</summary>

@@ -58,7 +58,7 @@ public sealed class SchemaFixture : IAsyncLifetime
     public const string HostB = "beta.example.com";
 
     /// <summary>
-    /// The twenty-one tables the five chains create, used only to prove that a
+    /// The twenty-three tables the five chains create, used only to prove that a
     /// catalogue sweep read something.
     /// </summary>
     /// <remarks>
@@ -71,7 +71,7 @@ public sealed class SchemaFixture : IAsyncLifetime
         "tenants", "organizations", "tenant_domains", "tenant_locales",
         "tenant_settings", "tenant_feature_flags",
         "platform_entitlement_cache", "platform_host_to_tenant",
-        "outbox_messages", "idempotency_keys",
+        "outbox_messages", "idempotency_keys", "event_deliveries", "inbox_messages",
         "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items",
         "customization_generations",
         "audit_log", "audit_config",
@@ -94,6 +94,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["platform_host_to_tenant"] = 1,
         ["outbox_messages"] = 1,
         ["idempotency_keys"] = 1,
+        ["event_deliveries"] = 1,
+        ["inbox_messages"] = 1,
         ["tenant_content_types"] = 1,
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
@@ -127,6 +129,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         ["platform_host_to_tenant"] = 1,
         ["outbox_messages"] = 1,
         ["idempotency_keys"] = 1,
+        ["event_deliveries"] = 1,
+        ["inbox_messages"] = 1,
         ["tenant_content_types"] = 1,
         ["tenant_level_taxonomies"] = 1,
         ["tenant_level_taxonomy_items"] = 1,
@@ -154,10 +158,53 @@ public sealed class SchemaFixture : IAsyncLifetime
         await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
 
         await SeedAsync();
+        await SeedDeliveryAsync();
         await EducationSchemaSeed.SeedAsync(Postgres.AppConnectionString);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();
+
+    private async Task SeedDeliveryAsync()
+    {
+        await using var app = await PostgresFixture.OpenAsync(Postgres.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        (Guid Tenant, Guid? Organization)[] scopes =
+        [
+            (TenantA, null), (TenantA, OrgA1), (TenantA, OrgA2),
+            (TenantB, null), (TenantB, OrgB1),
+        ];
+        foreach (var (tenant, organization) in scopes)
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(app, transaction, tenant);
+            await SchemaQueries.SetSettingAsync(app, transaction, "app.organization_id", organization?.ToString() ?? string.Empty);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                INSERT INTO event_deliveries
+                    (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+                     correlation_id, type, topic, partition_key, payload)
+                VALUES (@tenant, 'schema.fixture.v1', @event, @organization, clock_timestamp(),
+                    '00-11111111111111111111111111111111-2222222222222222-01',
+                    'schema.fixture', 'learnstack.schema.fixture', @partition, '{"fixture":true}');
+                UPDATE event_deliveries SET processed_at = clock_timestamp()
+                WHERE tenant_id = @tenant AND event_id = @event
+                  AND subscription_id = 'schema.fixture.v1';
+                """, ("tenant", tenant), ("event", Guid.CreateVersion7()),
+                ("organization", organization is { } org ? org : DBNull.Value),
+                ("partition", tenant.ToString()));
+            await transaction.CommitAsync();
+        }
+
+        foreach (var tenant in new[] { TenantA, TenantB })
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(app, transaction, tenant);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                INSERT INTO inbox_messages (tenant_id, subscription_id, event_id)
+                VALUES (@tenant, 'schema.fixture.v1', @event);
+                """, ("tenant", tenant), ("event", Guid.CreateVersion7()));
+            await transaction.CommitAsync();
+        }
+    }
 
     private async Task SeedAsync()
     {

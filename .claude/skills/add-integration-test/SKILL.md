@@ -70,7 +70,7 @@ architecture test) plus any other invariant the change touches. See
 > what almost every test wants: **every** migration chain applied — through
 > `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
 > table seeded for two tenants, with a second organization under tenant A. There
-> are five chains and 21 data tables (26 including migration histories). Discover
+> are five chains and 23 data tables (28 including migration histories). Discover
 > current chains and history names through
 > [MigrationChains](../../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs);
 > do not copy that inventory into a fixture. Share the schema with

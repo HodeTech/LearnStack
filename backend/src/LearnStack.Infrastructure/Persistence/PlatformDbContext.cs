@@ -7,7 +7,8 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>outbox_messages</c> and <c>idempotency_keys</c> belong to no module: they
+/// <c>outbox_messages</c>, <c>idempotency_keys</c>, <c>event_deliveries</c> and
+/// <c>inbox_messages</c> belong to no module: they
 /// are reached through SharedKernel ports by any module's handler and read by
 /// infrastructure that belongs to none of them. <c>IIdempotencyStore</c> ships
 /// today, behind <c>InMemoryIdempotencyStore</c> until its ADR-0035 trigger
@@ -28,8 +29,10 @@ namespace LearnStack.Infrastructure.Persistence;
 /// registration and never acquire a dispatcher connection.
 /// </para>
 /// <para>
-/// Both tables are <b>tenant-owned, tenant-wide</b> despite living outside a
-/// module: every row carries a <c>tenant_id</c>, and the ordinary policy applies.
+/// All four tables are tenant-owned despite living outside a module. The
+/// delivery ledger is organization-scoped to protect retained envelopes;
+/// the other three are tenant-wide machinery. Every row carries a tenant key
+/// and the corresponding canonical policy applies.
 /// The dispatcher reads across tenants through <c>learnstack_outbox_admin</c>'s
 /// <c>BYPASSRLS</c>, bounded by a column-scoped grant rather than by the policy.
 /// </para>
@@ -40,7 +43,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        // No entity types. Both tables are written through their ports with
+        // No entity types. These tables are written through their ports with
         // parameterised SQL, not through a change tracker: an outbox row is
         // enqueued and never updated by application code, and an idempotency
         // claim is a single INSERT ... ON CONFLICT that decides five outcomes in

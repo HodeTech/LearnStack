@@ -29,6 +29,7 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
     public async Task Legacy_facts_survive_up_down_reapply_and_diagnostics_are_redacted_across_tenants()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
         await using var context = Platform(database);
         await context.GetService<IMigrator>().MigrateAsync(PlatformPredecessor);
         await InsertLegacyAsync(database, Guid.NewGuid(), SchemaFixture.TenantA, null, processed: false);
@@ -70,6 +71,7 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
     public async Task Recovery_index_covers_expired_and_exhausted_selection_without_scanning_pending_backlog(bool expiredLease)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
         await using var context = Platform(database);
         await context.GetService<IMigrator>().MigrateAsync(DispatchPredecessor);
         var target = Guid.Parse("10000000-0000-0000-0000-000000000002");
@@ -101,6 +103,7 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
     public async Task Invalid_legacy_identity_refuses_migration_without_repair(string member, string invalid)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
         await using var context = Platform(database);
         await context.GetService<IMigrator>().MigrateAsync(PlatformPredecessor);
         await InsertLegacyAsync(database,

@@ -202,7 +202,10 @@ delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
 is Accepted — 2026-10-13. Six implementation steps, each with commit and two
 independent review rounds, deliver durable acceptance, shared inbox/ledger,
 independent retries, both real defaults and Seeder handoff. Implementation is in
-progress; production subscriptions remain Pending until the complete path is ready.
+progress; Step 1 implements shared storage and privilege proofs. Its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
+owns verification and review status. Production subscriptions remain Pending until
+the complete path is ready.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
