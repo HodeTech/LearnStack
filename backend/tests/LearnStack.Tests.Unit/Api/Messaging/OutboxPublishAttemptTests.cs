@@ -8,6 +8,35 @@ namespace LearnStack.Tests.Unit.Api.Messaging;
 
 public sealed class OutboxPublishAttemptTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_reports_publication_outcome_after_disposing_the_owned_scope(bool throws)
+    {
+        var disposed = false;
+        CancellationToken captured = default;
+        IntegrationEventEnvelope? observed = null;
+        var envelope = Envelope();
+        var services = new ServiceCollection();
+        services.AddScoped<IEventBus>(_ => new CallbackBus((received, token) =>
+        {
+            observed = received;
+            captured = token;
+            return throws ? Task.FromException(new InvalidOperationException("private-provider-error"))
+                : Task.CompletedTask;
+        }, () => { disposed = true; return ValueTask.CompletedTask; }));
+        await using var provider = services.BuildServiceProvider();
+        var attempt = new OutboxPublishAttempt(provider.GetRequiredService<IServiceScopeFactory>(), envelope);
+
+        (await attempt.Completion.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be(!throws);
+
+        disposed.Should().BeTrue();
+        observed.Should().BeSameAs(envelope);
+        var accessDisposedToken = () => captured.WaitHandle;
+        accessDisposedToken.Should().Throw<ObjectDisposedException>();
+        attempt.RequestCancellation(); // Completed attempts safely ignore late cancellation.
+    }
+
     [Fact]
     public async Task Synchronous_construction_and_publish_prefix_run_inside_the_owned_task()
     {
@@ -107,11 +136,13 @@ public sealed class OutboxPublishAttemptTests
         var cancellationEntered = Signal();
         using var releaseCancellation = new ManualResetEventSlim();
         var disposed = Signal();
+        var cancellationCount = 0;
         var services = new ServiceCollection();
         services.AddScoped<IEventBus>(_ => new CallbackBus(async (_, token) =>
         {
             token.Register(() =>
             {
+                Interlocked.Increment(ref cancellationCount);
                 cancellationEntered.TrySetResult();
                 releaseCancellation.Wait(); // Exercise a cancellation callback that blocks and faults.
                 throw new InvalidOperationException("private-provider-cancellation-error");
@@ -124,6 +155,7 @@ public sealed class OutboxPublishAttemptTests
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            attempt.RequestCancellation();
             attempt.RequestCancellation();
             await cancellationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             releaseCallback.TrySetResult();
@@ -139,6 +171,8 @@ public sealed class OutboxPublishAttemptTests
 
         (await attempt.Completion).Should().BeFalse();
         disposed.Task.IsCompleted.Should().BeTrue();
+        cancellationCount.Should().Be(1);
+        attempt.RequestCancellation();
     }
 
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -218,12 +218,13 @@ CREATE INDEX ix_courses_tenant_id_organization_id ON courses (tenant_id, organiz
 
 PostgreSQL evaluates referential integrity at **runtime** as a security-restricted
 operation on behalf of the table owner, and those RI triggers are **not subject to Row
-Level Security**. (The DDL path is the opposite and matters in migrations: the scan
-`ALTER TABLE … ADD CONSTRAINT` / `VALIDATE CONSTRAINT` performs runs as the
-issuing role
-under its policies, so a constraint added to a populated tenant-owned table validates
-against the rows that role can see. § Data Migrations carries the consequence.) A
-single-column `lessons.course_id → courses.id` therefore lets a row in tenant A
+Level Security** ([PostgreSQL row-security documentation](https://www.postgresql.org/docs/18/ddl-rowsecurity.html)).
+Constraint validation also checks existing rows regardless of their RLS visibility:
+`ALTER TABLE … ADD CONSTRAINT` checks all existing rows unless `NOT VALID` skips
+that scan; `VALIDATE CONSTRAINT` performs the deferred check
+([PostgreSQL ALTER TABLE documentation](https://www.postgresql.org/docs/18/sql-altertable.html)).
+An ordinary `UPDATE` backfill remains subject to RLS; see [Data Migrations](#data-migrations).
+A single-column `lessons.course_id → courses.id` therefore lets a row in tenant A
 reference a row in tenant B: the child's own `WITH CHECK` passes because its
 `tenant_id` is A's, and the FK check passes because it can see B's row. The result is a
 permanent cross-tenant reference in the one system whose top-line threat is

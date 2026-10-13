@@ -1955,6 +1955,78 @@ Correction-head PR CI and its real demo artifacts still require independent
 verification after publication. This local receipt does not reuse the earlier
 green head as evidence; the PR description owns live head/check evidence.
 
+### P02b-2 review of 3531a2eb (2026-10-13)
+
+The next external report was checked against `3531a2eb`, not adopted as an
+instruction source. That baseline's seven required jobs and complete demo
+artifacts pass in [run 38318773974](https://github.com/HodeTech/LearnStack/actions/runs/38318773974).
+This follow-up requires its own review and CI evidence. No Accepted ADR body,
+migration, grant, consumer-delivery contract or dependency changes here.
+
+- The earlier reverse-membership disposition is reconsidered using a real
+  direct/transitive `SET ROLE` control. The app guard already rejects elevated
+  memberships on new app connections; an administrator's later grant can still
+  elevate an existing app session. The dispatcher now detects incoming grants
+  on its next physical connection, enforcing the existing four-role boundary.
+  Superusers are excluded from that predicate because PostgreSQL implicitly
+  treats them as members of every role. This is grant-drift detection, not
+  continuous revocation. Four sync/async direct/transitive cases prove actual
+  escalation, refusal and healthy reconnection after restoration. An isolated
+  PostgreSQL comparison distinguishes the predecessor and corrected predicates.
+- Credential census now rejects explicit configuration indexers with a
+  same-body `ConnectionStrings:` key/prefix, including compiled concatenation,
+  interpolation, formatting and static-readonly names. Unrelated configuration,
+  dictionary indexers and diagnostic text remain clean. This bounded check
+  does not claim arbitrary cross-method key dataflow. A separate planted control
+  closes `Assembly.CreateInstance`; `Activator.CreateInstanceFrom` was already
+  covered. Both omissions were reproduced against the predecessor detector.
+- The constraint/RLS statement, shared-inbox and fifth-writer statuses, settled
+  ordering pointers and catalogue proof references now match current code.
+  Skills use a shipped public assembly marker in explicitly abridged examples.
+  The architecture method count is 194; Implemented rule count remains 192.
+- Publication tests now cover successful/throwing completion, cleanup and
+  repeated/late cancellation. Wrong-kind store calls must leave the actual row
+  and audit unchanged. Test shutdown and publish timeouts use distinct values.
+  A source comment explains exact Npgsql microsecond truncation; the local API
+  environment comment names all three forwarded credentials.
+
+The remaining claims were checked against their actual scope:
+
+| Concern | Disposition |
+|---|---|
+| Startup options failure is reported as a credential error | Not on the shipped DI path: `OutboxDispatchStore` validates the same options before worker construction or source resolution |
+| Broaden COMMIT catch to cure sticky terminal health | No demonstrated shipped exception escapes the existing provider/network/cancellation set. The dispatcher configures no custom driver logger. Failed reconciliation remains an unknown outcome even with catch-all; conservative health clears after successful terminalization |
+| Non-admitted Normal claim hot-loops | Immutable registry and SQL exclude Pending identities before acquisition; unknown/retired/invalid rows already request terminalization. No current path reaches that invariant arm |
+| Reject every unmapped JSON member | ADR-0046 explicitly uses the frozen payload options and compares declared facts; producer contracts enforce identifier-only fields. Unknown fields are not passed to the handler. A new stored-wire rejection policy is not inferred from this suggestion |
+| Producer witness kind/subscription should anticipate subscriber minting | The current closed minting census admits only the producer store. P02b-3 owns a distinct subscriber capability and its identity controls; no subscriber factory is introduced early |
+| Legacy-row diagnostics, blocking migration and attempt constants | Invalid facts deliberately refuse migration. Existing migrations remain immutable; checks/index creation need an owner maintenance window, with no online-migration claim. Tests pin six claims and the full backoff/DDL state; copying a new constant into historical migrations would not eliminate drift |
+| UTF-8 SQL literals escape the literal census | Npgsql's command entrypoints accept strings. Decoding bytes is dynamic construction/dataflow outside this explicitly bounded literal census; raw byte data alone is not an executable SQL call |
+| Platform credential rule is no longer independently sufficient | The whole-production credential/factory/consumer census independently pins both exact roots and their distinct sources. Repeating it inside the companion source rule adds no uncovered current boundary |
+| COMMIT/probe stack assertions are redundant | Both failures are `NpgsqlException`; the stage-specific stack assertions distinguish their order. They supplement the physical outcome/no-duplicate proof and currently pass with the pinned driver |
+| Ambient public-api overrides and seed validation should cover four credentials | Explicit ambient API overrides are an existing tested local-loader policy. Standalone seed consumes only Default and Migration; other ambient credentials never reach its child. Shared demo validates all four before startup |
+| Forward proxy/cache/home environment into Seeder | The narrow child allowlist deliberately excludes ambient credentials/diagnostics; proxy values can themselves contain credentials. No failure on the documented restored-dependency path was demonstrated; the API's separate allowlist intentionally excludes `DOTNET_CLI_HOME` |
+| Print the failed connection-string suffix | The fixed diagnostic is now safely visible. More detailed refusal messages are optional; values remain excluded and no further operational regression was reproduced |
+| Ingress env tests depend on file order | Each loader test writes its own selected file before reading it; they are sequential, not concurrent. The later configuration test uses an explicit object, not that file |
+| Duplicated construction-only factory helper | The remarks explain the intentionally absent worker/unhealthy private check. Sharing helpers across separate test assemblies would add a dependency without correcting behaviour |
+| Skill index claims handler-owned inbox | Not reproduced: its generic inventory names an inbox guard but assigns no handler ownership; detailed skills now identify the shipped/P02b-3 boundary |
+| Persist traceparent or measure recovery/terminal as publication duration | Trace persistence is optional. The duration histogram measures publication; recovery and terminal transitions do not publish and retain their own spans/outcomes |
+| Retained partition also delays terminal acquisition | Deliberate local ownership: no further acquisition for that partition until callback and scope cleanup actually finish, including terminal work; ADR-0046's four-overrun saturation applies |
+| Assembly-qualified identities, closed generics and invalid disposition label | Exact assembly-qualified identity plus explicit compatible aliases is Accepted. A declared closed generic is a concrete known type, not arbitrary loading. Invalid-envelope reason and the fixed `invalid` label remain distinct from unknown-type reason |
+| Legacy non-NULL metadata should be backfilled | ADR-0057 requires new producer metadata to be SQL NULL; ADR-0046 deliberately terminalizes invalid legacy envelopes rather than silently rewriting their facts |
+| Alternate health-registration dedupe and audit trigger | The sole production composition is pinned. A new trigger/privilege design is Phase 11 work, not an unreviewed replacement for the Accepted row-bound terminal seam |
+| Squash migrations or mechanically gate published fragment counts | Existing migrations/history are preserved. Link/fragment totals are explicitly local checks, not CI enforcement claims; the prior and current source scans remain separate evidence |
+
+Local Release build reports zero warnings/errors; format verification passes.
+Unit passes 1,847, architecture 287, contract four and Docker-free integration
+175 cases, all with zero failures/skips. Twenty role controls and six focused
+claim-kind/shutdown cases pass. The new compiled-probe helper's initial deferred
+Cecil-body failure was corrected before the successful full architecture rerun;
+the guard expectation was preserved. Seven ADR-status controls, 2,711 relative
+links and 505 fragments pass. Historical delivery records and Accepted ADR text
+remain unchanged. Complete Docker validation, both fresh independent review
+rounds and correction-head CI remain pending in this initial local receipt;
+the PR description owns final head/check evidence.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

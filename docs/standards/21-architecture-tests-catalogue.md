@@ -110,7 +110,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**193 test methods run in
+**194 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -1796,7 +1796,8 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Asserts:** only the confined dispatcher infrastructure resolves the named keyed,
   lazy `ConnectionStrings:OutboxDispatcher` source in the API host. Seeder/web and
   arbitrary keyed/service-provider resolution are refused. Physical connections
-  verify the exact outbox role, bounded attributes and memberships. A nonempty
+  verify the exact outbox role, bounded attributes and memberships, including
+  direct/transitive incoming membership from other non-superuser roles. A nonempty
   production census has planted clean/dirty resolution and registration controls.
   Named worker/store source readers require unique literal method signatures,
   visibility and staticness; a same-name overload grants no authority. Real
@@ -1811,7 +1812,14 @@ diagnostic above row security, not the boundary, as its own note says.
   constructor bindings, planted clean/dirty helper/delegate/async controls, and
   real PostgreSQL role/grant/startup refusal proofs. Exact unique literal
   source-reader signatures, visibility and staticness reject named-method overloads;
-  the focused controls and both fresh fix reviews pass at `606362b`.
+  those focused controls and both fresh fix reviews passed at `606362b`.
+  [OutboxDispatchConventionTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys](../../backend/tests/LearnStack.Tests.Architecture/OutboxDispatchBoundaryTests.cs)
+  plants actual compiled concatenation, interpolation, formatting and configuration
+  indexer calls, with clean configuration/dictionary/diagnostic controls.
+  [OutboxDispatcherRoleGuardTests.App_membership_in_the_dispatcher_is_refused_directly_and_transitively_then_restoration_connects](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatcherRoleGuardTests.cs)
+  proves an existing app session can escalate through the planted grant, then
+  verifies refusal on a new dispatcher physical connection and successful
+  connection after grant removal, for both direct and transitive membership.
 - **Phase:** 02b, P02b-2.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
@@ -3239,15 +3247,16 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   unrelated-ID and missing-declaration offenders plus clean controls. Behavioral
   cases compare actual source/key values. The envelope reads the event's key;
   it cannot hold a second answer. This establishes derivation, not durable order;
-  G3's publish-order half remains P02b-2.
+  ADR-0046 defines eligible-selection order and its limits.
 - **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md);
+  [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#producer-dispatch-and-recovery);
   [15-event-and-outbox.md](../architecture/15-event-and-outbox.md#ordering).
 - **Type:** xUnit + reflection/IL/source scan and value probes.
   **Kind:** structural + behavioural.
 - **Status:** **Implemented** (`IntegrationEventContractTests`, `OutboxProducerTests`);
   stored-source IL grammar, independently varied identifiers, dirty/clean controls and
   persisted keys. Unsupported derivations fail loudly.
-- **Phase:** 02b, P02b-1 (derivation); P02b-2 (ordering).
+- **Phase:** 02b, P02b-1 (derivation); P02b-2 (selection-order bounds).
 
 #### `Outbox_Enqueue_Uses_The_Announced_Transaction`
 
@@ -3396,11 +3405,18 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   duplicate the terminal audit. Exact real-role grants allow only the declared writes.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
-- **Type:** production architecture census with planted controls where structural;
-  real PostgreSQL/runtime integration proofs where behavioural.
+- **Type:** integration tests (Testcontainers), including physical COMMIT-response
+  loss and real-role grant controls.
   **Kind:** behavioural.
-- **Status:** **Implemented** (`OutboxDispatchStoreTests`): real-role audit-grant
-  refusal, rollback/retry and completed-row replay controls.
+- **Status:** **Implemented** (`OutboxDispatchStoreTests`,
+  `OutboxDispatchMigrationTests`), with these proofs:
+  [OutboxDispatchStoreTests.Refused_audit_rolls_back_the_terminal_update_and_retains_the_request_for_audited_retry](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.Expiry_alone_refuses_every_transition_without_changing_state](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.A_lost_physical_COMMIT_response_reconciles_durable_terminal_state_without_duplicate_audit](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxDispatchStoreTests.A_lost_COMMIT_response_and_failed_reconciliation_preserve_both_failures_without_duplicate_audit](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  and [OutboxDispatchMigrationTests.Outbox_role_has_no_audit_read_mutation_or_business_access](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchMigrationTests.cs)
+  prove audit-grant refusal, atomic rollback/retry, stale ownership, durable
+  reconciliation and completed-row replay without duplicate audit.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Terminal_Audit_Identity_Is_Row_Bound`
@@ -3446,13 +3462,19 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   publish/mark path; real subscriptions stay Pending until P02b-3.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
-- **Type:** real PostgreSQL/runtime integration proofs and startup composition checks.
+- **Type:** integration tests (Testcontainers) and unit tests of production
+  composition and manifest refusal.
   **Kind:** startup + behavioural.
 - **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxDispatchStoreTests`,
-  `OutboxProductionCompositionTests`): real provisioning rows remain unchanged
-  across hosted Pending polls; aliases/malformed payloads are held before every
-  acquisition path. Test-owned Active handlers publish/mark, while explicit
-  intentional absence acknowledges without construction.
+  `OutboxProductionCompositionTests`, `OutboxEventRegistryTests`), with these proofs:
+  [OutboxProcessorTests.Real_provisioning_rows_remain_Pending_across_hosted_polls_without_construction_or_mutation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs),
+  [OutboxDispatchStoreTests.Real_TenantCreated_contracts_and_aliases_are_held_before_any_payload_validation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
+  [OutboxProductionCompositionTests.Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
+  and [OutboxEventRegistryTests.Active_manifest_and_discovered_handlers_must_match_in_both_directions](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Messaging/OutboxEventRegistryTests.cs)
+  prove real Pending holds and composition refusal. Test-owned Active publication
+  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
+  [OutboxProcessorTests.Explicit_intentional_absence_acknowledges_without_constructing_a_handler](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs)
+  proves the distinct intentional-absence policy.
 - **Phase:** 02b, P02b-2.
 
 #### `Outbox_Health_And_Metrics_Are_Bounded`

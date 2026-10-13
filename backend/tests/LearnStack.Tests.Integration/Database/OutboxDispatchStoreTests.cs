@@ -97,6 +97,33 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
     }
 
     [Theory]
+    [InlineData("complete", OutboxClaimKind.Recovery)]
+    [InlineData("complete", OutboxClaimKind.Terminal)]
+    [InlineData("fail", OutboxClaimKind.Terminal)]
+    [InlineData("terminalize", OutboxClaimKind.Normal)]
+    [InlineData("terminalize", OutboxClaimKind.Recovery)]
+    public async Task Wrong_claim_kind_refuses_before_changing_the_row_or_audit(string operation, OutboxClaimKind kind)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlockedPartitions))! with { Kind = kind };
+        var before = await test.ReadAsync(id);
+        Func<Task> act = () => operation switch
+        {
+            "complete" => store.CompleteAsync(claim),
+            "fail" => store.FailAsync(claim, OutboxFailureReason.PublishFailed),
+            "terminalize" => store.TryTerminalizeAsync(claim, AttemptTraceparent),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+
+        await act.Should().ThrowAsync<ArgumentException>();
+
+        (await test.ReadAsync(id)).Should().Be(before);
+        (await test.AuditCountAsync()).Should().Be(0);
+    }
+
+    [Theory]
     [InlineData("success")]
     [InlineData("failure")]
     [InlineData("terminal-request")]

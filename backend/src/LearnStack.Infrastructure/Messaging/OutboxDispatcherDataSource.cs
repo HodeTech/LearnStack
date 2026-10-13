@@ -81,7 +81,13 @@ public static class OutboxDispatcherDataSource
                   AND NOT EXISTS (
                       SELECT 1 FROM pg_roles reachable
                       WHERE reachable.oid <> role.oid
-                        AND pg_has_role(role.oid, reachable.oid, 'MEMBER')))
+                        AND pg_has_role(role.oid, reachable.oid, 'MEMBER'))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pg_roles member
+                      WHERE member.oid <> role.oid
+                        -- Superusers implicitly belong to every role without a grant.
+                        AND NOT member.rolsuper
+                        AND pg_has_role(member.oid, role.oid, 'MEMBER')))
             """;
         command.Parameters.AddWithValue("role", Role);
 

@@ -254,8 +254,11 @@ username without connecting or
 echoing parse input. Worker startup must verify connectivity. Every new physical
 connection verifies exact session/current
 `learnstack_outbox_admin`, BYPASSRLS, NOSUPERUSER, NOCREATEDB, NOCREATEROLE,
-NOREPLICATION and no privilege-escalating membership. No Seeder/web forwarding or
-shared app credential is allowed. [Database Standards](05-database.md#grant-matrix)
+NOREPLICATION and no outgoing role membership or incoming membership by a
+non-superuser, directly or transitively. Superusers inherently reach every role;
+this check detects grant drift on a new physical connection, not continuous
+revocation of an existing session. No Seeder/web forwarding or shared app
+credential is allowed. [Database Standards](05-database.md#grant-matrix)
 owns exact status grants and audit INSERT-only; no business access or audit read,
 update or delete is admitted.
 

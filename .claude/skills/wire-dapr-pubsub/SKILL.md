@@ -152,22 +152,25 @@ architecture test; the transport never re-derives or renames it.
 
 `InProcessEventBus` discovers handler types from assemblies passed at the
 composition root. Ensure the consumer assembly is included and let the registry
-register the concrete handler type:
+register the concrete handler type. This abridged assembly-registration example
+uses the shipped public module marker; retain the other module assemblies in the
+actual composition root:
 
 ```csharp
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(QueueWelcomeNotificationOnEnrollmentCreated).Assembly);
+    typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
 ```
 
 There is no shipped `AddDaprSubscription<T>` helper or `[Topic]` attribute. Do
 not invent one. The event declares its topic and the construction-free handler
 registry supplies the current subscription metadata.
 
-P02b-3 adds the declared manifest: stable versioned subscription IDs, compatible
+P02b-2 implements the declared manifest: stable versioned subscription IDs, compatible
 aliases, and required Pending/Active readiness. Pending subscriptions hold producer
-rows before acquisition; Active publish returns only after every matching delivery
-is durably accepted. A separate executor owns independent per-subscription retries,
+rows before acquisition. P02b-3 adds durable acceptance: Active publish returns only
+after every matching delivery is durably accepted. A separate executor owns
+independent per-subscription retries,
 terminal state and targeted replay. Neither publication nor replay invokes healthy
 sibling business handlers again. No current registration helper is claimed here.
 

@@ -254,6 +254,55 @@ public sealed partial class OutboxDispatchConventionTests
     }
 
     [Fact]
+    public void Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys()
+    {
+        using var census = ProductionCensus.Read();
+        var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+        foreach (var name in new[] { "Concatenated", "ReadonlyName", "Interpolated", "Formatted", "Manager", "Root", "Section" })
+            AssertMutation(census, "a compiled configuration credential indexer: " + name, () =>
+                AddCompiledCredentialProbe(application, name), CredentialOffenders);
+        foreach (var name in new[] { "UnrelatedLiteral", "UnrelatedDynamic", "Dictionary", "CredentialDiagnostic" })
+        {
+            var undo = AddCompiledCredentialProbe(application, name);
+            try { CredentialOffenders(census).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
+            finally { undo(); }
+        }
+    }
+
+    private static Action AddCompiledCredentialProbe(ModuleDefinition production, string name)
+    {
+        // Use the compiler's actual concat/interpolation/indexer IL in the same
+        // nonempty production census, rather than planting the missing full key.
+        var probes = ModuleDefinition.ReadModule(typeof(OutboxDispatchConventionTests).Assembly.Location,
+            new ReaderParameters { ReadingMode = ReadingMode.Immediate });
+        var source = probes.GetTypes().Single(type => type.Name == nameof(CredentialIndexerProbes));
+        var method = source.Methods.Single(item => item.Name == name);
+        // Decode IL while its tokens still belong to the source module. Moving a
+        // deferred body first would read those tokens through the production module.
+        _ = method.Body.Instructions.Count;
+        source.Methods.Remove(method);
+        var planted = AddProbe(production, "CompiledCredentialIndexer");
+        planted.Methods.Add(method);
+        return () => { production.Types.Remove(planted); probes.Dispose(); };
+    }
+
+    private static class CredentialIndexerProbes
+    {
+        private static readonly string ConnectionName = "OutboxDispatcher";
+        public static string? Concatenated(IConfiguration configuration, string name) => configuration["ConnectionStrings:" + name];
+        public static string? ReadonlyName(IConfiguration configuration) => configuration["ConnectionStrings:" + ConnectionName];
+        public static string? Interpolated(IConfiguration configuration, string name) => configuration[$"ConnectionStrings:{name}"];
+        public static string? Formatted(IConfiguration configuration, string name) => configuration[string.Format(System.Globalization.CultureInfo.InvariantCulture, "ConnectionStrings:{0}", name)];
+        public static string? Manager(ConfigurationManager configuration, string name) => configuration["ConnectionStrings:" + name];
+        public static string? Root(ConfigurationRoot configuration, string name) => configuration["ConnectionStrings:" + name];
+        public static string? Section(ConfigurationSection configuration, string name) => configuration["ConnectionStrings:" + name];
+        public static string? UnrelatedLiteral(IConfiguration configuration) => configuration["Telemetry:OtlpEndpoint"];
+        public static string? UnrelatedDynamic(IConfiguration configuration, string key) => configuration[key];
+        public static string? Dictionary(IDictionary<string, string?> values, string name) => values["ConnectionStrings:" + name];
+        public static string CredentialDiagnostic(string name) => $"ConnectionStrings:{name} is not configured.";
+    }
+
+    [Fact]
     public void Credential_registration_detector_rejects_missing_duplicate_wrong_key_and_non_singleton_sources()
     {
         IServiceCollection services = BoundaryRegistrations();
@@ -517,6 +566,15 @@ public sealed partial class OutboxDispatchConventionTests
                     injections.Add(MethodId(method) + ":" + parameter.ParameterType.FullName + ":"
                         + BoundaryAttributeValue(attribute.ConstructorArguments.FirstOrDefault()));
             if (!method.HasBody) continue;
+            // GetConnectionString is the sole admitted credential-read member at
+            // the two roots above. Its indexer equivalent can compose the name,
+            // leaving no complete dispatcher literal in IL. Conservatively refuse
+            // a connection-string prefix alongside an explicit configuration indexer;
+            // this does not classify arbitrary key dataflow or unrelated indexers.
+            if (method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference call && IsConfigurationIndexer(call))
+                && method.Body.Instructions.Any(instruction => instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string value
+                    && value.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)))
+                offenders.Add(MethodId(method) + ": connection-string indexer bypasses the declared credential readers");
             foreach (var instruction in method.Body.Instructions)
             {
                 if (instruction.Operand is MethodReference call && IsConnectionStringRead(call))
@@ -724,6 +782,12 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static bool IsConnectionStringRead(MethodReference method) =>
         method.DeclaringType.FullName == "Microsoft.Extensions.Configuration.ConfigurationExtensions" && method.Name == "GetConnectionString";
+
+    private static bool IsConfigurationIndexer(MethodReference method) => method.Name == "get_Item"
+        && method.ReturnType.FullName == "System.String" && ParametersMatch(method, ["System.String"])
+        && method.DeclaringType.FullName is "Microsoft.Extensions.Configuration.IConfiguration"
+            or "Microsoft.Extensions.Configuration.ConfigurationManager" or "Microsoft.Extensions.Configuration.ConfigurationRoot"
+            or "Microsoft.Extensions.Configuration.ConfigurationSection";
 
     private static object? BoundaryAttributeValue(CustomAttributeArgument argument, int depth = 0) => depth >= 8 ? null
         : argument.Value is CustomAttributeArgument nested ? BoundaryAttributeValue(nested, depth + 1) : argument.Value;

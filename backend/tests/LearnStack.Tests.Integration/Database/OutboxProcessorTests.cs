@@ -41,7 +41,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         IdlePoll = TimeSpan.FromMilliseconds(20),
         ProgressTimeout = TimeSpan.FromSeconds(5),
         SnapshotInterval = TimeSpan.FromMilliseconds(20),
-        ShutdownTimeout = TimeSpan.FromMilliseconds(150),
+        ShutdownTimeout = TimeSpan.FromMilliseconds(200),
     };
 
     [Fact]

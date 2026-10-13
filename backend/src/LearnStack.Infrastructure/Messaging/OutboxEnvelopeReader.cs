@@ -38,6 +38,8 @@ public sealed class OutboxEnvelopeReader(OutboxEventRegistry registry)
                 IntegrationEventBase.PayloadJsonOptions) as IntegrationEventBase;
             if (fact is null) return Invalid();
             var serialized = OutboxEventContract.Serialize(fact);
+            // Npgsql writes timestamps at microsecond precision by truncating
+            // sub-microsecond ticks; compare that stored precision, not a tolerance.
             if (serialized.EventId != claim.Id || serialized.TenantId != claim.TenantId
                 || serialized.Topic != claim.Topic || serialized.PartitionKey != claim.PartitionKey
                 || serialized.OccurredAt.UtcTicks / 10 != claim.OccurredAt.UtcTicks / 10)

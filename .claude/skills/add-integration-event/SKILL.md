@@ -229,19 +229,21 @@ suppress its sibling or overwrite authored, retired or deleted definitions.
 ### Step 5: Subscription registration
 
 The current baseline exposes the consumer assembly to the composition root so the
-construction-free registry discovers and registers its concrete handlers:
+construction-free registry discovers and registers its concrete handlers. This
+abridged assembly-registration example uses the shipped public module marker;
+retain the other module assemblies in the actual composition root:
 
 ```csharp
 builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
-    typeof(QueueWelcomeNotificationOnEnrollmentCreated).Assembly);
+    typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
 ```
 
 Today `InProcessEventBus` resolves the concrete
 `IIntegrationEventHandler<T>` directly from DI in that subscription's async
 scope. MediatR is not involved. There is no shipped
-`AddDaprSubscription<T>` helper; do not invent one. The accepted construction-free
-manifest adds stable subscription IDs, compatible
+`AddDaprSubscription<T>` helper; do not invent one. P02b-2's construction-free
+manifest implements stable subscription IDs, compatible
 type aliases and required Pending/Active readiness. Pending holds the producer row
 before acquisition or payload validation. Only explicit intentional absence may
 acknowledge a known type without publication. P02b-3 makes Active publication mean

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.Persistence;
 using Npgsql;
 using Xunit;
 
@@ -100,6 +101,54 @@ public sealed class OutboxDispatcherRoleGuardTests(PostgresFixture postgres) : I
 
         await using var healthy = await source.OpenConnectionAsync();
         healthy.State.Should().Be(System.Data.ConnectionState.Open);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task App_membership_in_the_dispatcher_is_refused_directly_and_transitively_then_restoration_connects(
+        bool throughBridge, bool synchronous)
+    {
+        await using var source = OutboxDispatcherDataSource.Build(postgres.OutboxConnectionString);
+        await using var first = await source.OpenConnectionAsync();
+        await using var appSource = ApplicationDataSource.Build(postgres.AppConnectionString);
+        // The app guard checks new physical connections. A later grant can still
+        // escalate an existing session, so the dispatcher checks incoming grants too.
+        await using var app = await appSource.OpenConnectionAsync();
+        try
+        {
+            await postgres.ExecuteAsSuperuserAsync(throughBridge
+                ? "CREATE ROLE outbox_guard_member_bridge NOLOGIN; "
+                    + "GRANT learnstack_outbox_admin TO outbox_guard_member_bridge; "
+                    + "GRANT outbox_guard_member_bridge TO learnstack_app"
+                : "GRANT learnstack_outbox_admin TO learnstack_app");
+            await using var switchRole = new NpgsqlCommand("SET ROLE learnstack_outbox_admin", app);
+            await switchRole.ExecuteNonQueryAsync();
+            await using var truth = new NpgsqlCommand(
+                """
+                SELECT session_user = 'learnstack_app'
+                    AND current_user = 'learnstack_outbox_admin' AND rolbypassrls
+                FROM pg_roles WHERE rolname = current_user
+                """, app);
+            (await truth.ExecuteScalarAsync()).Should().Be(true,
+                "the direct or transitive grant must really let an existing app session acquire the bypass role");
+
+            await AssertGuardRefusesAsync(source, synchronous);
+        }
+        finally
+        {
+            await postgres.ExecuteAsSuperuserAsync(throughBridge
+                ? "DROP ROLE IF EXISTS outbox_guard_member_bridge"
+                : "REVOKE learnstack_outbox_admin FROM learnstack_app");
+            await using var resetRole = new NpgsqlCommand("RESET ROLE", app);
+            await resetRole.ExecuteNonQueryAsync();
+        }
+
+        await using var healthy = await source.OpenConnectionAsync();
+        healthy.State.Should().Be(System.Data.ConnectionState.Open);
+        healthy.ProcessID.Should().NotBe(first.ProcessID);
     }
 
     [Fact]

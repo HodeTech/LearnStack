@@ -249,6 +249,7 @@ public sealed partial class OutboxDispatchConventionTests
             typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.Load), [typeof(string)])!,
             typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.LoadFrom), [typeof(string)])!,
             typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.GetType), [typeof(string)])!,
+            typeof(System.Reflection.Assembly).GetMethod(nameof(System.Reflection.Assembly.CreateInstance), [typeof(string)])!,
             typeof(Activator).GetMethod(nameof(Activator.CreateInstance), [typeof(Type)])!,
         };
         foreach (var target in targets)
@@ -418,7 +419,7 @@ public sealed partial class OutboxDispatchConventionTests
     private static bool DynamicResolution(MethodReference target) => target.DeclaringType.FullName switch
     {
         "System.Type" => target.Name == "GetType",
-        "System.Reflection.Assembly" => target.Name is "GetType" or "Load" or "LoadFrom" or "LoadFile" or "UnsafeLoadFrom",
+        "System.Reflection.Assembly" => target.Name is "GetType" or "CreateInstance" or "Load" or "LoadFrom" or "LoadFile" or "UnsafeLoadFrom",
         "System.Activator" => target.Name is "CreateInstance" or "CreateInstanceFrom",
         _ => false,
     };

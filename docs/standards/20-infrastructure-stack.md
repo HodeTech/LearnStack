@@ -30,8 +30,8 @@ intent multiplicity, capture, classification, and which assembly each type lives
 **partition lifecycle**. This standard records that partitioning is demand-gated, where
 the audit types live, and that modules never write `audit_log` directly. Assembly
 placement and the delivered four-method write path in § Audit Plumbing are ADR-0044's;
-ADR-0046 adds the pending confined fifth seam; both write-path authorities are
-named in the header above.
+ADR-0046 adds the confined fifth seam implemented in P02b-2; both write-path
+authorities are named in the header above.
 
 This standard defines how application code uses the foundation infrastructure introduced
 in the 2026-05-18 redesign: Dapr building blocks, the APISIX gateway, the Hub HTTPS
@@ -81,10 +81,11 @@ Rules that follow from this:
   written against the port and holds for the default implementation too. If a rule only
   makes sense for the vendor adapter, it is a rule about the adapter and belongs in that
   adapter's section, not in module guidance.
-- **`InProcessEventBus` is a first-class transport, not a stub.** Same
-  `IIntegrationEventHandler<T>`, same `IInboxGuard`, same tenant-context restoration as
-  the durable path. A development path that skips those never exercises the isolation
-  code, and every consumer would end up needing two implementations.
+- **`InProcessEventBus` is a first-class transport, not a stub.** It uses
+  `IIntegrationEventHandler<T>` and restores tenant context before handler resolution.
+  Durable acceptance and the shared transport-owned `IInboxGuard` remain P02b-3
+  work under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+  Phase 11's adapter must preserve that consumer contract.
 - **A demand-gated block is not "deferred".** It qualifies only with all four of: a
   port, a working default implementation, an owning phase, and a written trigger. If a
   trigger fires earlier than its phase, the item moves to the phase where it fired and
