@@ -3463,11 +3463,13 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `Outbox_Pending_Subscriptions_Preserve_Events`
 
-- **Asserts:** Real TenantCreated rows and aliases remain unchanged through repeated
+- **Asserts:** TenantCreated rows and aliases assigned Pending manifests remain
+  unchanged through repeated
   Pending polls, even with malformed stored payloads: no acquisition, attempts,
   validation or handler construction. Declared intentional absence is a distinct
   tested acknowledgement policy. Test-owned Active contracts exercise the shipped
-  publish/mark path; real subscriptions stay Pending until P02b-3.
+  publish/mark path. P02b-3 Step 5 activates both real production subscriptions;
+  Pending-manifest fixtures retain the policy proof.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
 - **Type:** integration tests (Testcontainers) and unit tests of production
@@ -3477,9 +3479,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `OutboxProductionCompositionTests`, `OutboxEventRegistryTests`), with these proofs:
   [OutboxProcessorTests.Real_provisioning_rows_remain_Pending_across_hosted_polls_without_construction_or_mutation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs),
   [OutboxDispatchStoreTests.Real_TenantCreated_contracts_and_aliases_are_held_before_any_payload_validation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
-  [OutboxProductionCompositionTests.Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
+  [OutboxProductionCompositionTests.Real_provisioning_contract_activates_both_distinct_default_consumers_with_exact_handler_bindings](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
   and [OutboxEventRegistryTests.Active_manifest_and_discovered_handlers_must_match_in_both_directions](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Messaging/OutboxEventRegistryTests.cs)
-  prove real Pending holds and composition refusal. Test-owned Active publication
+  prove declared Pending holds, actual Active bindings and composition refusal.
+  Test-owned Active publication
   runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_following_acceptance_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
   [OutboxProcessorTests.Explicit_intentional_absence_acknowledges_without_constructing_a_handler](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs)
   proves the distinct intentional-absence policy.

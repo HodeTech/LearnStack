@@ -2883,7 +2883,7 @@ Step 5 follows automatically with useful consumers and semantic Seeder handoff.
 
 ### P02b-3 Step 5 — useful defaults and semantic seed handoff (2026-10-13)
 
-**Implementation complete; round 1 complete, round 2 pending.**
+**Complete; both independent review rounds complete.**
 Step 4 is closed before these changes. This step implements the accepted pair of
 one-root initializers and shared transaction-owned concept serialization, then
 moves built-in seed verification to semantic identity. Authored identities and
@@ -2936,6 +2936,25 @@ document check passes 2,209 relative links and 480 fragments with no errors;
 the reviewer independently passes all five corpus guards. No runtime correction
 was needed. Missing full-packet ADR delivery notes are not a Step 5 finding:
 Step 6 owns them after production-census enforcement and final regression.
+
+#### Step 5 review round 2
+
+Fresh GPT-6-astra high and GPT-6.1-sol high reviewers independently reviewed
+`94d7d6b..0302d8a`, including implementation and the R1 correction. Both approve;
+no runtime finding remains. The runtime reviewer independently passes 92 focused
+integration and 97 unit cases, with zero failures/skips. The proof/corpus reviewer
+independently passes 92 integration cases and all five corpus guards, including
+the final correction below. These are overlapping independent reruns.
+
+The second reviewer found the Pending-policy catalogue entry still naming the
+renamed production-composition test and calling actual subscriptions Pending.
+Root verified the surviving test and explicit Pending fixture registrations,
+then corrected the reference and separated the policy proof from current Active
+bindings. The reviewer rechecked that correction and the 198/120/78 catalogue
+counts with no open finding. Release binaries are unchanged. Root's document
+check has zero link/fragment/width errors and preserves earlier receipts and ADR
+text. Step 5 is closed. Step 6 follows with production censuses, remaining current
+carriers, full regression, demo/Lighthouse and PR-head CI verification.
 
 ### Durable outbox dispatch
 
