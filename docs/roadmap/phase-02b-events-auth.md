@@ -2519,7 +2519,7 @@ committed before the first P02b-3 runtime change.
 
 ### P02b-3 Step 1 — shared storage and privileges (2026-10-13)
 
-**Implemented; independent review rounds pending.** Decision acceptance
+**Implemented; second independent review pending.** Decision acceptance
 `63363ac` precedes this runtime change. EF generated Platform migration
 `20261013083903_add_event_delivery_and_inbox`; its raw infrastructure tables add
 no EF entity or model snapshot change. Standards 05 owns the complete applied
@@ -2541,7 +2541,8 @@ immutable guards with removed-trigger dirty controls, matching index/order plans
 producer-retention independence, canonical-document catalog parity and disposable
 Down/reapply. The existing all-table fixture now seeds both stores for both tenants,
 including distinct ledger organizations, and marks fixture ledger canaries complete.
-The general isolation, scope-hatch, foreign-write and grant sweeps include them.
+The general tenant-isolation, foreign-write and grant sweeps include them.
+Ledger-specific organization and scope-hatch proofs are recorded below.
 Standalone Platform migration proofs install Tenancy's shared organization guard
 first, matching the documented deployment sequence; historical migrations are intact.
 
@@ -2553,6 +2554,26 @@ resolve without errors. Earlier receipts and Accepted ADR text remain intact.
 Unit/frontend/runtime-worker suites are
 not rerun for this schema-only step. Subsequent steps own acceptance, execution,
 subscriber scheduling, useful defaults and full packet regression.
+
+#### Step 1 review round 1
+
+Fresh GPT-6-astra/high reviewed every file in `63363ac..ad57a1b` through the
+standards and code-review lenses. It requested changes for one missing required
+proof: existing cross-organization/scope-hatch behavior tests name other tables,
+so they do not establish the new ledger's organization boundary. Root independently
+confirmed this gap; the current migration predicates were not found defective.
+
+The correction adds app-role ledger read, exact/null/mismatched acceptance and
+fenced completion tests, with and without the tenant read hatch. Five live leased
+canaries distinguish tenant-wide, own/sibling organization and foreign-tenant rows.
+Own-scope controls remain writable. Disposable policy mutants prove a missing
+organization read term leaks the sibling, a read hatch copied into WITH CHECK
+admits forbidden acceptance, and removing only the restrictive UPDATE guard
+changes zero matched rows into the remaining WITH CHECK's RLS refusal. The last
+control does not claim a write bypasses both protections. No production policy or
+grant changes are needed. The correction passes 125 focused ledger/organization
+integration cases, zero failures/skips, with `CI=true` Release. Review round 2
+follows the correction commit.
 
 ### Durable outbox dispatch
 

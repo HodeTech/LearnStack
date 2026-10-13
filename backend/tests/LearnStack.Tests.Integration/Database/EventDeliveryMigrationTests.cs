@@ -593,6 +593,252 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
         (await SchemaQueries.CountAsync(verify, "SELECT count(*) FROM outbox_messages", read)).Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Application_organization_reads_widen_only_with_the_tenant_hatch(bool tenantHatch)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var canaries = await SeedOrganizationCanariesAsync(database);
+        var expected = new List<string> { canaries["tenant"].EventId.ToString(), canaries["own"].EventId.ToString() };
+        if (tenantHatch) expected.Add(canaries["sibling"].EventId.ToString());
+        (await ReadOrganizationCanariesAsync(database, tenantHatch)).Should().BeEquivalentTo(expected,
+            "an A1 session reads its own and tenant-wide envelopes; only the tenant hatch adds A2, never tenant B");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Application_acceptance_requires_exact_organization_even_with_the_tenant_read_hatch(bool tenantHatch)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await SeedOrganizationCanariesAsync(database);
+        (string Name, Guid? SessionOrg, Guid TargetTenant, Guid? TargetOrg, bool Allowed)[] cases =
+        [
+            ("tenant session / tenant row", null, SchemaFixture.TenantA, null, true),
+            ("tenant session / A1 row", null, SchemaFixture.TenantA, SchemaFixture.OrgA1, false),
+            ("tenant session / A2 row", null, SchemaFixture.TenantA, SchemaFixture.OrgA2, false),
+            ("tenant session / foreign org", null, SchemaFixture.TenantA, SchemaFixture.OrgB1, false),
+            ("A1 session / A1 row", SchemaFixture.OrgA1, SchemaFixture.TenantA, SchemaFixture.OrgA1, true),
+            ("A1 session / tenant row", SchemaFixture.OrgA1, SchemaFixture.TenantA, null, false),
+            ("A1 session / A2 row", SchemaFixture.OrgA1, SchemaFixture.TenantA, SchemaFixture.OrgA2, false),
+            ("A1 session / foreign org", SchemaFixture.OrgA1, SchemaFixture.TenantA, SchemaFixture.OrgB1, false),
+            ("A1 session / foreign tenant", SchemaFixture.OrgA1, SchemaFixture.TenantB, SchemaFixture.OrgA1, false),
+            ("tenant session / foreign tenant", null, SchemaFixture.TenantB, null, false),
+        ];
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        foreach (var testCase in cases)
+        {
+            await AnnounceAsync(app, transaction, SchemaFixture.TenantA, testCase.SessionOrg);
+            await SchemaQueries.SetSettingAsync(app, transaction, "app.scope", tenantHatch ? "tenant" : "");
+            await transaction.SaveAsync("acceptance");
+            var eventId = Guid.NewGuid();
+            var insert = async () => await InsertAsync(app, transaction, testCase.TargetTenant, testCase.TargetOrg, eventId);
+            if (testCase.Allowed)
+            {
+                await insert.Should().NotThrowAsync(testCase.Name);
+                (await CountEventAsync(app, transaction, "event_deliveries", eventId)).Should().Be(1, testCase.Name);
+            }
+            else
+            {
+                var error = (await insert.Should().ThrowAsync<PostgresException>(testCase.Name)).Which;
+                error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+                error.MessageText.Should().Contain("row-level security", "column permissions alone cannot prove scope enforcement");
+            }
+            await transaction.RollbackAsync("acceptance");
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fenced_application_completion_writes_only_its_exact_organization_even_with_the_read_hatch(bool tenantHatch)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var canaries = await SeedOrganizationCanariesAsync(database);
+        foreach (var name in new[] { "tenant", "sibling", "foreign-tenant", "foreign-org" })
+        {
+            (await CompleteOrganizationCanaryAsync(database, canaries[name], tenantHatch)).Should().Be(0,
+                $"A1 must not complete {name}, even with its correct token and live lease");
+        }
+        (await CompleteOrganizationCanaryAsync(database, canaries["own"], tenantHatch)).Should().Be(1,
+            "the same fenced statement and granted completion column must succeed for A1's own live delivery");
+        await using var scheduler = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        (await SchemaQueries.CountAsync(scheduler, "SELECT count(*) FROM event_deliveries WHERE processed_at IS NOT NULL"))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Organization_read_proof_detects_an_isolated_tenant_only_using_policy_mutant()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var canaries = await SeedOrganizationCanariesAsync(database);
+        (await ReadOrganizationCanariesAsync(database, tenantHatch: false)).Should().BeEquivalentTo(
+            [canaries["tenant"].EventId.ToString(), canaries["own"].EventId.ToString()]);
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            // Change only the disposable database's READ predicate; retain tenant
+            // isolation, WITH CHECK and both restrictive write guards.
+            await SchemaQueries.ExecuteAsync(owner, null, """
+                ALTER POLICY event_deliveries_isolation ON event_deliveries
+                USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+                """);
+        }
+        (await ReadOrganizationCanariesAsync(database, tenantHatch: false)).Should().BeEquivalentTo(
+            [canaries["tenant"].EventId.ToString(), canaries["own"].EventId.ToString(), canaries["sibling"].EventId.ToString()],
+            "the planted missing organization READ term must expose A2 while tenant B stays hidden");
+    }
+
+    [Fact]
+    public async Task Acceptance_scope_proof_detects_an_isolated_read_hatch_in_with_check_mutant()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await SeedOrganizationCanariesAsync(database);
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await AnnounceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+            await SchemaQueries.SetSettingAsync(app, transaction, "app.scope", "tenant");
+            var insert = async () => await InsertAsync(app, transaction, SchemaFixture.TenantA, null, Guid.NewGuid());
+            var error = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+            error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+            error.MessageText.Should().Contain("row-level security");
+        }
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            // The historical failure shape copies the permissive READ hatch into
+            // INSERT's WITH CHECK. Restrictive UPDATE/DELETE guards cannot fix INSERT.
+            await SchemaQueries.ExecuteAsync(owner, null, """
+                ALTER POLICY event_deliveries_isolation ON event_deliveries
+                WITH CHECK (
+                    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+                    AND (organization_id IS NULL
+                         OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                         OR current_setting('app.scope', true) = 'tenant'))
+                """);
+        }
+        await using var dirtyApp = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(dirtyApp);
+        await using var dirtyTransaction = await dirtyApp.BeginTransactionAsync();
+        await AnnounceAsync(dirtyApp, dirtyTransaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+        await SchemaQueries.SetSettingAsync(dirtyApp, dirtyTransaction, "app.scope", "tenant");
+        var dirtyEvent = Guid.NewGuid();
+        await InsertAsync(dirtyApp, dirtyTransaction, SchemaFixture.TenantA, null, dirtyEvent);
+        (await CountEventAsync(dirtyApp, dirtyTransaction, "event_deliveries", dirtyEvent)).Should().Be(1,
+            "a weakened WITH CHECK must make the forbidden A1-to-tenant-wide acceptance observable");
+    }
+
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("sibling")]
+    public async Task Restrictive_update_guard_stops_targeting_before_the_remaining_with_check_backstop(string target)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var canaries = await SeedOrganizationCanariesAsync(database);
+        (await CompleteOrganizationCanaryAsync(database, canaries[target], tenantHatch: true)).Should().Be(0,
+            "the tenant READ hatch must not admit a readable foreign-organization row as an UPDATE target");
+        await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
+            // Drop only the restrictive UPDATE guard in this disposable database.
+            // WITH CHECK remains exact, so the mutant targets the row but still
+            // cannot commit it: its observable result changes from zero to 42501.
+            await SchemaQueries.ExecuteAsync(owner, null,
+                "DROP POLICY event_deliveries_org_write_guard ON event_deliveries");
+        }
+        var dirtyCompletion = async () => await CompleteOrganizationCanaryAsync(database, canaries[target], tenantHatch: true);
+        var error = (await dirtyCompletion.Should().ThrowAsync<PostgresException>()).Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        error.MessageText.Should().Contain("row-level security");
+        (await CompleteOrganizationCanaryAsync(database, canaries["own"], tenantHatch: true)).Should().Be(1,
+            "the unchanged WITH CHECK still accepts A1's own leased delivery");
+        await using var scheduler = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        (await SchemaQueries.CountAsync(scheduler, "SELECT count(*) FROM event_deliveries WHERE processed_at IS NOT NULL"))
+            .Should().Be(1, "the removed guard does not bypass the remaining exact WITH CHECK");
+    }
+
+    private sealed record OrganizationCanary(Guid TenantId, Guid? OrganizationId, Guid EventId, string LeaseToken);
+
+    private static async Task<Dictionary<string, OrganizationCanary>> SeedOrganizationCanariesAsync(DisposableSchemaDatabase database)
+    {
+        var canaries = new Dictionary<string, OrganizationCanary>(StringComparer.Ordinal)
+        {
+            ["tenant"] = new(SchemaFixture.TenantA, null, Guid.NewGuid(), Guid.NewGuid().ToString()),
+            ["own"] = new(SchemaFixture.TenantA, SchemaFixture.OrgA1, Guid.NewGuid(), Guid.NewGuid().ToString()),
+            ["sibling"] = new(SchemaFixture.TenantA, SchemaFixture.OrgA2, Guid.NewGuid(), Guid.NewGuid().ToString()),
+            ["foreign-tenant"] = new(SchemaFixture.TenantB, null, Guid.NewGuid(), Guid.NewGuid().ToString()),
+            ["foreign-org"] = new(SchemaFixture.TenantB, SchemaFixture.OrgB1, Guid.NewGuid(), Guid.NewGuid().ToString()),
+        };
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await using var transaction = await app.BeginTransactionAsync();
+            foreach (var canary in canaries.Values)
+            {
+                await AnnounceAsync(app, transaction, canary.TenantId, canary.OrganizationId);
+                await InsertAsync(app, transaction, canary.TenantId, canary.OrganizationId, canary.EventId);
+            }
+            await transaction.CommitAsync();
+        }
+        await using var scheduler = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        foreach (var canary in canaries.Values)
+        {
+            await using var lease = new NpgsqlCommand("""
+                UPDATE event_deliveries SET locked_by = @token,
+                    locked_until = clock_timestamp() + interval '30 seconds', attempts = 1
+                WHERE tenant_id = @tenant AND subscription_id = @subscription AND event_id = @event
+                    AND processed_at IS NULL AND terminal_reason IS NULL AND dead_lettered_at IS NULL
+                    AND locked_by IS NULL
+                """, (NpgsqlConnection)scheduler);
+            lease.Parameters.AddWithValue("tenant", canary.TenantId);
+            lease.Parameters.AddWithValue("subscription", Subscription);
+            lease.Parameters.AddWithValue("event", canary.EventId);
+            lease.Parameters.AddWithValue("token", canary.LeaseToken);
+            (await lease.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        (await SchemaQueries.CountAsync(scheduler, """
+            SELECT count(*) FROM event_deliveries
+            WHERE processed_at IS NULL AND locked_by IS NOT NULL AND locked_until > clock_timestamp()
+            """)).Should().Be(5, "every refusal must have a real live leased row, rather than a missing or expired target");
+        return canaries;
+    }
+
+    private static async Task<List<string>> ReadOrganizationCanariesAsync(DisposableSchemaDatabase database, bool tenantHatch)
+    {
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await AnnounceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+        await SchemaQueries.SetSettingAsync(app, transaction, "app.scope", tenantHatch ? "tenant" : "");
+        // No application WHERE clause can hide a missing tenant/org policy here.
+        return await SchemaQueries.ReadStringsAsync(app, "SELECT event_id::text FROM event_deliveries", transaction);
+    }
+
+    private static async Task<int> CompleteOrganizationCanaryAsync(
+        DisposableSchemaDatabase database, OrganizationCanary canary, bool tenantHatch)
+    {
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await AnnounceAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA1);
+        await SchemaQueries.SetSettingAsync(app, transaction, "app.scope", tenantHatch ? "tenant" : "");
+        await using var complete = new NpgsqlCommand("""
+            UPDATE event_deliveries SET processed_at = clock_timestamp()
+            WHERE tenant_id = @tenant AND subscription_id = @subscription AND event_id = @event
+                AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL
+                AND locked_by = @token AND locked_until > clock_timestamp()
+            """, (NpgsqlConnection)app, (NpgsqlTransaction)transaction);
+        complete.Parameters.AddWithValue("tenant", canary.TenantId);
+        complete.Parameters.AddWithValue("subscription", Subscription);
+        complete.Parameters.AddWithValue("event", canary.EventId);
+        complete.Parameters.AddWithValue("token", canary.LeaseToken);
+        var affected = await complete.ExecuteNonQueryAsync();
+        await transaction.CommitAsync();
+        return affected;
+    }
+
     private static PlatformDbContext Platform(DisposableSchemaDatabase database) => new(
         new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(database.MigrationConnectionString,
             provider => provider.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable)).Options);
