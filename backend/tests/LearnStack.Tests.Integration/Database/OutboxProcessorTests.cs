@@ -196,6 +196,55 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     }
 
     [Fact]
+    public async Task Successful_claims_keep_the_snapshot_until_its_interval_and_refresh_at_the_boundary()
+    {
+        await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
+        var time = new SnapshotTimeProvider();
+        var bounds = Bounds with
+        {
+            SnapshotInterval = TimeSpan.FromSeconds(1),
+            PublishTimeout = TimeSpan.FromSeconds(10),
+            LeaseDuration = TimeSpan.FromSeconds(30),
+            ProgressTimeout = TimeSpan.FromSeconds(45),
+        };
+        test.Start(bounds, time);
+        await UntilAsync(() => test.Observation.IsHealthy);
+        var initial = test.Observation.Snapshot;
+        initial.LastSnapshotTimestamp.Should().Be(0);
+
+        var first = await test.InsertAsync();
+        await UntilAsync(async () => (await test.ReadAsync(first)).ProcessedAt is not null);
+        var secondPartition = Guid.CreateVersion7();
+        var second = test.Callbacks.Hold(secondPartition);
+        var secondId = await test.InsertAsync(partition: secondPartition);
+        await second.Entered.Task.WaitAsync(ProofDeadline);
+        // Entering the next callback proves the preceding iteration (including
+        // its refresh decision) completed. Wall-clock duration cannot expire this clock.
+        test.Observation.Snapshot.Queue.Should().BeSameAs(initial.Queue);
+
+        time.Advance(bounds.SnapshotInterval - TimeSpan.FromTicks(1));
+        second.ReleaseCallback.TrySetResult();
+        await UntilAsync(async () => (await test.ReadAsync(secondId)).ProcessedAt is not null);
+        var thirdPartition = Guid.CreateVersion7();
+        var third = test.Callbacks.Hold(thirdPartition);
+        var thirdId = await test.InsertAsync(partition: thirdPartition);
+        await third.Entered.Task.WaitAsync(ProofDeadline);
+        test.Observation.Snapshot.Queue.Should().BeSameAs(initial.Queue);
+        test.Observation.Snapshot.LastSnapshotTimestamp.Should().Be(0);
+
+        time.Advance(TimeSpan.FromTicks(1));
+        third.ReleaseCallback.TrySetResult();
+        await UntilAsync(() => test.Observation.Snapshot.LastSnapshotTimestamp == time.GetTimestamp());
+
+        (await test.ReadAsync(thirdId)).ProcessedAt.Should().NotBeNull();
+        test.Observation.Snapshot.Queue.Should().NotBeSameAs(initial.Queue);
+        test.Observation.Snapshot.Queue.PendingCount.Should().Be(0);
+        test.Observation.Snapshot.LastSnapshotTimestamp.Should().Be(bounds.SnapshotInterval.Ticks);
+        test.Callbacks.Constructions.Should().Be(3);
+        test.Observation.IsHealthy.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses()
     {
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
@@ -557,6 +606,14 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         string? TerminalReason, DateTimeOffset? DeadLetteredAt, string? LastError,
         DateTimeOffset AvailableAfter, string Type, string Payload);
     private sealed record TerminalAudit(string OperationType, string OperationClass, string Correlation, string Metadata);
+
+    private sealed class SnapshotTimeProvider : TimeProvider
+    {
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Interlocked.Read(ref _timestamp);
+        public void Advance(TimeSpan duration) => Interlocked.Add(ref _timestamp, duration.Ticks);
+    }
 
     /// <summary>Controls shutdown deadlines while all other host timers keep running normally.</summary>
     private sealed class ShutdownTimeProvider(TimeSpan shutdownTimeout) : TimeProvider

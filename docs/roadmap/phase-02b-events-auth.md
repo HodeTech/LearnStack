@@ -2050,6 +2050,18 @@ Both correction rounds and local validation are complete. Exact correction-head
 CI remains pending in this local receipt; the PR description owns live checks
 and artifact-backed evidence after publication.
 
+#### Snapshot interval correction (2026-10-13)
+
+The dispatch loop no longer forces a full queue snapshot after every successful
+claim. It checks `SnapshotInterval` after completed iterations, while `didWork`
+still controls idle polling. A controlled monotonic-clock integration case
+dispatches three real rows: the initial snapshot survives successful work and
+the last tick before the interval; the exact boundary refreshes it after the
+next completed dispatch. Release build reports zero warnings/errors; format,
+1,847 unit, 287 architecture and all 17 worker integration cases pass, with zero
+failures/skips. Independent correction reviews and new-head CI remain pending
+in this initial local receipt.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

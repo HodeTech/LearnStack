@@ -99,7 +99,7 @@ public sealed partial class OutboxProcessor : BackgroundService
                         _observation.Progress();
                     }
 
-                    await RefreshAsync(didWork, stoppingToken).ConfigureAwait(false);
+                    await RefreshAsync(force: false, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
