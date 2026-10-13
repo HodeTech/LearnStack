@@ -42,6 +42,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     private const string PendingSubscription = "proof.future.v1";
     private const string SensitiveCanary = "private_delivery_canary_84e315";
     private static readonly Guid PayloadCanary = new("b90387b1-c760-4c58-a276-8a7fa9a2f98a");
+    private static readonly Guid CausalActor = new("019bf000-7d6c-7000-8000-000000000057");
     private const string Operation = "customization.content_type.delivery_probe";
     private const string Trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
@@ -49,6 +50,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     public async Task Successful_delivery_commits_business_inbox_outbox_MUST_audit_and_processed_ledger_together()
     {
         await using var fixture = await Fixture.CreateAsync(schema);
+        CausalActor.Should().NotBe(UserId.SystemActor.Value);
         var fact = Fact();
         var claim = await fixture.AcceptAndClaimAsync(fact);
         using var cancellation = new CancellationTokenSource();
@@ -79,12 +81,12 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             state.SuccessAudit.Should().Be(1);
             state.Processed.Should().BeTrue();
             state.OutboxCausation.Should().Be(fact.EventId);
-            state.OutboxActor.Should().Be(SchemaFixture.Actor);
+            state.OutboxActor.Should().Be(CausalActor);
             state.AuditActor.Should().Be(UserId.SystemActor.Value);
             state.AuditCorrelation.Should().Be(Trace);
             state.AuditOrganization.Should().Be(SchemaFixture.OrgA1);
             state.AuditCausation.Should().Be(fact.EventId);
-            state.AuditCausalActor.Should().Be(SchemaFixture.Actor);
+            state.AuditCausalActor.Should().Be(CausalActor);
             state.LockedBy.Should().Be(claim.Token, "application completion cannot rewrite scheduler provenance");
         }
         finally
@@ -120,7 +122,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         var failedOrigin = await fixture.FailedAuditOriginAsync();
         failedOrigin.Actor.Should().Be(UserId.SystemActor.Value);
         failedOrigin.Causation.Should().Be(fact.EventId);
-        failedOrigin.CausalActor.Should().Be(SchemaFixture.Actor);
+        failedOrigin.CausalActor.Should().Be(CausalActor);
 
         fixture.Observation.Fault = null;
         var retry = await fixture.Executor.ExecuteAsync(claim, new DeliveryCommitGate());
@@ -495,8 +497,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             state.Processed.Should().BeTrue();
             (await fixture.OutboxOriginsAsync(fact)).Should().BeEquivalentTo(new[]
             {
-                (fact.EventId, SchemaFixture.Actor),
-                (fixture.Observation.DomainEventId, SchemaFixture.Actor),
+                (fact.EventId, CausalActor),
+                (fixture.Observation.DomainEventId, CausalActor),
             });
         }
         fixture.Logs.Text.Should().NotContain(SensitiveCanary).And.NotContain(PayloadCanary.ToString());
@@ -668,7 +670,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             context.TenantId.Value.Should().Be(SchemaFixture.TenantA);
             context.OrganizationId!.Value.Value.Should().Be(SchemaFixture.OrgA1);
             context.UserId.Should().Be(UserId.SystemActor);
-            context.CausalActorUserId.Should().Be(UserId.From(SchemaFixture.Actor));
+            context.CausalActorUserId.Should().Be(UserId.From(CausalActor));
             context.CorrelationId.Should().Be(Trace);
             context.ModuleName.Should().Be("unknown");
             Activity.Current.Should().NotBeNull();
@@ -922,7 +924,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             insert.Parameters.AddWithValue("occurred", fact.OccurredAt);
             insert.Parameters.AddWithValue("correlation", Trace);
             insert.Parameters.AddWithValue("causation", Guid.CreateVersion7());
-            insert.Parameters.AddWithValue("actor", SchemaFixture.Actor);
+            insert.Parameters.AddWithValue("actor", CausalActor);
             insert.Parameters.AddWithValue("type", corruption == "type" ? SensitiveCanary : typeof(ProofEvent).AssemblyQualifiedName!);
             insert.Parameters.AddWithValue("topic", corruption == "topic" ? "learnstack.proof.wrong" : fact.Topic);
             insert.Parameters.AddWithValue("partition", corruption == "partition" ? "wrong-partition" : fact.PartitionKey);
@@ -932,7 +934,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             return await ClaimAsync(fact, subscription);
         }
         private static IntegrationEventEnvelope Envelope(ProofEvent fact) =>
-            new(fact, Trace, SchemaFixture.OrgA1, Guid.CreateVersion7(), UserId.From(SchemaFixture.Actor));
+            new(fact, Trace, SchemaFixture.OrgA1, Guid.CreateVersion7(), UserId.From(CausalActor));
         private async Task<DeliveryClaim> ClaimAsync(ProofEvent fact, string subscription, int attempts = 1)
         {
             await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(Database.OutboxConnectionString);

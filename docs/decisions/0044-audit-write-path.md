@@ -1173,6 +1173,26 @@ The original body, Decision, acceptance metadata and earlier amendments survive.
 This is the additive clarification ADR-0046 requires, not a factual erratum or
 a normative supersession.
 
+## Amendment 12 — Subscriber audit delivery note (2026-10-13)
+
+**Delivery note.** P02b-3 Steps 3–4 implement Amendments 10–11's remaining
+subscriber duties. `InboxMessage` and `EventDelivery` are excluded from entity
+capture with planted controls; explicit business intents remain audited.
+The confined subscriber terminal writer registers `platform.delivery.dead_letter`
+as off-path MUST/SecurityEvent. Its actual-row witness and the fifth seam bind
+stored tenant/org/subscription/event identity and the live transaction; terminal
+state and audit commit together. The scheduler receives no payload or causal
+SELECT grant. Real-role identity substitutions, audit refusal and lost-COMMIT
+controls are recorded with the
+[Step 4 implementation](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
+The catalogue names the
+[row-bound terminal proof](../standards/21-architecture-tests-catalogue.md#delivery_terminal_audit_identity_is_row_bound).
+
+This records delivery of the accepted additive seam and exclusions. It changes
+no earlier Decision, acceptance metadata, grant or durability rule. Production
+default subscriptions and Seeder handoff remain Step 5; packet review/PR closeout
+remain Step 6.
+
 ## References
 
 - [ADR-0033 Audit Durability Model](0033-audit-durability-model.md) — the durability

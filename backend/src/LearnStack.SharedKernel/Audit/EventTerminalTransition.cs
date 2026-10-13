@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Audit;
@@ -12,8 +13,8 @@ namespace LearnStack.SharedKernel.Audit;
 /// <summary>The immutable result of one fenced terminal UPDATE in its live transaction.</summary>
 /// <remarks>
 /// Construction is private; the protected minting seam is confined to the producer
-/// transition store by the production architecture census. It grants no friend-assembly
-/// access to other SharedKernel authority. Subscriber minting belongs to P02b-3.
+/// and subscriber transition stores by the production architecture census. It grants
+/// no friend-assembly access to other SharedKernel authority.
 /// </remarks>
 public sealed class EventTerminalTransition
 {
@@ -24,7 +25,7 @@ public sealed class EventTerminalTransition
         DbConnection connection,
         DbTransaction transaction,
         DbDataReader returnedRow,
-        string validatedAttemptTraceparent)
+        string validatedAttemptTraceparent, bool subscriber)
     {
         EnsureLiveTransaction(connection, transaction);
         if (!TryCanonicalTraceparent(validatedAttemptTraceparent, out var attempt)
@@ -33,7 +34,7 @@ public sealed class EventTerminalTransition
             throw new ArgumentException("The terminal attempt requires a canonical W3C traceparent.");
         }
 
-        if (returnedRow.FieldCount != 9)
+        if (returnedRow.FieldCount != (subscriber ? 7 : 9))
         {
             throw new ArgumentException("The terminal UPDATE must return its complete bound row.");
         }
@@ -46,16 +47,29 @@ public sealed class EventTerminalTransition
         Reason = returnedRow.GetString(3);
         Attempts = returnedRow.GetInt32(4);
         AcquisitionToken = returnedRow.GetString(5);
+        Kind = subscriber ? "subscriber" : "producer";
+        SubscriptionId = subscriber ? returnedRow.GetString(6) : null;
 
         if (EventId == Guid.Empty || TenantId == Guid.Empty
             || TenantId == Identifiers.TenantId.PlatformSentinel.Value
             || OrganizationId == Guid.Empty || Attempts < 0
-            || Reason is not ("unknown_type" or "retired_type" or "invalid_envelope" or "retry_exhausted")
+            || (Reason is not ("unknown_type" or "retired_type" or "invalid_envelope" or "retry_exhausted")
+                && !(subscriber && Reason == "invalid_subscription"))
+            || (subscriber && !Regex.IsMatch(SubscriptionId!,
+                @"\A[a-z][a-z0-9]*\.[a-z][a-z0-9-]*\.v[1-9][0-9]*\z", RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(100)))
             || !Guid.TryParseExact(AcquisitionToken, "D", out var token)
             || token == Guid.Empty
             || !string.Equals(AcquisitionToken, token.ToString("D"), StringComparison.Ordinal))
         {
             throw new ArgumentException("The terminal UPDATE returned invalid transition identity.");
+        }
+
+        if (subscriber)
+        {
+            CorrelationId = attempt;
+            Metadata = ComposeMetadata(null, null);
+            return;
         }
 
         Guid? causationId = returnedRow.IsDBNull(7) ? null : returnedRow.GetGuid(7);
@@ -75,7 +89,7 @@ public sealed class EventTerminalTransition
     public string AcquisitionToken { get; }
     public string CorrelationId { get; }
     public string Metadata { get; }
-    public string Kind { get; } = "producer";
+    public string Kind { get; }
     public string? SubscriptionId { get; }
 
     /// <summary>Refuses a draft or transaction that does not describe this exact transition.</summary>
@@ -122,7 +136,20 @@ public sealed class EventTerminalTransition
             ArgumentNullException.ThrowIfNull(connection);
             ArgumentNullException.ThrowIfNull(transaction);
             ArgumentNullException.ThrowIfNull(returnedRow);
-            return new EventTerminalTransition(connection, transaction, returnedRow, validatedAttemptTraceparent);
+            return new EventTerminalTransition(connection, transaction, returnedRow, validatedAttemptTraceparent, subscriber: false);
+        }
+
+        /// <summary>Reads the actual routing-only result of the successful fenced subscriber UPDATE.</summary>
+        protected static EventTerminalTransition FromSubscriberUpdate(
+            DbConnection connection,
+            DbTransaction transaction,
+            DbDataReader returnedRow,
+            string validatedAttemptTraceparent)
+        {
+            ArgumentNullException.ThrowIfNull(connection);
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(returnedRow);
+            return new EventTerminalTransition(connection, transaction, returnedRow, validatedAttemptTraceparent, subscriber: true);
         }
     }
 
@@ -141,6 +168,7 @@ public sealed class EventTerminalTransition
         {
             writer.WriteStartObject();
             writer.WriteString("event_id", EventId);
+            if (SubscriptionId is not null) writer.WriteString("subscription_id", SubscriptionId);
             writer.WriteString("reason", Reason);
             writer.WriteNumber("attempts", Attempts);
             if (causationId is { } causation && causation != Guid.Empty)

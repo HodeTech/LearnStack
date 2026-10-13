@@ -367,7 +367,8 @@ public sealed partial class OutboxDispatchConventionTests
         // factory/instance duplicates cannot hide behind the dispatcher type filter.
         var workers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).ToArray();
         CheckSet(offenders, "hosted-service descriptor types", workers.Select(descriptor => descriptor.ImplementationType?.FullName ?? "non-type registration"),
-            [typeof(OutboxProcessor).FullName!, "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
+            [typeof(OutboxProcessor).FullName!, typeof(DeliveryProcessor).FullName!,
+                "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
         // The helper graph walks production contracts. Its one framework-owned
         // virtual clock capability is admitted only as the shipped system instance.

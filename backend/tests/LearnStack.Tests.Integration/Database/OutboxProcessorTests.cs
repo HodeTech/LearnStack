@@ -756,6 +756,10 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", credential);
             builder.ConfigureTestServices(services =>
             {
+                // This fixture proves producer acceptance independently of business delivery.
+                foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                             && descriptor.ImplementationType == typeof(DeliveryProcessor)).ToArray())
+                    services.Remove(descriptor);
                 services.RemoveAll<OutboxDispatchOptions>();
                 services.AddSingleton(bounds ?? Bounds);
                 if (time is not null)

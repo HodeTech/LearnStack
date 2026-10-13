@@ -133,7 +133,18 @@ public sealed partial class OutboxDispatchConventionTests
         CheckCapability(prepared, "CreateAsync", coordinator, "PrepareDeliveryOwnerAsync");
         CheckCapability(prepared, "Consume", coordinator, "ExecutePreparedDeliveryAsync");
         CheckCapability(coordinator, "PrepareDeliveryOwnerAsync", executor, "ExecuteOwnedAsync");
-        CheckCapability(gate, "TryStartExecution", executor, "ExecuteAsync");
+        var executionEntries = new[]
+        {
+            RequireBoundaryMethod(offenders, executor, "ExecuteAsync",
+                "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.DeliveryExecutionResult>",
+                MethodAttributes.Public, "LearnStack.Infrastructure.Messaging.DeliveryClaim", DeliveryGate, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, executor, "ExecuteControlledAsync",
+                "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.DeliveryExecutionResult>",
+                MethodAttributes.Public, "LearnStack.Infrastructure.Messaging.DeliveryClaim",
+                "LearnStack.Infrastructure.Messaging.DeliveryExecutionControl"),
+        };
+        CheckSet(offenders, "delivery execution gate entry sites", sites.Where(site => site.Target.Name == "TryStartExecution"
+            && SameType(site.Target.DeclaringType, gate)).Select(site => site.Owner), executionEntries);
         CheckCapability(gate, "TryBeginCommit", coordinator, "ExecuteFrameAsync");
         CheckCapability(gate, "RecordCommitted", coordinator, "ExecuteFrameAsync");
         CheckCapability(participant, "FenceOwnerAsync", coordinator, "ExecuteFrameAsync");

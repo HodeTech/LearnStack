@@ -85,11 +85,12 @@ telemetry listener, including the Seeder. Enqueue persists the full traceparent;
 transaction announcement supplies tenant/organization while trusted execution
 supplies correlation, causation and optional causal actor. Domain translation
 allocates a new integration EventId and retains the domain EventId as causation.
-Future delivery-originated production uses the trusted incoming event identity,
+Delivery-originated production uses the trusted incoming event identity,
 with effective `UserId.SystemActor` and causal human retained separately. No
 caller-supplied header establishes causation; JSON `metadata` stays SQL NULL.
 P02b-1 implements this producer metadata boundary in both API and Seeder.
-Production delivery context restoration remains P02b-3 work.
+P02b-3 Step 3 implements restoration and incoming-event causation in the common
+delivery owner; production defaults remain Step 5 until the complete path is ready.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
 cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;
@@ -154,6 +155,7 @@ Auto-instrument:
 - MediatR commands and queries.
 - Hangfire job invocations.
 - Outbox dispatcher attempts (P02b-2 Step 3; no batch span).
+- Subscriber execution/terminal attempts (P02b-3 Step 4; no batch span).
 - Valkey client calls.
 - SeaweedFS/S3 SDK calls.
 - LiveKit provider calls.
@@ -233,8 +235,15 @@ backend treat business rejections as system failures.
 | `learnstack_outbox_oldest_eligible_age_seconds` | gauge | — |
 | `learnstack_outbox_deferred_count` | gauge | — |
 | `learnstack_outbox_heartbeat_age_seconds` | gauge | — |
-| `learnstack_inbox_dedup_total` | counter | module, event_type (P02b-3 reserved) |
-| `learnstack_inbox_deadletter_total` | counter | module, event_type (P02b-3 reserved) |
+| `learnstack_delivery_execute_duration_seconds` | histogram | event_type, subscription |
+| `learnstack_delivery_failed_total` | counter | event_type, subscription |
+| `learnstack_delivery_pending_count` | gauge | — |
+| `learnstack_delivery_oldest_eligible_age_seconds` | gauge | — |
+| `learnstack_delivery_deferred_count` | gauge | — |
+| `learnstack_delivery_lease_lost_total` | counter | — |
+| `learnstack_delivery_heartbeat_age_seconds` | gauge | — |
+| `learnstack_inbox_dedup_total` | counter | event_type, subscription |
+| `learnstack_inbox_deadletter_total` | counter | event_type, subscription |
 | `learnstack_job_duration_seconds` | histogram | job_name |
 | `learnstack_job_failed_total` | counter | job_name |
 | `learnstack_provider_request_duration_seconds` | histogram | provider, operation, outcome |
@@ -254,10 +263,19 @@ backend treat business rejections as system failures.
 | `learnstack_entitlement_unresolved_total` | counter | — |
 
 Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
-both independent review rounds are complete. Inbox counters remain P02b-3 and job
-metrics P02b-4. `event_type` comes only from the
-finite declared registry plus fixed unknown/retired/invalid categories. Never
-label event metrics by tenant, event, partition, subscription or trace identity.
+both independent review rounds are complete. The subscriber/inbox inventory is
+accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13);
+Step 4 implements it with real worker, finite-label and memory-only observation
+proofs. Job metrics remain P02b-4.
+`event_type` comes only from the finite declared registry plus fixed
+unknown/retired/invalid categories. `subscription` comes only from declared stable
+subscription IDs plus fixed `invalid`; a well-formed undeclared ID is still
+`invalid`. Never label event metrics by tenant, event, partition or trace identity.
+Subscriber failure, deduplication and terminal counters are distinct from producer
+publication counters; one subscriber's failure is not a producer failure.
+Counters describe observed attempts and fenced transition refusals, not a durable
+accounting ledger. An unknown COMMIT can already have completed business work;
+its refused later fence does not prove that business work failed or should repeat.
 
 Pending count includes all unprocessed, non-dead-lettered rows, including delayed,
 leased, terminal-requested and manifest-deferred work. Oldest eligible age uses
@@ -272,9 +290,12 @@ health bound. Failure retains the prior snapshot and reports unhealthy. The
 [P02b-2 bounds](../roadmap/phase-02b-events-auth.md#runtime-bounds-and-observation)
 own deadlines and task limits. Dispatcher-owned logs/spans use validated
 correlation and bounded outcomes, without exception text/stacks, payload, raw
-stored type or connection data. P02b-3 reconciles existing transport/consumer
-exception telemetry before Active consumers; no current transport/consumer
-minimization is claimed.
+stored type or connection data. P02b-3 Steps 3–4 minimize transport-owned
+execution/audit diagnostics before activating production consumers. Original
+causal metadata is restored only in the app-role executor; the bypass scheduler
+emits a fresh validated attempt trace without reading payload or causal-envelope
+columns. No raw exception details, stored type/subscription text or payload enters
+its diagnostics.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
@@ -312,10 +333,12 @@ touched.
 |---|---|---|
 | Audit write path | `audit` | The most recent MUST-class standalone audit write failed and no later one has succeeded |
 | Outbox dispatcher (P02b-2 Step 3) | `outbox` | No actual progress or observation refresh for 45 s, any retained callback overrun, or terminal-audit failure |
+| Subscriber dispatcher (P02b-3 Step 4) | `delivery` | No actual progress or observation refresh for 45 s, any retained callback/cleanup overrun, or terminal-audit failure |
 
 The `audit` check is registered in Phase 02a Packet 9; P02b-2 Step 3 registers
-`outbox`, with both independent review rounds complete.
-Both are **not mapped**: `/healthz` stays
+`outbox`, with both independent review rounds complete. P02b-3 Step 4 adds
+`delivery`; its delivery record owns current validation and review status.
+All three are **not mapped**: `/healthz` stays
 a liveness probe, because a process that cannot write audit rows is still worth leaving
 alive. The readiness surface that reads the check, and the deployment-level backstop that
 stops serving past a configured unhealthy window, are demand-gated to

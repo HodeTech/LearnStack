@@ -17,3 +17,9 @@ public enum DeliveryExecutionOutcome
 /// <summary>Bounded execution evidence. Acknowledged commit remains definitive despite cleanup failure.</summary>
 public sealed record DeliveryExecutionResult(
     DeliveryExecutionOutcome Outcome, bool CommitAcknowledged, bool CleanupFailed);
+
+public enum DeliveryFailureReason { ExecutionFailed, ExecutionTimeout, UnknownOutcome }
+
+public enum DeliveryTerminalReason { UnknownType, RetiredType, InvalidEnvelope, InvalidSubscription, RetryExhausted }
+
+public sealed record DeliveryQueueSnapshot(long PendingCount, long DeferredCount, double OldestEligibleAgeSeconds);

@@ -110,12 +110,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**196 test methods run in
+**205 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4 and P02b-3 Step 3.
+P02b-2 Steps 2–4 and P02b-3 Steps 3–4.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -142,8 +142,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**193 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
-The other 75 are no less binding, and most could not live there. The table says where
+**196 rules in this catalogue are Implemented, and 120 of them are in that assembly.**
+The other 76 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -3540,7 +3540,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
 - **Type:** real PostgreSQL worker/owner integration, controlled cancellation,
   lost-COMMIT and state-transition mutants. **Kind:** behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** (`DeliveryDispatchStoreTests`, `DeliveryProcessorTests`,
+  `DeliveryExecutionTests`, P02b-3 Step 4). Real-role tests cover independent
+  retries, final-claim recovery, exact-tuple replay with terminal sibling controls,
+  unchanged-row lock expiry, lost COMMIT and postcommit cleanup ownership.
 - **Phase:** 02b, P02b-3.
 
 #### `Delivery_Terminal_Audit_Identity_Is_Row_Bound`
@@ -3554,7 +3557,10 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and [ADR-0044 Amendment 11](../decisions/0044-audit-write-path.md#amendment-11--shared-delivery-capture-exclusions-2026-10-13).
 - **Type:** nonempty production mint/writer census with dirty/clean controls and
   real-role atomic transition integration. **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `DeliveryDispatchStoreTests`, P02b-3 Step 4). Exact producer/subscriber mint
+  and writer censuses have planted dirty/clean controls; real-role tests pin draft
+  substitutions, audit rollback, matching witnesses and uncertain-COMMIT reconciliation.
 - **Phase:** 02b, P02b-3.
 
 #### `Delivery_Execution_And_Observation_Are_Bounded`
@@ -3569,7 +3575,12 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Type:** production registration/observation/call-path census with planted
   dirty/clean controls, unit probes and real worker integration.
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-3 implementation pending.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `DeliveryProcessorTests`, `DeliveryObservationTests`, `DeliveryAttemptTests`,
+  P02b-3 Step 4). The actual worker proves retained callbacks/cleanup, capacity,
+  shutdown and refresh cadence. Production capability and memory-observation
+  censuses have planted controls;
+  literal-SQL checks cover exact declared writers/helpers, not arbitrary dataflow.
 - **Phase:** 02b, P02b-3.
 
 #### `Customization_Default_Initialization_Preserves_Touched_Concepts`

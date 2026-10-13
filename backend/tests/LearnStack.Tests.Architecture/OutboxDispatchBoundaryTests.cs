@@ -19,6 +19,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string BoundarySource = "LearnStack.Infrastructure.Messaging.OutboxDispatcherDataSource";
     private const string BoundaryWorker = "LearnStack.Api.Messaging.OutboxProcessor";
     private const string BoundaryAttempt = "LearnStack.Api.Messaging.OutboxPublishAttempt";
+    private const string DeliveryWorker = "LearnStack.Api.Messaging.DeliveryProcessor";
+    private const string DeliveryAttempt = "LearnStack.Api.Messaging.DeliveryAttempt";
+    private const string DeliveryClaimType = "LearnStack.Infrastructure.Messaging.DeliveryClaim";
     private const string BoundaryPlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string BoundaryBus = "LearnStack.SharedKernel.Messaging.IEventBus";
     private const string BoundaryTransport = "LearnStack.Infrastructure.Messaging.InProcessEventBus";
@@ -486,7 +489,7 @@ public sealed partial class OutboxDispatchConventionTests
         var types = census.Types;
         CheckSet(offenders, "production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var subject in new[] { (BoundaryApi, BoundaryComposition), (BoundaryApi, BoundaryPersistence),
-                     (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, BoundaryPlatform),
+                     (BoundaryApi, BoundaryWorker), (BoundaryApi, DeliveryWorker), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, BoundaryPlatform),
                      (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing credential subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
@@ -547,6 +550,18 @@ public sealed partial class OutboxDispatchConventionTests
             CheckLiteralKeyResolver(offenders, storeFactory, BoundaryLazySource, OutboxDispatcherDataSource.Key);
         }
 
+        var deliveryDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(DeliveryDispatchStore));
+        var deliveryFactory = FindRuntimeMethod(census, deliveryDescriptor.ImplementationFactory!.Method);
+        if (deliveryFactory is null) offenders.Add("Missing actual delivery-store factory");
+        else
+        {
+            expectedResolvers.Add(MethodId(deliveryFactory));
+            if (!DelegateTargets(outboxRoot).Any(target => MethodId(target) == MethodId(deliveryFactory)))
+                offenders.Add("Delivery store factory must be registered by the outbox root");
+            CheckLiteralKeyResolver(offenders, deliveryFactory, BoundaryLazySource, OutboxDispatcherDataSource.Key);
+        }
+
         var sites = CallSites(census).ToArray();
         CheckSet(offenders, "keyed resolver callers", sites.Where(site => IsKeyedResolution(site.Target)).Select(site => site.Owner), expectedResolvers);
         CheckSet(offenders, "keyed registration callers", sites.Where(site => IsKeyedRegistration(site.Target)).Select(site => site.Owner), expectedFactories);
@@ -600,7 +615,8 @@ public sealed partial class OutboxDispatchConventionTests
         var scopeConstructor = types[(InfrastructureAssembly, BoundaryPlatform)].Methods.Single(method => method.IsConstructor && !method.IsStatic);
         CheckSet(offenders, "keyed parameter bindings", injections,
             [workerConstructor + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key,
-             MethodId(scopeConstructor) + ":" + BoundaryLazySource + ":" + PlatformAdminScope.PlatformDataSourceKey]);
+             MethodId(scopeConstructor) + ":" + BoundaryLazySource + ":" + PlatformAdminScope.PlatformDataSourceKey,
+             DeliveryWorkerConstructor(offenders, types[(BoundaryApi, DeliveryWorker)]) + ":" + BoundaryLazySource + ":" + OutboxDispatcherDataSource.Key]);
         CheckSourceFieldAccess(offenders, census, worker, workerConstructor,
             [RequireBoundaryMethod(offenders, worker, "StartAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation)]);
         var store = types[(InfrastructureAssembly, Store)];
@@ -621,6 +637,7 @@ public sealed partial class OutboxDispatchConventionTests
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
         ]);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
+        CheckDeliveryCredentials(offenders, census, outboxRoot, deliveryFactory);
         return offenders;
     }
 

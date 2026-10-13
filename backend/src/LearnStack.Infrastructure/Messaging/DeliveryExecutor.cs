@@ -27,13 +27,40 @@ public sealed class DeliveryExecutor(
     /// The caller may stop waiting, close the gate and cancel the callback, but
     /// must retain this task until completion: it still owns the live scope.
     /// </summary>
-    public async Task<DeliveryExecutionResult> ExecuteAsync(
+    public Task<DeliveryExecutionResult> ExecuteAsync(
         DeliveryClaim claim, DeliveryCommitGate gate, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(gate);
         if (!gate.TryStartExecution())
             throw new InvalidOperationException("A delivery commit gate belongs to exactly one execution.");
+        return ExecuteCoreAsync(claim, gate, null, cancellationToken);
+    }
+
+    /// <summary>The production entry retains the actual application scope through cancellation callbacks.</summary>
+    public async Task<DeliveryExecutionResult> ExecuteControlledAsync(
+        DeliveryClaim claim, DeliveryExecutionControl control)
+    {
+        ArgumentNullException.ThrowIfNull(claim);
+        ArgumentNullException.ThrowIfNull(control);
+        // Reuse rejection must not finish or dispose a different live invocation.
+        if (!control.Gate.TryStartExecution())
+            throw new InvalidOperationException("A delivery commit gate belongs to exactly one execution.");
+        try
+        {
+            return await ExecuteCoreAsync(claim, control.Gate, control, control.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            await control.FinishCallbacksAsync().ConfigureAwait(false);
+            control.DisposeCancellation();
+        }
+    }
+
+    private async Task<DeliveryExecutionResult> ExecuteCoreAsync(
+        DeliveryClaim claim, DeliveryCommitGate gate, DeliveryExecutionControl? control,
+        CancellationToken cancellationToken)
+    {
         if (!ValidClaim(claim))
             return new(DeliveryExecutionOutcome.InvalidEnvelope, false, false);
 
@@ -42,13 +69,13 @@ public sealed class DeliveryExecutor(
         DeliveryExecutionResult result = new(DeliveryExecutionOutcome.Failed, false, false);
         await partitions.RunSequentiallyFor(claim.PartitionKey, async () =>
         {
-            result = await ExecuteOwnedAsync(claim, gate, cancellationToken).ConfigureAwait(false);
+            result = await ExecuteOwnedAsync(claim, gate, control, cancellationToken).ConfigureAwait(false);
         }).ConfigureAwait(false);
         return result;
     }
 
     private async Task<DeliveryExecutionResult> ExecuteOwnedAsync(
-        DeliveryClaim claim, DeliveryCommitGate gate, CancellationToken cancellationToken)
+        DeliveryClaim claim, DeliveryCommitGate gate, DeliveryExecutionControl? control, CancellationToken cancellationToken)
     {
         var outcome = DeliveryExecutionOutcome.Failed;
         var cleanupFailed = false;
@@ -143,6 +170,8 @@ public sealed class DeliveryExecutor(
         }
         finally
         {
+            if (control is not null && !await control.FinishCallbacksAsync().ConfigureAwait(false))
+                cleanupFailed = true;
             try
             {
                 if (prepared is not null) await prepared.DisposeAsync().ConfigureAwait(false);

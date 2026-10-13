@@ -399,16 +399,20 @@ public sealed class PostgresAuditStore : IAuditStore
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
 
-        const string operation = "platform.outbox.dead_letter";
+        var operation = (transition.Kind, transition.SubscriptionId) switch
+        {
+            ("producer", null) => "platform.outbox.dead_letter",
+            ("subscriber", not null) => "platform.delivery.dead_letter",
+            _ => throw new ArgumentException("The terminal transition kind is not supported.", nameof(transition)),
+        };
         if (!_catalog.TryGetOffPath(operation, out var declared)
             || declared.Operation != operation || declared.ModuleName != "platform"
             || declared.OperationClass != OperationClass.Must
             || declared.OperationType != OperationType.SecurityEvent || declared.EntityType is not null
             || entry.Operation != declared.Operation || entry.ModuleName != declared.ModuleName
-            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType
-            || transition.Kind != "producer" || transition.SubscriptionId is not null)
+            || entry.OperationClass != declared.OperationClass || entry.OperationType != declared.OperationType)
         {
-            throw new ArgumentException("The terminal audit requires its declared producer MUST security event.", nameof(entry));
+            throw new ArgumentException("The terminal audit requires its declared MUST security event.", nameof(entry));
         }
 
         try

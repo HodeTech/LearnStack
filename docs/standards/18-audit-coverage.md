@@ -159,14 +159,14 @@ will raise them — which this standard requires it to do.
   `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
-  four whose writer ships through `DeclareOffPath` today, the other five when their
+  five whose writer ships through `DeclareOffPath` today, the other four when their
   writer lands. P02b-2 Step 2 registers the shipped producer terminal writer;
-  subscriber terminal registration remains planned for P02b-3.
+  P02b-3 Step 4 adds subscriber terminal registration with its writer.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**, and five do. `tenancy.killswitch.toggle` is
+- **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —
@@ -510,8 +510,8 @@ table above is the policy those deliverables implement, not a description of tod
   transaction. Validate declared MUST/SecurityEvent operation and matching draft
   before INSERT; mismatch rolls back both writes. No transaction is opened or
   committed by the seam. `PostgresAuditStore` remains the sole audit SQL writer.
-  Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and reserved
-  `platform.delivery.dead_letter` (P02b-3); register only with each writer.
+  Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and
+  `platform.delivery.dead_letter` (P02b-3 Step 4); each is registered with its writer.
   Outcome success records terminal state, not publication. Invalid causal metadata
   is omitted and a fresh validated attempt trace is used. Closed terminal values
   live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.

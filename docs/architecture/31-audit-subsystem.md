@@ -102,10 +102,12 @@ and remains the sole audit SQL writer. Mismatch rolls back both state and audit.
 GUCs cannot bind a bypass INSERT; real tenant/org/event/transaction mismatch proofs
 and a matching organization-scoped positive control are required.
 
-P02b-2 supplies `platform.outbox.dead_letter`; P02b-3 supplies reserved
-`platform.delivery.dead_letter`, both off-path under Tenancy. Register each only
-when its writer ships. Outcome success describes terminal state, not publication;
-invalid causal fields are omitted in favor of a fresh validated attempt trace.
+P02b-2 supplies `platform.outbox.dead_letter`; P02b-3 Step 4 implements and
+registers `platform.delivery.dead_letter`, both off-path under Tenancy. The
+subscriber witness binds the actual tenant/subscription/event tuple and uses a
+validated attempt trace without causal-envelope or payload SELECT. Outcome success
+describes terminal state, not publication. Producer terminal audit omits invalid
+causal fields in favor of a fresh validated attempt trace.
 Closed terminal values use bounded metadata; `Reason` stays for platform entry.
 Audit failure retains terminal work for retry without delivery; uncertain COMMIT
 is reconciled before retry and cannot duplicate a completed terminal audit.
@@ -114,8 +116,8 @@ The existing outbox role gains audit INSERT-only in the Audit chain, with exact
 grants owned by [Database Standards](../standards/05-database.md#grant-matrix).
 Routine confined poll/claim/mark uses the accepted bounded audit exemption;
 platform-admin pre-entry audit and other bypass operations are unchanged.
-P02b-3 adds inbox/delivery machinery to capture exclusions with reasons, because
-explicit intents audit business effects; these exclusions remain pending P3.
+P02b-3 Step 3 adds inbox/delivery machinery to capture exclusions, because explicit
+intents audit business effects; retry/completion bookkeeping is not another root.
 
 ## 2. Pipeline overview
 
@@ -171,7 +173,8 @@ Five components, separated concerns:
 4. **`AuditExecutionCoordinator`** — classifies, attributes intents and outcomes,
    catches/rethrows unexpected failures and reconciles in `finally` at the
    outermost capture frame. `AuditLogBehavior` remains its step-3 request adapter.
-   The same entry serves direct owners; production delivery remains P02b-3.
+   The same entry serves direct owners and P02b-3 Step 3's delivery executor;
+   real default subscriptions remain Pending until Step 5.
 5. **`PlatformAdminScope`** — the one writer outside the pipeline. `EnterAsync` records
    `platform.admin_scope.enter` through `IAuditStore.WritePlatformScopeAsync`, on the
    scope's own platform-role connection and transaction, **before** the operation runs
@@ -218,11 +221,13 @@ public sealed class AuditChangeTrackerInterceptor : ISaveChangesInterceptor
     // matrix singles out as mattering most.
     //
     // Excluded BY NAME, not by type: LearnStack.Infrastructure.Audit may not reference a
-    // module assembly (CoreInfrastructure_DoesNotDependOn_AnyModule), and two of the four
-    // names are module types.
+    // module assembly (CoreInfrastructure_DoesNotDependOn_AnyModule); AuditEntry and
+    // AuditConfig are module types.
     private static readonly HashSet<string> Excluded =
     [
         "OutboxMessage",   // its payload IS the audited event; the row is machinery
+        "InboxMessage",    // transport completion identity, not a business root
+        "EventDelivery",   // retained envelope and retry/completion machinery
         "IdempotencyKey",  // request plumbing
         "AuditEntry",      // the audit tables themselves — unreachable anyway, since the
         "AuditConfig",     //   store writes parameterised SQL and never a DbContext
@@ -672,8 +677,10 @@ declares its own intents; nested commands retain their own, without an extra
 business row. Step 1 supplies the common entry and producer ancestry groundwork;
 Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion
 and owner-only domain drain. P02b-2 Step 3 implements hosted producer dispatch,
-with both independent review rounds complete; production consumer delivery/inbox wiring
-remains P02b-3 under Accepted ADR-0046.
+with both independent review rounds complete. P02b-3 Step 3 implements the
+app-role delivery owner and per-subscription audit frames; Step 4 implements
+independent scheduling and terminal audit. Production defaults remain Pending
+until Step 5 under Accepted ADR-0046.
 
 ### The two catalogue faces, and the three columns nothing fills yet
 
@@ -885,7 +892,9 @@ execution boundary creates a W3C Activity even without a telemetry listener and
 restores ancestry/Activity on disposal. P02b-1 Steps 2–3 deliver immediate outbox
 enqueue, successful-save collection/promotion and owner-only domain drain before
 MUST audit/commit. P02b-2 Step 3 implements hosted producer dispatch, with
-both independent review rounds complete; consumer delivery/inbox remains P02b-3.
+both independent review rounds complete. P02b-3 Steps 1–4 implement shared
+storage, acceptance, app-role business ownership and independent scheduling;
+production defaults remain Pending until Step 5.
 
 `IUnitOfWork` remains the seam through which every module context and `IAuditStore`
 reach the one ambient connection/transaction. Packet 6 shipped that seam and the
@@ -1631,7 +1640,7 @@ update it constrains.
      [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)'s
      `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
      Audit's `audit.redaction.apply` and `audit.purge.apply`. They register by slug: the
-     four whose writer ships through `DeclareOffPath`, the other five — also
+     five whose writer ships through `DeclareOffPath`, the other four — also
      `(planned)` — when their writer lands.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside
      both directions too (§ 5).
@@ -1720,7 +1729,7 @@ for MUST-class would lock in exactly the defect ADR-0033 removes.
 | [02a Packet 9](../roadmap/phase-02a-kernel-tenancy.md) | `AuditChangeTrackerInterceptor` with the broad capture predicate, the `[PiiSensitive]` redaction gate and the size cap; `IAuditStateCapture` + impl, holding an **ordered list** of intents; `AuditLogBehavior` lit up per ADR-0033 as amended; `IAuditStore` + `PostgresAuditStore` with **four** write methods, the fourth serving `EnterPlatformAdminScope`; the classification catalogue as a **pair** — the module-owned `IAuditCatalogSource` / `IAuditCatalogBuilder` and the `IAuditCatalog` the composition root merges them into once at startup — with the six value types beside the five ports in `LearnStack.SharedKernel.Audit`; `TenantId.PlatformSentinel` and the **four** guards that enforce its invariant — `SetProvisioningTenantContextAsync`, `TenantOwnership.EnsureRealTenant`, `EventTenantContext.FromEnvelope` and, deliberately redundant at the one site every announcement passes, `SetTenantContextAsync`; `AuditEntry` aggregate and `AuditConfig` with the fail-closed MUST floor; `audit_log` as a **single plain table** with the composite primary key, org-scoped, in a fourth migration chain, with its append-only grants and its two triggers; and the named `audit` health check §§ 1, 5 and 7 read, registered through `AddHealthChecks()` at the `LearnStack.Api` composition root. |
 | P02b-1 Steps 1–3 | Common audit/transaction coordinators, capture-owned audit frames, producer ancestry/receipts and no-listener trace groundwork; Steps 2–3 deliver immediate outbox enqueue, successful-save collection/promotion and owner-only domain drain. Hosted dispatch is implemented in P02b-2 Step 3; consumer delivery/inbox remains P02b-3. |
 | P02b-2 Steps 1–4 | Schema/grants and confined producer transitions with MUST audit through the row-bound fifth seam; real-role atomicity/identity proofs. Steps 1–2 completed both review rounds. Step 3 implements hosted dispatch and observation, with both independent review rounds complete; Step 4 enforcement and local closeout are complete; all four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) owns CI/merge status. |
-| P02b-3 (Accepted contract; pending) | Shared transport-owned inbox and independent delivery ledger; per-subscription audit frames and Tenancy-owned terminal audit. Ordinary executor refuses privileged subscriptions. |
+| P02b-3 Steps 1–4 | Shared transport-owned inbox and retained delivery envelopes, durable acceptance, per-subscription audit frames and fenced business completion; independent scheduling/replay and Tenancy-owned subscriber terminal audit through the row-bound fifth seam. Ordinary executor refuses privileged subscriptions. Production defaults remain Pending until Step 5; the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13) owns validation/review status. |
 | [03](../roadmap/phase-03-identity-admin.md) | Admin API endpoints over the audit stream; `UserGdprDeletedIntegrationEventHandler` + per-module `IUserReferenceLocator`. |
 | [06](../roadmap/phase-06-renderer-admin-studio.md) | Admin Studio audit UI: timeline view, filters, diff viewer, CSV / JSON export. |
 | [09](../roadmap/phase-09-billing-integrations-analytics.md) | Hub-side `hub_audit_log` + cross-stream correlation query. |

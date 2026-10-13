@@ -11,12 +11,13 @@ namespace LearnStack.Tests.Integration;
 public sealed class ConstructionOnlyApiFactoryTests
 {
     [Fact]
-    public void Request_only_test_composition_removes_exactly_the_dispatcher_and_preserves_other_workers()
+    public void Request_only_test_composition_removes_exactly_both_dispatchers_and_preserves_other_workers()
     {
         var services = new ServiceCollection();
         services.AddHostedService<OutboxProcessor>();
+        services.AddHostedService<DeliveryProcessor>();
         services.AddHostedService<OtherWorker>();
-        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(2);
+        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(3);
 
         ConstructionOnlyApiFactory.RemoveDispatcher(services);
 
@@ -30,7 +31,7 @@ public sealed class ConstructionOnlyApiFactoryTests
         await using var host = new ConstructionOnlyApiFactory();
         using var client = host.CreateClient();
 
-        host.Services.GetServices<IHostedService>().Should().NotContain(service => service is OutboxProcessor);
+        host.Services.GetServices<IHostedService>().Should().NotContain(service => service is OutboxProcessor || service is DeliveryProcessor);
         host.Services.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key)
             .IsValueCreated.Should().BeFalse();
         (await client.GetAsync("/healthz")).IsSuccessStatusCode.Should().BeTrue();

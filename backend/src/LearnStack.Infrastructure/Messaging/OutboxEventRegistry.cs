@@ -144,6 +144,16 @@ public sealed class OutboxEventRegistry
         _retired = retired;
         PendingIdentities = pendingIdentities;
         EventTypeLabels = eventTypeLabels;
+        HeldDeliverySubscriptions = Array.AsReadOnly(known
+            .SelectMany(pair => pair.Value.Subscriptions
+                .Where(subscription => subscription.Readiness == OutboxSubscriptionReadiness.Pending
+                    || subscription.ExecutionScope == OutboxSubscriptionExecutionScope.PrivilegedPlatform)
+                .Select(subscription => (Type: pair.Key, SubscriptionId: subscription.Id)))
+            .OrderBy(pair => pair.Type, StringComparer.Ordinal)
+            .ThenBy(pair => pair.SubscriptionId, StringComparer.Ordinal).ToArray());
+        SubscriptionIds = Array.AsReadOnly(known.Values.SelectMany(resolution => resolution.Subscriptions)
+            .Select(subscription => subscription.Id).Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal).ToArray());
     }
 
     /// <summary>Exact canonical and alias identities held before acquisition.</summary>
@@ -155,6 +165,19 @@ public sealed class OutboxEventRegistry
         .Where(static subscription => subscription.ExecutionScope == OutboxSubscriptionExecutionScope.PrivilegedPlatform)
         .Select(static subscription => subscription.Id).Distinct(StringComparer.Ordinal)
         .Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>Exact declared pairs held by the ordinary subscriber scheduler, including aliases.</summary>
+    public IReadOnlyList<(string Type, string SubscriptionId)> HeldDeliverySubscriptions { get; }
+
+    /// <summary>The finite declared subscription labels allowed in subscriber metrics.</summary>
+    public IReadOnlyList<string> SubscriptionIds { get; }
+
+    /// <summary>Readiness belongs to this exact subscription, independently of Pending siblings.</summary>
+    public bool IsActiveOrdinarySubscription(string storedIdentity, string subscriptionId) =>
+        _known.TryGetValue(storedIdentity, out var resolution)
+        && resolution.Subscriptions.Any(subscription => subscription.Id == subscriptionId
+            && subscription.Readiness == OutboxSubscriptionReadiness.Active
+            && subscription.ExecutionScope == OutboxSubscriptionExecutionScope.OrdinaryTenant);
 
     /// <summary>The finite labels allowed for declared event types in metrics.</summary>
     public IReadOnlyList<string> EventTypeLabels { get; }

@@ -2770,6 +2770,66 @@ Accepted ADR text and historical delivery records remain intact. Step 4 follows
 automatically under the accepted package; no new decision or privilege expansion
 is needed for its independent subscriber scheduler.
 
+### P02b-3 Step 4 — subscriber scheduling, terminalization and replay (2026-10-13)
+
+**Implemented and locally validated; both independent reviews pending.**
+The API-owned subscriber worker shares the existing confined keyed data source,
+with no new role, migration or credential reader. Its store claims one exact
+tenant/subscription/event tuple, selects routing/status columns only, and uses
+the existing ordered indexes. Pending and privileged targets are held by exact
+type/subscription pair; an accepted Active sibling remains runnable. Normal
+claims spend independent attempts, expired claims recover without execution or
+another attempt, and the sixth claim never authorizes a seventh invocation.
+
+The subscriber terminal writer extends the restricted actual-row witness and
+fifth audit seam. Tenancy registers `platform.delivery.dead_letter` with that
+writer; the terminal UPDATE and matching MUST/SecurityEvent audit share one
+transaction. Targeted internal replay admits one completed terminal Active
+ordinary tuple, invalidates its old ownership and never resets an inbox or
+republishes a broadcast. Operator HTTP/permissions remain Phase 03.
+
+Task-owned controlled execution closes its sticky gate before asynchronous
+cancellation callbacks, retains the actual application scope through those
+callbacks and cleanup, and rejects control reuse before acquiring cleanup
+ownership. Acknowledged durability survives faulted or overlong cleanup; retained
+tasks continue to block their local partitions and consume the four-task capacity.
+The shutdown wait uses one budget and the host token. Snapshot refresh follows
+the configured cadence even after failure; gauges read immutable memory only.
+Finite event/subscription labels and bounded diagnostics add no envelope read to
+the scheduler. The private delivery health check leaves `/healthz` unchanged.
+
+Real-role store/worker tests and exact production-capability censuses with planted
+controls pass local validation. Production defaults remain Pending until Step 5's
+initializers and Seeder handoff are ready. Final test and two fresh sequential
+review receipts follow before that step begins.
+
+#### Implementation validation
+
+The CI-equivalent Release build passes with zero warnings/errors. The final
+candidate passes 1,855 unit, 298 architecture and 238 focused integration cases,
+with zero failures/skips. The integration set includes 45 new store and 21 new
+worker cases plus 172 producer/acceptance/inbox/owner/role regressions. TRX files
+record each run; Docker-dependent tests use actual PostgreSQL and the guarded
+application or confined scheduler role appropriate to the boundary.
+
+The final replay control first terminalizes four real rows, then resets one;
+terminal neighbours differing in tenant, subscription or event remain byte-for-byte
+unchanged. Business execution also carries a distinct human causal actor while
+effective audit actor remains SystemActor. No-listener trace proof asserts the
+actual source has no listeners before checking a fresh canonical attempt ID.
+
+Final format verification, all seven ADR-status controls, all five corpus guards
+and whitespace checks pass. The changed-document sweep checks 1,818 relative
+links and 398 fragments with zero missing targets/anchors; added prose passes
+the 88-column check. Earlier Accepted ADR bodies and dated P02b receipts remain
+byte-preserved.
+
+Three catalogue rules become Implemented with their behavioural/structural owners.
+The catalogue now records 205 architecture methods and 196 Implemented rules,
+120 in the architecture assembly and 76 elsewhere. Consumer-handler censuses,
+production activation and defaults/Seeder proofs remain Steps 5–6. Earlier dated
+receipts retain their original counts and pending status.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

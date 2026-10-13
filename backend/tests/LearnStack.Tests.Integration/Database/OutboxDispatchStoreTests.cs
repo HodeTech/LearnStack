@@ -853,14 +853,17 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
     }
 
     [Fact]
-    public async Task Reserved_subscriber_terminal_operation_remains_unregistered()
+    public async Task Subscriber_terminal_operation_is_declared_as_MUST_security_event()
     {
         await using var test = await TestDatabase.CreateAsync(schema.Postgres);
         var catalog = test.Provider.GetRequiredService<IAuditCatalog>();
         catalog.TryGetOffPath("platform.outbox.dead_letter", out var producer).Should().BeTrue();
         producer.OperationClass.Should().Be(OperationClass.Must);
         producer.OperationType.Should().Be(OperationType.SecurityEvent);
-        catalog.TryGetOffPath("platform.delivery.dead_letter", out _).Should().BeFalse();
+        catalog.TryGetOffPath("platform.delivery.dead_letter", out var subscriber).Should().BeTrue();
+        subscriber.Operation.Should().Be("platform.delivery.dead_letter");
+        subscriber.OperationClass.Should().Be(OperationClass.Must);
+        subscriber.OperationType.Should().Be(OperationType.SecurityEvent);
     }
 
     private static Task<bool> TransitionAsync(OutboxDispatchStore store, OutboxDispatchClaim claim, string transition) => transition switch

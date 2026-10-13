@@ -17,7 +17,8 @@ owns CI/merge status. Subscribers remain P02b-3.
 complete.**
 The infrastructure operations below belong to this catalogue/matrix, without a
 synthetic aggregate. P02b-2 Step 2 registers the delivered producer terminal
-operation; P02b-3 registers subscriber terminalization when its writer ships.
+operation; P02b-3 Step 4 adds the subscriber writer and registration, with
+implementation validation and independent reviews recorded in its delivery record.
 Both use the restricted fifth audit seam on the fenced state-transition transaction.
 Routine confined dispatch has the explicit ADR-0046 exemption; platform-scope
 entry auditing is unchanged.
@@ -48,8 +49,9 @@ separate allowlist. Verification request types are Off.
 Packet 7 ships four audited root writes through three commands: Tenant and default
 Organization provisioning, a separate Organization create, and host mapping creation.
 P02d-2 adds two locale commands (SHOULD over Tenant) and one branding command (MUST over
-TenantSetting). P02b-2 Step 2 adds the producer terminal MUST security-event writer.
-Fourteen rows remain `(planned)`; seven operations have no MediatR request and
+TenantSetting). P02b-2 Step 2 adds the producer terminal MUST security-event writer;
+P02b-3 Step 4 adds its independent subscriber terminal counterpart.
+Thirteen rows remain `(planned)`; seven operations have no MediatR request and
 carry `(off-path)`.
 
 All four original writes are **MUST**. Their records commit with the business state,
@@ -127,7 +129,7 @@ unmarked row is one a shipped command already raises.
 | Resource | Operation | Class | Why |
 |---|---|---|---|
 | `outbox_messages` | `platform.outbox.dead_letter` `(off-path)` | **MUST** (`security-event`) | P02b-2 Step 2's consequential BYPASSRLS terminal transition; state and row commit together through the row-bound fifth audit seam, with stored tenant/org/event identity and SystemActor ([ADR-0046](../../decisions/0046-durable-event-delivery-and-recovery.md)) |
-| delivery ledger | `platform.delivery.dead_letter` `(off-path)` `(planned)` | **MUST** (`security-event`) | P02b-3 owns subscriber terminalization, stable subscription/event identity and the same atomic transition/audit guarantee; no writer or operation registration ships at acceptance |
+| delivery ledger | `platform.delivery.dead_letter` `(off-path)` | **MUST** (`security-event`) | P02b-3 Step 4's subscriber terminal writer binds stored tenant/org/event/subscription, acquisition token, reason and attempts to the actual fenced transition; ledger and MUST audit commit together through the same restricted fifth seam. It receives no causal-envelope or payload SELECT grant |
 | `Tenant` | `tenancy.tenant.create` | **MUST** | The root of a customer's data; its existence is a contractual fact |
 | `Tenant` | `tenancy.tenant.change_status` `(planned)` | **MUST** | Suspension withdraws access; an operator must be able to say who and when |
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
@@ -184,13 +186,13 @@ whose refreshing implementation lands in Phase 02c; the two
 ([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md));
 `platform.outbox.dead_letter`, written with its fenced producer terminal UPDATE
 through `IAuditStore.WriteEventTerminalAsync`; and `platform.delivery.dead_letter`,
-whose subscriber writer belongs to P02b-3. Four are
+whose subscriber writer belongs to P02b-3 Step 4. Five are
 registered by slug through `DeclareOffPath` because their writer ships —
-`platform.admin_scope.enter`, `platform.outbox.dead_letter` and the two
+`platform.admin_scope.enter`, `platform.outbox.dead_letter`,
+`platform.delivery.dead_letter` and the two
 `tenancy.tenant_assertion.*` keys.
-`tenancy.killswitch.toggle`, `tenancy.entitlement.refresh`,
-and `platform.delivery.dead_letter` also carry
-`(planned)` and register by slug when Phase 03, Phase 02c and P02b-3,
+`tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry
+`(planned)` and register by slug when Phase 03 and Phase 02c,
 respectively, land their writers. Every other slug above is
 joined in both directions the day its command lands.
 
