@@ -28,7 +28,7 @@ not land together.
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
 | `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
 | `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
-| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Step 1 schema and Step 2 acceptance/inbox primitive implemented; business owner and independent scheduling remain Steps 3–4 |
+| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–3 implement schema, acceptance/inbox and test-owned business execution; independent scheduling remains Step 4 and production defaults Step 5 |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
@@ -36,8 +36,9 @@ not land together.
 success to durable acceptance of all required subscription envelopes on a fresh,
 announced application transaction. It constructs no business handler. Step 1
 supplies the shared ledger/inbox schema; Step 2 declares `IInboxGuard` and its
-transaction-bound claim primitive. Business owner completion and independent
-subscriber scheduling remain Steps 3–4; production defaults remain Pending.
+transaction-bound claim primitive. Step 3 implements the business owner and
+completion gate; subscriber scheduling remains Step 4 and production defaults
+remain Pending until Step 5.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
 and examples below describe the complete ADR-0046 target, not a claim that every
@@ -65,7 +66,8 @@ review rounds complete in its
 Step 4 enforcement and local closeout are complete; all four steps completed both
 independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
-P02b-3 inbox/consumer delivery remains pending. Numerical
+P02b-3's test-owned consumer execution is implemented through Step 3; its scheduler
+and production default subscriptions remain pending. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 
@@ -262,8 +264,10 @@ Step 7's `OutboxFlushBehavior` is an enrollment/invariant guard.
 
 The reusable audit coordinator gives a controlled non-MediatR owner the existing
 classification, MUST-write, boundary-reporting and outer reconciliation duties.
-P02b-3 owns delivery/inbox wiring under ADR-0046; the P02b-1 fixture proves
-that entry without claiming delivered subscribers.
+P02b-3 Step 3 adds a private, single-use prepared-owner token: routing announcement
+and retained-envelope validation precede module resolution, then the same owner
+body completes work without a second BEGIN or a joiner masquerading as owner.
+The P02b-1 fixture remains the earlier controlled direct-entry proof.
 
 ### First useful flow
 
@@ -291,14 +295,16 @@ everything.
 
 ## Consumer pattern
 
-**Accepted target, unimplemented until P02b-3.** Each subscription has an explicit
+**Owner implemented by P02b-3 Step 3; scheduler/defaults remain Steps 4–5.**
+Each subscription has an explicit
 stable `{module}.{subscription}.v{N}` ID, independent of handler class/assembly.
 ADR-0046 owns its closed grammar and version/migration rules. The transport opens
 an app-role transaction, restores validated tenant and organization, announces RLS
 context, and claims the shared inbox before constructing the handler. Absence of
 the organization marker never erases a present envelope organization; a marked
 event requires one. Effective actor is `UserId.SystemActor`; human actor remains
-causal metadata.
+causal metadata. Business audit metadata retains `causation_id` and optional
+`causal_actor_user_id` through the same composer for success and reconciliation.
 
 The common transaction/audit owner classifies the handler and refuses undeclared
 mutating work. A handler changes only its own root and saves; it calls neither
@@ -308,6 +314,11 @@ completion checks the current token and database-time expiry, plus a sticky gate
 that refuses timed-out/canceled execution. Zero rows or a closed gate poison and
 roll back the whole transaction. Cancellation after physical COMMIT starts is
 Indeterminate; recover from atomic durable state, not a rollback assumption.
+The final fence locks the exact row first and checks database time in a subsequent
+completion UPDATE, so an unchanged lock wait cannot lend an expired lease authority.
+The attempt's one-use gate publishes acknowledged COMMIT independently of later
+frame/scope cleanup; a cleanup fault cannot turn committed business into retryable
+work. Live cleanup retains its task and resources until actual completion.
 
 External effects require provider idempotency and reconciliation. Privileged
 Audit erasure belongs to its separate Phase 03 execution contract; P3's ordinary
@@ -527,8 +538,8 @@ only explicitly declared intentional absence succeeds without ledger writes.
 
 Per-key serialization covers publication acceptance inside this process. Handler
 construction, execution, cancellation and cleanup no longer belong to publish.
-Steps 3–4 supply the independent internal executor and scheduler, with the shared
-inbox and app-role owner described above. Subscriber business failure then spends
+Step 3 supplies the independent internal executor and app-role owner described
+above; Step 4 adds its scheduler. Subscriber business failure then spends
 neither sibling nor producer attempts after acceptance. The executor never
 rebroadcasts and receives no publication-rule exception.
 

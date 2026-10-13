@@ -208,8 +208,11 @@ independent review rounds are complete. Its
 owns verification and review status. Step 2 implements durable acceptance and
 inbox primitives; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
-owns validation and review status. Production subscriptions remain Pending until
-the complete path is ready.
+owns validation and both completed review rounds. Step 3 implements the closed
+business owner and completion gate; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13)
+owns current validation/review status. Production subscriptions remain Pending
+until the complete path is ready.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`

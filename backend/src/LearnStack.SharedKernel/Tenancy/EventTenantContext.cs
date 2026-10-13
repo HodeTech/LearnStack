@@ -18,12 +18,14 @@ using LearnStack.SharedKernel.Messaging;
 public sealed class EventTenantContext : ITenantContext
 {
     private EventTenantContext(
+        Guid eventId,
         TenantId tenantId,
         OrganizationId? organizationId,
         UserId? causalActorUserId,
         string? correlationId,
         string? moduleName)
     {
+        EventId = eventId;
         TenantId = tenantId;
         OrganizationId = organizationId;
         UserId = Identifiers.UserId.SystemActor;
@@ -34,6 +36,9 @@ public sealed class EventTenantContext : ITenantContext
 
     /// <inheritdoc />
     public bool IsResolved => true;
+
+    /// <summary>The validated incoming event that causes this delivery's work.</summary>
+    public Guid EventId { get; }
 
     /// <summary>Matrix row 17: the envelope carried the tenant.</summary>
     /// <remarks>
@@ -122,6 +127,7 @@ public sealed class EventTenantContext : ITenantContext
         }
 
         return new EventTenantContext(
+            envelope.Event.EventId,
             Identifiers.TenantId.From(envelope.Event.TenantId),
             envelope.OrganizationId is { } organization
                 ? Identifiers.OrganizationId.From(organization)

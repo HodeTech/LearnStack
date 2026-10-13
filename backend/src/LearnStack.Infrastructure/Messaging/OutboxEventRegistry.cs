@@ -22,15 +22,24 @@ public enum OutboxSubscriptionReadiness
     Active,
 }
 
+/// <summary>The authority required by a subscription; ordinary delivery cannot enter privileged work.</summary>
+public enum OutboxSubscriptionExecutionScope
+{
+    OrdinaryTenant,
+    PrivilegedPlatform,
+}
+
 /// <summary>Construction-free metadata for one subscription.</summary>
 public sealed class OutboxSubscriptionManifest
 {
     private OutboxSubscriptionManifest(
-        string id, OutboxSubscriptionReadiness readiness, Type? handlerType)
+        string id, OutboxSubscriptionReadiness readiness, Type? handlerType,
+        OutboxSubscriptionExecutionScope executionScope = OutboxSubscriptionExecutionScope.OrdinaryTenant)
     {
         Id = id;
         Readiness = readiness;
         HandlerType = handlerType;
+        ExecutionScope = executionScope;
     }
 
     public string Id { get; }
@@ -40,11 +49,15 @@ public sealed class OutboxSubscriptionManifest
     /// <summary>Only an Active subscription names a concrete handler.</summary>
     public Type? HandlerType { get; }
 
+    public OutboxSubscriptionExecutionScope ExecutionScope { get; }
+
     public static OutboxSubscriptionManifest Pending(string id) =>
         new(id, OutboxSubscriptionReadiness.Pending, null);
 
-    public static OutboxSubscriptionManifest Active(string id, Type handlerType) =>
-        new(id, OutboxSubscriptionReadiness.Active, handlerType);
+    public static OutboxSubscriptionManifest Active(
+        string id, Type handlerType,
+        OutboxSubscriptionExecutionScope executionScope = OutboxSubscriptionExecutionScope.OrdinaryTenant) =>
+        new(id, OutboxSubscriptionReadiness.Active, handlerType, executionScope);
 }
 
 /// <summary>A concrete contract, its declared aliases and its delivery policy.</summary>
@@ -136,6 +149,13 @@ public sealed class OutboxEventRegistry
     /// <summary>Exact canonical and alias identities held before acquisition.</summary>
     public IReadOnlyList<string> PendingIdentities { get; }
 
+    /// <summary>Declared identities excluded from the ordinary tenant scheduler.</summary>
+    public IReadOnlyList<string> PrivilegedSubscriptionIds => _known.Values
+        .SelectMany(static resolution => resolution.Subscriptions)
+        .Where(static subscription => subscription.ExecutionScope == OutboxSubscriptionExecutionScope.PrivilegedPlatform)
+        .Select(static subscription => subscription.Id).Distinct(StringComparer.Ordinal)
+        .Order(StringComparer.Ordinal).ToArray();
+
     /// <summary>The finite labels allowed for declared event types in metrics.</summary>
     public IReadOnlyList<string> EventTypeLabels { get; }
 
@@ -194,7 +214,8 @@ public sealed class OutboxEventRegistry
             foreach (var subscription in subscriptions)
             {
                 if (subscription is null || !ValidSubscriptionId(subscription.Id)
-                    || !subscriptionIds.Add(subscription.Id))
+                    || !subscriptionIds.Add(subscription.Id)
+                    || !Enum.IsDefined(subscription.ExecutionScope))
                 {
                     throw new InvalidOperationException(
                         "Outbox subscription IDs must be valid and globally unique.");

@@ -1,6 +1,7 @@
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -48,10 +49,12 @@ namespace LearnStack.Infrastructure.Audit;
 /// </para>
 /// </param>
 /// <param name="logger">Records an override read that failed and fell back.</param>
+/// <param name="tenantAccessor">Selects bounded delivery diagnostics; never supplies override authority.</param>
 public sealed class AuditConfigService(
     ICacheService cache,
     Lazy<NpgsqlDataSource> dataSource,
-    ILogger<AuditConfigService> logger)
+    ILogger<AuditConfigService> logger,
+    ITenantContextAccessor? tenantAccessor = null)
     : IAuditConfigService
 {
     /// <summary>The module segment of this projection's cache key.</summary>
@@ -115,7 +118,8 @@ public sealed class AuditConfigService(
             // catalogue carries the same MUST floor, so nothing proceeds unaudited — and
             // rejecting every request platform-wide because a cache is unavailable is a
             // worse compliance outcome than losing one tenant's narrowing.
-            LogOverrideReadFailed(logger, tenantId.Value.Value, failure);
+            LogOverrideReadFailed(logger, tenantId.Value.Value,
+                tenantAccessor?.Current is EventTenantContext ? null : failure);
 
             return declared;
         }

@@ -2671,6 +2671,67 @@ Implementation is `78992fc`; `bce0bc7` corrects the verified round-one reference
 No runtime fixes were required. Step 3 follows automatically under the accepted
 package; production subscriptions remain Pending.
 
+### P02b-3 Step 3 — business owner and completion gate (2026-10-13)
+
+**Implementation delivered; both independent reviews pending.**
+The closed prepared-owner entry announces the routing tenant/org and binds the
+actual frame, unit, transaction and generation before retained-envelope loading.
+Full validated event context replaces any inherited caller context before module
+resolution. Inbox claim precedes classification/handler construction. A duplicate
+skips business classification/construction and completes under the same final fence.
+
+Requests and deliveries share the common owner body: successful-save domain drain,
+producer invariants, MUST audit, exact-row lock and fresh expiry check, sticky gate
+admission, then physical COMMIT. No delivery opens a raw frame and calls the old
+entry as a joiner. Incoming-event causation reaches nested production; immediate
+domain-event identity takes precedence. SystemActor remains effective while closed
+audit metadata preserves original causal actor and incoming event identity in both
+writing paths. Shared audit fallback/reconciliation diagnostics suppress raw
+exceptions only in event context; ordinary HTTP diagnostics remain unchanged.
+
+The one-use completion gate distinguishes cancellation before admission, unknown
+COMMIT after admission and acknowledged durability. Npgsql retains successful
+transaction disposal for owned cleanup, so an acknowledged commit reaches its
+receipt before disposal faults or hangs. Cleanup before reuse and stale-frame
+protection remain enforced. The executor retains its callback, frame and scope
+through actual cleanup; scheduling deadlines/capacity/shutdown remain Step 4.
+Ordinary versus privileged execution is explicit manifest metadata; P3 supplies
+no privileged executor. Retained Active work may execute despite a Pending sibling,
+while the producer's whole-event Pending hold remains unchanged.
+
+Production defaults remain Pending. Two fresh sequential review receipts follow
+before Step 4 begins.
+
+#### Step 3 validation before review
+
+The `CI=true` Release solution build has zero warnings/errors. All 1,847 unit and
+289 architecture cases pass, zero failures/skips. The 33 new delivery execution
+and four physical Npgsql cleanup cases pass together as 37 Docker cases. They
+exercise constructor/invocation/null-task failures, caller versus foreign
+cancellation, SystemActor and original causal metadata before construction and
+through cleanup, direct/nested/domain-event production, atomic five-leg rollback,
+duplicate short-circuiting, ownership loss after saved work, expiry behind an
+unchanged row lock, lost COMMIT acknowledgement at attempts one/six, and cleanup
+faults/hangs after acknowledged durability. Unit proofs separately exercise the
+closed capability/gate, fallback Activity, causal audit composition, capture
+exclusions and actual nonempty bounded audit-failure diagnostics.
+
+An isolated source copy passes all six gate/token/expiry controls before mutation.
+Removing gate refusal admits a late callback when its token is deliberately not
+canceled; the corresponding test fails. Removing only the final expiry check
+fails both expired-work and blocked-lock-expiry cases while the token/gate controls
+remain green. Removing token equality fails its ownership-loss case while the
+other two controls remain green. These are compiled behavioral mutations, not
+source-string assertions; production source is never mutated for this experiment.
+The restored isolated baseline passes all six controls after the mutations.
+Required format verification, whitespace, seven ADR-status controls and the
+1,623-link/372-fragment corpus sweep pass. The broader integration regression,
+excluding the long frontend rendering proof, is still running at this commit;
+its outcome must be recorded before this step closes. Neither this local
+receipt nor the held production manifests claims an active production consumer
+or PR-head CI. Step 4 retains independent scheduling, timeout and replay proofs;
+Steps 5/6 retain actual defaults, Seeder convergence and full packet closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

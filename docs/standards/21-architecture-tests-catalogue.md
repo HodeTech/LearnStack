@@ -110,7 +110,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**194 test methods run in
+**196 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -3221,7 +3221,14 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   superseding ADR-0006/0010's handler-called guard assertion.
 - **Type:** architecture call-path census and integration tests (Testcontainers).
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — transport-owned inbox/delivery remains unimplemented.
+- **Status:** **Registered** — the shared inbox primitive and test-owned execution
+  are present; real default-handler census/activation remains Step 5/6. Step 3's
+  partial structural companions are
+  `OutboxDispatchConventionTests.Delivery_owner_and_inbox_capabilities_are_closed`
+  and
+  [Delivery_owner_census_rejects_extra_direct_delegate_async_and_inherited_capabilities](../../backend/tests/LearnStack.Tests.Architecture/DeliveryOwnerBoundaryTests.cs).
+  They enumerate all production assemblies, prepared-owner minting/consumption,
+  inbox callers, completion subtypes and common-owner fence/commit capabilities.
 - **Phase:** 02b, P02b-3.
 
 #### `Integration_Events_Inherit_From_IntegrationEventBase`

@@ -99,6 +99,12 @@ public sealed record AuditIntent(
     Type? EntityType,
     DateTimeOffset DeclaredAt)
 {
+    /// <summary>The trusted incoming event identity for delivery-originated work.</summary>
+    public Guid? CausationId { get; init; }
+
+    /// <summary>The original causal actor, separate from the effective system actor.</summary>
+    public UserId? CausalActorUserId { get; init; }
+
     /// <summary>
     /// The instance the row is about, when the handler designated one through
     /// <see cref="IAuditSubject"/>; <c>null</c> otherwise.

@@ -165,7 +165,8 @@ public sealed class TenantContextConstructionTests
         // `ITenantContextAccessor.Current`, and writes to it have exactly four
         // callers — TenantResolverMiddleware (HTTP), HubCorrelationMiddleware
         // (/api/internal/*), the Hangfire JobActivator (jobs) and the outbox / inbox
-        // handler scope (integration events). Two exist today; the rule is written
+        // handler scope (integration events). HTTP and the acceptance/execution
+        // halves of the integration-event scope exist today; the rule is written
         // over the whole set so the third to arrive is a deliberate edit here rather
         // than a silent addition there.
         //
@@ -197,9 +198,10 @@ public sealed class TenantContextConstructionTests
             [
                 "LearnStack.Api/Tenancy/TenantResolverMiddleware.cs",
                 "LearnStack.Infrastructure/Messaging/InProcessEventBus.cs",
+                "LearnStack.Infrastructure/Messaging/DeliveryExecutor.cs",
             ],
-            "two of the four enumerated writers have landed — the HTTP one and the "
-            + "integration-event handler scope. HubCorrelationMiddleware and the "
+            "two of the four logical writers have landed — HTTP and the integration-event "
+            + "acceptance/execution scopes. HubCorrelationMiddleware and the "
             + "Hangfire JobActivator are later phases, and a fifth writer is how a "
             + "request runs under a tenant nothing resolved");
     }

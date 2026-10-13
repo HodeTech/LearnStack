@@ -85,7 +85,8 @@ Rules that follow from this:
   implements durable acceptance for declared `IIntegrationEventHandler<T>`
   subscriptions, restoring context before its fresh application scope. Publication
   constructs no handler. The shared transport-owned `IInboxGuard` claim primitive
-  is implemented; business owner/executor and scheduling remain Steps 3–4 under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+  and Step 3's business owner/executor are implemented; scheduling remains Step 4
+  and production defaults Step 5 under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
   Phase 11's adapter must preserve that consumer contract.
 - **A demand-gated block is not "deferred".** It qualifies only with all four of: a
   port, a working default implementation, an owning phase, and a written trigger. If a
@@ -460,8 +461,9 @@ Rules:
   implements hosted producer dispatch, with both independent review rounds complete;
   Step 4 enforcement and local closeout are complete; all four steps completed
   both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-  owns CI/merge status. Inbox and
-  effectively-once consumer delivery remain P02b-3.
+  owns CI/merge status. P02b-3 Steps 1–3 implement shared storage, durable acceptance
+  and test-owned transactional execution; its independent scheduler and real
+  default subscriptions remain Steps 4–5.
 
 Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 

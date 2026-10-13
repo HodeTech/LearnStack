@@ -4,6 +4,7 @@ using System.Text.Json;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -75,6 +76,7 @@ public sealed class PostgresAuditStore : IAuditStore
     private readonly ILogger<PostgresAuditStore> _logger;
     private readonly IAuditHealth _health;
     private readonly IAuditCatalog _catalog;
+    private readonly ITenantContextAccessor? _tenantAccessor;
     private readonly Counter<long> _durableDuplicates;
     private readonly Counter<long> _standaloneWriteFailures;
 
@@ -84,7 +86,8 @@ public sealed class PostgresAuditStore : IAuditStore
         ILogger<PostgresAuditStore> logger,
         IMeterFactory meterFactory,
         IAuditHealth health,
-        IAuditCatalog catalog)
+        IAuditCatalog catalog,
+        ITenantContextAccessor? tenantAccessor = null)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
@@ -93,6 +96,9 @@ public sealed class PostgresAuditStore : IAuditStore
         _logger = logger;
         _health = health ?? throw new ArgumentNullException(nameof(health));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        // Context controls diagnostics only. Row authority still comes exclusively
+        // from the caller's classified draft/intent, including unresolved provisioning.
+        _tenantAccessor = tenantAccessor;
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
@@ -216,7 +222,7 @@ public sealed class PostgresAuditStore : IAuditStore
             // (ADR-0044 § 5).
             // Logged AND counted, which is what the two ADRs say and what the comment
             // above used to claim on its own.
-            LogDurableDuplicate(_logger, entry.Operation, duplicate);
+            LogDurableDuplicate(_logger, entry.Operation, DiagnosticException(duplicate));
             _durableDuplicates.Add(1, new KeyValuePair<string, object?>("operation", entry.Operation));
 
             // And healthy: the row is durable, which is the opposite of the state the
@@ -305,7 +311,7 @@ public sealed class PostgresAuditStore : IAuditStore
     /// </remarks>
     private void ReportFailure(string operation, Exception failure)
     {
-        LogStandaloneWriteFailed(_logger, operation, failure);
+        LogStandaloneWriteFailed(_logger, operation, DiagnosticException(failure));
         _standaloneWriteFailures.Add(1, new KeyValuePair<string, object?>("operation", operation));
         _health.ReportStandaloneWriteFailed(operation);
     }
@@ -340,9 +346,12 @@ public sealed class PostgresAuditStore : IAuditStore
             // carrying the platform sentinel — refused before this try, as the caller error
             // it is, so that swallowing it here cannot hide the one misuse the guard exists
             // to surface.
-            LogBestEffortLost(_logger, entry.Operation, failure);
+            LogBestEffortLost(_logger, entry.Operation, DiagnosticException(failure));
         }
     }
+
+    private Exception? DiagnosticException(Exception failure) =>
+        _tenantAccessor?.Current is EventTenantContext ? null : failure;
 
     /// <inheritdoc />
     public async Task WritePlatformScopeAsync(

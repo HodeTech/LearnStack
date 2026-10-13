@@ -392,8 +392,9 @@ Rules:
   commands keep their own intents without a duplicate business row. Modules see
   none of this plumbing; the MUST floor and standalone refusal posture survive.
 - The interceptor captures **every** `ChangeTracker` entry in state `Added`, `Modified` or
-  `Deleted`, minus a named exclusion list — `OutboxMessage` and `IdempotencyKey`
-  (machinery) and `AuditEntry` / `AuditConfig` (the audit tables themselves). The
+  `Deleted`, minus a named exclusion list — `OutboxMessage`, `IdempotencyKey`,
+  `InboxMessage` and `EventDelivery` (machinery) and `AuditEntry` / `AuditConfig`
+  (the audit tables themselves; [ADR-0044 Amendment 11](../decisions/0044-audit-write-path.md#amendment-11--shared-delivery-capture-exclusions-2026-10-13)). The
   "`AuditableEntity<>` descendants only" predicate is **withdrawn**: it was blind to the
   seven plain classes the modules ship — `PlatformHostMapping`, `TenantLocale`,
   `TenantFeatureFlag`, `PlatformEntitlement` and `PlatformKillswitch` in Tenancy,
