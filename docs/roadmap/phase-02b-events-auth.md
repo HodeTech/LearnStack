@@ -2059,8 +2059,12 @@ dispatches three real rows: the initial snapshot survives successful work and
 the last tick before the interval; the exact boundary refreshes it after the
 next completed dispatch. Release build reports zero warnings/errors; format,
 1,847 unit, 287 architecture and all 17 worker integration cases pass, with zero
-failures/skips. Independent correction reviews and new-head CI remain pending
-in this initial local receipt.
+failures/skips. Two fresh sequential independent reviews of `3620b421..3baf3a22`
+approve with no findings. In an isolated tracked-source copy, reverting only the
+production call to forced refresh makes the new case fail its retained-snapshot
+assertion (one executed, one failed); the corrected case passes. New-head CI
+remains pending in this local receipt; the PR description owns live checks and
+artifact-backed evidence after publication.
 
 ### Durable outbox dispatch
 
