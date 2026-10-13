@@ -3,7 +3,8 @@
 **Current status — 2026-10-13.** P02b-0 through P02b-2 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
-P02b-3 is next; subscriber/inbox delivery and P02b-4–8 remain unimplemented.
+P02b-3's [decision pass](#p02b-3-decision-package-2026-10-13) is in review;
+subscriber/inbox delivery and P02b-4–8 remain unimplemented.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -265,7 +266,7 @@ Accepted, and its catalogue rows registered, before its first line of code.
 | **P02b-0** | Phase entry: every premise the register below cites re-verified against `HEAD` — the code, the corpus, the Hub repository — and the register corrected where Phase 02d moved it. It drafts no record: each gate closes in the decision pass of the first packet it shapes, and each glossary headword this phase needs — `inbox`, outbox lease, dead letter, audit frame, job activator, integration-event consumer — is written in the pass whose gate fixes its meaning | [Phase 02d](phase-02d-walking-skeleton.md) exits |
 | **P02b-1** | **Complete and merged — [PR #29 closeout](#p02b-1-merge-and-closeout-2026-10-12).** Producer: `IOutbox`, the `OutboxFlushBehavior` invariant guard, successful-save domain-event collection and owner-only completion, and the first event with its enqueue path | G2, G3 (the key's derivation), G5 (the stored identities), G6, G18 (the payload rule), G19 Accepted |
 | **P02b-2** | **Complete and merged — [PR #30 closeout](#p02b-2-merge-and-closeout-2026-10-13).** Dispatcher: the lease migration and grant extension, claim / publish / mark, backoff, the producer terminal state, the credential and its boot guard, the metrics and the health check | G1, G3, G4, G5, G7, G8, G17, G18 (`last_error`) Accepted; P02b-1 |
-| **P02b-3** | Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
+| **P02b-3** | [Decision pass in review](#p02b-3-decision-package-2026-10-13); runtime unimplemented. Consumer: durable acceptance, shared inbox/ledger DDL and `IInboxGuard`, the common per-delivery transaction, both real defaults subscriptions and Seeder handoff, independent attempts and audited terminal state, targeted internal ledger replay | G1, G6, G7 Accepted; P02b-2 |
 | **P02b-4** | Background jobs: the runner, its storage, the tenant-context hook, the enqueue guard, no job definition | G9 Accepted; P02b-3 |
 | **P02b-5** | API authentication: JwtBearer wiring and its insertion order, claim population, the host/JWT cross-check through the existing recorder, token-keyed rate limits, the 401 rows, one authenticated endpoint | G10, G11, G12 (the BFF's client), G14, G20 Accepted |
 | **P02b-6** | Realm and seed: the shared client scope, the mappers, the user-profile declaration, UUID attributes agreeing with `SeedData`, the warm-realm reconciler, the Keycloak test fixture | G12, G13 (the access-token lifetime's authority) Accepted; P02b-5 |
@@ -2132,6 +2133,376 @@ errors; added prose wrapping and whitespace checks pass. All prior P02b
 delivery/review receipts and every ADR file are byte-preserved. Runtime suites
 are not rerun locally for this documentation-only change; the final PR artifacts
 above supply their evidence.
+
+### P02b-3 decision package (2026-10-13)
+
+**Proposed — maintainer review pending. No P02b-3 runtime is implemented.**
+The audit baseline is `development` at
+`652004290c9696e65e68817f223839d4a0f02137`, after PR #30's verified merge.
+Three independent read-only audits covered the accepted contracts, storage/
+privilege/owner lifecycle, and Customization/Seeder convergence. Their findings
+were checked against current source; they report inspection, not passing tests.
+
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+already accepts G1/G6/G7's shared transport-owned inbox, stable subscriptions,
+durable acceptance, independent retries, atomic terminal audit and targeted
+internal replay. [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+accepts both create-only default effects and the Seeder handoff. This package
+concretizes the storage, runtime and enforcement details those records assign to
+P02b-3. It does not reopen their decisions or authorize jobs/authentication.
+
+#### Document and code review
+
+The review follows the roadmap entry reading, then ADR-0003/0006/0010/0017/0023/
+0033/0036/0038/0040/0042/0043/0044/0046/0057, applicable Backend, Database,
+Testing, Observability, Security, Documentation, Audit, Infrastructure and
+Architecture-test standards, architecture 03/09/10/15/29/31/32, the Tenancy/
+Customization/Audit specs and matrices, and event/seed/migration/test skills.
+The actual producer, bus, registry, transaction/audit coordinators, terminal
+witness/store, Customization writers/readers and Seeder are the implementation
+premises. Acceptance history remains the authority for any proposed ADR erratum.
+
+| Verified premise | Required P02b-3 action |
+|---|---|
+| `InProcessEventBus` invokes and constructs handlers immediately; it owns no durable acceptance or inbox | Replace that publication outcome with durable acceptance; execute only through the independent delivery owner |
+| `OutboxEventRegistry` owns stable IDs/readiness; the handler registry carries only concrete handler metadata | Preserve one manifest identity source; bind each Active ID to exactly its declared contract and handler |
+| Common owner completion drains events, writes MUST audit and commits without a delivery completion participant | Add a closed delivery-specific final fence/gate while preserving request ownership and all existing announcement methods |
+| `EventTerminalTransition` and the fifth audit seam accept only producer terminalization | Extend the restricted actual-row witness and operation census to the subscriber terminal writer |
+| Customization's current readers exclude deleted rows and discover by ID or Active key | Add owner-local, tenant-protected concept history across every revision/status, including soft deletion |
+| Register uniqueness protects one revision, not concurrent initialization versus another revision | Serialize initialization and concept registration on the same transaction-owned semantic key |
+| Seeder requires fixed built-in IDs; its counts assume separate register/publish acts | Resolve built-ins semantically, preserve warm IDs, share initialization, and update inventory/fixtures without weakening authored-ID checks |
+| Direct delivery production has no incoming-event causation source | Carry a trusted delivery entry through nested producer frames; keep tenant/org authority in the announcement |
+| Existing aggregate/audit request censuses omit integration handlers | Add nonempty production-consumer coverage and planted violations before marking consumer rules Implemented |
+| Existing bus logs raw exceptions and adds exception details to spans | Replace transport-owned diagnostics with bounded codes before enabling production subscriptions |
+
+These gaps are expected P02b-3 work; they are not retroactive P02b-2 failures.
+Required production manifests stay Pending until acceptance, execution and Seeder
+handoff are ready together. Test-owned Active contracts exercise earlier steps.
+
+#### Proposed storage and authority details
+
+1. **Two shared infrastructure tables.** `event_deliveries` retains one copy of
+   the validated producer envelope per `(tenant_id, subscription_id, event_id)`.
+   `inbox_messages` holds the completion identity for that same tuple, with no
+   surrogate UUID. Neither depends on a live producer row. A producer purge
+   cannot remove a pending delivery's payload. No third dead-letter store/topic
+   or arbitrary metadata is added. Retained copies and their retention dependency
+   enter the P02b-8 inventory; actual purging remains Phase 11.
+2. **RLS and classes.** The ledger is tenant-owned and organization-scoped because
+   its envelope carries organization metadata and payload. Use the canonical
+   tenant-and-organization policy, ENABLE and FORCE, with explicit WITH CHECK.
+   The inbox is tenant-wide identity machinery with no payload/org authority.
+   Both use explicit tenant predicates in application SQL. No foreign key to
+   `outbox_messages` or cascade from business tables controls retention. The
+   executor restores the stored organization before reading the envelope;
+   an unmarked event never widens a present organization to null.
+3. **Closed grant budget.** `learnstack_app` receives RLS-protected acceptance
+   INSERT/SELECT and only the ledger completion-column UPDATE. Inbox claim is an
+   INSERT of an immutable completion marker inside the uncommitted business
+   transaction; uniqueness serializes duplicates before construction. Only owner
+   success makes that marker durable; rollback removes it. Its timestamp records
+   the claim; ledger completion records business completion. Successful app-role
+   completion retains token/expiry as inert provenance because it cannot UPDATE
+   those fields. Completed rows are excluded from acquisition, recovery,
+   terminalization and replay. The bypass scheduler
+   receives column SELECT for tenant/subscription/event identity, organization,
+   declared type/topic/partition, occurrence, attempts, availability, lease,
+   completion, terminal/replay state and bounded diagnostics; UPDATE covers only
+   scheduling/status columns. It receives no payload or causal-envelope SELECT,
+   no ledger INSERT/DELETE and no inbox privilege. Application INSERT grants name
+   acceptance columns only, excluding caller-supplied scheduling/terminal state.
+   The existing Audit-chain
+   INSERT-only grant is reused; no fifth role or business-table grant is added.
+4. **Canonical detail before code.** Standards 05 owns complete DDL, constraints,
+   exact column grants and matching pending/recovery/terminal indexes. A new
+   Platform-chain migration implements it; historical migrations stay intact.
+   Identity, subscription grammar, nonnegative attempts, lease pairing,
+   mutually exclusive completion/terminal state and the 256-byte error cap have
+   CHECKs. Completion and terminal UPDATE predicates match the actual grants;
+   tests run them as the real roles, not merely inspect grant text. No P3 role
+   purges these stores; Phase 11 must decide the minimal retention grants and
+   ordering before installing its purger.
+5. **Accepted envelope is immutable.** Publication validates the envelope and
+   Active manifest, restores its scope, and inserts every required delivery in
+   one app-role acceptance transaction without constructing business handlers.
+   An existing identical identity/envelope is idempotent; a conflicting envelope
+   refuses acceptance without overwriting the first copy. Canonical serialized
+   data, including organization and causal metadata, determines equality, not
+   raw `jsonb` whitespace. An existing accepted subset can be completed safely.
+   An uncertain acceptance COMMIT leaves the producer retryable; subscriber
+   execution failures never flow back into the producer's retry budget.
+
+Scoped application completion is a constrained call path, not a claim that column
+grants sandbox arbitrary compromised app SQL. Likewise, the terminal audit's
+tenant binding is the row witness, not BYPASSRLS GUCs. No tenant-status lookup is
+added as an asynchronous hold/drop policy; Phase 02c retains that decision.
+
+#### Proposed execution, retries and replay
+
+Each attempt owns a fresh app-role scope. Announce the validated routing tenant/
+organization before resolving a module context, read and revalidate the retained
+envelope by its claimed identity/token under RLS, then claim the inbox before
+handler construction. Completed duplicates skip construction. Effective actor is
+SystemActor; original causal actor and incoming EventId remain trusted producer
+metadata. Ordinary execution refuses privileged subscriptions. Phase 03's
+erasure execution contract remains separate.
+
+The outer audit coordinator classifies the declared handler before construction;
+nested commands retain their own classified intents. No module writes audit SQL.
+The common transaction owner drains domain events, writes pending MUST audit,
+performs the delivery completion UPDATE with tuple/token/unexpired database lease,
+and atomically admits physical COMMIT against a sticky completion gate. A failed
+fence or a gate closed by cancellation poisons and rolls back all work. The gate
+arbitrates Open -> Closed versus Open -> Committing; cancellation after commit
+admission is an unknown/Indeterminate outcome, not guaranteed rollback. Durable
+inbox/ledger state decides recovery, including an uncertain sixth-attempt COMMIT.
+This adds no IUnitOfWork session setter, retargeting or independent business commit.
+
+| Policy | Proposed initial bound |
+|---|---|
+| Host and acquisition | API-owned subscriber worker; one just-in-time normal claim; reuse the confined keyed dispatcher source |
+| Normal claims | Six per subscription/event, including claims whose execution outcome is unknown |
+| Five retry delays | 1 s, 5 s, 30 s, 5 min, 1 h, using database availability time |
+| SQL / terminal transaction | 5 s |
+| Complete execution wait | 10 s, including construction, handler and owned cleanup; timeout closes the commit gate |
+| Lease | 30 s, with validated execution/transition margin; no renewal promise |
+| Idle poll / snapshot interval | 200 ms / 5 s; successful work does not force a scan |
+| Progress / stale health | 45 s |
+| Cancellation-ignoring work | At most four retained tasks; block their local partition, unhealthy while retained, stop acquisition at capacity |
+| Shutdown | One total 30 s wait; live task resources remain owned until actual completion or process exit |
+
+The worker retains and observes cancellation-ignoring tasks with their live scope;
+it does not dispose a running callback or promise managed-code termination.
+This is one additional in-process subscriber worker in the existing API host;
+it neither creates a new host nor changes the producer's existing bounds. Its
+four-task and 30 s bounds apply to this worker, not an added whole-host shutdown
+guarantee. All stop waits also observe the host's shared shutdown cancellation.
+If scope disposal faults or times out after acknowledged business COMMIT, the
+completed ledger/inbox remain definitive; cleanup cannot undo or rerun that
+effect. Unknown completion reconciles durable state. Overrunning cleanup remains
+task-owned and consumes capacity until actual disposal finishes.
+Recovery replaces expired ownership before transitions and spends no additional
+attempt. Ordinary failed/unknown outcomes use independent backoff. Expired claim
+six requests terminalization without a seventh invocation. Requests for terminal
+state are never normal execution candidates. Audit refusal retries terminalization
+alone. Closed reasons distinguish invalid envelope/subscription from exhaustion;
+descriptors expose bounded stage/category codes, never raw exception text.
+
+Subscriber terminalization uses the same fifth audit seam and a subscriber witness
+minted only from its successful fenced UPDATE result. It binds actual tuple,
+organization, token, attempts, reason and live connection/transaction. The
+Tenancy catalogue/matrix registers `platform.delivery.dead_letter` as off-path
+MUST/SecurityEvent when this writer ships. Subscriber terminal audit uses the
+validated attempt trace and bounded event/subscription/reason/attempt metadata;
+it does not grant the bypass scheduler causal-envelope or payload access merely
+to reuse the producer witness. Business execution retains original causality.
+
+Internal replay takes exactly one declared tenant/subscription/event tuple. It
+admits an Active ordinary subscription and completed terminal ledger row only;
+live claims, pending terminalization, unknown/retired/Pending subscriptions and
+completed business deliveries are refused. The fenced reset clears that row's
+terminal request/timestamp, attempts and bounded error, makes it due and invalidates
+old ownership. It never deletes/resets an inbox or republishes a broadcast.
+The scheduler later invokes only that subscription. A completed inbox still
+short-circuits business construction if an earlier uncertain attempt committed.
+No replay HTTP route, permission grant or operator producer reset ships here.
+
+Standards 10 owns subscriber metric names/dimensions and the registered, unmapped
+health check. Keep no tenant/event/partition/trace labels; subscription/event-type
+labels are finite declared-registry values only. Snapshot gauges perform no SQL;
+refresh failure preserves the prior snapshot and reports stale/unhealthy state.
+Producer and subscriber attempt/failure/terminal/dedup signals remain distinct.
+The API's `/healthz` and anonymous public contract remain unchanged.
+
+#### Proposed defaults and Seeder handoff
+
+The two stable identities remain
+`customization.initialize-content-type-default.v1` (`card@1` content type) and
+`customization.initialize-taxonomy-default.v1` (`plain@1` level taxonomy).
+Each effect owns exactly one root. New roots are validated, created and made
+Active in one transaction/save, with a Customization-owned UUIDv7, one generation
+increment and one classified initialization MUST audit. Shared owner-local
+initialization commands let the Seeder use the same logic without a worker,
+dispatcher credential, raw SQL or new tenant-context setter. Event handlers
+coordinate only their own effect through those commands; they do not combine roots.
+
+A transaction-owned semantic concept lock serializes each initializer with the
+ordinary registration writers for `(tenant, aggregate-kind, key)`. Under that
+lock, any revision in Draft/Active/Deprecated or soft-deleted history means
+preserve, not initialize. A successor-only concept also counts as touched.
+Whichever writer commits first defines whether the concept was untouched;
+initialization never overwrites, republishes, revives or fills a missing revision
+of an already touched concept. Parameterized owner-local history reads retain
+explicit tenant predicates and RLS; no query-filter bypass is introduced.
+Same-key locks do not create a cross-tenant authority path.
+
+The initialization operation classifies preserved/no-op attempts explicitly;
+it changes no root or generation. A new delivery may record an initialization
+attempt without entity changes; a completed duplicate constructs no handler and
+creates no second business audit. Seeder pre-verifies completed built-ins before
+sending an initializer, so a completed rerun remains write/audit-neutral.
+Fresh inventory counts reflect one initialization audit/bump per built-in,
+not the old two register/publish acts. That is the uncontended creation count;
+separately classified preserved attempts after a seed/delivery race may add an
+audit without a generation bump. Tests distinguish creation from no-op attempts,
+and count the actual deduplicated delivery identities rather than asserting that
+every asynchronous interleaving has the Seeder-only audit total. Historical
+receipts are not recounted.
+
+Built-in Seeder verification discovers semantic key/version, then validates exact
+Active state and built-in shape while retaining the stored ID. Existing matching
+non-demo IDs pass. Preserved Draft, deprecated, deleted, successor-only or
+mismatched definitions remain untouched; if they cannot satisfy the declared
+demo inventory, seeding refuses with a bounded mismatch instead of claiming
+completion. Tenant-authored definitions/courses/lessons retain exact declared
+IDs and exact pins. Consumer and fresh Seeder races converge in both winning
+orders; an unexpected database failure is not a blind retry/overwrite.
+
+#### Decision vehicles and documentation actions
+
+No new architecture decision is proposed: these details fit ADR-0046/0057's
+explicitly delegated P02b-3 boundary. If implementation disproves that fit, stop
+and prepare a new decision for maintainer review before changing the contract.
+Acceptance of this package authorizes the following already-required changes,
+with original Accepted bodies/metadata and historical receipts preserved:
+
+- **ADR-0023:** verify the inbox minting-list wording at its acceptance commit;
+  add the ADR-0041 inline erratum and its own dated amendment, because inbox
+  identity reuses the producer EventId rather than minting a surrogate. This
+  corrects the listed table, not the UUIDv7 decision.
+- **ADR-0044:** append the additive capture-exclusion clarification for the
+  shared inbox and delivery ledger; add subscriber fifth-seam/operation navigation
+  already authorized by ADR-0046. Explicit business intents remain audited.
+- **ADR-0046/0038/0057:** dated delivery/navigation notes when their P3 obligations
+  actually ship; no premature completion claim or replacement of earlier bodies.
+- **Mutable carriers:** canonical Inbox/ledger DDL and grant matrix in Standards
+  05; lifecycle/diagnostics/audit rules in 02/09/10/11/18/20; canonical tests in 21;
+  architecture 03/09/10/15/29/31/32; glossary; module specs/matrices; event/seed/test
+  skills; Seeder inventory/fixtures and `BuiltInCustomizations` creator remarks.
+  Reconcile only touched claims; do not duplicate an ADR or RLS template.
+- **Hub pointer:** verify the sibling repository's per-module inbox dependency
+  and coordinate its documentation pointer before P3 closeout, as ADR-0046 requires.
+  The current sibling `docs/roadmap/README.md` P02c-3 row still names per-module
+  inbox tables; replace only that dependency with a link to ADR-0046's shared
+  transport-owned inbox contract when coordinating the documentation change.
+  No Hub runtime, HTTPS contract or branch change is authorized by this package.
+
+At acceptance, Standards 21 registers the following additional canonical rules
+as Registered, with their behavioural/structural owners; no passing enforcement
+is claimed before code:
+
+- `Integration_Event_Publication_Is_Durable_Acceptance` — real-role acceptance,
+  immutable duplicate/collision handling, partial/unknown COMMIT and no construction.
+- `Delivery_Retries_And_Replay_Are_Subscription_Scoped` — independent budgets,
+  terminalization, completion gates, final-claim recovery and targeted replay.
+- `Delivery_Terminal_Audit_Identity_Is_Row_Bound` — restricted subscriber witness
+  census and atomic matching/mismatched identity/transaction proofs.
+- `Delivery_Execution_And_Observation_Are_Bounded` — actual hosted execution,
+  retained resources, shutdown, closed diagnostics and snapshot/health emitters.
+- `Customization_Default_Initialization_Preserves_Touched_Concepts` — one-root
+  useful creation, all lifecycle preservation and serialized registration races.
+- `Seeder_BuiltIns_Use_Semantic_Identity` — generated/warm IDs, exact shape and
+  authored IDs, no-worker operation, rerun neutrality and real delivery races.
+
+Extend the existing `Integration_Event_Handlers_Use_InboxGuard` and
+`Integration_Event_Handler_Restores_Tenant_Context` obligations rather than
+inventing alternate names for their claim/owner/scope assertions. Extend the
+existing credential confinement census only for the named subscriber scheduler/
+store; business handlers and application execution never receive bypass access.
+
+#### Six proposed implementation steps
+
+Each step commits on `development`, then completes two fresh independent review
+rounds. Verify findings against current code, fix valid findings, validate and
+commit fixes before the next round/step. A clean review needs no empty commit.
+Continue automatically unless a real blocker or new maintainer decision arises.
+
+1. **Accepted detail, schema and privileges.** Record approval before runtime;
+   register canonical proof obligations, reconcile the named ADR instruments,
+   implement Platform migration/table classes/RLS/grants/indexes and test
+   forward/down/reapply, actual role permissions and tenant/org isolation.
+   Production subscriptions remain Pending.
+2. **Durable acceptance and inbox primitives.** Replace immediate broadcast
+   execution with validated transactional acceptance; implement immutable envelope
+   collision/duplicate semantics and transport-owned inbox claims. Prove partial
+   and uncertain acceptance, independent identities, concurrent duplicates and
+   construction-free publication with real PostgreSQL.
+3. **Business owner and completion gate.** Implement fresh application scopes,
+   restoration before resolution, classification, incoming-event causation,
+   common owner completion and sticky commit arbitration. Prove business/inbox/
+   outbox/MUST-audit/ledger atomicity, canceled/expired/stale attempts, no-listener
+   metadata, owner cleanup and unknown COMMIT without activating production defaults.
+4. **Subscriber scheduling, terminalization and replay.** Implement independent
+   leases/attempts/recovery, witnessed terminal MUST audit, targeted reset, bounded
+   task ownership, minimal diagnostics and snapshot health/metrics. Prove sibling
+   independence, sixth-claim recovery, late completion, audit rollback, identity
+   substitutions, safe shutdown and replay fences using the actual worker.
+5. **Useful consumers and convergent seed.** Add the two one-root initializers,
+   concept serialization/history reads and semantic verification; migrate Seeder
+   and fixtures, then activate both real subscriptions together. Prove untouched
+   creation, every preservation lifecycle, warm IDs, strict authored pins, repeated
+   seeding and concurrent fresh seed/delivery in both winning orders.
+6. **Enforcement and PR closeout.** Complete production-handler/call-path censuses
+   with planted clean/dirty controls, full Release build/format/backend regression,
+   affected frontend/launcher tests and real demo/Lighthouse proof. Reconcile all
+   current-state docs and accurate test counts; open the PR only after every step
+   and both reviews finish. Verify all seven required CI checks at the exact head;
+   never claim merge or delivery of P02b-4–8.
+
+#### Decisive acceptance proofs
+
+- Actual app-role tenant/org isolation and real bypass column grants: scheduler
+  payload/inbox reads and app retry/reset writes fail; allowed acceptance and
+  completion succeed. Completed inbox rows persist across replay and producer purge.
+- Two same-module subscriptions and concurrent duplicates yield one business
+  effect each. A duplicate waits for the first transaction; rollback permits a
+  new claim. Handler construction failure is independent of acceptance success.
+- Fenced ledger completion, business changes, produced events and MUST audit all
+  roll back on a stale/expired token or closed gate. Kill the fence/gate in a
+  controlled mutant to prove sensitivity, including timeout persistence failure
+  followed by an ignored-token late callback.
+- Real lost-COMMIT acknowledgement recovery, including the final subscriber
+  claim, does not repeat committed business work or terminal audit. Cancellation
+  after commit admission never claims certain rollback. Postcommit disposal fault
+  and timeout controls retain durable completion, prevent effect replay and keep
+  live cleanup resources safely owned.
+- Subscriber terminal draft tenant/org/event/subscription/operation/transaction
+  substitution rolls back both transition and audit; matching org-scoped work
+  commits. Audit refusal never makes terminal-requested work executable again.
+- Targeted replay changes one terminal row only; completed sibling/inbox rows
+  and producer attempts stay unchanged. Stale pre-replay callbacks cannot complete.
+- Nonempty production censuses cover every module layer and the actual handler,
+  manifest, owner, inbox, terminal-witness and credential sites. Planted direct/
+  interface/helper bypasses and clean controls distinguish enforcement from an
+  empty or narrowed subject set. Extend one-root and audit-registration coverage
+  to integration handlers; do not only count request handlers.
+- Logs/spans/descriptors/artifacts reject planted payload, secret, raw type and
+  exception values. Finite telemetry labels, prior-snapshot retention, exact
+  refresh cadence and no SQL gauge callbacks have positive/negative controls.
+- Runtime proof includes actual TenantCreated backlog activation, both defaults,
+  ordinary app-role isolation and warm/fresh Seeder races. Test-only subscribers
+  alone cannot close the packet's useful-flow requirement.
+
+#### Decision-package reviews and validation
+
+Two fresh, sequential, read-only reviews examined the proposed working-tree
+package against baseline `65200429` and the current accepted contracts/code:
+
+- **Round 1 — GPT-6-astra, high:** Approve, no Blocker/Major. Clarifications for
+  postcommit disposal, inert completed-row lease provenance and creation/no-op
+  audit counts were verified and incorporated before round 2.
+- **Round 2 — GPT-6.1-sol, high:** Approve, no Blocker/Major/Minor. Independently
+  checked the completion/grant model, defaults/Seeder policy and ADR-0023's
+  acceptance-time natural inbox identity. It found no additional decision gap.
+
+Root validation passes all five `CorpusConsistencyTests` and seven ADR-status
+controls, with zero failures/skips. The changed phase document has 184 checked
+relative links and 98 fragments, with no missing targets/anchors. Added prose
+passes the 88-column check with documented link/table exceptions; whitespace is
+clean. Every Accepted ADR and all earlier P02b delivery/review receipts remain
+byte-preserved. This is documentation validation, not a P02b-3 runtime test run.
+The package remains Proposed until explicit maintainer approval; that approval
+and the registered obligations precede the first runtime implementation commit.
 
 ### Durable outbox dispatch
 
