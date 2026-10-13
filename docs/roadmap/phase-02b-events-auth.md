@@ -2961,7 +2961,7 @@ carriers, full regression, demo/Lighthouse and PR-head CI verification.
 
 ### P02b-3 Step 6 — production enforcement and PR closeout (2026-10-13)
 
-**Implementation in progress; both independent review rounds pending.**
+**Implementation and first review fixes complete; second review round pending.**
 Step 5 is closed at `ac7bbee` before these changes. This step completes nonempty
 production handler/manifest and call-path controls, extends aggregate/audit
 coverage to integration handlers, reconciles current carriers and performs full
@@ -3035,8 +3035,45 @@ Local Release proof receipts:
   P02b delivery/review receipts and Accepted ADR bodies are byte-preserved;
   authorized dated delivery notes are additive. ADR parser/disclosure tests: 7.
 
-Two fresh sequential review receipts and exact-head PR/CI verification follow
-before packet closeout. P02b-4–8 are unimplemented.
+#### Step 6 review round 1
+
+Three fresh independent agents reviewed `ac7bbee..82623d8`: GPT-6-astra/xhigh
+covered typed invocation/lifecycle capabilities; GPT-6.1-sol/xhigh covered
+aggregate/audit discovery, actual roots and HTTP/delivery proofs; GPT-6-sol/high
+covered the corpus and governance. Independent runs passed eight capability
+cases, twenty aggregate/audit cases and five actual root/HTTP/context cases.
+The whole backend/demo receipts above were inspected, not independently rerun.
+
+They found four enforcement gaps: a same-simple-name integration handler could
+hide inside the provisioning exception; a handler could inherit implementation
+from a base without the interface; a closed generic helper could hide typed DI
+resolution; and EF transaction completion APIs could bypass the typed lifecycle
+census. Root read the actual predicates and independently reran both compiled
+scratch reproductions, confirming dirty cases were missed and matched controls
+were detected. No current production-runtime defect was demonstrated.
+
+The fix pins the exact provisioning Type and adds independently failing name
+collision controls. The capability fixes map inherited implementations, follow
+closed generic helper specialization to known DI capabilities and enumerate EF
+transaction/facade completion APIs. Existing Facts gain compiled dirty/clean
+controls without increasing counts. Root's corrected Release build has zero
+warnings/errors and all nine focused guard cases pass, including independent
+same-name and recursive/ordinary generic controls. Rerunning the original
+compiled capability probe now detects both inherited/generic misses and every
+EF completion case, while the actual production baseline remains clean. The
+first fix build caught instance-only probe methods that used no instance state;
+their instance task fields preserve the intended inherited call shape without
+an analyzer waiver. Full architecture passes all 311 cases with zero skips;
+solution-wide format verification and document checks pass. The fix changes
+tests/docs only; prior full unit/contract/integration and demo receipts retain
+their explicitly recorded scope.
+Current README, processor and skill guidance also retained delivered-as-pending
+claims; those verified carriers are corrected. The new ADR-0046 delivery note
+stays only in its dated Amendment 3, with mutable-index navigation; no new top
+navigation is inserted into the Accepted body.
+
+The second fresh review round and exact-head PR/CI verification follow before
+packet closeout. P02b-4–8 are unimplemented.
 
 ### Durable outbox dispatch
 

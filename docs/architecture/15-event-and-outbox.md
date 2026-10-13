@@ -455,10 +455,12 @@ across publication. A deployment-specific alternative requires a new decision.
 - Deterministic selection for one processor without failure, with no enqueue,
   commit, retry or cross-process order promise.
 - Ordinary failure and bounded overruns permit unrelated eligible work to progress.
-- Pending real subscriptions retain useful facts until P02b-3 activates durable
-  acceptance. No placeholder consumer or global worker-disable switch is used.
+- Required Pending subscriptions retain useful facts before activation. Both
+  real default subscriptions are now Active with P02b-3 durable acceptance;
+  no placeholder consumer or global worker-disable switch is used.
 - Terminal state commits with MUST audit; it does not prove that a timed-out
-  transport never accepted the event. P02b-3's inbox is still required.
+  transport never accepted the event. P02b-3's shared inbox provides independent
+  per-subscription deduplication during at-least-once recovery.
 
 ## `IEventBus` and `IntegrationEventEnvelope`
 

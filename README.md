@@ -75,9 +75,12 @@ CI verification under Accepted ADR-0057. **P02b-2 is complete and merged** throu
 [PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 records hosted dispatch, terminal audit, observation/enforcement, completed
-reviews and final CI verification under Accepted ADR-0046. **P02b-3 is next**:
-durable subscriber acceptance, shared inbox/delivery ledger, both real defaults
-subscriptions and Seeder handoff. Phase 02b remains in progress.
+reviews and final CI verification under Accepted ADR-0046. P02b-3 implements
+durable subscriber acceptance, shared inbox/delivery ledger, both real default
+subscriptions and Seeder handoff. Its
+[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns enforcement and current review/PR status. P02b-4 background jobs follows;
+Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,

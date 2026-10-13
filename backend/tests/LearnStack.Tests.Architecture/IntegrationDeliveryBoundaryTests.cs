@@ -81,7 +81,8 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var type in probes.GetTypes()) types.Add(Key(type), type);
         var bindings = IntegrationHandlerBindings(types).ToArray();
         foreach (var handler in new[] { typeof(IntegrationDeliveryProbeHandler), typeof(IntegrationDeliveryProbeInheritedHandler),
-                     typeof(IntegrationDeliveryProbeExplicitHandler) })
+                     typeof(IntegrationDeliveryProbeExplicitHandler), typeof(IntegrationDeliveryProbePlainInheritedHandler),
+                     typeof(IntegrationDeliveryProbeGenericPlainInheritedHandler), typeof(IntegrationDeliveryProbePlainOverrideHandler) })
             bindings.Where(binding => TypeId(binding.Handler) == IntegrationRuntimeTypeId(handler))
                 .Select(binding => TypeId(binding.Event)).Should().Equal([IntegrationRuntimeTypeId(typeof(TenantCreatedIntegrationEventV1))],
                     "Fix: preserve closed event arguments through inherited and explicit integration contracts");
@@ -153,9 +154,12 @@ public sealed partial class OutboxDispatchConventionTests
             var calls = CallSites(census).Where(site => site.Owner.Contains("/IntegrationDeliveryProbe", StringComparison.Ordinal)).ToArray();
             var offenders = IntegrationTypedInvocationOffenders(types, calls,
                 probes.GetTypes().Where(type => type.FullName.Contains("/IntegrationDeliveryProbe", StringComparison.Ordinal)));
-            foreach (var name in new[] { "Direct", "ViaInterface", "ViaInherited", "Capture", "Async", "Run",
+            foreach (var name in new[] { "Direct", "ViaInterface", "ViaInherited", "ViaPlainInherited", "ViaGenericPlainInherited",
+                         "ViaPlainVirtualSlot", "CapturePlainInherited", "AsyncPlainInherited", "Capture", "Async", "Run",
                          "ResolveOptional", "ResolveRequired", "ResolveAll", "ResolveWrapped", "ResolveKeyed", "ResolveRequiredKeyed",
-                         "ResolveAllKeyed", "Activate", "ResolveOrActivate", "ResolveAsync", "CaptureResolution" })
+                         "ResolveAllKeyed", "Activate", "ResolveOrActivate", "ResolveAsync", "CaptureResolution",
+                         "ResolveForwarded", "ResolveForwardedWrapped", "ResolveFromGenericType", "ResolveRecursive",
+                         "ResolveGrowing", "ResolveForwardedAsync", "CaptureForwardedResolution" })
                 offenders.Should().Contain(offender => offender.Contains("::" + name + "(", StringComparison.Ordinal),
                     "Fix: compiled " + name + " must reach the same typed invocation detector");
             offenders.Should().Contain(offender => offender.Contains("::ResolveConstrained", StringComparison.Ordinal),
@@ -336,18 +340,124 @@ public sealed partial class OutboxDispatchConventionTests
         IEnumerable<(string Owner, MethodReference Target)> sites, IEnumerable<TypeDefinition> bodies)
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
+        var implementations = IntegrationHandlerImplementationMethods(types).Select(MethodId).ToHashSet(StringComparer.Ordinal);
         foreach (var site in sites.Where(site => (site.Target.Name == "HandleAsync" || site.Target.Name.EndsWith(".HandleAsync", StringComparison.Ordinal))
-                     && IntegrationHandlerContracts(site.Target.DeclaringType, types).Any()))
+                     && (IntegrationHandlerContracts(site.Target.DeclaringType, types).Any()
+                         || ResolveIntegrationMethod(site.Target, types) is { } method && implementations.Contains(MethodId(method)))))
             offenders.Add("Typed handler invocation: " + site.Owner + " -> " + site.Target.FullName);
-        foreach (var site in sites.Where(site => site.Target is GenericInstanceMethod generic
-                     && IsIntegrationResolutionCapability(generic)
-                     && generic.GenericArguments.Any(argument => ContainsIntegrationHandler(argument, types))))
+        foreach (var site in sites.Where(site => IntegrationResolutionUsesHandler(site.Target, types)))
             offenders.Add("Typed handler resolution/construction: " + site.Owner + " -> " + site.Target.FullName);
         foreach (var method in bodies.SelectMany(type => type.Methods).Where(method => method.HasBody))
             foreach (var instruction in method.Body.Instructions.Where(instruction => instruction.OpCode == OpCodes.Newobj))
                 if (instruction.Operand is MethodReference target && IntegrationHandlerContracts(target.DeclaringType, types).Any())
                     offenders.Add("Direct handler construction: " + MethodId(method) + " -> " + target.FullName);
         return offenders;
+    }
+
+    private static IEnumerable<MethodDefinition> IntegrationHandlerImplementationMethods(
+        Dictionary<(string Assembly, string Type), TypeDefinition> types)
+    {
+        foreach (var (handler, eventType) in IntegrationHandlerBindings(types))
+        {
+            // A concrete subscriber may inherit its public implementation from a
+            // base that does not itself implement the handler contract. Its call
+            // operand names that base, so contract discovery alone is insufficient.
+            TypeReference? current = handler;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            while (current is not null && visited.Add(TypeId(current)) && types.TryGetValue(Key(current), out var definition))
+            {
+                var arguments = current is GenericInstanceType generic ? generic.GenericArguments.ToArray() : [];
+                var implementation = definition.Methods.FirstOrDefault(method => method is { IsPublic: true, IsStatic: false }
+                    && method.Name == "HandleAsync" && method.ReturnType.FullName == "System.Threading.Tasks.Task"
+                    && method.Parameters.Count == 2
+                    && TypeId(SubstituteIntegrationArguments(method.Parameters[0].ParameterType, arguments)) == TypeId(eventType)
+                    && method.Parameters[1].ParameterType.FullName == BoundaryCancellation);
+                if (implementation is not null)
+                {
+                    yield return implementation;
+                    // An override can also be invoked through its inherited
+                    // virtual slot, whose operand still names the plain base.
+                    if (!implementation.IsVirtual || implementation.IsNewSlot) break;
+                }
+                current = definition.BaseType is { } parent ? SubstituteIntegrationArguments(parent, arguments) : null;
+            }
+        }
+    }
+
+    private static MethodDefinition? ResolveIntegrationMethod(MethodReference reference,
+        Dictionary<(string Assembly, string Type), TypeDefinition> types)
+    {
+        if (!types.TryGetValue(Key(reference.DeclaringType), out var declaring)) return null;
+        var element = reference.GetElementMethod();
+        return declaring.Methods.SingleOrDefault(method => method.Name == element.Name
+            && method.GenericParameters.Count == element.GenericParameters.Count
+            && IntegrationSignatureType(method.ReturnType) == IntegrationSignatureType(element.ReturnType)
+            && method.Parameters.Select(parameter => IntegrationSignatureType(parameter.ParameterType))
+                .SequenceEqual(element.Parameters.Select(parameter => IntegrationSignatureType(parameter.ParameterType)), StringComparer.Ordinal));
+    }
+
+    private static string IntegrationSignatureType(TypeReference type) => type switch
+    {
+        GenericParameter parameter => (parameter.Type == GenericParameterType.Type ? "!" : "!!") + parameter.Position,
+        GenericInstanceType generic => TypeId(generic.ElementType) + "<" + string.Join(",", generic.GenericArguments.Select(IntegrationSignatureType)) + ">",
+        ArrayType array => IntegrationSignatureType(array.ElementType) + "[" + new string(',', array.Rank - 1) + "]",
+        ByReferenceType reference => IntegrationSignatureType(reference.ElementType) + "&",
+        PointerType pointer => IntegrationSignatureType(pointer.ElementType) + "*",
+        _ => TypeId(type),
+    };
+
+    private static bool IntegrationResolutionUsesHandler(MethodReference root,
+        Dictionary<(string Assembly, string Type), TypeDefinition> types)
+    {
+        var pending = new Queue<(MethodDefinition Method, bool[] TypeArguments, bool[] MethodArguments)>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        if (Enqueue(root, [], [])) return true;
+        while (pending.TryDequeue(out var frame))
+        {
+            // Only handler membership affects the known DI predicate. Substitute
+            // that bit for every type/method argument: parameter permutations have
+            // distinct states, while List<List<T>> growth cannot create an infinite
+            // specialization walk. Ordinary generic uses do not become violations.
+            var identity = MethodId(frame.Method) + ":" + string.Join(",", frame.TypeArguments)
+                + ":" + string.Join(",", frame.MethodArguments);
+            if (!visited.Add(identity)) continue;
+            foreach (var target in MethodOperands(frame.Method))
+                if (Enqueue(target, frame.TypeArguments, frame.MethodArguments)) return true;
+
+            foreach (var attribute in frame.Method.CustomAttributes.Where(attribute => attribute.AttributeType.FullName is
+                         "System.Runtime.CompilerServices.AsyncStateMachineAttribute" or "System.Runtime.CompilerServices.IteratorStateMachineAttribute"
+                         or "System.Runtime.CompilerServices.AsyncIteratorStateMachineAttribute"))
+            {
+                if (attribute.ConstructorArguments.FirstOrDefault().Value is not TypeReference generated
+                    || !types.TryGetValue(Key(generated), out var stateMachine)) continue;
+                var constructed = frame.Method.Body.Variables.Select(variable => variable.VariableType)
+                    .Concat(MethodOperands(frame.Method).Select(method => method.DeclaringType))
+                    .FirstOrDefault(type => Key(type) == Key(generated));
+                var arguments = constructed is GenericInstanceType generic
+                    ? generic.GenericArguments.Select(argument => ContainsIntegrationHandler(argument, types, frame.TypeArguments, frame.MethodArguments)).ToArray()
+                    : [];
+                foreach (var moveNext in stateMachine.Methods.Where(method => method.Name == "MoveNext" && method.HasBody))
+                    pending.Enqueue((moveNext, arguments, []));
+            }
+        }
+        return false;
+
+        bool Enqueue(MethodReference target, bool[] typeArguments, bool[] methodArguments)
+        {
+            var boundTypeArguments = target.DeclaringType is GenericInstanceType declaring
+                ? declaring.GenericArguments.Select(argument => ContainsIntegrationHandler(argument, types, typeArguments, methodArguments)).ToArray()
+                : [];
+            var boundMethodArguments = target is GenericInstanceMethod generic
+                ? generic.GenericArguments.Select(argument => ContainsIntegrationHandler(argument, types, typeArguments, methodArguments)).ToArray()
+                : [];
+            if (IsIntegrationResolutionCapability(target) && boundMethodArguments.Any(value => value)) return true;
+            if (!boundTypeArguments.Any(value => value) && !boundMethodArguments.Any(value => value)) return false;
+            // Follow only statically named bodies in the production census. No
+            // runtime-Type values, reflective construction or branch order enter it.
+            if (ResolveIntegrationMethod(target, types) is { HasBody: true } method)
+                pending.Enqueue((method, boundTypeArguments, boundMethodArguments));
+            return false;
+        }
     }
 
     // Only statically typed Microsoft DI capabilities are classified here. The
@@ -367,7 +477,8 @@ public sealed partial class OutboxDispatchConventionTests
         });
 
     private static bool ContainsIntegrationHandler(TypeReference type,
-        Dictionary<(string Assembly, string Type), TypeDefinition> types)
+        Dictionary<(string Assembly, string Type), TypeDefinition> types,
+        bool[]? typeArguments = null, bool[]? methodArguments = null)
     {
         var pending = new Queue<TypeReference>();
         var visited = new HashSet<TypeReference>();
@@ -378,6 +489,8 @@ public sealed partial class OutboxDispatchConventionTests
             // A parameter has constraints rather than a resolvable declaring type.
             if (current is GenericParameter parameter)
             {
+                var arguments = parameter.Type == GenericParameterType.Type ? typeArguments : methodArguments;
+                if (arguments is not null && parameter.Position < arguments.Length && arguments[parameter.Position]) return true;
                 foreach (var constraint in parameter.Constraints) pending.Enqueue(constraint.ConstraintType);
                 continue;
             }
@@ -468,6 +581,26 @@ public sealed partial class OutboxDispatchConventionTests
         public Task HandleAsync(T @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
     private sealed class IntegrationDeliveryProbeInheritedHandler : IntegrationDeliveryProbeBase<TenantCreatedIntegrationEventV1>;
+    private abstract class IntegrationDeliveryProbePlainBase
+    {
+        private readonly Task _completion = Task.CompletedTask;
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 fact, CancellationToken cancellationToken = default) => _completion;
+    }
+    private sealed class IntegrationDeliveryProbePlainInheritedHandler : IntegrationDeliveryProbePlainBase, IIntegrationEventHandler<TenantCreatedIntegrationEventV1>;
+    private abstract class IntegrationDeliveryProbeGenericPlainBase<T>
+    {
+        private readonly Task _completion = Task.CompletedTask;
+        public Task HandleAsync(T fact, CancellationToken cancellationToken = default) => _completion;
+    }
+    private sealed class IntegrationDeliveryProbeGenericPlainInheritedHandler : IntegrationDeliveryProbeGenericPlainBase<TenantCreatedIntegrationEventV1>, IIntegrationEventHandler<TenantCreatedIntegrationEventV1>;
+    private abstract class IntegrationDeliveryProbePlainVirtualBase
+    {
+        public virtual Task HandleAsync(TenantCreatedIntegrationEventV1 fact, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class IntegrationDeliveryProbePlainOverrideHandler : IntegrationDeliveryProbePlainVirtualBase, IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
+    {
+        public override Task HandleAsync(TenantCreatedIntegrationEventV1 fact, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
     private sealed class IntegrationDeliveryProbeExplicitHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
     {
         Task IIntegrationEventHandler<TenantCreatedIntegrationEventV1>.HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -488,11 +621,39 @@ public sealed partial class OutboxDispatchConventionTests
     {
         public Task Run(TenantCreatedIntegrationEventV1 fact) => IntegrationDeliveryProbeClean.HandleAsync(fact);
     }
+    private static class IntegrationDeliveryProbeGenericHelpers
+    {
+        public static T Resolve<T>(IServiceProvider services) where T : notnull => services.GetRequiredService<T>();
+        public static T Forward<T>(IServiceProvider services) where T : notnull => Resolve<T>(services);
+        public static object Recursive<T, TOther>(IServiceProvider services, bool stop) where T : notnull where TOther : notnull =>
+            stop ? services.GetRequiredService<T>() : Recursive<TOther, T>(services, true);
+        public static object Growing<T>(IServiceProvider services, bool stop) where T : notnull =>
+            stop ? services.GetRequiredService<T>() : Growing<List<T>>(services, true);
+        public static Type ReadGrowing<T>(bool stop) => stop ? typeof(T) : ReadGrowing<List<T>>(true);
+        public static async Task<T> ResolveAsync<T>(IServiceProvider services) where T : notnull
+        {
+            await Task.Yield();
+            return services.GetRequiredService<T>();
+        }
+    }
+    private static class IntegrationDeliveryProbeGenericResolver<T> where T : notnull
+    {
+        public static T Resolve(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Forward<T>(services);
+    }
     private static class IntegrationDeliveryProbeCalls
     {
         public static Task Direct(IntegrationDeliveryProbeHandler handler, TenantCreatedIntegrationEventV1 fact) => handler.HandleAsync(fact);
         public static Task ViaInterface(IIntegrationEventHandler<TenantCreatedIntegrationEventV1> handler, TenantCreatedIntegrationEventV1 fact) => handler.HandleAsync(fact);
         public static Task ViaInherited(IntegrationDeliveryProbeInheritedHandler handler, TenantCreatedIntegrationEventV1 fact) => handler.HandleAsync(fact);
+        public static Task ViaPlainInherited(IntegrationDeliveryProbePlainInheritedHandler handler, TenantCreatedIntegrationEventV1 fact) => handler.HandleAsync(fact);
+        public static Task ViaGenericPlainInherited(IntegrationDeliveryProbeGenericPlainInheritedHandler handler, TenantCreatedIntegrationEventV1 fact) => handler.HandleAsync(fact);
+        public static Task ViaPlainVirtualSlot(IntegrationDeliveryProbePlainOverrideHandler handler, TenantCreatedIntegrationEventV1 fact) => ((IntegrationDeliveryProbePlainVirtualBase)handler).HandleAsync(fact);
+        public static Func<TenantCreatedIntegrationEventV1, CancellationToken, Task> CapturePlainInherited(IntegrationDeliveryProbePlainInheritedHandler handler) => handler.HandleAsync;
+        public static async Task AsyncPlainInherited(IntegrationDeliveryProbePlainInheritedHandler handler, TenantCreatedIntegrationEventV1 fact)
+        {
+            await Task.Yield();
+            await handler.HandleAsync(fact);
+        }
         public static Func<TenantCreatedIntegrationEventV1, CancellationToken, Task> Capture(IIntegrationEventHandler<TenantCreatedIntegrationEventV1> handler) => handler.HandleAsync;
         public static async Task Async(IIntegrationEventHandler<TenantCreatedIntegrationEventV1> handler, TenantCreatedIntegrationEventV1 fact)
         {
@@ -517,7 +678,20 @@ public sealed partial class OutboxDispatchConventionTests
             return services.GetRequiredService<IntegrationDeliveryProbeHandler>();
         }
         public static Func<IServiceProvider, IntegrationDeliveryProbeHandler> CaptureResolution() => ServiceProviderServiceExtensions.GetRequiredService<IntegrationDeliveryProbeHandler>;
+        public static IntegrationDeliveryProbeHandler ResolveForwarded(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Forward<IntegrationDeliveryProbeHandler>(services);
+        public static IEnumerable<IIntegrationEventHandler<TenantCreatedIntegrationEventV1>> ResolveForwardedWrapped(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Forward<IEnumerable<IIntegrationEventHandler<TenantCreatedIntegrationEventV1>>>(services);
+        public static IntegrationDeliveryProbeHandler ResolveFromGenericType(IServiceProvider services) => IntegrationDeliveryProbeGenericResolver<IntegrationDeliveryProbeHandler>.Resolve(services);
+        public static object ResolveRecursive(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Recursive<object, IntegrationDeliveryProbeHandler>(services, false);
+        public static object ResolveGrowing(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Growing<IntegrationDeliveryProbeHandler>(services, false);
+        public static Task<IntegrationDeliveryProbeHandler> ResolveForwardedAsync(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.ResolveAsync<IntegrationDeliveryProbeHandler>(services);
+        public static Func<IServiceProvider, IntegrationDeliveryProbeHandler> CaptureForwardedResolution() => IntegrationDeliveryProbeGenericHelpers.Forward<IntegrationDeliveryProbeHandler>;
     }
+    private abstract class IntegrationDeliveryProbeCleanPlainBase
+    {
+        private readonly Task _completion = Task.CompletedTask;
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 fact, CancellationToken cancellationToken = default) => _completion;
+    }
+    private sealed class IntegrationDeliveryProbeCleanDerived : IntegrationDeliveryProbeCleanPlainBase;
     private static class IntegrationDeliveryProbeClean
     {
         public static Task HandleAsync(TenantCreatedIntegrationEventV1 fact) => Task.CompletedTask;
@@ -540,5 +714,14 @@ public sealed partial class OutboxDispatchConventionTests
             return services.GetRequiredService<object>();
         }
         public static Func<IServiceProvider, object> CaptureResolution() => ServiceProviderServiceExtensions.GetRequiredService<object>;
+        public static object ResolveForwarded(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Forward<object>(services);
+        public static IEnumerable<object> ResolveForwardedWrapped(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Forward<IEnumerable<object>>(services);
+        public static object ResolveFromGenericType(IServiceProvider services) => IntegrationDeliveryProbeGenericResolver<object>.Resolve(services);
+        public static object ResolveRecursive(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Recursive<object, string>(services, false);
+        public static object ResolveGrowing(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.Growing<object>(services, false);
+        public static Task<object> ResolveForwardedAsync(IServiceProvider services) => IntegrationDeliveryProbeGenericHelpers.ResolveAsync<object>(services);
+        public static Type ReadHandlerMetadata() => IntegrationDeliveryProbeGenericHelpers.ReadGrowing<IntegrationDeliveryProbeHandler>(false);
+        public static Task ViaPlainInherited(IntegrationDeliveryProbeCleanDerived helper, TenantCreatedIntegrationEventV1 fact) => helper.HandleAsync(fact);
+        public static Func<TenantCreatedIntegrationEventV1, CancellationToken, Task> CapturePlainInherited(IntegrationDeliveryProbeCleanDerived helper) => helper.HandleAsync;
     }
 }

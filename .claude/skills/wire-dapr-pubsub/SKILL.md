@@ -267,12 +267,12 @@ obligations to the adapter or infer delivery from a registered metric name.
 - Current architecture tests
   `Integration_Event_TopicNames_FollowConvention` and
   `Modules_Do_Not_Inject_IEventBus_Directly` pass.
-- When doing Phase 02b consumer work, add/keep its registered inheritance and
+- When doing Phase 02b consumer work, extend its implemented inheritance and
   inbox-guard rules. When doing Phase 11 adapter work, add/keep the Dapr binding
   and direct-provider boundary rules owned by that phase.
-- The current baseline has no durable inbox. P02b-3 must prove acceptance plus
-  atomic inbox/business completion, concurrent duplicates, independent sibling
-  retries, sticky timeout and uncertain-COMMIT recovery on the real delivery path.
+- P02b-3 implements durable acceptance and the shared inbox. Extend the real
+  delivery proofs for atomic inbox/business completion, concurrent duplicates,
+  independent sibling retries, sticky timeout and uncertain-COMMIT recovery.
 - When Phase 11's adapter exists, its Dapr/Testcontainers binding test and
   transport metrics pass as additional validation.
 

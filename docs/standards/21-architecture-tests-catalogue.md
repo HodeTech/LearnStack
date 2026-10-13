@@ -1318,7 +1318,8 @@ otherwise).
   `INotificationHandler<>` or `IIntegrationEventHandler<>` can reach more than one
   **distinct aggregate root** through
   its constructor parameters' `IAggregateWriteStore<TRoot, TId>` derivations, except the
-  single handler on a literal allow-list — `ProvisionTenantCommandHandler`, which writes
+  single exact assembly/type identity — Tenancy's `ProvisionTenantCommandHandler`,
+  which writes
   `Tenant` and its default `Organization` in one transaction per ADR-0042.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
@@ -1346,7 +1347,9 @@ otherwise).
   handlers, a non-public constructor, and same-root/non-handler negative controls.
   P02b-3 Step 6 adds
   `Cross_Aggregate_Census_Catches_Integration_Handlers_And_Inherited_Contracts` for
-  fused/separate integration ports and inherited contracts.
+  fused/separate integration ports, inherited contracts and a same-simple-name
+  integration offender tested independently of the other dirty subjects. The
+  actual provisioning type alone is the clean exception control.
 - **What it does not catch:** a write routed through a helper that itself holds two
   ports, arbitrary nested `ISender.Send` sequences, or a second `DbContext` reached
   indirectly — the same limit
@@ -3247,11 +3250,14 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `DeliveryDispatchStoreTests`). Step 6's
   [handler/manifest census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryBoundaryTests.cs)
   requires all production assemblies/layers and the two exact scoped Active
-  bindings. It detects typed construction, invocation, DI resolution, helper,
-  async and delegate bypasses, with missing-subject and dirty/clean controls.
+  bindings. It detects typed construction, inherited implementation/virtual-slot
+  invocation, DI resolution through statically bound generic helpers, async and
+  delegate bypasses, with missing-subject and dirty/clean controls. Generic type
+  and method argument membership states bound recursive helper traversal.
   The [lifecycle census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryLifecycleBoundaryTests.cs)
-  pins typed unit/frame and database-transaction completion sites and their
-  multiplicity. These are bounded static capability checks, not arbitrary
+  pins typed unit/frame and database-transaction completion sites, including
+  known EF transaction/facade APIs, and their multiplicity. These are bounded
+  static capability checks, not arbitrary
   reflection, raw SQL transaction analysis or branch-order proofs; the real
   PostgreSQL tests own inbox-before-construction and transaction atomicity.
   Earlier structural companions remain

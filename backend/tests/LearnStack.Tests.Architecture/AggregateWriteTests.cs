@@ -24,6 +24,9 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 public sealed class AggregateWriteTests
 {
+    private static readonly Type TenantProvisioningHandler = Assembly.Load("LearnStack.Modules.Tenancy.Application")
+        .GetType("LearnStack.Modules.Tenancy.Application.Tenant.ProvisionTenantCommandHandler", throwOnError: true)!;
+
     /// <summary>
     /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
     /// and <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>
@@ -43,17 +46,9 @@ public sealed class AggregateWriteTests
         // forbidden, so no handler can name a DbSet at all. A rule at Implemented status
         // that cannot fire is worse than one at Registered, because the catalogue then
         // claims coverage it does not have.
-        var offenders = CrossAggregateWriters(ProductionAssemblies()
+        AssertOnlyTenantProvisioningWritesAcrossAggregates(ProductionAssemblies()
             .Select(Assembly.Load)
-            .SelectMany(assembly => assembly.GetTypes()))
-            .Select(type => type.Name).Distinct().ToList();
-
-        offenders.Should().BeEquivalentTo(
-            ["ProvisionTenantCommandHandler"],
-            "a handler that can write two aggregate roots writes across an aggregate "
-            + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
-            + "operation. Fix: split integration effects into one-root subscriptions; "
-            + "any new cross-aggregate exception needs its own decision record");
+            .SelectMany(assembly => assembly.GetTypes()));
     }
 
     [Fact]
@@ -136,12 +131,26 @@ public sealed class AggregateWriteTests
     [Fact]
     public void Cross_Aggregate_Census_Catches_Integration_Handlers_And_Inherited_Contracts()
     {
-        Type[] forbidden = [typeof(FusedIntegrationHandler), typeof(TwoPortIntegrationHandler), typeof(InheritedIntegrationHandler)];
+        Type[] forbidden = [typeof(FusedIntegrationHandler), typeof(TwoPortIntegrationHandler), typeof(InheritedIntegrationHandler), typeof(ProvisionTenantCommandHandler)];
         CrossAggregateWriters(forbidden.Concat([typeof(SameRootIntegrationHandler), typeof(NonHandler)]))
             .Should().BeEquivalentTo(forbidden,
                 "integration handlers count distinct roots through every constructor port; "
                 + "Fix: retain fused, separate and inherited contracts in the production census");
+
+        Action sameNameOffender = () => AssertOnlyTenantProvisioningWritesAcrossAggregates(
+            [TenantProvisioningHandler, typeof(ProvisionTenantCommandHandler)]);
+        sameNameOffender.Should().Throw<Xunit.Sdk.XunitException>(
+            "the provisioning exception belongs to one exact type, not every handler with its name; Fix: compare Type identities before applying the exception");
+        AssertOnlyTenantProvisioningWritesAcrossAggregates([TenantProvisioningHandler]);
     }
+
+    private static void AssertOnlyTenantProvisioningWritesAcrossAggregates(IEnumerable<Type> types) =>
+        CrossAggregateWriters(types).Should().Equal(
+            [TenantProvisioningHandler],
+            "a handler that can write two aggregate roots writes across an aggregate "
+            + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
+            + "operation. Fix: split integration effects into one-root subscriptions; "
+            + "any new cross-aggregate exception needs its own decision record");
 
     private static IEnumerable<Type> CrossAggregateWriters(IEnumerable<Type> types) => types
         .Where(type => type is { IsAbstract: false, IsInterface: false })
@@ -214,6 +223,11 @@ public sealed class AggregateWriteTests
     private sealed class TwoPortIntegrationHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
     {
         public TwoPortIntegrationHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class ProvisionTenantCommandHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
+    {
+        public ProvisionTenantCommandHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
         public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
     private interface IInheritedIntegrationContract : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>;

@@ -3,6 +3,9 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Npgsql;
@@ -21,6 +24,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleTask = "System.Threading.Tasks.Task";
     private const string LifecycleScopeTask = "System.Threading.Tasks.Task`1<" + LifecycleScope + ">";
     private static readonly string[] LifecycleTerminalMethods = ["Commit", "Rollback", "CommitAsync", "RollbackAsync"];
+    private static readonly string[] LifecycleFacadeTerminalMethods = ["CommitTransaction", "RollbackTransaction", "CommitTransactionAsync", "RollbackTransactionAsync"];
 
     /// <summary>
     /// ADR-0046's completion gate and ADR-0057's common owner: typed unit/frame and
@@ -49,9 +53,12 @@ public sealed partial class OutboxDispatchConventionTests
         var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
                 method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync"))
             .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
-            .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction) }
+            .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
+                    typeof(IDbContextTransaction), typeof(RelationalTransaction), typeof(DatabaseFacade) }
                 .SelectMany(type => type.GetMethods().Where(method => LifecycleTerminalMethods.Contains(method.Name, StringComparer.Ordinal)
-                    && (method.GetParameters().Length == 0 || method.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(CancellationToken))))
+                    || LifecycleFacadeTerminalMethods.Contains(method.Name, StringComparer.Ordinal))
+                    .Where(method =>
+                        method.GetParameters().Length == 0 || method.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(CancellationToken)))
                 .Select(method => application.ImportReference(method))).ToArray();
         foreach (var capability in capabilities)
         {
@@ -113,7 +120,9 @@ public sealed partial class OutboxDispatchConventionTests
                 || site.Owner.Contains("/IntegrationLifecycleProbe", StringComparison.Ordinal));
             var offenders = IntegrationLifecycleCallsiteOffenders(census.Types, sites);
             foreach (var name in new[] { "Commit", "Rollback", "Begin", "Complete", "Fail", "Concrete", "RawCommit", "RawRollback",
-                         "ConcreteRaw", "InheritedUnit", "InheritedRaw", "Async", "Capture", "Run" })
+                         "ConcreteRaw", "InheritedUnit", "InheritedRaw", "Async", "Capture", "Run",
+                         "EfCommit", "EfRollback", "EfCommitAsync", "EfRollbackAsync", "EfConcreteCommitAsync", "EfCurrentCommitAsync",
+                         "EfFacadeCommit", "EfFacadeRollback", "EfFacadeCommitAsync", "EfFacadeRollbackAsync", "EfAsync", "EfCapture" })
                 offenders.Should().Contain(offender => offender.Contains("::" + name + "(", StringComparison.Ordinal),
                     "Fix: the real lifecycle predicate must reject compiled " + name);
             offenders.Should().NotContain(offender => offender.Contains("/IntegrationLifecycleProbeClean::", StringComparison.Ordinal),
@@ -242,7 +251,11 @@ public sealed partial class OutboxDispatchConventionTests
                 "CompleteAsync" or "FailAsync" => "invalid-scope",
                 _ => null,
             };
-        if (!LifecycleTerminalMethods.Contains(name, StringComparer.Ordinal) || !IsIntegrationDatabaseTransaction(target.DeclaringType, types)) return null;
+        if (LifecycleFacadeTerminalMethods.Contains(name, StringComparer.Ordinal)
+            && IsIntegrationDatabaseType(target.DeclaringType, types,
+                [("Microsoft.EntityFrameworkCore", "Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade")]))
+            name = name.Replace("Transaction", string.Empty, StringComparison.Ordinal);
+        else if (!LifecycleTerminalMethods.Contains(name, StringComparer.Ordinal) || !IsIntegrationDatabaseTransaction(target.DeclaringType, types)) return null;
         if ((name is "CommitAsync" or "RollbackAsync") && cancellation && target.ReturnType.FullName == LifecycleTask
             || (name is "Commit" or "Rollback") && target.Parameters.Count == 0 && target.ReturnType.FullName == "System.Void")
             return "database." + name;
@@ -250,7 +263,18 @@ public sealed partial class OutboxDispatchConventionTests
     }
 
     private static bool IsIntegrationDatabaseTransaction(TypeReference type,
-        Dictionary<(string Assembly, string Type), TypeDefinition> types)
+        Dictionary<(string Assembly, string Type), TypeDefinition> types) =>
+        IsIntegrationDatabaseType(type, types,
+        [
+            ("System.Data.Common", "System.Data.Common.DbTransaction"),
+            ("System.Data.Common", "System.Data.IDbTransaction"),
+            ("Npgsql", "Npgsql.NpgsqlTransaction"),
+            ("Microsoft.EntityFrameworkCore", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction"),
+            ("Microsoft.EntityFrameworkCore.Relational", "Microsoft.EntityFrameworkCore.Storage.RelationalTransaction"),
+        ]);
+
+    private static bool IsIntegrationDatabaseType(TypeReference type,
+        Dictionary<(string Assembly, string Type), TypeDefinition> types, (string Assembly, string Type)[] contracts)
     {
         var pending = new Queue<TypeReference>();
         var visited = new HashSet<(string Assembly, string Type)>();
@@ -258,8 +282,7 @@ public sealed partial class OutboxDispatchConventionTests
         while (pending.TryDequeue(out var current))
         {
             if (!visited.Add(Key(current))) continue;
-            if (Key(current) is ("System.Data.Common", "System.Data.Common.DbTransaction" or "System.Data.IDbTransaction")
-                or ("Npgsql", "Npgsql.NpgsqlTransaction")) return true;
+            if (contracts.Contains(Key(current))) return true;
             if (!types.TryGetValue(Key(current), out var definition)) continue;
             if (definition.BaseType is { } parent) pending.Enqueue(parent);
             foreach (var contract in definition.Interfaces) pending.Enqueue(contract.InterfaceType);
@@ -296,11 +319,25 @@ public sealed partial class OutboxDispatchConventionTests
         public static Task ViaHelper(IIntegrationLifecycleProbeHelper helper, IUnitOfWork unit) => helper.Run(unit);
         public static async Task Async(IUnitOfWork unit) { await Task.Yield(); await unit.CommitAsync(); }
         public static Func<CancellationToken, Task> Capture(IUnitOfWork unit) => unit.CommitAsync;
+        public static void EfCommit(IDbContextTransaction transaction) => transaction.Commit();
+        public static void EfRollback(IDbContextTransaction transaction) => transaction.Rollback();
+        public static Task EfCommitAsync(IDbContextTransaction transaction) => transaction.CommitAsync();
+        public static Task EfRollbackAsync(IDbContextTransaction transaction) => transaction.RollbackAsync();
+        public static Task EfConcreteCommitAsync(RelationalTransaction transaction) => transaction.CommitAsync();
+        public static Task EfCurrentCommitAsync(DbContext context) => context.Database.CurrentTransaction!.CommitAsync();
+        public static void EfFacadeCommit(DatabaseFacade database) => database.CommitTransaction();
+        public static void EfFacadeRollback(DatabaseFacade database) => database.RollbackTransaction();
+        public static Task EfFacadeCommitAsync(DatabaseFacade database) => database.CommitTransactionAsync();
+        public static Task EfFacadeRollbackAsync(DatabaseFacade database) => database.RollbackTransactionAsync();
+        public static async Task EfAsync(IDbContextTransaction transaction) { await Task.Yield(); await transaction.CommitAsync(); }
+        public static Func<CancellationToken, Task> EfCapture(IDbContextTransaction transaction) => transaction.CommitAsync;
     }
     private static class IntegrationLifecycleProbeClean
     {
         public static DbTransaction? Read(IUnitOfWork unit) => unit.Transaction;
         public static bool ReadFrame(IUnitOfWorkScope frame) => frame.IsOwner;
         public static void Refuse(IUnitOfWork unit) => unit.MarkRollbackOnly();
+        public static IDbContextTransaction? ReadEfTransaction(DbContext context) => context.Database.CurrentTransaction;
+        public static Guid ReadEfIdentity(IDbContextTransaction transaction) => transaction.TransactionId;
     }
 }

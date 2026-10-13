@@ -15,11 +15,6 @@ Current CI/review/merge navigation (2026-10-12): the
 [PR handoff](../roadmap/phase-02b-events-auth.md#p02b-2-pr-handoff-2026-10-12)
 links the live PR; the delivery notes retain their as-of status.
 
-Current consumer delivery navigation (2026-10-13):
-[Amendment 3](#amendment-3--consumer-runtime-and-enforcement-delivery-2026-10-13)
-records P02b-3 runtime/enforcement delivery. Its Step 6 record owns current
-validation, review and PR/CI status; older delivery notes retain their dated state.
-
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
 decides producer dispatch and the coupled P02b-3 subscriber state machine before

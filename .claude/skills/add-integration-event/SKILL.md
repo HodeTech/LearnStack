@@ -255,8 +255,8 @@ type aliases and required Pending/Active readiness. Pending holds the producer r
 before acquisition or payload validation. Only explicit intentional absence may
 acknowledge a known type without publication. P02b-3 makes Active publication mean
 durable acceptance of all matching deliveries, independently of business handling.
-Do not invent a registration API before its implementation ships. Phase 11 must
-preserve these contracts when it adds Dapr.
+Use the shipped `OutboxSubscriptionManifest` and handler-registry registration
+in the API composition root. Phase 11 must preserve these contracts when it adds Dapr.
 
 ### Step 6: Tests
 
