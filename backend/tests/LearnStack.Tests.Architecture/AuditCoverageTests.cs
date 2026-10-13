@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
+using LearnStack.Modules.Customization.Application.IntegrationEvents;
+using LearnStack.SharedKernel.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Audit;
@@ -12,7 +14,7 @@ namespace LearnStack.Tests.Architecture;
 
 /// <summary>
 /// The catalogue in code and the matrix in prose have to agree — and every request the
-/// backend ships has to be in the catalogue at all.
+/// backend ships and every concrete integration handler has to be in the catalogue at all.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,25 +35,32 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class AuditCoverageTests
 {
     /// <summary>
-    /// Every request type the backend can dispatch — one with a handler — is registered
-    /// in the catalogue, <c>Off</c> included.
+    /// Every MediatR request type and concrete integration handler the backend can
+    /// dispatch is registered, <c>Off</c> included, under
+    /// <see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044</see> and
+    /// <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>.
     /// </summary>
     [Fact]
     public void Every_Shipped_Request_Is_Registered()
     {
         // The rule AuditLogBehavior enforces at run time — an unregistered request is
         // refused with audit_unclassified_operation — checked where a defect costs a red
-        // build instead of a 500 per call. Keyed on the REQUEST TYPE, which is what the
-        // behavior looks up; a slug-level comparison cannot see a request whose slug some
-        // other request also registers.
-        var shipped = ShippedRequestTypes();
+        // build instead of a 500 per call. MediatR classifies request types and delivery
+        // classifies concrete handler types before construction. A slug or event-level
+        // comparison cannot distinguish multiple consumers of the same event.
+        var shipped = AuditSubjects(AuditCatalogDiscovery.Types());
 
         shipped.Should().Contain(typeof(CreateOrganizationCommand),
             "a discovery that missed a shipped command would pass while proving nothing");
 
+        shipped.Should().Contain([typeof(InitializeContentTypeDefaultHandler), typeof(InitializeTaxonomyDefaultHandler)],
+            "the production census must include both actual integration coordinators; Fix: scan concrete integration handlers in every production assembly");
+
+        // The defaults are legitimately Off here: nested commands declare their MUST
+        // intents. This census requires classification, not a duplicate business row.
         UnregisteredOf(shipped, Catalogue()).Should().BeEmpty(
-            "every request reaching pipeline step 3 must be classified, silence included, "
-            + "or the running system refuses it");
+            "every request and integration handler must be classified, silence included. "
+            + "Fix: register the concrete handler type, not its event, in the owning audit source");
     }
 
     [Fact]
@@ -305,8 +314,9 @@ public sealed partial class AuditCoverageTests
     }
 
     /// <summary>
-    /// A module that ships an aggregate or a request type has a coverage matrix to classify
-    /// them in.
+    /// A module shipping an aggregate, a request or an integration handler owes a matrix
+    /// under <see href="../../../docs/decisions/0044-audit-write-path.md">ADR-0044</see>
+    /// and <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>.
     /// </summary>
     [Fact]
     public void Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix()
@@ -318,14 +328,15 @@ public sealed partial class AuditCoverageTests
         // which the matrix join has nothing to compare against and passes. Aggregates are
         // half of it: the review of Packet 9 added one to a scaffold module's Domain, with no
         // handler and no matrix, and the request-only version of this rule stayed green.
-        var owning = ModulesWithCode(ShippedRequestTypes(), AuditCatalogDiscovery.Types());
+        var productionTypes = AuditCatalogDiscovery.Types().ToArray();
+        var owning = ModulesWithCode(AuditSubjects(productionTypes), productionTypes);
 
         owning.Should().Contain(["Tenancy", "Customization", "Audit"],
             "a discovery that found no module would pass while proving nothing — and Audit "
             + "ships aggregates and no request, which is exactly the half being checked");
 
         ModulesWithoutMatrix(owning, ModuleSpecs()).Should().BeEmpty(
-            "a module that ships an aggregate or a command owes a matrix that classifies it");
+            "a module that ships an aggregate, request or integration handler owes a matrix. Fix: add docs/modules/<module>/audit.md");
     }
 
     [Fact]
@@ -339,9 +350,9 @@ public sealed partial class AuditCoverageTests
         ModulesWithoutMatrix(["Tenancy", .. owning], ModuleSpecs()).Should().Equal("Ghost");
     }
 
-    /// <summary>The request types among <paramref name="shipped"/> the catalogue does not know.</summary>
+    /// <summary>The request or handler subjects among <paramref name="shipped"/> the catalogue does not know.</summary>
     private static List<Type> UnregisteredOf(IEnumerable<Type> shipped, AuditCatalog catalog) =>
-        [.. shipped.Where(request => !catalog.TryGet(request, out _))];
+        [.. shipped.Where(subject => !catalog.TryGet(subject, out _))];
 
     /// <summary>The catalogue → matrix direction's findings, one line each.</summary>
     /// <remarks>
@@ -457,9 +468,9 @@ public sealed partial class AuditCoverageTests
     /// </remarks>
     private const string PlatformSegment = "platform";
 
-    /// <summary>The modules that own a request type or an aggregate root, by name.</summary>
-    private static List<string> ModulesWithCode(IEnumerable<Type> requests, IEnumerable<Type> types) =>
-        [.. requests
+    /// <summary>The modules that own an audit subject or an aggregate root, by name.</summary>
+    private static List<string> ModulesWithCode(IEnumerable<Type> subjects, IEnumerable<Type> types) =>
+        [.. subjects
             .Concat(types.Where(type => type is { IsAbstract: false, IsInterface: false }
                 && type.GetInterfaces().Any(contract => contract.IsGenericType
                     && contract.GetGenericTypeDefinition() == typeof(IAggregateRoot<>))))
@@ -536,31 +547,36 @@ public sealed partial class AuditCoverageTests
             !File.Exists(Path.Combine(specs, module.ToLowerInvariant(), "audit.md")))];
 
     /// <summary>
-    /// Every request type with a handler in any backend assembly.
+    /// The identities the audit coordinator classifies: MediatR request types and
+    /// concrete integration handler types, including inherited contracts.
     /// </summary>
     /// <remarks>
-    /// A request with a handler is one the pipeline can be asked to run, which is the
-    /// population AuditLogBehavior classifies. The assemblies are every project under
-    /// <c>backend/src</c>, loaded by name — so a new module is swept the moment it builds,
-    /// without a line here.
+    /// ADR-0057 classifies the handler before construction. Two consumers of the same
+    /// event therefore remain separate subjects. Notification handlers do not own a
+    /// business audit frame and are excluded. Production callers pass every type from
+    /// every backend assembly; planted controls use this same predicate.
     /// </remarks>
-    private static List<Type> ShippedRequestTypes() =>
-        [.. AuditCatalogDiscovery.Types()
+    private static List<Type> AuditSubjects(IEnumerable<Type> types) =>
+        [.. types
             .Where(type => type is { IsAbstract: false, IsInterface: false })
-            .SelectMany(type => type.GetInterfaces())
-            .Where(contract => contract.IsGenericType
-                && (contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
-                    || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<>)))
-            .Select(contract => contract.GetGenericArguments()[0])
-            .Distinct()];
+            .SelectMany(type => type.GetInterfaces()
+                .Where(contract => contract.IsGenericType
+                    && (contract.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>)
+                        || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
+                        || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<>)))
+                .Select(contract => contract.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>)
+                    ? type
+                    : contract.GetGenericArguments()[0]))
+            .Distinct()
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)];
 
     /// <summary>The catalogue the composition roots build — see <see cref="AuditCatalogDiscovery"/>.</summary>
     private static AuditCatalog Catalogue() => AuditCatalogDiscovery.Catalogue();
 
-    /// <summary>The module a request type belongs to, from its namespace, or <c>null</c>.</summary>
-    private static string? ModuleOf(Type request)
+    /// <summary>The module a type belongs to, from its namespace, or <c>null</c>.</summary>
+    private static string? ModuleOf(Type type)
     {
-        var match = ModuleNamespace().Match(request.Namespace ?? string.Empty);
+        var match = ModuleNamespace().Match(type.Namespace ?? string.Empty);
 
         return match.Success ? match.Groups[1].Value : null;
     }

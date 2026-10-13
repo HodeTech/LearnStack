@@ -241,8 +241,10 @@ those shipped examples for Education rather than inventing an authenticated rout
 > `IOutbox`; follow `OutboxProducerTests` and `TenantCreatedProducerTests` for
 > shipped producer fixtures. P02b-2 Step 3 implements the API-host dispatcher;
 > both independent review rounds are complete, and `OutboxProcessorTests` owns its
-> runtime proofs. Real subscriptions remain Pending; consumer/inbox assertions
-> belong to P02b-3. `audit_log` shipped in Packet 9: for a real audit assertion,
+> runtime proofs. P02b-3 Steps 1–5 implement shared inbox, per-subscription
+> execution and both Active production defaults. Follow `DeliveryExecutionTests`
+> for ownership/atomicity and `CustomizationDefaultDeliveryTests` for the actual
+> API-worker/Seeder flow. `audit_log` shipped in Packet 9: for a real audit assertion,
 > follow `AuditWorkflowTests`, which drives commands through
 > the seeder's composition root on `SchemaFixture` as `learnstack_app` and reads the
 > persisted columns. The durable `IIdempotencyStore` ships on the trigger
@@ -272,8 +274,9 @@ public async Task CreateEnrollment_publishes_EnrollmentCreated_via_outbox()
 }
 ```
 
-The future P02b-3 consumer-side assertion below is illustrative; the shipped
-worker has no `_fx.RunOutboxProcessorOnceAsync()` fixture API:
+The consumer-side assertion below remains illustrative; the shipped P02b-3
+fixtures above exercise actual workers and have no
+`_fx.RunOutboxProcessorOnceAsync()` fixture API:
 
 ```csharp
 await _fx.RunOutboxProcessorOnceAsync();

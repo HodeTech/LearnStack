@@ -11,7 +11,10 @@ The [integration-event catalogue](README.md#integration-event-catalogue) owns th
 P02b-2 implements hosted producer dispatch and production-census enforcement.
 All four steps completed both independent review rounds and local closeout.
 The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-owns CI/merge status. Subscribers remain P02b-3.
+owns CI/merge status. P02b-3 Steps 1–5 implement durable subscriber delivery and
+both real defaults; its
+[Step 6 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current enforcement and review status.
 
 **ADR-0046 producer terminal writer implemented — 2026-10-12; both review rounds
 complete.**

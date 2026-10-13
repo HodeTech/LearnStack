@@ -37,7 +37,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class OutboxProducerTests(SchemaFixture schema)
+public sealed partial class OutboxProducerTests(SchemaFixture schema)
 {
     private const string DirectOperation = "customization.content_type.outbox_probe";
     private const string AmbientCorrelation = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";

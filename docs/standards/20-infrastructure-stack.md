@@ -190,8 +190,9 @@ adapter replaces `InProcessEventBus`.
   (`learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`).
 - Consumers implement `IIntegrationEventHandler<TEvent>`. Accepted ADR-0046 assigns
   shared inbox claim/completion to the transport, before handler construction.
-  `Integration_Event_Handlers_Use_InboxGuard` is Registered for P02b-3's nonempty
-  production census and real atomicity/duplicate proofs; handlers do not own the guard.
+  [`Integration_Event_Handlers_Use_InboxGuard`](21-architecture-tests-catalogue.md#integration_event_handlers_use_inboxguard)
+  is Implemented by P02b-3's nonempty production census and real
+  atomicity/duplicate proofs; handlers do not own the guard.
 - Construction-free readiness declares Pending, Active or intentional absence.
   Any required Pending subscription holds its contract/aliases before acquisition
   and validation; Active declarations require actual handler registration.

@@ -26,7 +26,7 @@ not land together.
 |---|---|---|
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
-| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
+| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; P02b-3 delivers the two independent default effects |
 | `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
 | Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–4 implement schema, acceptance/inbox, transactional business execution and independent scheduling/terminalization/replay; Step 5 activates both real defaults and semantic Seeder handoff |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
@@ -41,8 +41,9 @@ completion gate; Step 4 adds independent scheduling, terminalization, replay and
 bounded observation. Step 5 activates both real defaults and semantic Seeder handoff.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
-and examples below describe the complete ADR-0046 target, not a claim that every
-P02b-3 step has shipped.
+and examples below describe the delivered ADR-0046 runtime. The
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns production enforcement, validation and review/PR status.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -52,8 +53,8 @@ successful-save collection and the completed-provisioning publisher. Step 4
 implements production-census guards and catalogue enforcement; its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status. ADR-0046 accepts dispatcher/inbox
-contracts; producer dispatch is implemented through P02b-2 Step 3, while
-inbox/consumer implementation remains P02b-3.
+contracts; producer dispatch is implemented through P02b-2 Step 3 and shared
+inbox/consumer execution through P02b-3 Steps 1–5.
 
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)
@@ -712,8 +713,9 @@ separate service later:
 - `Integration_Events_Inherit_From_IntegrationEventBase` — every type implementing
   `IIntegrationEvent` extends `IntegrationEventBase` (which carries `EventId`,
   `OccurredAt`, `TenantId` and declares `Topic` / `PartitionKey`).
-- `Integration_Event_Handlers_Use_InboxGuard` — Registered for P02b-3's shared
-  transport-owned claim before construction and atomic fenced completion.
+- [`Integration_Event_Handlers_Use_InboxGuard`](../standards/21-architecture-tests-catalogue.md#integration_event_handlers_use_inboxguard)
+  — Implemented by P02b-3: nonempty all-layer handler/manifest and typed call-path
+  controls plus real transport-owned claim-before-construction and atomicity proofs.
 - `Dapr_PubSub_TopicNames_FollowConvention` — Phase 11 checks that Dapr component
   bindings agree with the already-validated topics declared by events. It is not a
   current `[Topic]`-attribute scan; no such attribute exists.

@@ -1,4 +1,3 @@
-using System.Reflection;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.SharedKernel.Audit;
 
@@ -33,23 +32,10 @@ internal static class AuditCatalogDiscovery
             .ToList());
 
     /// <summary>Every type every project under <c>backend/src</c> compiles.</summary>
+    /// <remarks>
+    /// Assembly or type-load failures fail the census rather than silently shrinking
+    /// its population to the loadable subset.
+    /// </remarks>
     public static IEnumerable<Type> Types() =>
-        Directory
-            .EnumerateFiles(RepositoryPaths.BackendSrc(), "*.csproj", SearchOption.AllDirectories)
-            .Where(path => !path.Contains(
-                $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Select(path => Assembly.Load(Path.GetFileNameWithoutExtension(path)))
-            .SelectMany(LoadableTypes);
-
-    private static IEnumerable<Type> LoadableTypes(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException partial)
-        {
-            return partial.Types.OfType<Type>();
-        }
-    }
+        ProductionAssemblies.All().SelectMany(assembly => assembly.GetTypes());
 }

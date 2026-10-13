@@ -46,8 +46,13 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     private const string Operation = "customization.content_type.delivery_probe";
     private const string Trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
+    /// <summary>
+    /// <see href="../../../../docs/decisions/0046-durable-event-delivery-and-recovery.md">ADR-0046</see>
+    /// restores resolved tenant/organization context and causal identity before handler
+    /// construction, then commits business, inbox, outbox, audit and ledger together.
+    /// </summary>
     [Fact]
-    public async Task Successful_delivery_commits_business_inbox_outbox_MUST_audit_and_processed_ledger_together()
+    public async Task Integration_Event_Handler_Restores_Tenant_Context()
     {
         await using var fixture = await Fixture.CreateAsync(schema);
         CausalActor.Should().NotBe(UserId.SystemActor.Value);
@@ -82,6 +87,17 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             state.Processed.Should().BeTrue();
             state.OutboxCausation.Should().Be(fact.EventId);
             state.OutboxActor.Should().Be(CausalActor);
+            fixture.Observation.OutgoingAnnouncement.Should().NotBeNull();
+            var announcement = fixture.Observation.OutgoingAnnouncement!;
+            announcement.TenantId.Value.Should().Be(fact.TenantId);
+            announcement.OrganizationId!.Value.Value.Should().Be(SchemaFixture.OrgA1);
+            state.OutboxTenant.Should().Be(announcement.TenantId.Value);
+            state.OutboxOrganization.Should().Be(announcement.OrganizationId?.Value);
+            state.OutboxPartition.Should().NotBeNullOrEmpty().And.Be(fact.PartitionKey);
+            state.OutboxCorrelation.Should().Be(fixture.Observation.OutgoingActivity);
+            ActivityContext.TryParse(state.OutboxCorrelation, null, out var persisted).Should().BeTrue();
+            ActivityContext.TryParse(fixture.Observation.OutgoingActivity, null, out var enqueuing).Should().BeTrue();
+            persisted.TraceId.Should().Be(enqueuing.TraceId);
             state.AuditActor.Should().Be(UserId.SystemActor.Value);
             state.AuditCorrelation.Should().Be(Trace);
             state.AuditOrganization.Should().Be(SchemaFixture.OrgA1);
@@ -689,6 +705,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
             }
             db.Add(source);
             await db.SaveChangesAsync(cancellationToken);
+            _observation.OutgoingActivity = Activity.Current?.Id;
+            _observation.OutgoingAnnouncement = unit.GetTenantContextAnnouncement(unit.Transaction);
             await _services.GetRequiredService<IOutbox>().EnqueueAsync(fact with { EventId = Guid.CreateVersion7() }, cancellationToken);
             await using var read = unit.Connection.CreateCommand();
             read.Transaction = unit.Transaction;
@@ -711,6 +729,7 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         private static void AssertContext(IServiceProvider services)
         {
             var context = services.GetRequiredService<ITenantContext>();
+            context.IsResolved.Should().BeTrue("delivery restores resolved context before handler construction and execution");
             context.TenantId.Value.Should().Be(SchemaFixture.TenantA);
             context.OrganizationId!.Value.Value.Should().Be(SchemaFixture.OrgA1);
             context.UserId.Should().Be(UserId.SystemActor);
@@ -736,6 +755,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
         public TenantContentType? Source { get; set; }
         public int Executions { get; set; }
         public bool ObservedSavedWork { get; set; }
+        public string? OutgoingActivity { get; set; }
+        public TenantContextAnnouncement? OutgoingAnnouncement { get; set; }
         public string? Fault { get; set; }
         public Func<Task>? AfterSave { get; set; }
         public CancellationToken ExpectedToken { get; set; }
@@ -847,7 +868,8 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
     private sealed record DurableState(long Business, long Inbox, long Outbox, long SuccessAudit,
         bool Processed, Guid? OutboxCausation, Guid? OutboxActor, Guid? AuditActor,
         string? AuditCorrelation, Guid? AuditOrganization, string? LockedBy,
-        Guid? AuditCausation, Guid? AuditCausalActor);
+        Guid? AuditCausation, Guid? AuditCausalActor, string? OutboxCorrelation,
+        Guid? OutboxTenant, Guid? OutboxOrganization, string? OutboxPartition);
 
     private sealed class Fixture : IAsyncDisposable
     {
@@ -1090,7 +1112,11 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                   (SELECT organization_id FROM audit_log WHERE operation = @operation AND outcome = 'success' AND entity_id = @subject_text LIMIT 1),
                   (SELECT locked_by FROM event_deliveries WHERE event_id = @event AND subscription_id = @subscription),
                   (SELECT (metadata ->> 'causation_id')::uuid FROM audit_log WHERE operation = @operation AND outcome = 'success' AND entity_id = @subject_text LIMIT 1),
-                  (SELECT (metadata ->> 'causal_actor_user_id')::uuid FROM audit_log WHERE operation = @operation AND outcome = 'success' AND entity_id = @subject_text LIMIT 1)
+                  (SELECT (metadata ->> 'causal_actor_user_id')::uuid FROM audit_log WHERE operation = @operation AND outcome = 'success' AND entity_id = @subject_text LIMIT 1),
+                  (SELECT correlation_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
+                  (SELECT tenant_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
+                  (SELECT organization_id FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1),
+                  (SELECT partition_key FROM outbox_messages WHERE payload ->> 'SubjectId' = @subject_text LIMIT 1)
                 """, connection, transaction);
             command.Parameters.AddWithValue("subject", fact.SubjectId);
             command.Parameters.AddWithValue("subject_text", fact.SubjectId.ToString());
@@ -1104,7 +1130,9 @@ public sealed class DeliveryExecutionTests(SchemaFixture schema)
                 read.IsDBNull(6) ? null : read.GetGuid(6), read.IsDBNull(7) ? null : read.GetGuid(7),
                 read.IsDBNull(8) ? null : read.GetString(8), read.IsDBNull(9) ? null : read.GetGuid(9),
                 read.IsDBNull(10) ? null : read.GetString(10), read.IsDBNull(11) ? null : read.GetGuid(11),
-                read.IsDBNull(12) ? null : read.GetGuid(12));
+                read.IsDBNull(12) ? null : read.GetGuid(12), read.IsDBNull(13) ? null : read.GetString(13),
+                read.IsDBNull(14) ? null : read.GetGuid(14), read.IsDBNull(15) ? null : read.GetGuid(15),
+                read.IsDBNull(16) ? null : read.GetString(16));
         }
         public async ValueTask DisposeAsync()
         {

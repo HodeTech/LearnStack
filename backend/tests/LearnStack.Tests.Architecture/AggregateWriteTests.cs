@@ -1,6 +1,8 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Messaging;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Domain;
@@ -22,6 +24,11 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 public sealed class AggregateWriteTests
 {
+    /// <summary>
+    /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
+    /// and <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>
+    /// permit only provisioning to hold constructor write ports for two roots.
+    /// </summary>
     [Fact]
     public void Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning()
     {
@@ -45,7 +52,8 @@ public sealed class AggregateWriteTests
             ["ProvisionTenantCommandHandler"],
             "a handler that can write two aggregate roots writes across an aggregate "
             + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
-            + "operation — a second name here is a decision that needs its own record");
+            + "operation. Fix: split integration effects into one-root subscriptions; "
+            + "any new cross-aggregate exception needs its own decision record");
     }
 
     [Fact]
@@ -120,6 +128,21 @@ public sealed class AggregateWriteTests
                 "all message shapes and non-public constructors must count every reachable root; Fix: preserve the shared production census");
     }
 
+    /// <summary>
+    /// <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>
+    /// applies the constructor write-port census to integration handlers, including
+    /// inherited contracts and non-public constructors.
+    /// </summary>
+    [Fact]
+    public void Cross_Aggregate_Census_Catches_Integration_Handlers_And_Inherited_Contracts()
+    {
+        Type[] forbidden = [typeof(FusedIntegrationHandler), typeof(TwoPortIntegrationHandler), typeof(InheritedIntegrationHandler)];
+        CrossAggregateWriters(forbidden.Concat([typeof(SameRootIntegrationHandler), typeof(NonHandler)]))
+            .Should().BeEquivalentTo(forbidden,
+                "integration handlers count distinct roots through every constructor port; "
+                + "Fix: retain fused, separate and inherited contracts in the production census");
+    }
+
     private static IEnumerable<Type> CrossAggregateWriters(IEnumerable<Type> types) => types
         .Where(type => type is { IsAbstract: false, IsInterface: false })
         .Where(IsMessageHandler)
@@ -183,6 +206,28 @@ public sealed class AggregateWriteTests
     }
     private sealed class NonHandler { public NonHandler(IFusedWritePort store) { } }
 
+    private sealed class FusedIntegrationHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
+    {
+        internal FusedIntegrationHandler(IFusedWritePort store) { }
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class TwoPortIntegrationHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
+    {
+        public TwoPortIntegrationHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private interface IInheritedIntegrationContract : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>;
+    private sealed class InheritedIntegrationHandler : IInheritedIntegrationContract
+    {
+        private InheritedIntegrationHandler(ICourseWriteStore courses, ILessonWriteStore lessons) { }
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class SameRootIntegrationHandler : IIntegrationEventHandler<TenantCreatedIntegrationEventV1>
+    {
+        public SameRootIntegrationHandler(ICourseWriteStore first, ICourseWriteStore second) { }
+        public Task HandleAsync(TenantCreatedIntegrationEventV1 @event, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     private interface IWrappedKeyReader { void Read(IEnumerable<CourseId[]> ids); }
     private interface IDirectWriter { void Apply(Course root); }
     private interface IBulkWriter { void Apply(IEnumerable<Course[]> roots); }
@@ -223,7 +268,7 @@ public sealed class AggregateWriteTests
                 && candidate.GetGenericTypeDefinition() == typeof(IAggregateWriteStore<,>));
 
     /// <summary>
-    /// Whether the type handles a message on the MediatR pipeline.
+    /// Whether the type handles a MediatR message or an integration event.
     /// </summary>
     /// <remarks>
     /// <c>INotificationHandler</c> is in the set deliberately. An intra-module domain
@@ -234,6 +279,12 @@ public sealed class AggregateWriteTests
     /// because a domain-event handler does not look like a write boundary. Measured: with
     /// only <c>IRequestHandler&lt;,&gt;</c> in the set, one dropped into a production
     /// assembly passed all 76 architecture cases.
+    /// <para>
+    /// Integration handlers run in the transport-owned transaction under ADR-0057.
+    /// This counts constructor write ports; it does not trace arbitrary nested
+    /// <c>ISender.Send</c> dataflow. The real default coordinators hold only
+    /// <c>ISender</c>, and Step 5's runtime proofs establish their one-effect behavior.
+    /// </para>
     /// </remarks>
     private static bool IsMessageHandler(Type type) =>
         type.GetInterfaces().Any(contract =>
@@ -245,6 +296,7 @@ public sealed class AggregateWriteTests
         typeof(IRequestHandler<,>),
         typeof(IRequestHandler<>),
         typeof(INotificationHandler<>),
+        typeof(IIntegrationEventHandler<>),
     ];
 
     /// <summary>Every production assembly, by name, from the project files on disk.</summary>

@@ -130,7 +130,12 @@ joins them catalogue → matrix and
 matrix → catalogue, each reading a cell as the list of slugs it holds. Neither can see a
 request type nobody registered when another request shares its slug, which is why
 [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
-asks the catalogue for every request type with a handler.
+asks the catalogue for every request type with a handler and every concrete
+integration-event handler type, including `Off` coordinators. Two handlers for
+one event are two subjects; classifying the shared event type covers neither.
+P02b-3 Step 6 checks both API and Seeder catalogues against fail-loud discovery
+and an omitted-`Off` control whose operation entries remain unchanged. A module
+with only integration handlers still requires its own matrix.
 
 ### The join
 
@@ -568,8 +573,8 @@ observes neither a rollback nor a `42501`.
 - [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
   — the enum and § Operation Types carry the same seven members.
 - [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
-  — every request type with a handler in any backend assembly is in the catalogue, `Off`
-  included.
+  — every request type with a handler and every concrete integration handler in
+  any backend assembly is in the catalogue, `Off` included.
 - [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
   — every catalogue entry has a matrix row with the same slug, class and type.
 - [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](21-architecture-tests-catalogue.md#every_matrix_row_whose_command_exists_is_registered)

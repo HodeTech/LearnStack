@@ -129,7 +129,12 @@ owns CI enforcement, reviews and the positive phase-exit verdict.
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
 owns final verification. P02b-0 through P02b-2 are complete; the
 [P02b-2 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
-owns final source/merge verification. Consumer delivery remains P02b-3. The
+owns final source/merge verification. P02b-3 Steps 1–5 implement durable acceptance,
+shared inbox/ledger, independent subscriber scheduling and both useful defaults
+with semantic Seeder handoff. Its
+[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current enforcement/regression/review status; PR review and merge remain
+pending. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -138,10 +143,10 @@ page consumers and P02d-7 the two-host browser demo.
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch with production-census enforcement (P02b-2 complete and merged) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production, hosted producer dispatch and independent durable subscriber delivery | Background jobs and authentication in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and

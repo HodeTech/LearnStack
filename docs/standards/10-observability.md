@@ -90,7 +90,7 @@ with effective `UserId.SystemActor` and causal human retained separately. No
 caller-supplied header establishes causation; JSON `metadata` stays SQL NULL.
 P02b-1 implements this producer metadata boundary in both API and Seeder.
 P02b-3 Step 3 implements restoration and incoming-event causation in the common
-delivery owner; production defaults remain Step 5 until the complete path is ready.
+delivery owner; Step 5 activates both real defaults and semantic Seeder handoff.
 
 The propagation primitive is **W3C `traceparent`** end to end. Every
 cross-boundary write (outbox row, Hangfire payload, Hub envelope) carries it;

@@ -1,5 +1,6 @@
 using System.Reflection;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Messaging;
 using MediatR;
 
 namespace LearnStack.Tests.Integration;
@@ -24,6 +25,24 @@ internal static class BackendDiscovery
     public static List<Type> ShippedRequestTypes() =>
         [.. HandlerContracts().Select(contract => contract.GenericTypeArguments[0]).Distinct()];
 
+    /// <summary>
+    /// Every audit identity: request types for MediatR and concrete handler types for
+    /// integration delivery, including inherited contracts under ADR-0057.
+    /// </summary>
+    public static List<Type> ShippedAuditSubjects() =>
+        [.. Types()
+            .Where(type => type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
+            .SelectMany(type => type.GetInterfaces()
+                .Where(contract => contract.IsGenericType
+                    && (contract.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>)
+                        || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)
+                        || contract.GetGenericTypeDefinition() == typeof(IRequestHandler<>)))
+                .Select(contract => contract.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>)
+                    ? type
+                    : contract.GenericTypeArguments[0]))
+            .Distinct()
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)];
+
     /// <summary>Every <see cref="IAuditCatalogSource"/> a backend assembly ships, constructed directly.</summary>
     public static List<IAuditCatalogSource> CatalogueSources() =>
         [.. Types()
@@ -36,20 +55,10 @@ internal static class BackendDiscovery
             .EnumerateFiles(BackendSrc(), "*.csproj", SearchOption.AllDirectories)
             .Where(path => !path.Contains(
                 $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
             .Select(path => Assembly.Load(Path.GetFileNameWithoutExtension(path)))
-            .SelectMany(LoadableTypes);
-
-    private static IEnumerable<Type> LoadableTypes(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException partial)
-        {
-            return partial.Types.OfType<Type>();
-        }
-    }
+            // A partial load is a failed census, never a smaller green population.
+            .SelectMany(assembly => assembly.GetTypes());
 
     private static string BackendSrc()
     {

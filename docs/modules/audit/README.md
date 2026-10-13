@@ -35,7 +35,7 @@ for the confined outbox role and validates the audit draft against a restricted
 witness from the actual fenced terminal UPDATE on the caller's transaction.
 Terminal state and MUST audit are atomic; this is not a standalone or platform-
 scope write. Tenancy owns the producer/subscriber operation declarations in
-[its matrix](../tenancy/audit.md), with subscriber implementation in P02b-3.
+[its matrix](../tenancy/audit.md); P02b-3 Step 4 implements the subscriber writer.
 
 The third module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -353,8 +353,9 @@ uses completed provisioning to initialize Customization defaults; Audit is not
 its mirror consumer. Existing source MUST rows remain on the source transaction.
 The reusable execution coordinator supplies non-MediatR classification/entry,
 owner write/boundary reporting and outermost reconciliation under ADR-0044/0033.
-P02b-1 proves a controlled direct owner; P02b-3 owns production delivery and its
-per-effect audit under ADR-0046's accepted G1 contract. Business audit retains
+P02b-1 proves a controlled direct owner; P02b-3 Steps 3–5 implement production
+delivery and per-effect audit under ADR-0046's accepted G1 contract. Business audit
+retains
 the existing coordinator and durability model; explicit terminal audit uses the
 separate fifth seam described above.
 

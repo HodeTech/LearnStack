@@ -280,8 +280,8 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
 - `dotnet build` and `dotnet test` pass.
 - `LearnStack.Tests.Architecture` is green — `Integration_Event_TopicNames_FollowConvention`
   and `Integration_Events_Inherit_From_IntegrationEventBase` run today.
-  `Integration_Event_Handlers_Use_InboxGuard` remains Registered for P02b-3's
-  transport-owned consumer delivery. Check
+  `Integration_Event_Handlers_Use_InboxGuard` is Implemented with P02b-3's
+  nonempty all-layer production census and real transport-owned delivery proofs. Check
   [the catalogue](../../../docs/standards/21-architecture-tests-catalogue.md) for their
   status rather than assuming a net is under you.
 - P02b-2 proves producer recovery and terminal audit independently of Pending
@@ -295,8 +295,9 @@ byte boundaries, SQL NULL metadata and terminal reuse. For delivered flows:
   that owns the aggregate. The moment another module needs to react, it must be an
   integration event.
 - **Moving the inbox guard into a handler.** The transport must claim before
-  construction. The rule remains Registered until P02b-3; its name alone proves
-  no enforcement. Redelivery must preserve independent sibling effects.
+  construction. P02b-3 enforces typed invocation boundaries and actual transaction
+  atomicity; extend both controls for a new subscription. Redelivery must preserve
+  independent sibling effects.
 - **Writing the outbox row in a separate transaction.** Use `IOutbox.EnqueueAsync`
   through the enrolled ambient `IUnitOfWork`; never `new TransactionScope`.
 - **Supplying a second topic at enqueue or subscription time.** The concrete

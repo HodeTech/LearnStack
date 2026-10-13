@@ -24,8 +24,9 @@ that contract. The wiring contract is in
 this skill is the **mechanical** check-list. Accepted
 [ADR-0046](../../../docs/decisions/0046-durable-event-delivery-and-recovery.md)
 adds construction-free stable subscription identities, Pending/Active readiness
-and durable acceptance. Those consumer components remain P02b-3 work; Phase 11
-must preserve their contracts rather than reintroduce handler-owned deduplication.
+and durable acceptance, implemented by P02b-3 with independent execution/retries
+and both real default subscribers. Phase 11 must preserve these contracts rather
+than reintroduce handler-owned deduplication.
 
 ## When to use
 

@@ -331,6 +331,13 @@ decides what happens *inside* the steps ADR-0033 named; the order is untouched:
    `IAuditStateCapture.Clear()`; the outermost audit coordinator clears capture in its
    `finally` ([ADR-0044 § 4](../decisions/0044-audit-write-path.md)).
 
+   Under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md),
+   `DeliveryExecutor` enters this same coordinator before constructing a concrete
+   subscriber. Each handler type is classified, even an `Off` coordinator whose
+   nested commands own resource audits. Modules never commit the delivery frame;
+   the common owner drains events, writes MUST audit, applies the final fence
+   and admits completion through the timeout gate.
+
    **Fail-closed is narrower than it reads.** An **in-transaction** MUST-class
    write that fails rolls the operation back and answers
    `503 audit_unavailable`. A **standalone** MUST-class write that fails changes

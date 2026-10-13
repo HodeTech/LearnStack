@@ -217,8 +217,11 @@ subscriber scheduling, terminal audit, replay and bounded observation; its
 owns validation and both completed review rounds. Step 5 implements useful
 defaults and semantic seed handoff; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns current validation/review status. Both real default subscriptions are Active;
-Step 6 retains production-census enforcement and full packet closeout.
+owns validation and both completed independent review rounds. Both real default
+subscriptions are Active. Step 6 implements production-census enforcement and
+full packet closeout; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current validation/review status.
 Phase 06 retains the full renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -425,8 +428,9 @@ Then read the phase that is live and the one it stands on:
   dispatch and observation, with both independent review rounds complete. Step 4
   enforcement and local closeout are complete; all four steps completed both
   independent review rounds. P02b-2 is complete and merged through PR #30 on
-  2026-10-13; its merge closeout above owns final verification. P02b-3 is next
-  and owns consumer/inbox delivery; each later packet accepts its gates first.
+  2026-10-13; its merge closeout above owns final verification. P02b-3 Steps 1–5
+  completed both review rounds; Step 6 owns current enforcement/closeout work.
+  Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

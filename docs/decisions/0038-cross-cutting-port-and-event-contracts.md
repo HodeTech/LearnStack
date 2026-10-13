@@ -247,6 +247,22 @@ This is a bounded new decision, not an ADR-0041 correction. Original acceptance
 metadata, body and earlier amendments remain intact. Acceptance claims no durable
 acceptance or consumer delivery.
 
+### Amendment 4 — Durable acceptance and subscriber delivery implemented (2026-10-13)
+
+**Delivery note; no decision change.** P02b-3 implements Amendment 3's accepted
+publish-outcome replacement. `InProcessEventBus` commits all required envelope
+copies without constructing business handlers; unknown acceptance remains a
+producer retry. `DeliveryExecutor` restores tenant/org, effective SystemActor
+and separate human causation inside a fresh app-role scope, claims inbox before
+construction and uses the common audit/domain-completion owner. Independent
+subscriber scheduling owns retry, terminalization and targeted internal replay.
+Transport diagnostics use closed reasons without logging raw handler exceptions
+or copied envelope data. The two real default subscriptions are Active.
+
+The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns runtime proofs, bounded production censuses and current review/PR status.
+Original acceptance metadata, body and previous amendments are unchanged.
+
 ## References
 
 - [ADR-0006 — Events and Outbox](0006-events-and-outbox.md)

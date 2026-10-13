@@ -15,6 +15,11 @@ Current CI/review/merge navigation (2026-10-12): the
 [PR handoff](../roadmap/phase-02b-events-auth.md#p02b-2-pr-handoff-2026-10-12)
 links the live PR; the delivery notes retain their as-of status.
 
+Current consumer delivery navigation (2026-10-13):
+[Amendment 3](#amendment-3--consumer-runtime-and-enforcement-delivery-2026-10-13)
+records P02b-3 runtime/enforcement delivery. Its Step 6 record owns current
+validation, review and PR/CI status; older delivery notes retain their dated state.
+
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 owns implementation sequencing and numerical runtime bounds. This reserved record
 decides producer dispatch and the coupled P02b-3 subscriber state machine before
@@ -486,6 +491,28 @@ P02b-3 is unimplemented: durable acceptance, shared inbox/delivery ledger,
 independent subscriber retries/terminalization, both real default subscriptions
 and Seeder handoff remain its obligations. Required production subscriptions
 remain Pending; test-owned Active contracts prove producer runtime only.
+
+### Amendment 3 — Consumer runtime and enforcement delivery (2026-10-13)
+
+**Delivery note; no decision change.** P02b-3 implements shared envelope retention
+and immutable inbox storage under the accepted grants, durable all-subscription
+acceptance, independent six-claim subscriber retries/recovery, the app-role
+business owner and timeout completion gate, row-bound terminal MUST audit and
+internal targeted replay. Controlled execution retains actual task/scope cleanup;
+publication acceptance and business execution use distinct local lanes. Both
+real Customization subscriptions are Active and preserve existing concept
+history. Seeder shares the initializer commands and verifies semantic identity.
+
+Production enforcement includes all module layers, exact handler/manifest/DI
+bindings, typed invocation and transaction-completion sites, concrete-handler
+audit classification and the one-root constructor-port rule. Planted missing,
+dirty and clean controls exercise these bounded checks; real PostgreSQL tests
+own ordering, isolation and atomicity. They do not claim arbitrary reflection or
+SQL transaction dataflow analysis. The
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns validation, independent reviews and PR/CI status. Earlier delivery notes
+retain their dated state. No exactly-once publication, cross-process ordering,
+operator replay route, purge, broker adapter or mapped readiness is delivered.
 
 ## References
 

@@ -374,7 +374,7 @@ yet:
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
 | `TransactionBehavior` → `TransactionExecutionCoordinator` | ambient | — the existing general announcement path; common execution adds no authority |
-| The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
+| The integration-event transport, per delivery | ambient — it opens it | `DeliveryExecutor` uses the common transaction owner and validated retained envelope before restoring `EventTenantContext`, claiming inbox and constructing the handler. `InProcessEventBus` owns durable acceptance only; nested commands join the prepared business transaction |
 | `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |

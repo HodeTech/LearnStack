@@ -295,7 +295,9 @@ Author intent: <one-paragraph restatement>
   causation/causal actor; transaction announcement supplies tenant/organization.
   No caller header/snapshot establishes authority. Common non-MediatR audit
   entry refuses unregistered direct mutation and reconciles only at the outer
-  frame; producer receipts are distinct. P02b-3 delivery/inbox remains open.
+  frame; producer receipts are distinct. P02b-3 Steps 1–5 implement durable
+  acceptance, transport-owned inbox/business completion and useful defaults;
+  check the packet record for current enforcement and review evidence.
 - **Real flow and evidence.** Completed provisioning emits
   `TenantCreatedIntegrationEventV1`; P02b-1 claims pending rows only. P02b-3 owns
   separate create-only `card@1`/`plain@1` subscriptions and Seeder identity
