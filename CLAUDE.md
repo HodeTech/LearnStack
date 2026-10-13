@@ -192,9 +192,10 @@ Step 3 implements hosted execution and observation; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
 owns verification and both completed review rounds. Step 4 enforcement and local
 closeout are complete; all four steps completed both independent review rounds.
-The
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
-owns local closeout evidence and CI/merge status.
+**P02b-2 is complete and merged** through
+[PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns final source/merge verification and CI evidence.
 Acceptance registers six new catalogue rules; the Step 4 record owns their
 delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3 still owns
 durable acceptance, shared inbox/ledger, independent retries, both real default
@@ -404,8 +405,9 @@ Then read the phase that is live and the one it stands on:
   Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
   dispatch and observation, with both independent review rounds complete. Step 4
   enforcement and local closeout are complete; all four steps completed both
-  independent review rounds; the Step 4 record above owns CI/merge status.
-  P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
+  independent review rounds. P02b-2 is complete and merged through PR #30 on
+  2026-10-13; its merge closeout above owns final verification. P02b-3 is next
+  and owns consumer/inbox delivery; each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency

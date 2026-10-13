@@ -496,7 +496,7 @@ announcement while provisioning ambient context remains unresolved. State, event
 and the existing two MUST audit rows share one transaction. P02b-1 persists
 pending rows; P02b-2 implements hosted dispatch and production-census enforcement.
 All four steps completed both independent review rounds and local closeout.
-The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. P02b-3 owns consumer delivery.
 
 The subscriptions below are accepted flow contracts, not delivered handlers.

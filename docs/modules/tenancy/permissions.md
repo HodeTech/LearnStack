@@ -9,8 +9,8 @@ permission, and inserts a pending outbox row under the provisioning announcement
 Existing command reachability is unchanged. The
 [integration-event catalogue](README.md#integration-event-catalogue) owns the flow.
 
-**ADR-0046 P02b-2 implementation locally complete — 2026-10-12.** All four steps
-completed both independent review rounds. The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+**ADR-0046 P02b-2 complete and merged — 2026-10-13.** All four steps
+completed both independent review rounds. The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
 The API-owned dispatcher and terminal audit add no
 permission key or HTTP endpoint. P02b-3's

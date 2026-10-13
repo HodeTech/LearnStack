@@ -10,7 +10,7 @@ aggregate. A failed MUST write rolls back tenant, organization and outbox togeth
 The [integration-event catalogue](README.md#integration-event-catalogue) owns the flow;
 P02b-2 implements hosted producer dispatch and production-census enforcement.
 All four steps completed both independent review rounds and local closeout.
-The [Step 4 record](../../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+The [merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. Subscribers remain P02b-3.
 
 **ADR-0046 producer terminal writer implemented — 2026-10-12; both review rounds

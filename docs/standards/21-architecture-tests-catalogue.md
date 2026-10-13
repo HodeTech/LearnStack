@@ -15,8 +15,8 @@
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
 (P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
-all four steps completed both independent review rounds and local closeout;
-the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+all four steps completed both independent review rounds; packet complete and merged;
+the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status; P02b-3 consumer proofs remain pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.

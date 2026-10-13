@@ -564,8 +564,8 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 
 ## Outbox
 
-**Accepted ADR-0046; P02b-2 producer runtime and enforcement locally complete.**
-All four steps completed both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+**Accepted ADR-0046; P02b-2 producer runtime and enforcement complete and merged.**
+All four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. Subscriber delivery/retries and inbox
 remain P02b-3.
 

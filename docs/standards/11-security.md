@@ -247,7 +247,7 @@ ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
 both review rounds are complete. Step 3 implements mandatory worker startup
 resolution and connectivity checks; both independent review rounds are complete.
 Step 4 credential/publication enforcement and local closeout are complete; all
-four steps completed both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. The named keyed, lazy
 dispatcher source belongs only to the API host. Configuration validates the exact
 username without connecting or
