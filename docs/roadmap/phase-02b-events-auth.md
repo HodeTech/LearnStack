@@ -3361,6 +3361,21 @@ full corrected architecture suite passes.
 Two fresh independent review rounds and correction-head CI remain pending at
 this initial receipt. Earlier CI evidence does not substitute for that head.
 
+#### Second follow-up review round 1
+
+Three fresh agents reviewed `b681edb8..92e296ed`. GPT-6-astra/xhigh reviewed
+runtime, transaction/cancellation ownership, fairness and diagnostics; it passed
+23 worker, 25 diagnostic/registry unit and 40 dispatcher architecture cases.
+GPT-6.1-sol/xhigh reviewed guards, proofs, governance and corpus consistency,
+independently passing all 312 architecture cases. GPT-6-sol/high reviewed alias
+acceptance, concurrency, RLS and audit composition; it passed 31 acceptance,
+23 worker and 25 focused unit cases. All runs have zero failures/skips.
+
+All three approve with no verified actionable finding. The older prefix-scoped
+request/handler discovery scans are separately documented scopes, not a claim
+of this shared production census. No new rule or deferred decision is silently
+introduced. Round 2 and correction-head CI remain pending here.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
