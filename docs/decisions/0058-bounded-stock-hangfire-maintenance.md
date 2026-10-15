@@ -2,19 +2,21 @@
 
 ## Status
 
-Proposed — maintainer approval pending.
+Accepted — 2026-10-16.
 
 **Date:** 2026-10-16 **Deciders:** @cemil
 
-**Proposed configuration replacement:** suppress the optional stock counter
+**Maintainer acceptance — 2026-10-16.** The maintainer approves this revised
+contract. **Configuration replacement:** suppress the optional stock counter
 aggregator and statistics-history filter in ADR-0047's H1 integration. The
 previous proposal to exempt an enabled command from the command/socket budget is
 withdrawn. **Additive seams:** exact component selection, shared expiration
-ownership, maintenance observation and its test obligations. On acceptance,
-ADR-0047 receives a dated amendment disclosing both the configuration change and
-these seams. Its command/socket bounds, business authority, roles, grants,
-schema, attempts and existing execution/bridge ownership bounds remain unchanged.
-No dependent runtime is implemented by this proposal.
+ownership, maintenance observation and its test obligations.
+[ADR-0047 Amendment 1](0047-transactional-background-job-runtime.md#amendment-1--maintenance-replacement-and-additive-ownership-seams-2026-10-16)
+discloses both the configuration change and these seams. Its command/socket
+bounds, business authority, roles, grants, schema, attempts and existing
+execution/bridge ownership bounds remain unchanged. Acceptance precedes dependent
+runtime implementation and claims neither delivery nor enforcement.
 
 ## Decision Drivers
 
@@ -31,35 +33,35 @@ No dependent runtime is implemented by this proposal.
 
 ## Considered Options
 
-1. **Suppress aggregation/history; retain owned stock expiration** (proposed).
+1. **Suppress aggregation/history; retain owned stock expiration** (chosen).
    Use public hooks, preserve finite driver deadlines and retain stock cleanup.
    Accept absent vendor timelines and the stock compactor's approximate totals.
-2. **Retain an owned stock aggregator with an I/O exception** (not proposed).
+2. **Retain an owned stock aggregator with an I/O exception** (not selected).
    Single-flight retention can bound count/wait/shutdown, but one command can
    retain a connection/thread while its read/write I/O remains unresolved. This
    adds an exception and owner without a required product statistics benefit.
 3. **Qualified upstream timeout fix** (viable later). Requalify a concrete release
    before enabling it. No replacement has been qualified by this packet.
-4. **First-party aggregation SQL** (not proposed). Component substitution is
+4. **First-party aggregation SQL** (not selected). Component substitution is
    possible, but adds ownership of vendor counter transactions and upgrades.
 5. **Reflection or tracing interception** (rejected). No supported per-command
    handle is exposed through the sealed connection/factory contract; tracing is
    conditional on listeners. Neither is the selected integration seam.
 6. **Keepalive as the command deadline** (rejected). It does not establish a hard
    deadline against a proxy that acknowledges TCP while withholding responses.
-7. **Disable only aggregation, retain history** (not proposed). Expiration still
+7. **Disable only aggregation, retain history** (not selected). Expiration still
    cleans up, contrary to the earlier draft's rejection premise. It retains raw
    daily/hourly history until expiry and increases backlog without a dashboard.
 
 ## Decision
 
-Subject to maintainer acceptance, remove only the exact pinned
-`CountersAggregator` from the public `PostgreSqlStorage.GetComponents()` result
-and remove only `StatisticsHistoryAttribute` from the global filter collection,
-through its public exact-type removal API, before any worker starts. Keep stock
-`ExpirationManager`, sliding-invisibility heartbeat, state-counter handlers,
-wrapper admission, retry configuration and all other filters. Do not replace
-aggregation SQL, modify the vendor assemblies or introduce a socket exception.
+LearnStack suppresses only the exact pinned `CountersAggregator` from the public
+`PostgreSqlStorage.GetComponents()` result and only `StatisticsHistoryAttribute`
+from the global filter collection, through its public exact-type removal API,
+before any worker starts. It retains stock `ExpirationManager`,
+sliding-invisibility heartbeat, state-counter handlers, wrapper admission, retry
+configuration and all other filters. The integration preserves stock aggregation
+SQL, vendor assemblies and finite command/socket bounds.
 
 ### Component selection and ownership
 
@@ -212,20 +214,22 @@ and the stock H1 business-authority contract are preserved.
 
 ## Implementation Notes
 
-On acceptance, append a dated ADR-0047 amendment named **maintenance configuration
-replacement and additive ownership seams**. Preserve its body and acceptance
-metadata; name both configuration suppression and the new owner/health/proofs.
-This is not an ADR-0041 fact correction. Update Standards 05/20/21, the exact
+ADR-0047's dated **maintenance replacement and additive ownership seams**
+amendment records both configuration suppression and the new owner/health/proofs,
+preserving its body and acceptance metadata. This is not an
+ADR-0041 fact correction. Standards 05/20/21, the
 [Events and Outbox architecture](../architecture/15-event-and-outbox.md), decisions
-index and P02b-4 Step 2/4 records. Standards 21's two named `Asserts` below receive
-this exact meaning at acceptance, remaining Registered until real enforcement.
+index and P02b-4 Step 2 record carry the accepted policy. Standards 21's two named
+`Asserts` below carry this exact meaning and remain Registered until real
+enforcement.
 
-Step 2 owns source-deadline/reset and schema qualification after acceptance.
+Step 2 owns source-deadline/reset and schema qualification; the new five-second
+idle-session cleanup setting and its production-source proofs remain pending.
 Step 4 owns component/filter inventory, expiration ownership, interval validation,
 final pool-acquisition census/configuration refusal and actual worker progress.
 Step 9 owns full observation/enforcement and regression. Independent schema/ACL
-validation continues before approval, but no full Step 2 closeout or runtime
-maintenance claim is made by this Proposed record.
+validation continues; acceptance claims neither full Step 2 closeout nor
+implemented runtime maintenance.
 
 ## Architecture Tests
 

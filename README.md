@@ -87,7 +87,11 @@ and ADR-0047 are Accepted — 2026-10-15. Nine H1/expanded infrastructure steps
 are authorized on `development`.
 Step 1 implements typed contracts and ordinary execution guards. Its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
-owns validation and review status; Steps 2–9 remain pending.
+owns completed validation and both review rounds. Step 2's
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+owns active schema/bootstrap validation and Accepted ADR-0058's maintenance
+policy (2026-10-16); source/reset and runtime qualification remain pending.
+Steps 3–9 remain pending.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

@@ -122,7 +122,11 @@ not deferred to the showcase phase.
   are authorized on `development`.
 Step 1 implements typed contracts and ordinary execution guards. Its
 [record](phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
-owns validation and review status; Steps 2–9 remain pending.
+owns completed validation and both review rounds. Step 2's
+[record](phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+owns active schema/bootstrap validation and Accepted ADR-0058's maintenance
+policy (2026-10-16); source/reset and runtime qualification remain pending.
+Steps 3–9 remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

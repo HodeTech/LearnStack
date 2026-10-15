@@ -234,7 +234,11 @@ and ADR-0047 are Accepted — 2026-10-15. The nine-step H1/expanded infrastructu
 implementation is authorized on `development`.
 Step 1 implements typed contracts and ordinary execution guards. Its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
-owns validation and review status; Steps 2–9 remain pending.
+owns completed validation and both review rounds. Step 2's
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+owns active schema/bootstrap validation and Accepted ADR-0058's maintenance
+policy (2026-10-16); source/reset and runtime qualification remain pending.
+Steps 3–9 remain pending.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -446,8 +450,9 @@ Then read the phase that is live and the one it stands on:
   and merged through PR #31 on 2026-10-15; all six steps and correction bundles
   completed both review rounds. Its merge closeout above owns final verification.
   P02b-4's background-job package and ADR-0047 are Accepted — 2026-10-15.
-  Nine implementation steps are authorized on `development`; runtime and
-  enforcement remain pending.
+  Nine implementation steps are authorized on `development`; Step 1 is complete,
+  Step 2 validation is active under ADR-0058, Accepted — 2026-10-16; source/reset
+  and runtime qualification, runtime activation and enforcement remain pending.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

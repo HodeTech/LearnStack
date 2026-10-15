@@ -1,6 +1,6 @@
 # Maintenance decision qualification
 
-These are reproducible decision experiments for Proposed
+These are reproducible decision experiments for Accepted
 [ADR-0058](../../../docs/decisions/0058-bounded-stock-hangfire-maintenance.md).
 They activate no LearnStack runtime, use no development database and make no
 business-owner, granted-role or full-worker regression claim.

@@ -15,8 +15,10 @@ P02b-4's [decision package](#p02b-4-decision-package-2026-10-15) and ADR-0047 ar
 Accepted — 2026-10-15. Nine implementation steps are authorized on `development`;
 P02b-4 Step 1 implements contracts and ordinary execution guards; its
 [record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
-review status. Steps 2–9 and P02b-5–8 remain pending.
-Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
+review status. Step 2 validation is active under ADR-0058, Accepted — 2026-10-16;
+its [record](#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16) owns
+source/reset and runtime qualification status. Steps 3–9 and P02b-5–8 remain
+pending. Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
@@ -3957,9 +3959,11 @@ enumerate all public tables, classify expected application SELECT denial, and
 continue actual tenant/organization isolation checks as `learnstack_app`.
 
 The vendor connection factory crosses the existing guarded lazy source on every
-acquisition. Reset-safe server statement/lock deadlines bound stock unlimited
-driver commands. Bootstrap verifies version, guard bodies/triggers, exact grants
-and metadata before constructing the provider. No production wrapper, scheduler
+acquisition. Reset-safe server statement/lock deadlines bound SQL execution;
+Accepted ADR-0058 requires finite enabled driver I/O and adds five-second
+idle-session cleanup. The new setting and source/reset proofs remain pending at
+acceptance. Bootstrap verifies version, guard bodies/triggers, exact grants and
+metadata before constructing the provider. No production wrapper, scheduler
 or worker is activated by this step. Runtime admission, business completion,
 external execution and recurrence remain Steps 3–9.
 
@@ -3972,12 +3976,14 @@ recorded after the actual checks; source-only inspection is not a runtime proof.
 **New qualification boundary.** The exact stock counter component overrides the
 driver timeout with zero. PostgreSQL statement/lock deadlines pass blocked-SQL
 checks, but a response-withholding proxy leaves the actual component pending.
-[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) proposes the
-selective maintenance configuration and ownership controls described in the
-[reassessment](#step-2-maintenance-reassessment). The earlier socket-exception
-proposal is withdrawn. Maintainer acceptance remains required before dependent
-runtime; this step claims neither completed qualification nor full closeout.
-Independent schema validation continues.
+[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) is Accepted —
+2026-10-16 for the selective maintenance configuration and ownership controls
+reviewed in the [reassessment](#step-2-maintenance-reassessment). The earlier
+socket-exception proposal is withdrawn. The
+[acceptance receipt](#step-2-maintenance-acceptance-2026-10-16) records the approved
+boundary; source/reset and Step 4 runtime qualification remain pending. This step
+claims neither completed qualification nor full closeout. Independent schema
+validation continues.
 
 #### Step 2 counter-maintenance decision review
 
@@ -4099,6 +4105,35 @@ errors; whitespace is clean. Accepted ADR bodies remain byte-identical to the
 P02b-4 acceptance commit `affa0aca`. These decision experiments are not added to
 backend regression counts. Both fresh proposal rounds are complete; maintainer
 acceptance and Step 2/4 runtime qualification remain pending.
+
+#### Step 2 maintenance acceptance (2026-10-16)
+
+The maintainer explicitly approves the revised ADR-0058. Its status is Accepted —
+2026-10-16. ADR-0047 Amendment 1 records the maintenance configuration replacement
+and additive ownership seams without rewriting its body or acceptance metadata.
+The dated proposal/reassessment/review receipts above retain their original
+as-of state; this receipt closes only their maintainer-acceptance gate.
+
+The approved configuration suppresses only exact stock `CountersAggregator` and
+`StatisticsHistoryAttribute`, preserving stock expiration/heartbeat, state counters
+and required admission/retry filters. Finite enabled command/socket bounds remain;
+there is no unlimited-command exception. The shared source gains reset-safe
+`idle_in_transaction_session_timeout=5000`, with no shared `transaction_timeout`.
+At this acceptance receipt the new setting is authorized, not implemented;
+source/reset, successful outbox/delivery and real aborted-idle proofs remain Step 2
+work. Full Step 2 validation and both fresh runtime/schema review rounds remain
+pending.
+
+Step 4 owns exact component/filter selection, one shared expiration owner,
+one-millisecond internal interval, completion-based one-hour cadence, bounded
+wait/cleanup, shared shutdown and truthful retained-maintenance health. It also
+owns the final simultaneous physical-acquisition census, enforced supported
+configuration/floor and independent progress under contention. No minimum-two or
+nonpooled prohibition is accepted. Step 9 owns full observation/enforcement and
+regression. Standards 05/20/21 and the Events and Outbox architecture carry the
+accepted policy; the existing bootstrap and independent-capacity obligations
+remain Registered. Acceptance claims no implemented maintenance owner, runtime
+proof, packet closeout or production-capacity/disk guarantee.
 
 ### Durable outbox dispatch
 

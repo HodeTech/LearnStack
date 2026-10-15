@@ -781,6 +781,53 @@ refusal/exhaustion reports unapplied business finalization. Old ExecuteIntent/
 quiescence evidence survives later attempts; neither stage can take a seventh
 admission, and Unknown occupancy stays held despite budget exhaustion.
 
+## Amendments
+
+### Amendment 1 — maintenance replacement and additive ownership seams (2026-10-16)
+
+Accepted [ADR-0058](0058-bounded-stock-hangfire-maintenance.md) replaces only the
+H1 maintenance configuration: the exact pinned `CountersAggregator` is suppressed
+through the public component hook and only `StatisticsHistoryAttribute` is
+removed through its public exact-type filter API before workers start. Stock
+expiration, heartbeat, state-counter handlers, admission/retry filters, assemblies
+and SQL remain. This is a new configuration decision, not an ADR-0041 correction
+of the original record. No enabled command receives an unlimited-driver or socket
+exception.
+
+The additive seams are exact fail-closed component/filter inventories and one
+API-instance expiration owner shared across pools. The provider's internal
+expiration interval is exactly one millisecond; the owner supplies the normal
+one-hour cadence after actual completion and cancelable pacing/backoff. One owned
+background thread retains actual work, cancellation state and resources through
+late completion. Its positive finite wait is at most five minutes (the default),
+with at most one second of cleanup waiting. It adds no business worker slot or
+reservation and is accounted separately from the existing workers-plus-four and
+bridge-four limits. Retained maintenance makes the unmapped `jobs` check unhealthy
+with a separate fixed maintenance dimension and bounded progress/outcome code.
+Host stop uses the existing one shared shutdown budget without disposing resources
+still in use or admitting fresh acquisitions.
+
+The confined shared source adds reset-safe
+`idle_in_transaction_session_timeout=5000` alongside the existing finite
+statement/lock and driver connect/command/cancellation bounds. Warm reset,
+successful outbox/delivery transactions and real aborted-idle cleanup require
+proof. No shared `transaction_timeout` is introduced. Per-statement, per-lock and
+idle-session deadlines neither bound a whole maintenance pass nor guarantee
+client-socket termination. The withdrawn minimum-two/nonpooled proposal supplies
+no pool rule: Step 4 enumerates all simultaneous physical-acquisition lanes,
+enforces the qualified supported configuration/floor before workers start, and
+proves other pools progress there under contention.
+
+Standards 05/20 and the Events and Outbox architecture carry this maintenance
+policy. Standards 21 extends the existing
+`Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role` and
+`BackgroundJob_Worker_Pools_Reserve_Independent_Capacity` assertions; both remain
+Registered. Step 2 owns source/reset and schema qualification, Step 4 owns actual
+component/filter/owner/pool-boundary proofs, and Step 9 owns full observation,
+enforcement and regression. Acceptance precedes dependent implementation and
+claims no completed runtime proof. Business authority, roles, grants, schema,
+attempts and existing execution/bridge ownership bounds remain unchanged.
+
 ## References
 
 - [ADR-0003 Tenant Isolation](0003-tenant-isolation-defense-in-depth.md)
