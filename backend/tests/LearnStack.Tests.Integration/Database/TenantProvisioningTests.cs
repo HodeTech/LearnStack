@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Common;
@@ -310,7 +311,7 @@ public sealed class TenantProvisioningTests
                 new NoOpAuditStore(), new AuditStateCapture(),
                 scope.ServiceProvider.GetRequiredService<ProducerExecution>(),
                 scope.ServiceProvider.GetRequiredService<DomainEventCollector>(),
-                NullLogger<TransactionExecutionCoordinator>.Instance));
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
 
         var write = () => behavior.Handle(
             new Probe(),
@@ -519,7 +520,7 @@ public sealed class TenantProvisioningTests
                 new NoOpAuditStore(), new AuditStateCapture(),
                 services.GetRequiredService<ProducerExecution>(),
                 services.GetRequiredService<DomainEventCollector>(),
-                NullLogger<TransactionExecutionCoordinator>.Instance));
+                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty());
 
         return await behavior.Handle(
             command,

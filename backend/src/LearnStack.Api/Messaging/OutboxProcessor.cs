@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Diagnostics;
 using LearnStack.Infrastructure.Messaging;
 using Npgsql;
@@ -7,7 +8,7 @@ namespace LearnStack.Api.Messaging;
 /// <summary>One just-in-time claimant with bounded, task-owned publication overruns.</summary>
 public sealed partial class OutboxProcessor : BackgroundService
 {
-    private readonly Lazy<NpgsqlDataSource> _source;
+    private readonly PrivilegedDataSource _source;
     private readonly OutboxDispatchStore _store;
     private readonly OutboxEnvelopeReader _reader;
     private readonly OutboxEventRegistry _registry;
@@ -21,7 +22,7 @@ public sealed partial class OutboxProcessor : BackgroundService
     private OutboxClaimKind _nextClaimKind = OutboxClaimKind.Terminal;
 
     public OutboxProcessor(
-        [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
+        [FromKeyedServices(OutboxDispatcherDataSource.Key)] PrivilegedDataSource source,
         OutboxDispatchStore store, OutboxEnvelopeReader reader, OutboxEventRegistry registry,
         OutboxDispatchOptions options, TimeProvider time, IServiceScopeFactory scopes,
         OutboxObservation observation, ILogger<OutboxProcessor> logger)
@@ -55,7 +56,7 @@ public sealed partial class OutboxProcessor : BackgroundService
             _options.Validate();
             using var timeout = new CancellationTokenSource(_options.SqlTimeout, _time);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-            await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+            await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

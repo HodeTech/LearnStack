@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.MultiTenancy;
@@ -698,7 +699,7 @@ public sealed class PlatformAdminScopeTests
         ILogger<PlatformAdminScope> logger,
         IServiceScopeFactory? auditStore = null) =>
         new(new PermissiveGate(),
-            new Lazy<NpgsqlDataSource>(() => dataSource),
+            new PrivilegedDataSource(() => dataSource),
             new AuditCatalog([new TenancyAuditCatalogSource()]),
             auditStore ?? AuditStoreScopeFactory(),
             new SystemClock(),

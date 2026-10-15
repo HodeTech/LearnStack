@@ -6,6 +6,7 @@ using LearnStack.Application.Pipeline;
 using LearnStack.Application.Persistence;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -270,7 +271,7 @@ public sealed partial class PersistenceConventionTests
         var constructor = typeof(TransactionBehavior<,>).GetConstructors().Single();
 
         constructor.GetParameters().Select(parameter => parameter.ParameterType)
-            .Should().Equal(typeof(TransactionExecutionCoordinator));
+            .Should().Equal(typeof(TransactionExecutionCoordinator), typeof(IBackgroundJobRequestCatalog));
         typeof(TransactionExecutionCoordinator).GetConstructors().Single()
             .GetParameters().Select(parameter => parameter.ParameterType)
             .Should().Contain(typeof(IUnitOfWork))

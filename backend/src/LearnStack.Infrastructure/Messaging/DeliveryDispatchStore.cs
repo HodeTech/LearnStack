@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -31,14 +32,14 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
     private const string Owned = Identity + " AND locked_by = @token AND " + Incomplete;
     private const string Fence = Owned + " AND locked_until > clock_timestamp()";
 
-    private readonly Lazy<NpgsqlDataSource> _source;
+    private readonly PrivilegedDataSource _source;
     private readonly OutboxEventRegistry _registry;
     private readonly DeliveryDispatchOptions _options;
     private readonly IGuidFactory _ids;
     private readonly IClock _clock;
     private readonly IServiceScopeFactory _scopes;
 
-    public DeliveryDispatchStore(Lazy<NpgsqlDataSource> source, OutboxEventRegistry registry,
+    public DeliveryDispatchStore(PrivilegedDataSource source, OutboxEventRegistry registry,
         DeliveryDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -73,7 +74,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
     {
         ArgumentNullException.ThrowIfNull(blocked);
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand($"""
             WITH candidate AS (
@@ -142,7 +143,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         string? descriptor, CancellationToken cancellationToken, string? reason = null)
     {
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         if (!await LockOwnedAsync(connection, transaction, claim, extra, deadline.Token).ConfigureAwait(false)) return false;
         await using var command = new NpgsqlCommand(
@@ -176,7 +177,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         if (claim.Kind != DeliveryClaimKind.Terminal)
             throw new ArgumentException("Terminalization requires its own acquisition.", nameof(claim));
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         if (!await LockOwnedAsync(connection, transaction, claim, " AND terminal_reason IS NOT NULL",
                 deadline.Token).ConfigureAwait(false)) return false;
@@ -249,7 +250,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
     private async Task<bool> IsDurablyTerminalAsync(DeliveryClaim claim)
     {
         using var deadline = Deadline(CancellationToken.None);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             $"SELECT EXISTS (SELECT 1 FROM event_deliveries WHERE {Identity} AND dead_lettered_at IS NOT NULL)", connection);
         Configure(command);
@@ -262,7 +263,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
     {
         ArgumentNullException.ThrowIfNull(blockedPartitions);
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand($"""
             SELECT count(*), count(*) FILTER (WHERE {Held}),
                 COALESCE(GREATEST(0, extract(epoch FROM clock_timestamp() - min(occurred_at)
@@ -283,7 +284,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         if (tenant == Guid.Empty || tenant == TenantId.PlatformSentinel.Value || eventId == Guid.Empty
             || !OutboxEventRegistry.ValidSubscriptionId(subscription)) return false;
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         const string replayable = " AND processed_at IS NULL AND dead_lettered_at IS NOT NULL"
             + " AND terminal_reason IS NOT NULL AND locked_by IS NULL AND locked_until IS NULL";

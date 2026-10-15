@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
@@ -32,7 +33,7 @@ public sealed class ConstructionOnlyApiFactoryTests
         using var client = host.CreateClient();
 
         host.Services.GetServices<IHostedService>().Should().NotContain(service => service is OutboxProcessor || service is DeliveryProcessor);
-        host.Services.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key)
+        host.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key)
             .IsValueCreated.Should().BeFalse();
         (await client.GetAsync("/healthz")).IsSuccessStatusCode.Should().BeTrue();
     }

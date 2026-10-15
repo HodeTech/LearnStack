@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Messaging;
@@ -56,28 +57,31 @@ public sealed class OutboxDispatcherDataSourceGuardTests
         var services = new ServiceCollection();
         services.AddLearnStackOutboxDispatcher(Configuration(value));
         using var provider = services.BuildServiceProvider();
-        var lazy = provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key);
+        var lazy = provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
 
         lazy.IsValueCreated.Should().BeFalse();
-        AssertSafeRefusal(() => _ = lazy.Value);
+        AssertSafeRefusal(() => lazy.OpenConnection());
     }
 
     [Fact]
-    public void Registration_is_keyed_lazy_and_owns_one_shared_source()
+    public async Task Registration_is_keyed_lazy_and_owns_one_shared_source()
     {
         var services = new ServiceCollection();
         services.AddLearnStackOutboxDispatcher(Configuration(Valid));
         services.AddLearnStackOutboxDispatcher(Configuration(Valid));
         using var provider = services.BuildServiceProvider();
-        var lazy = provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key);
+        var lazy = provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
 
         provider.GetService<NpgsqlDataSource>().Should().BeNull();
         lazy.IsValueCreated.Should().BeFalse();
-        var source = lazy.Value;
-        source.Should().BeSameAs(provider.GetRequiredKeyedService<NpgsqlDataSource>(OutboxDispatcherDataSource.Key));
-        source.Should().BeSameAs(lazy.Value);
+        var open = async () => await lazy.OpenConnectionAsync(new CancellationToken(canceled: true));
+        await open.Should().ThrowAsync<OperationCanceledException>();
+        lazy.IsValueCreated.Should().BeTrue();
+        lazy.Should().BeSameAs(provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key));
+        provider.GetKeyedService<NpgsqlDataSource>(OutboxDispatcherDataSource.Key).Should().BeNull();
+        provider.GetKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key).Should().BeNull();
         services.Count(descriptor => descriptor.IsKeyedService
-            && descriptor.ServiceType == typeof(NpgsqlDataSource)
+            && descriptor.ServiceType == typeof(PrivilegedDataSource)
             && Equals(descriptor.ServiceKey, OutboxDispatcherDataSource.Key)).Should().Be(1);
     }
 

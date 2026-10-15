@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -24,14 +25,14 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     private const string Fence = "id = @id AND locked_by = @token AND locked_until > clock_timestamp()"
         + " AND " + Incomplete;
 
-    private readonly Lazy<NpgsqlDataSource> _source;
+    private readonly PrivilegedDataSource _source;
     private readonly OutboxEventRegistry _registry;
     private readonly OutboxDispatchOptions _options;
     private readonly IGuidFactory _ids;
     private readonly IClock _clock;
     private readonly IServiceScopeFactory _scopes;
 
-    public OutboxDispatchStore(Lazy<NpgsqlDataSource> source, OutboxEventRegistry registry,
+    public OutboxDispatchStore(PrivilegedDataSource source, OutboxEventRegistry registry,
         OutboxDispatchOptions options, IGuidFactory ids, IClock clock, IServiceScopeFactory scopes)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -68,7 +69,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     {
         ArgumentNullException.ThrowIfNull(blocked);
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand($"""
             WITH candidate AS (
@@ -142,7 +143,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         string? descriptor, CancellationToken cancellationToken, string? reason = null)
     {
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             $"UPDATE outbox_messages SET {assignments} WHERE {Fence}{extra}", connection);
         Configure(command);
@@ -160,7 +161,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
         if (claim.Kind != OutboxClaimKind.Terminal)
             throw new ArgumentException("Terminalization requires its own acquisition.", nameof(claim));
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand($"""
             UPDATE outbox_messages SET dead_lettered_at = clock_timestamp(),
@@ -231,7 +232,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     private async Task<bool> IsDurablyTerminalAsync(Guid id)
     {
         using var deadline = Deadline(CancellationToken.None);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             "SELECT EXISTS (SELECT 1 FROM outbox_messages WHERE id = @id AND dead_lettered_at IS NOT NULL)", connection);
         Configure(command);
@@ -244,7 +245,7 @@ public sealed class OutboxDispatchStore : EventTerminalTransition.MintingSource
     {
         ArgumentNullException.ThrowIfNull(blockedPartitions);
         using var deadline = Deadline(cancellationToken);
-        await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+        await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand($"""
             SELECT count(*), count(*) FILTER (WHERE type = ANY(@pending)),
                 COALESCE(GREATEST(0, extract(epoch FROM clock_timestamp() - min(occurred_at)

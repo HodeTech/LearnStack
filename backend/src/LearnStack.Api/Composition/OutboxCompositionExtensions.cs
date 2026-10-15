@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
@@ -25,20 +26,16 @@ public static class OutboxCompositionExtensions
         // The keyed source is container-owned. Lazy defers construction while
         // construction-only test hosts remove the production worker; the worker's
         // startup must resolve and open it, including when configuration is absent.
-        services.TryAddKeyedSingleton<NpgsqlDataSource>(
+        services.TryAddKeyedSingleton<PrivilegedDataSource>(
             OutboxDispatcherDataSource.Key,
-            (_, _) => OutboxDispatcherDataSource.Build(connectionString));
-        services.TryAddKeyedSingleton<Lazy<NpgsqlDataSource>>(
-            OutboxDispatcherDataSource.Key,
-            (provider, key) => new Lazy<NpgsqlDataSource>(
-                () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+            (_, _) => new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(connectionString)));
 
         services.TryAddSingleton(new OutboxDispatchOptions());
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<OutboxEnvelopeReader>();
         services.TryAddSingleton<OutboxObservation>();
         services.TryAddSingleton(provider => new OutboxDispatchStore(
-            provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key),
+            provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key),
             provider.GetRequiredService<OutboxEventRegistry>(),
             provider.GetRequiredService<OutboxDispatchOptions>(),
             provider.GetRequiredService<IGuidFactory>(),
@@ -54,7 +51,7 @@ public static class OutboxCompositionExtensions
         services.TryAddSingleton<DeliveryExecutor>();
         services.TryAddSingleton<DeliveryObservation>();
         services.TryAddSingleton(provider => new DeliveryDispatchStore(
-            provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key),
+            provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key),
             provider.GetRequiredService<OutboxEventRegistry>(),
             provider.GetRequiredService<DeliveryDispatchOptions>(),
             provider.GetRequiredService<IGuidFactory>(),

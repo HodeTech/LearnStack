@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -57,9 +58,9 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
         test.Services.GetServices<IHostedService>().OfType<OutboxProcessor>()
             .Should().ContainSingle().Which.Should().BeSameAs(test.Worker);
         await UntilAsync(() => test.Observation.IsHealthy);
-        var source = test.Services.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key);
+        var source = test.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
         source.IsValueCreated.Should().BeTrue("startup must connect even when there are no rows");
-        await using var connection = await source.Value.OpenConnectionAsync();
+        await using var connection = await source.OpenConnectionAsync();
         await using var role = new NpgsqlCommand("SELECT session_user, current_user", connection);
         await using var reader = await role.ExecuteReaderAsync();
         (await reader.ReadAsync()).Should().BeTrue();

@@ -231,7 +231,10 @@ records subsequent runtime/proof corrections and their completed reviews. The
 owns final source/merge and CI verification.
 P02b-4's [background-job decision package](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
 and ADR-0047 are Accepted — 2026-10-15. The nine-step H1/expanded infrastructure
-implementation is authorized on `development`; runtime and enforcement remain pending.
+implementation is authorized on `development`.
+Step 1 implements typed contracts and ordinary execution guards. Its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
+owns validation and review status; Steps 2–9 remain pending.
 Phase 06 retains the full
 renderer/Studio expansion.
 

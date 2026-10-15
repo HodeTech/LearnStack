@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Diagnostics;
 using LearnStack.Infrastructure.Messaging;
 using Npgsql;
@@ -7,7 +8,7 @@ namespace LearnStack.Api.Messaging;
 /// <summary>One just-in-time claimant with bounded, task-owned execution overruns.</summary>
 public sealed partial class DeliveryProcessor : BackgroundService
 {
-    private readonly Lazy<NpgsqlDataSource> _source;
+    private readonly PrivilegedDataSource _source;
     private readonly DeliveryDispatchStore _store;
     private readonly DeliveryExecutor _executor;
     private readonly OutboxEventRegistry _registry;
@@ -20,7 +21,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
     private DeliveryClaimKind _nextClaimKind = DeliveryClaimKind.Terminal;
 
     public DeliveryProcessor(
-        [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
+        [FromKeyedServices(OutboxDispatcherDataSource.Key)] PrivilegedDataSource source,
         DeliveryDispatchStore store, DeliveryExecutor executor, OutboxEventRegistry registry,
         DeliveryDispatchOptions options, TimeProvider time,
         DeliveryObservation observation, ILogger<DeliveryProcessor> logger)
@@ -52,7 +53,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
         {
             using var timeout = new CancellationTokenSource(_options.SqlTimeout, _time);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-            await using var connection = await _source.Value.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+            await using var connection = await _source.OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

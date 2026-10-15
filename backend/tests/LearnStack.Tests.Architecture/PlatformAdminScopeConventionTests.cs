@@ -58,7 +58,7 @@ public sealed class PlatformAdminScopeConventionTests
             .ToList();
 
         resolvers.Should().BeEquivalentTo(
-            [ScopeFile, CompositionFile, OutboxCompositionFile, OutboxWorkerFile, DeliveryWorkerFile],
+            [ScopeFile, OutboxCompositionFile, OutboxWorkerFile, DeliveryWorkerFile],
             "the platform scope and the separately confined dispatcher are the only "
             + "credential consumers, alongside their composition roots");
 

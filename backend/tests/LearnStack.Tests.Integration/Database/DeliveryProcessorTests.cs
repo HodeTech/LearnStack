@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using FluentAssertions;
@@ -54,9 +55,9 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         fixture.Start();
         fixture.Services.GetServices<IHostedService>().OfType<DeliveryProcessor>().Should().ContainSingle();
         await UntilAsync(() => fixture.Observation.IsHealthy);
-        var source = fixture.Services.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key);
+        var source = fixture.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
         source.IsValueCreated.Should().BeTrue();
-        await using var connection = await source.Value.OpenConnectionAsync();
+        await using var connection = await source.OpenConnectionAsync();
         await using var command = new NpgsqlCommand("SELECT current_user", connection);
         (await command.ExecuteScalarAsync()).Should().Be(OutboxDispatcherDataSource.Role);
         using var client = fixture.Host.CreateClient();

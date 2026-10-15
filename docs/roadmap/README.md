@@ -119,7 +119,10 @@ not deferred to the showcase phase.
   owns final verification. P02b-4's
   [background-job package](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
   and ADR-0047 are Accepted — 2026-10-15. Nine H1/expanded infrastructure steps
-  are authorized on `development`; runtime and enforcement remain pending.
+  are authorized on `development`.
+Step 1 implements typed contracts and ordinary execution guards. Its
+[record](phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
+owns validation and review status; Steps 2–9 remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

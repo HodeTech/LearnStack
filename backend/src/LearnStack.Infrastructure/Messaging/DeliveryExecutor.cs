@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -30,6 +31,7 @@ public sealed class DeliveryExecutor(
     public Task<DeliveryExecutionResult> ExecuteAsync(
         DeliveryClaim claim, DeliveryCommitGate gate, CancellationToken cancellationToken = default)
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(gate);
         if (!gate.TryStartExecution())
@@ -41,6 +43,7 @@ public sealed class DeliveryExecutor(
     public async Task<DeliveryExecutionResult> ExecuteControlledAsync(
         DeliveryClaim claim, DeliveryExecutionControl control)
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(control);
         // Reuse rejection must not finish or dispose a different live invocation.

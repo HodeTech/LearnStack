@@ -30,6 +30,8 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Ordinary-job acquisition guards derive from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -1083,12 +1085,15 @@ Five things the matrix cannot express, and one it must not be asked to:
 
 **By a second connection, not by `SET ROLE`.** `learnstack_app` is **not** a member of
 `learnstack_platform`; no `GRANT learnstack_platform TO learnstack_app` exists. The
-composition root registers a second, separately-credentialed `NpgsqlDataSource` from
-`ConnectionStrings:PlatformAdmin` as a keyed singleton whose only sanctioned consumer is
-`LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope`.
+composition root registers a keyed `PrivilegedDataSource` facade from
+`ConnectionStrings:PlatformAdmin`; its only sanctioned consumer is
+`LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope`. The facade owns the
+separately credentialed lazy Npgsql pool without exposing it. Every synchronous or
+asynchronous acquisition checks the independent ordinary-job ceiling before pool
+creation or reuse, under [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 `IPlatformAdminScope.EnterAsync(reason, …)` opens a **connection and a transaction** on
-that data source and returns an `IAsyncDisposable` handle carrying both; disposing without
-committing rolls back. Module code cannot resolve the data source;
+that guarded source and returns an `IAsyncDisposable` handle carrying both;
+disposing without committing rolls back. Module code cannot resolve the data source;
 `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` enforces that.
 
 An earlier wording here — and in the glossary — said the scope opens "a DI scope whose

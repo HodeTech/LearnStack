@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -149,14 +150,10 @@ public static class PersistenceCompositionExtensions
         // service for type NpgsqlDataSource has been registered", which names neither
         // the key nor the file an operator has to edit. The Lazy is what lets a
         // deployment that needs no platform admin — most of them — boot with none.
-        services.TryAddKeyedSingleton<NpgsqlDataSource>(
+        services.TryAddKeyedSingleton<PrivilegedDataSource>(
             PlatformAdminScope.PlatformDataSourceKey,
-            (_, _) => BuildPlatformDataSource(platformConnectionString));
-
-        services.TryAddKeyedSingleton<Lazy<NpgsqlDataSource>>(
-            PlatformAdminScope.PlatformDataSourceKey,
-            (provider, key) => new Lazy<NpgsqlDataSource>(
-                () => provider.GetRequiredKeyedService<NpgsqlDataSource>(key)));
+            (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
+        services.AddLearnStackBackgroundJobContracts();
 
         // The gate first, so a reader sees that entry is refused before a connection is
         // opened rather than after. Both are stateless singletons.

@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
@@ -36,6 +37,7 @@ public sealed class TransactionExecutionCoordinator(
     {
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
         var openingOwner = !unitOfWork.HasActiveTransaction;
         IUnitOfWorkScope scope;
         try
@@ -70,8 +72,11 @@ public sealed class TransactionExecutionCoordinator(
     /// </summary>
     public static Task<PreparedDeliveryOwner> PrepareDeliveryOwnerAsync(
         IUnitOfWork unitOfWork, ITenantContext routingContext,
-        CancellationToken cancellationToken = default) =>
-        PreparedDeliveryOwner.CreateAsync(unitOfWork, routingContext, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        return PreparedDeliveryOwner.CreateAsync(unitOfWork, routingContext, cancellationToken);
+    }
 
     /// <summary>Consumes the prepared owner without joining or announcing a second frame.</summary>
     public Task<TResponse> ExecutePreparedDeliveryAsync<TResponse>(
@@ -82,6 +87,7 @@ public sealed class TransactionExecutionCoordinator(
         CancellationToken cancellationToken = default)
         where TResponse : IResultBase
     {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(completion);
         ArgumentNullException.ThrowIfNull(next);
@@ -112,6 +118,7 @@ public sealed class TransactionExecutionCoordinator(
 
         try
         {
+            BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
             // Provisioning changes SQL authority only; the ambient accessor stays
             // unresolved. A resolved caller cannot announce another tenant here.
             if (preparedOwner is not null)

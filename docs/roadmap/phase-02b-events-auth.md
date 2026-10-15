@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-15.** P02b-0 through P02b-3 are complete.
+**Current status — 2026-10-16.** P02b-0 through P02b-3 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
 P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
@@ -13,7 +13,9 @@ The [second follow-up](#p02b-3-second-external-review-follow-up-2026-10-15)
 owns the subsequent runtime and proof corrections.
 P02b-4's [decision package](#p02b-4-decision-package-2026-10-15) and ADR-0047 are
 Accepted — 2026-10-15. Nine implementation steps are authorized on `development`;
-P02b-4–8 remain unimplemented.
+P02b-4 Step 1 implements contracts and ordinary execution guards; its
+[record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
+review status. Steps 2–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -3854,6 +3856,46 @@ intervals; stock vendor expiry deletes control metadata only, never authoritativ
 business intent. Phase 03 owns operator replay/reconciliation/permission/runbook;
 no recovery route or unsafe reservation-release switch is exposed by P4.
 
+### P02b-4 Step 1 — contracts and authority (2026-10-16)
+
+**Initial implementation validation passes; independent review rounds pending.**
+The acceptance commit is `affa0aca`; this step follows it on `development`.
+
+SharedKernel supplies typed job/attempt/occurrence/recipient identities, the typed
+scheduler port, immutable definition/profile/request/capacity/recurrence metadata
+and external Execute/Reconcile/finalization contracts. Frozen registries validate
+module ownership, exact roots/nested requests, profile/queue/pool bindings, finite
+readiness and recurrence scope. Identifier-only parameter/plan/outcome serialization
+uses closed DTO shapes, canonical round-trips and frozen options/resolver state.
+No production business or recurrence definition is added.
+
+Application admission holds an immutable positive request ceiling independently of
+later accessor changes. Exact framework pre-reads select physical ReadOnly through
+the existing pipeline. Direct privileged/delivery/admin entry refuses even through
+a fresh service scope or permissive platform gate. A guarded lazy bypass-source
+facade checks every synchronous/asynchronous connection acquisition, including warm
+pools, and owns cleanup. API/Seeder register the same empty job catalogues; neither
+registration activates a scheduler, vendor, migration or worker.
+
+Two architecture methods pin the current admission/credential callsites with
+planted violations. The nineteen complete ADR-0047 obligations remain Registered;
+these slice proofs do not claim the later runtime is implemented. Existing exact
+credential/context/owner censuses stay enforced. The catalogue counts 221 methods.
+
+Initial Release validation passes the solution build with CI warnings-as-errors,
+1,979 unit, four contract, 176 Docker-free and 1,389 Docker integration tests, with
+zero skips. The first full architecture run reports 312 passed and two stale
+expectations: the published method count and TransactionBehavior constructor pin.
+Both are corrected without widening module/DbContext permissions; an architecture
+rebuild and six focused corpus/constructor reruns pass. This gives 314 unique
+passing architecture cases and 3,862 unique passing backend cases across the
+full runs and focused corrections; it is not a second full architecture run.
+Formatting passes for all 67 changed C# files. The documentation check resolves
+2,505 local links and 590 fragments, with no wrapping/whitespace errors. Every
+ADR/index remains byte-identical to acceptance commit `affa0aca`; earlier delivery
+and proposal-review receipts stay preserved. Both fresh independent review rounds
+remain pending; later receipts record their actual results.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
@@ -3893,7 +3935,8 @@ Dapr trigger verbatim — so it stays with Phase 11.
 - The phase declares itself **single-instance**. The cache-invalidation deferral above
   depends on that premise, and so does the ordering bound in § Ordering.
 - `ConnectionStrings:OutboxDispatcher` carries the `learnstack_outbox_admin` credential,
-  registered as a keyed data source behind a `Lazy<>` with a boot-time role guard, on
+  registered as a keyed guarded facade with an internal lazy pool and boot-time
+  role guard, on
   the pattern `Platform_DataSource_Resolved_Only_By_PlatformAdminScope` already holds.
   `LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` is **Implemented**
   with Step 4's nonempty credential caller census and passing planted controls;
@@ -4404,7 +4447,7 @@ What this phase owes the catalogue beyond implementing those rows:
   stale-transition refusal; Step 3 implements the actual two-worker proof.
   P02b-4's accepted `BackgroundJob_Submission_Is_Transactional_And_Stamped` replaces
   `Hangfire_Job_Payloads_Include_TenantId` with tenant/org/actor/trace and atomic
-  submission proofs if ADR-0047 is accepted; it is not Implemented today.
+  submission proofs under Accepted ADR-0047; it is not Implemented today.
   `OutboxProcessor_NeverBlocks_OnSingleMessageFailure` gains the hanging-handler
   case. Two rules the catalogue stamps **02a** also
   widen here, so the Phase-field sweep above does not reach them: the transport arm of

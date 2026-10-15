@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Jobs;
 using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Api.Composition;
@@ -923,8 +924,8 @@ public sealed class UnitOfWorkTests
                     producer,
                     new DomainEventCollector(producer, new MediatR.Mediator(scope.ServiceProvider)),
                     NullLogger<TransactionExecutionCoordinator>.Instance);
-                var outer = new TransactionBehavior<Probe, Result<string>>(coordinator);
-                var inner = new TransactionBehavior<Probe, Result<string>>(coordinator);
+                var outer = new TransactionBehavior<Probe, Result<string>>(coordinator, BackgroundJobDefinitionRegistry.CreateEmpty());
+                var inner = new TransactionBehavior<Probe, Result<string>>(coordinator, BackgroundJobDefinitionRegistry.CreateEmpty());
 
                 var result = await outer.Handle(
                     new Probe(),

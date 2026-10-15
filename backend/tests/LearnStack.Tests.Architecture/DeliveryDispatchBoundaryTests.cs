@@ -438,7 +438,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static string DeliveryWorkerConstructor(SortedSet<string> offenders, TypeDefinition worker) =>
         RequireBoundaryMethod(offenders, worker, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, DeliveryStore, DeliveryExecutorType,
+            BoundaryGuardedSource, DeliveryStore, DeliveryExecutorType,
             "LearnStack.Infrastructure.Messaging.OutboxEventRegistry", "LearnStack.Infrastructure.Messaging.DeliveryDispatchOptions",
             "System.TimeProvider", DeliveryObserver, "Microsoft.Extensions.Logging.ILogger`1<" + DeliveryWorker + ">");
 
@@ -452,7 +452,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSourceFieldAccess(offenders, census, worker, workerConstructor,
             [RequireBoundaryMethod(offenders, worker, "StartAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation)]);
         var storeConstructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
-            BoundaryLazySource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
+            BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.DeliveryDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
             "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
         CheckSourceFieldAccess(offenders, census, store, storeConstructor,

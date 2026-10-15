@@ -164,7 +164,7 @@ public sealed class TenantContextConstructionTests
         // ADR-0036 § Rules, as corrected by its Amendment 2: the member is
         // `ITenantContextAccessor.Current`, and writes to it have exactly four
         // callers — TenantResolverMiddleware (HTTP), HubCorrelationMiddleware
-        // (/api/internal/*), the Hangfire JobActivator (jobs) and the outbox / inbox
+        // (/api/internal/*), the JobExecutor (jobs) and the outbox / inbox
         // handler scope (integration events). HTTP and the acceptance/execution
         // halves of the integration-event scope exist today; the rule is written
         // over the whole set so the third to arrive is a deliberate edit here rather
@@ -202,7 +202,7 @@ public sealed class TenantContextConstructionTests
             ],
             "two of the four logical writers have landed — HTTP and the integration-event "
             + "acceptance/execution scopes. HubCorrelationMiddleware and the "
-            + "Hangfire JobActivator are later phases, and a fifth writer is how a "
+            + "JobExecutor are later phases, and a fifth writer is how a "
             + "request runs under a tenant nothing resolved");
     }
 

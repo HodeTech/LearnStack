@@ -20,7 +20,9 @@ the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeo
 owns CI/merge status; P02b-3 Steps 1–6 implement consumer runtime, defaults and
 production-census enforcement; its
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns validation, review and PR closeout status). The
+owns validation, review and PR closeout status),
+[ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
+(Accepted 2026-10-15; P02b-4 obligations Registered, implementation in progress). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -113,12 +115,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**219 test methods run in
+**221 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4 and P02b-3 Steps 3–6.
+P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Step 1.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -1842,6 +1844,11 @@ diagnostic above row security, not the boundary, as its own note says.
   connection after grant removal, for both direct and transitive membership.
 - **Phase:** 02b, P02b-2.
 
+- **Accepted extension:** ADR-0047 preserves this canonical name while adding
+  enumerated H1 credential consumers and the minimal lifecycle reader. P02b-4
+  extends the exact census with each real consumer; its new role/table grants and
+  worker proofs remain pending. Existing dispatcher enforcement stays Implemented.
+
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
 
 - **Asserts:** no core `LearnStack.Infrastructure*` assembly — the persistence one, Audit,
@@ -1864,9 +1871,11 @@ diagnostic above row security, not the boundary, as its own note says.
 
 #### `Platform_DataSource_Resolved_Only_By_PlatformAdminScope`
 
-- **Asserts:** the keyed `NpgsqlDataSource` built from `ConnectionStrings:PlatformAdmin`
-  is resolvable only by `PlatformAdminScope`. Module code cannot reach the
-  `BYPASSRLS` credential.
+- **Asserts:** the keyed `PrivilegedDataSource` facade for
+  `ConnectionStrings:PlatformAdmin` is resolvable only by `PlatformAdminScope`.
+  Its private lazy Npgsql pool is never registered as a raw keyed service. Module
+  code cannot reach the `BYPASSRLS` credential; every acquisition also refuses an
+  active ordinary-job admission, including warm-pool reuse (P02b-4 Step 1).
 - **Source:** [05-database.md § How `EnterPlatformAdminScope(reason)` reaches
   `learnstack_platform`](05-database.md).
 - **Type:** NetArchTest + DI registration inspection. **Kind:** structural.
@@ -3208,15 +3217,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   actual stored values and unresolved provisioning run as `learnstack_app`.
 - **Phase:** 02b, P02b-1.
 
-#### `Hangfire_Job_Payloads_Include_TenantId`
-
-- **Asserts:** Hangfire enqueue rejects job payloads missing `tenant_id`
-  or `correlation_id`. Per the `JobActivator` contract the enqueue path
-  fails at submission, not at activation, so the failure mode is loud.
-- **Source:** ADR-0032 § Sub-decision 12; Phase 02b deliverable.
-- **Type:** xUnit + Hangfire enqueue interceptor test. **Kind:** behavioural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
+> `Hangfire_Job_Payloads_Include_TenantId` is retired by ADR-0047; see
+> [the replacement mapping](#hangfire_job_payloads_include_tenantid).
 
 #### `Integration_Event_Handler_Restores_Tenant_Context`
 
@@ -3772,7 +3774,6 @@ implements it.
 
 | Test | Rule | Kind | Owning phase | Named in |
 |---|---|---|---|---|
-| `LearnStackJob_RunAsync_SetsTenantBeforeExecute` | `LearnStackJob.RunAsync` is non-virtual, and its write to `ITenantContextAccessor.Current` — the Hangfire writer among the four `SetTenant_Callers_Are_The_Enumerated_Four` enumerates — precedes `ExecuteAsync` | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with `LearnStackJob` | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
 | `Provider_SDK_Types_NotImportedOutsideInfrastructure` | A provider SDK's types — LiveKit, the Keycloak admin client, SeaweedFS, a payment SDK — appear only in the `LearnStack.Infrastructure.*` adapter that wraps it, never in a module. A superset of [`Adapters_Wrap_Provider_Exceptions`](#adapters_wrap_provider_exceptions), which already holds the exception types of the SDKs it lists — the one slice of this rule that runs today | structural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with the first provider adapter; it then binds per provider as each adapter lands | [Tenant Isolation](../architecture/09-tenant-isolation.md) |
 | `Backend_RequiresJwt_OnAllAuthenticatedRoutes` | Every endpoint outside the public allow-list answers `401` without a bearer token — the guard that holds while the gateway's OIDC block is commented out | behavioural | [Phase 02b](../roadmap/phase-02b-events-auth.md), with authentication | [API Gateway](../architecture/30-api-gateway.md) |
 | `LicenseKey_Payload_MatchesSchema` | `entitlement-v1.schema.json` is pinned by a snapshot test run in **both** repositories against the same checked-in schema | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), with the schema | [Hybrid License Model](../architecture/26-hybrid-license-model.md); [ADR-0021](../decisions/0021-feature-based-entitlement.md), as `EntitlementProjection_Shape_IsStable` — see § Canonical names |
@@ -3800,6 +3801,19 @@ implements it.
 | `Partition_Manager_Job_Is_Registered_AtStartup` | The `audit_log` partition-management job is registered at startup | structural | [Phase 11](../roadmap/phase-11-production-hardening.md), with the job it guards | [ADR-0028](../decisions/0028-audit-log-partition-management.md); [ADR-0044](../decisions/0044-audit-write-path.md); [Phase 11](../roadmap/phase-11-production-hardening.md) |
 
 ### Retired
+
+#### `Hangfire_Job_Payloads_Include_TenantId`
+
+- **Retired 2026-10-15** before implementation by ADR-0047. Tenant/org/trace belong
+  in the authoritative LearnStack envelope; vendor messages are opaque references.
+- **Replaced by** [BackgroundJob_Submission_Is_Transactional_And_Stamped](#backgroundjob_submission_is_transactional_and_stamped).
+
+#### `LearnStackJob_RunAsync_SetsTenantBeforeExecute`
+
+- **Retired 2026-10-15** before implementation by ADR-0047. The typed JobExecutor
+  boundary replaces the unshipped vendor base class and direct activator pattern.
+- **Replaced by** [BackgroundJob_Execution_Restores_Tenant_And_Trace](#backgroundjob_execution_restores_tenant_and_trace)
+  and [BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced](#backgroundjob_completion_is_owner_atomic_and_fenced).
 
 #### `Development_Only_Tenant_Header_Override_Is_Mode_Guarded`
 
@@ -4408,9 +4422,13 @@ structural test proves — and what it does not.
 
 #### `SetTenant_Callers_Are_The_Enumerated_Four`
 
-- **Asserts:** `ITenantContextAccessor.Current` is **written** only by `TenantResolverMiddleware`, `HubCorrelationMiddleware`, the Hangfire `JobActivator`, and the outbox / inbox handler scope. `EnterPlatformAdminScope` is not among them: it opens a second connection and sets no tenant context. Reads are unconstrained.
+- **Asserts:** `ITenantContextAccessor.Current` is **written** only by the HTTP,
+  internal Hub, job and integration-event boundaries. ADR-0047 names JobExecutor
+  as the sole job-path writer, replacing the unshipped Hangfire JobActivator.
+  `EnterPlatformAdminScope` opens a separate connection and writes no tenant
+  context. Reads are unconstrained; no new writer is admitted before it ships.
 - **Source:** ADR-0036 § Rules, second bullet, as corrected by its erratum and
-  [Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md).
+  [Amendments 2 and 12](../decisions/0036-tenant-resolution-trusted-inputs.md).
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a (Packet 7).
@@ -4424,9 +4442,10 @@ structural test proves — and what it does not.
   the same reason `Effective_Host_Computed_In_One_Place` is a scan. The needle
   (`.Current =`) is receiver-agnostic, so an unrelated `Activity.Current =` would trip
   it; that is a false positive to exempt by path, never a reason to filter by folder.
-- **Note:** **two of the four callers exist** — `TenantResolverMiddleware` (Packet 7
-  step 5) and the integration-event handler scope in `InProcessEventBus` (Packet 5).
-  `HubCorrelationMiddleware` is Phase 02c and the Hangfire `JobActivator` is Phase 02b.
+- **Note:** **two of the four logical boundaries exist** — TenantResolverMiddleware
+  and the integration-event acceptance/execution scope in InProcessEventBus and
+  DeliveryExecutor. HubCorrelationMiddleware belongs to Phase 02c; the accepted
+  JobExecutor writer and its positive census extension remain P02b-4 implementation.
   Until they land the rule's live work is the **negative** — no writer outside the set.
   The first version of the test scanned only files whose path contained `Tenancy`,
   which deleted the `InProcessEventBus` writer from its own expectation *and* let a
@@ -4499,6 +4518,11 @@ structural test proves — and what it does not.
 - **Type:** xUnit + source scan. **Kind:** structural.
 - **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
 - **Phase:** 02a (Packet 7).
+
+- **Accepted extension:** ADR-0047 names a minimal lifecycle inventory reader for
+  bounded recurrence fan-out. Its exact-column/grant/caller exception lands in
+  P02b-4 Step 8. This does not weaken composite ordinary point reads or claim the
+  unimplemented reader is covered by the current test.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
@@ -5043,6 +5067,187 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 - **Status:** **Implemented** — named Node proof and planted controls above.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
+## P02b-4 background-job obligations
+
+Source: [Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#architecture-tests)
+and the [nine-step package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+All nineteen names are Registered. A step's partial foundation is not enforcement
+of the complete assertion; promotion names its actual tests when they ship.
+Production business/recurrence registries remain empty; real framework subjects
+and fixture definitions must make the eventual controls non-vacuous.
+
+### `BackgroundJob_Submission_Is_Transactional_And_Stamped`
+
+- **Asserts:** own-module typed submission stamps trusted announcement/origin,
+  inserts immediately on the same writable UoW and records only successful work;
+  hostile getters, foreign/stale/read-only frames and absorbed failures cannot widen it.
+- **Type:** architecture census and real PostgreSQL submission/rollback controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1, 3 and 9.
+
+### `BackgroundJob_Definitions_Stay_In_Their_Owning_Module`
+
+- **Asserts:** construction-free frozen registries derive ownership from known
+  module assemblies, bind exact typed contracts/requests/adapters and reject foreign
+  shapes, mutable registration sources and caller-supplied authority.
+- **Type:** registry unit controls and whole-production dependency/capability census.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1 and 9.
+
+### `BackgroundJob_Execution_Restores_Tenant_And_Trace`
+
+- **Asserts:** the sole JobExecutor context writer restores exact tenant/org,
+  SystemActor and independent causal trace before business construction, then
+  restores prior context through actual cleanup, cancellation and late completion.
+- **Type:** context-writer census and actual executor integration controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 3, 5, 7–9.
+
+### `BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced`
+
+- **Asserts:** closed root/stage participants preserve the existing owner/setters;
+  business, produced work, MUST audit and current-token/time completion commit
+  together. Lock-wait expiry and uncertain COMMIT cannot authorize a new attempt.
+- **Type:** owner/capability census and real PostgreSQL fault/fence controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 5, 7 and 9.
+
+### `BackgroundJob_Terminal_Audit_Is_Row_Bound`
+
+- **Asserts:** only actual fenced UPDATE RETURNING mints the job witness; the two
+  enumerated app/bypass callers bind stored identities and live transaction to the
+  sixth audit write. Identity substitution or audit failure rolls both writes back.
+- **Type:** writer/minting census and real PostgreSQL terminal-atomicity controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 5, 7 and 9.
+
+### `BackgroundJob_Retries_And_Terminal_Faults_Preserve_Progress`
+
+- **Asserts:** six committed normal admissions and fixed backoffs, parity for
+  Result/exception refusals and fair control quanta prevent a seventh start or
+  starvation of healthy jobs during a terminal-audit backlog longer than a lease.
+- **Type:** actual worker/PostgreSQL retry, crash and backlog controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 4–5 and 9.
+
+### `BackgroundJob_Storage_And_Credentials_Are_Confined`
+
+- **Asserts:** exact table classes, canonical RLS, column grants, immutable facts
+  and named guarded credential consumers hold; app/vendor/control denials and
+  unclassified tables fail loudly. No arbitrary business bypass or runtime DDL.
+- **Type:** whole-schema/consumer census and real app/role/denied-column probes.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1–2, 6, 8–9.
+
+### `BackgroundJob_Runtime_Has_No_Production_Definitions_Or_Dashboard`
+
+- **Asserts:** production business and recurrence manifests are independently
+  empty and no dashboard/recovery route exists; nonempty real runtime subjects
+  and dirty controls prevent an absent registration or undiscovered module passing.
+- **Type:** production composition/route/registry census with planted controls.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1, 4 and 9.
+
+### `Hangfire_Wakeups_Are_Recoverable_And_Generation_Fenced`
+
+- **Asserts:** create/init/ACK loss and stale/early/duplicate callbacks preserve
+  the durable obligation; same-generation repair never becomes the next attempt.
+  Future-due scheduling, vendor loss and explicit retirement retain correct readiness.
+- **Type:** real pinned client/worker and PostgreSQL fault/repair controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 3–4 and 9.
+
+### `Hangfire_Invocations_And_Diagnostics_Are_Closed`
+
+- **Asserts:** exact two wrapper signatures/arguments/queues are admitted before
+  activation; below-filter storage guards and bounded logging contain private
+  values even on stock filter-disabled fallback or direct malformed writes.
+- **Type:** invocation census, real worker fallback and stored/logged canary controls.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
+
+### `Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role`
+
+- **Asserts:** schema 23, exact stock objects/ACLs, guarded sync/async connections,
+  disabled unguarded reconnect/schema preparation/degraded startup, bounded native
+  SQL and the qualified dependency/licence graph are required before workers start.
+- **Type:** composition/source census and real boot/role/blocked-SQL controls.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
+
+### `BackgroundJob_Capacity_Is_Tenant_Wide_And_Quiescence_Bound`
+
+- **Asserts:** tenant/group mutex and reservations enforce the effective operational/
+  Hard LimitKey cap across orgs/instances. Refusal spends no attempt; downgrade,
+  unknown effects, lease expiry and lookup faults never silently free occupancy.
+- **Type:** actual two-instance/org app-role PostgreSQL admission controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 6–7 and 9.
+
+### `BackgroundJob_External_Work_Has_No_Business_Transaction`
+
+- **Asserts:** typed Execute/Reconcile adapters receive no UoW, DbContext, sender,
+  locator or callback; prepare/arm/outcome/finalize checkpoints use separate short
+  owners and external work runs only after confirmed ExecuteIntent.
+- **Type:** adapter dependency/capability census and real stage/transaction controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1, 7 and 9.
+
+### `BackgroundJob_External_Recovery_Never_Assumes_Quiescence`
+
+- **Asserts:** paused old starts, NotFound after intent, lost acceptance ACK and
+  exhausted probes preserve unknown effect/quarantine. Only positive fenced
+  provider/supervisor or actual task/process-tree proof can release reservations.
+- **Type:** real engine with explicit fixture provider/process/fault controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 7 and 9.
+
+### `BackgroundJob_Finalization_Retries_Are_Bounded`
+
+- **Asserts:** separate six committed finalize admissions never rerun Execute.
+  Known failure finalization commits domain state and both audits atomically;
+  refusal/exhaustion retains outcome and reports unapplied business finalization.
+- **Type:** real app-role stage/uncertain-COMMIT/audit-rollback controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 7 and 9.
+
+### `BackgroundJob_Recurrence_Is_Durable_And_Deduplicated`
+
+- **Asserts:** monotonic manifests, revision-independent logical-slot uniqueness,
+  CoalesceLatest, frozen target/policy and persisted jitter converge across mixed
+  versions and duplicate ticks; page checkpoint and recipient INSERT are atomic.
+- **Type:** real control-store/PostgreSQL revision, misfire and crash controls.
+  **Kind:** behavioural.
+- **Status:** **Registered** — P02b-4 Steps 8–9.
+
+### `BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission`
+
+- **Asserts:** minimal named lifecycle reads and finite policies feed bounded
+  seek pages; only an actual recipient witness can announce exact tenant/org and
+  atomically submit its child/receipt. Forged routes and lost ACK cannot duplicate it.
+- **Type:** grant/caller census and real cross-scope recipient/child fault controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 8–9.
+
+### `BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority`
+
+- **Asserts:** immutable sticky admission positively enumerates ordinary/framework
+  requests and refuses Platform/provisioning/direct privileged/admin/bypass paths
+  before work, independently of accessor mutation, new DI scopes or permissive gates.
+- **Type:** request/capability census and actual sender/direct-entry/warm-source
+  controls.
+  **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1, 3, 5 and 9.
+
+### `BackgroundJob_Worker_Pools_Reserve_Independent_Capacity`
+
+- **Asserts:** finite disjoint queues and bounded server slots preserve other pools
+  under long work, blocked bridge calls and simultaneous overruns. Atomic stop-start
+  thresholds retain all admitted work within workers-plus-four ownership bounds.
+- **Type:** real pinned workers and production-engine saturation/shutdown controls.
+  **Kind:** structural + startup + behavioural.
+- **Status:** **Registered** — P02b-4 Steps 1, 4, 7 and 9.
+
 ## References
 
 - [ADR-0003 Tenant Isolation Defense in Depth](../decisions/0003-tenant-isolation-defense-in-depth.md) (Amendment 3)
@@ -5054,6 +5259,7 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 - [ADR-0034 Hub Contract Surface Invariant](../decisions/0034-hub-contract-surface-invariant.md)
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
+- [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
 - [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)
 - [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md)
 - [09-error-handling.md](09-error-handling.md)

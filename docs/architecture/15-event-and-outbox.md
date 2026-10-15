@@ -146,8 +146,11 @@ dispatcher execution; both independent review rounds are complete.
 ### Why the `learnstack_outbox_admin` role bypasses RLS — and what bounds the bypass
 
 One API-host BackgroundService schedules every tenant. The existing bypass role
-uses its own named keyed, lazy data source; no Seeder/web forwarding or app-role
-membership is allowed. Configuration validates the exact username without
+uses its own named keyed, lazy data source behind `PrivilegedDataSource`; no
+Seeder/web forwarding or app-role membership is allowed. P02b-4 Step 1 makes the
+private pool inaccessible as a raw keyed service and checks ordinary-job admission
+on every connection acquisition, including pool reuse, under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md). Configuration validates the exact username without
 connecting or disclosing parse input. Step 3 implements mandatory worker-startup
 resolution and connectivity checks; both independent review rounds are complete.
 Every new physical connection verifies exact session/current role, bounded

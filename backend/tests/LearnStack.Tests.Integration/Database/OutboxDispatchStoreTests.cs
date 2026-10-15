@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -984,7 +985,7 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         public OutboxDispatchStore Store(
             OutboxEventRegistry? registry = null, IClock? clock = null,
             Func<IAuditStore, IAuditStore>? decorate = null, NpgsqlDataSource? dispatchSource = null) => new(
-                new Lazy<NpgsqlDataSource>(() => dispatchSource ?? DispatchSource), registry ?? EligibleRegistry(),
+                new PrivilegedDataSource(() => dispatchSource ?? DispatchSource), registry ?? EligibleRegistry(),
                 new OutboxDispatchOptions(), new SystemGuidFactory(), clock ?? new FixedClock(Occurred),
                 decorate is null ? Provider.GetRequiredService<IServiceScopeFactory>()
                     : new DecoratingScopeFactory(Provider.GetRequiredService<IServiceScopeFactory>(), decorate));

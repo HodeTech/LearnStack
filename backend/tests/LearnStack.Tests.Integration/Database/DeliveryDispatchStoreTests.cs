@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using FluentAssertions;
@@ -612,7 +613,7 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         }
 
         public DeliveryDispatchStore Store(NpgsqlDataSource? source = null, Func<IAuditStore, IAuditStore>? decorate = null) =>
-            new(new Lazy<NpgsqlDataSource>(() => source ?? Dispatch), Registry(), new DeliveryDispatchOptions(),
+            new(new PrivilegedDataSource(() => source ?? Dispatch), Registry(), new DeliveryDispatchOptions(),
                 new SystemGuidFactory(), new FixedClock(Occurred), decorate is null
                     ? _provider.GetRequiredService<IServiceScopeFactory>()
                     : new DecoratingScopes(_provider.GetRequiredService<IServiceScopeFactory>(), decorate));

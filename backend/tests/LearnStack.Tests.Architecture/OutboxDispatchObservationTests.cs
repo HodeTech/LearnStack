@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Composition;
@@ -401,7 +402,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (check.CheckHealthAsync(context).GetAwaiter().GetResult().Status != HealthStatus.Healthy)
                 offenders.Add("Registered check does not follow recovered singleton observation");
         }
-        if (provider.GetRequiredKeyedService<Lazy<Npgsql.NpgsqlDataSource>>(OutboxDispatcherDataSource.Key).IsValueCreated)
+        if (provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key).IsValueCreated)
             offenders.Add("Observation forced dispatcher source construction");
         return offenders;
     }

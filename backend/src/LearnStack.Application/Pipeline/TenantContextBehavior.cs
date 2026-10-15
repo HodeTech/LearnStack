@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -73,12 +74,15 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
     private static readonly bool IsPublicSurface = typeof(TRequest)
         .IsDefined(typeof(PublicSurfaceAttribute), inherit: false);
 
-    public Task<TResponse> Handle(
+    public async Task<TResponse> Handle(
         TRequest request,
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(next);
+        if (!BackgroundJobExecutionAdmission.TryEnterRequest(typeof(TRequest), tenantContext, out var admittedRequest))
+            return Result.FailFor<TResponse>(BackgroundJobExecutionAdmission.Refused);
+        using var requestScope = admittedRequest;
 
         // Gate 1 — the assertion. Returns either way: an unresolved context states no
         // origin, so there is no ceiling to apply. Public reads still require real
@@ -86,8 +90,8 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         if (!tenantContext.IsResolved)
         {
             return AllowsUnresolved && !IsPublicSurface
-                ? next()
-                : Task.FromResult(Result.FailFor<TResponse>(TenantMismatchError));
+                ? await next().ConfigureAwait(false)
+                : Result.FailFor<TResponse>(TenantMismatchError);
         }
 
         // Gate 2 — the authority ceiling. [AllowsUnresolvedTenantContext] is not an
@@ -100,7 +104,7 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
             // byte-identical on the wire to an unresolvable host's 404, and sharing the
             // one Error makes that a compile-time fact rather than a coincidence two
             // tests happen to agree on.
-            return Task.FromResult(Result.FailFor<TResponse>(TenantContextFactory.Refused));
+            return Result.FailFor<TResponse>(TenantContextFactory.Refused);
         }
 
         // Nothing to do here for RLS, and nothing left undone elsewhere:
@@ -118,7 +122,7 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         // Standards § Tenant Context and ADR-0052. A DbConnectionInterceptor cannot do it
         // either: it fires at connection open, which precedes BEGIN.
 
-        return next();
+        return await next().ConfigureAwait(false);
     }
 
     private bool HasMatchingHostScope() =>
