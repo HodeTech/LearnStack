@@ -22,8 +22,8 @@ namespace LearnStack.Tests.Integration.Database;
 /// the owner can experience and reads the truth through the platform role first.
 /// </para>
 /// <para>
-/// <b>Every table carries rows for both tenants, and the sweeps enumerate the
-/// catalogue.</b> A count assertion against an empty table passes whether or not
+/// <b>Every tenant table carries rows for both tenants, and the sweeps enumerate
+/// the catalogue.</b> Nonempty vendor/control tables assert app SELECT denial. A count assertion against an empty table passes whether or not
 /// the policy exists, and a sweep over a hand-written list of names fails open for
 /// the table nobody added to it — both were shipped, and both are recorded in
 /// <see cref="SchemaFixture"/>'s remarks.
@@ -62,13 +62,36 @@ public sealed class TenancySchemaTests
         scanned.Should().Contain(SchemaFixture.KnownTables,
             "the sweep must be reading the whole applied schema, not an empty result set");
 
+        await SchemaTableClasses.AssertCompleteAsync(connection);
+        var vendorNames = string.Join(",", SchemaTableClasses.Vendor.Select(name => $"'{name}'"));
         var unprotected = await SchemaQueries.ReadStringsAsync(connection,
             $"""
              SELECT relname FROM pg_class
-             WHERE oid IN ({SchemaQueries.TableOids}) AND NOT (relrowsecurity AND relforcerowsecurity)
+             WHERE oid IN ({SchemaQueries.TableOids}) AND relname NOT IN ({vendorNames})
+               AND NOT (relrowsecurity AND relforcerowsecurity)
              """);
 
         unprotected.Should().BeEmpty("ENABLE without FORCE lets the owner bypass its own policies");
+        (await SchemaQueries.ReadStringsAsync(connection,
+            $"SELECT relname FROM pg_class WHERE oid IN ({SchemaQueries.TableOids}) "
+            + $"AND relname IN ({vendorNames}) AND (relrowsecurity OR relforcerowsecurity)"))
+            .Should().BeEmpty("the exact stock vendor class is protected by ACLs and guards, with no tenant RLS");
+    }
+
+    [Theory]
+    [InlineData("unclassified_probe")]
+    [InlineData("__ef_unclassified_probe")]
+    public async Task The_table_class_sweep_rejects_unknown_tables_including_history_lookalikes(string table)
+    {
+        await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
+        await using var transaction = await owner.BeginTransactionAsync();
+        await SchemaTableClasses.AssertCompleteAsync(owner, transaction);
+        await SchemaQueries.ExecuteAsync(owner, transaction, $"CREATE TABLE {table} (id integer)");
+        var scan = async () => await SchemaTableClasses.AssertCompleteAsync(owner, transaction);
+        await scan.Should().ThrowAsync<Xunit.Sdk.XunitException>(
+            "a public table without an exact class must fail, including a name matching the history prefix");
+        await SchemaQueries.ExecuteAsync(owner, transaction, $"DROP TABLE {table}");
+        await SchemaTableClasses.AssertCompleteAsync(owner, transaction);
     }
 
     [Fact]
@@ -130,11 +153,14 @@ public sealed class TenancySchemaTests
         // taught with a hand-written inclusion list of names: such a list fails open, which
         // is how a second permissive policy on outbox_messages once passed the whole suite.
         // What changes is the EXPECTATION, not the reach.
-        counts.Where(entry => entry.Key != KillswitchTable)
+        counts.Where(entry => entry.Key != KillswitchTable && !SchemaTableClasses.AppSelectDenied(entry.Key))
             .Should().OnlyContain(entry => entry.Value == 0,
                 "with no app.tenant_id every policy predicate is NULL, which is false");
 
-        counts.Keys.Should().Contain(SchemaFixture.KnownTables);
+        counts.Keys.Should().BeEquivalentTo(SchemaFixture.KnownTables);
+        counts.Where(entry => SchemaTableClasses.AppSelectDenied(entry.Key)).Should()
+            .OnlyContain(entry => entry.Value == SchemaTableClasses.SelectDenied,
+                "vendor/control reads are real 42501 refusals, not silently omitted or counted as zero");
 
         // The positive half, which nothing asserted before: a killswitch is one
         // platform-wide switch with no tenant term to isolate, so USING (true) exists to
@@ -377,6 +403,35 @@ public sealed class TenancySchemaTests
     /// </remarks>
     public static readonly Dictionary<string, string> ForeignTenantWrites = new(StringComparer.Ordinal)
     {
+        ["background_jobs"] =
+            """
+            INSERT INTO background_jobs (id, tenant_id, definition_key, profile, queue, capacity_group,
+                parameters, original_due_at, traceparent)
+            VALUES (uuidv7(), @foreign, 'fixture.run.v1', 'transactional', 'fixture', 'fixture.resource',
+                '{}', now(), '00-11111111111111111111111111111111-2222222222222222-01')
+            """,
+        ["background_job_attempts"] =
+            """
+            INSERT INTO background_job_attempts (id, tenant_id, job_id, stage, ordinal, admission_token, deadline)
+            VALUES (uuidv7(), @foreign, @job, 'normal', 2, uuidv7(), now() + interval '30 seconds')
+            """,
+        ["background_job_capacity"] =
+            """
+            INSERT INTO background_job_capacity (tenant_id, capacity_group)
+            VALUES (@foreign, 'fixture.foreign')
+            """,
+        ["background_job_reservations"] =
+            """
+            INSERT INTO background_job_reservations (tenant_id, capacity_group, job_id, attempt_id)
+            VALUES (@foreign, 'fixture.resource', @job, @attempt)
+            """,
+        ["background_job_recipients"] =
+            """
+            INSERT INTO background_job_recipients (id, occurrence_id, tenant_id, recurrence_key, revision,
+                manifest_hash, target_definition_key, recipient_policy, scheduled_at, due_at)
+            VALUES (uuidv7(), '70000001-0000-7000-8000-000000000001', @foreign, 'fixture.tenants', 1,
+                repeat('a',64), 'fixture.run.v1', 'serving_tenants', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """,
         // Self-keyed: the tenant term is on `id`, so a new id is already foreign.
         ["tenants"] =
             """
@@ -584,6 +639,24 @@ public sealed class TenancySchemaTests
     [MemberData(nameof(TablesWithAWithCheck))]
     public async Task Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck(string table)
     {
+        if (table is "background_job_attempts" or "background_job_reservations" or "background_job_recipients")
+        {
+            // The invoker parent check otherwise refuses the hidden parent first.
+            // Keep FK and RLS live in an isolated populated database; recipients are
+            // created by the dispatcher, so give only this proof an INSERT budget.
+            await using var database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
+            await BackgroundJobSchemaSeed.SeedAsync(database.AppConnectionString, database.OutboxConnectionString);
+            await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            {
+                await SchemaQueries.ExecuteAsync(owner, null, $"DROP TRIGGER tg_{table}_guard ON {table}");
+                if (table == "background_job_recipients")
+                    await SchemaQueries.ExecuteAsync(owner, null,
+                        "GRANT INSERT ON background_job_recipients TO learnstack_app");
+            }
+            await ExpectForeignWriteRefusedAsync(ForeignTenantWrites[table], database.AppConnectionString);
+            return;
+        }
+
         if (table is "lessons" or "course_translations" or "lesson_translations")
         {
             // A BEFORE parent check otherwise rejects the hidden parent first (23514).
@@ -677,6 +750,10 @@ public sealed class TenancySchemaTests
         var parent = EducationSchemaSeed.Find(SchemaFixture.TenantA, null);
         command.Parameters.AddWithValue("course", parent.CourseId);
         command.Parameters.AddWithValue("lesson", parent.LessonId);
+
+        var job = BackgroundJobSchemaSeed.Find(SchemaFixture.TenantA, null);
+        command.Parameters.AddWithValue("job", job.JobId);
+        command.Parameters.AddWithValue("attempt", job.AttemptId);
 
         if (statement.Contains("@actor", StringComparison.Ordinal))
         {
@@ -1195,79 +1272,82 @@ public sealed class TenancySchemaTests
         var grants = await SchemaQueries.ReadStringsAsync(connection,
             """
             SELECT grantee || ' ' || table_name || ' ' || string_agg(privilege_type, ',' ORDER BY privilege_type)
-            FROM information_schema.role_table_grants
+            FROM information_schema.table_privileges
             WHERE table_schema = 'public'
-              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin')
+              AND grantee IN ('learnstack_app', 'learnstack_platform', 'learnstack_outbox_admin', 'PUBLIC')
             GROUP BY grantee, table_name
             """);
 
         grants.Should().BeEquivalentTo(
-        [
-            "learnstack_app tenants INSERT,SELECT,UPDATE",
-            "learnstack_app organizations DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_domains DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_locales DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_settings DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app platform_entitlement_cache INSERT,SELECT,UPDATE",
-            // SELECT and nothing else. The read policy is USING (true), so the GRANT is
-            // what bounds the role instead — a write privilege here would make the policy
-            // the only thing standing between the application role and a platform-wide
-            // switch, and there is no write policy for it to be.
-            "learnstack_app platform_killswitches SELECT",
-            "learnstack_app platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app outbox_messages INSERT,SELECT",
-            "learnstack_app idempotency_keys INSERT,SELECT,UPDATE",
-            // INSERT acceptance/claim columns and UPDATE completion are column
-            // grants, checked with their actual denial/success probes separately.
-            "learnstack_app event_deliveries SELECT",
-            "learnstack_app inbox_messages SELECT",
-            "learnstack_platform tenants DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_platform organizations DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_platform tenant_domains SELECT",
-            "learnstack_platform tenant_locales SELECT",
-            "learnstack_platform tenant_settings SELECT",
-            "learnstack_platform tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_platform platform_entitlement_cache DELETE,SELECT",
-            // Written ahead of its caller: no runtime path puts a row in
-            // platform_killswitches until Phase 03 ships the Platform-scope permission
-            // that lets anything enter EnterPlatformAdminScope at all.
-            "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_platform outbox_messages DELETE,SELECT",
-            "learnstack_platform idempotency_keys DELETE,SELECT",
-            "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app tenant_level_taxonomy_items DELETE,INSERT,SELECT,UPDATE",
-            "learnstack_app customization_generations INSERT,SELECT,UPDATE",
-            "learnstack_platform tenant_content_types SELECT",
-            "learnstack_platform tenant_level_taxonomies SELECT",
-            "learnstack_platform tenant_level_taxonomy_items SELECT",
-            "learnstack_platform customization_generations SELECT",
-            "learnstack_outbox_admin outbox_messages SELECT",
-            "learnstack_outbox_admin audit_log INSERT",
-
-            // The Audit chain. learnstack_platform's column-restricted UPDATE on
-            // audit_log does NOT appear here — information_schema.role_table_grants
-            // reports table-level privileges only — so the six-column list has its own
-            // assertion in AuditSchemaTests, the way the dispatcher's eight-column grant
-            // on outbox_messages does in PlatformSchemaTests. A matrix row missing its
-            // column half reads as a narrower grant than the one that shipped.
-            "learnstack_app audit_log INSERT,SELECT",
-            "learnstack_platform audit_log DELETE,INSERT,SELECT",
-            "learnstack_app audit_config SELECT",
-            "learnstack_platform audit_config SELECT",
-            "learnstack_app courses INSERT,SELECT,UPDATE",
-            "learnstack_app lessons INSERT,SELECT,UPDATE",
-            "learnstack_app course_translations INSERT,SELECT",
-            "learnstack_app lesson_translations INSERT,SELECT",
-            "learnstack_platform courses SELECT",
-            "learnstack_platform lessons SELECT",
-            "learnstack_platform course_translations SELECT",
-            "learnstack_platform lesson_translations SELECT",
-        ],
+        ExistingTableGrants.Concat(BackgroundJobGrantExpectations.TableGrants),
         "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
         + "and terminal audit INSERT");
     }
+
+    private static readonly string[] ExistingTableGrants =
+    [
+        "learnstack_app tenants INSERT,SELECT,UPDATE",
+        "learnstack_app organizations DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_domains DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_locales DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_settings DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app platform_entitlement_cache INSERT,SELECT,UPDATE",
+        // SELECT and nothing else. The read policy is USING (true), so the GRANT is
+        // what bounds the role instead — a write privilege here would make the policy
+        // the only thing standing between the application role and a platform-wide
+        // switch, and there is no write policy for it to be.
+        "learnstack_app platform_killswitches SELECT",
+        "learnstack_app platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app outbox_messages INSERT,SELECT",
+        "learnstack_app idempotency_keys INSERT,SELECT,UPDATE",
+        // INSERT acceptance/claim columns and UPDATE completion are column
+        // grants, checked with their actual denial/success probes separately.
+        "learnstack_app event_deliveries SELECT",
+        "learnstack_app inbox_messages SELECT",
+        "learnstack_platform tenants DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_platform organizations DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_platform tenant_domains SELECT",
+        "learnstack_platform tenant_locales SELECT",
+        "learnstack_platform tenant_settings SELECT",
+        "learnstack_platform tenant_feature_flags DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_platform platform_entitlement_cache DELETE,SELECT",
+        // Written ahead of its caller: no runtime path puts a row in
+        // platform_killswitches until Phase 03 ships the Platform-scope permission
+        // that lets anything enter EnterPlatformAdminScope at all.
+        "learnstack_platform platform_killswitches DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_platform platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_platform outbox_messages DELETE,SELECT",
+        "learnstack_platform idempotency_keys DELETE,SELECT",
+        "learnstack_app tenant_content_types DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_level_taxonomies DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app tenant_level_taxonomy_items DELETE,INSERT,SELECT,UPDATE",
+        "learnstack_app customization_generations INSERT,SELECT,UPDATE",
+        "learnstack_platform tenant_content_types SELECT",
+        "learnstack_platform tenant_level_taxonomies SELECT",
+        "learnstack_platform tenant_level_taxonomy_items SELECT",
+        "learnstack_platform customization_generations SELECT",
+        "learnstack_outbox_admin outbox_messages SELECT",
+        "learnstack_outbox_admin audit_log INSERT",
+
+        // The Audit chain. learnstack_platform's column-restricted UPDATE on
+        // audit_log does NOT appear here — information_schema.role_table_grants
+        // reports table-level privileges only — so the six-column list has its own
+        // assertion in AuditSchemaTests, the way the dispatcher's eight-column grant
+        // on outbox_messages does in PlatformSchemaTests. A matrix row missing its
+        // column half reads as a narrower grant than the one that shipped.
+        "learnstack_app audit_log INSERT,SELECT",
+        "learnstack_platform audit_log DELETE,INSERT,SELECT",
+        "learnstack_app audit_config SELECT",
+        "learnstack_platform audit_config SELECT",
+        "learnstack_app courses INSERT,SELECT,UPDATE",
+        "learnstack_app lessons INSERT,SELECT,UPDATE",
+        "learnstack_app course_translations INSERT,SELECT",
+        "learnstack_app lesson_translations INSERT,SELECT",
+        "learnstack_platform courses SELECT",
+        "learnstack_platform lessons SELECT",
+        "learnstack_platform course_translations SELECT",
+        "learnstack_platform lesson_translations SELECT",
+    ];
 }

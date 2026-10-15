@@ -21,6 +21,8 @@ Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Background-job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+Vendor-maintenance configuration and ownership derive from
+[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -718,9 +720,35 @@ owns current implementation/qualification status; worker activation is pending.
 - Version-23 vendor tables live in `public`, classified separately from
   tenant-owned business tables. Migration-owned installation and exact runtime
   grants follow [Database Standards](05-database.md); workers never prepare schema.
-- [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) remains
-  Proposed. Its maintenance configuration is not an implemented extension of
-  this standard; approval and replacement proofs remain pending.
+- Accepted [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md)
+  suppresses only exact stock `CountersAggregator` and `StatisticsHistoryAttribute`
+  through public hooks. Fail-closed inventories preserve stock expiration,
+  `PostgreSqlHeartbeatProcess`, state counters and required admission/retry filters.
+  No enabled command overrides finite driver I/O with zero; no socket exception
+  exists. Source/reset and enabled-path response-loss proofs remain mandatory.
+- One API-instance owner shares the actual stock expiration component across pools
+  on an owned background thread. The internal interval is exactly one millisecond;
+  the owner supplies one-hour cadence after completion and cancelable pacing/backoff.
+  Its positive wait is at most five minutes (default five), plus at most one second
+  of cleanup waiting. Actual work/resources remain owned through late completion;
+  no duplicate starts, spin or disposal in use is permitted. Maintenance adds no
+  business worker/reservation and is accounted separately from workers-plus-four
+  and bridge-four. Host stop uses one shared shutdown budget. Retained maintenance
+  makes unmapped `jobs` health unhealthy with a fixed separate maintenance dimension
+  and bounded progress/outcome code; Phase 11 owns readiness routing/alerts.
+- Database Standards owns the reset-safe five-second idle-session cleanup setting
+  and existing source deadlines. Per-statement/lock bounds do not bound a whole
+  pass. Step 4 enumerates all simultaneous physical-acquisition lanes, enforces the
+  qualified supported configuration/floor and proves independent pool progress
+  under contention. No fixed minimum-two or nonpooled prohibition is inferred.
+- Vendor counter totals are approximate: expiration compaction can lose subtotals
+  or discard nonpositive sums, and duplicate wakeups defeat a per-business-job row
+  ratio. New historical timelines are unavailable; old history expires. Fewer live
+  rows do not promise disk shrinkage, bounded backlog/store size or recovery rate.
+  Phase 11 owns operational retention/space and measured production capacity.
+  Step 2 implements source/reset qualification; Step 4 actual maintenance/component/
+  filter/pool proofs and Step 9 observation/enforcement remain pending. Both extended
+  catalogue obligations remain Registered.
 
 ## Network and Service Topology
 
@@ -769,6 +797,7 @@ owns current implementation/qualification status; worker activation is pending.
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 - [ADR-0045 The Entitlement and Feature-Flag Socket](../decisions/0045-entitlement-and-feature-flag-socket.md)
+- [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
 - [29-dapr-integration.md](../architecture/29-dapr-integration.md)
 - [30-api-gateway.md](../architecture/30-api-gateway.md)
 - [33-cross-cutting-concerns.md](../architecture/33-cross-cutting-concerns.md)

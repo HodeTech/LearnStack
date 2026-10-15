@@ -22,7 +22,9 @@ production-census enforcement; its
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns validation, review and PR closeout status),
 [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
-(Accepted 2026-10-15; P02b-4 obligations Registered, implementation in progress). The
+(Accepted 2026-10-15; P02b-4 obligations Registered, implementation in progress),
+[ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
+(Accepted 2026-10-16; maintenance extensions Registered, runtime proofs pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -115,12 +117,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**221 test methods run in
+**222 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Step 1.
+P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–2.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -5071,6 +5073,8 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 
 Source: [Accepted ADR-0047](../decisions/0047-transactional-background-job-runtime.md#architecture-tests)
 and the [nine-step package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+[Accepted ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md#architecture-tests)
+extends the existing bootstrap and independent-capacity assertions below.
 All nineteen names are Registered. A step's partial foundation is not enforcement
 of the complete assertion; promotion names its actual tests when they ship.
 Production business/recurrence registries remain empty; real framework subjects
@@ -5171,6 +5175,12 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** schema 23, exact stock objects/ACLs, guarded sync/async connections,
   disabled unguarded reconnect/schema preparation/degraded startup, bounded native
   SQL and the qualified dependency/licence graph are required before workers start.
+  Exact pinned component/filter inventories selectively suppress aggregation/history
+  while preserving expiration/heartbeat and required admission/retry filters, with
+  a positive one-millisecond internal expiration interval and unchanged assemblies.
+  Enabled commands retain finite read/write I/O; startup/idle deadlines survive warm
+  reset. Actual stock cleanup under the granted role preserves required state/queue
+  behavior; dirty inventory/filter/deadline controls refuse before workers start.
 - **Type:** composition/source census and real boot/role/blocked-SQL controls.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
@@ -5244,6 +5254,13 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** finite disjoint queues and bounded server slots preserve other pools
   under long work, blocked bridge calls and simultaneous overruns. Atomic stop-start
   thresholds retain all admitted work within workers-plus-four ownership bounds.
+  One actual shared expiration invocation across actual pools uses an owned
+  background thread, completion-based cadence and cancelable pacing without duplicate
+  starts or spin. Bounded wait/cleanup and the shared shutdown join retain resources
+  through prolonged lock contention, disposal and late completion, with truthful
+  unhealthy retained-maintenance state. The final simultaneous physical-acquisition
+  census enforces a qualified supported pool configuration/floor and proves other
+  pools progress at that boundary, including nested and retained acquisitions.
 - **Type:** real pinned workers and production-engine saturation/shutdown controls.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Registered** — P02b-4 Steps 1, 4, 7 and 9.
@@ -5260,6 +5277,7 @@ and fixture definitions must make the eventual controls non-vacuous.
 - [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md)
 - [ADR-0036 Trusted Inputs for Tenant and Organization Resolution](../decisions/0036-tenant-resolution-trusted-inputs.md)
 - [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
+- [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
 - [02-backend-coding.md § Pipeline Behaviors](02-backend-coding.md)
 - [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md)
 - [09-error-handling.md](09-error-handling.md)

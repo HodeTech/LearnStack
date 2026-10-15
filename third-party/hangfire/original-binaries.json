@@ -1,0 +1,26 @@
+{
+  "Hangfire.Core.dll": {
+    "package": "Hangfire.Core",
+    "version": "1.8.25",
+    "asset": "netstandard2.0",
+    "sha256": "84057536d4ccb721501ccb6d9c4f01a1a41a1cce698fd20b298d1c570d51ab95"
+  },
+  "Hangfire.NetCore.dll": {
+    "package": "Hangfire.NetCore",
+    "version": "1.8.25",
+    "asset": "netstandard2.1",
+    "sha256": "8b10eada0471b47a9d6f9486dd850beb0349ee08850e99c9e0dc8c3508f98ac0"
+  },
+  "Hangfire.PostgreSql.dll": {
+    "package": "Hangfire.PostgreSql",
+    "version": "1.21.1",
+    "asset": "netstandard2.0",
+    "sha256": "7c64937d282d371a9c6c300e531755711e3220b6d0f73dd16c58928b93abd0fc"
+  },
+  "Newtonsoft.Json.dll": {
+    "package": "Newtonsoft.Json",
+    "version": "13.0.4",
+    "asset": "net6.0",
+    "sha256": "a28c251dfe36d881e9e2462e171441b8b0ec156fe3f452602c9149b1b9efe05b"
+  }
+}

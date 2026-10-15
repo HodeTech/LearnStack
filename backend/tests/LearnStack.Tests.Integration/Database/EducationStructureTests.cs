@@ -39,6 +39,9 @@ public sealed partial class EducationStructureTests
     }
 
     [Theory]
+    [InlineData("background_jobs")]
+    [InlineData("background_job_attempts")]
+    [InlineData("background_job_recipients")]
     [InlineData("lessons")]
     [InlineData("course_translations")]
     [InlineData("lesson_translations")]
@@ -46,6 +49,11 @@ public sealed partial class EducationStructureTests
     {
         await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
         await using var transaction = await owner.BeginTransactionAsync();
+        if (table.StartsWith("background_job", StringComparison.Ordinal))
+        {
+            await AssertJobParentMutationsAsync(owner, transaction, table);
+            return;
+        }
         var trigger = await DefinitionAsync(owner, transaction,
             $"SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgname = 'tg_{table}_parent_scope'");
         await SchemaQueries.ExecuteAsync(owner, transaction,

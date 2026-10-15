@@ -69,7 +69,7 @@ public sealed partial class DomainGenericityTests
         path = Path.GetFullPath(path);
         if (outputs.Any(root => path.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
             return 0;
-        if (Path.GetExtension(path) is ".cs" or ".json") return 1;
+        if (Path.GetExtension(path) is ".cs" or ".json" or ".sql") return 1;
         if (Path.GetExtension(path) is ".csproj" or ".props" or ".targets" or ".md" || Path.GetFileName(path) == ".editorconfig") return 2;
         throw new InvalidOperationException($"Unclassified backend production source: {path}; Fix: review its census ownership.");
     }

@@ -89,8 +89,8 @@ Step 1 implements typed contracts and ordinary execution guards. Its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-1--contracts-and-authority-2026-10-16)
 owns completed validation and both review rounds. Step 2's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
-owns active schema/bootstrap validation and Accepted ADR-0058's maintenance
-policy (2026-10-16); source/reset and runtime qualification remain pending.
+owns locally validated schema/bootstrap and source/reset implementation under
+Accepted ADR-0058 (2026-10-16); both fresh Step 2 review rounds remain pending.
 Steps 3–9 remain pending.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is

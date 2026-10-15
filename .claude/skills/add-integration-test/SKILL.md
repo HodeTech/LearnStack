@@ -69,8 +69,13 @@ architecture test) plus any other invariant the change touches. See
 > for a role-level or provisioning question. `SchemaFixture` builds on it and is
 > what almost every test wants: **every** migration chain applied — through
 > `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
-> table seeded for two tenants, with a second organization under tenant A. There
-> are five chains and 23 data tables (28 including migration histories). Discover
+> table populated under its role and table class, with two tenants and a second
+> organization under tenant A for tenant-owned data. There
+> are five chains and 42 data tables (47 including migration histories). Every
+> discovered public table must match an exact class in
+> [SchemaTableClasses](../../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs).
+> Vendor/control SELECTs as `learnstack_app` must raise `42501`; a zero count or
+> an excluded table does not prove the required denial. Discover
 > current chains and history names through
 > [MigrationChains](../../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs);
 > do not copy that inventory into a fixture. Share the schema with
@@ -90,9 +95,12 @@ What the fixtures do today:
   which owns every table — and expose a connection as **`learnstack_app`** for the
   tests themselves. A test that connects as the owner or as a `BYPASSRLS` role
   passes even when every policy is inert, so it proves nothing.
-- Seed **every table for both tenants**, deliberately: a count assertion against a
-  table the fixture never populated passes whatever the policy says. That shipped
-  once, in Packet 6, and is why `SchemaFixture` fills all of them.
+- Seed **every table**, deliberately: tenant tables carry both tenants and org-scoped
+  tables also carry both organizations under A. Control/vendor tables carry nonempty
+  subjects through their confined dispatcher grants; the FORCE-RLS control tables
+  have no owner/app policy and cannot be seeded by assuming ownership bypasses RLS.
+  Tenant isolation assertions always authenticate as `learnstack_app`. A count
+  against an empty table passes whatever the policy says; that shipped in Packet 6.
 - Expose the seeded ids as `SchemaFixture.TenantA` / `TenantB` / `OrgA1` / `OrgA2`,
   and the session-variable helpers as `SchemaQueries.SetTenantAsync` /
   `SetSettingAsync` — `set_config(name, value, true)`, not `SET LOCAL`, because

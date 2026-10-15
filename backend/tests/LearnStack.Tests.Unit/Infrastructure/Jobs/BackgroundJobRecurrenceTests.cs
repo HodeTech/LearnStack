@@ -55,6 +55,37 @@ public sealed class BackgroundJobRecurrenceTests
         action.Should().Throw<ArgumentException>();
     }
 
+    [Theory]
+    [InlineData("activation")]
+    [InlineData("anchor")]
+    [InlineData("period")]
+    [InlineData("jitter")]
+    public void Submicrosecond_facts_are_refused_before_freezing_a_durable_manifest_hash(string field)
+    {
+        var registration = field switch
+        {
+            "activation" => Registration(activation: Anchor.AddTicks(1)),
+            "anchor" => Registration(anchor: Anchor.AddTicks(1)),
+            "period" => Registration(period: TimeSpan.FromDays(1) + TimeSpan.FromTicks(1)),
+            _ => Registration(jitter: TimeSpan.FromTicks(1)),
+        };
+        var action = () => Resolve(registration);
+        action.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Microsecond_facts_are_accepted_and_remain_part_of_the_fingerprint()
+    {
+        var original = Resolve(Registration()).ManifestHash;
+        foreach (var registration in new[]
+                 {
+                     Registration(activation: Anchor.AddTicks(10)), Registration(anchor: Anchor.AddTicks(10)),
+                     Registration(period: TimeSpan.FromDays(1) + TimeSpan.FromTicks(10)),
+                     Registration(jitter: TimeSpan.FromTicks(10)),
+                 })
+            Resolve(registration).ManifestHash.Should().NotBe(original);
+    }
+
     [Fact]
     public void Interval_and_jitter_boundaries_are_inclusive()
     {

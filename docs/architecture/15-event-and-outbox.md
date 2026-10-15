@@ -701,6 +701,37 @@ permission, HTTP routes and the separately decided producer replay contract.
 P02b-8 owns erasure inventory, Phase 03 privileged redaction and Phase 11
 retention purge.
 
+## Background job transport and maintenance
+
+Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+owns H1: stock Hangfire carries opaque wakeups, while LearnStack's transactional
+job/attempt records own business intent, tenant/organization authority and
+completion. [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md)
+and [ADR-0047 Amendment 1](../decisions/0047-transactional-background-job-runtime.md#amendment-1--maintenance-replacement-and-additive-ownership-seams-2026-10-16)
+own the accepted maintenance configuration replacement and additive ownership seams.
+Only the exact stock aggregator/history filter are suppressed through public hooks;
+stock expiration, heartbeat, state counters and required admission/retry filters
+remain. One API-instance expiration owner is shared across pools with finite caller
+wait, retained actual work/resources, paced completion and one shared shutdown
+budget. Retained maintenance makes unmapped `jobs` health unhealthy with a separate
+fixed maintenance dimension; Phase 11 owns readiness routing and alert policy.
+
+[Database Standards](../standards/05-database.md#background-jobs) owns canonical
+storage/grants and reset-safe source deadlines, including five-second idle-session
+cleanup. [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire)
+carries the selected maintenance/lifecycle policy. Neither server deadlines nor
+cleanup establish a whole-pass or client-socket termination guarantee. Approximate
+vendor totals are not authoritative business outcomes; fewer live rows do not
+promise bounded disk/backlog or recovery rate. Phase 11 owns operational retention,
+space and measured production capacity.
+
+The [Step 2 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+owns current delivery status. Acceptance precedes source/reset qualification;
+Step 4 owns actual component/filter selection, the shared expiration owner and
+final acquisition-census/supported-pool-boundary progress proofs. Step 9 owns full
+observation/enforcement. Both extended canonical obligations remain Registered;
+no maintenance runtime or full Step 2 closeout is claimed by acceptance.
+
 ## Service extraction readiness
 
 The outbox + `IEventBus` is the future service boundary. If a module is promoted to a

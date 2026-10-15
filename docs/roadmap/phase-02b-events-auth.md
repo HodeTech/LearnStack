@@ -3949,7 +3949,7 @@ runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
 ### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
 
-**In progress — implementation validation and both fresh review rounds pending.**
+**Implemented and locally validated — both fresh review rounds pending.**
 This step follows the completed Step 1 on `development` under Accepted ADR-0047.
 
 Two Platform migrations introduce seven authoritative job/control tables and the
@@ -3961,8 +3961,9 @@ continue actual tenant/organization isolation checks as `learnstack_app`.
 The vendor connection factory crosses the existing guarded lazy source on every
 acquisition. Reset-safe server statement/lock deadlines bound SQL execution;
 Accepted ADR-0058 requires finite enabled driver I/O and adds five-second
-idle-session cleanup. The new setting and source/reset proofs remain pending at
-acceptance. Bootstrap verifies version, guard bodies/triggers, exact grants and
+idle-session cleanup. The post-acceptance implementation and real source/reset
+proofs are recorded below. Bootstrap verifies version, guard bodies/triggers,
+exact grants and
 metadata before constructing the provider. No production wrapper, scheduler
 or worker is activated by this step. Runtime admission, business completion,
 external execution and recurrence remain Steps 3–9.
@@ -3981,9 +3982,9 @@ checks, but a response-withholding proxy leaves the actual component pending.
 reviewed in the [reassessment](#step-2-maintenance-reassessment). The earlier
 socket-exception proposal is withdrawn. The
 [acceptance receipt](#step-2-maintenance-acceptance-2026-10-16) records the approved
-boundary; source/reset and Step 4 runtime qualification remain pending. This step
-claims neither completed qualification nor full closeout. Independent schema
-validation continues.
+boundary; Step 4 runtime qualification remains pending. This step
+claims no Step 4 runtime qualification. Source/reset and schema validation pass
+after acceptance as recorded below; formal Step 2 review closeout remains pending.
 
 #### Step 2 counter-maintenance decision review
 
@@ -4134,6 +4135,61 @@ regression. Standards 05/20/21 and the Events and Outbox architecture carry the
 accepted policy; the existing bootstrap and independent-capacity obligations
 remain Registered. Acceptance claims no implemented maintenance owner, runtime
 proof, packet closeout or production-capacity/disk guarantee.
+
+#### Step 2 implementation and validation after acceptance
+
+ADR-0058 is accepted in `14bf9c42` before its dependent runtime edits. The shared
+guarded source now sends reset-safe five-second statement, lock and idle-session
+deadlines. Explicit bootstrap refuses disabled/excessive idle deadlines. Real
+`learnstack_outbox_admin` sessions prove cold settings, the same physical backend
+after pool reset, idle and aborted-idle termination while the transaction remains
+checked out, and healthy reacquisition. Dirty zero/5,001 ms startup controls fail
+bootstrap beside a healthy production-source control. Existing outbox/delivery
+store and execution proofs pass with the new shared-source setting.
+
+The two Platform migrations and canonical Standards 05 deliver seven raw
+authoritative/control tables and stock vendor schema 23 with exact four-role
+grants. Tenant/org scope, immutable envelopes/checkpoints, reservation evidence,
+recurrence slots/recipients, six-stage ceilings, schema rollback/reapply and actual
+ordered locking index plans have real PostgreSQL controls. Whole-schema discovery
+classifies all 47 public tables, including five migration histories, rather than
+omitting denied control/vendor tables. App SELECT denial requires actual `42501`.
+The genericity source census now classifies embedded production SQL and decodes
+its literals; Docker-trait discovery resolves partial declarations structurally.
+The existing Education parent-constraint sweep includes the seven new raw job
+relations with explicit guard/FK dirty controls instead of excluding them.
+
+**Validation before the final column-grant correction:** Release CI-style build passes
+with zero warnings/errors; formatting and whitespace pass. Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and complete Docker
+integration 1,552 pass: **4,042 backend cases, zero failures/skips**. The focused
+197-case source/outbox/delivery run also passes and overlaps the complete run;
+it is not added to that total. TRX runner checks confirm each assembly ran and
+none skipped. Earlier failed intermediate runs and their corrected focused
+receipts are superseded by this fresh full run. The final self-review correction
+also refuses column-level `GRANT OPTION` during bootstrap. Its subsequent Release
+build passes with zero warnings/errors and all 34 Hangfire storage cases pass,
+including the new dirty grant and restored-role control. A fresh full run of the
+correction commit is recorded with the independent reviews after it completes.
+
+Framework-dependent API publish passes the actual graph/source/notice verifier:
+four vendor assemblies match original NuGet bytes, both exact corresponding-source
+archives and eleven licence/notice files verify. Ten planted distribution defects
+refuse and explicit recipient-replacement inspection succeeds. Hosting 10.0.12
+is verified in the referenced Infrastructure graph; API/publish use the shared
+framework. The actual local host is .NET/ASP.NET Core 10.0.10, not an inferred
+NuGet patch. The pinned provider SQL resources remain byte-identical upstream.
+The complete Apache 2.0 text accompanies its original Dapper/Core notices.
+Narrow stock-byte Git attributes preserve upstream line endings/notice whitespace;
+forced `autocrlf=true` checkout verifies all 32 SQL/licence/notice input hashes.
+First-party whitespace checks remain enabled.
+
+No worker, wrapper, production definition or recurrence is activated here.
+Step 4 still owns selective component/filter suppression, the retained expiration
+owner, enabled-path response-loss and supported-pool-boundary progress controls;
+Step 9 owns complete enforcement. Those obligations remain Registered. The
+full Step 2 implementation is now committed for its first fresh review round;
+both round dispositions and verified fixes are recorded after they run.
 
 ### Durable outbox dispatch
 

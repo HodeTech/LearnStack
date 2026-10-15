@@ -68,13 +68,17 @@ public sealed class BackgroundJobRecurrenceRegistry
                 || !registration.Key.StartsWith(module.ModuleName + ".", StringComparison.Ordinal)
                 || registration.Revision <= 0 || registration.ActivatesAt == default || registration.Anchor == default
                 || registration.ActivatesAt.Offset != TimeSpan.Zero || registration.Anchor.Offset != TimeSpan.Zero
+                || registration.ActivatesAt.UtcTicks % TimeSpan.TicksPerMicrosecond != 0
+                || registration.Anchor.UtcTicks % TimeSpan.TicksPerMicrosecond != 0
+                || registration.Period.Ticks % TimeSpan.TicksPerMicrosecond != 0
+                || registration.Jitter.Ticks % TimeSpan.TicksPerMicrosecond != 0
                 || !Enum.IsDefined(registration.Schedule) || !Enum.IsDefined(registration.RecipientPolicy)
                 || registration.MisfirePolicy != BackgroundJobMisfirePolicy.CoalesceLatest
                 || registration.Period < TimeSpan.FromMinutes(1) || registration.Period > TimeSpan.FromDays(366)
                 || registration.Schedule == BackgroundJobRecurrenceSchedule.Daily && registration.Period != TimeSpan.FromDays(1)
                 || registration.Jitter < TimeSpan.Zero || registration.Jitter > registration.Period
                 || registration.Jitter > TimeSpan.FromHours(2))
-                throw new ArgumentException("A recurrence requires a valid module-owned UTC interval/daily manifest with bounded jitter.");
+                throw new ArgumentException("A recurrence requires a valid module-owned microsecond-precision UTC manifest with bounded jitter.");
             if (registration.Target.Value is null || !definitions.TryGet(registration.Target.Value, out var target)
                 || target.OwnerModule != module.ModuleName || target.ParameterType != typeof(BackgroundJobOccurrenceParameters)
                 || target.Scope != (registration.RecipientPolicy == BackgroundJobRecipientPolicy.ServingOrganizations

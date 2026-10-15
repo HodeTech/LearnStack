@@ -622,6 +622,7 @@ public sealed partial class OutboxDispatchConventionTests
         ]);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
         CheckDeliveryCredentials(offenders, census, outboxRoot, deliveryFactory);
+        CheckPrivilegedAcquisitions(offenders, census);
         return offenders;
     }
 

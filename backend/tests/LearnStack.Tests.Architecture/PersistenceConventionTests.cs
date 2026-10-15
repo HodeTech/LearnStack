@@ -8,6 +8,8 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
@@ -690,33 +692,81 @@ public sealed partial class PersistenceConventionTests
             ("RootForgotTests.cs", "public class RootForgotTests(Database.SchemaFixture schema) { [Fact] public void A() { } }"),
             ("RootTraitedTests.cs", $"{Qualified} public class RootTraitedTests(Database.SchemaFixture schema) {{ [Theory] public void A() {{ }} }}"),
             ("HttpOnlyTests.cs", "public class HttpOnlyTests { [Fact] public void A() { } }"),
-        ]).Should().Equal("Database/ForgotTests.cs", "RootForgotTests.cs");
+            ("Database/PartialMain.cs", $"namespace Valid; {Trait} public partial class SplitTests {{ }}"),
+            ("Database/PartialCase.cs", "namespace Valid; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("Database/MissingPartialMain.cs", "namespace Missing; public partial class SplitTests { }"),
+            ("Database/MissingPartialCase.cs", "namespace Missing; public partial class SplitTests { [Fact] public void A() { } }"),
+            ("Database/OtherNamespaceTrait.cs", $"namespace Other; {Trait} public partial class SplitTests {{ }}"),
+            ("Database/OtherClassTrait.cs", $"namespace Missing; {Trait} public partial class DifferentTests {{ }}"),
+            ("Database/SameFile.cs", $"{Trait} public class CleanTests {{ [Fact] public void A() {{ }} }} "
+                + "public class UntraitedTests { [Fact] public void B() { } }"),
+            ("Database/CommentOnly.cs", $"// {Trait}\npublic class CommentOnlyTests {{ [Fact] public void A() {{ }} }}"),
+            ("Database/ForeignTrait.cs", "[Other.Trait(RequiresDocker.Key, RequiresDocker.Value)] public class ForeignTraitTests { [Fact] public void A() { } }"),
+            ("Database/NonPartialTrait.cs", $"namespace Unmerged; {Trait} public class UnmergedTests {{ }}"),
+            ("Database/NonPartialCase.cs", "namespace Unmerged; public class UnmergedTests { [Fact] public void A() { } }"),
+        ]).Should().Equal("Database/CommentOnly.cs", "Database/ForeignTrait.cs", "Database/ForgotTests.cs", "Database/MissingPartialCase.cs",
+            "Database/NonPartialCase.cs", "Database/SameFile.cs", "RootForgotTests.cs");
     }
 
     /// <summary>
     /// The test files that need Docker and do not say so: under <c>Database/</c>, or naming
     /// a fixture that starts a container, and carrying no <c>RequiresDocker</c> trait.
     /// </summary>
-    private static List<string> UntraitedDockerTests(IEnumerable<(string Path, string Source)> files) =>
-        files
-            .Where(file =>
+    private static List<string> UntraitedDockerTests(IEnumerable<(string Path, string Source)> files)
+    {
+        var declarations = files.SelectMany(file => CSharpSyntaxTree.ParseText(file.Source).GetRoot()
+            .DescendantNodes().OfType<TypeDeclarationSyntax>()
+            .Select(type => new DockerTestDeclaration(file.Path, TypeIdentity(type),
+                type.Modifiers.Any(token => token.RawKind == (int)SyntaxKind.PartialKeyword),
+                type.Members.OfType<MethodDeclarationSyntax>().Any(method => method.AttributeLists
+                    .SelectMany(list => list.Attributes).Any(attribute => AttributeName(attribute) is "Fact" or "Theory")),
+                file.Path.StartsWith("Database/", StringComparison.Ordinal)
+                    || type.DescendantNodes().OfType<IdentifierNameSyntax>()
+                        .Any(name => DockerFixtures.Contains(name.Identifier.ValueText)),
+                type.AttributeLists.SelectMany(list => list.Attributes).Any(IsDockerTrait))))
+            .ToArray();
+
+        return declarations.GroupBy(type => type.Identity, StringComparer.Ordinal)
+            .SelectMany(group =>
             {
-                // A file declaring no test method has nothing to trait — the fixtures and
-                // the shared query helpers are the case.
-                var declaresTests = file.Source.Contains("[Fact]", StringComparison.Ordinal)
-                                    || file.Source.Contains("[Theory]", StringComparison.Ordinal);
-
-                var needsDocker = file.Path.StartsWith("Database/", StringComparison.Ordinal)
-                                  || DockerFixtures.Any(fixture => file.Source.Contains(fixture, StringComparison.Ordinal));
-
-                var traited = file.Source.Contains("[Trait(RequiresDocker.Key, RequiresDocker.Value)]", StringComparison.Ordinal)
-                              || file.Source.Contains("[Trait(Database.RequiresDocker.Key, Database.RequiresDocker.Value)]", StringComparison.Ordinal);
-
-                return declaresTests && needsDocker && !traited;
+                var parts = group.ToArray();
+                var isPartialType = parts.All(part => part.Partial);
+                return parts.Where(part => part.DeclaresTests
+                    && (part.NeedsDocker || isPartialType && parts.Any(other => other.NeedsDocker))
+                    && !(part.HasDockerTrait || isPartialType && parts.Any(other => other.HasDockerTrait)));
             })
-            .Select(file => file.Path)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+            .Select(type => type.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+    }
+
+    private sealed record DockerTestDeclaration(string Path, string Identity, bool Partial,
+        bool DeclaresTests, bool NeedsDocker, bool HasDockerTrait);
+
+    private static string TypeIdentity(TypeDeclarationSyntax declaration)
+    {
+        var namespaces = declaration.Ancestors().OfType<BaseNamespaceDeclarationSyntax>()
+            .Reverse().Select(scope => scope.Name.ToString());
+        var types = declaration.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse()
+            .Select(type => type.Identifier.ValueText + "`" + (type.TypeParameterList?.Parameters.Count ?? 0));
+        return string.Join(".", namespaces.Concat(types));
+    }
+
+    private static string AttributeName(AttributeSyntax attribute)
+    {
+        var name = attribute.Name.ToString().Replace("global::", "", StringComparison.Ordinal).Split('.')[^1];
+        return name.EndsWith("Attribute", StringComparison.Ordinal) ? name[..^"Attribute".Length] : name;
+    }
+
+    private static bool IsDockerTrait(AttributeSyntax attribute)
+    {
+        var name = string.Concat(attribute.Name.DescendantTokens().Select(token => token.Text));
+        if (name is not ("Trait" or "TraitAttribute" or "Xunit.Trait" or "Xunit.TraitAttribute"
+            or "global::Xunit.Trait" or "global::Xunit.TraitAttribute") || attribute.ArgumentList?.Arguments.Count != 2)
+            return false;
+        var key = string.Concat(attribute.ArgumentList.Arguments[0].Expression.DescendantTokens().Select(token => token.Text));
+        var value = string.Concat(attribute.ArgumentList.Arguments[1].Expression.DescendantTokens().Select(token => token.Text));
+        return (key, value) is ("RequiresDocker.Key", "RequiresDocker.Value")
+            or ("Database.RequiresDocker.Key", "Database.RequiresDocker.Value");
+    }
 
     /// <summary>The fixtures that start a PostgreSQL container, by the names a test takes them under.</summary>
     private static readonly string[] DockerFixtures = ["SchemaFixture", "PostgresFixture", "SharedSchema"];
