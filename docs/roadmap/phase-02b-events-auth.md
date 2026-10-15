@@ -3686,7 +3686,21 @@ binding explicit. These are proposal clarifications, not runtime changes or proo
 Local validation passes five Release corpus tests, seven ADR workflow controls,
 1,059 local links and 321 fragments, added prose wrapping and whitespace checks.
 Prior ADR files and P02b-0–3 receipts remain byte-preserved against `71568e78`.
-Fresh Round 2 reviews the corrected complete proposal before final approval.
+Fresh Round 2 reviewed the corrected complete proposal before final approval.
+
+Round 2 paired new GPT-6-astra xhigh (architecture/security/state) and GPT-6.1-sol
+xhigh (corpus/recurrence/proof) reviewers on `29cc4c15` and the correction captured
+by `40c9f9b8`. The latter fixes the retained-overrun bound: four is the atomic
+stop-new-start threshold; already admitted workers may overrun together and must
+remain owned, with a conservative workers-plus-four bound. Both reviewers verified
+that correction and approve the Proposed documentation with no remaining required
+findings. Simultaneous-overrun behavior is an explicit implementation proof duty.
+
+Final local checks again pass five Release corpus tests, seven ADR workflow tests,
+1,059 links and 321 fragments with zero errors, prose/whitespace and preserved
+historical records. All eleven changed files are Markdown; no runtime/dependency/
+migration/grant change or job production proof is claimed. Final maintainer
+acceptance of ADR-0047 and this nine-step package remains required before runtime.
 
 #### Earlier proposal and correction receipts (historical)
 
