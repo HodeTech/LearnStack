@@ -3214,6 +3214,25 @@ really emits while contributing zero to its count; the actual store must still
 count exactly one. The focused case and corrected full unit suite pass.
 Fresh review rounds and correction-head CI remain pending at this initial receipt.
 
+#### External follow-up review round 1
+
+Two fresh independent agents reviewed `683ea537..586ed75`. GPT-6-astra/xhigh
+reviewed runtime, security, isolation, lifecycle and performance, independently
+passing 72 focused PostgreSQL integration cases and three architecture cases.
+GPT-6.1-sol/xhigh reviewed guards, tests, governance and all changed documents,
+independently passing eight architecture cases, 18 recorder unit cases and the
+real PostgreSQL candidate-index case. All runs have zero failures/skips.
+
+The runtime review found no actionable issue. The proof/corpus review found two
+Minor wording errors: the new machinery-write prohibition inadvertently required
+all business handlers to send commands, although the Accepted classified direct
+one-root path remains valid; and Security retained an obsolete one-setter count.
+Root verified both against ADR-0044 Amendment 8/ADR-0057 and current transport
+calls. The fixes remove the command-only restriction and describe the actual
+announcement seam without a misleading count. The reviewer rechecked both and
+approved with no remaining finding. Document checks pass; this fix changes no
+runtime or test source. Round 2 and correction-head CI remain pending here.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

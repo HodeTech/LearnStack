@@ -420,10 +420,9 @@ leak — but an empty result set arriving from production is an outage, so
 the `SET LOCAL` pair on this transaction before any command a module `DbContext` issues
 runs on it.
 
-**Keyed on the transaction, not on the table**, and marked by one setter rather than
-eight — both narrower than an earlier wording here, and both for reasons the shipped
-mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
-every query and the database to decide something the transaction already answers.
+**Keyed on the transaction, not on the table**, and marked through the ambient
+unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
+between every query and the database to decide something the transaction already answers.
 Of the eight logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
