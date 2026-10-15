@@ -3858,7 +3858,7 @@ no recovery route or unsafe reservation-release switch is exposed by P4.
 
 ### P02b-4 Step 1 — contracts and authority (2026-10-16)
 
-**Round 1 corrections verified; fresh independent Round 2 pending.**
+**Complete — both fresh independent review rounds pass.**
 The acceptance commit is `affa0aca`; this step follows it on `development`.
 
 SharedKernel supplies typed job/attempt/occurrence/recipient identities, the typed
@@ -3923,6 +3923,27 @@ cases pass with zero failures/skips. The 1,389-case Docker run above covers the
 initial implementation; it is not rerun for these nonactivated job guards. No
 vendor/schema/production definition is introduced. A fresh second review round
 follows the correction commit before Step 2 starts.
+
+#### Step 1 review round 2 and closeout
+
+Fresh GPT-6-astra xhigh (authority/lifecycle/security) and GPT-6.1-sol xhigh
+(contracts/registries/tests/corpus) reviewers inspect the complete corrected range
+`affa0aca..bf433085`. Both approve Step 1 with no remaining required findings.
+The authority reviewer independently passes 168 focused unit and 78 architecture
+cases; the contracts reviewer passes 168 focused unit and 14 architecture cases.
+All use existing Release binaries with zero failures/skips. These overlapping
+checks are not added to the complete-suite counts above.
+
+Both verify the ancestry/accessor corrections, unchanged Accepted ADRs, exact
+credential/owner boundaries and the honest zero-runtime-subject scope. Recurrence
+precision is a named next-step constraint: before Step 2 fixes PostgreSQL storage
+representation, reject sub-microsecond manifest facts before fingerprinting.
+No production job or recurrence is activated to satisfy a census.
+
+The implementation commit is `94b126b4`; verified Round 1 corrections are
+`bf433085`. Both fresh rounds and the validation recorded above are complete.
+Step 2 now proceeds under the already accepted nine-step package. Remaining
+runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
 ### Durable outbox dispatch
 
