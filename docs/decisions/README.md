@@ -89,6 +89,7 @@ name P02b-2/P02b-3 activation; acceptance claims no runtime delivery.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
+| 0047 | [Transactional Background Job Runtime](0047-transactional-background-job-runtime.md) | Proposed 2026-10-15: bounded PostgreSQL default, transactional stamped submission, one job context writer, existing request-owner completion and row-bound terminal MUST audit; no runtime implemented | P02b-4; maintainer approval of this ADR and its decision package before runtime |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
@@ -152,7 +153,6 @@ table records the phase commitment so reviewers can flag late drafts.
 |---|---|---|---|
 | 0025 | Scoring + completion DSL sandbox engine (CEL vs restricted Lua vs custom; sandbox boundary; allowed function set) | **Phase 05** — `TenantCompletionRule` runtime evaluator lights up here; Phase 08a's assessment scoring depends on it | [ADR-0018](0018-tenant-driven-customization-model.md), [phase-05-education-learning-content.md](../roadmap/phase-05-education-learning-content.md), [phase-08a-assessment-notifications.md](../roadmap/phase-08a-assessment-notifications.md) |
 | 0026 | Release-tag scheme (`vYYYY.MM.DD.<n>` vs SemVer; SaaS continuous-deploy reconciliation; Self-Hosted release cadence) | **Phase 11** — production hardening checklist owns this | [14-git-workflow.md § Tagging and Releases](../standards/14-git-workflow.md) |
-| 0047 | Background job runtime (storage under the closed four-role model; the single tenant-context writer; the job frame's transaction owner; the enqueue-site rule; the retry and dead-letter contract; the ADR-0035 classification; the queue grammar; package pins and licence verdict) | **P02b-4 decision pass**, after P02b-3 — before job-runtime code; no compliant first boot exists today | [phase-02b-events-auth.md](../roadmap/phase-02b-events-auth.md), [20-infrastructure-stack.md § Background Jobs and Hangfire](../standards/20-infrastructure-stack.md), [09-tenant-isolation.md](../architecture/09-tenant-isolation.md) |
 
 **Reservation rule:** the numbers above are *reserved but not yet drafted*. When a
 draft lands, take its reserved number; do not let another ADR claim it. If the
@@ -161,6 +161,9 @@ decision is dropped, leave the number unused — never recycle.
 ADR-0027 is Accepted on 2026-10-09 and appears in Active ADRs. P02d-6 now owns
 its first consumer and G39 is closed; Phase 04 consumes that foundation. The
 acceptance record does not claim dependency installation or implementation.
+
+ADR-0047 is drafted on 2026-10-15 and appears in Proposed ADRs. Its reserved
+number is consumed; G9 remains Open until explicit maintainer acceptance.
 
 **SLA:** any draft whose target phase is currently in progress without an Accepted ADR
 is a blocker on the phase exit checklist for that phase. The roadmap's Phase Exit

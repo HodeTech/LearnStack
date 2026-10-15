@@ -229,7 +229,9 @@ records verified corrections and two further independent review rounds; the
 records subsequent runtime/proof corrections and their completed reviews. The
 [P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final source/merge and CI verification.
-P02b-4's background-job decision pass is next. Phase 06 retains the full
+P02b-4's [background-job decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
+is in progress; ADR-0047/package are Proposed and runtime awaits approval.
+Phase 06 retains the full
 renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
@@ -439,7 +441,8 @@ Then read the phase that is live and the one it stands on:
   2026-10-13; its merge closeout above owns final verification. P02b-3 is complete
   and merged through PR #31 on 2026-10-15; all six steps and correction bundles
   completed both review rounds. Its merge closeout above owns final verification.
-  P02b-4's background-job decision pass is next.
+  P02b-4's background-job decision pass is in progress; its Proposed ADR/package
+  await approval before runtime.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

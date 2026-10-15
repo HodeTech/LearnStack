@@ -81,7 +81,9 @@ and merged** through [PR #31](https://github.com/HodeTech/LearnStack/pull/31) on
 durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
-owns final verification. P02b-4's background-job decision pass is next;
+owns final verification. P02b-4's
+[background-job decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
+is in progress; its Proposed ADR/package await approval before runtime.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
