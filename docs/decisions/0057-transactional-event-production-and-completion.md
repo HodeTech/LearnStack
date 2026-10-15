@@ -435,6 +435,25 @@ orders of Seeder/subscriber races. The
 owns validation and review status; Step 6 retains production-census enforcement
 and full packet closeout. Earlier dated delivery notes retain their as-of state.
 
+
+### Amendment 4 — Job production receipts and recipient origin (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#typed-definitions-submission-and-scope)
+extends produced-work/enrollment with immediate job INSERT receipts on the same
+writable announced owner. Only a successful INSERT records work in every ancestor;
+SQL faults poison/rethrow, and absorbed post-production failures retain the sticky
+refusal semantics. Trusted module identity never comes from a caller string.
+
+Its [restricted recipient origin](0047-transactional-background-job-runtime.md#durable-recurrence-and-recipient-admission)
+binds the actual claimed row, manifest/target, tenant/org/token and lease.
+Single-use child submission/recipient acknowledgement commits atomically on its
+ordinary announced request owner. It grants no arbitrary selector, sentinel
+announcement or cross-module scheduling mechanism.
+
+Outbox/save receipts, ordinary work-free refusals and owner domain drain retain
+their contracts. P02b-4 supplies implementation and proofs; this addition changes
+no P02b-1/P02b-3 delivery receipt and claims no job runtime.
+
 ## References
 
 - [ADR-0006: Events and Outbox](0006-events-and-outbox.md)

@@ -722,3 +722,18 @@ generation as well as tenant, including reused transaction objects.
 This separately enumerated additive read seam follows Amendment 5's precedent.
 It adds no setter, ambient context writer, ownership change or savepoint. The
 bounded nested-failure supersession is Amendment 10, not this seam addition.
+
+### Amendment 12 — Closed job stage and recipient participants (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#request-owner-and-transactional-profile)
+adds closed root/stage/recipient participants to the existing request owner.
+They bind the unit, live announcement generation, immutable job facts and
+attempt/token/phase, then fence checkpoint/completion immediately before commit.
+`PreparedDeliveryOwner` remains delivery-specific; there is no third generic
+owner or completion callback.
+
+Alongside Amendment 8's physical read-mode contract, exact framework pre-read
+requests select ReadOnly through a closed mode mapping. Framework commands use
+ordinary writable announced owners; no caller selects a mode. Eight setters,
+two entry shapes, sticky poisoning, nesting and aggregate rules remain. P02b-4
+implements/proves these additive seams; public host eligibility is unchanged.

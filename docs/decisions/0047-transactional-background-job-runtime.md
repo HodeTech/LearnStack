@@ -2,17 +2,17 @@
 
 ## Status
 
-Proposed — final approval pending.
+Accepted — 2026-10-15.
 
-**Draft date:** 2026-10-15
+**Date:** 2026-10-15 **Deciders:** @cemil
 
-**Maintainer direction — 2026-10-15.** H1 (stock Hangfire plus an authoritative
-LearnStack job record) and the expanded P02b-4 infrastructure scope are selected
-for the final proposal. This direction is not acceptance of the detailed contract.
-The maintainer reviews this ADR and its
-[P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-before runtime code, package changes, migrations or grants. Nothing here claims
-an implemented job runtime or passing production job proof.
+**Maintainer acceptance — 2026-10-15.** The maintainer approves H1 (stock Hangfire
+plus an authoritative LearnStack job record), this detailed contract, its bounded
+supersessions/additive seams and the expanded nine-step
+[P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+Acceptance and the dated disclosures are committed before runtime code, package
+changes, migrations or grants. Implementation and production job proofs remain
+pending; acceptance claims neither delivery nor enforcement.
 
 ## Decision Drivers
 
@@ -34,8 +34,8 @@ an implemented job runtime or passing production job proof.
 
 ## Considered Options
 
-1. **H1: stock Hangfire + authoritative LearnStack job record** (chosen for this
-   proposal). Mature timers and worker pools; transactional business intent,
+1. **H1: stock Hangfire + authoritative LearnStack job record** (chosen). Mature
+   timers and worker pools; transactional business intent,
    execution budgets and terminal audit remain LearnStack-owned. Durable handoff,
    reconciliation and narrow integration guards are necessary.
 2. **H2: transaction-aware Hangfire storage** (not selected). Public subclass
@@ -56,17 +56,17 @@ an implemented job runtime or passing production job proof.
 
 ## Decision
 
-LearnStack proposes H1: `IBackgroundJobScheduler` writes durable module-owned
+LearnStack uses H1: `IBackgroundJobScheduler` writes durable module-owned
 intent on the current announced transaction, and stock Hangfire transports only
 opaque wakeups. The LearnStack row owns admission, six normal attempts, fenced
 business completion and atomic terminal MUST audit. P02b-4 implements transactional
 and external prepare/execute/finalize profiles, independent worker capacity,
 tenant admission and durable recurrence/fan-out. Modules see typed contracts,
-never vendor APIs; final maintainer acceptance precedes implementation.
+never vendor APIs. The accepted package governs implementation on `development`.
 
 ### Workload envelope and first-consumer obligations
 
-[Job terms](../glossary.md#background-jobs-proposed) distinguish business identity,
+[Job terms](../glossary.md#background-jobs) distinguish business identity,
 wakeup generation, execution profile, reservations, quiescence and occurrences.
 The expanded infrastructure ships in P02b-4; feature definitions remain below.
 
@@ -691,7 +691,7 @@ closeout.
 
 | Route | Outcome of selection | Remaining cost |
 |---|---|---|
-| H1 | Selected direction: mature stock timers/pools, LearnStack business authority | Two operational stores, bridge/repair, integration guards and business lifecycle |
+| H1 | Accepted: mature stock timers/pools, LearnStack business authority | Two operational stores, bridge/repair, integration guards and business lifecycle |
 | H2 | Feasible primitives, not selected | Customized vendor storage/state/fences and upgrade qualification |
 | First-party PostgreSQL | Initial small runner not selected for expanded scope | Entire scheduling/worker/recurrence runtime plus business lifecycle |
 | Quartz.NET | Not independently qualified or selected | Exact-version authority/audit/storage/lifecycle assessment if revisited |

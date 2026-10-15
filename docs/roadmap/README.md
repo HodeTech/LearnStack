@@ -117,9 +117,9 @@ not deferred to the showcase phase.
   P02b-3 is complete and merged through PR #31 on 2026-10-15; its
   [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
   owns final verification. P02b-4's
-  [background-job decision pass](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-  is in progress; H1/expanded infrastructure is the selected direction.
-  Its Proposed ADR/package await final approval before runtime.
+  [background-job package](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
+  and ADR-0047 are Accepted — 2026-10-15. Nine H1/expanded infrastructure steps
+  are authorized on `development`; runtime and enforcement remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

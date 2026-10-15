@@ -509,6 +509,21 @@ owns validation, independent reviews and PR/CI status. Earlier delivery notes
 retain their dated state. No exactly-once publication, cross-process ordering,
 operator replay route, purge, broker adapter or mapped readiness is delivered.
 
+
+### Amendment 4 — Bounded job control and terminal-audit extension (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
+extends **Atomic terminal audit and privilege boundary**'s fifth write with the
+job-specific sixth, and the routine dispatcher exemption with confined
+job/recurrence routing/status operations. The extension requires exact grants,
+added caller censuses, bounded diagnostics, metrics/health and atomic terminal
+MUST audit. Removing those controls invalidates it.
+
+Business mutations, platform-admin entry and privileged maintenance receive no
+general exemption. The producer/subscriber delivery policy, five existing audit
+writes and their shipped receipts remain unchanged. P02b-4 implements the new job
+control/seam and their proof obligations; acceptance claims no job runtime.
+
 ## References
 
 - [ADR-0006](0006-events-and-outbox.md), [ADR-0010](0010-cross-module-communication.md)

@@ -82,9 +82,9 @@ durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final verification. P02b-4's
-[background-job decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-is in progress; H1/expanded infrastructure is the selected direction.
-Its Proposed ADR/package await final approval before runtime.
+[background-job package](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
+and ADR-0047 are Accepted — 2026-10-15. Nine H1/expanded infrastructure steps
+are authorized on `development`; runtime and enforcement remain pending.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

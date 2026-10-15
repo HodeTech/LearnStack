@@ -321,14 +321,15 @@ keeps the 24-hour cadence and 0–119-minute jitter; signed-key hardening and
 revocation-list operations remain Phase 11. This is a periodic job, distinct from
 the entitlement-push integration-event consumer above.
 
-The selected expanded P02b-4 proposal supplies durable recurrence and the
+The accepted expanded P02b-4 contract supplies durable recurrence and the
 restricted tenantless trigger → enumeration → separately announced submission
 foundation. This phase registers the real phone-home recurrence/child definitions
 and chooses the nonarchived policy that includes Suspended tenants. Verify stable
 occurrence/jitter, bounded resumable fan-out and duplicate-tick controls with the
 real Hub adapter here. No tenant sentinel or general business bypass substitutes
-for that authority. [ADR-0047 remains Proposed](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
-the foundation is planned, not yet delivered, and this entry accepts no new grant.
+for that authority. [ADR-0047 is Accepted — 2026-10-15](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
+P02b-4 implementation/proofs remain pending. This handoff claims no delivered
+foundation or implemented grant.
 
 ### `platform_host_to_tenant` mirroring
 

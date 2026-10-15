@@ -169,3 +169,16 @@ until those production subjects exist.
 The four communication mechanisms remain unchanged. This is a bounded
 supersession, not an ADR-0041 correction. Original acceptance metadata, body and
 earlier amendments remain intact; acceptance claims no inbox delivery.
+
+## Amendment 4 — Authoritative job envelope and opaque wakeups (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#bounded-supersessions-and-additive-seams)
+bounds the **Architecture Tests** bullet “Hangfire job payloads include
+`tenant_id`.” Tenant/org/actor/trace authority belongs in the authoritative
+LearnStack job envelope. Stock Hangfire carries only opaque job-ID/generation
+wakeups or finite recurrence ticks, with no tenant payload.
+
+The four cross-module mechanisms and own-module scheduling boundary remain.
+Validated tenant/org context precedes business construction/execution. The named
+submission/restoration catalogue replacements and their enforcement land in
+P02b-4; this acceptance claims no runtime or test delivery.

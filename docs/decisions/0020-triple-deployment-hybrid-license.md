@@ -361,6 +361,23 @@ and the third in [Phase 11](../roadmap/phase-11-production-hardening.md).
 resolution through `IEntitlementProvider`, selection at the composition root and never
 inside a module.
 
+
+### Amendment 2 — Licence-job identity and activation handoff (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations)
+bounds **Phone-home implementation**'s `learnstack:phone-home-refresh` and
+**Revocation list**'s `learnstack:revocation-list-refresh` vendor identities/direct
+activation. Typed recurrence/occurrence/recipient/child-job identities and trusted
+recipient activation use the accepted runtime boundary; vendor IDs grant no
+business authority.
+
+Hangfire, the 24-hour phone-home cadence and integer 0–119-minute jitter remain.
+Triggered Phase 02c owns its real phone-home definitions and nonarchived policy
+including Suspended tenants. Phase 11 retains signed-key/revocation operations;
+installation-level external refresh needs its own tenantless external authority,
+not ordinary tenant fan-out. Hub licence publication ownership and the existing
+adapters remain. P02b-4 infrastructure and these feature definitions are unimplemented.
+
 ## References
 
 - ADR-0014 — Adopt Dapr (entitlement-updated event via Dapr pub/sub).

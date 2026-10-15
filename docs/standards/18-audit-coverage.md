@@ -12,6 +12,9 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Job additions derive from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+(accepted 2026-10-15; P02b-4 runtime and enforcement pending).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -500,13 +503,22 @@ table above is the policy those deliverables implement, not a description of tod
 - Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
   is not.
 - Failed `denied` outcomes are audited even though no state changed.
-- Background jobs that mutate MUST-audit resources receive the `actor` via job payload (operator id, or the seed of a system actor with a stable id) and write the entry under that identity.
+- Background jobs that mutate MUST-audit resources use the runtime-stamped
+  SystemActor under ADR-0047. A nullable causal human is separate attribution,
+  never execution authority. The authoritative job envelope supplies identity;
+  opaque Hangfire wakeups carry no actor or tenant payload. P02b-4 implements
+  this accepted contract before any production job definition.
 - Integration event handlers that mutate state are treated as actors of type `system` and audited accordingly.
 - Platform-bypass code paths (`IgnoreQueryFilters()` etc.) write a `security-event`
   entry on every invocation, with ADR-0046's confined routine dispatcher exception:
   polling/claim/mark uses exact grant confinement, bounded structured attempt
   outcomes, metrics/health and MUST-audited terminal transitions. This exception
   changes no platform-admin pre-entry audit or other bypass operation.
+  Accepted ADR-0047 adds only the named job/recurrence routing/status extension,
+  conditional on exact grants/caller censuses, bounded diagnostics, metrics/health
+  and same-transaction terminal MUST audit. Until P02b-4 implements those controls,
+  acceptance grants no executable exemption; ordinary business mutations and
+  privileged maintenance remain audited under their existing contracts.
 - `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
   DbTransaction, CancellationToken)` is the narrow fifth write, implemented in
   P02b-2 Step 2; both independent review rounds passed.

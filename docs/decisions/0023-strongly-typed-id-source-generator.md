@@ -575,6 +575,19 @@ Database Standards' Inbox/Identifiers text and the phase package. Database
 Standards already excludes inbox from DB-side minting; its canonical DDL lands
 with Step 1. This note changes no UUIDv7 source decision.
 
+
+### Amendment 11 — Typed background-job identity inventory (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#typed-definitions-submission-and-scope)
+adds `BackgroundJobId`, `BackgroundJobAttemptId`, `BackgroundJobOccurrenceId`
+and `BackgroundJobRecipientId` to the identifier inventory alongside
+**Implementation Notes**' UUIDv7 minting conventions. These are typed,
+application-minted UUIDv7 identities supplied through `IGuidFactory`.
+
+Job identity remains distinct from EventId, acquisition/bridge control tokens
+and vendor IDs. Vogen, UUIDv7 and serialization conventions retain their contracts.
+The new types and their proofs land in P02b-4; acceptance is not implementation.
+
 ## References
 
 - [Standards 02 § Strongly-Typed Identifiers](../standards/02-backend-coding.md)

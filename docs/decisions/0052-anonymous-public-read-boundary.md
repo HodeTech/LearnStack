@@ -392,3 +392,15 @@ P02d-5/6 retain server/page delivery; Phase 02d remains in progress.
 Updated carriers: this dated Status disclosure, the decisions index, repository
 README and guidance, roadmap index and packet status, and the Education module
 status. No implementation or new decision is introduced by this closeout.
+
+## Amendment 14 — Closed background-job framework read mode (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#ordinary-execution-authority)
+extends the physical read-mode mapping with exact job framework pre-read requests.
+These select ReadOnly before announcement and carry Audit Off registration;
+framework admission/checkpoint/submission commands retain writable announced owners.
+The mapping is closed and exposes no caller-selected mode.
+
+This adds no public host ceiling or public request class. Existing host provenance,
+anonymous eligibility, physical ReadOnly protections and mixed-mode refusal remain.
+P02b-4 implements/proves this bounded extension; no new public runtime is claimed.

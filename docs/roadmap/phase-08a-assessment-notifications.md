@@ -20,7 +20,7 @@ reader and no later phase has to guess:
 |---|---|---|
 | Outbox — `outbox_messages` table, `OutboxFlushBehavior` | [Phase 02a](phase-02a-kernel-tenancy.md) | Nothing |
 | Outbox dispatcher — polling, retry, backoff, dead-letter, inbox guard, `IEventBus` transport | [Phase 02b](phase-02b-events-auth.md) | Event types, topics, and idempotent consumers |
-| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Proposed ADR-0047 | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
+| Background jobs — typed scheduling, host/storage, restored authority, retry/audit, external/capacity/recurrence foundation under Accepted ADR-0047 (implementation pending) | [Phase 02b](phase-02b-events-auth.md) | Job/provider definitions and declared queue/profile assignments |
 | Scoring / completion DSL engine — ADR-0025, sandbox, evaluator | [Phase 05](phase-05-education-learning-content.md) | Callers, answer maps, and result-band projection |
 
 Phase 08a writes **no** dispatcher, **no** job host, and **no** expression evaluator. If
@@ -161,14 +161,16 @@ idempotency/reconciliation must separately prevent duplicate external delivery.
 
 ### Background Jobs
 
-**P02b-4 direction update — 2026-10-15.** The maintainer selected expanded H1:
+**P02b-4 acceptance update — 2026-10-15.** The maintainer accepts expanded H1:
 stock Hangfire wakeups with LearnStack-owned submission, retries/audit, external
-stages, capacity and recurrence/fan-out. [ADR-0047 remains Proposed](../decisions/0047-transactional-background-job-runtime.md);
-acceptance/implementation are pending. This phase supplies notification/expiry
+stages, capacity and recurrence/fan-out under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+P02b-4 implementation remains pending. This phase supplies notification/expiry
 definitions and chooses declared queues/profiles, not a second retry policy or
 activator. Provider sends require stable logical-operation idempotency and known
 effect reconciliation; inbox/event dedup alone cannot prove an email was sent once.
-The typed job rules replace the old payload/base-class spellings on P4 acceptance.
+The accepted typed job obligations replace the old payload/base-class spellings;
+P02b-4 still owes their runtime enforcement.
 
 Additions to the existing host, not a new one:
 
@@ -179,9 +181,10 @@ Additions to the existing host, not a new one:
   through the existing OpenTelemetry pipeline.
 
 Typed transactional submission, exact tenant/org restoration, profile/capacity
-admission and the replacement BackgroundJob_* rules are planned by
-[P02b-4](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15), whose ADR
-remains Proposed. This phase inherits the completed foundation and adds no runner.
+admission and the replacement BackgroundJob_* obligations are accepted by
+[P02b-4](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
+Their implementation/proofs remain pending; this phase depends on that completed
+foundation and adds no runner.
 
 ## Deliverables
 

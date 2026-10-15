@@ -1210,3 +1210,25 @@ remain Step 6.
 - [Audit Coverage Standards](../standards/18-audit-coverage.md)
 - [Audit Subsystem](../architecture/31-audit-subsystem.md)
 - [Database Standards](../standards/05-database.md)
+
+## Amendment 13 — Job-terminal sixth write and capture exclusions (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#attempts-terminal-audit-and-diagnostics)
+adds `IAuditStore.WriteJobTerminalAsync` beside Amendment 10's fifth write.
+Only an actual fenced job `UPDATE ... RETURNING` mints its restricted witness;
+the writer validates stored tenant/org/job/definition/token/reason and the live
+connection/transaction. The two closed callers are app-role failure finalization
+and confined bypass terminalization. Tenancy owns off-path
+`platform.job.dead_letter`, MUST/SecurityEvent, registered when its writer ships.
+
+For **§ 7 What the interceptor captures**, the seven named infrastructure stores
+`background_jobs`, `background_job_attempts`, `background_job_capacity`,
+`background_job_reservations`, `background_job_recurrences`,
+`background_job_occurrences` and `background_job_recipients`, plus the exact pinned
+vendor-control inventory, are capture exclusions: explicit intents audit business
+effects; execution/control machinery is not another business aggregate.
+
+Existing five write contracts and MUST same-transaction durability remain. The
+conditional routing/status exemption is held by ADR-0047, not a general background
+or privileged exemption. P02b-4 implements/proves the seam, exclusions and catalogue
+registration; acceptance claims none delivered.

@@ -424,3 +424,16 @@ enforces this from Packet 6. Nothing enforced it before, which is how both readi
 survived side by side for three months.
 
 This is a clarification; the Decision is unchanged.
+
+### Amendment 3 — Job scope lives in the authoritative envelope (2026-10-15)
+
+**Status: Accepted.** [ADR-0047](0047-transactional-background-job-runtime.md#bounded-supersessions-and-additive-seams)
+provides dated navigation for **Defense-in-depth (extending ADR-0003)**'s
+**Jobs (Hangfire)** row: “Job payload carries both `TenantId` and
+`OrganizationId?`.” Those fields belong in the authoritative LearnStack job
+envelope; vendor wakeups/ticks carry only opaque/finite control references.
+
+TenantWide retains a NULL organization, Organization retains its exact organization,
+and neither grants all-organization or platform authority. The hierarchy, normal
+composite point lookups and canonical tenant/org RLS remain. P02b-4 implementation
+and isolation proofs remain pending.

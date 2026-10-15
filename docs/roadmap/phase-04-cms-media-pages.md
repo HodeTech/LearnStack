@@ -329,16 +329,18 @@ roadmap never names a phase that builds any of it — while
   bounded, and the bound is a `LimitKey` so it becomes plan-gated the moment
   [Phase 02c](phase-02c-hub-foundation.md) supplies a real entitlement projection.
 
-**Runtime prerequisite review — 2026-10-15.** The maintainer selected expanded H1
-infrastructure for P02b-4; [ADR-0047 remains Proposed](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
-Its planned foundation supplies prepare/execute/finalize, dedicated dispatch slots,
-tenant reservations and recurrence/fan-out. This phase supplies ffmpeg/process-tree
+**Runtime prerequisite acceptance — 2026-10-15.** The maintainer accepts expanded
+H1 infrastructure for P02b-4 under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
+Implementation remains pending. Its accepted contract supplies prepare/execute/finalize,
+dedicated dispatch slots, tenant reservations and recurrence/fan-out. This phase
+supplies ffmpeg/process-tree
 supervision, stable operation/artifact reconciliation and positive quiescence
 evidence, media definitions/recurrences and its coordinated production LimitKey.
 CPU/memory/process budgets are this phase's responsibility; dedicated queue slots
 alone do not isolate those resources. Prove actual media cancellation, stale-output
 rejection, tenant limits and nightly quota/orphan/source-retention flows before
-exit. P4's planned foundation is not claimed shipped by this note.
+exit. This handoff claims no shipped P4 runtime or media acceptance proof.
 
 ### Search — the port and its PostgreSQL default
 
