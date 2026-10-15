@@ -64,7 +64,7 @@ public sealed class BackgroundJobExecutionAdmission(
         ArgumentNullException.ThrowIfNull(context);
         var frame = CurrentFrame.Value;
         if (frame is null) return true;
-        if (!frame.IsOpen || (CurrentRequest.Value is { IsOpen: false }) || !MatchesContext(frame.Admission, context)
+        if (!IsLive(frame) || !MatchesContext(frame.Admission, context)
             || typeof(IProvisionsTenant).IsAssignableFrom(requestType)
             || requestType.IsDefined(typeof(AllowsUnresolvedTenantContextAttribute), inherit: false)
             || requestType.IsDefined(typeof(PublicSurfaceAttribute), inherit: false)) return false;
@@ -101,6 +101,14 @@ public sealed class BackgroundJobExecutionAdmission(
         return false;
     }
 
+    private static bool IsLive(Frame frame)
+    {
+        if (!frame.IsOpen) return false;
+        for (var request = CurrentRequest.Value; request is not null; request = request.Parent)
+            if (!ReferenceEquals(request.Execution, frame) || !request.IsOpen) return false;
+        return true;
+    }
+
     private static RequestSnapshot Snapshot(BackgroundJobRequestDescriptor request, IAuditCatalog catalog)
     {
         var registered = catalog.TryGet(request.RequestType, out var classification);
@@ -115,7 +123,7 @@ public sealed class BackgroundJobExecutionAdmission(
     {
         ArgumentNullException.ThrowIfNull(context);
         if (CurrentFrame.Value is { } frame
-            && (!frame.IsOpen || provisioning is not null || !MatchesContext(frame.Admission, context))) throw Denied();
+            && (!IsLive(frame) || provisioning is not null || !MatchesContext(frame.Admission, context))) throw Denied();
     }
 
     /// <summary>Refuses privileged or alternate asynchronous entry even after accessor replacement.</summary>

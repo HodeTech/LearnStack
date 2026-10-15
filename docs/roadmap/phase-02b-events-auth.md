@@ -3858,7 +3858,7 @@ no recovery route or unsafe reservation-release switch is exposed by P4.
 
 ### P02b-4 Step 1 — contracts and authority (2026-10-16)
 
-**Initial implementation validation passes; independent review rounds pending.**
+**Round 1 corrections verified; fresh independent Round 2 pending.**
 The acceptance commit is `affa0aca`; this step follows it on `development`.
 
 SharedKernel supplies typed job/attempt/occurrence/recipient identities, the typed
@@ -3891,10 +3891,38 @@ rebuild and six focused corpus/constructor reruns pass. This gives 314 unique
 passing architecture cases and 3,862 unique passing backend cases across the
 full runs and focused corrections; it is not a second full architecture run.
 Formatting passes for all 67 changed C# files. The documentation check resolves
-2,505 local links and 590 fragments, with no wrapping/whitespace errors. Every
+2,506 local links and 590 fragments, with no wrapping/whitespace errors. Every
 ADR/index remains byte-identical to acceptance commit `affa0aca`; earlier delivery
 and proposal-review receipts stay preserved. Both fresh independent review rounds
 remain pending; later receipts record their actual results.
+
+#### Step 1 review round 1
+
+Two fresh independent reviewers inspect `affa0aca..94b126b4`: GPT-6-astra xhigh
+for authority/lifecycle/credential confinement and GPT-6.1-sol xhigh for contracts,
+registries/serialization/recurrence and corpus evidence. Both request changes for
+one independently reproduced Major each; neither finds a Platform escape or a
+current production job caller.
+
+- A retained already-entered nested request can have an open top frame after its
+  root closes. The common request/owner admission now checks every ancestor, while
+  preserving awaited nesting and framework owner entry with no current request.
+  Real ISender regression proves refusal before handler construction; its dirty
+  case fails before the correction and its awaited positive control passes.
+- A handwritten getter/init accessor can change the returned identifier after the
+  canonical reads. Closed identifier DTOs now require compiler-generated automatic
+  getters and init setters, preserving positional/nonpositional auto-properties
+  and constructor round-trip checks. Three dirty registration/read cases fail
+  before the correction and pass afterward. This is an immutable DTO convention,
+  not an arbitrary CLR-code sandbox.
+
+Root verifies both findings, adds six regression cases and applies the minimal
+corrections. The corrected solution builds Release with CI warnings-as-errors;
+1,985 unit, all 314 architecture, four contract and 176 Docker-free integration
+cases pass with zero failures/skips. The 1,389-case Docker run above covers the
+initial implementation; it is not rerun for these nonactivated job guards. No
+vendor/schema/production definition is introduced. A fresh second review round
+follows the correction commit before Step 2 starts.
 
 ### Durable outbox dispatch
 

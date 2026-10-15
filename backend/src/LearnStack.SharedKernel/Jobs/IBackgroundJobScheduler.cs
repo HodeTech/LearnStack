@@ -1,6 +1,7 @@
 namespace LearnStack.SharedKernel.Jobs;
 
 /// <summary>Declares identifier-only ordinary job input in its owning Application.Contracts assembly.</summary>
+/// <remarks>Use a sealed record with public init-only identifier auto-properties; custom accessors are refused.</remarks>
 public interface IBackgroundJobParameters { }
 
 /// <summary>A typed lookup key, never submission authority.</summary>

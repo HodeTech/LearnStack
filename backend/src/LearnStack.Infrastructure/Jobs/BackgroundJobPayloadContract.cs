@@ -57,9 +57,11 @@ public static class BackgroundJobPayloadContract
                     continue;
                 if (property.GetMethod?.IsPublic != true || property.GetIndexParameters().Length != 0
                     || property.SetMethod?.IsPublic != true
+                    || !property.GetMethod.IsDefined(typeof(CompilerGeneratedAttribute))
+                    || !property.SetMethod.IsDefined(typeof(CompilerGeneratedAttribute))
                     || property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(IsExternalInit)) != true
                     || !names.Add(property.Name) || !IsIdentifier(property.PropertyType))
-                    throw Invalid("Job payload properties must be distinct public init-only approved identifiers.");
+                    throw Invalid("Job payload properties must be distinct public auto-properties with init-only approved identifiers.");
             }
         }
     }

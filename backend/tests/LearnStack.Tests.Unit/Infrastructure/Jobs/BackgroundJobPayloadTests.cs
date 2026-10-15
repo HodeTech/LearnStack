@@ -50,6 +50,8 @@ public sealed class BackgroundJobPayloadTests
     [InlineData(typeof(CallbackParameters))]
     [InlineData(typeof(OpenParameters))]
     [InlineData(typeof(IdentifierPlan))]
+    [InlineData(typeof(CustomGetterParameters))]
+    [InlineData(typeof(CustomInitParameters))]
     public void Unapproved_payload_shapes_are_rejected_at_registration(Type type)
     {
         var action = () => BackgroundJobPayloadContract.ValidateShape(type, BackgroundJobPayloadKind.Parameters);
@@ -92,6 +94,25 @@ public sealed class BackgroundJobPayloadTests
         var json = "{\"Id\":\"" + Sample.ToString("D") + "\"}";
         var action = () => BackgroundJobPayloadContract.Read(json, typeof(RewrittenIdentifier), BackgroundJobPayloadKind.Parameters);
         action.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void A_stateful_getter_is_refused_before_reading_stored_identifiers()
+    {
+        CustomGetterParameters.Reads = 0;
+        var json = "{\"Id\":\"" + Sample.ToString("D") + "\"}";
+        var action = () => BackgroundJobPayloadContract.Read(json, typeof(CustomGetterParameters), BackgroundJobPayloadKind.Parameters);
+        action.Should().Throw<ArgumentException>();
+        CustomGetterParameters.Reads.Should().Be(0, "job identifier DTOs cannot execute custom accessors");
+    }
+
+    [Fact]
+    public void Nonpositional_auto_properties_preserve_the_closed_identifier_DTO_convention()
+    {
+        var parameters = new AutoPropertyParameters { Id = Sample };
+        var json = BackgroundJobPayloadContract.Serialize(parameters, typeof(AutoPropertyParameters), BackgroundJobPayloadKind.Parameters);
+        BackgroundJobPayloadContract.Read(json, typeof(AutoPropertyParameters), BackgroundJobPayloadKind.Parameters)
+            .Should().Be(parameters);
     }
 
     [Theory]
@@ -148,6 +169,23 @@ public sealed class BackgroundJobPayloadTests
     }
     public record OpenParameters(Guid Id) : IBackgroundJobParameters;
     public sealed record IdentifierPlan(Guid Id) : IBackgroundJobPlan;
+    public sealed record AutoPropertyParameters : IBackgroundJobParameters
+    {
+        public Guid Id { get; init; }
+    }
+    public sealed record CustomGetterParameters : IBackgroundJobParameters
+    {
+        public static int Reads { get; set; }
+        public Guid Id
+        {
+            get => ++Reads <= 2 ? field : Guid.Parse("019712ac-1234-7000-8000-0000000000ac");
+            init => field = value;
+        }
+    }
+    public sealed record CustomInitParameters : IBackgroundJobParameters
+    {
+        public Guid Id { get; init => field = value; }
+    }
     public sealed record RewrittenIdentifier : IBackgroundJobParameters
     {
         public RewrittenIdentifier(Guid id) => Id = Guid.Parse("019712ac-1234-7000-8000-0000000000ac");

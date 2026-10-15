@@ -104,6 +104,62 @@ public sealed class BackgroundJobExecutionAdmissionTests
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_retained_nested_flow_cannot_outlive_its_ordinary_parent(bool closeParent)
+    {
+        var fixture = new Fixture();
+        using var provider = fixture.Services();
+        using var serviceScope = provider.CreateScope();
+        var sender = serviceScope.ServiceProvider.GetRequiredService<ISender>();
+        using var admission = fixture.Enter();
+        BackgroundJobExecutionAdmission.TryEnterRequest(typeof(Root), fixture.Context, out var rootScope)
+            .Should().BeTrue();
+        using var root = rootScope!;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retained = Task.Run(async () =>
+        {
+            BackgroundJobExecutionAdmission.TryEnterRequest(typeof(Nested), fixture.Context, out var nestedScope)
+                .Should().BeTrue();
+            using var nested = nestedScope!;
+            entered.SetResult();
+            await resume.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var nestedResult = await sender.Send(new Nested());
+            var frameworkResult = await sender.Send(new FrameworkWrite());
+            var ownerFailure = Record.Exception(() => BackgroundJobExecutionAdmission.RequireContext(fixture.Context));
+            return (nestedResult, frameworkResult, ownerFailure);
+        });
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (closeParent) root.Dispose();
+        }
+        finally
+        {
+            resume.TrySetResult();
+        }
+        var observed = await retained.WaitAsync(TimeSpan.FromSeconds(10));
+
+        if (closeParent)
+        {
+            observed.nestedResult.Error?.Code.Should().Be("forbidden");
+            observed.frameworkResult.Error?.Code.Should().Be("forbidden");
+            observed.ownerFailure.Should().BeOfType<InvalidOperationException>();
+            fixture.Constructed.Should().BeEmpty("closed ancestors revoke before handler construction");
+        }
+        else
+        {
+            observed.nestedResult.IsSuccess.Should().BeTrue();
+            observed.frameworkResult.IsSuccess.Should().BeTrue();
+            observed.ownerFailure.Should().BeNull();
+            fixture.Constructed.Should().Equal(typeof(Nested), typeof(FrameworkWrite));
+        }
+        root.Dispose();
+        BackgroundJobExecutionAdmission.RequireContext(fixture.Context);
+    }
+
     [Fact]
     public async Task External_stage_roots_cannot_be_sent_as_nested_or_from_another_stage()
     {
