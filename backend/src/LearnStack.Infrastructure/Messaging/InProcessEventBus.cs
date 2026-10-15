@@ -1,176 +1,85 @@
-using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Infrastructure.Messaging;
 
-/// <summary>The process-local <see cref="IEventBus"/> transport.</summary>
+/// <summary>The process-local durable acceptance transport.</summary>
 /// <remarks>
-/// It supplies the shared handler contract, ambient tenant restoration,
-/// process-local per-key invocation serialization and subscription failure isolation. Each
-/// subscription is constructed once in its own async scope. Dapr becomes the
-/// adapter when ADR-0035's multi-process/replay trigger is met.
+/// Publication persists every required subscription in one fresh application-role
+/// transaction. Business construction and execution belong to the delivery executor.
 /// </remarks>
-public sealed partial class InProcessEventBus(
+public sealed class InProcessEventBus(
     IServiceScopeFactory scopeFactory,
     ITenantContextAccessor tenantAccessor,
     IPartitionSerializer partitions,
-    IntegrationEventHandlerRegistry handlers,
-    ILogger<InProcessEventBus> logger) : IEventBus
+    OutboxEventRegistry registry) : IEventBus
 {
     public const string ActivitySourceName = "learnstack.messaging";
-
-    private const string HandleMethodName =
-        nameof(IIntegrationEventHandler<IIntegrationEvent>.HandleAsync);
-
-    private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
     public Task PublishAsync(
         IntegrationEventEnvelope envelope,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
-
-        if (cancellationToken.IsCancellationRequested)
+        cancellationToken.ThrowIfCancellationRequested();
+        var serialized = OutboxEventContract.Serialize(envelope.Event);
+        var resolution = registry.Resolve(serialized.TypeName);
+        if (resolution.EventType != envelope.Event.GetType()
+            || resolution.Disposition is not (OutboxEventDisposition.Active
+                or OutboxEventDisposition.IntentionallyUnsubscribed))
         {
-            return Task.FromCanceled(cancellationToken);
+            throw new InvalidOperationException("Publication requires an Active or intentionally unsubscribed contract.");
         }
 
-        return partitions.RunSequentiallyFor(
-            envelope.PartitionKey,
-            () => DispatchAsync(envelope, cancellationToken));
+        // Validate the complete delivery scope even for intentional absence.
+        var context = EventTenantContext.FromEnvelope(envelope);
+        return partitions.RunSequentiallyFor(serialized.PartitionKey,
+            () => AcceptAsync(envelope, serialized, resolution, context, cancellationToken));
     }
 
-    private async Task DispatchAsync(
+    private async Task AcceptAsync(
         IntegrationEventEnvelope envelope,
+        OutboxEventContract.SerializedEvent serialized,
+        OutboxEventResolution resolution,
+        EventTenantContext context,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var previous = tenantAccessor.Current;
-
-        // Established before even subscription lookup. Any future registry or
-        // resolution work that observes ITenantContext therefore sees the event,
-        // never the publisher that happened to invoke this transport.
-        tenantAccessor.Current = EventTenantContext.FromEnvelope(envelope);
-
+        tenantAccessor.Current = context;
         try
         {
-            var subscriptions = handlers.For(envelope.Event.GetType());
-            if (subscriptions.Count == 0)
+            if (resolution.Disposition == OutboxEventDisposition.IntentionallyUnsubscribed)
             {
-                ReachedNoHandler(logger, envelope.Event.GetType().Name, envelope.Event.EventId);
                 return;
             }
 
-            _ = ActivityContext.TryParse(
-                envelope.CorrelationId,
-                traceState: null,
-                out var parentContext);
-
-            List<Exception>? failures = null;
-
-            for (var index = 0; index < subscriptions.Count; index++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var subscription = subscriptions[index];
-
-                try
-                {
-                    await DeliverAsync(
-                            subscription,
-                            envelope,
-                            parentContext,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    // Publish cancellation is control flow, not a poison
-                    // subscription. Stop immediately so later handlers do not
-                    // start business work during shutdown.
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    HandlerFailed(
-                        logger,
-                        envelope.Event.GetType().Name,
-                        envelope.Event.EventId,
-                        subscription.HandlerType.Name,
-                        envelope.Event.TenantId,
-                        envelope.PartitionKey,
-                        exception);
-                    (failures ??= []).Add(exception);
-                }
-            }
-
-            if (failures is { Count: 1 })
-            {
-                ExceptionDispatchInfo.Capture(failures[0]).Throw();
-            }
-
-            if (failures is { Count: > 1 })
-            {
-                throw new AggregateException(
-                    $"{failures.Count} handlers failed for {envelope.Event.GetType().Name}.",
-                    failures);
-            }
-        }
-        finally
-        {
-            tenantAccessor.Current = previous;
-        }
-    }
-
-    private async Task DeliverAsync(
-        IntegrationEventSubscription subscription,
-        IntegrationEventEnvelope envelope,
-        ActivityContext parentContext,
-        CancellationToken cancellationToken)
-    {
-        var previous = tenantAccessor.Current;
-        tenantAccessor.Current = EventTenantContext.FromEnvelope(envelope, subscription.ModuleName);
-
-        try
-        {
-            using var activity = ActivitySource.StartActivity(
-                $"{envelope.Topic} process",
-                ActivityKind.Consumer,
-                parentContext,
-                tags:
-                [
-                    new("messaging.system", "in-process"),
-                    new("messaging.destination.name", envelope.Topic),
-                    new("messaging.operation.type", "process"),
-                    new("learnstack.module", subscription.ModuleName),
-                ]);
-
-            // The activity has to cover construction, invocation AND the await:
-            // a span that only wraps the happy path ends Unset on every failure,
-            // so a trace backend shows a green consumer span next to the error
-            // log that describes the same delivery.
+            // Restore before scope creation or service resolution. No handler is
+            // resolved, and no unit from the publisher's scope can be joined.
+            var scope = scopeFactory.CreateAsyncScope();
+            var failed = false;
             try
             {
-                await DeliverToHandlerAsync(subscription, envelope, cancellationToken)
+                await scope.ServiceProvider.GetRequiredService<PostgresDeliveryAcceptance>()
+                    .AcceptAsync(envelope, serialized, resolution.Subscriptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch
             {
-                // Publish-token cancellation is shutdown, not a failed delivery.
-                // Left Unset for the reason Standards 10 leaves a client
-                // disconnect Unset: nothing failed that anyone should be paged
-                // about, and marking it Error would put shutdown noise into the
-                // 100%-sampled error traces.
+                failed = true;
                 throw;
             }
-            catch (Exception exception)
+            finally
             {
-                activity?.AddException(exception);
-                activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
-                throw;
+                try
+                {
+                    await scope.DisposeAsync().ConfigureAwait(false);
+                }
+                catch when (failed)
+                {
+                    // Preserve the acceptance/COMMIT failure for producer retry.
+                }
             }
         }
         finally
@@ -178,89 +87,4 @@ public sealed partial class InProcessEventBus(
             tenantAccessor.Current = previous;
         }
     }
-
-    private async Task DeliverToHandlerAsync(
-        IntegrationEventSubscription subscription,
-        IntegrationEventEnvelope envelope,
-        CancellationToken cancellationToken)
-    {
-        await using var scope = scopeFactory.CreateAsyncScope();
-
-        object handler;
-        try
-        {
-            handler = scope.ServiceProvider.GetRequiredService(subscription.HandlerType);
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidOperationException(
-                $"Integration-event handler {subscription.HandlerType.FullName} "
-                + "failed to construct.",
-                exception);
-        }
-
-        var handle = subscription.Handle;
-        Task delivery;
-
-        try
-        {
-            delivery = (Task)handle.Invoke(handler, [envelope.Event, cancellationToken])!;
-        }
-        catch (TargetInvocationException wrapped)
-            when (wrapped.InnerException is OperationCanceledException cancellation
-                  && !cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException(
-                "An integration-event handler was cancelled by a token other than "
-                + "the publish token.",
-                cancellation);
-        }
-        catch (TargetInvocationException wrapped) when (wrapped.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(wrapped.InnerException).Throw();
-            throw;
-        }
-
-        if (delivery is null)
-        {
-            throw new InvalidOperationException(
-                $"{handler.GetType().FullName} returned a null Task from {HandleMethodName}.");
-        }
-
-        try
-        {
-            await delivery.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception)
-            when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException(
-                "An integration-event handler was cancelled by a token other than "
-                + "the publish token.",
-                exception);
-        }
-    }
-
-    [LoggerMessage(
-        EventId = 1,
-        Level = LogLevel.Error,
-        Message = "Integration event {EventType} ({IntegrationEventId}) failed in handler "
-            + "{HandlerType} for tenant {TenantId} on partition {PartitionKey}")]
-    private static partial void HandlerFailed(
-        ILogger logger,
-        string eventType,
-        Guid integrationEventId,
-        string handlerType,
-        Guid tenantId,
-        string partitionKey,
-        Exception exception);
-
-    [LoggerMessage(
-        EventId = 2,
-        Level = LogLevel.Debug,
-        Message = "Integration event {EventType} ({IntegrationEventId}) reached no handler")]
-    private static partial void ReachedNoHandler(
-        ILogger logger,
-        string eventType,
-        Guid integrationEventId);
 }

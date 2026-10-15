@@ -41,8 +41,9 @@ PostgreSQL schema, EF Core, and migration conventions.
 - Schema migrations live with the owning module.
 
 With [P02d-1 complete](../roadmap/phase-02d-walking-skeleton.md#delivery-record-p02d-1),
-five migration chains exist: Tenancy, shared persistence, Customization, Audit and
-Education. They contain twenty-one data tables and five migration-history tables.
+five migration chains exist: Tenancy, Platform, Customization, Audit and
+Education. P02b-3 Step 1 brings their inventory to twenty-three data tables and
+five migration-history tables.
 
 ## Naming
 
@@ -62,6 +63,7 @@ Education. They contain twenty-one data tables and five migration-history tables
 | Functions | `fn_<purpose>` | `fn_set_updated_at` |
 | Read-model tables | `public_<module>_<concept>` | `public_education_course_summaries` |
 | Outbox | `outbox_messages` (global) | |
+| Shared inbox / delivery ledger | Tuple primary key; [canonical DDL](#inbox) | `inbox_messages` / `event_deliveries` |
 
 `learnstack_` prefix reserved for system-wide objects (roles, extensions).
 
@@ -539,8 +541,8 @@ migration states which one its table is.
 
 | Class | Rule | Tables |
 |---|---|---|
-| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
-| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
+| **Tenant-owned, org-scoped** | The full template above: `ENABLE` + `FORCE`, one permissive policy `AND`-ing the tenant term with the organization term, explicit `WITH CHECK`, **and** the two `AS RESTRICTIVE` `UPDATE` / `DELETE` guards | any domain table carrying `organization_id`, plus `tenant_settings` — the only org-scoped table in the Packet 6 set — `event_deliveries` (P02b-3 Step 1), and `audit_log`, which Packet 9 added ([ADR-0044 § 9](../decisions/0044-audit-write-path.md)); P02d-1 Step 2 adds `courses`, `lessons` and both translation tables |
+| **Tenant-owned, tenant-wide** | The same shape with the organization half of the predicate omitted, and therefore **no** restrictive guards — there is no organization to guard | `organizations`, `tenant_domains`, `tenant_locales`, `tenant_feature_flags`, `platform_entitlement_cache`, `idempotency_keys`, `outbox_messages`, `inbox_messages` (P02b-3 Step 1), `tenant_content_types`, `tenant_level_taxonomies`, `tenant_level_taxonomy_items`, `customization_generations`, and `audit_config`, which Packet 9 adds ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)) |
 | **Tenant-owned, self-keyed** | Identical, except the tenant term is `id = …` because the row's primary key *is* the tenant id | `tenants` |
 | **Platform-scoped** | `ENABLE` + `FORCE`, and role-qualified per-command policies: the read is widened by an explicitly declared non-tenant predicate, and writes are either tenant-keyed or reserved to `learnstack_platform` | `platform_host_to_tenant`, `platform_killswitches` |
 
@@ -995,6 +997,8 @@ privileges implicitly.
 | `platform_host_to_tenant` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `platform_killswitches` | `SELECT` | `SELECT, INSERT, UPDATE, DELETE` | — |
 | `idempotency_keys` | `SELECT, INSERT, UPDATE` | `SELECT, DELETE` | — |
+| `inbox_messages` | `SELECT`, `INSERT (tenant_id, subscription_id, event_id)` | — | — |
+| `event_deliveries` | `SELECT`, acceptance-column `INSERT`, `UPDATE (processed_at)`; exact lists [below](#inbox) | — | routing/status-column `SELECT`, scheduling/status-column `UPDATE`; exact lists [below](#inbox) |
 | `outbox_messages` | `SELECT, INSERT` | `SELECT, DELETE` | `SELECT`, `UPDATE (processed_at, attempts, last_error, available_after, locked_by, locked_until, terminal_reason, dead_lettered_at)` (P02b-2 Step 1) |
 | `tenant_content_types` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_level_taxonomies` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -1013,9 +1017,10 @@ and exact-grant proofs; both independent review rounds are complete in the
 Outbox status grants land in the Platform chain. The audit
 INSERT grant lands in a new Audit-chain migration after `audit_log` exists, never
 in initdb. No audit SELECT/UPDATE/DELETE, business access or role membership is
-added. P02b-3 separately enumerates column-level scheduling grants on its delivery
-ledger; it grants no envelope/payload SELECT to the bypass scheduler and only
-RLS-protected acceptance/completion permissions to `learnstack_app`.
+added. P02b-3 Step 1 implements the exact [Inbox/ledger grants](#inbox). The bypass
+scheduler has no payload or causal-envelope SELECT and no business-completion
+UPDATE; `learnstack_app` holds RLS-protected acceptance/completion permissions.
+Neither store grants access to `learnstack_platform` or `PUBLIC`.
 
 The four Education grants are **implemented in P02d-1 Step 2** and checked against
 the applied schema. Root UPDATE supports publication and concurrency;
@@ -1252,8 +1257,10 @@ changes `xmin` while leaving `row_version` intact.
       connections — needs both inserts to carry the *same* id, which a
       server-side default cannot give them.
     - `inbox_messages` is **not** one of them despite being append-only: its key
-      is the producing envelope's `EventId`, which the producer minted app-side.
-      Generating a second id there would defeat the deduplication the table is.
+      is `(tenant_id, subscription_id, event_id)`, and `event_id` reuses the
+      producing envelope's app-minted `EventId`. `event_deliveries` uses the same
+      tuple without a surrogate. Generating another event ID would defeat
+      deduplication; [Inbox](#inbox) owns both canonical definitions.
     - `idempotency_keys` is not one either: it is addressed by `(tenant_id, key)`
       and has no surrogate id at all.
 - **Never `gen_random_uuid()`.** It is a real function and produces a **v4**
@@ -1346,7 +1353,8 @@ changes `xmin` while leaving `row_version` intact.
   foreign key crossing two migration chains. P02d-1's Education triggers also depend
   on Tenancy's shared `fn_organization_id_immutable`, including its no-`id` correction
   ([ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14)).
-  Education adds no cross-chain foreign key. A run reaching a dependent chain first
+  P02b-3's Platform-chain ledger trigger reuses the same function, without adding
+  a cross-chain foreign key. A run reaching a dependent chain first
   fails on a clean database with a missing relation or function. Alphabetical order
   produces exactly that run — `Modules/Audit` sorts before `Modules/Tenancy` — so
   `make migrate` names the Tenancy chain ahead of the glob that finds the rest. The
@@ -1360,8 +1368,9 @@ changes `xmin` while leaving `row_version` intact.
   order: Tenancy precedes every dependent chain. Independent chains may differ in
   relative order: the fixture applies Customization before Audit, while the recipe
   discovers Audit first. Neither depends on the other.
-  Reversal removes the dependent Education and Audit schema before reversing Tenancy;
-  restoring the old shared function while Education still uses it is not a valid
+  Reversal removes the dependent Platform, Education and Audit schema before reversing
+  Tenancy; restoring the old shared function while a ledger or Education trigger
+  still uses it is not a valid
   rollback order. Fresh application, reversed application and reapplication belong
   to the migration-chain integration proof.
 
@@ -1400,7 +1409,7 @@ fenced transitions and atomic terminal auditing; both review rounds passed.
 Step 3 implements hosted execution and metrics; both independent review rounds
 are complete.
 Step 4 enforcement and local closeout are complete; all four steps completed both
-independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. Existing
 migrations remain immutable; a new Platform-chain migration replaces free-form
 legacy `last_error` with `migration:legacy:redacted` before its byte CHECK.
@@ -1528,11 +1537,12 @@ P02b-3 owns inbox/delivery runtime.
 that enqueued the row —
 [ADR-0032 § Sub-decision 12](../decisions/0032-exception-handling-logging-and-observability.md)
 makes it contractual. It is nullable because a tenant-wide event has no organization, not
-because it is optional on an org-scoped one. The outbox row is the **only** carrier of
-organization context across a transport boundary: the consumer runs in a fresh scope and
-restores `ITenantContext` from the envelope, so an organization that was never persisted
-here cannot be restored there. It is deliberately **not** indexed and **not** part of the
-table's RLS predicate — `outbox_messages` is a tenant-wide table whose policy carries no
+because it is optional on an org-scoped one. The producer persists organization
+context for the transport; the [delivery ledger](#inbox) retains it in each accepted
+envelope copy. The consumer runs in a fresh scope and restores `ITenantContext`
+from that envelope, so an organization that was never persisted cannot be
+restored. The outbox column is deliberately **not** indexed and **not** part of
+its RLS predicate — `outbox_messages` is a tenant-wide table whose policy carries no
 organization term, and the dispatcher reads the column rather than filtering on it.
 
 `correlation_id` is `text NOT NULL` (not `uuid`): it stores the **full W3C `traceparent`
@@ -1565,22 +1575,206 @@ and its MUST audit atomically. See
 
 ## Inbox
 
-**Accepted contract; DDL/grants pending P02b-3.** One shared tenant-owned
-`inbox_messages` deduplicates by `(tenant_id, subscription_id, event_id)`.
-The transport's uncommitted claim precedes handler construction; completed inbox,
-business state, produced outbox, MUST audit and fenced ledger completion share
-one announced app-role transaction. Rollback removes a new claim; completed rows
-are never reset by targeted replay. A separate delivery ledger owns attempts,
-leases, terminal/replay state and retained validated envelopes.
+**P02b-3 Steps 1–4 deliver the shared schema, durable acceptance, inbox claims,
+business completion and independent subscriber scheduling.**
+[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+and the [accepted P02b-3 package](../roadmap/phase-02b-events-auth.md#accepted-storage-and-authority-details)
+define transport-owned deduplication and independent subscription delivery.
+`event_deliveries` retains one immutable envelope copy per
+`(tenant_id, subscription_id, event_id)`; `inbox_messages` retains that tuple's
+immutable completion marker without a surrogate ID. Neither references the
+producer or a business table. Producer deletion cannot remove pending delivery
+payload or deduplication history. P02b-8 inventories these copies for erasure;
+Phase 11 owns retention purge and its minimal grants. No P3 role receives purge
+privileges on either table, including `learnstack_platform`.
 
-P02b-3 supplies canonical DDL, table-class assignments, exact RLS/grants and
-ADR-0023's minting-list correction before runtime. It first chooses durable
-envelope copies/references and their retention dependency; P02b-8 inventories
-every retained store for erasure. The bypass scheduler receives only enumerated
-identity/routing/lease/status column SELECT and status UPDATE, never payload
-SELECT; the app role receives tenant-RLS-protected acceptance/completion,
-including the named completion-column UPDATE, never cross-tenant scheduling.
-The canonical RLS templates remain in [Table classes](#table-classes).
+The cross-tenant scheduler indexes intentionally begin with availability time,
+then occurrence time and event ID, to support ADR-0046's global selection order.
+They are the explicit exception to the ordinary tenant-first index convention;
+application isolation remains enforced by the policies and grants below.
+
+The ledger is **tenant-owned, organization-scoped** and follows the canonical
+[organization policy and write guards](#tenant-owned-and-organization-scoped-tables),
+including organization immutability. The inbox is **tenant-owned, tenant-wide**:
+it carries identity only, without payload or organization authority. Both are
+raw SQL infrastructure, without EF entities or query filters; application SQL
+carries explicit tenant predicates and executes on the announced app-role
+transaction. Tenancy's shared `fn_organization_id_immutable` must exist before
+this Platform migration, as in the sanctioned migration sequence.
+
+The inbox timestamp records the uncommitted claim, using database time. The
+transport inserts it before handler construction; only a successful owner
+transaction makes it durable alongside business effects, produced outbox, MUST
+audit and fenced ledger completion. Rollback removes a new claim; targeted replay
+never resets completed inbox rows. Database triggers refuse inbox UPDATE, DELETE
+and TRUNCATE even as the owner; Phase 11 must explicitly decide any retention
+exception. Only `learnstack_app` updates the ledger's `processed_at`.
+Completion retains the paired lease token/expiry as inert provenance, because
+app grants cannot clear them. Every scheduler index and selection excludes
+completed rows. Terminal completion clears ownership. Replay count/timestamp
+are paired, and subscription IDs follow the manifest's ASCII
+`{module}.{subscription}.v{positive-version}` grammar.
+
+Canonical DDL and exact column grants:
+
+```sql
+CREATE TABLE event_deliveries (
+    tenant_id       uuid NOT NULL,
+    subscription_id text NOT NULL,
+    event_id        uuid NOT NULL,
+    organization_id uuid NULL,
+    occurred_at     timestamptz NOT NULL,
+    correlation_id  text NOT NULL,
+    causation_id    uuid NULL,
+    actor_user_id   uuid NULL,
+    type            text NOT NULL,
+    topic           text NOT NULL,
+    partition_key   text NOT NULL,
+    payload         jsonb NOT NULL,
+    processed_at    timestamptz NULL,
+    attempts        int NOT NULL DEFAULT 0,
+    last_error      text NULL,
+    available_after timestamptz NOT NULL DEFAULT now(),
+    locked_by       text NULL,
+    locked_until    timestamptz NULL,
+    terminal_reason text NULL,
+    dead_lettered_at timestamptz NULL,
+    replay_count    int NOT NULL DEFAULT 0,
+    replayed_at     timestamptz NULL,
+    CONSTRAINT pk_event_deliveries PRIMARY KEY (tenant_id, subscription_id, event_id),
+    CONSTRAINT ck_event_deliveries_identity CHECK (
+        tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,
+                         '00000000-0000-7000-8000-000000000002'::uuid)
+        AND event_id <> '00000000-0000-0000-0000-000000000000'::uuid
+        AND (organization_id IS NULL OR
+             organization_id <> '00000000-0000-0000-0000-000000000000'::uuid)
+        AND (causation_id IS NULL OR causation_id <> '00000000-0000-0000-0000-000000000000'::uuid)
+        AND (actor_user_id IS NULL OR actor_user_id <> '00000000-0000-0000-0000-000000000000'::uuid)),
+    CONSTRAINT ck_event_deliveries_subscription CHECK (
+        subscription_id COLLATE "C" ~ '^[a-z][a-z0-9]*\.[a-z][a-z0-9-]*\.v[1-9][0-9]*$'),
+    CONSTRAINT ck_event_deliveries_attempts CHECK (attempts >= 0),
+    CONSTRAINT ck_event_deliveries_replay CHECK (
+        replay_count >= 0 AND ((replay_count = 0 AND replayed_at IS NULL)
+                              OR (replay_count > 0 AND replayed_at IS NOT NULL))),
+    CONSTRAINT ck_event_deliveries_last_error_size CHECK (
+        last_error IS NULL OR octet_length(last_error) <= 256),
+    CONSTRAINT ck_event_deliveries_lease CHECK (
+        (locked_by IS NULL AND locked_until IS NULL) OR
+        (locked_by IS NOT NULL AND locked_until IS NOT NULL
+         AND locked_by COLLATE "C" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+         AND locked_by <> '00000000-0000-0000-0000-000000000000')),
+    CONSTRAINT ck_event_deliveries_terminal_reason CHECK (
+        terminal_reason IS NULL OR terminal_reason IN (
+            'unknown_type', 'retired_type', 'invalid_envelope',
+            'invalid_subscription', 'retry_exhausted')),
+    CONSTRAINT ck_event_deliveries_state CHECK (
+        (processed_at IS NULL OR (dead_lettered_at IS NULL AND terminal_reason IS NULL))
+        AND (dead_lettered_at IS NULL OR
+             (processed_at IS NULL AND terminal_reason IS NOT NULL AND locked_by IS NULL)))
+);
+
+CREATE INDEX ix_event_deliveries_tenant_id_organization_id
+    ON event_deliveries (tenant_id, organization_id);
+CREATE INDEX ix_event_deliveries_pending
+    ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL
+      AND terminal_reason IS NULL AND attempts < 6 AND locked_by IS NULL;
+CREATE INDEX ix_event_deliveries_recovery
+    ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL
+      AND terminal_reason IS NULL AND (locked_by IS NOT NULL OR attempts >= 6);
+CREATE INDEX ix_event_deliveries_terminal
+    ON event_deliveries (available_after, occurred_at, event_id, tenant_id, subscription_id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NOT NULL;
+
+ALTER TABLE event_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_deliveries FORCE ROW LEVEL SECURITY;
+CREATE POLICY event_deliveries_isolation ON event_deliveries
+    USING (
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+        AND (organization_id IS NULL
+             OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+             OR current_setting('app.scope', true) = 'tenant'))
+    WITH CHECK (
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+        AND ((organization_id IS NULL
+              AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
+             OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
+CREATE POLICY event_deliveries_org_write_guard ON event_deliveries
+    AS RESTRICTIVE FOR UPDATE
+    USING ((organization_id IS NULL
+            AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
+           OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+CREATE POLICY event_deliveries_org_delete_guard ON event_deliveries
+    AS RESTRICTIVE FOR DELETE
+    USING ((organization_id IS NULL
+            AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
+           OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+CREATE TRIGGER tg_event_deliveries_organization_id_immutable
+    BEFORE UPDATE ON event_deliveries
+    FOR EACH ROW EXECUTE FUNCTION fn_organization_id_immutable();
+
+CREATE TABLE inbox_messages (
+    tenant_id       uuid NOT NULL,
+    subscription_id text NOT NULL,
+    event_id        uuid NOT NULL,
+    recorded_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT pk_inbox_messages PRIMARY KEY (tenant_id, subscription_id, event_id),
+    CONSTRAINT ck_inbox_messages_identity CHECK (
+        tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,
+                         '00000000-0000-7000-8000-000000000002'::uuid)
+        AND event_id <> '00000000-0000-0000-0000-000000000000'::uuid),
+    CONSTRAINT ck_inbox_messages_subscription CHECK (
+        subscription_id COLLATE "C" ~ '^[a-z][a-z0-9]*\.[a-z][a-z0-9-]*\.v[1-9][0-9]*$')
+);
+ALTER TABLE inbox_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inbox_messages FORCE ROW LEVEL SECURITY;
+CREATE POLICY inbox_messages_isolation ON inbox_messages
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+CREATE FUNCTION fn_inbox_messages_immutable() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'inbox_messages is immutable (attempted % as %)', TG_OP, current_user
+        USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+CREATE TRIGGER tg_inbox_messages_immutable
+    BEFORE UPDATE OR DELETE ON inbox_messages
+    FOR EACH ROW EXECUTE FUNCTION fn_inbox_messages_immutable();
+CREATE TRIGGER tg_inbox_messages_no_truncate
+    BEFORE TRUNCATE ON inbox_messages
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_inbox_messages_immutable();
+
+GRANT SELECT ON event_deliveries, inbox_messages TO learnstack_app;
+GRANT INSERT (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+              correlation_id, causation_id, actor_user_id, type, topic, partition_key, payload)
+    ON event_deliveries TO learnstack_app;
+GRANT UPDATE (processed_at) ON event_deliveries TO learnstack_app;
+GRANT INSERT (tenant_id, subscription_id, event_id) ON inbox_messages TO learnstack_app;
+GRANT SELECT (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+              type, topic, partition_key, processed_at, attempts, last_error,
+              available_after, locked_by, locked_until, terminal_reason,
+              dead_lettered_at, replay_count, replayed_at)
+    ON event_deliveries TO learnstack_outbox_admin;
+GRANT UPDATE (attempts, last_error, available_after, locked_by, locked_until,
+              terminal_reason, dead_lettered_at, replay_count, replayed_at)
+    ON event_deliveries TO learnstack_outbox_admin;
+```
+
+The app acceptance INSERT excludes all scheduling/completion/terminal columns;
+inbox INSERT excludes the database-owned timestamp. The scheduler cannot read
+payload, correlation, causation or original actor; it cannot insert/delete a
+ledger row, access the inbox, mutate routing/envelope fields or fake business
+completion. Column UPDATE permits row locking without table-wide UPDATE.
+The three scheduling indexes share total order
+`(available_after, occurred_at, event_id, tenant_id, subscription_id)` and their
+eligibility predicates. Recovery handles expired ownership or exhausted attempts;
+terminal requests remain outside normal acquisition. Runtime adds database-time
+lease/due predicates and manifest/local partition admission. The primary key
+covers tenant-only reads; the full tenant/organization index covers RLS branches,
+including tenant-wide rows.
 
 ## Idempotency
 

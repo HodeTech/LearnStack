@@ -29,9 +29,10 @@ namespace LearnStack.Infrastructure.Persistence;
 /// guarded one, and it is what <c>TransactionBehavior</c> uses.
 /// </para>
 /// <para>
-/// <b>Three rules that only look like details.</b> A commit disposes its
-/// transaction in a <c>finally</c>, so a faulted <c>COMMIT</c> still leaves a
-/// clean unit. A rollback on a unit with nothing to resolve is a no-op, because
+/// <b>Three rules that only look like details.</b> Acknowledged COMMIT returns
+/// before transaction cleanup; the owning frame, unit disposal or next begin
+/// disposes that resource. Faulted COMMIT preserves its original exception.
+/// A rollback on a unit with nothing to resolve is a no-op, because
 /// rollback is cleanup and cleanup must never throw over the exception it is
 /// cleaning up after — measured, the strict form replaced every commit-time
 /// exception with "no transaction frame is open". And
@@ -51,6 +52,7 @@ public sealed class NpgsqlUnitOfWork(
 
     private NpgsqlConnection? _connection;
     private DbTransaction? _transaction;
+    private DbTransaction? _completedTransaction;
     private int _depth;
     private TransactionMode? _mode;
 
@@ -139,6 +141,7 @@ public sealed class NpgsqlUnitOfWork(
 
             try
             {
+                await DisposeCompletedTransactionAsync();
                 _connection ??= _dataSource.CreateConnection();
 
                 if (_connection.State != System.Data.ConnectionState.Open)
@@ -172,9 +175,9 @@ public sealed class NpgsqlUnitOfWork(
                 {
                     await RollbackCoreAsync();
                 }
-                catch (Exception cleanupFailure)
+                catch
                 {
-                    LogSetupCleanupFailure(_logger, cleanupFailure);
+                    LogSetupCleanupFailure(_logger, null);
                 }
 
                 throw;
@@ -443,6 +446,8 @@ public sealed class NpgsqlUnitOfWork(
             {
                 await RollbackCoreAsync();
             }
+
+            await DisposeCompletedTransactionAsync();
         }
         finally
         {
@@ -502,13 +507,42 @@ public sealed class NpgsqlUnitOfWork(
         {
             await transaction.CommitAsync(cancellationToken);
         }
-        finally
+        catch
         {
-            // In a finally, so a faulted COMMIT still leaves the connection clean.
-            // Deliberately NOT rolled back: a COMMIT that threw leaves the
-            // server-side outcome genuinely unknown, and ADR-0033 calls that state
-            // Indeterminate rather than failed.
-            await transaction.DisposeAsync();
+            // Unknown COMMIT remains the primary failure even if resource cleanup
+            // also fails. No explicit rollback can establish its server outcome.
+            try
+            {
+                await transaction.DisposeAsync();
+            }
+            catch
+            {
+                // Connection cleanup remains owned by this unit.
+            }
+            throw;
+        }
+
+        // The caller can now record definitive durability before awaiting cleanup.
+        // Only one completed transaction can remain: Begin cleans it before reuse.
+        _completedTransaction = transaction;
+    }
+
+    private async ValueTask DisposeCompletedTransactionAsync()
+    {
+        var completed = _completedTransaction;
+        _completedTransaction = null;
+        if (completed is null) return;
+
+        try
+        {
+            await completed.DisposeAsync();
+        }
+        catch
+        {
+            // Prior COMMIT remains definitive; only reuse of an unclean unit is
+            // refused. Delivery's acknowledged receipt is already recorded.
+            _rollbackOnly = true;
+            throw;
         }
     }
 
@@ -646,14 +680,13 @@ public sealed class NpgsqlUnitOfWork(
             return unitOfWork.RollbackAsync(cancellationToken);
         }
 
-        public ValueTask DisposeAsync() =>
-            // Through FailAsync, not the frame-blind RollbackAsync: a frame that
-            // ends unresolved has failed, and it has failed in exactly the way
-            // FailAsync already handles — including the leaked-frames collapse.
-            // Calling RollbackAsync here instead decremented the shared depth by
-            // one and left the transaction open, so a frame opened later joined an
-            // abandoned transaction and reported a success that never committed.
-            new(FailAsync(CancellationToken.None));
+        public async ValueTask DisposeAsync()
+        {
+            // Through FailAsync, never frame-blind rollback. A stale frame cannot
+            // roll back or clean resources belonging to a later generation.
+            await FailAsync(CancellationToken.None);
+            if (IsOwner && !IsStale()) await unitOfWork.DisposeCompletedTransactionAsync();
+        }
 
         private bool AlreadyResolved() =>
             _resolved || unitOfWork._disposed || unitOfWork._depth < depth;

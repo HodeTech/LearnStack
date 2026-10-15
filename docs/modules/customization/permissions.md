@@ -58,16 +58,19 @@ same operation as MUST-audit; a matrix with no `delete` disagreed with both.
 Publication has none, because unpublishing is not deletion: the successor's
 publish is what retires a revision.
 
-**Four handlers exist and all are deliberately unauthorized.** Reachability
-stands in for authorization exactly as it does in
-[Tenancy](../tenancy/permissions.md), and for the same two reasons: none has an
-HTTP endpoint, so the only callers are `LearnStack.Tools.Seeder` and — from
-[Phase 02c](../../roadmap/phase-02c-hub-foundation.md) — the Hub over
-`/api/internal/*`; and every one takes its tenant from the context and never from
-the request, so a caller cannot name another tenant even without a permission
-check. The database refuses the write, and
-`Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` is what proves it rather
-than this paragraph.
+**Six write commands are unrouted.** The current route set exposes none of
+them, and permission enforcement remains Phase 03. The four authoring commands
+are called by the Seeder. The two default-initialization commands are shared by
+the Seeder and the transport-owned Customization subscriptions; they take tenant
+authority only from the restored trusted context. Hub provisioning emits the
+completed-tenant event and does not directly invoke a Customization HTTP writer.
+The planned Studio editors below own human-facing authorization.
+
+Every command takes its tenant from context rather than request input. RLS and
+`Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` protect the database write;
+reachability is the current authorization boundary, not a new permission grant.
+The [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns implementation validation/review status.
 
 **Every key in the `{module}.{resource}.{action}` form.** The resources above are
 written PascalCase as the template writes them; the keys they generate are

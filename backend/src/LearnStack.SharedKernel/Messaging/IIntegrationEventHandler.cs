@@ -19,8 +19,9 @@ namespace LearnStack.SharedKernel.Messaging;
 /// handler; handlers do not call it. Business state, inbox completion and fenced
 /// delivery completion share one transaction. Durable acceptance, the shared
 /// <c>inbox_messages</c> table and the nonempty production proof for
-/// <c>Integration_Event_Handlers_Use_InboxGuard</c> belong to P02b-3.
-/// The shipped in-process baseline does not yet provide durable deduplication.
+/// <c>Integration_Event_Handlers_Use_InboxGuard</c> are delivered by P02b-3.
+/// Publication now durably accepts delivery identities without constructing handlers;
+/// P02b-3 also delivers the separate business execution boundary.
 /// </para>
 /// </remarks>
 /// <remarks>
@@ -28,8 +29,10 @@ namespace LearnStack.SharedKernel.Messaging;
 /// <b>Invariant on purpose.</b> Declaring <c>in TEvent</c> would promise a
 /// variance the container does not honour: measured, a handler registered for a
 /// base event type compiles, registers, and is never invoked, because
-/// <c>GetServices</c> matches the closed generic exactly — and "no handler" is
-/// not an error here, so the publish reports success having reached nobody.
+/// <c>GetServices</c> matches the closed generic exactly — and "no handler"
+/// was not an error in the immediate-broadcast baseline, so publication could
+/// report success having reached nobody. The durable registry now refuses
+/// undeclared contracts and requires exact Active handler declarations.
 /// A promise the runtime cannot keep is worse than no promise.
 /// </para>
 /// </remarks>

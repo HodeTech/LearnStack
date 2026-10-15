@@ -35,6 +35,7 @@ public sealed class PlatformAdminScopeConventionTests
     private const string OutboxCompositionFile =
         "LearnStack.Api/Composition/OutboxCompositionExtensions.cs";
     private const string OutboxWorkerFile = "LearnStack.Api/Messaging/OutboxProcessor.cs";
+    private const string DeliveryWorkerFile = "LearnStack.Api/Messaging/DeliveryProcessor.cs";
 
     [Fact]
     public void Platform_DataSource_Resolved_Only_By_PlatformAdminScope()
@@ -57,7 +58,7 @@ public sealed class PlatformAdminScopeConventionTests
             .ToList();
 
         resolvers.Should().BeEquivalentTo(
-            [ScopeFile, CompositionFile, OutboxCompositionFile, OutboxWorkerFile],
+            [ScopeFile, CompositionFile, OutboxCompositionFile, OutboxWorkerFile, DeliveryWorkerFile],
             "the platform scope and the separately confined dispatcher are the only "
             + "credential consumers, alongside their composition roots");
 
@@ -67,6 +68,14 @@ public sealed class PlatformAdminScopeConventionTests
             .Should().Be(OutboxDispatcherDataSource.Key,
                 "permitting the worker file must not permit the platform credential");
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxWorkerFile))
+            .Should().NotContain("PlatformAdmin");
+
+        typeof(DeliveryProcessor).GetConstructors().SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.GetCustomAttribute<FromKeyedServicesAttribute>())
+            .OfType<FromKeyedServicesAttribute>().Should().ContainSingle().Which.Key
+            .Should().Be(OutboxDispatcherDataSource.Key,
+                "the subscriber scheduler reuses only the confined dispatcher credential");
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, DeliveryWorkerFile))
             .Should().NotContain("PlatformAdmin");
 
         // Leg 2 — IConfiguration.GetConnectionString is called in exactly one file under

@@ -156,8 +156,34 @@ public static class AuditDraftComposer
             IpAddress = null,
             UserAgent = null,
             Timestamp = timestamp,
-            Metadata = null,
+            Metadata = ComposeMetadata(intent),
         };
+    }
+
+    private static string? ComposeMetadata(AuditIntent intent)
+    {
+        if (intent.CausationId is null && intent.CausalActorUserId is null) return null;
+        if (intent.CausationId == Guid.Empty
+            || (intent.CausalActorUserId is { } actor
+                && (!actor.IsInitialized() || actor.Value == Guid.Empty)))
+        {
+            throw new ArgumentException("Delivery audit metadata requires initialized, nonempty identifiers.", nameof(intent));
+        }
+
+        // This closed identifier-only shape is shared by both writing paths; it
+        // grants no arbitrary metadata channel to an intent or business handler.
+        var fields = new List<string>(2);
+        if (intent.CausationId is { } causation)
+        {
+            fields.Add("\"causation_id\":" + AuditJson.Quote(causation.ToString("D")));
+        }
+
+        if (intent.CausalActorUserId is { } causalActor)
+        {
+            fields.Add("\"causal_actor_user_id\":" + AuditJson.Quote(causalActor.Value.ToString("D")));
+        }
+
+        return "{" + string.Join(',', fields) + "}";
     }
 
     /// <summary>

@@ -71,14 +71,16 @@ is complete. **P02b-1 is complete and merged** through
 [PR #29](https://github.com/HodeTech/LearnStack/pull/29) on 2026-10-12. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12)
 records transactional event production, enforcement, completed reviews and final
-CI verification under Accepted ADR-0057. P02b-2's revised package and ADR-0046
-are Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
-dispatch and observation, with both independent review rounds complete. Its
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
-owns its runtime evidence. Step 4 enforcement and local closeout are complete;
-all four steps completed both independent review rounds. CI and merge status
-live in the
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12).
+CI verification under Accepted ADR-0057. **P02b-2 is complete and merged** through
+[PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+records hosted dispatch, terminal audit, observation/enforcement, completed
+reviews and final CI verification under Accepted ADR-0046. P02b-3 implements
+durable subscriber acceptance, shared inbox/delivery ledger, both real default
+subscriptions and Seeder handoff. Its
+[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns enforcement and current review/PR status. P02b-4 background jobs follows;
+Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
 **P02d-2's decision package and ADR-0050/0051 are Accepted** as of 2026-10-02,
@@ -128,10 +130,14 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 and P02b-1 are complete; P02b-2 producer dispatch
-and enforcement are locally complete, with both independent review rounds complete
-for all four steps; the Step 4 record above owns CI/merge status. Consumer
-delivery remains P02b-3. The
+owns final verification. P02b-0 through P02b-2 are complete; the
+[P02b-2 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns final source/merge verification. P02b-3 Steps 1–5 implement durable acceptance,
+shared inbox/ledger, independent subscriber scheduling and both useful defaults
+with semantic Seeder handoff. Its
+[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns completed enforcement/regression and both review rounds for all six steps;
+PR review and merge remain pending. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public
@@ -140,10 +146,10 @@ page consumers and P02d-7 the two-host browser demo.
 | Area | Delivered now | Next milestone |
 |---|---|---|
 | **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
-| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation and tenant-authored seeds | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
+| **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production and hosted producer dispatch with production-census enforcement (all four P02b-2 steps and both review rounds locally complete) | Authentication and durable event consumption in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, transactional event production, hosted producer dispatch and independent durable subscriber delivery | Background jobs and authentication in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke and generated typed SDK | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Four modules contain domain implementations:** Tenancy, Customization, Audit and

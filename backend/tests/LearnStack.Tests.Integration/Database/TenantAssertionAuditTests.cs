@@ -4,6 +4,7 @@ using LearnStack.Api.Tenancy;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Tenancy.Application.Audit;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -49,7 +50,7 @@ public sealed class TenantAssertionAuditTests
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
             new AuditHealth(),
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var recorder = Recorder(store, threshold: 10);
 
@@ -101,7 +102,7 @@ public sealed class TenantAssertionAuditTests
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
             new AuditHealth(),
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var recorder = Recorder(store, threshold: 3);
 

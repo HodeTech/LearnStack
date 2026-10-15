@@ -96,6 +96,7 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
 
         try
         {
+            await contentTypes.LockConceptAsync(request.Key, cancellationToken);
             await contentTypes.AddAsync(contentType, cancellationToken);
         }
         catch (AggregateConflictException conflict)

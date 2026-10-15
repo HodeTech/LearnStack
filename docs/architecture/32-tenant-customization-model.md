@@ -13,6 +13,14 @@ tenant's database**.
 This document is the conceptual deep dive for ADR-0018: what gets stored, how renderers
 compose primitives, how customization is versioned, and what cannot be customized.
 
+P02b-3 Step 5 activates the two create-only provisioning defaults and verifies
+built-in seed rows by semantic identity. The
+[Customization module spec](../modules/customization/README.md#integration-event-catalogue)
+owns the shipped initializer/registration serialization and preservation contract;
+the [packet record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current verification and review status. Earlier seed receipts remain as-of
+history; authored definitions and content pins retain exact identity checks.
+
 ## 1. Customization surfaces
 
 Eight tenant-database tables drive customization:

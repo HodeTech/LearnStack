@@ -416,6 +416,25 @@ These are all carriers changed for this locator correction. The Decision and
 the exact bounded supersession are unchanged: the two historical separate-column
 requirements yield to `outbox_messages.id = EventId`; all other clauses survive.
 
+### Amendment 3 — Useful default consumers and semantic seed handoff (2026-10-13)
+
+**Delivery note; no decision change.** P02b-3 Step 5 activates the two stable
+subscriptions together: the content-type initializer creates `card@1`, and the
+level-taxonomy initializer creates `plain@1`. Each creates one untouched Active
+root with an owner-minted UUIDv7, one save, generation bump and MUST audit. Any
+existing concept history is preserved under the same transaction-owned semantic
+lock used by ordinary registration. Subscriber coordinator classifications are
+Off; the nested initializer commands own the resource audits.
+
+Seeder uses those same commands and verifies built-ins by semantic identity and
+exact Active shape. Warm/generated IDs survive; authored identities and exact
+pins remain strict. App-role tests cover backlog and fresh provisioning,
+independent inbox effects, audit rollback, duplicate acceptance and both winning
+orders of Seeder/subscriber races. The
+[Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns validation and review status; Step 6 retains production-census enforcement
+and full packet closeout. Earlier dated delivery notes retain their as-of state.
+
 ## References
 
 - [ADR-0006: Events and Outbox](0006-events-and-outbox.md)

@@ -429,6 +429,20 @@ public sealed class TenancySchemaTests
             INSERT INTO outbox_messages (tenant_id, correlation_id, type, topic, partition_key, payload)
             VALUES (@foreign, '00-sneak-span-01', 'Sneak', 'learnstack.tenancy.tenant', 'k', '{}')
             """,
+        ["event_deliveries"] =
+            """
+            INSERT INTO event_deliveries
+                (tenant_id, subscription_id, event_id, organization_id, occurred_at,
+                 correlation_id, type, topic, partition_key, payload)
+            VALUES (@foreign, 'schema.fixture.v1', uuidv7(), NULL, now(),
+                '00-11111111111111111111111111111111-2222222222222222-01',
+                'schema.fixture', 'learnstack.schema.fixture', @foreign::text, '{}')
+            """,
+        ["inbox_messages"] =
+            """
+            INSERT INTO inbox_messages (tenant_id, subscription_id, event_id)
+            VALUES (@foreign, 'schema.fixture.v1', uuidv7())
+            """,
         ["idempotency_keys"] =
             """
             INSERT INTO idempotency_keys (tenant_id, key, fingerprint, claim_token, state, expires_at)
@@ -1204,6 +1218,10 @@ public sealed class TenancySchemaTests
             "learnstack_app platform_host_to_tenant DELETE,INSERT,SELECT,UPDATE",
             "learnstack_app outbox_messages INSERT,SELECT",
             "learnstack_app idempotency_keys INSERT,SELECT,UPDATE",
+            // INSERT acceptance/claim columns and UPDATE completion are column
+            // grants, checked with their actual denial/success probes separately.
+            "learnstack_app event_deliveries SELECT",
+            "learnstack_app inbox_messages SELECT",
             "learnstack_platform tenants DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform organizations DELETE,INSERT,SELECT,UPDATE",
             "learnstack_platform tenant_domains SELECT",
@@ -1249,6 +1267,7 @@ public sealed class TenancySchemaTests
             "learnstack_platform lesson_translations SELECT",
         ],
         "every line is one line of the migration chains' grant matrices, and "
-        + "learnstack_outbox_admin holds only outbox SELECT/status UPDATE and terminal audit INSERT");
+        + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
+        + "and terminal audit INSERT");
     }
 }

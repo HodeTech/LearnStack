@@ -17,6 +17,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AuditPort = "LearnStack.SharedKernel.Audit.IAuditStore";
     private const string AuditStore = "LearnStack.Infrastructure.Audit.PostgresAuditStore";
     private const string Mint = "FromProducerUpdate";
+    private const string SubscriberMint = "FromSubscriberUpdate";
+    private const string DeliveryStore = "LearnStack.Infrastructure.Messaging.DeliveryDispatchStore";
     private const string Terminalize = "TryTerminalizeAsync";
     private const string TerminalWrite = "WriteEventTerminalAsync";
     private static readonly string[] MintParameters =
@@ -34,7 +36,7 @@ public sealed partial class OutboxDispatchConventionTests
     [
         "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
         "LearnStack.Infrastructure.Messaging.OutboxEnvelopeReader",
-        Store,
+        Store, DeliveryStore,
     ];
 
     /// <summary>
@@ -47,8 +49,17 @@ public sealed partial class OutboxDispatchConventionTests
     {
         using var census = ProductionCensus.Read();
         TerminalOffenders(census).Should().BeEmpty(
-            "Fix: keep the immutable private witness, its sole dispatcher minting subtype, "
+            "Fix: keep the immutable private witness, its exact dispatcher minting subtypes, "
             + "and the terminal writer/call sites closed; keep row/transaction identity checks in the real audit seam");
+    }
+
+    /// <summary>ADR-0046 subscriber terminal witness uses the same closed actual-row authority.</summary>
+    [Fact]
+    public void Delivery_Terminal_Audit_Identity_Is_Row_Bound()
+    {
+        using var census = ProductionCensus.Read();
+        TerminalOffenders(census).Should().BeEmpty(
+            "Fix: mint subscriber witnesses only from DeliveryDispatchStore's successful fenced UPDATE and write through the fifth seam");
     }
 
     [Fact]
@@ -183,11 +194,11 @@ public sealed partial class OutboxDispatchConventionTests
             parameter.ParameterType = witness.Module.TypeSystem.String;
             return () => parameter.ParameterType = original;
         });
-        foreach (var name in new[] { Mint, TerminalWrite })
+        foreach (var name in new[] { Mint, SubscriberMint, TerminalWrite })
         {
             AssertTerminalMutation(census, "an empty " + name + " call-site census", () =>
             {
-                var owner = census.Types.Values.SelectMany(type => type.Methods).Single(method => method.HasBody
+                var owner = census.Types.Values.SelectMany(type => type.Methods).First(method => method.HasBody
                     && method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference target
                         && target.Name == name));
                 var instruction = owner.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
@@ -320,7 +331,7 @@ public sealed partial class OutboxDispatchConventionTests
         var types = census.Types;
         CheckSet(offenders, "production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var key in new[] { (KernelAssembly, Witness), (KernelAssembly, MintingSource),
-                     (InfrastructureAssembly, Store), (KernelAssembly, AuditPort), (AuditAssembly, AuditStore) })
+                     (InfrastructureAssembly, Store), (InfrastructureAssembly, DeliveryStore), (KernelAssembly, AuditPort), (AuditAssembly, AuditStore) })
         {
             if (!types.ContainsKey(key)) offenders.Add("Missing production subject: " + key.Item2);
         }
@@ -329,11 +340,12 @@ public sealed partial class OutboxDispatchConventionTests
         var witness = types[(KernelAssembly, Witness)];
         var source = types[(KernelAssembly, MintingSource)];
         var store = types[(InfrastructureAssembly, Store)];
+        var deliveryStore = types[(InfrastructureAssembly, DeliveryStore)];
         var port = types[(KernelAssembly, AuditPort)];
         var auditStore = types[(AuditAssembly, AuditStore)];
         var constructors = witness.Methods.Where(method => method.IsConstructor && !method.IsStatic).ToArray();
         if (!witness.IsSealed || witness.BaseType?.FullName != "System.Object") offenders.Add(Witness + ": must be sealed with no custom base");
-        if (constructors.Length != 1 || constructors.Any(method => !method.IsPrivate || !ParametersMatch(method, MintParameters)))
+        if (constructors.Length != 1 || constructors.Any(method => !method.IsPrivate || !ParametersMatch(method, [.. MintParameters, "System.Boolean"])))
             offenders.Add(Witness + ": requires exactly one private live-reader constructor");
         if (witness.Fields.All(field => field.IsStatic) || witness.Fields.Any(field => !field.IsStatic && !field.IsInitOnly))
             offenders.Add(Witness + ": instance fields must be nonempty and readonly");
@@ -347,13 +359,15 @@ public sealed partial class OutboxDispatchConventionTests
                 attribute.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute"))
             offenders.Add(KernelAssembly + ": friend assemblies reopen restricted authority");
 
-        var factories = source.Methods.Where(method => method.Name == Mint).ToArray();
-        if (factories.Length != 1 || factories.Any(method => !method.IsFamily || !method.IsStatic
+        var factories = source.Methods.Where(method => method.Name is Mint or SubscriberMint).ToArray();
+        if (factories.Length != 2 || factories.Select(method => method.Name).Distinct(StringComparer.Ordinal).Count() != 2 || factories.Any(method => !method.IsFamily || !method.IsStatic
                 || method.ReturnType.FullName != Witness || !ParametersMatch(method, MintParameters)))
             offenders.Add(MintingSource + "." + Mint + ": requires the protected static live-reader mint signature");
-        var terminalizers = store.Methods.Where(method => method.Name == Terminalize).ToArray();
-        if (terminalizers.Length != 1) offenders.Add(Store + "." + Terminalize + ": requires one concrete terminalization owner");
-        CheckSet(offenders, "minting subtypes", types.Values.Where(type => Derives(type, source, types)).Select(TypeId), [TypeId(store)]);
+        var producerTerminalizers = store.Methods.Where(method => method.Name == Terminalize).ToArray();
+        var subscriberTerminalizers = deliveryStore.Methods.Where(method => method.Name == Terminalize).ToArray();
+        var terminalizers = producerTerminalizers.Concat(subscriberTerminalizers).ToArray();
+        if (producerTerminalizers.Length != 1 || subscriberTerminalizers.Length != 1) offenders.Add(Store + "." + Terminalize + ": requires one concrete terminalization owner");
+        CheckSet(offenders, "minting subtypes", types.Values.Where(type => Derives(type, source, types)).Select(TypeId), [TypeId(store), TypeId(deliveryStore)]);
         CheckSet(offenders, "witness-producing methods", types.Values.SelectMany(type => type.Methods)
             .Where(method => method.ReturnType.FullName == Witness).Select(MethodId), factories.Select(MethodId));
 
@@ -374,9 +388,10 @@ public sealed partial class OutboxDispatchConventionTests
         var sites = CallSites(census).ToArray();
         CheckSet(offenders, "witness constructor call sites", sites.Where(site => site.Target.Name == ".ctor"
                 && SameType(site.Target.DeclaringType, witness)).Select(site => site.Owner), factories.Select(MethodId));
-        CheckSet(offenders, "mint call sites", sites.Where(site => site.Target.Name == Mint
-                && (SameType(site.Target.DeclaringType, source) || Derives(site.Target.DeclaringType, source, types)))
-            .Select(site => site.Owner), terminalizers.Select(MethodId));
+        foreach (var (mint, owners) in new[] { (Mint, producerTerminalizers), (SubscriberMint, subscriberTerminalizers) })
+            CheckSet(offenders, mint + " call sites", sites.Where(site => site.Target.Name == mint
+                    && (SameType(site.Target.DeclaringType, source) || Derives(site.Target.DeclaringType, source, types)))
+                .Select(site => site.Owner), owners.Select(MethodId));
         CheckSet(offenders, "terminal audit call sites", sites.Where(site => IsTerminalWriteName(site.Target)
                 && (SameType(site.Target.DeclaringType, port) || Derives(site.Target.DeclaringType, port, types)))
             .Select(site => site.Owner), terminalizers.Select(MethodId));

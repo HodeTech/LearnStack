@@ -57,7 +57,10 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     /// </summary>
     /// <remarks>
     /// By name and with a reason each. <c>OutboxMessage</c>: its payload is the audited
-    /// event and the row is machinery. <c>IdempotencyKey</c>: request plumbing.
+    /// event and the row is machinery. <c>InboxMessage</c>: transport-owned completion
+    /// identity. <c>EventDelivery</c>: retained envelope and retry/terminal machinery
+    /// (ADR-0044 Amendment 11). Explicit handler and nested-command business intents
+    /// remain captured and audited. <c>IdempotencyKey</c>: request plumbing.
     /// <c>AuditEntry</c> / <c>AuditConfig</c>: the audit tables themselves — which cannot
     /// arise anyway, because the store writes parameterised SQL and never a
     /// <c>DbContext</c>, so there is no re-entrancy path. They are listed regardless,
@@ -67,6 +70,8 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
     private static readonly HashSet<string> Excluded = new(StringComparer.Ordinal)
     {
         "OutboxMessage",
+        "InboxMessage",
+        "EventDelivery",
         "IdempotencyKey",
         "AuditEntry",
         "AuditConfig",

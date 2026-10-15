@@ -192,14 +192,45 @@ Step 3 implements hosted execution and observation; its
 [delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12)
 owns verification and both completed review rounds. Step 4 enforcement and local
 closeout are complete; all four steps completed both independent review rounds.
-The
-[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
-owns local closeout evidence and CI/merge status.
+**P02b-2 is complete and merged** through
+[PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns final source/merge verification and CI evidence.
 Acceptance registers six new catalogue rules; the Step 4 record owns their
-delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3 still owns
-durable acceptance, shared inbox/ledger, independent retries, both real default
-subscriptions and Seeder handoff.
-Phase 06 retains the full renderer/Studio expansion.
+delivery evidence. P02b-2 claims no inbox or subscriber delivery. P02b-3's
+[decision package](docs/roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13)
+is Accepted — 2026-10-13. Six implementation steps, each with commit and two
+independent review rounds, deliver durable acceptance, shared inbox/ledger,
+independent retries, both real defaults and Seeder handoff. Implementation is
+locally complete; Step 1 implements shared storage and privilege proofs, and both
+independent review rounds are complete. Its
+[delivery record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-1--shared-storage-and-privileges-2026-10-13)
+owns verification and review status. Step 2 implements durable acceptance and
+inbox primitives; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-2--durable-acceptance-and-inbox-primitives-2026-10-13)
+owns validation and both completed review rounds. Step 3 implements the closed
+business owner and completion gate; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-3--business-owner-and-completion-gate-2026-10-13)
+owns validation and both completed review rounds. Step 4 adds independent
+subscriber scheduling, terminal audit, replay and bounded observation; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13)
+owns validation and both completed review rounds. Step 5 implements useful
+defaults and semantic seed handoff; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+owns validation and both completed independent review rounds. Both real default
+subscriptions are Active. Step 6 implements production-census enforcement and
+full packet closeout; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns completed validation/review receipts and PR/CI handoff. All six steps
+completed both independent review rounds; P02b-3 implementation is locally
+complete. The
+[external review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
+records verified corrections and two further independent review rounds on the
+same unmerged branch; the
+[second follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
+owns subsequent remediation status. PR review and merge remain pending;
+P02b-4's background-job decision pass is next. Phase 06 retains the full
+renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the
@@ -404,8 +435,11 @@ Then read the phase that is live and the one it stands on:
   Accepted. Steps 1–2 completed both review rounds; Step 3 implements hosted
   dispatch and observation, with both independent review rounds complete. Step 4
   enforcement and local closeout are complete; all four steps completed both
-  independent review rounds; the Step 4 record above owns CI/merge status.
-  P02b-3 owns consumer/inbox delivery; each later packet accepts its gates first.
+  independent review rounds. P02b-2 is complete and merged through PR #30 on
+  2026-10-13; its merge closeout above owns final verification. P02b-3 Steps 1–6
+  completed both review rounds; Step 6 owns the PR/CI handoff. P02b-4's
+  background-job decision pass follows maintainer review of the current packet.
+  Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.
   `02d` sorts after `02b`/`02c` but runs **before** them; the roadmap dependency
@@ -656,6 +690,9 @@ rules:
   parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
   share one transaction. P02b-2 Step 2 implements that accepted exception; both
   independent review rounds passed.
+- Write `inbox_messages` or `event_deliveries` from a module or Seeder. ADR-0046's
+  transport-owned acceptance, inbox/business owner and confined scheduler alone
+  write their granted columns.
 - Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
   `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
   ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with

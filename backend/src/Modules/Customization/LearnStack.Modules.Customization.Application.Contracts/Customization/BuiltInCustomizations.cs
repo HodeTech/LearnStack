@@ -9,7 +9,7 @@ namespace LearnStack.Modules.Customization.Application.Contracts.Customization;
 /// <b>Data, not code, and that is the point being demonstrated.</b>
 /// <see href="../../../../../../docs/decisions/0018-tenant-driven-customization-model.md">ADR-0018</see>
 /// says a tenant's shapes are rows; these are the first rows, and they go in
-/// through the same four commands a tenant admin uses. Nothing here is privileged
+/// through the owner-local create-only initialization commands. Nothing here is privileged
 /// — a tenant may deprecate either one and publish its own successor on day one,
 /// which is exactly what a language school replacing <c>plain</c> with CEFR does.
 /// </para>
@@ -22,15 +22,15 @@ namespace LearnStack.Modules.Customization.Application.Contracts.Customization;
 /// Vision § Genericity boundary</see> is where that line is drawn.
 /// </para>
 /// <para>
-/// <b>Applied by whoever creates the tenant, never by provisioning itself.</b>
+/// <b>Applied by independent consumers and the Seeder, never by provisioning itself.</b>
 /// <see href="../../../../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
 /// keeps the cross-aggregate allow-list at one entry, and folding a customization
 /// write into <c>ProvisionTenantCommand</c> would add a second aggregate to that
-/// transaction. Today the caller is <c>LearnStack.Tools.Seeder</c>; the
-/// self-service signup that will need the same four commands for a real tenant
-/// lands with the Hub-side onboarding in
-/// <see href="../../../../../../docs/roadmap/phase-02c-hub-foundation.md">Phase
-/// 02c</see>, and reads this same declaration rather than a second copy of it.
+/// transaction. The two <c>TenantCreatedIntegrationEventV1</c> consumers each
+/// initialize one root; <c>LearnStack.Tools.Seeder</c> uses the same commands.
+/// Any concept history is preserved, including deleted and successor-only rows.
+/// Seeder verification discovers the semantic key/version and retains the stored
+/// identifier rather than requiring a demo identifier.
 /// </para>
 /// </remarks>
 public static class BuiltInCustomizations

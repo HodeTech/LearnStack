@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace LearnStack.Api.Composition;
 
-/// <summary>Owns the dispatcher credential in the API composition root.</summary>
+/// <summary>Registers producer/subscriber dispatch and its API-owned dispatcher credential.</summary>
 public static class OutboxCompositionExtensions
 {
     public static IServiceCollection AddLearnStackOutboxDispatcher(
@@ -49,6 +49,22 @@ public static class OutboxCompositionExtensions
         {
             services.AddHostedService<OutboxProcessor>();
             services.AddHealthChecks().AddCheck<OutboxHealthCheck>(OutboxHealthCheck.Name);
+        }
+        services.TryAddSingleton(new DeliveryDispatchOptions());
+        services.TryAddSingleton<DeliveryExecutor>();
+        services.TryAddSingleton<DeliveryObservation>();
+        services.TryAddSingleton(provider => new DeliveryDispatchStore(
+            provider.GetRequiredKeyedService<Lazy<NpgsqlDataSource>>(OutboxDispatcherDataSource.Key),
+            provider.GetRequiredService<OutboxEventRegistry>(),
+            provider.GetRequiredService<DeliveryDispatchOptions>(),
+            provider.GetRequiredService<IGuidFactory>(),
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<IServiceScopeFactory>()));
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(DeliveryProcessor)))
+        {
+            services.AddHostedService<DeliveryProcessor>();
+            services.AddHealthChecks().AddCheck<DeliveryHealthCheck>(DeliveryHealthCheck.Name);
         }
         return services;
     }

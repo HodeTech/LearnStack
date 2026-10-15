@@ -1,5 +1,6 @@
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.SharedKernel.Audit;
 
@@ -10,7 +11,7 @@ namespace LearnStack.Modules.Customization.Application.Audit;
 /// <see href="../../../../../docs/modules/customization/audit.md">the matrix</see>.
 /// </summary>
 /// <remarks>
-/// Four commands, four MUST rows. Registration and publication are separate operations
+/// Each write command declares its own MUST operation. Registration and publication are separate operations
 /// because they have different blast radii — a wrong draft constrains nothing, while a
 /// wrong publication retires the incumbent and changes what every subsequent content write
 /// is validated against — and the matrix carries one row for each.
@@ -29,8 +30,18 @@ public sealed class CustomizationAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetTaxonomySeedStateQuery>();
         builder.Off<GetActiveContentTypeSeedRevisionQuery>();
         builder.Off<GetActiveTaxonomySeedRevisionQuery>();
+        builder.Off<InitializeContentTypeDefaultHandler>();
+        builder.Off<InitializeTaxonomyDefaultHandler>();
 
         builder
+            .MustAudit<InitializeTenantContentTypeDefaultCommand>(
+                "customization.content_type.initialize",
+                OperationType.Create,
+                typeof(TenantContentType))
+            .MustAudit<InitializeTenantLevelTaxonomyDefaultCommand>(
+                "customization.level_taxonomy.initialize",
+                OperationType.Create,
+                typeof(TenantLevelTaxonomy))
             .MustAudit<RegisterTenantContentTypeCommand>(
                 "customization.content_type.register",
                 OperationType.Create,

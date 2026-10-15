@@ -49,8 +49,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(26L,
-            "eight tenancy tables, three platform tables, four customization tables, "
+        (await CountAsync(connection, TablesQuery)).Should().Be(28L,
+            "eight tenancy tables, five platform tables, four customization tables, "
             + "two audit tables, four Education tables, and five history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
@@ -59,6 +59,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             + "append-only triggers");
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L,
             "each Education parent relation has its own invoker scope check");
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
+            "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
 
         await _fixture.RollBackAsync();
 
@@ -73,14 +75,16 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         // with a matching signature is not an error the migration surfaces.
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(0L);
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
 
         // A successful Down must also leave a state that can be installed again.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(26L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(28L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
@@ -104,6 +108,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
     private const string PolicyQuery =
         "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'";
+
+    private const string InboxFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
+        + "AND proname = 'fn_inbox_messages_immutable'";
 
     private const string EducationFunctionQuery =
         "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "

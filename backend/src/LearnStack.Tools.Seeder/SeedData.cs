@@ -20,18 +20,17 @@ public static class SeedData
     public static readonly SeedTenant English = new(
         TenantId.From(Id("01930000-0000-7000-8000-000000000001")), "demo-english", "English Hero",
         FirstBranch, SecondBranch, "demo-english.learnstack.local", false,
-        Id("01930000-0000-7000-8000-0000000000c1"), Id("01930000-0000-7000-8000-0000000000d1"),
         EnglishCurriculum());
     public static readonly SeedTenant Yoga = new(
         TenantId.From(Id("01930000-0000-7000-8000-000000000002")), "demo-yoga", "Anatolia Yoga",
         FirstStudio, SecondStudio, "demo-yoga.learnstack.local", true,
-        Id("01930000-0000-7000-8000-0000000000c2"), Id("01930000-0000-7000-8000-0000000000d2"),
         YogaCurriculum());
     public static readonly IReadOnlyList<SeedTenant> All = [English, Yoga];
 
     // Provisioning audits both sanctioned roots; follow-on organization and host each add one.
+    // Each tenant initializes two built-ins once; authored definitions audit registration and publication.
     public static long ExpectedAuditWrites => Inventory.Tenants * 4L + Inventory.Locales
-        + 2L * (Inventory.ContentTypes + Inventory.Taxonomies) + Inventory.Themes
+        + All.Count * 2L + 2L * All.Sum(tenant => ContentTypes(tenant).Count() + Taxonomies(tenant).Count()) + Inventory.Themes
         + Inventory.Courses + Inventory.Lessons + Inventory.Translations
         + All.Sum(tenant => tenant.Curriculum?.Courses.Sum(course => (course.Status == "Published" ? 1 : 0)
             + course.Lessons.Count(lesson => lesson.Status == "Published")) ?? 0);
@@ -39,8 +38,8 @@ public static class SeedData
     public static SeedInventory Inventory => new(
         All.Count, All.Count * 2, All.Count,
         All.Sum(tenant => tenant.Curriculum?.Locales.Length ?? 0),
-        All.Sum(tenant => ContentTypes(tenant).Count()), All.Sum(tenant => Taxonomies(tenant).Count()),
-        All.Sum(tenant => Taxonomies(tenant).Sum(taxonomy => taxonomy.Bands.Length)),
+        All.Sum(tenant => 1 + ContentTypes(tenant).Count()), All.Sum(tenant => 1 + Taxonomies(tenant).Count()),
+        All.Sum(tenant => BuiltInCustomizations.Plain.Bands.Count + Taxonomies(tenant).Sum(taxonomy => taxonomy.Bands.Length)),
         All.Count(tenant => tenant.Curriculum is not null),
         All.Sum(tenant => tenant.Curriculum?.Courses.Length ?? 0),
         All.Sum(tenant => tenant.Curriculum?.Courses.Sum(course => course.Lessons.Length) ?? 0),
@@ -49,24 +48,21 @@ public static class SeedData
 
     public static IEnumerable<SeedContentType> ContentTypes(SeedTenant tenant)
     {
-        yield return new(tenant.BuiltInContentTypeId, BuiltInCustomizations.Card.Key,
-            BuiltInCustomizations.SchemaVersion, BuiltInCustomizations.Card.DisplayName,
-            BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey);
         if (tenant.Curriculum is { } curriculum) yield return curriculum.ContentType;
     }
     public static IEnumerable<SeedTaxonomy> Taxonomies(SeedTenant tenant)
     {
-        yield return new(tenant.BuiltInTaxonomyId, BuiltInCustomizations.Plain.Key,
-            BuiltInCustomizations.SchemaVersion, BuiltInCustomizations.Plain.DisplayName,
-            [.. BuiltInCustomizations.Plain.Bands.Select(band => new SeedBand(band.Key, band.DisplayName, band.Sort))]);
         if (tenant.Curriculum is { } curriculum) yield return curriculum.Taxonomy;
     }
     public static string[] CustomizationProjection(SeedTenant tenant) =>
-        [.. ContentTypes(tenant).Select(type => $"content-type:{type.Key}@{tenant.TenantId}"),
+        [$"content-type:{BuiltInCustomizations.Card.Key}@{tenant.TenantId}",
+            $"taxonomy:{BuiltInCustomizations.Plain.Key}@{tenant.TenantId}",
+            .. BuiltInCustomizations.Plain.Bands.Select(band => $"band:{band.Key}@{tenant.TenantId}"),
+            .. ContentTypes(tenant).Select(type => $"content-type:{type.Key}@{tenant.TenantId}"),
             .. Taxonomies(tenant).Select(taxonomy => $"taxonomy:{taxonomy.Key}@{tenant.TenantId}"),
             .. Taxonomies(tenant).SelectMany(taxonomy => taxonomy.Bands.Select(band => $"band:{band.Key}@{tenant.TenantId}"))];
     public static long CustomizationGeneration(SeedTenant tenant) =>
-        2L * (ContentTypes(tenant).Count() + Taxonomies(tenant).Count());
+        2L + 2L * (ContentTypes(tenant).Count() + Taxonomies(tenant).Count());
 
     private static SeedCurriculum EnglishCurriculum() => new(
         [new("en", true, true, 0)],
@@ -169,7 +165,7 @@ public static class SeedData
 
 public sealed record SeedTenant(TenantId TenantId, string Slug, string DisplayName,
     SeedOrganization DefaultOrganization, SeedOrganization SecondOrganization, string Host,
-    bool MapHostToDefaultOrganization, Guid BuiltInContentTypeId, Guid BuiltInTaxonomyId,
+    bool MapHostToDefaultOrganization,
     SeedCurriculum? Curriculum = null);
 public sealed record SeedOrganization(OrganizationId OrganizationId, string Slug, string DisplayName);
 public sealed record SeedCurriculum(ImmutableArray<SeedLocale> Locales, SeedContentType ContentType,

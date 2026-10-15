@@ -3,6 +3,8 @@ using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.SharedKernel.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -341,10 +343,20 @@ public sealed partial class OutboxDispatchConventionTests
         return offenders;
     }
 
-    private static ServiceCollection ObservationServices()
+    private static IServiceCollection ObservationServices()
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(IntegrationEventHandlerRegistry.Discover());
+        var builder = WebApplication.CreateBuilder([]);
+        builder.Configuration.Sources.Clear();
+        builder.AddLearnStackCrossCuttingFoundation(DeploymentMode.Development,
+            typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly);
+        IServiceCollection services = new ServiceCollection();
+        // Import the construction-free manifest from its real registration site.
+        // This guard isolates persistence's worker/check set; unrelated framework
+        // hosted services from Foundation are not its subject.
+        foreach (var descriptor in builder.Services.Where(descriptor =>
+                     descriptor.ServiceType == typeof(IntegrationEventHandlerRegistry)
+                     || descriptor.ServiceType == typeof(OutboxEventRegistry)))
+            services.Add(descriptor);
         services.AddLearnStackPersistence(new ConfigurationBuilder().Build());
         return services;
     }
@@ -356,7 +368,8 @@ public sealed partial class OutboxDispatchConventionTests
         // factory/instance duplicates cannot hide behind the dispatcher type filter.
         var workers = services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).ToArray();
         CheckSet(offenders, "hosted-service descriptor types", workers.Select(descriptor => descriptor.ImplementationType?.FullName ?? "non-type registration"),
-            [typeof(OutboxProcessor).FullName!, "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
+            [typeof(OutboxProcessor).FullName!, typeof(DeliveryProcessor).FullName!,
+                "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
         // The helper graph walks production contracts. Its one framework-owned
         // virtual clock capability is admitted only as the shipped system instance.

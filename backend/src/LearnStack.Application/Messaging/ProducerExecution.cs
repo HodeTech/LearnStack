@@ -21,7 +21,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     /// Enrolls after announcement. An unresolved, event-free invocation is legal;
     /// actual production must pass <see cref="RequireAnnouncement"/>.
     /// </summary>
-    internal Invocation BeginInvocation(bool isTransactionOwner, UserId? causalActor = null)
+    internal Invocation BeginInvocation(bool isTransactionOwner, UserId? causalActor = null,
+        Guid? incomingEventId = null)
     {
         if (_dispatch is not null)
         {
@@ -52,7 +53,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         }
 
         var invocation = new Invocation(this, _current, announcement, hasOwner, isTransactionOwner, ownedActivity,
-            _current is null ? causalActor : _current.CausalActor);
+            _current is null ? causalActor : _current.CausalActor,
+            _current is null ? incomingEventId : _current.IncomingEventId);
         _current = invocation;
         return invocation;
     }
@@ -110,7 +112,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         }
 
         return new IntegrationEventEnvelope(integrationEvent, traceparent,
-            announcement.OrganizationId?.Value, CausationId: _dispatch?.EventId,
+            announcement.OrganizationId?.Value, CausationId: _dispatch?.EventId ?? _current!.IncomingEventId,
             ActorUserId: _dispatch is null ? _current!.CausalActor : _dispatch.Origin.CausalActor);
     }
 
@@ -257,7 +259,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         internal Invocation(
             ProducerExecution execution, Invocation? parent,
             TenantContextAnnouncement? announcement, bool hasOwner, bool isTransactionOwner,
-            Activity? ownedActivity, UserId? causalActor)
+            Activity? ownedActivity, UserId? causalActor, Guid? incomingEventId)
         {
             _execution = execution;
             Parent = parent;
@@ -266,6 +268,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
             IsTransactionOwner = isTransactionOwner;
             _ownedActivity = ownedActivity;
             CausalActor = causalActor;
+            IncomingEventId = incomingEventId;
         }
 
         internal Invocation? Parent { get; }
@@ -273,6 +276,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         internal bool HasOwner { get; }
         internal bool IsTransactionOwner { get; }
         internal UserId? CausalActor { get; }
+        internal Guid? IncomingEventId { get; }
 
         /// <summary>Successful production by this invocation or any descendant.</summary>
         public bool HasProducedWork { get; internal set; }

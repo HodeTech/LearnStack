@@ -162,7 +162,12 @@ set, host factory ceiling and canonical RLS placement remain unchanged under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 P02b-1 Steps 2–3 deliver immediate outbox enqueue, successful-save collection
 and owner-only completion. P02b-2 Step 3 implements confined hosted dispatch;
-both independent review rounds are complete. Consumer delivery remains P02b-3.
+both independent review rounds are complete. P02b-3 Steps 1–5 supply durable
+acceptance, shared tenant/org-protected delivery storage, app-role business scopes,
+independent scheduling and both real defaults. Its
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current validation and review status. The scheduler cannot read payload or
+inbox columns; business execution retains the ordinary tenant/org RLS boundary.
 
 ## Default org semantics
 

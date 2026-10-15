@@ -72,6 +72,18 @@ public sealed record DemoIdentities(IReadOnlyList<DemoIdentity> Values, IReadOnl
                 }
             }
         }
+        // Built-ins retain their semantic vocabulary; their tenant-owned identities
+        // are generated at initialization and are not demo literals.
+        Add("content-type-key", BuiltInCustomizations.Card.Key);
+        Labels("definition-label", BuiltInCustomizations.Card.DisplayName);
+        foreach (var identity in SchemaValues(BuiltInCustomizations.Card.JsonSchema)) values.Add(identity);
+        Add("taxonomy-key", BuiltInCustomizations.Plain.Key);
+        Labels("definition-label", BuiltInCustomizations.Plain.DisplayName);
+        foreach (var band in BuiltInCustomizations.Plain.Bands)
+        {
+            Add("band-key", band.Key);
+            Labels("band-label", band.DisplayName);
+        }
         var platform = new HashSet<string>(StringComparer.Ordinal)
         {
             BuiltInCustomizations.Card.Key, BuiltInCustomizations.Card.RendererKey, BuiltInCustomizations.Plain.Key

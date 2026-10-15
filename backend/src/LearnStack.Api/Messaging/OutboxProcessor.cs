@@ -18,6 +18,7 @@ public sealed partial class OutboxProcessor : BackgroundService
     private readonly ILogger<OutboxProcessor> _logger;
     private readonly object _attemptGate = new();
     private readonly List<OutboxPublishAttempt> _attempts = [];
+    private OutboxClaimKind _nextClaimKind = OutboxClaimKind.Terminal;
 
     public OutboxProcessor(
         [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
@@ -84,11 +85,7 @@ public sealed partial class OutboxProcessor : BackgroundService
                 {
                     if (OutstandingCount < _options.MaxOutstandingPublishes)
                     {
-                        // Terminal requests and expired acquisitions never spend
-                        // another publication attempt, and take priority over new work.
-                        var claim = await _store.TryClaimTerminalAsync(blocked, stoppingToken).ConfigureAwait(false)
-                            ?? await _store.TryAcquireRecoveryAsync(blocked, stoppingToken).ConfigureAwait(false)
-                            ?? await _store.TryClaimAsync(blocked, stoppingToken).ConfigureAwait(false);
+                        var claim = await ClaimNextAsync(blocked, stoppingToken).ConfigureAwait(false);
                         if (claim is not null)
                         {
                             didWork = true;
@@ -125,6 +122,31 @@ public sealed partial class OutboxProcessor : BackgroundService
             CancelAttempts();
             _observation.Stopped();
         }
+    }
+
+    private async Task<OutboxDispatchClaim?> ClaimNextAsync(string[] blocked, CancellationToken cancellationToken)
+    {
+        // Service every eligible class within three claims, even when terminal
+        // audit keeps failing. Empty classes fall through without claiming work.
+        for (var checkedKinds = 0; checkedKinds < 3; checkedKinds++)
+        {
+            var kind = _nextClaimKind;
+            // Advance before acquisition/dispatch: a fault must not pin its class.
+            _nextClaimKind = kind switch
+            {
+                OutboxClaimKind.Terminal => OutboxClaimKind.Recovery,
+                OutboxClaimKind.Recovery => OutboxClaimKind.Normal,
+                _ => OutboxClaimKind.Terminal,
+            };
+            var claim = kind switch
+            {
+                OutboxClaimKind.Terminal => await _store.TryClaimTerminalAsync(blocked, cancellationToken).ConfigureAwait(false),
+                OutboxClaimKind.Recovery => await _store.TryAcquireRecoveryAsync(blocked, cancellationToken).ConfigureAwait(false),
+                _ => await _store.TryClaimAsync(blocked, cancellationToken).ConfigureAwait(false),
+            };
+            if (claim is not null) return claim;
+        }
+        return null;
     }
 
     private async Task DispatchAsync(OutboxDispatchClaim claim, CancellationToken stoppingToken)

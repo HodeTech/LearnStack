@@ -206,18 +206,19 @@ only application code permitted to know Dapr types.
 
 ### Current default: `InProcessEventBus`
 
-Every deployment mode currently registers `InProcessEventBus : IEventBus`, even when a
-developer starts the gated sidecar for inspection. It is a **transport, not a stub**: it reads
-construction-free subscription metadata, gives each subscription one consumer activity
-and one async DI scope, restores tenant and module context before resolving exactly one
-concrete `IIntegrationEventHandler<T>`, and restores the publisher's context after the
-full dispatch. It serializes invocation per partition key within its process;
-it opens no business transaction and implements no durable inbox or subscriber ledger.
-[ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md) assigns shared
-`IInboxGuard` claim/completion to the transport before handler construction, with
-implementation in P02b-3. Handlers do not call the guard. Phase 11's Dapr adapter
-preserves that accepted contract. See [15-event-and-outbox.md](15-event-and-outbox.md)
-for the shipped baseline and the P02b-3 durable acceptance/execution target.
+Every deployment mode registers `InProcessEventBus : IEventBus`, even when a
+sidecar is started for inspection. P02b-3 Step 2 makes publication durable
+acceptance of all required subscription envelopes on a fresh app-role transaction;
+it constructs no business handler. Steps 3–4 add the independent application
+executor, transport-owned inbox and bounded subscriber scheduler. The executor
+restores validated tenant/org and causal context before resolving a module or
+handler, then restores its caller's context after actual cleanup. Handlers do not
+call `IInboxGuard` or rebroadcast. Step 5 activates both real default subscriptions
+and supplies their initialization and semantic Seeder handoff.
+
+Phase 11's Dapr adapter must preserve these accepted contracts. See
+[Events and Outbox](15-event-and-outbox.md#consumer-pattern) for the lifecycle,
+independent retry ownership and current delivery evidence.
 
 ## 4. Cache implementation (DaprCacheService)
 

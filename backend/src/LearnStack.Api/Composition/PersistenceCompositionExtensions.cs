@@ -2,7 +2,6 @@ using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
-using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Customization.Application.Audit;
@@ -103,13 +102,6 @@ public static class PersistenceCompositionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddLearnStackOutboxDispatcher(configuration);
-        services.TryAddSingleton(provider => OutboxEventRegistry.Create(
-            [OutboxEventRegistration.Required(
-                typeof(TenantCreatedIntegrationEventV1),
-                [OutboxSubscriptionManifest.Pending("customization.initialize-content-type-default.v1"),
-                 OutboxSubscriptionManifest.Pending("customization.initialize-taxonomy-default.v1")])],
-            [], provider.GetRequiredService<IntegrationEventHandlerRegistry>(),
-            [typeof(TenantCreatedIntegrationEventV1).Assembly]));
 
         var connectionString = configuration.GetConnectionString(DefaultConnectionName);
 
@@ -279,6 +271,8 @@ public static class PersistenceCompositionExtensions
 
         services.TryAddScoped<IAuditStore, PostgresAuditStore>();
         services.TryAddScoped<IOutbox, PostgresOutbox>();
+        services.TryAddScoped<PostgresDeliveryAcceptance>();
+        services.TryAddScoped<IInboxGuard, PostgresInboxGuard>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built
         // at composition time and read on every request, and rebuilding it per scope would

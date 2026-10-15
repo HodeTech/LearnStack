@@ -135,8 +135,10 @@ public sealed partial class CustomizationProjectionTests
         var context = new SeedTenantContext(tenant.TenantId, null);
         await using var read = await ReadSession.OpenAsync(source, context, cache: cache);
         await AssertAppRoleAsync(read.Unit);
-        var request = Request([.. SeedData.ContentTypes(tenant).Select(type => new DefinitionRevision(type.Key, type.SchemaVersion))],
-            [.. SeedData.Taxonomies(tenant).Select(taxonomy => new DefinitionRevision(taxonomy.Key, taxonomy.SchemaVersion))]);
+        var request = Request([new(BuiltInCustomizations.Card.Key, BuiltInCustomizations.SchemaVersion),
+                .. SeedData.ContentTypes(tenant).Select(type => new DefinitionRevision(type.Key, type.SchemaVersion))],
+            [new(BuiltInCustomizations.Plain.Key, BuiltInCustomizations.SchemaVersion),
+                .. SeedData.Taxonomies(tenant).Select(taxonomy => new DefinitionRevision(taxonomy.Key, taxonomy.SchemaVersion))]);
         var initial = (await read.Reader.ReadAsync(request)).Value!;
         initial.ContentTypes.Should().HaveCount(2);
         initial.Taxonomies.Should().HaveCount(2);

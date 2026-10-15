@@ -22,15 +22,24 @@ public enum OutboxSubscriptionReadiness
     Active,
 }
 
+/// <summary>The authority required by a subscription; ordinary delivery cannot enter privileged work.</summary>
+public enum OutboxSubscriptionExecutionScope
+{
+    OrdinaryTenant,
+    PrivilegedPlatform,
+}
+
 /// <summary>Construction-free metadata for one subscription.</summary>
 public sealed class OutboxSubscriptionManifest
 {
     private OutboxSubscriptionManifest(
-        string id, OutboxSubscriptionReadiness readiness, Type? handlerType)
+        string id, OutboxSubscriptionReadiness readiness, Type? handlerType,
+        OutboxSubscriptionExecutionScope executionScope = OutboxSubscriptionExecutionScope.OrdinaryTenant)
     {
         Id = id;
         Readiness = readiness;
         HandlerType = handlerType;
+        ExecutionScope = executionScope;
     }
 
     public string Id { get; }
@@ -40,11 +49,15 @@ public sealed class OutboxSubscriptionManifest
     /// <summary>Only an Active subscription names a concrete handler.</summary>
     public Type? HandlerType { get; }
 
+    public OutboxSubscriptionExecutionScope ExecutionScope { get; }
+
     public static OutboxSubscriptionManifest Pending(string id) =>
         new(id, OutboxSubscriptionReadiness.Pending, null);
 
-    public static OutboxSubscriptionManifest Active(string id, Type handlerType) =>
-        new(id, OutboxSubscriptionReadiness.Active, handlerType);
+    public static OutboxSubscriptionManifest Active(
+        string id, Type handlerType,
+        OutboxSubscriptionExecutionScope executionScope = OutboxSubscriptionExecutionScope.OrdinaryTenant) =>
+        new(id, OutboxSubscriptionReadiness.Active, handlerType, executionScope);
 }
 
 /// <summary>A concrete contract, its declared aliases and its delivery policy.</summary>
@@ -131,10 +144,40 @@ public sealed class OutboxEventRegistry
         _retired = retired;
         PendingIdentities = pendingIdentities;
         EventTypeLabels = eventTypeLabels;
+        HeldDeliverySubscriptions = Array.AsReadOnly(known
+            .SelectMany(pair => pair.Value.Subscriptions
+                .Where(subscription => subscription.Readiness == OutboxSubscriptionReadiness.Pending
+                    || subscription.ExecutionScope == OutboxSubscriptionExecutionScope.PrivilegedPlatform)
+                .Select(subscription => (Type: pair.Key, SubscriptionId: subscription.Id)))
+            .OrderBy(pair => pair.Type, StringComparer.Ordinal)
+            .ThenBy(pair => pair.SubscriptionId, StringComparer.Ordinal).ToArray());
+        SubscriptionIds = Array.AsReadOnly(known.Values.SelectMany(resolution => resolution.Subscriptions)
+            .Select(subscription => subscription.Id).Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal).ToArray());
     }
 
     /// <summary>Exact canonical and alias identities held before acquisition.</summary>
     public IReadOnlyList<string> PendingIdentities { get; }
+
+    /// <summary>Declared identities excluded from the ordinary tenant scheduler.</summary>
+    public IReadOnlyList<string> PrivilegedSubscriptionIds => _known.Values
+        .SelectMany(static resolution => resolution.Subscriptions)
+        .Where(static subscription => subscription.ExecutionScope == OutboxSubscriptionExecutionScope.PrivilegedPlatform)
+        .Select(static subscription => subscription.Id).Distinct(StringComparer.Ordinal)
+        .Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>Exact declared pairs held by the ordinary subscriber scheduler, including aliases.</summary>
+    public IReadOnlyList<(string Type, string SubscriptionId)> HeldDeliverySubscriptions { get; }
+
+    /// <summary>The finite declared subscription labels allowed in subscriber metrics.</summary>
+    public IReadOnlyList<string> SubscriptionIds { get; }
+
+    /// <summary>Readiness belongs to this exact subscription, independently of Pending siblings.</summary>
+    public bool IsActiveOrdinarySubscription(string storedIdentity, string subscriptionId) =>
+        _known.TryGetValue(storedIdentity, out var resolution)
+        && resolution.Subscriptions.Any(subscription => subscription.Id == subscriptionId
+            && subscription.Readiness == OutboxSubscriptionReadiness.Active
+            && subscription.ExecutionScope == OutboxSubscriptionExecutionScope.OrdinaryTenant);
 
     /// <summary>The finite labels allowed for declared event types in metrics.</summary>
     public IReadOnlyList<string> EventTypeLabels { get; }
@@ -198,6 +241,12 @@ public sealed class OutboxEventRegistry
                 {
                     throw new InvalidOperationException(
                         "Outbox subscription IDs must be valid and globally unique.");
+                }
+
+                if (!Enum.IsDefined(subscription.ExecutionScope))
+                {
+                    throw new InvalidOperationException(
+                        "Outbox subscription execution scopes must be declared values.");
                 }
 
                 if (subscription.Readiness == OutboxSubscriptionReadiness.Pending)
@@ -307,7 +356,7 @@ public sealed class OutboxEventRegistry
         !string.IsNullOrWhiteSpace(identity)
         && string.Equals(identity, identity.Trim(), StringComparison.Ordinal);
 
-    private static bool ValidSubscriptionId(string? id)
+    internal static bool ValidSubscriptionId(string? id)
     {
         if (id is null) return false;
 

@@ -131,8 +131,9 @@ public interface IAuditStore
     /// must be declared off-path as MUST/SecurityEvent, and the draft must match
     /// the actual UPDATE result carried by <paramref name="transition"/>.
     /// Any mismatch or write failure requires the caller to roll back the state
-    /// transition. This seam opens and commits no transaction. P02b-3 owns the
-    /// future subscriber writer; the existing four writes retain their contracts.
+    /// transition. This seam opens and commits no transaction. P02b-3 Step 4
+    /// delivers the subscriber transition caller on the same witness-bound seam;
+    /// the existing four writes retain their contracts.
     /// </remarks>
     Task WriteEventTerminalAsync(
         AuditEntryDraft entry,

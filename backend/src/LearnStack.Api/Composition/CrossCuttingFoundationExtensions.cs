@@ -1,3 +1,6 @@
+using LearnStack.Infrastructure.Messaging;
+using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
+using LearnStack.Modules.Customization.Application.IntegrationEvents;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.ErrorTracking;
@@ -137,6 +140,15 @@ public static class CrossCuttingFoundationExtensions
         }
 
         builder.Services.TryAddSingleton(integrationEventHandlers);
+        builder.Services.TryAddSingleton(provider => OutboxEventRegistry.Create(
+            [OutboxEventRegistration.Required(
+                typeof(TenantCreatedIntegrationEventV1),
+                [OutboxSubscriptionManifest.Active("customization.initialize-content-type-default.v1",
+                    typeof(InitializeContentTypeDefaultHandler)),
+                 OutboxSubscriptionManifest.Active("customization.initialize-taxonomy-default.v1",
+                    typeof(InitializeTaxonomyDefaultHandler))])],
+            [], provider.GetRequiredService<IntegrationEventHandlerRegistry>(),
+            [typeof(TenantCreatedIntegrationEventV1).Assembly]));
         builder.Services.TryAddSingleton(SelectEventBus);
 
         builder.Services.AddProblemDetails();
@@ -304,11 +316,7 @@ public static class CrossCuttingFoundationExtensions
             services.GetRequiredService<IServiceScopeFactory>(),
             services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContextAccessor>(),
             services.GetRequiredService<LearnStack.SharedKernel.Messaging.IPartitionSerializer>(),
-            services.GetRequiredService<
-                LearnStack.Infrastructure.Messaging.IntegrationEventHandlerRegistry>(),
-            services.GetRequiredService<
-                Microsoft.Extensions.Logging.ILogger<
-                    LearnStack.Infrastructure.Messaging.InProcessEventBus>>());
+            services.GetRequiredService<OutboxEventRegistry>());
     }
 
     /// <summary>

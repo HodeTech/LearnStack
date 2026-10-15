@@ -309,6 +309,8 @@ public sealed class AuditChangeTrackerInterceptorTests
     // excluded regardless, because "cannot arise" is a property of today's store while
     // the exclusion is a property of the design.
     [InlineData(typeof(OutboxMessage))]
+    [InlineData(typeof(InboxMessage))]
+    [InlineData(typeof(EventDelivery))]
     [InlineData(typeof(IdempotencyKey))]
     [InlineData(typeof(AuditEntry))]
     [InlineData(typeof(AuditConfig))]
@@ -902,6 +904,8 @@ public sealed class AuditChangeTrackerInterceptorTests
                 entity.Property(documented => documented.Text).HasColumnType("text");
             });
             builder.Entity<OutboxMessage>();
+            builder.Entity<InboxMessage>();
+            builder.Entity<EventDelivery>();
             builder.Entity<IdempotencyKey>();
             builder.Entity<AuditEntry>();
             builder.Entity<AuditConfig>();
@@ -1099,9 +1103,13 @@ public sealed class AuditChangeTrackerInterceptorTests
         public bool IsInitialized() => Value != Guid.Empty;
     }
 
-    // The four excluded names, as the interceptor matches them: by CLR type name, so a
+    // The six excluded names, as the interceptor matches them: by CLR type name, so a
     // stand-in with the same name is exactly what it will see.
     private sealed class OutboxMessage { public int Id { get; set; } }
+
+    private sealed class InboxMessage { public int Id { get; set; } }
+
+    private sealed class EventDelivery { public int Id { get; set; } }
 
     private sealed class IdempotencyKey { public int Id { get; set; } }
 

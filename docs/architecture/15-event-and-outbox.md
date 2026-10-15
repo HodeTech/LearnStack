@@ -26,21 +26,24 @@ not land together.
 |---|---|---|
 | `outbox_messages` table, its schema, and its LearnStack ownership | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) | Schema and ownership shipped in Packet 6; producer dispatch is implemented in P02b-2 Step 3 |
 | `IEventBus` port + `InProcessEventBus` | [Phase 02a Packet 5](../roadmap/phase-02a-kernel-tenancy.md) | The only registered implementation |
-| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; no delivery yet |
-| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement locally complete; all four steps completed both independent review rounds; CI/merge status: [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12) |
-| `IInboxGuard` and durable consumer transactions | [P02b-3](../roadmap/phase-02b-events-auth.md) | Pending |
+| `IOutbox` and `TenantCreatedIntegrationEventV1` | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12) | Implemented immediate transactional production; P02b-3 delivers the two independent default effects |
+| `OutboxProcessor` and the producer claim protocol | [P02b-2](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12) | Producer runtime and enforcement complete and merged; all four steps completed both independent review rounds; CI/merge status: [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13) |
+| Shared ledger/inbox and durable acceptance | [P02b-3](../roadmap/phase-02b-events-auth.md) | Steps 1–4 implement schema, acceptance/inbox, transactional business execution and independent scheduling/terminalization/replay; Step 5 activates both real defaults and semantic Seeder handoff |
 | Domain events collected and dispatched in-process, inside the ambient transaction | [P02b-1](../roadmap/phase-02b-events-auth.md#p02b-1-step-3--domain-completion-and-provisioning-publisher-2026-10-12) | Successful-save collection and owner-only completion implemented |
 | `DaprEventBus` → Dapr pub/sub → Kafka | [Phase 11](../roadmap/phase-11-production-hardening.md) | Demand-gated; trigger: a second process needs to consume an integration event, or event volume / replay / cross-process ordering is required ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)) |
 
-**`InProcessEventBus` is a first-class transport.** It already supplies the handler
-interface, scoped ambient tenant restoration and per-key serialisation. It does
-not yet open a database transaction, announce RLS context, deduplicate deliveries
-or persist retries. `IInboxGuard` is a documented seam, not a declared type.
+**`InProcessEventBus` is a first-class transport.** P02b-3 Step 2 changes publish
+success to durable acceptance of all required subscription envelopes on a fresh,
+announced application transaction. It constructs no business handler. Step 1
+supplies the shared ledger/inbox schema; Step 2 declares `IInboxGuard` and its
+transaction-bound claim primitive. Step 3 implements the business owner and
+completion gate; Step 4 adds independent scheduling, terminalization, replay and
+bounded observation. Step 5 activates both real defaults and semantic Seeder handoff.
 [Phase 02b's entry verification](../roadmap/phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
-records that baseline. The producer/consumer diagrams and examples below describe
-the durable target: P02b-1 supplies enqueue, P02b-2 dispatch and P02b-3 consumer
-transactions, inbox and recovery. Accepted ADR-0046 now assigns inbox ownership
-and stable subscriber identity; implementation remains P02b-3.
+records the earlier immediate-invocation baseline. The producer/consumer diagrams
+and examples below describe the delivered ADR-0046 runtime. The
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns production enforcement, validation and review/PR status.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -50,8 +53,8 @@ successful-save collection and the completed-provisioning publisher. Step 4
 implements production-census guards and catalogue enforcement; its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-1-step-4--producer-enforcement-and-closeout-2026-10-12)
 owns final verification and review status. ADR-0046 accepts dispatcher/inbox
-contracts; producer dispatch is implemented through P02b-2 Step 3, while
-inbox/consumer implementation remains P02b-3.
+contracts; producer dispatch is implemented through P02b-2 Step 3 and shared
+inbox/consumer execution through P02b-3 Steps 1–5.
 
 The [P02b-2 decision package](../roadmap/phase-02b-events-auth.md#p02b-2-decision-package-2026-10-12)
 and [Accepted ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md)
@@ -62,9 +65,15 @@ Step 3 implements hosted execution and observation, with both independent
 review rounds complete in its
 [delivery record](../roadmap/phase-02b-events-auth.md#p02b-2-step-3--hosted-lifecycle-and-observability-2026-10-12).
 Step 4 enforcement and local closeout are complete; all four steps completed both
-independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
-P02b-3 inbox/consumer delivery remains pending. Numerical
+P02b-3 implements consumer execution through Step 3 and independent scheduling,
+terminalization, replay and bounded observation in Step 4. Its production default
+subscriptions are Active with Step 5 initialization and semantic Seeder handoff. The
+[Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+records that step's validation and reviews; the
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns current enforcement, validation and review/PR status. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 
@@ -108,9 +117,9 @@ claims one admitted row immediately before publishing and fences its acknowledge
 Required Pending subscriptions hold rows before acquisition. P02b-3 durably accepts
 required subscriptions, then executes each on its own app-role transaction. Shared
 inbox completion and business/audit/ledger completion commit together. Producer
-production and the API worker are implemented; both Step 3 review rounds are
-complete. Durable consumer execution remains P02b-3, and real required
-subscriptions remain Pending.
+production and the API producer worker are implemented; both producer Step 3
+review rounds are complete. P02b-3 Steps 1–4 implement durable consumer acceptance,
+execution and scheduling; Step 5 activates both real required subscriptions.
 
 ## Outbox table
 
@@ -144,6 +153,7 @@ attributes and no privilege-escalating membership.
 budget: named outbox status UPDATEs and audit INSERT-only in P02b-2, with no audit
 read/update/delete or business access. P02b-3 may add only enumerated delivery
 identity/routing/lease/status SELECT and status UPDATE, never payload SELECT.
+Step 4 implements that subscriber scheduler/store on the same confined source.
 It executes business work separately as `learnstack_app` under tenant RLS.
 
 Routine confined poll/claim/mark writes bounded structured outcomes and metrics,
@@ -156,24 +166,25 @@ implemented for transition-witness construction and terminal audit in Step 2;
 both independent review rounds passed. Step 3 implements hosted execution and
 observation, with both independent review rounds complete. Step 4 implements
 credential/publication censuses and planted controls; all four steps completed
-both independent review rounds and local closeout. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+both independent review rounds and local closeout. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status.
 
 <a id="inbox-table-per-consumer-module"></a>
 
 ## Inbox table (shared, transport-owned)
 
-**Accepted ADR-0046 target; implementation P02b-3.** One tenant-owned
+**Implemented by P02b-3 Steps 1–3.** One tenant-owned
 `inbox_messages` deduplicates `(tenant_id, subscription_id, event_id)`. The
 transport claims before handler construction on the same announced app-role
-transaction as business work. New claims roll back on failure; only successful
-completion persists a completed row. Completed rows are never reset by replay.
+transaction as business work. The immutable marker is inserted at claim time;
+only successful owner completion makes it durable. New claims roll back on
+failure. Completed rows are never reset by replay.
 
 The separate delivery ledger retains validated envelopes and owns independent
-attempts, availability, leases and terminal/replay state. P02b-3 chooses envelope
-copies/references and retention dependencies before its canonical DDL, then
-P02b-8 inventories all retained stores for erasure. DDL, class/RLS and exact grants
-belong in [Database Standards § Inbox](../standards/05-database.md#inbox); this
+attempts, availability, leases and terminal/replay state. `event_deliveries` holds
+one validated envelope copy per tenant/subscription/event, independent of the
+producer row. P02b-8 inventories these retained copies for erasure. DDL, class/RLS
+and exact grants belong in [Database Standards § Inbox](../standards/05-database.md#inbox); this
 document carries no second schema.
 
 ## Producer pattern
@@ -261,8 +272,10 @@ Step 7's `OutboxFlushBehavior` is an enrollment/invariant guard.
 
 The reusable audit coordinator gives a controlled non-MediatR owner the existing
 classification, MUST-write, boundary-reporting and outer reconciliation duties.
-P02b-3 owns delivery/inbox wiring under ADR-0046; the P02b-1 fixture proves
-that entry without claiming delivered subscribers.
+P02b-3 Step 3 adds a private, single-use prepared-owner token: routing announcement
+and retained-envelope validation precede module resolution, then the same owner
+body completes work without a second BEGIN or a joiner masquerading as owner.
+The P02b-1 fixture remains the earlier controlled direct-entry proof.
 
 ### First useful flow
 
@@ -290,14 +303,17 @@ everything.
 
 ## Consumer pattern
 
-**Accepted target, unimplemented until P02b-3.** Each subscription has an explicit
+**Owner implemented by P02b-3 Step 3; scheduler implemented by Step 4.**
+Step 5 activates both real defaults and semantic Seeder handoff.
+Each subscription has an explicit
 stable `{module}.{subscription}.v{N}` ID, independent of handler class/assembly.
 ADR-0046 owns its closed grammar and version/migration rules. The transport opens
 an app-role transaction, restores validated tenant and organization, announces RLS
 context, and claims the shared inbox before constructing the handler. Absence of
 the organization marker never erases a present envelope organization; a marked
 event requires one. Effective actor is `UserId.SystemActor`; human actor remains
-causal metadata.
+causal metadata. Business audit metadata retains `causation_id` and optional
+`causal_actor_user_id` through the same composer for success and reconciliation.
 
 The common transaction/audit owner classifies the handler and refuses undeclared
 mutating work. A handler changes only its own root and saves; it calls neither
@@ -307,10 +323,38 @@ completion checks the current token and database-time expiry, plus a sticky gate
 that refuses timed-out/canceled execution. Zero rows or a closed gate poison and
 roll back the whole transaction. Cancellation after physical COMMIT starts is
 Indeterminate; recover from atomic durable state, not a rollback assumption.
+The final fence locks the exact row first and checks database time in a subsequent
+completion UPDATE, so an unchanged lock wait cannot lend an expired lease authority.
+The attempt's one-use gate publishes acknowledged COMMIT independently of later
+frame/scope cleanup; a cleanup fault cannot turn committed business into retryable
+work. Live cleanup retains its task and resources until actual completion.
 
 External effects require provider idempotency and reconciliation. Privileged
 Audit erasure belongs to its separate Phase 03 execution contract; P3's ordinary
 executor refuses it. An app-role inbox cannot make two connections atomic.
+
+### Independent subscriber scheduling
+
+P02b-3 Step 4's API-owned `DeliveryProcessor` shares the confined dispatcher data
+source. `DeliveryDispatchStore` selects scheduling/routing/status columns only;
+the app-role executor reads the retained envelope under RLS. Exact Pending or
+privileged type/subscription pairs are held without blocking an accepted Active
+sibling. Terminal requests and expired claims take priority over new execution.
+One normal claim increments only that tuple's budget; recovery replaces expired
+ownership without execution or another attempt. Six claims use the accepted five
+backoffs; the sixth cannot authorize a seventh invocation. Every status transition
+locks the exact tuple, then checks current token and fresh database-time expiry.
+
+The controlled execution task owns construction, cancellation callbacks and actual
+scope cleanup. Timeout closes its sticky commit gate before asynchronous callbacks.
+An acknowledged COMMIT remains definitive through faulty or overlong cleanup;
+unacknowledged commit admission requires durable reconciliation. Retained tasks
+block their local execution partition and consume the accepted four-task capacity
+until actual completion. Acceptance and execution use separate serializer lanes;
+a held subscriber never queues new durable acceptance behind its callback/cleanup.
+Shutdown uses one finite wait shared with the host token.
+Numerical bounds and validation/review evidence belong to the
+[accepted package and Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-4--subscriber-scheduling-terminalization-and-replay-2026-10-13).
 
 ### Audit rides this outbox for fan-out, never for the audit row
 
@@ -358,8 +402,8 @@ concurrent live owners; crash recovery and lease expiry can still redeliver.
 
 ### The claim protocol
 
-**ADR-0046 producer runtime and enforcement locally complete in P02b-2; all four
-steps completed both independent review rounds.** The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+**ADR-0046 producer runtime and enforcement complete and merged in P02b-2; all four
+steps completed both independent review rounds.** The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. The processor admits a construction-free
 manifest policy before acquisition. Any required Pending subscription holds the
 contract and all aliases unchanged, even if stored payload is malformed. Active
@@ -413,10 +457,12 @@ across publication. A deployment-specific alternative requires a new decision.
 - Deterministic selection for one processor without failure, with no enqueue,
   commit, retry or cross-process order promise.
 - Ordinary failure and bounded overruns permit unrelated eligible work to progress.
-- Pending real subscriptions retain useful facts until P02b-3 activates durable
-  acceptance. No placeholder consumer or global worker-disable switch is used.
+- Required Pending subscriptions retain useful facts before activation. Both
+  real default subscriptions are now Active with P02b-3 durable acceptance;
+  no placeholder consumer or global worker-disable switch is used.
 - Terminal state commits with MUST audit; it does not prove that a timed-out
-  transport never accepted the event. P02b-3's inbox is still required.
+  transport never accepted the event. P02b-3's shared inbox provides independent
+  per-subscription deduplication during at-least-once recovery.
 
 ## `IEventBus` and `IntegrationEventEnvelope`
 
@@ -515,19 +561,21 @@ Topic naming convention: `learnstack.{module}.{aggregate}`. Examples:
 ## `InProcessEventBus`
 
 `InProcessEventBus` remains the only registered transport in every deployment
-mode until ADR-0035's Phase 11 trigger fires. The shipped baseline constructs one
-async scope per discovered subscription, restores ambient tenant/organization,
-serializes invocation per key and collects constructor/handler/disposal failures.
-It opens no business transaction and has no durable inbox or subscriber ledger.
-Its current exception logs/spans need P02b-3's bounded diagnostic reconciliation
-before Active production consumers; P02b-2 minimizes its own dispatcher path.
+mode until ADR-0035's Phase 11 trigger fires. P02b-3 Step 2 restores the validated
+publication context before creating one fresh acceptance scope, announces its
+app-role transaction and persists all required Active subscriptions atomically.
+It never resolves a business handler. Identical canonical envelopes are idempotent;
+conflicting or inaccessible copies refuse without changing earlier rows. Matching
+partial acceptance can be completed, and uncertain COMMIT remains producer-retryable.
+Pending, unknown and retired contracts cannot silently acknowledge zero deliveries;
+only explicitly declared intentional absence succeeds without ledger writes.
 
-P02b-3 changes publish success to durable acceptance of every required delivery.
-Duplicate acceptance is idempotent; partial or unknown acceptance can be retried.
-The independent scheduler then invokes one internal delivery executor for each
-subscription, with the shared inbox and app-role owner described above. Subscriber
-business failure spends neither sibling nor producer attempts after acceptance.
-The executor never rebroadcasts and receives no publication-rule exception.
+Per-key serialization covers publication acceptance inside this process. Handler
+construction, execution, cancellation and cleanup no longer belong to publish.
+Step 3 supplies the independent internal executor and app-role owner described
+above; Step 4 implements its scheduler. Subscriber business failure spends
+neither sibling nor producer attempts after acceptance. The executor never
+rebroadcasts and receives no publication-rule exception.
 
 `PartitionSerializer` refuses reentrant work for its current key. Queuing behind
 itself would deadlock; running inline would let inherited AsyncLocal state permit
@@ -571,7 +619,7 @@ P02b-1 accepts partition-source derivation under ADR-0057. It accepts no durable
 publish-order guarantee. ADR-0046 selects eligible rows in total order
 `(available_after, occurred_at, id)` for one processor without failure. This is no
 enqueue/commit/retry/cross-process promise; strict head-of-line blocking is rejected.
-`InProcessEventBus` serializes invocation per key within its process.
+`InProcessEventBus` serializes acceptance per key within its process.
 
 The rule, therefore, is that **every outbox row carries a non-null `partition_key`**:
 
@@ -629,16 +677,22 @@ Phase 03 must decide producer reset/fencing before any operator replay endpoint.
 
 ### Subscriber side — dispatch succeeded, handling did not
 
-**P02b-3 target.** Each stable subscription has its own durable ledger budget,
-retained envelope and terminal/replay state. Terminal failure leaves no completed
-inbox row and writes Tenancy-owned `platform.delivery.dead_letter` atomically with
-terminal state. No `learnstack.dlq.*` topic or duplicate dead-letter table is needed.
+**Implemented by P02b-3 Step 4.** Each stable subscription has its own durable
+ledger budget, retained envelope and terminal/replay state. Terminal failure leaves
+no completed inbox row and writes Tenancy-owned `platform.delivery.dead_letter`
+atomically with terminal state. No `learnstack.dlq.*` topic or duplicate dead-letter
+table is needed.
 
-Targeted internal replay resets only that subscription with fresh ownership fencing
-and invokes its executor, never `PublishAsync`. Completed siblings remain inbox
-deduplicated; a completed inbox is never reset. Phase 03 owns operator permission,
-HTTP routes and the separately decided producer replay contract. P02b-8 owns erasure
-inventory, Phase 03 privileged redaction and Phase 11 retention purge.
+Targeted internal replay admits exactly one declared tenant/subscription/event
+tuple whose Active ordinary subscription has completed terminal state and no lease.
+It refuses pending terminalization, completed business deliveries and Pending,
+privileged, unknown or retired subscriptions. The reset clears attempts, bounded
+error and terminal state, invalidates old ownership and makes that tuple due. The
+scheduler later invokes only its executor, never `PublishAsync`. Completed siblings
+remain inbox deduplicated; a completed inbox is never reset. Phase 03 owns operator
+permission, HTTP routes and the separately decided producer replay contract.
+P02b-8 owns erasure inventory, Phase 03 privileged redaction and Phase 11
+retention purge.
 
 ## Service extraction readiness
 
@@ -663,8 +717,9 @@ separate service later:
 - `Integration_Events_Inherit_From_IntegrationEventBase` — every type implementing
   `IIntegrationEvent` extends `IntegrationEventBase` (which carries `EventId`,
   `OccurredAt`, `TenantId` and declares `Topic` / `PartitionKey`).
-- `Integration_Event_Handlers_Use_InboxGuard` — Registered for P02b-3's shared
-  transport-owned claim before construction and atomic fenced completion.
+- [`Integration_Event_Handlers_Use_InboxGuard`](../standards/21-architecture-tests-catalogue.md#integration_event_handlers_use_inboxguard)
+  — Implemented by P02b-3: nonempty all-layer handler/manifest and typed call-path
+  controls plus real transport-owned claim-before-construction and atomicity proofs.
 - `Dapr_PubSub_TopicNames_FollowConvention` — Phase 11 checks that Dapr component
   bindings agree with the already-validated topics declared by events. It is not a
   current `[Topic]`-attribute scan; no such attribute exists.
@@ -690,12 +745,15 @@ attempt duration/failure/terminal/lease-loss observations. Gauges perform no SQL
 refresh failure preserves stale data and makes health unhealthy. Per-attempt spans
 and closed diagnostics contain no raw exception/type/payload/connection data.
 
-P02b-3 adds dedup/subscriber-terminal counters with bounded module/event-type labels.
-Producer and subscriber terminal outcomes remain separate observations: acceptance
-failure and business execution failure have different retry owners. Metrics are
-process observations, not an exactly-once durable event ledger. `outbox` is
-registered and not publicly mapped; `/healthz` remains liveness-only, with Phase 11
-owning readiness exposure and dashboards.
+P02b-3 Step 4 emits nine subscriber instruments: four snapshot/heartbeat gauges,
+execution duration, failure, terminal, dedup and lease-loss observations. Event-type
+and subscription labels use finite declared values and fixed invalid categories;
+queue/heartbeat gauges and lease loss are unlabelled. Failed refresh retains the
+prior snapshot; stale progress/snapshot, retained overruns and terminal-audit
+failure make delivery health unhealthy. Producer and subscriber outcomes remain
+separate process observations, not an exactly-once durable event ledger. `outbox`
+and `delivery` are registered and not publicly mapped; `/healthz` remains
+liveness-only, with Phase 11 owning readiness exposure and dashboards.
 
 ## References
 

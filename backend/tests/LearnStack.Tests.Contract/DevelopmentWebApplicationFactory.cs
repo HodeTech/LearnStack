@@ -19,9 +19,9 @@ namespace LearnStack.Tests.Contract;
 /// in CI without it. Packet 4 removed that gate — the document is the contract
 /// the SDK generates from and CI diffs, so it is served in every environment —
 /// and the environment override keeps the contract suite on one known environment.
-/// This served-contract fixture also removes the dispatcher worker because it owns
-/// no dispatcher database. Its retained private outbox health check intentionally
-/// remains Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
+/// This served-contract fixture also removes the dispatcher workers because it owns
+/// no dispatcher database. Its retained private outbox and delivery health checks
+/// intentionally remain Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
 /// </remarks>
 public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -29,12 +29,13 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
     {
         builder.UseEnvironment(Environments.Development);
         // This served-contract proof owns no dispatcher database. Remove only
-        // that worker; production startup tests retain the mandatory registration.
+        // those two workers; production startup tests retain the mandatory registration.
         builder.ConfigureTestServices(services =>
         {
             foreach (var descriptor in services.Where(descriptor =>
                          descriptor.ServiceType == typeof(IHostedService)
-                         && descriptor.ImplementationType == typeof(OutboxProcessor)).ToArray())
+                         && (descriptor.ImplementationType == typeof(OutboxProcessor)
+                         || descriptor.ImplementationType == typeof(DeliveryProcessor))).ToArray())
                 services.Remove(descriptor);
         });
     }

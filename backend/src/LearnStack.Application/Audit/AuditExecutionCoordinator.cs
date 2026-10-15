@@ -58,7 +58,8 @@ public sealed class AuditExecutionCoordinator(
         // silent — which is why TryGet and not a count of entries tells them apart.
         if (!catalog.TryGet(operationType, out var registration))
         {
-            LogUnclassified(logger, operationType.FullName ?? operationType.Name, null);
+            LogUnclassified(logger, tenantContext is EventTenantContext
+                ? "delivery" : operationType.FullName ?? operationType.Name, null);
 
             return Result.FailFor<TResponse>(AuditErrors.UnclassifiedOperation);
         }
@@ -206,7 +207,7 @@ public sealed class AuditExecutionCoordinator(
                 // aggregate and none designated — is a programmer error that nothing else
                 // reports, and it must not cost the next intent its attempt nor replace the
                 // caller's outcome.
-                LogReconcileRowRefused(logger, intent.Operation, refused);
+                LogReconcileRowRefused(logger, intent.Operation, DiagnosticException(refused));
 
                 continue;
             }
@@ -242,7 +243,7 @@ public sealed class AuditExecutionCoordinator(
             {
                 // A draft the store refused before any write — the platform sentinel — is a
                 // caller error the store does not report (IAuditStore), so this is its alert.
-                LogReconcileRowRefused(logger, intent.Operation, refused);
+                LogReconcileRowRefused(logger, intent.Operation, DiagnosticException(refused));
             }
             catch (Exception lost)
             {
@@ -254,11 +255,17 @@ public sealed class AuditExecutionCoordinator(
                 // changes the response only when the operation would otherwise have
                 // SUCCEEDED, and everything reaching here is already failing, refused or in
                 // doubt, so the caller keeps its status.
-                LogReconcileRowLost(logger, intent.Operation, lost);
+                LogReconcileRowLost(logger, intent.Operation, DiagnosticException(lost));
             }
 #pragma warning restore CA1031
         }
     }
+
+    // Delivery diagnostics use the declared operation and fixed event code only.
+    // A nested command shares this context, so its failure cannot leak payloads
+    // through a provider/composer exception before the transport sees the fault.
+    private Exception? DiagnosticException(Exception failure) =>
+        tenantContext is EventTenantContext ? null : failure;
 
     /// <summary>
     /// Parks one intent per audited <c>(resource, operation)</c>.
@@ -341,7 +348,11 @@ public sealed class AuditExecutionCoordinator(
                 // declared one and the intent and the catalogue cannot disagree.
                 entry.OperationClass,
                 entry.EntityType,
-                clock.UtcNow));
+                clock.UtcNow)
+            {
+                CausationId = tenantContext is EventTenantContext delivery ? delivery.EventId : null,
+                CausalActorUserId = tenantContext is EventTenantContext ? tenantContext.CausalActorUserId : null,
+            });
         }
     }
 

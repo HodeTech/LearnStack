@@ -15,9 +15,12 @@
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
 (P02b-2 transition, terminal-witness and hosted runtime proofs implemented;
-all four steps completed both independent review rounds and local closeout;
-the [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
-owns CI/merge status; P02b-3 consumer proofs remain pending). The
+all four steps completed both independent review rounds; packet complete and merged;
+the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns CI/merge status; P02b-3 Steps 1–6 implement consumer runtime, defaults and
+production-census enforcement; its
+[Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+owns validation, review and PR closeout status). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -110,12 +113,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**194 test methods run in
+**219 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
-Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1
-and P02b-2 Steps 2–4.
+Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
+P02b-2 Steps 2–4 and P02b-3 Steps 3–6.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -142,8 +145,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**192 rules in this catalogue are Implemented, and 118 of them are in that assembly.**
-The other 74 are no less binding, and most could not live there. The table says where
+**202 rules in this catalogue are Implemented, and 121 of them are in that assembly.**
+The other 81 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -173,6 +176,14 @@ Every rule in this document carries its own **Status** line, and that line is th
 
 One rule, one identifier. When a document, skill, or comment uses a superseded spelling,
 the fix is to replace it with the canonical name — not to add a row here.
+
+### Terminal audit witness rules
+
+`Outbox_Terminal_Audit_Identity_Is_Row_Bound` and
+`Delivery_Terminal_Audit_Identity_Is_Row_Bound` share the `TerminalOffenders`
+architecture detector because both use the same restricted witness/writer seam.
+Distinct producer and subscriber planted controls and real-row integration
+proofs enforce their respective identities; these remain two catalogue rules.
 
 ### Tenant isolation
 
@@ -1311,10 +1322,12 @@ otherwise).
 
 #### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
 
-- **Asserts:** no type implementing `IRequestHandler<,>`, `IRequestHandler<>` or
-  `INotificationHandler<>` can reach more than one **distinct aggregate root** through
+- **Asserts:** no type implementing `IRequestHandler<,>`, `IRequestHandler<>`,
+  `INotificationHandler<>` or `IIntegrationEventHandler<>` can reach more than one
+  **distinct aggregate root** through
   its constructor parameters' `IAggregateWriteStore<TRoot, TId>` derivations, except the
-  single handler on a literal allow-list — `ProvisionTenantCommandHandler`, which writes
+  single exact assembly/type identity — Tenancy's `ProvisionTenantCommandHandler`,
+  which writes
   `Tenant` and its default `Organization` in one transaction per ADR-0042.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
@@ -1340,8 +1353,14 @@ otherwise).
   `Cross_Aggregate_Census_Catches_Fused_Separate_Notification_And_Internal_Constructors`
   exercises the same production predicate with fused/two-port request and notification
   handlers, a non-public constructor, and same-root/non-handler negative controls.
+  P02b-3 Step 6 adds
+  `Cross_Aggregate_Census_Catches_Integration_Handlers_And_Inherited_Contracts` for
+  fused/separate integration ports, inherited contracts and a same-simple-name
+  integration offender tested independently of the other dirty subjects. The
+  actual provisioning type alone is the clean exception control.
 - **What it does not catch:** a write routed through a helper that itself holds two
-  ports, or through a second `DbContext` reached indirectly — the same limit
+  ports, arbitrary nested `ISender.Send` sequences, or a second `DbContext` reached
+  indirectly — the same limit
   [§ What a structural test proves](#what-a-structural-test-proves--and-what-it-does-not)
   states for every structural rule. The binding control is that the allow-list has one
   entry and growing it is a reviewed diff.
@@ -1616,7 +1635,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Source:** [Database Standards § Soft Delete](05-database.md).
 - **Type:** xUnit over the EF model (`LearnStack.Tests.Architecture`,
   `PersistenceConventionTests`). **Kind:** structural.
-- **Status:** **Implemented** (Packet 9, fifth review). Its companion,
+- **Status:** **Implemented** (`PersistenceConventionTests`, Packet 9, fifth review).
+  Its companion,
   `The_Soft_Delete_Index_Sweep_Can_Actually_Fail`, runs the predicate over a probe context
   carrying one unique index of each shape — counting deleted rows, partial, containing the
   primary key, and on a table with no `deleted_at` — and expects exactly the first.
@@ -2060,9 +2080,9 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** behavioural.
-- **Status:** **Implemented, twice.** The schema-level case is Packet 6 step 4
+- **Status:** **Implemented**, twice. The schema-level case is Packet 6 step 4
   (`TenancySchemaTests`); the request-level one is Packet 7 step 11
-  (`Database/TenantIsolationHttpTests`), which drives it through
+  (`TenantIsolationHttpTests`), which drives it through
   `HostClassificationMiddleware`, `TenantResolverMiddleware`, the announcement and the
   EF query filters, with the host header as the only input and no stubbed
   `ITenantContext`. The schema-level case moved forward because that class's own
@@ -2084,11 +2104,11 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
-- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`): a
+- **Status:** **Implemented**, twice. Packet 6 step 4 (`TenancySchemaTests`): a
   `[Theory]` over every table carrying a `WITH CHECK` for the `INSERT` half, and
   `Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected` for the `UPDATE` half, because
   `WITH CHECK` guards both and a rule covering one leaves the other open. Packet 7 step 11
-  (`Database/TenantIsolationHttpTests`) issues the write through a request: raw SQL on
+  (`TenantIsolationHttpTests`) issues the write through a request: raw SQL on
   the ambient connection, so no query filter is in front of it and only `WITH CHECK` can
   refuse. The first version of that case asserted merely that an anonymous POST failed,
   and passed against a **deleted endpoint** and against a database with every policy
@@ -2319,11 +2339,10 @@ because the filters hold, and removing both turns all five red.
 - **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
 - **Phase:** 02a (Packet 7).
 - **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
-  ADR-0040 Amendment 5 adds. **Only one of the eight sanctioned setters stamps it**, and
-  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
-  other seven, **two do not exist in code yet** — the durable idempotency store, and the
-  integration-event transport, which is the one other setter that *opens* the ambient
-  transaction and will have to announce it when Phase 02b lands it — and the five that do,
+  ADR-0040 Amendment 5 adds. The MediatR transaction owner and P02b-3's transport
+  stamp it through `SetTenantContextAsync`; acceptance and prepared execution
+  announce their own ambient transaction before app-role commands. The durable
+  idempotency store remains unimplemented. The five other logical setters,
   `OrganizationScopeValidator`, the two standalone audit writers and the two cached
   projection loaders (`AuditConfig` and the tenant flags), issue raw `NpgsqlCommand`s on
   connections of their own, which EF interception cannot see, so they need neither a mark
@@ -2589,9 +2608,12 @@ which decides identity, multiplicity, capture and classification;
 
 #### `Every_Shipped_Request_Is_Registered`
 
-- **Asserts:** every request type with a handler — a closed `IRequestHandler<,>` or
-  `IRequestHandler<>` implemented in any project under `backend/src` — is registered in the
-  merged audit catalogue, `Off` included. An unclassified request fails the build rather
+- **Asserts:** every request type with a closed `IRequestHandler<,>` or
+  `IRequestHandler<>`, and every concrete `IIntegrationEventHandler<>` implemented
+  in any project under `backend/src`, is registered in the merged audit catalogue,
+  `Off` included. Delivery classification keys the concrete handler, not its event;
+  sibling handlers remain independent. Discovery fails loudly on incomplete loads.
+  An unclassified request fails the build rather
   than defaulting to silence; at runtime, reaching step 3 unclassified is
   `audit_unclassified_operation`, and there is no `RequestKind.Other`.
 - **Why it is keyed on the request type.** `AuditLogBehavior` looks a registration up by
@@ -2601,7 +2623,9 @@ which decides identity, multiplicity, capture and classification;
   `tenancy.organization.create` registered through provisioning, both directions stayed
   green, and the running system would have refused every `CreateOrganizationCommand`.
 - **Companion:** `The_Request_Sweep_Can_Actually_Fail` runs the predicate over exactly that
-  catalogue and requires it to name the missing request.
+  catalogue and requires it to name the missing request. P02b-3 Step 6 adds
+  handler-specific missing/Off/event-only and inherited-contract controls in
+  `AuditCoverageIntegrationTests.cs`.
 - **The catalogue it reads is the discovered one — so the roots are held to it.** This rule
   constructs every `IAuditCatalogSource` by reflection, which is what lets it see a source
   nobody listed and what makes it blind to the registrations: deleting the API's
@@ -2784,8 +2808,9 @@ which decides identity, multiplicity, capture and classification;
 
 #### `Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix`
 
-- **Asserts:** every module that ships an aggregate root or a request type — an
-  `IAggregateRoot<>` implementation, or a request with a handler, whose namespace is
+- **Asserts:** every module shipping an aggregate root, request type or concrete
+  integration handler — an `IAggregateRoot<>`, request with a handler or
+  `IIntegrationEventHandler<>`, whose namespace is
   `LearnStack.Modules.<Name>.…` — has `docs/modules/<name>/audit.md`.
 - **Why it exists beside the rule above.** `Every_Module_Has_An_AuditCoverage_Matrix` walks
   the spec directories that exist, so a module that ships code with no spec directory at all
@@ -2797,6 +2822,7 @@ which decides identity, multiplicity, capture and classification;
   the Audit module itself ships aggregates and no request.
 - **Companion:** `The_Module_Sweep_Can_Actually_Fail` feeds the discovery an aggregate root
   in a module with no spec directory and no request, and requires the predicate to name it.
+  P02b-3 Step 6 adds `Integration_Only_Module_Requires_An_Audit_Matrix`.
 - **Source:** [ADR-0044 Amendment 4 § 3](../decisions/0044-audit-write-path.md);
   [13-documentation.md § Per-Module Specifications](13-documentation.md).
 - **Type:** xUnit + reflection + file scan. **Kind:** structural.
@@ -3194,18 +3220,24 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `Integration_Event_Handler_Restores_Tenant_Context`
 
-- **Asserts:** when an outbox consumer dispatches an integration event,
-  the inner handler scope has `ITenantContext.IsResolved == true` before
-  business code runs. Verifies the envelope-to-context restoration.
-- **Source:** ADR-0032 § Sub-decision 12; Phase 02b deliverable.
-- **Type:** integration test (Testcontainers). Runs against
-  `InProcessEventBus` — which invokes the shared handler interface and restores
-  tenant context
-  ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), so the assertion does
-  not wait on the Dapr adapter. Consumer delivery/inbox deduplication remains
-  P02b-3 work. **Kind:** behavioural.
-- **Status:** **Registered.**
-- **Phase:** 02b.
+- **Asserts:** the independent delivery executor restores resolved tenant and
+  organization before business construction, keeps effective SystemActor separate
+  from human causation, and restores the prior context after actual cleanup. The
+  real app-role transaction contains inbox, business, produced outbox, MUST audit
+  and fenced ledger completion; refusal/rollback controls preserve isolation.
+- **Source:** ADR-0032 § Sub-decision 12 and
+  [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+- **Type:** actual `DeliveryExecutor` integration (Testcontainers), with constructor,
+  callback, prior-context, failure and independent real-default controls.
+  `InProcessEventBus` performs durable acceptance and constructs no business handler.
+  **Kind:** behavioural.
+- **Status:** **Implemented**
+  (`DeliveryExecutionTests.Integration_Event_Handler_Restores_Tenant_Context`).
+  The [HTTP producer proof](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProducerHttpTests.cs)
+  also checks the real HTTP producer's stored trace,
+  announced tenant/org and exact nonempty partition; the delivery proof checks
+  the same quartet for its outgoing event. Actual production consumers are Active.
+- **Phase:** 02b, P02b-3.
 
 #### `Integration_Event_Handlers_Use_InboxGuard`
 
@@ -3221,7 +3253,33 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   superseding ADR-0006/0010's handler-called guard assertion.
 - **Type:** architecture call-path census and integration tests (Testcontainers).
   **Kind:** structural + behavioural.
-- **Status:** **Registered** — transport-owned inbox/delivery remains unimplemented.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`, with
+  `DeliveryExecutionTests`, `CustomizationDefaultDeliveryTests` and
+  `DeliveryDispatchStoreTests`). Step 6's
+  [handler/manifest census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryBoundaryTests.cs)
+  requires all production assemblies/layers and the two exact scoped Active
+  bindings. It detects typed construction, inherited implementation/virtual-slot
+  invocation, DI resolution through statically bound generic helpers, async and
+  delegate bypasses, with missing-subject and dirty/clean controls. Generic type
+  and method argument membership states bound recursive helper traversal.
+  The [lifecycle census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryLifecycleBoundaryTests.cs)
+  pins typed unit/frame and database-transaction completion sites, including
+  known EF transaction/facade APIs, and their multiplicity. It also pins the
+  three `SetTenantContextAsync` call sites in the ordinary owner, prepared delivery
+  owner and durable acceptance, with missing-site and extra interface/concrete/
+  inherited/async/delegate caller controls. These implement two of ADR-0040's
+  eight logical setter paths rather than adding a new path. These are bounded
+  static capability checks, not arbitrary
+  reflection, raw SQL transaction analysis or branch-order proofs; the real
+  PostgreSQL tests own inbox-before-construction and transaction atomicity.
+  The owner census also pins completion construction to the executor's owned
+  path, with extra direct/asynchronous and missing-constructor-site controls.
+  Earlier structural companions remain
+  `OutboxDispatchConventionTests.Delivery_owner_and_inbox_capabilities_are_closed`
+  and
+  [Delivery_owner_census_rejects_extra_direct_delegate_async_and_inherited_capabilities](../../backend/tests/LearnStack.Tests.Architecture/DeliveryOwnerBoundaryTests.cs).
+  They enumerate all production assemblies, prepared-owner minting/consumption,
+  inbox callers, completion subtypes and common-owner fence/commit capabilities.
 - **Phase:** 02b, P02b-3.
 
 #### `Integration_Events_Inherit_From_IntegrationEventBase`
@@ -3311,7 +3369,7 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Implemented** (`DomainEventProductionTests.The_owner_drains_FIFO_across_sources_saves_delete_and_detach_without_duplicates`,
   `TenantCreatedProducerTests`, `ProducerExecutionTests`); real save qualification,
   FIFO/bounds, owner/common-audit atomicity and cleanup.
-- **Phase:** 02b, P02b-1; production delivery remains P02b-3 after G1.
+- **Phase:** 02b, P02b-1; P02b-3 Steps 1–5 deliver production subscriber execution.
 
 #### `Domain_Event_Handlers_Are_Outbox_Only`
 
@@ -3348,7 +3406,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
 
-- **Asserts:** ordinary publication failure permits unrelated eligible work to
+- **Asserts:** ordinary publication failure and a sustained terminal-audit failure
+  backlog permit unrelated normal publication and expired-claim recovery to
   progress. A callback ignoring cancellation retains its live task-owned scope,
   blocks its own partition and makes health unhealthy; unrelated keys progress
   within the approved four-task bound. Saturation stops acquisition, late results
@@ -3359,7 +3418,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxPublishAttemptTests`):
   actual hosted ordinary-failure, retained-scope/cleanup, partition hold, four-task
   saturation and finite-shutdown proofs; hostile synchronous construction and
-  cancellation callbacks retain ownership through completion.
+  cancellation callbacks retain ownership through completion. A real PostgreSQL
+  audit-grant refusal backlog outliving its leases preserves terminal rollback
+  while independent durable acceptance and recovery continue.
 - **Phase:** 02b.
 
 #### `Outbox_Claim_IsHeld_Until_Dispatch_Completes`
@@ -3455,11 +3516,13 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `Outbox_Pending_Subscriptions_Preserve_Events`
 
-- **Asserts:** Real TenantCreated rows and aliases remain unchanged through repeated
+- **Asserts:** TenantCreated rows and aliases assigned Pending manifests remain
+  unchanged through repeated
   Pending polls, even with malformed stored payloads: no acquisition, attempts,
   validation or handler construction. Declared intentional absence is a distinct
   tested acknowledgement policy. Test-owned Active contracts exercise the shipped
-  publish/mark path; real subscriptions stay Pending until P02b-3.
+  publish/mark path. P02b-3 Step 5 activates both real production subscriptions;
+  Pending-manifest fixtures retain the policy proof.
 - **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md);
   [P02b-2 proof obligations](../roadmap/phase-02b-events-auth.md#decisive-proof-obligations).
 - **Type:** integration tests (Testcontainers) and unit tests of production
@@ -3469,10 +3532,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   `OutboxProductionCompositionTests`, `OutboxEventRegistryTests`), with these proofs:
   [OutboxProcessorTests.Real_provisioning_rows_remain_Pending_across_hosted_polls_without_construction_or_mutation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs),
   [OutboxDispatchStoreTests.Real_TenantCreated_contracts_and_aliases_are_held_before_any_payload_validation](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxDispatchStoreTests.cs),
-  [OutboxProductionCompositionTests.Real_provisioning_contract_remains_pending_for_both_distinct_default_consumers](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
+  [OutboxProductionCompositionTests.Real_provisioning_contract_activates_both_distinct_default_consumers_with_exact_handler_bindings](../../backend/tests/LearnStack.Tests.Unit/Api/Composition/OutboxProductionCompositionTests.cs),
   and [OutboxEventRegistryTests.Active_manifest_and_discovered_handlers_must_match_in_both_directions](../../backend/tests/LearnStack.Tests.Unit/Infrastructure/Messaging/OutboxEventRegistryTests.cs)
-  prove real Pending holds and composition refusal. Test-owned Active publication
-  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_the_following_real_handler_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
+  prove declared Pending holds, actual Active bindings and composition refusal.
+  Test-owned Active publication
+  runs in [OutboxProcessorTests.A_poison_first_row_terminalizes_with_MUST_audit_and_following_acceptance_progresses](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs);
   [OutboxProcessorTests.Explicit_intentional_absence_acknowledges_without_constructing_a_handler](../../backend/tests/LearnStack.Tests.Integration/Database/OutboxProcessorTests.cs)
   proves the distinct intentional-absence policy.
 - **Phase:** 02b, P02b-2.
@@ -3505,6 +3569,108 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   observation; alternate clock and detached same-type factory controls are rejected.
   Focused verification and both fresh fix reviews pass at `606362b`.
 - **Phase:** 02b, P02b-2.
+
+#### `Integration_Event_Publication_Is_Durable_Acceptance`
+
+- **Asserts:** Publish success means every required stable subscription has an
+  immutable, durably accepted envelope without business-handler construction.
+  Identical duplicates are idempotent, conflicting copies are refused and
+  partial/uncertain acceptance retries safely without spending subscriber budgets.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** real PostgreSQL/app-role integration and construction controls.
+  **Kind:** behavioural.
+- **Status:** **Implemented** (`DurableEventAcceptanceTests`, `InboxGuardTests`,
+  `OutboxProcessorTests`, P02b-3 Step 2). Includes independent publisher transactions,
+  blocked duplicate commit/rollback, immutable collisions, dropped COMMIT response,
+  constructor refusal controls and the actual producer worker's durable handoff.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Retries_And_Replay_Are_Subscription_Scoped`
+
+- **Asserts:** Independent subscription attempts/backoff/leases, terminal requests
+  and replay preserve sibling and producer outcomes. Actual completion is fenced
+  with the business transaction and sticky timeout gate; final-claim unknown
+  COMMIT recovers from atomic inbox/ledger state. Replay resets one terminal
+  ledger pair only, never its completed inbox or a healthy sibling.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** real PostgreSQL worker/owner integration, controlled cancellation,
+  lost-COMMIT and state-transition mutants. **Kind:** behavioural.
+- **Status:** **Implemented** (`DeliveryDispatchStoreTests`, `DeliveryProcessorTests`,
+  `DeliveryExecutionTests`, P02b-3 Step 4). Real-role tests cover independent
+  retries, final-claim recovery, exact-tuple replay with terminal sibling controls,
+  unchanged-row lock expiry, lost COMMIT and postcommit cleanup ownership.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Terminal_Audit_Identity_Is_Row_Bound`
+
+- **Asserts:** The successful fenced subscriber terminal UPDATE alone mints a
+  restricted witness binding actual tenant/org/subscription/event/token and live
+  transaction. Mismatched draft identities/operation/class/type/transaction and
+  failed audit roll back both writes; uncertain COMMIT never duplicates terminal
+  audit. The scheduler has no retained payload/causal-envelope SELECT privilege.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#atomic-terminal-audit-and-privilege-boundary)
+  and [ADR-0044 Amendment 11](../decisions/0044-audit-write-path.md#amendment-11--shared-delivery-capture-exclusions-2026-10-13).
+- **Type:** nonempty production mint/writer census with dirty/clean controls and
+  real-role atomic transition integration. **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `DeliveryDispatchStoreTests`, P02b-3 Step 4). Exact producer/subscriber mint
+  and writer censuses have planted dirty/clean controls; real-role tests pin draft
+  substitutions, audit rollback, matching witnesses and uncertain-COMMIT reconciliation.
+- **Phase:** 02b, P02b-3.
+
+#### `Delivery_Execution_And_Observation_Are_Bounded`
+
+- **Asserts:** Actual API subscriber worker, deadlines, ignored cancellation and
+  disposal retain safe task-owned resources within the accepted capacity/shutdown
+  bounds. Postcommit cleanup cannot undo/repeat a durable business effect. Closed
+  diagnostics/finite labels, exact snapshot cadence and prior-snapshot retention
+  preserve truthful registered health; gauge callbacks execute no SQL.
+- **Source:** [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#diagnostics-and-execution-bounds)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** production registration/observation/call-path census with planted
+  dirty/clean controls, unit probes and real worker integration.
+  **Kind:** structural + behavioural.
+- **Status:** **Implemented** (`OutboxDispatchConventionTests`,
+  `DeliveryProcessorTests`, `DeliveryObservationTests`, `DeliveryAttemptTests`,
+  P02b-3 Step 4). The actual worker proves retained callbacks/cleanup, capacity,
+  shutdown and refresh cadence. Production capability and memory-observation
+  censuses have planted controls;
+  literal-SQL checks cover exact declared writers/helpers, not arbitrary dataflow.
+- **Phase:** 02b, P02b-3.
+
+#### `Customization_Default_Initialization_Preserves_Touched_Concepts`
+
+- **Asserts:** Both actual default subscriptions create one untouched root each
+  with owner-minted UUIDv7, one generation bump and MUST audit. Any Draft, Active,
+  Deprecated, successor-only or soft-deleted concept is preserved. Semantic-key
+  serialization makes competing registration and initialization converge without
+  overwrite, republish or resurrection; each effect has independent inbox state.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** actual consumer integration, lifecycle/race/atomic-audit controls.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — `CustomizationDefaultInitializationTests`,
+  `CustomizationDefaultDeliveryTests` (P02b-3 Step 5): app-role lifecycle,
+  ordinary-registration races, backlog/fresh delivery and atomic audit proofs.
+- **Phase:** 02b, P02b-3.
+
+#### `Seeder_BuiltIns_Use_Semantic_Identity`
+
+- **Asserts:** Seeder discovers and exactly verifies built-ins by semantic
+  key/version while preserving warm/generated IDs and authored exact IDs/pins.
+  It uses the ordinary app-role pipeline without a worker or dispatcher credential;
+  reruns are neutral, conflicting lifecycle/shape refuses without overwrite, and
+  fresh seeding/delivery races converge in both winning orders.
+- **Source:** [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
+  and the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13).
+- **Type:** actual Seeder/module/worker integration with warm-ID and race controls.
+  **Kind:** behavioural.
+- **Status:** **Implemented** — `SeederTests`,
+  `CustomizationDefaultDeliveryTests` (P02b-3 Step 5): generated/warm identity,
+  exact-shape/lifecycle refusal, neutral reruns and both Seeder/delivery race orders.
+- **Phase:** 02b, P02b-3.
 
 ### Demand-gated: lands with its adapter
 

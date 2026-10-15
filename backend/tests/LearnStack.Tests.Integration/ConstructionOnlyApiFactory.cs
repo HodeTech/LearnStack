@@ -35,7 +35,8 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
         // test composition, never a production flag or a blanket hosted-service ban.
         foreach (var descriptor in services.Where(descriptor =>
                      descriptor.ServiceType == typeof(IHostedService)
-                     && descriptor.ImplementationType == typeof(OutboxProcessor)).ToArray())
+                     && (descriptor.ImplementationType == typeof(OutboxProcessor)
+                         || descriptor.ImplementationType == typeof(DeliveryProcessor))).ToArray())
         {
             services.Remove(descriptor);
         }

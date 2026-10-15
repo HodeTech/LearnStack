@@ -172,10 +172,8 @@ public sealed class SeederTests : IAsyncLifetime
                 """, "tenant", tenant.TenantId.Value))
                 .Should().Be(3L, "a level vocabulary with no bands resolves everything to nothing");
 
-            // The counter every cache key embeds. Both built-in and declared definitions
-            // each register and publish; a reader holding a pre-seed key cannot reach a
-            // stale entry — and a generation still at its default would mean the writes
-            // happened without invalidating anything.
+            // Each built-in initialization bumps once; each authored definition registers
+            // and publishes. A reader holding a pre-seed key cannot reach stale data.
             (await ScalarAsPlatformAsync("""
                 SELECT generation FROM customization_generations WHERE tenant_id = @tenant
                 """, "tenant", tenant.TenantId.Value))
@@ -228,9 +226,8 @@ public sealed class SeederTests : IAsyncLifetime
         (await ScalarAsPlatformAsync("SELECT count(*) FROM organizations WHERE tenant_id = ANY(@ids)", "ids", SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray()))
             .Should().Be(4L);
 
-        // The built-ins have two ways to double that the tenancy rows do not: the
-        // register conflicts on a versioned key, and the publish refuses because the
-        // definition is already live. Both are "already seeded" and neither may write.
+        // Semantic built-in verification and exact authored verification both skip
+        // before a writer, so no initialization attempt or publication is repeated.
         // Scoped to the seed's own tenants: the shared fixture seeds customization rows
         // for two OTHER tenants, and an unfiltered count would be measuring both.
         (await ScalarAsPlatformAsync(
@@ -284,7 +281,7 @@ public sealed class SeederTests : IAsyncLifetime
     [Theory]
     [InlineData("content-type")]
     [InlineData("taxonomy")]
-    public async Task A_built_in_whose_id_another_tenant_holds_stops_the_run(string subject)
+    public async Task An_authored_definition_whose_id_another_tenant_holds_stops_the_run(string subject)
     {
         // The ownership verification, for the two customization acts. A definition's
         // id is a uuid primary key and therefore GLOBAL, while its key is per tenant —
@@ -306,10 +303,18 @@ public sealed class SeederTests : IAsyncLifetime
         (await Runner(dataSource)
             .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
 
-        // The second tenant, re-declared with the first tenant's built-in id.
+        // Authored IDs remain exact even though built-in IDs are discovered semantically.
         var collidingYoga = subject == "content-type"
-            ? SeedData.Yoga with { BuiltInContentTypeId = SeedData.English.BuiltInContentTypeId }
-            : SeedData.Yoga with { BuiltInTaxonomyId = SeedData.English.BuiltInTaxonomyId };
+            ? SeedData.Yoga with
+            {
+                Curriculum = SeedData.Yoga.Curriculum! with
+                { ContentType = SeedData.Yoga.Curriculum!.ContentType with { Id = SeedData.English.Curriculum!.ContentType.Id } }
+            }
+            : SeedData.Yoga with
+            {
+                Curriculum = SeedData.Yoga.Curriculum! with
+                { Taxonomy = SeedData.Yoga.Curriculum!.Taxonomy with { Id = SeedData.English.Curriculum!.Taxonomy.Id } }
+            };
 
         var seed = async () => await Runner(dataSource)
             .RunAsync(CancellationToken.None, [collidingYoga]);
@@ -600,8 +605,21 @@ public sealed class SeederTests : IAsyncLifetime
         outcomes.Should().OnlyContain(code => code == 0);
         (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
         await AssertInventoryAsync(source);
+        var preservedInitializations = await ScalarAsPlatformAsync("""
+            SELECT count(*) FROM audit_log
+            WHERE operation IN ('customization.content_type.initialize', 'customization.level_taxonomy.initialize')
+              AND outcome = 'success' AND entity_id IS NULL AND before_state IS NULL AND after_state IS NULL
+              AND changes IS NULL
+            """);
+        preservedInitializations.Should().BeInRange(0, 2, "each competing runner can preserve each default once");
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE outcome = 'success'"))
-            .Should().Be(SeedData.ExpectedAuditWrites, "only one successful writer wins each act");
+            .Should().Be(SeedData.ExpectedAuditWrites + preservedInitializations,
+                "only one successful writer wins each act; additional successes are precisely classified no-change initializers");
+        (await ScalarAsPlatformAsync("""
+            SELECT count(*) FROM audit_log
+            WHERE operation IN ('customization.content_type.initialize', 'customization.level_taxonomy.initialize')
+              AND outcome = 'success' AND after_state IS NOT NULL
+            """)).Should().Be(SeedData.All.Count * 2L, "every built-in has exactly one creating initialization");
         var completed = await SnapshotAsync();
         (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
         (await SnapshotAsync()).Should().Be(completed);
@@ -723,6 +741,8 @@ public sealed class SeederTests : IAsyncLifetime
     [InlineData("host scope")]
     [InlineData("locale")]
     [InlineData("undeclared locale")]
+    [InlineData("type id")]
+    [InlineData("taxonomy id")]
     [InlineData("type key")]
     [InlineData("type revision")]
     [InlineData("schema")]
@@ -760,6 +780,8 @@ public sealed class SeederTests : IAsyncLifetime
             "host scope" => original with { MapHostToDefaultOrganization = true },
             "locale" => original with { Curriculum = content with { Locales = [content.Locales[0] with { Sort = 4 }] } },
             "undeclared locale" => original,
+            "type id" => original with { Curriculum = content with { ContentType = content.ContentType with { Id = Guid.CreateVersion7() } } },
+            "taxonomy id" => original with { Curriculum = content with { Taxonomy = content.Taxonomy with { Id = Guid.CreateVersion7() } } },
             "type key" => original with { Curriculum = content with { ContentType = content.ContentType with { Key = "different" } } },
             "type revision" => original with { Curriculum = content with { ContentType = content.ContentType with { SchemaVersion = 2 } } },
             "schema" => original with { Curriculum = content with { ContentType = content.ContentType with { JsonSchema = "{}" } } },
@@ -818,28 +840,34 @@ public sealed class SeederTests : IAsyncLifetime
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task Seed_publication_refuses_a_different_active_revision_without_retiring_or_rebinding_it(bool taxonomy, bool expectedDraftExists)
+    public async Task Built_in_verification_refuses_a_different_active_revision_without_retiring_or_rebinding_it(bool taxonomy, bool expectedDraftExists)
     {
         await using var source = DataSource();
         var tenant = SeedData.English with { Curriculum = null };
         var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
-            new InterruptAfter(taxonomy ? (expectedDraftExists ? "level taxonomy" : "content type publication")
-                : (expectedDraftExists ? "content type" : "host mapping")));
+            new InterruptAfter("host mapping"));
         var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
         await initial.Should().ThrowAsync<InvalidOperationException>();
         var incumbent = Guid.CreateVersion7();
         var context = new SeedTenantContext(tenant.TenantId, null);
         if (taxonomy)
         {
-            var definition = SeedData.Taxonomies(tenant).First();
-            await Write(new RegisterTenantLevelTaxonomyCommand(incumbent, definition.Key, definition.SchemaVersion + 1,
-                definition.DisplayName, [.. definition.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort, band.Metadata))]));
+            await Write(new InitializeTenantContentTypeDefaultCommand());
+            var definition = BuiltInCustomizations.Plain;
+            if (expectedDraftExists)
+                await Write(new RegisterTenantLevelTaxonomyCommand(Guid.CreateVersion7(), definition.Key, 1,
+                    definition.DisplayName, [.. definition.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]));
+            await Write(new RegisterTenantLevelTaxonomyCommand(incumbent, definition.Key, BuiltInCustomizations.SchemaVersion + 1,
+                definition.DisplayName, [.. definition.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]));
             await Write(new PublishTenantLevelTaxonomyCommand(incumbent));
         }
         else
         {
-            var definition = SeedData.ContentTypes(tenant).First();
-            await Write(new RegisterTenantContentTypeCommand(incumbent, definition.Key, definition.SchemaVersion + 1,
+            var definition = BuiltInCustomizations.Card;
+            if (expectedDraftExists)
+                await Write(new RegisterTenantContentTypeCommand(Guid.CreateVersion7(), definition.Key, 1,
+                    definition.DisplayName, definition.JsonSchema, definition.RendererKey));
+            await Write(new RegisterTenantContentTypeCommand(incumbent, definition.Key, BuiltInCustomizations.SchemaVersion + 1,
                 definition.DisplayName, definition.JsonSchema, definition.RendererKey));
             await Write(new PublishTenantContentTypeCommand(incumbent));
         }
@@ -859,6 +887,120 @@ public sealed class SeederTests : IAsyncLifetime
             await using var scope = provider.CreateAsyncScope();
             (await scope.ServiceProvider.GetRequiredService<ISender>().Send(request)).IsSuccess.Should().BeTrue();
         }
+    }
+
+    [Fact]
+    public async Task Matching_built_ins_with_independently_generated_ids_are_preserved_without_any_writer()
+    {
+        await using var source = DataSource();
+        var tenant = SeedData.English with { Curriculum = null };
+        var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
+            new InterruptAfter("host mapping"));
+        await ((Func<Task>)(() => interrupted.RunAsync(CancellationToken.None, [tenant])))
+            .Should().ThrowAsync<InvalidOperationException>();
+        var typeId = Guid.CreateVersion7();
+        var taxonomyId = Guid.CreateVersion7();
+        var type = BuiltInCustomizations.Card;
+        var taxonomy = BuiltInCustomizations.Plain;
+        var context = new SeedTenantContext(tenant.TenantId, null);
+        await WriteAsync(source, context, new RegisterTenantContentTypeCommand(typeId, type.Key, 1,
+            type.DisplayName, type.JsonSchema, type.RendererKey));
+        await WriteAsync(source, context, new PublishTenantContentTypeCommand(typeId));
+        await WriteAsync(source, context, new RegisterTenantLevelTaxonomyCommand(taxonomyId, taxonomy.Key, 1,
+            taxonomy.DisplayName, [.. taxonomy.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]));
+        await WriteAsync(source, context, new PublishTenantLevelTaxonomyCommand(taxonomyId));
+        var before = await SnapshotAsync();
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(before, "semantically complete warm defaults skip all initialization attempts");
+        (await ReadAsync(source, context, new GetActiveContentTypeSeedRevisionQuery(type.Key))).State!.Id.Should().Be(typeId);
+        (await ReadAsync(source, context, new GetActiveTaxonomySeedRevisionQuery(taxonomy.Key))).State!.Id.Should().Be(taxonomyId);
+    }
+
+    [Theory]
+    [InlineData("type labels")]
+    [InlineData("type schema")]
+    [InlineData("type renderer")]
+    [InlineData("taxonomy labels")]
+    [InlineData("band key")]
+    [InlineData("band labels")]
+    [InlineData("band sort")]
+    [InlineData("band metadata")]
+    [InlineData("missing band")]
+    public async Task A_live_built_in_with_a_different_semantic_shape_is_refused_before_any_writer(string mismatch)
+    {
+        await using var source = DataSource();
+        var tenant = SeedData.English with { Curriculum = null };
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        var sql = mismatch switch
+        {
+            "type labels" => """UPDATE tenant_content_types SET display_name = '{"en":"Different"}' WHERE tenant_id = @tenant AND key = 'card'""",
+            "type schema" => "UPDATE tenant_content_types SET json_schema = '{}' WHERE tenant_id = @tenant AND key = 'card'",
+            "type renderer" => "UPDATE tenant_content_types SET renderer_key = 'different' WHERE tenant_id = @tenant AND key = 'card'",
+            "taxonomy labels" => """UPDATE tenant_level_taxonomies SET display_name = '{"en":"Different"}' WHERE tenant_id = @tenant AND key = 'plain'""",
+            "band key" => "UPDATE tenant_level_taxonomy_items SET key = 'different' WHERE tenant_id = @tenant AND taxonomy_key = 'plain' AND key = 'beginner'",
+            "band labels" => """UPDATE tenant_level_taxonomy_items SET display_name = '{"en":"Different"}' WHERE tenant_id = @tenant AND taxonomy_key = 'plain' AND key = 'beginner'""",
+            "band sort" => "UPDATE tenant_level_taxonomy_items SET sort = 99 WHERE tenant_id = @tenant AND taxonomy_key = 'plain' AND key = 'beginner'",
+            "band metadata" => "UPDATE tenant_level_taxonomy_items SET metadata = '{}' WHERE tenant_id = @tenant AND taxonomy_key = 'plain' AND key = 'beginner'",
+            "missing band" => "DELETE FROM tenant_level_taxonomy_items WHERE tenant_id = @tenant AND taxonomy_key = 'plain' AND key = 'beginner'",
+            _ => throw new ArgumentOutOfRangeException(nameof(mismatch)),
+        };
+        await ChangeFixtureAsync(sql, tenant);
+        var before = await SnapshotAsync();
+        var run = () => Runner(source).RunAsync(CancellationToken.None, [tenant]);
+        (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
+        (await SnapshotAsync()).Should().Be(before, "the Active row is inspected in full before choosing an initializer");
+    }
+
+    [Theory]
+    [InlineData(false, "Draft")]
+    [InlineData(false, "Deprecated")]
+    [InlineData(false, "Deleted")]
+    [InlineData(true, "Draft")]
+    [InlineData(true, "Deprecated")]
+    [InlineData(true, "Deleted")]
+    public async Task Preserved_built_in_history_without_an_active_default_refuses_without_business_mutation(bool taxonomy, string state)
+    {
+        await using var source = DataSource();
+        var tenant = SeedData.English with { Curriculum = null };
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        var table = taxonomy ? "tenant_level_taxonomies" : "tenant_content_types";
+        var key = taxonomy ? BuiltInCustomizations.Plain.Key : BuiltInCustomizations.Card.Key;
+        var assignment = state == "Deleted" ? "deleted_at = now()" : $"status = '{state}'";
+        await ChangeFixtureAsync($"UPDATE {table} SET {assignment} WHERE tenant_id = @tenant AND key = '{key}'", tenant);
+        var before = await SnapshotAsync(includeAudit: false);
+        var audits = await AuditRowsAsync();
+        var operation = taxonomy ? "customization.level_taxonomy.initialize" : "customization.content_type.initialize";
+        var previous = await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = @operation", "operation", operation);
+        var run = () => Runner(source).RunAsync(CancellationToken.None, [tenant]);
+        (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
+        (await SnapshotAsync(includeAudit: false)).Should().Be(before,
+            "the shared create-only initializer preserves every lifecycle and soft-deleted revision");
+        (await AuditRowsAsync()).Should().HaveCount(audits.Length + 1).And.Contain(audits);
+        (await ScalarAsPlatformAsync("""
+            SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome = 'success'
+              AND entity_id IS NULL AND before_state IS NULL AND after_state IS NULL
+              AND changes IS NULL
+            """, "operation", operation)).Should().Be(1, "the only additional row classifies the preserved initialization attempt");
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = @operation", "operation", operation))
+            .Should().Be(previous + 1);
+    }
+
+    private async Task ChangeFixtureAsync(string sql, SeedTenant tenant)
+    {
+        await using var connection = await PostgresFixture.OpenAsync(_database.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(connection, transaction, tenant.TenantId.Value);
+        await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
+        command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);
+        (await command.ExecuteNonQueryAsync()).Should().Be(1, "the deliberate test-owned mismatch must exist");
+        await transaction.CommitAsync();
+    }
+
+    private static async Task WriteAsync<T>(NpgsqlDataSource source, ITenantContext context, IRequest<Result<T>> request)
+    {
+        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        (await scope.ServiceProvider.GetRequiredService<ISender>().Send(request)).IsSuccess.Should().BeTrue();
     }
 
     // ── Harness ──────────────────────────────────────────────────────────────
@@ -961,7 +1103,7 @@ public sealed class SeederTests : IAsyncLifetime
         result.IsSuccess.Should().BeTrue();
     }
 
-    private async Task<string> SnapshotAsync()
+    private async Task<string> SnapshotAsync(bool includeAudit = true)
     {
         var output = new SortedDictionary<string, string>(StringComparer.Ordinal);
         var ids = SeedData.All.Select(tenant => tenant.TenantId.Value).ToArray();
@@ -970,6 +1112,7 @@ public sealed class SeederTests : IAsyncLifetime
             "tenant_content_types", "tenant_level_taxonomies", "tenant_level_taxonomy_items", "customization_generations",
             "courses", "lessons", "course_translations", "lesson_translations", "audit_log" })
         {
+            if (table == "audit_log" && !includeAudit) continue;
             var column = table == "tenants" ? "id" : "tenant_id";
             // Table/column are a closed test-owned list, never external SQL input.
             await using var query = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text), '[]'::jsonb)::text FROM {table} row WHERE {column} = ANY(@ids)", (NpgsqlConnection)connection);

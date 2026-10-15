@@ -247,7 +247,7 @@ ADR-0046 accepts this P02b-2 boundary. Step 1 implements source/role guards;
 both review rounds are complete. Step 3 implements mandatory worker startup
 resolution and connectivity checks; both independent review rounds are complete.
 Step 4 credential/publication enforcement and local closeout are complete; all
-four steps completed both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
+four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 owns CI/merge status. The named keyed, lazy
 dispatcher source belongs only to the API host. Configuration validates the exact
 username without connecting or
@@ -266,10 +266,12 @@ Routine confined poll/claim/mark receives ADR-0046's bounded audit exception;
 terminal state is MUST/SecurityEvent and atomic with its row-bound witness audit.
 INSERT-only and GUCs cannot tenant-bind a bypass credential. Real mismatch controls
 must roll back terminal state and audit together. Existing platform-admin entry
-audit and gate stay unchanged. P02b-3 opens separate app-role business scopes,
-restores validated tenant/organization and announces RLS context before reading
-the envelope and constructing a handler. The ordinary executor refuses privileged
-subscriptions until their Phase 03 execution contract exists.
+audit and gate stay unchanged. P02b-3 Steps 3–4 implement separate app-role
+business scopes, restore validated tenant/organization and announce RLS context
+before reading the envelope and constructing a handler. The subscriber scheduler
+shares the confined source for enumerated routing/status columns; it receives no
+payload, causal-envelope or inbox SELECT privilege. The ordinary executor refuses
+privileged subscriptions until their Phase 03 execution contract exists.
 
 ## Tenant Context
 
@@ -372,7 +374,7 @@ yet:
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
 | `TransactionBehavior` → `TransactionExecutionCoordinator` | ambient | — the existing general announcement path; common execution adds no authority |
-| The integration-event transport, per delivery | ambient — it opens it | There is no MediatR request: `InProcessEventBus` invokes the handler directly, so no behavior runs. It opens the ambient transaction itself, from the delivery's `EventTenantContext` |
+| The integration-event transport, per delivery | ambient — it opens it | `DeliveryExecutor` uses the common transaction owner and validated retained envelope before restoring `EventTenantContext`, claiming inbox and constructing the handler. `InProcessEventBus` owns durable acceptance only; nested commands join the prepared business transaction |
 | `IOrganizationScopeValidator` | its own short read-only one | The organization assertion is validated in the request edge, before the pipeline reaches step 6 ([ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)) |
 | `IIdempotencyStore` (durable) | its own short one | A claim is taken **before** the pipeline reaches step 6 ([ADR-0037](../decisions/0037-idempotency-key-contract.md)) |
 | `IAuditStore.WriteStandaloneAsync` | its own short one | An audit row that must survive the rollback of the operation it describes cannot share that operation's transaction ([ADR-0033](../decisions/0033-audit-durability-model.md)) |
@@ -418,25 +420,27 @@ leak — but an empty result set arriving from production is an outage, so
 the `SET LOCAL` pair on this transaction before any command a module `DbContext` issues
 runs on it.
 
-**Keyed on the transaction, not on the table**, and marked by one setter rather than
-eight — both narrower than an earlier wording here, and both for reasons the shipped
-mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
-every query and the database to decide something the transaction already answers.
-And of the eight paths, only `TransactionBehavior` through
-`TransactionExecutionCoordinator` and the sanctioned `IUnitOfWork` announcement
-methods marks the ambient transaction today: two do not exist in code yet —
-the durable idempotency store, and the integration-event transport, which matters most,
-because it is the other setter that *opens* the ambient transaction and must therefore
-announce it when Phase 02b lands it — and the five that do, `OrganizationScopeValidator`,
+**Keyed on the transaction, not on the table**, and marked through the ambient
+unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
+between every query and the database to decide something the transaction already
+answers.
+Of the eight logical paths, the MediatR transaction owner and P02b-3's integration
+transport mark the ambient transaction through sanctioned `IUnitOfWork`
+announcement methods. Durable acceptance and prepared subscriber execution both
+announce before their first app-role command; the production call-site census
+closes these implementations without adding a ninth logical setter. The durable
+idempotency store remains unimplemented. The five other paths,
+`OrganizationScopeValidator`,
 the two standalone audit writers and the two cached-projection loaders, issue raw
 `NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
-`TransactionBehavior` alone would reject the writes the idempotency store and the audit
-store legitimately make on their own short transactions — is real, and is answered by the
-guard reading a marker rather than a behavior's name: a setter marks the transaction it
+`TransactionBehavior` alone would reject legitimate transport and audit writes,
+and the future idempotency store's writes on its own short transaction — is real,
+and is answered by the guard reading a marker rather than a behavior's name:
+a setter marks the transaction it
 opens if and only if it reaches EF. The audit store's writers have landed and reach none;
 the durable idempotency store will mark its own if it does. It throws
 `TenantContextMissingException` when it has not, which

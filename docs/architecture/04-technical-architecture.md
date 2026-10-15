@@ -175,23 +175,31 @@ flowchart LR
   outbox[(outbox table)]
   dispatcher[API OutboxProcessor<br/>BackgroundService]
   bus[In-process event bus]
+  ledger[(Shared delivery ledger)]
+  consumer[API DeliveryProcessor]
+  executor[App-role delivery executor]
   handlers[Integration event handlers]
-  externals[External calls<br/>email / search index / etc.]
 
   trans -- domain change + integration event row --> outbox
   dispatcher -- claim one admitted row --> outbox
   dispatcher -- dispatch --> bus
-  bus --> handlers
-  bus --> externals
+  bus -- durable acceptance --> ledger
+  consumer -- claim one subscription --> ledger
+  consumer --> executor
+  executor -- inbox before construction --> handlers
   outbox -. mark processed .- dispatcher
 ```
 
 - All side-effects beyond the database transaction are deferred to **integration events** written to a transactional `outbox` table in the same transaction as the domain change.
 - The API-host `OutboxProcessor` polls the outbox and publishes admitted events
   through `IEventBus`. P02b-2 Step 3 implements hosted execution, with
-  both independent review rounds complete; real required subscriptions remain Pending
-  until P02b-3 supplies durable consumer execution.
-- Idempotency keys plus consumer-side deduplication guarantee at-least-once with effective once-only semantics.
+  both independent review rounds complete. P02b-3 Steps 1–5 implement durable
+  acceptance and independent subscriber execution with both real defaults Active.
+  The [packet record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+  owns current enforcement, validation and review status.
+- Publication is at-least-once. The transport-owned shared inbox and business
+  completion commit together for ordinary database effects; external effects need
+  their own idempotency contract under ADR-0046.
 
 Full details: [Events & Outbox](15-event-and-outbox.md).
 

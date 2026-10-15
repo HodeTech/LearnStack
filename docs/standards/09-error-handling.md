@@ -564,10 +564,12 @@ exception types (`LiveKit.NET.LiveKitException`, `Stripe.StripeException`,
 
 ## Outbox
 
-**Accepted ADR-0046; P02b-2 producer runtime and enforcement locally complete.**
-All four steps completed both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
-owns CI/merge status. Subscriber delivery/retries and inbox
-remain P02b-3.
+**Accepted ADR-0046; P02b-2 producer runtime and enforcement complete and merged.**
+All four steps completed both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns CI/merge status. P02b-3 Steps 1–4 implement durable acceptance, shared inbox,
+independent subscriber execution/retries and terminal audit. Step 5 activates both
+real default
+subscriptions and implements the shared initializer/Seeder handoff.
 
 - Each committed normal claim increments producer `attempts` once, including an
   unknown crash outcome. Six total claims use retry delays 1 s, 5 s, 30 s, 5 min
@@ -583,9 +585,9 @@ remain P02b-3.
 - Persist only closed stage/reason/category codes, optional allowlisted SQLSTATE
   and validated attempt traceparent in `last_error`, at most 256 UTF-8 bytes.
   Dispatcher logs/traces likewise exclude exception text/stacks, payloads, raw
-  stored type and connection data. Existing transport exception telemetry is a
-  P02b-3 reconciliation obligation before Active production consumers.
-- After P02b-3 durable acceptance, subscriber business failure spends only its
+  stored type and connection data. P02b-3 removes the former raw transport exception
+  telemetry; subscriber execution and observation retain bounded diagnostics.
+- After durable acceptance, subscriber business failure spends only its
   independent ledger budget. Failed/unknown acceptance still spends producer
   attempts. Subscriber retry invokes one internal delivery executor, never a
   broadcast; operator recovery routes and producer reset/fencing are Phase 03.

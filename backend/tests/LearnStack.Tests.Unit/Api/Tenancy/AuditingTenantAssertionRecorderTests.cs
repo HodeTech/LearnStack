@@ -250,8 +250,9 @@ public sealed class AuditingTenantAssertionRecorderTests
         var health = new AuditHealth();
         var storeLogger = new CapturingLogger<PostgresAuditStore>();
         var recorderLogger = new CapturingLogger();
-        var meterFactory = new ServiceCollection().AddMetrics()
-            .BuildServiceProvider().GetRequiredService<IMeterFactory>();
+        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var meter = meterFactory.Create(PostgresAuditStore.MeterName);
 
         var store = new PostgresAuditStore(
             new AuditStateCapture(),
@@ -260,13 +261,13 @@ public sealed class AuditingTenantAssertionRecorderTests
             storeLogger,
             meterFactory,
             health,
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var counted = 0L;
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, active) =>
         {
-            if (instrument.Meter.Name == PostgresAuditStore.MeterName
+            if (ReferenceEquals(instrument.Meter, meter)
                 && instrument.Name == PostgresAuditStore.StandaloneWriteFailureCounterName)
             {
                 active.EnableMeasurementEvents(instrument);
@@ -274,6 +275,21 @@ public sealed class AuditingTenantAssertionRecorderTests
         };
         listener.SetMeasurementEventCallback<long>((_, measurement, _, _) => counted += measurement);
         listener.Start();
+
+        // A concurrent store can publish the same instrument name from another meter.
+        using var unrelatedMeter = new Meter(PostgresAuditStore.MeterName);
+        var unrelatedCounter = unrelatedMeter.CreateCounter<long>(PostgresAuditStore.StandaloneWriteFailureCounterName);
+        var unrelatedCount = 0L;
+        using var unrelatedListener = new MeterListener();
+        unrelatedListener.InstrumentPublished = (instrument, active) =>
+        {
+            if (ReferenceEquals(instrument, unrelatedCounter)) active.EnableMeasurementEvents(instrument);
+        };
+        unrelatedListener.SetMeasurementEventCallback<long>((_, measurement, _, _) => unrelatedCount += measurement);
+        unrelatedListener.Start();
+        unrelatedCounter.Add(7);
+        unrelatedCount.Should().Be(7, "the unrelated instrument must actually emit its planted measurement");
+        counted.Should().Be(0, "another store's meter must not contribute to this store's failure count");
 
         var recorder = Recorder(store, out _, logger: recorderLogger);
 

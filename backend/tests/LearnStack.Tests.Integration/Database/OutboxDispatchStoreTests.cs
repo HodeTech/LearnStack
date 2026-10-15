@@ -513,6 +513,30 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Terminal_audit_keeps_valid_trace_for_absent_causal_values_but_replaces_it_for_empty_values(bool empty)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        Guid? causalValue = empty ? Guid.Empty : null;
+        var id = await test.InsertAsync(correlation: Traceparent, causation: causalValue, actor: causalValue, payload: "{}");
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlockedPartitions))!;
+        (await store.RequestTerminalAsync(claim, OutboxTerminalReason.InvalidEnvelope)).Should().BeTrue();
+        var terminal = (await store.TryClaimTerminalAsync(NoBlockedPartitions))!;
+
+        (await store.TryTerminalizeAsync(terminal, AttemptTraceparent)).Should().BeTrue();
+
+        var audit = await test.ReadAuditAsync();
+        audit.Correlation.Should().Be(empty ? AttemptTraceparent : Traceparent,
+            "SQL NULL is valid optional absence, while an empty stored identifier is invalid metadata");
+        using var metadata = JsonDocument.Parse(audit.Metadata);
+        metadata.RootElement.GetProperty("event_id").GetGuid().Should().Be(id);
+        metadata.RootElement.TryGetProperty("causation_id", out _).Should().BeFalse();
+        metadata.RootElement.TryGetProperty("causal_actor_user_id", out _).Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("tenant")]
     [InlineData("organization")]
     [InlineData("event")]
@@ -853,14 +877,17 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
     }
 
     [Fact]
-    public async Task Reserved_subscriber_terminal_operation_remains_unregistered()
+    public async Task Subscriber_terminal_operation_is_declared_as_MUST_security_event()
     {
         await using var test = await TestDatabase.CreateAsync(schema.Postgres);
         var catalog = test.Provider.GetRequiredService<IAuditCatalog>();
         catalog.TryGetOffPath("platform.outbox.dead_letter", out var producer).Should().BeTrue();
         producer.OperationClass.Should().Be(OperationClass.Must);
         producer.OperationType.Should().Be(OperationType.SecurityEvent);
-        catalog.TryGetOffPath("platform.delivery.dead_letter", out _).Should().BeFalse();
+        catalog.TryGetOffPath("platform.delivery.dead_letter", out var subscriber).Should().BeTrue();
+        subscriber.Operation.Should().Be("platform.delivery.dead_letter");
+        subscriber.OperationClass.Should().Be(OperationClass.Must);
+        subscriber.OperationType.Should().Be(OperationType.SecurityEvent);
     }
 
     private static Task<bool> TransitionAsync(OutboxDispatchStore store, OutboxDispatchClaim claim, string transition) => transition switch

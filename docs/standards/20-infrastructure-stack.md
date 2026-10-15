@@ -81,10 +81,13 @@ Rules that follow from this:
   written against the port and holds for the default implementation too. If a rule only
   makes sense for the vendor adapter, it is a rule about the adapter and belongs in that
   adapter's section, not in module guidance.
-- **`InProcessEventBus` is a first-class transport, not a stub.** It uses
-  `IIntegrationEventHandler<T>` and restores tenant context before handler resolution.
-  Durable acceptance and the shared transport-owned `IInboxGuard` remain P02b-3
-  work under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
+- **`InProcessEventBus` is a first-class transport, not a stub.** P02b-3 Step 2
+  implements durable acceptance for declared `IIntegrationEventHandler<T>`
+  subscriptions, restoring context before its fresh application scope. Publication
+  constructs no handler. The shared transport-owned `IInboxGuard` claim primitive
+  and Step 3's business owner/executor are implemented; Step 4 implements
+  independent scheduling, terminalization and replay. Step 5 activates both real
+  defaults with semantic Seeder handoff under [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership).
   Phase 11's adapter must preserve that consumer contract.
 - **A demand-gated block is not "deferred".** It qualifies only with all four of: a
   port, a working default implementation, an owning phase, and a written trigger. If a
@@ -187,8 +190,9 @@ adapter replaces `InProcessEventBus`.
   (`learnstack.hub.entitlement`, `learnstack.hub.custom-domain.activated`).
 - Consumers implement `IIntegrationEventHandler<TEvent>`. Accepted ADR-0046 assigns
   shared inbox claim/completion to the transport, before handler construction.
-  `Integration_Event_Handlers_Use_InboxGuard` is Registered for P02b-3's nonempty
-  production census and real atomicity/duplicate proofs; handlers do not own the guard.
+  [`Integration_Event_Handlers_Use_InboxGuard`](21-architecture-tests-catalogue.md#integration_event_handlers_use_inboxguard)
+  is Implemented by P02b-3's nonempty production census and real
+  atomicity/duplicate proofs; handlers do not own the guard.
 - Construction-free readiness declares Pending, Active or intentional absence.
   Any required Pending subscription holds its contract/aliases before acquisition
   and validation; Active declarations require actual handler registration.
@@ -451,16 +455,37 @@ Rules:
 - P02b-3 implements the shared transport-owned inbox keyed by tenant/subscription/
   event. Its claim precedes handler construction; business state, inbox completion,
   produced outbox, MUST audit and fenced ledger completion share the app-role owner.
-  Independent delivery ledgers retain validated envelopes and own subscriber
-  retries/terminal/replay. Targeted replay invokes one internal executor, never
-  broadcast; the outbox processor remains the only production publisher.
+  The shared delivery ledger retains one validated envelope copy per tuple and
+  owns independent retries/terminal/replay. Step 4's scheduler uses the confined
+  bypass source for routing/status only; business execution uses `learnstack_app`.
+  Exact Pending/privileged type/subscription pairs are held while accepted Active
+  siblings can run. Targeted replay resets only a completed terminal Active
+  ordinary tuple with no lease; the scheduler later invokes that executor, never
+  broadcast. It never resets a completed inbox; the outbox processor remains the
+  only production publisher.
 - Operator routes, permissions and producer reset/fencing belong to Phase 03.
   Brokers and retention purge remain demand-gated Phase 11. P02b-2 Step 3
   implements hosted producer dispatch, with both independent review rounds complete;
   Step 4 enforcement and local closeout are complete; all four steps completed
-  both independent review rounds. The [Step 4 record](../roadmap/phase-02b-events-auth.md#p02b-2-step-4--enforcement-and-closeout-2026-10-12)
-  owns CI/merge status. Inbox and
-  effectively-once consumer delivery remain P02b-3.
+  both independent review rounds. The [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+  owns CI/merge status. P02b-3 Steps 1–4 implement shared storage, durable acceptance,
+  transactional execution and independent scheduling/terminalization/replay. Its
+  real defaults are Active with Step 5 initialization and semantic Seeder handoff. The
+  [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
+  records that step's validation and reviews. The
+  [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
+  owns current enforcement, validation and review/PR status.
+- Controlled subscriber tasks retain their actual app-role scope through
+  cancellation callbacks and cleanup. Timeout closes the sticky commit gate
+  before invoking callbacks. Acknowledged durability survives cleanup faults;
+  retained tasks block their local execution partition and consume bounded capacity.
+  Acceptance uses a separate serializer lane and never waits for subscriber cleanup.
+  Shutdown observes one total finite budget and the host token.
+- Subscriber observation emits the nine instruments defined by
+  [Observability Standards](10-observability.md#required-metrics), with finite
+  declared event/subscription labels. Gauges read immutable memory snapshots;
+  failed refresh preserves stale data and makes health unhealthy. The `delivery`
+  check is registered and unmapped; `/healthz` remains liveness-only.
 
 Full deep dive: [15-event-and-outbox.md](../architecture/15-event-and-outbox.md).
 
@@ -667,8 +692,10 @@ Its restricted witness comes only from the actual successful fenced terminal UPD
 The store validates declared operation/class/type, row identity and live caller
 transaction, then INSERTs without opening/committing a transaction. Existing four
 writes retain their contracts. The terminal UPDATE and audit commit together, or
-both roll back. Tenancy owns producer terminal audit in P02b-2 and subscriber
-terminal audit in P02b-3. See
+both roll back. Tenancy owns producer terminal audit in P02b-2 and
+`platform.delivery.dead_letter` in P02b-3 Step 4. The subscriber witness uses only
+actual routing/terminal identity and a validated attempt trace; it adds no
+causal-envelope or payload read to the bypass scheduler. See
 [Audit Coverage](18-audit-coverage.md#required-behaviours).
 
 ## Background Jobs and Hangfire

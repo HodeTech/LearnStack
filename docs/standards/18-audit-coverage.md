@@ -130,7 +130,12 @@ joins them catalogue → matrix and
 matrix → catalogue, each reading a cell as the list of slugs it holds. Neither can see a
 request type nobody registered when another request shares its slug, which is why
 [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
-asks the catalogue for every request type with a handler.
+asks the catalogue for every request type with a handler and every concrete
+integration-event handler type, including `Off` coordinators. Two handlers for
+one event are two subjects; classifying the shared event type covers neither.
+P02b-3 Step 6 checks both API and Seeder catalogues against fail-loud discovery
+and an omitted-`Off` control whose operation entries remain unchanged. A module
+with only integration handlers still requires its own matrix.
 
 ### The join
 
@@ -159,14 +164,14 @@ will raise them — which this standard requires it to do.
   `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
-  four whose writer ships through `DeclareOffPath` today, the other five when their
+  five whose writer ships through `DeclareOffPath` today, the other four when their
   writer lands. P02b-2 Step 2 registers the shipped producer terminal writer;
-  subscriber terminal registration remains planned for P02b-3.
+  P02b-3 Step 4 adds subscriber terminal registration with its writer.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**, and five do. `tenancy.killswitch.toggle` is
+- **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —
@@ -392,8 +397,9 @@ Rules:
   commands keep their own intents without a duplicate business row. Modules see
   none of this plumbing; the MUST floor and standalone refusal posture survive.
 - The interceptor captures **every** `ChangeTracker` entry in state `Added`, `Modified` or
-  `Deleted`, minus a named exclusion list — `OutboxMessage` and `IdempotencyKey`
-  (machinery) and `AuditEntry` / `AuditConfig` (the audit tables themselves). The
+  `Deleted`, minus a named exclusion list — `OutboxMessage`, `IdempotencyKey`,
+  `InboxMessage` and `EventDelivery` (machinery) and `AuditEntry` / `AuditConfig`
+  (the audit tables themselves; [ADR-0044 Amendment 11](../decisions/0044-audit-write-path.md#amendment-11--shared-delivery-capture-exclusions-2026-10-13)). The
   "`AuditableEntity<>` descendants only" predicate is **withdrawn**: it was blind to the
   seven plain classes the modules ship — `PlatformHostMapping`, `TenantLocale`,
   `TenantFeatureFlag`, `PlatformEntitlement` and `PlatformKillswitch` in Tenancy,
@@ -509,11 +515,12 @@ table above is the policy those deliverables implement, not a description of tod
   transaction. Validate declared MUST/SecurityEvent operation and matching draft
   before INSERT; mismatch rolls back both writes. No transaction is opened or
   committed by the seam. `PostgresAuditStore` remains the sole audit SQL writer.
-  Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and reserved
-  `platform.delivery.dead_letter` (P02b-3); register only with each writer.
+  Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and
+  `platform.delivery.dead_letter` (P02b-3 Step 4); each is registered with its writer.
   Outcome success records terminal state, not publication. Invalid causal metadata
-  is omitted and a fresh validated attempt trace is used. Closed terminal values
-  live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.
+  is omitted and a fresh validated attempt trace is used. Absent optional causal
+  IDs are valid; SQL NULL alone does not invalidate a stored trace. Closed terminal
+  values live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.
   Audit refusal retries terminalization without delivery. Because the bypass
   role ignores RLS, witness/call-path proof binds identity, not announced GUCs.
 - Entering `EnterPlatformAdminScope(reason)` writes that row through
@@ -567,8 +574,8 @@ observes neither a rollback nor a `42501`.
 - [`OperationType_Enum_Matches_Catalog`](21-architecture-tests-catalogue.md#operationtype_enum_matches_catalog)
   — the enum and § Operation Types carry the same seven members.
 - [`Every_Shipped_Request_Is_Registered`](21-architecture-tests-catalogue.md#every_shipped_request_is_registered)
-  — every request type with a handler in any backend assembly is in the catalogue, `Off`
-  included.
+  — every request type with a handler and every concrete integration handler in
+  any backend assembly is in the catalogue, `Off` included.
 - [`Every_TenantOwned_Command_HasAuditCoverage`](21-architecture-tests-catalogue.md#every_tenantowned_command_hasauditcoverage)
   — every catalogue entry has a matrix row with the same slug, class and type.
 - [`Every_Matrix_Row_Whose_Command_Exists_Is_Registered`](21-architecture-tests-catalogue.md#every_matrix_row_whose_command_exists_is_registered)

@@ -34,6 +34,12 @@ namespace LearnStack.Modules.Customization.Application.Abstractions;
 public interface ITenantContentTypeStore
     : IAggregateWriteStore<TenantContentType, TenantContentTypeId>
 {
+    /// <summary>Serializes registration and initialization for this tenant's concept until transaction end.</summary>
+    Task LockConceptAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>Whether any revision exists, including Draft, deprecated and soft-deleted history.</summary>
+    Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default);
+
     /// <summary>The revision with this id, tracked, or nothing.</summary>
     Task<TenantContentType?> FindAsync(
         TenantContentTypeId id, CancellationToken cancellationToken = default);
@@ -61,6 +67,12 @@ public interface ITenantContentTypeStore
 public interface ITenantLevelTaxonomyStore
     : IAggregateWriteStore<TenantLevelTaxonomy, TenantLevelTaxonomyId>
 {
+    /// <inheritdoc cref="ITenantContentTypeStore.LockConceptAsync"/>
+    Task LockConceptAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <inheritdoc cref="ITenantContentTypeStore.HasConceptHistoryAsync"/>
+    Task<bool> HasConceptHistoryAsync(string key, CancellationToken cancellationToken = default);
+
     /// <summary>The revision with this id and its bands, tracked, or nothing.</summary>
     Task<TenantLevelTaxonomy?> FindAsync(
         TenantLevelTaxonomyId id, CancellationToken cancellationToken = default);
