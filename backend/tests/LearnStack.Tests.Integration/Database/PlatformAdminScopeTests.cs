@@ -712,6 +712,7 @@ public sealed class PlatformAdminScopeTests
             .AddScoped<IAuditStateCapture, AuditStateCapture>()
             .AddSingleton<IAuditHealth, AuditHealth>()
             .AddSingleton<IAuditCatalog>(new AuditCatalog([new TenancyAuditCatalogSource()]))
+            .AddSingleton<ITenantContextAccessor>(StaticTenantContextAccessor.Unresolved)
             .AddSingleton(new Lazy<NpgsqlDataSource>(
                 () => throw new InvalidOperationException(
                     "The platform-scope row is written on the scope's own connection, so "

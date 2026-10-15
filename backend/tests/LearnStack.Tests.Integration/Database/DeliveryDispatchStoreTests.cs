@@ -287,7 +287,12 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
             _ => store.TryTerminalizeAsync(claim, AttemptTrace),
         };
         await test.WaitForLockWaitAsync();
-        while ((await test.ReadAsync(id)).LockedUntil > await test.NowAsync()) await Task.Delay(20);
+        using var expiryDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while ((await test.ReadAsync(id, cancellationToken: expiryDeadline.Token)).LockedUntil
+            > await test.NowAsync(expiryDeadline.Token))
+        {
+            await Task.Delay(20, expiryDeadline.Token);
+        }
         await transaction.CommitAsync();
         (await transition).Should().BeFalse();
         (await test.ReadAsync(id)).Token.Should().Be(claim.Token);
@@ -639,17 +644,18 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
             return fact.EventId;
         }
 
-        public async Task<Row> ReadAsync(Guid id, string subscription = First, Guid? tenant = null)
+        public async Task<Row> ReadAsync(Guid id, string subscription = First, Guid? tenant = null,
+            CancellationToken cancellationToken = default)
         {
-            await using var connection = await Dispatch.OpenConnectionAsync();
+            await using var connection = await Dispatch.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand("""
                 SELECT attempts, locked_by, locked_until, available_after, processed_at, terminal_reason,
                     dead_lettered_at, last_error, replay_count, replayed_at
                 FROM event_deliveries WHERE tenant_id = @tenant AND subscription_id = @subscription AND event_id = @event
                 """, connection);
             Bind(command, id, subscription, tenant);
-            await using var row = await command.ExecuteReaderAsync();
-            (await row.ReadAsync()).Should().BeTrue();
+            await using var row = await command.ExecuteReaderAsync(cancellationToken);
+            (await row.ReadAsync(cancellationToken)).Should().BeTrue();
             return new(row.GetInt32(0), Text(row, 1), Time(row, 2), row.GetFieldValue<DateTimeOffset>(3), Time(row, 4),
                 Text(row, 5), Time(row, 6), Text(row, 7), row.GetInt32(8), Time(row, 9));
         }
@@ -672,12 +678,12 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
         }
         public Task ExpireAsync(Guid id) => UpdateAsync(id, First, "locked_until = clock_timestamp() - interval '1 second'");
         public Task DueAsync(Guid id) => UpdateAsync(id, First, "available_after = clock_timestamp() - interval '1 second'");
-        public async Task<DateTimeOffset> NowAsync()
+        public async Task<DateTimeOffset> NowAsync(CancellationToken cancellationToken = default)
         {
-            await using var connection = await Dispatch.OpenConnectionAsync();
+            await using var connection = await Dispatch.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand("SELECT clock_timestamp()", connection);
-            await using var row = await command.ExecuteReaderAsync();
-            await row.ReadAsync();
+            await using var row = await command.ExecuteReaderAsync(cancellationToken);
+            await row.ReadAsync(cancellationToken);
             return row.GetFieldValue<DateTimeOffset>(0);
         }
         public static async Task<DeliveryClaim> RequestTerminalAsync(DeliveryDispatchStore store)

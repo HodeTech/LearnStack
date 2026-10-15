@@ -76,7 +76,7 @@ public sealed class PostgresAuditStore : IAuditStore
     private readonly ILogger<PostgresAuditStore> _logger;
     private readonly IAuditHealth _health;
     private readonly IAuditCatalog _catalog;
-    private readonly ITenantContextAccessor? _tenantAccessor;
+    private readonly ITenantContextAccessor _tenantAccessor;
     private readonly Counter<long> _durableDuplicates;
     private readonly Counter<long> _standaloneWriteFailures;
 
@@ -87,7 +87,7 @@ public sealed class PostgresAuditStore : IAuditStore
         IMeterFactory meterFactory,
         IAuditHealth health,
         IAuditCatalog catalog,
-        ITenantContextAccessor? tenantAccessor = null)
+        ITenantContextAccessor tenantAccessor)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
@@ -98,7 +98,7 @@ public sealed class PostgresAuditStore : IAuditStore
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         // Context controls diagnostics only. Row authority still comes exclusively
         // from the caller's classified draft/intent, including unresolved provisioning.
-        _tenantAccessor = tenantAccessor;
+        _tenantAccessor = tenantAccessor ?? throw new ArgumentNullException(nameof(tenantAccessor));
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
@@ -351,7 +351,7 @@ public sealed class PostgresAuditStore : IAuditStore
     }
 
     private Exception? DiagnosticException(Exception failure) =>
-        _tenantAccessor?.Current is EventTenantContext ? null : failure;
+        _tenantAccessor.Current is EventTenantContext ? null : failure;
 
     /// <inheritdoc />
     public async Task WritePlatformScopeAsync(

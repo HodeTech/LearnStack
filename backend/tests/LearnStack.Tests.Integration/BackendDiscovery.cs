@@ -57,8 +57,22 @@ internal static class BackendDiscovery
                 $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .Select(path => Assembly.Load(Path.GetFileNameWithoutExtension(path)))
+            .SelectMany(TypesIn);
+
+    private static Type[] TypesIn(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException exception)
+        {
             // A partial load is a failed census, never a smaller green population.
-            .SelectMany(assembly => assembly.GetTypes());
+            throw new InvalidOperationException(
+                $"Could not enumerate every type in {assembly.FullName}; the backend census is incomplete.",
+                exception);
+        }
+    }
 
     private static string BackendSrc()
     {

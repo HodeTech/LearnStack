@@ -23,6 +23,9 @@ public sealed class DurableEventAcceptanceTests(SchemaFixture schema)
     private const string OtherTrace = "00-33333333333333333333333333333333-4444444444444444-01";
     private const string First = "proof.first.v1";
     private const string Second = "proof.second.v1";
+    private const string EarlierIdentity = "LearnStack.Previous.ProofEvent, LearnStack.Previous.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+    private const string OtherEarlierIdentity = "LearnStack.Previous.OtherEvent, LearnStack.Previous.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+    private const string RetiredIdentity = "LearnStack.Retired.ProofEvent, LearnStack.Retired.Contracts";
     private static readonly DateTimeOffset Occurred = new(2026, 10, 13, 10, 20, 30, TimeSpan.Zero);
 
     [Fact]
@@ -68,6 +71,101 @@ public sealed class DurableEventAcceptanceTests(SchemaFixture schema)
         await bus.PublishAsync(envelope);
 
         (await RowsAsync(database.AppConnectionString, envelope.Event.EventId)).Should().BeEquivalentTo(before);
+    }
+
+    [Fact]
+    public async Task Canonical_republication_preserves_compatible_alias_copies_and_their_scheduling_state()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var services = Compose(source, withAliases: true);
+        var envelope = Envelope(Event());
+        var registry = services.GetRequiredService<OutboxEventRegistry>();
+        registry.Resolve(EarlierIdentity).Disposition.Should().Be(OutboxEventDisposition.Active);
+        registry.Resolve(EarlierIdentity).EventType.Should().Be<ProofEvent>();
+        await InsertCopyAsync(database.AppConnectionString, envelope, First, storedType: EarlierIdentity);
+        await InsertCopyAsync(database.AppConnectionString, envelope, Second, storedType: EarlierIdentity);
+        await using (var admin = await OpenAsync(database.OutboxConnectionString))
+        await using (var update = new NpgsqlCommand("""
+            UPDATE event_deliveries SET attempts = 2, last_error = 'execute:failed:handler',
+                available_after = clock_timestamp() + interval '1 hour',
+                locked_by = @token, locked_until = clock_timestamp() + interval '1 hour'
+            WHERE event_id = @event
+            """, admin))
+        {
+            update.Parameters.AddWithValue("token", Guid.CreateVersion7().ToString("D"));
+            update.Parameters.AddWithValue("event", envelope.Event.EventId);
+            (await update.ExecuteNonQueryAsync()).Should().Be(2);
+        }
+        var before = await RowsAsync(database.AppConnectionString, envelope.Event.EventId);
+
+        await services.GetRequiredService<IEventBus>().PublishAsync(envelope);
+
+        (await RowsAsync(database.AppConnectionString, envelope.Event.EventId)).Should().BeEquivalentTo(before);
+        ExplodingHandler.Constructions.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_compatible_alias_subset_is_completed_with_the_current_canonical_identity()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var services = Compose(source, withAliases: true);
+        var envelope = Envelope(Event());
+        await InsertCopyAsync(database.AppConnectionString, envelope, First, storedType: EarlierIdentity);
+        var before = (await RowsAsync(database.AppConnectionString, envelope.Event.EventId)).Single();
+
+        await services.GetRequiredService<IEventBus>().PublishAsync(envelope);
+
+        var rows = await RowsAsync(database.AppConnectionString, envelope.Event.EventId);
+        rows.Select(row => row.Subscription).Should().BeEquivalentTo([First, Second]);
+        rows.Single(row => row.Subscription == First).Should().BeEquivalentTo(before);
+        rows.Single(row => row.Subscription == Second).Type.Should().Be(typeof(ProofEvent).AssemblyQualifiedName);
+        ExplodingHandler.Constructions.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("other-canonical")]
+    [InlineData("other-alias")]
+    [InlineData("unknown")]
+    [InlineData("retired")]
+    [InlineData("alias-payload")]
+    public async Task Alias_compatibility_never_accepts_a_different_contract_or_changed_payload(string collision)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var services = Compose(source, withAliases: true);
+        var envelope = Envelope(Event());
+        var storedType = collision switch
+        {
+            "other-canonical" => typeof(OtherEvent).AssemblyQualifiedName!,
+            "other-alias" => OtherEarlierIdentity,
+            "unknown" => "LearnStack.Undeclared.ProofEvent, LearnStack.Undeclared.Contracts",
+            "retired" => RetiredIdentity,
+            "alias-payload" => EarlierIdentity,
+            _ => throw new ArgumentOutOfRangeException(nameof(collision)),
+        };
+        var expectedType = collision switch
+        {
+            "other-canonical" or "other-alias" => typeof(OtherEvent),
+            "alias-payload" => typeof(ProofEvent),
+            _ => null,
+        };
+        services.GetRequiredService<OutboxEventRegistry>().Resolve(storedType).EventType.Should().Be(expectedType);
+        var storedEnvelope = collision == "alias-payload"
+            ? Envelope(((ProofEvent)envelope.Event) with { RelatedId = Guid.CreateVersion7() })
+            : envelope;
+        // The earlier missing subscription would be inserted before this later
+        // collision; refusal must roll that insertion back with the whole set.
+        await InsertCopyAsync(database.AppConnectionString, storedEnvelope, Second, storedType: storedType,
+            storedPartition: envelope.PartitionKey);
+        var before = await RowsAsync(database.AppConnectionString, envelope.Event.EventId);
+
+        await FluentActions.Awaiting(() => services.GetRequiredService<IEventBus>().PublishAsync(envelope))
+            .Should().ThrowAsync<InvalidOperationException>();
+
+        (await RowsAsync(database.AppConnectionString, envelope.Event.EventId)).Should().BeEquivalentTo(before);
+        ExplodingHandler.Constructions.Should().Be(0);
     }
 
     [Theory]
@@ -449,7 +547,7 @@ public sealed class DurableEventAcceptanceTests(SchemaFixture schema)
         (await RowsAsync(database.AppConnectionString, fact.EventId)).Should().BeEmpty();
     }
 
-    private static ServiceProvider Compose(NpgsqlDataSource source, string disposition = "active")
+    private static ServiceProvider Compose(NpgsqlDataSource source, string disposition = "active", bool withAliases = false)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -470,13 +568,18 @@ public sealed class DurableEventAcceptanceTests(SchemaFixture schema)
         {
             "active" => [OutboxEventRegistration.Required(typeof(ProofEvent),
                 [OutboxSubscriptionManifest.Active(First, typeof(ExplodingHandler)),
-                 OutboxSubscriptionManifest.Active(Second, typeof(OtherExplodingHandler))])],
+                 OutboxSubscriptionManifest.Active(Second, typeof(OtherExplodingHandler))],
+                withAliases ? [EarlierIdentity] : [])],
             "pending" => [OutboxEventRegistration.Required(typeof(ProofEvent),
                 [OutboxSubscriptionManifest.Pending(First)])],
             "absent" => [OutboxEventRegistration.IntentionallyUnsubscribed(typeof(ProofEvent))],
             _ => [OutboxEventRegistration.IntentionallyUnsubscribed(typeof(OtherEvent))],
         };
-        string[] retired = disposition == "retired" ? [typeof(ProofEvent).AssemblyQualifiedName!] : [];
+        if (withAliases)
+            registrations = [.. registrations,
+                OutboxEventRegistration.IntentionallyUnsubscribed(typeof(OtherEvent), OtherEarlierIdentity)];
+        string[] retired = disposition == "retired" ? [typeof(ProofEvent).AssemblyQualifiedName!]
+            : withAliases ? [RetiredIdentity] : [];
         services.AddSingleton(OutboxEventRegistry.Create(registrations, retired, handlers,
             [typeof(ProofEvent).Assembly]));
         services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -636,6 +739,7 @@ public sealed class DurableEventAcceptanceTests(SchemaFixture schema)
     private sealed record ProofEvent : IntegrationEventBase
     {
         public required Guid SubjectId { get; init; }
+        public Guid? RelatedId { get; init; }
         public override string Topic => "learnstack.proof.delivery";
         public override string PartitionKey => SubjectId.ToString();
     }

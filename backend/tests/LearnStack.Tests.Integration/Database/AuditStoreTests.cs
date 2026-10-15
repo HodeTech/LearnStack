@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -408,7 +409,7 @@ public sealed class AuditStoreTests
             logger,
             MeterFactory,
             health,
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         // TenantB is a real tenant, but the draft's own announcement makes the row legal —
         // so to force a failure the row has to break something the announcement cannot
@@ -758,7 +759,7 @@ public sealed class AuditStoreTests
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
             new AuditHealth(),
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var bestEffort = async () => await store.WriteBestEffortAsync(Draft(organizationId: null));
 
@@ -943,7 +944,7 @@ public sealed class AuditStoreTests
             logger,
             MeterFactory,
             health,
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var counted = 0L;
         using var listener = new MeterListener();
@@ -999,7 +1000,7 @@ public sealed class AuditStoreTests
             logger,
             MeterFactory,
             health,
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var counted = 0L;
         using var listener = new MeterListener();
@@ -1116,7 +1117,7 @@ public sealed class AuditStoreTests
     private static PostgresAuditStore Store(
         AuditStateCapture capture, NpgsqlDataSource dataSource, IAuditHealth health) =>
         new(capture, new Lazy<NpgsqlDataSource>(() => dataSource),
-            NullLogger<PostgresAuditStore>.Instance, MeterFactory, health, new AuditCatalog([]));
+            NullLogger<PostgresAuditStore>.Instance, MeterFactory, health, new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
     /// <summary>A real meter factory, so the counter the store increments is a real one.</summary>
     private static readonly IMeterFactory MeterFactory =

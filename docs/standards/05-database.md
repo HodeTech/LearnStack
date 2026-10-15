@@ -41,7 +41,7 @@ PostgreSQL schema, EF Core, and migration conventions.
 - Schema migrations live with the owning module.
 
 With [P02d-1 complete](../roadmap/phase-02d-walking-skeleton.md#delivery-record-p02d-1),
-five migration chains exist: Tenancy, shared persistence, Customization, Audit and
+five migration chains exist: Tenancy, Platform, Customization, Audit and
 Education. P02b-3 Step 1 brings their inventory to twenty-three data tables and
 five migration-history tables.
 
@@ -63,7 +63,7 @@ five migration-history tables.
 | Functions | `fn_<purpose>` | `fn_set_updated_at` |
 | Read-model tables | `public_<module>_<concept>` | `public_education_course_summaries` |
 | Outbox | `outbox_messages` (global) | |
-| Shared inbox / delivery ledger | `inbox_messages` / `event_deliveries` | Tuple primary key; [canonical DDL](#inbox) |
+| Shared inbox / delivery ledger | Tuple primary key; [canonical DDL](#inbox) | `inbox_messages` / `event_deliveries` |
 
 `learnstack_` prefix reserved for system-wide objects (roles, extensions).
 
@@ -1587,6 +1587,11 @@ producer or a business table. Producer deletion cannot remove pending delivery
 payload or deduplication history. P02b-8 inventories these copies for erasure;
 Phase 11 owns retention purge and its minimal grants. No P3 role receives purge
 privileges on either table, including `learnstack_platform`.
+
+The cross-tenant scheduler indexes intentionally begin with availability time,
+then occurrence time and event ID, to support ADR-0046's global selection order.
+They are the explicit exception to the ordinary tenant-first index convention;
+application isolation remains enforced by the policies and grants below.
 
 The ledger is **tenant-owned, organization-scoped** and follows the canonical
 [organization policy and write guards](#tenant-owned-and-organization-scoped-tables),

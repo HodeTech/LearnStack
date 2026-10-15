@@ -17,6 +17,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
     private readonly ILogger<DeliveryProcessor> _logger;
     private readonly object _attemptGate = new();
     private readonly List<DeliveryAttempt> _attempts = [];
+    private DeliveryClaimKind _nextClaimKind = DeliveryClaimKind.Terminal;
 
     public DeliveryProcessor(
         [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
@@ -81,11 +82,7 @@ public sealed partial class DeliveryProcessor : BackgroundService
                 {
                     if (OutstandingCount < _options.MaxOutstandingExecutions)
                     {
-                        // Terminal requests and expired acquisitions never spend
-                        // another execution attempt, and take priority over new work.
-                        var claim = await _store.TryClaimTerminalAsync(blocked, stoppingToken).ConfigureAwait(false)
-                            ?? await _store.TryAcquireRecoveryAsync(blocked, stoppingToken).ConfigureAwait(false)
-                            ?? await _store.TryClaimAsync(blocked, stoppingToken).ConfigureAwait(false);
+                        var claim = await ClaimNextAsync(blocked, stoppingToken).ConfigureAwait(false);
                         if (claim is not null)
                         {
                             didWork = true;
@@ -122,6 +119,31 @@ public sealed partial class DeliveryProcessor : BackgroundService
             CancelAttempts();
             _observation.Stopped();
         }
+    }
+
+    private async Task<DeliveryClaim?> ClaimNextAsync(string[] blocked, CancellationToken cancellationToken)
+    {
+        // Service every eligible class within three claims, even when terminal
+        // audit keeps failing. Empty classes fall through without claiming work.
+        for (var checkedKinds = 0; checkedKinds < 3; checkedKinds++)
+        {
+            var kind = _nextClaimKind;
+            // Advance before acquisition/dispatch: a fault must not pin its class.
+            _nextClaimKind = kind switch
+            {
+                DeliveryClaimKind.Terminal => DeliveryClaimKind.Recovery,
+                DeliveryClaimKind.Recovery => DeliveryClaimKind.Normal,
+                _ => DeliveryClaimKind.Terminal,
+            };
+            var claim = kind switch
+            {
+                DeliveryClaimKind.Terminal => await _store.TryClaimTerminalAsync(blocked, cancellationToken).ConfigureAwait(false),
+                DeliveryClaimKind.Recovery => await _store.TryAcquireRecoveryAsync(blocked, cancellationToken).ConfigureAwait(false),
+                _ => await _store.TryClaimAsync(blocked, cancellationToken).ConfigureAwait(false),
+            };
+            if (claim is not null) return claim;
+        }
+        return null;
     }
 
     private async Task DispatchAsync(DeliveryClaim claim, CancellationToken stoppingToken)
@@ -247,11 +269,19 @@ public sealed partial class DeliveryProcessor : BackgroundService
                 return;
             }
             _observation.Failed(label, claim.SubscriptionId);
-            Fence(await _store.FailAsync(claim, result.Outcome == DeliveryExecutionOutcome.Indeterminate
-                ? DeliveryFailureReason.UnknownOutcome : DeliveryFailureReason.ExecutionFailed,
+            Fence(await _store.FailAsync(claim, result.Outcome switch
+            {
+                DeliveryExecutionOutcome.Indeterminate => DeliveryFailureReason.UnknownOutcome,
+                DeliveryExecutionOutcome.Refused => DeliveryFailureReason.ExecutionRefused,
+                _ => DeliveryFailureReason.ExecutionFailed,
+            },
                 stoppingToken).ConfigureAwait(false));
-            activity.SetTag("outcome", result.Outcome == DeliveryExecutionOutcome.Indeterminate
-                ? "unknown_outcome" : "execution_failed");
+            activity.SetTag("outcome", result.Outcome switch
+            {
+                DeliveryExecutionOutcome.Indeterminate => "unknown_outcome",
+                DeliveryExecutionOutcome.Refused => "catalogue_refused",
+                _ => "execution_failed",
+            });
         }
         finally
         {

@@ -70,9 +70,29 @@ public sealed partial class OutboxDispatchConventionTests
                 (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), DeliveryOwnerOffenders);
         AssertMutation(census, "a direct prepared owner constructor caller", () =>
             AddCallProbe(module, "PreparedOwnerProbe", constructor, OpCodes.Newobj), DeliveryOwnerOffenders);
+        var completion = types[(InfrastructureAssembly, DeliveryCompletionType)];
+        var completionConstructor = completion.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+        AssertMutation(census, "an extra completion constructor caller", () =>
+            AddCallProbe(completion.Module, "CompletionConstructorProbe", completionConstructor, OpCodes.Newobj),
+            DeliveryOwnerOffenders);
+        AssertMutation(census, "an extra asynchronous completion constructor caller", () =>
+            AddAsyncCallProbe(completion.Module, "AsyncCompletionConstructorProbe", completionConstructor),
+            DeliveryOwnerOffenders);
+        var completionSite = types[(InfrastructureAssembly, DeliveryExecutorType)].NestedTypes
+            .SelectMany(type => type.Methods).Where(method => method.HasBody)
+            .SelectMany(method => method.Body.Instructions)
+            .Single(instruction => instruction.Operand is MethodReference target
+                && target.Name == ".ctor" && SameType(target.DeclaringType, completion));
+        AssertMutation(census, "a missing completion constructor site", () =>
+        {
+            var originalOpcode = completionSite.OpCode;
+            var originalOperand = completionSite.Operand;
+            completionSite.OpCode = OpCodes.Nop;
+            completionSite.Operand = null;
+            return () => { completionSite.OpCode = originalOpcode; completionSite.Operand = originalOperand; };
+        }, DeliveryOwnerOffenders);
         AssertMutation(census, "a missing completion participant subject", () =>
         {
-            var completion = types[(InfrastructureAssembly, DeliveryCompletionType)];
             var completionModule = completion.Module;
             completionModule.Types.Remove(completion);
             return () => completionModule.Types.Add(completion);
@@ -129,6 +149,7 @@ public sealed partial class OutboxDispatchConventionTests
             types.Values.Where(type => !type.IsInterface && Derives(type, inbox, types)).Select(TypeId), [TypeId(inboxImplementation)]);
 
         var sites = CallSites(census).ToArray();
+        CheckCapability(completion, ".ctor", executor, "ExecuteOwnedAsync");
         CheckCapability(prepared, ".ctor", prepared, "CreateAsync");
         CheckCapability(prepared, "CreateAsync", coordinator, "PrepareDeliveryOwnerAsync");
         CheckCapability(prepared, "Consume", coordinator, "ExecutePreparedDeliveryAsync");

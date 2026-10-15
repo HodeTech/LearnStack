@@ -100,6 +100,20 @@ public sealed class OutboxEventRegistryTests
     }
 
     [Fact]
+    public void An_undefined_subscription_execution_scope_has_its_own_bounded_diagnostic()
+    {
+        var build = () => Create(
+            [OutboxEventRegistration.Required(typeof(SampleEvent),
+                [OutboxSubscriptionManifest.Active("test.sample.v1", typeof(SampleHandler),
+                    (OutboxSubscriptionExecutionScope)int.MaxValue)])],
+            handlers: Handlers(services =>
+                services.AddScoped<IIntegrationEventHandler<SampleEvent>, SampleHandler>()));
+
+        build.Should().Throw<InvalidOperationException>()
+            .WithMessage("Outbox subscription execution scopes must be declared values.");
+    }
+
+    [Fact]
     public void Alias_and_retired_collisions_refuse_composition()
     {
         var canonical = typeof(SampleEvent).AssemblyQualifiedName!;

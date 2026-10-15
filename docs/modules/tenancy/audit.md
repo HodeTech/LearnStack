@@ -189,7 +189,7 @@ whose refreshing implementation lands in Phase 02c; the two
 ([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md));
 `platform.outbox.dead_letter`, written with its fenced producer terminal UPDATE
 through `IAuditStore.WriteEventTerminalAsync`; and `platform.delivery.dead_letter`,
-whose subscriber writer belongs to P02b-3 Step 4. Five are
+whose subscriber writer is delivered by P02b-3 Step 4. Five are
 registered by slug through `DeclareOffPath` because their writer ships —
 `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
 `platform.delivery.dead_letter` and the two

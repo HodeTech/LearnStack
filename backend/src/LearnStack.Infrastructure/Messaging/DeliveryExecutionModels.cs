@@ -18,7 +18,7 @@ public enum DeliveryExecutionOutcome
 public sealed record DeliveryExecutionResult(
     DeliveryExecutionOutcome Outcome, bool CommitAcknowledged, bool CleanupFailed);
 
-public enum DeliveryFailureReason { ExecutionFailed, ExecutionTimeout, UnknownOutcome }
+public enum DeliveryFailureReason { ExecutionFailed, ExecutionTimeout, UnknownOutcome, ExecutionRefused }
 
 public enum DeliveryTerminalReason { UnknownType, RetiredType, InvalidEnvelope, InvalidSubscription, RetryExhausted }
 

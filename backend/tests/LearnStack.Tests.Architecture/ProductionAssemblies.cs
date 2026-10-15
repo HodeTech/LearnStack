@@ -19,8 +19,12 @@ namespace LearnStack.Tests.Architecture;
 /// </remarks>
 internal static class ProductionAssemblies
 {
-    public static IEnumerable<string> Names() =>
-        Directory.EnumerateFiles(RepositoryPaths.BackendSrc(), "LearnStack.*.csproj", SearchOption.AllDirectories)
+    public static IEnumerable<string> Names() => Names(RepositoryPaths.BackendSrc());
+
+    internal static IEnumerable<string> Names(string sourceRoot) =>
+        Directory.EnumerateFiles(sourceRoot, "*.csproj", SearchOption.AllDirectories)
+            .Where(path => !path.Contains(
+                $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !string.IsNullOrEmpty(name))
             .Select(name => name!)

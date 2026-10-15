@@ -7,7 +7,8 @@ using NpgsqlTypes;
 namespace LearnStack.Infrastructure.Messaging;
 
 /// <summary>Owns the fresh application transaction that durably accepts all subscriptions.</summary>
-public sealed class PostgresDeliveryAcceptance(IUnitOfWork unitOfWork, ITenantContext tenantContext)
+public sealed class PostgresDeliveryAcceptance(
+    IUnitOfWork unitOfWork, ITenantContext tenantContext, OutboxEventRegistry registry)
 {
     private const string InsertSql = """
         INSERT INTO event_deliveries (
@@ -27,8 +28,9 @@ public sealed class PostgresDeliveryAcceptance(IUnitOfWork unitOfWork, ITenantCo
             AND correlation_id = @correlation_id
             AND causation_id IS NOT DISTINCT FROM @causation_id
             AND actor_user_id IS NOT DISTINCT FROM @actor_user_id
-            AND type = @type AND topic = @topic AND partition_key = @partition_key
-            AND payload = @payload
+            AND topic = @topic AND partition_key = @partition_key
+            AND payload = @payload,
+            type
         FROM event_deliveries
         WHERE tenant_id = @tenant_id AND subscription_id = @subscription_id AND event_id = @event_id
         """;
@@ -81,7 +83,12 @@ public sealed class PostgresDeliveryAcceptance(IUnitOfWork unitOfWork, ITenantCo
 
                 RequireSameTransaction(announcement, transaction, serialized, envelope);
                 await using var matches = CreateCommand(MatchesSql, connection, transaction, subscription.Id, serialized, envelope);
-                if (await matches.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
+                await using var retained = await matches.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                // Canonical identity and explicitly compatible aliases name one
+                // contract. Every other immutable envelope field must still match.
+                if (!await retained.ReadAsync(cancellationToken).ConfigureAwait(false)
+                    || !retained.GetBoolean(0)
+                    || registry.Resolve(retained.GetString(1)).EventType != envelope.Event.GetType())
                 {
                     // Hidden cross-organization conflicts are refusals too. Do not
                     // reveal the original envelope or overwrite scheduling state.

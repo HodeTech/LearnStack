@@ -109,7 +109,13 @@ not deferred to the showcase phase.
   and semantic Seeder handoff. Its
   [Step 6 record](phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
   records completed enforcement/regression and both review rounds for all six
-  steps; PR review and merge remain pending. Background jobs, API authentication,
+  steps. The
+  [external follow-up](phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
+  adds verified corrections and two further independent review rounds on the
+  same unmerged branch; the
+  [second follow-up](phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
+  owns subsequent remediation status. PR review and merge remain pending.
+  Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)

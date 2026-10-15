@@ -10,6 +10,7 @@ public sealed record DeliveryDispatchOptions
     public TimeSpan ProgressTimeout { get; init; } = TimeSpan.FromSeconds(45);
     public TimeSpan SnapshotInterval { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan ShutdownTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>Bounds retained execution/cleanup tasks; normal execution is awaited serially.</summary>
     public int MaxOutstandingExecutions { get; init; } = 4;
 
     public void Validate()

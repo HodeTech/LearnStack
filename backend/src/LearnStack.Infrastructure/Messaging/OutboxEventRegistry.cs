@@ -237,11 +237,16 @@ public sealed class OutboxEventRegistry
             foreach (var subscription in subscriptions)
             {
                 if (subscription is null || !ValidSubscriptionId(subscription.Id)
-                    || !subscriptionIds.Add(subscription.Id)
-                    || !Enum.IsDefined(subscription.ExecutionScope))
+                    || !subscriptionIds.Add(subscription.Id))
                 {
                     throw new InvalidOperationException(
                         "Outbox subscription IDs must be valid and globally unique.");
+                }
+
+                if (!Enum.IsDefined(subscription.ExecutionScope))
+                {
+                    throw new InvalidOperationException(
+                        "Outbox subscription execution scopes must be declared values.");
                 }
 
                 if (subscription.Readiness == OutboxSubscriptionReadiness.Pending)

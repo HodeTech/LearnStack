@@ -113,7 +113,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**218 test methods run in
+**219 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -176,6 +176,14 @@ Every rule in this document carries its own **Status** line, and that line is th
 
 One rule, one identifier. When a document, skill, or comment uses a superseded spelling,
 the fix is to replace it with the canonical name — not to add a row here.
+
+### Terminal audit witness rules
+
+`Outbox_Terminal_Audit_Identity_Is_Row_Bound` and
+`Delivery_Terminal_Audit_Identity_Is_Row_Bound` share the `TerminalOffenders`
+architecture detector because both use the same restricted witness/writer seam.
+Distinct producer and subscriber planted controls and real-row integration
+proofs enforce their respective identities; these remain two catalogue rules.
 
 ### Tenant isolation
 
@@ -3264,6 +3272,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   static capability checks, not arbitrary
   reflection, raw SQL transaction analysis or branch-order proofs; the real
   PostgreSQL tests own inbox-before-construction and transaction atomicity.
+  The owner census also pins completion construction to the executor's owned
+  path, with extra direct/asynchronous and missing-constructor-site controls.
   Earlier structural companions remain
   `OutboxDispatchConventionTests.Delivery_owner_and_inbox_capabilities_are_closed`
   and

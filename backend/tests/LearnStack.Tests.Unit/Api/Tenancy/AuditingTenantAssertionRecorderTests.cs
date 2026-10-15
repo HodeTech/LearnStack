@@ -261,7 +261,7 @@ public sealed class AuditingTenantAssertionRecorderTests
             storeLogger,
             meterFactory,
             health,
-            new AuditCatalog([]));
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
 
         var counted = 0L;
         using var listener = new MeterListener();

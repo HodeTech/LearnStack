@@ -59,6 +59,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             + "append-only triggers");
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L,
             "each Education parent relation has its own invoker scope check");
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
+            "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
 
         await _fixture.RollBackAsync();
 
@@ -73,6 +75,7 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         // with a matching signature is not an error the migration surfaces.
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(0L);
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
 
         // A successful Down must also leave a state that can be installed again.
@@ -81,6 +84,7 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
+        (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
@@ -104,6 +108,10 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
     private const string PolicyQuery =
         "SELECT count(*) FROM pg_policies WHERE schemaname = 'public'";
+
+    private const string InboxFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
+        + "AND proname = 'fn_inbox_messages_immutable'";
 
     private const string EducationFunctionQuery =
         "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "

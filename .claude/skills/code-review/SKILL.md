@@ -299,7 +299,7 @@ Author intent: <one-paragraph restatement>
   acceptance, transport-owned inbox/business completion and useful defaults;
   check the packet record for current enforcement and review evidence.
 - **Real flow and evidence.** Completed provisioning emits
-  `TenantCreatedIntegrationEventV1`; P02b-1 claims pending rows only. P02b-3 owns
+  `TenantCreatedIntegrationEventV1`; P02b-1 claims pending rows only. P02b-3 delivers
   separate create-only `card@1`/`plain@1` subscriptions and Seeder identity
   handoff under Accepted G1; both subscriptions are Active. No settings
   invalidation or Audit mirror is the sample.

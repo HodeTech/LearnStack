@@ -22,6 +22,18 @@ public sealed class DeliveryAuditDiagnosticsTests
     private const string Operation = "tenancy.tenant.provision";
     private const string Traceparent = "00-12345678901234567890123456789012-1234567890123456-01";
 
+    [Fact]
+    public void Store_requires_an_accessor_even_when_no_context_is_currently_resolved()
+    {
+        using var meters = new IsolatedMeterFactory();
+        var create = () => new PostgresAuditStore(
+            new AuditStateCapture(),
+            new Lazy<NpgsqlDataSource>(() => throw new InvalidOperationException("No database is needed.")),
+            new CaptureLogger<PostgresAuditStore>(), meters, new AuditHealth(), new AuditCatalog([]), null!);
+
+        create.Should().Throw<ArgumentNullException>().WithParameterName("tenantAccessor");
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

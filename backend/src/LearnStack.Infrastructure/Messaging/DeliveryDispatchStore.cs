@@ -112,6 +112,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         var descriptor = reason switch
         {
             DeliveryFailureReason.ExecutionFailed => "execute:failed:handler",
+            DeliveryFailureReason.ExecutionRefused => "execute:refused:catalogue",
             DeliveryFailureReason.ExecutionTimeout => "execute:timeout:deadline",
             DeliveryFailureReason.UnknownOutcome => claim.Kind == DeliveryClaimKind.Recovery
                 ? "recovery:unknown:expired" : "execute:unknown:commit",

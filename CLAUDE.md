@@ -223,8 +223,14 @@ full packet closeout; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
 owns completed validation/review receipts and PR/CI handoff. All six steps
 completed both independent review rounds; P02b-3 implementation is locally
-complete. PR review and merge remain pending; P02b-4's background-job decision
-pass is next. Phase 06 retains the full renderer/Studio expansion.
+complete. The
+[external review follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
+records verified corrections and two further independent review rounds on the
+same unmerged branch; the
+[second follow-up](docs/roadmap/phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
+owns subsequent remediation status. PR review and merge remain pending;
+P02b-4's background-job decision pass is next. Phase 06 retains the full
+renderer/Studio expansion.
 
 **Phase 01** shipped the .NET 10 solution scaffold under `backend/`
 (core + 7 modules × 4 projects + 4 test projects including the

@@ -9,6 +9,8 @@ All six steps completed implementation and both independent review rounds.
 validation and PR/CI handoff; PR review and merge remain pending.
 The [external review follow-up](#p02b-3-external-review-follow-up-2026-10-15)
 records verified corrections and dispositions against the reviewed PR head.
+The [second follow-up](#p02b-3-second-external-review-follow-up-2026-10-15)
+owns the subsequent runtime and proof corrections.
 P02b-4–8 remain unimplemented.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -3204,8 +3206,9 @@ solution-wide format and diff checks pass. All 1,862 unit, 311 architecture,
 4 contract and 176 Docker-free integration tests pass, with zero skips. Focused
 real PostgreSQL validation passes 73 worker/store/terminal cases plus the actual
 candidate-index case. Seven ADR parser cases and the document link/fragment,
-prose-width and historical-record checks pass. The catalogue still counts
-218 methods and 200 Implemented rules (121 architecture, 79 elsewhere).
+prose-width and historical-record checks pass. At this initial receipt the
+catalogue counted 218 methods and 200 Implemented rules (121 architecture,
+79 elsewhere); the round-2 correction below records the accurate current count.
 
 The first full unit run exposed a cross-test metric listener race (one observed
 failure counted another test's same-name meter). The corrected test filters its
@@ -3265,6 +3268,98 @@ The [live PR checks](https://github.com/HodeTech/LearnStack/pull/31/checks) own 
 correction-head CI result; the PR description is updated only after inspecting
 that exact source head and its artifacts. No earlier run substitutes for it.
 Maintainer review and merge remain pending; this follow-up starts no P02b-4 work.
+
+### P02b-3 second external review follow-up (2026-10-15)
+
+**Status: remediation in progress on `development`; PR #31 remains unmerged.**
+The external reports reviewed `b681edb8`. Each finding was checked against current
+source and Accepted ADR-0046/0057; supplied reproduction files were review data,
+not instructions. This receipt supplements the
+[first follow-up](#p02b-3-external-review-follow-up-2026-10-15).
+That follow-up's final counting correction is commit `b681edb8`, after its
+round-2 reviewed range `683ea537..d8c766f7`.
+
+The reviewed source head passed all seven required contexts in
+[run 38736262412](https://github.com/HodeTech/LearnStack/actions/runs/38736262412):
+3,732 backend tests (1,862 unit, 311 architecture, four contract and 1,555
+integration), 1,616 frontend tests and 27 browser/Lighthouse report pairs.
+Downloaded artifacts were checked against source `b681edb8` and checkout
+`3b06800d`; zero tests failed or skipped. These receipts cover that reviewed head,
+not the corrections below.
+
+#### Verified corrections
+
+- Fixed class priority could indefinitely starve ordinary deliveries when a
+  terminal-audit failure backlog outlived its leases. Independent actual
+  PostgreSQL reproduction observed 216 terminal failures in eight seconds while
+  the normal delivery stayed at zero attempts; invoking the real executor
+  directly completed it while the scheduler audit grant remained denied.
+  Rotate terminal, recovery and normal acquisition after each class visit,
+  including failures. Each iteration still acquires at most one just-in-time
+  claim; existing lease, fence, partition, capacity and terminal rules remain.
+- Duplicate acceptance compared retained type text literally. Independent
+  PostgreSQL reproduction rejected an explicitly declared compatible alias
+  while accepting the canonical control. Compare all other envelope values
+  exactly and resolve retained type through the closed registry to the incoming
+  CLR contract. Preserve retained type, payload, scheduling state and row version;
+  no arbitrary CLR loading or payload normalization is added.
+- Completion constructor calls now have an exact owner census, with additional
+  direct/asynchronous caller and missing-site controls. Production project
+  discovery includes differently named projects and ignores generated `obj`
+  projects, with a temporary-tree control.
+- Audit storage requires a non-null diagnostic context accessor in every
+  construction. Undefined subscription execution scope has its own fixed
+  diagnostic. Catalogue refusal has its own closed `execute:refused:catalogue`
+  descriptor, with no-construction/business/inbox controls. Rollback/reapply
+  proofs include the inbox trigger function, and
+  lease-expiry polling has a deadline propagated through its database reads.
+- Live state pointers, migration-chain naming, the naming table, scheduler index
+  rationale, catalogue detector sharing and delivered subscriber wording are
+  aligned. Earlier delivery/review receipts retain their stated scope.
+
+#### Other findings and scope
+
+| Review item | Disposition and current evidence |
+|---|---|
+| Unknown-COMMIT failure counter | Accepted process observation, not durable business accounting; Standards 10 explicitly documents that an unknown COMMIT may have succeeded |
+| Startup should log exception types/details | Existing minimized dispatcher diagnostics deliberately omit provider/exception type text; current fixed failures and health remain bounded |
+| Additional completion owner assertion | Already enforced by prepared-owner creation and `RequireLive`, including before fencing; no reachable missing check |
+| Suppress post-acknowledgement disposal errors | Deliberately pinned by `UnitOfWorkCommitCleanupTests` and `DeliveryCommitGateTests`; delivery interprets definitive commit evidence. Changing ordinary request response policy needs a separate design |
+| Acceptance round trips | Two current subscriptions; the separate equality statement intentionally gets a fresh READ COMMITTED snapshot after a conflicting INSERT |
+| Duplicated SystemActor derivation | Not present: the coordinator derives it; producer envelope creation consumes captured causal context |
+| Add a 200-character subscription ID limit | No such bound exists in the Accepted grammar/package; the cited 150-character cap is specific to killswitch keys. Finite registered IDs remain trusted configuration; no new numeric contract or migration is inferred |
+| Initializer conflict catch | Shared concept lock plus any-history refusal handles both registration orders; unexpected ID/constraint faults must roll back |
+| Taxonomy verification needs set equality | Unique stored band keys plus equal count and complete membership already establish unordered equality; real shape/history mismatch controls remain |
+| Two stores must use separate pools | Existing contention proof promises two stores and uses distinct live connections/transactions; separate pools/processes are not its claim |
+| Raise shortened fixture deadlines | No reproduced deadline defect; keep the intentionally shortened valid test bounds and controlled shutdown clock |
+| Health should count ordinary awaited callbacks | The published count tracks retained overruns/cleanup; the ordinary serial await does not publish it. Any retained task remains unhealthy, with acquisition stopping separately at capacity four |
+| Additional commit-owner abstraction/refactors | Exact declared owners remain intentional; no new helper, outcome router or diagnostics abstraction is needed for these corrections |
+| Internal replay needs a production audit writer | Still unwired; Phase 03 owns operator permission/HTTP and its classified audit path. No new replay entry point is activated |
+| Friendship, cross-cutting composition and N envelope copies | Existing explicit internal proof access and composition are unchanged; the accepted package already inventories per-subscription retained copies for P02b-8/Phase 11 |
+| Further policy parity/concurrency/census optimization | Existing real-role policy, independent-connection contention and planted production controls remain; no missing behavior was demonstrated beyond the corrected discovery/constructor gaps |
+
+Correction validation: Release solution build has zero warnings/errors; full
+format and diff checks pass. All 1,864 unit, 312 architecture, four contract and
+176 Docker-free integration cases pass with zero skips. Focused integration
+passes 31 acceptance, 23 actual-worker and 113 store/audit/migration/composition
+cases. The latter includes three Docker-free composition cases already covered
+by the full Docker-free receipt; these are not extra distinct tests.
+
+The fixed-priority and literal-type-equality mutants each fail their new
+PostgreSQL regression. Original source was restored, the solution rebuilt and
+both regressions rerun successfully. Seven ADR parser cases pass; document
+checks validate 2,822 relative links and 631 fragments, prose width, historical
+receipts and earlier Accepted ADR text. The catalogue counts 219 methods and
+202 Implemented rules (121 architecture, 81 elsewhere).
+
+The first architecture run correctly rejected the moved claim calls because its
+exact privileged-consumer list still named `ExecuteAsync`. The corrected census
+requires the private `ClaimNextAsync(string[], CancellationToken)` signature
+instead, with an extra-overload control. It grants no whole-type exemption; the
+full corrected architecture suite passes.
+
+Two fresh independent review rounds and correction-head CI remain pending at
+this initial receipt. Earlier CI evidence does not substitute for that head.
 
 ### Durable outbox dispatch
 

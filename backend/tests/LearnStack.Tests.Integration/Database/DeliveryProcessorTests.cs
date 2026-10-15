@@ -91,6 +91,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         (await fixture.RowAsync(fact, First)).Attempts.Should().Be(2);
         (await fixture.RowAsync(fact, Second)).Should().Be(completed);
         fixture.Controls.For(fact, Second).Executions.Should().Be(1);
+        fixture.Controls.FirstConstructions.Should().Be(2);
     }
 
     [Theory]
@@ -140,6 +141,84 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         (await fixture.BusinessAsync(fixture.Controls.For(bad).EffectId)).Should().Be(0);
         fixture.Logs.Text.Should().NotContain(Canary).And.NotContain(bad.EventId.ToString());
         (await fixture.RowAsync(bad)).Error.Should().NotContain(Canary);
+    }
+
+    [Fact]
+    public async Task Terminal_audit_backlog_cannot_starve_normal_execution_or_expired_claim_recovery()
+    {
+        await using var fixture = await Fixture.CreateAsync(schema);
+        var bounds = Bounds with
+        {
+            LeaseDuration = TimeSpan.FromSeconds(5),
+            ProgressTimeout = TimeSpan.FromSeconds(6),
+            IdlePoll = TimeSpan.FromMilliseconds(50),
+            ShutdownTimeout = TimeSpan.FromSeconds(2),
+        };
+        var terminals = Enumerable.Range(0, 100).Select(_ => Fact()).ToArray();
+        foreach (var fact in terminals)
+        {
+            await fixture.InsertAsync(fact);
+            await fixture.RequestTerminalAsync(fact);
+        }
+        var recovery = Fact();
+        await fixture.InsertAsync(recovery);
+        await fixture.ScheduleAsync(recovery, First, 5, expired: true);
+        await fixture.SchemaAsync("REVOKE INSERT ON audit_log FROM learnstack_outbox_admin");
+        fixture.Start(bounds: bounds);
+
+        // More failures than rows proves an acquisition was retried after its
+        // database lease expired. The failure remains live throughout this test.
+        await UntilAsync(() => fixture.Logs.IterationFailures > terminals.Length);
+        fixture.Observation.Snapshot.TerminalAuditFailed.Should().BeTrue();
+        var normal = Fact();
+        await fixture.InsertAsync(normal, Second);
+        await UntilAsync(async () => (await fixture.RowAsync(normal, Second)).Processed
+            && (await fixture.RowAsync(recovery)).Error == "recovery:unknown:expired");
+        await fixture.Worker.StopAsync(CancellationToken.None).WaitAsync(Deadline);
+
+        var completed = await fixture.RowAsync(normal, Second);
+        completed.Attempts.Should().Be(1);
+        completed.Error.Should().BeNull();
+        (await fixture.CountAsync("inbox_messages", normal.EventId)).Should().Be(1);
+        (await fixture.BusinessAsync(fixture.Controls.For(normal, Second).EffectId)).Should().Be(1);
+        (await fixture.AuditCountAsync("customization.content_type.worker_second")).Should().Be(1);
+        var recovered = await fixture.RowAsync(recovery);
+        recovered.Attempts.Should().Be(5);
+        recovered.Processed.Should().BeFalse();
+        recovered.Terminal.Should().BeNull();
+        fixture.Controls.For(recovery).Executions.Should().Be(0);
+        (await fixture.CountAsync("inbox_messages", recovery.EventId)).Should().Be(0);
+
+        (await fixture.PendingTerminalCountAsync()).Should().Be(terminals.Length,
+            "failed MUST audit must leave every terminal request intact without business execution");
+        terminals.Should().OnlyContain(fact => fixture.Controls.For(fact).Executions == 0);
+        (await fixture.TotalCountAsync("inbox_messages")).Should().Be(1);
+        (await fixture.TotalCountAsync("tenant_content_types")).Should().Be(1);
+        (await fixture.AuditCountAsync("platform.delivery.dead_letter")).Should().Be(0);
+        (await fixture.SchedulerCanInsertAuditAsync()).Should().BeFalse();
+        fixture.Observation.Snapshot.TerminalAuditFailed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Unclassified_handler_is_refused_before_construction_with_a_distinct_closed_descriptor()
+    {
+        await using var fixture = await Fixture.CreateAsync(schema);
+        var fact = Fact();
+        await fixture.InsertAsync(fact);
+        fixture.Start(unclassifiedFirst: true);
+        await UntilAsync(async () => (await fixture.RowAsync(fact)).Error is not null
+            && fixture.Logs.Text.Contains("outcome catalogue_refused", StringComparison.Ordinal));
+        await fixture.PostponeAsync(fact, First);
+        var refused = await fixture.RowAsync(fact);
+        refused.Error.Should().Be("execute:refused:catalogue");
+        refused.Attempts.Should().Be(1);
+        refused.Processed.Should().BeFalse();
+        refused.Terminal.Should().BeNull();
+        fixture.Controls.FirstConstructions.Should().Be(0);
+        fixture.Controls.For(fact).Executions.Should().Be(0);
+        (await fixture.CountAsync("inbox_messages", fact.EventId)).Should().Be(0);
+        (await fixture.BusinessAsync(fixture.Controls.For(fact).EffectId)).Should().Be(0);
+        fixture.Logs.Text.Should().Contain("outcome catalogue_refused");
     }
 
     [Fact]
@@ -480,7 +559,11 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
     {
         private readonly ConcurrentDictionary<(Guid, string), Plan> _plans = new();
         internal int ConstructorFaults;
-        public bool HoldConstructor { get; set; }
+        private int _firstConstructions;
+        private volatile bool _holdConstructor;
+        public int FirstConstructions => Volatile.Read(ref _firstConstructions);
+        public bool HoldConstructor { get => _holdConstructor; set => _holdConstructor = value; }
+        internal void ConstructedFirst() => Interlocked.Increment(ref _firstConstructions);
         public TaskCompletionSource ConstructorEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseConstructor { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Plan For(ProofEvent fact, string subscription = First) =>
@@ -500,14 +583,21 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
     }
     public sealed class Plan
     {
+        private volatile string? _fault;
+        private volatile bool _holdHandler;
+        private volatile bool _holdCleanup;
+        private volatile bool _faultCleanup;
+        private volatile bool _holdCancellation;
+        private volatile bool _faultCancellation;
+        private volatile bool _callbackObservedLiveScope;
         public Guid EffectId { get; } = Guid.CreateVersion7();
-        public string? Fault { get; set; }
-        public bool HoldHandler { get; set; }
-        public bool HoldCleanup { get; set; }
-        public bool FaultCleanup { get; set; }
-        public bool HoldCancellation { get; set; }
-        public bool FaultCancellation { get; set; }
-        public bool CallbackObservedLiveScope { get; set; }
+        public string? Fault { get => _fault; set => _fault = value; }
+        public bool HoldHandler { get => _holdHandler; set => _holdHandler = value; }
+        public bool HoldCleanup { get => _holdCleanup; set => _holdCleanup = value; }
+        public bool FaultCleanup { get => _faultCleanup; set => _faultCleanup = value; }
+        public bool HoldCancellation { get => _holdCancellation; set => _holdCancellation = value; }
+        public bool FaultCancellation { get => _faultCancellation; set => _faultCancellation = value; }
+        public bool CallbackObservedLiveScope { get => _callbackObservedLiveScope; set => _callbackObservedLiveScope = value; }
         internal int Executions;
         public TaskCompletionSource Entered { get; } = Signal();
         public TaskCompletionSource ReleaseHandler { get; } = Signal();
@@ -534,6 +624,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
             _services = services;
             _controls = controls;
             _subscription = subscription;
+            if (subscription == First) controls.ConstructedFirst();
             if (subscription == First && controls.HoldConstructor)
             {
                 controls.ConstructorEntered.TrySetResult();
@@ -589,12 +680,13 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
             if (plan.FaultCleanup) throw new InvalidOperationException(Canary);
         }
     }
-    private sealed class Catalog : IAuditCatalogSource
+    private sealed class Catalog(bool unclassifiedFirst) : IAuditCatalogSource
     {
         public string ModuleName => "customization";
         public void Describe(IAuditCatalogBuilder builder)
         {
-            builder.MustAudit<FirstHandler>("customization.content_type.worker_first", OperationType.Create, typeof(TenantContentType));
+            if (!unclassifiedFirst)
+                builder.MustAudit<FirstHandler>("customization.content_type.worker_first", OperationType.Create, typeof(TenantContentType));
             builder.MustAudit<SecondHandler>("customization.content_type.worker_second", OperationType.Create, typeof(TenantContentType));
             builder.MustAudit<PrivilegedHandler>("customization.content_type.worker_privileged", OperationType.Create, typeof(TenantContentType));
         }
@@ -625,9 +717,10 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
             await transaction.CommitAsync();
             return fixture;
         }
-        public void Start(bool removeWorker = false, TimeProvider? time = null, DeliveryDispatchOptions? bounds = null, string? appConnection = null)
+        public void Start(bool removeWorker = false, TimeProvider? time = null, DeliveryDispatchOptions? bounds = null,
+            string? appConnection = null, bool unclassifiedFirst = false)
         {
-            _host = new WorkerFactory(this, removeWorker, time, bounds, appConnection);
+            _host = new WorkerFactory(this, removeWorker, time, bounds, appConnection, unclassifiedFirst);
             _ = Services;
         }
         public async Task InsertAsync(ProofEvent fact, string subscription = First)
@@ -668,6 +761,8 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         }
         public Task PrimeLastAttemptAsync(ProofEvent fact) => UpdateAsync(fact, First,
             "UPDATE event_deliveries SET attempts = 5 WHERE event_id = @event AND subscription_id = @subscription");
+        public Task RequestTerminalAsync(ProofEvent fact) => UpdateAsync(fact, First,
+            "UPDATE event_deliveries SET attempts = 6, terminal_reason = 'retry_exhausted' WHERE event_id = @event AND subscription_id = @subscription");
         public Task MakeDueAsync(ProofEvent fact, string subscription) => UpdateAsync(fact, subscription,
             "UPDATE event_deliveries SET available_after = clock_timestamp() WHERE event_id = @event AND subscription_id = @subscription");
         public Task PostponeAsync(ProofEvent fact, string subscription) => UpdateAsync(fact, subscription,
@@ -685,6 +780,39 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         public async Task<long> CountAsync(string table, Guid eventId) => await ScalarAsync(
             $"SELECT count(*) FROM {table} WHERE event_id = @id", eventId);
         public Task<long> BusinessAsync(Guid id) => ScalarAsync("SELECT count(*) FROM tenant_content_types WHERE id = @id", id);
+        public async Task<long> TotalCountAsync(string table)
+        {
+            await using var connection = await AppAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+            await using var command = new NpgsqlCommand($"SELECT count(*) FROM {table}", connection, transaction);
+            return (long)(await command.ExecuteScalarAsync())!;
+        }
+        public async Task<long> AuditCountAsync(string operation)
+        {
+            await using var connection = await AppAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+            await using var command = new NpgsqlCommand("SELECT count(*) FROM audit_log WHERE operation = @operation", connection, transaction);
+            command.Parameters.AddWithValue("operation", operation);
+            return (long)(await command.ExecuteScalarAsync())!;
+        }
+        public async Task<long> PendingTerminalCountAsync()
+        {
+            await using var connection = await DispatchAsync();
+            await using var command = new NpgsqlCommand("""
+                SELECT count(*) FROM event_deliveries
+                WHERE terminal_reason = 'retry_exhausted' AND attempts = 6
+                  AND processed_at IS NULL AND dead_lettered_at IS NULL
+                """, connection);
+            return (long)(await command.ExecuteScalarAsync())!;
+        }
+        public async Task<bool> SchedulerCanInsertAuditAsync()
+        {
+            await using var connection = await DispatchAsync();
+            await using var command = new NpgsqlCommand("SELECT has_table_privilege(current_user, 'audit_log', 'INSERT')", connection);
+            return (bool)(await command.ExecuteScalarAsync())!;
+        }
         private async Task<long> ScalarAsync(string sql, Guid id)
         {
             await using var connection = await AppAsync();
@@ -721,7 +849,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
             await _database.DisposeAsync();
         }
         public sealed class WorkerFactory(Fixture fixture, bool removeWorker, TimeProvider? time,
-            DeliveryDispatchOptions? bounds, string? appConnection) : WebApplicationFactory<Program>
+            DeliveryDispatchOptions? bounds, string? appConnection, bool unclassifiedFirst) : WebApplicationFactory<Program>
         {
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
@@ -759,7 +887,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
                     services.AddScoped<SecondHandler>();
                     services.AddScoped<PrivilegedHandler>();
                     services.AddScoped<Cleanup>();
-                    services.AddSingleton<IAuditCatalogSource, Catalog>();
+                    services.AddSingleton<IAuditCatalogSource>(new Catalog(unclassifiedFirst));
                     services.AddSingleton<ILogger<DeliveryProcessor>>(fixture.Logs);
                 });
             }
@@ -769,6 +897,8 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
     {
         private readonly ConcurrentQueue<string> _messages = new();
         public string Text => string.Join('\n', _messages);
+        public int IterationFailures => _messages.Count(message => message.StartsWith(
+            "Delivery dispatch iteration failed with outcome iteration_failed.", StringComparison.Ordinal));
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,

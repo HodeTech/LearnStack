@@ -150,6 +150,7 @@ public sealed partial class OutboxDispatchConventionTests
             AddAsyncCallProbe(module, "DeliveryStoreLocator", module.ImportReference(locator)), CredentialOffenders);
         var worker = census.Types[(BoundaryApi, DeliveryWorker)];
         foreach (var (type, name, field) in new[] { (worker, "StartAsync", "_source"), (worker, "DispatchAsync", "_store"),
+                     (worker, "ClaimNextAsync", "_store"),
                      (store, "ReplayAsync", "_source"), (store, "AcquireAsync", "_source") })
             AssertMutation(census, "an extra privileged forwarding overload", () => AddBoundaryFieldGetter(type, name, field), CredentialOffenders);
         var parameter = worker.Methods.Single(method => method.IsConstructor && !method.IsStatic).Parameters
@@ -471,7 +472,8 @@ public sealed partial class OutboxDispatchConventionTests
         var expected = new[]
         {
             workerConstructor,
-            RequireBoundaryMethod(offenders, worker, "ExecuteAsync", BoundaryTask, MethodAttributes.Family, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, worker, "ClaimNextAsync", "System.Threading.Tasks.Task`1<" + DeliveryClaimType + ">",
+                MethodAttributes.Private, "System.String[]", BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "DispatchAsync", BoundaryTask, MethodAttributes.Private, DeliveryClaimType, BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "DispatchNormalAsync", BoundaryTask, MethodAttributes.Private, DeliveryClaimType, BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "RefreshAsync", BoundaryTask, MethodAttributes.Private, BoundaryCancellation),
