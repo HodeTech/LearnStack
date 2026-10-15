@@ -203,6 +203,10 @@ public sealed partial class CorpusConsistencyTests
 
             - **Status:** **Implemented** (Packet 6 step 4, `SomeTests`).
 
+            ### `A_Rule_Implemented_Twice`
+
+            - **Status:** **Implemented**, twice. Both paths run in `SomeTests`.
+
             ### `A_Rule_That_Does_Not`
 
             - **Status:** **Registered.**
@@ -223,6 +227,7 @@ public sealed partial class CorpusConsistencyTests
             """).Should().Equal([
                 "A_Rule_That_Runs",
                 "A_Rule_Whose_Entry_Names_The_Class",
+                "A_Rule_Implemented_Twice",
                 "An-Analyzer-Rule",
             ], "both third- and fourth-level rule headings count; a hyphen in a rule name "
              + "is a rule name: excluding it dropped the `LS0001` analyzer's entry from "

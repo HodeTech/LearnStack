@@ -145,8 +145,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**200 rules in this catalogue are Implemented, and 121 of them are in that assembly.**
-The other 79 are no less binding, and most could not live there. The table says where
+**202 rules in this catalogue are Implemented, and 121 of them are in that assembly.**
+The other 81 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -2072,9 +2072,9 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Source:** ADR-0003 Amendment 3 § Test requirement.
 - **Type:** **integration** test (Testcontainers + PostgreSQL), not an architecture
   test. **Kind:** behavioural.
-- **Status:** **Implemented, twice.** The schema-level case is Packet 6 step 4
+- **Status:** **Implemented**, twice. The schema-level case is Packet 6 step 4
   (`TenancySchemaTests`); the request-level one is Packet 7 step 11
-  (`Database/TenantIsolationHttpTests`), which drives it through
+  (`TenantIsolationHttpTests`), which drives it through
   `HostClassificationMiddleware`, `TenantResolverMiddleware`, the announcement and the
   EF query filters, with the host header as the only input and no stubbed
   `ITenantContext`. The schema-level case moved forward because that class's own
@@ -2096,11 +2096,11 @@ diagnostic above row security, not the boundary, as its own note says.
 - **Source:** ADR-0003 Amendment 3 § Test requirement;
   [05-database.md](05-database.md).
 - **Type:** **integration** test (Testcontainers + PostgreSQL). **Kind:** behavioural.
-- **Status:** **Implemented, twice.** Packet 6 step 4 (`TenancySchemaTests`): a
+- **Status:** **Implemented**, twice. Packet 6 step 4 (`TenancySchemaTests`): a
   `[Theory]` over every table carrying a `WITH CHECK` for the `INSERT` half, and
   `Reassigning_An_Owned_Row_To_Another_Tenant_Is_Rejected` for the `UPDATE` half, because
   `WITH CHECK` guards both and a rule covering one leaves the other open. Packet 7 step 11
-  (`Database/TenantIsolationHttpTests`) issues the write through a request: raw SQL on
+  (`TenantIsolationHttpTests`) issues the write through a request: raw SQL on
   the ambient connection, so no query filter is in front of it and only `WITH CHECK` can
   refuse. The first version of that case asserted merely that an anonymous POST failed,
   and passed against a **deleted endpoint** and against a database with every policy

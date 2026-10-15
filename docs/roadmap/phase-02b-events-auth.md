@@ -3233,6 +3233,39 @@ announcement seam without a misleading count. The reviewer rechecked both and
 approved with no remaining finding. Document checks pass; this fix changes no
 runtime or test source. Round 2 and correction-head CI remain pending here.
 
+#### External follow-up review round 2 and closeout
+
+Two new independent agents reviewed `683ea537..d8c766f7`. GPT-6-astra/xhigh
+reviewed technical correctness and proofs, independently passing 72 PostgreSQL,
+eight architecture and 18 recorder unit cases. GPT-6-sol/high reviewed the corpus,
+governance and test claims, independently passing seven focused architecture cases.
+All runs have zero failures/skips. Runtime, isolation and lifecycle were approved.
+
+The corpus reviewer found a pre-existing counting omission in the touched parser
+scope: two real integration rules used a bold `Implemented, twice.` status and
+were excluded from the declared-state count. Root verified both exact-name
+methods in `TenancySchemaTests` and `TenantIsolationHttpTests`, normalized the
+statuses to a bold `Implemented` token with the qualifier outside it, and named
+the actual classes. An additional positive control in the existing corpus Fact
+pins qualified Implemented discovery alongside misleading Registered prose.
+This adds no test method or runtime rule: the accurate catalogue total is now
+202 Implemented entries, 121 in architecture and 81 elsewhere; architecture still
+has 218 methods and 311 cases. The earlier 200-entry receipts retain their
+as-recorded scope and are superseded for the current catalogue count here.
+
+Root's corrected five corpus tests pass after rebuilding. Both reviewers
+independently recounted the entries, rechecked the exact methods/control and ran
+all five corpus tests successfully, approving with no remaining finding. Final
+format, diff and document checks pass; historical delivery receipts and Accepted
+ADR text remain intact. Earlier full-suite receipts retain their stated scope;
+the last correction changes test fixtures and catalogue metadata only.
+
+The implementation and both external follow-up review rounds are complete.
+The [live PR checks](https://github.com/HodeTech/LearnStack/pull/31/checks) own the
+correction-head CI result; the PR description is updated only after inspecting
+that exact source head and its artifacts. No earlier run substitutes for it.
+Maintainer review and merge remain pending; this follow-up starts no P02b-4 work.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
