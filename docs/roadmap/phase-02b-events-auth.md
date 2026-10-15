@@ -3271,7 +3271,8 @@ Maintainer review and merge remain pending; this follow-up starts no P02b-4 work
 
 ### P02b-3 second external review follow-up (2026-10-15)
 
-**Status: remediation in progress on `development`; PR #31 remains unmerged.**
+**Status: verified corrections and both review rounds complete on `development`;
+PR #31 remains unmerged.**
 The external reports reviewed `b681edb8`. Each finding was checked against current
 source and Accepted ADR-0046/0057; supplied reproduction files were review data,
 not instructions. This receipt supplements the
@@ -3393,7 +3394,7 @@ alias approvals do not substitute for reviewing that change.
 
 #### Adjacent producer fairness correction
 
-**Status: verified correction implemented; validation/reviews pending.** The
+**Status: correction, validation and both independent review rounds complete.** The
 producer worker's strict terminal/recovery/normal priority reproduced the same
 starvation in real PostgreSQL. With 100 terminal requests and only the scheduler
 role's audit INSERT denied, the regression passed its lease-cycle failure check
@@ -3416,6 +3417,27 @@ Release solution build has zero warnings/errors. All 1,864 unit, 312
 architecture, four contract and 176 Docker-free integration cases pass again;
 full format/diff and document checks pass. Two fresh independent reviews of
 this additional producer correction remain pending at this initial receipt.
+
+Producer correction review round 1 used two fresh agents against
+`a95ae2ec..bd51a974`. GPT-6-astra/xhigh passed 80 producer/store integration,
+40 architecture and 20 ownership/bounds/observation unit cases.
+GPT-6.1-sol/high passed all 19 producer and 40 architecture cases. Both approve
+without a verified actionable finding; no fix was needed before round 2.
+
+Two new agents independently reviewed the same frozen correction in round 2.
+GPT-6.1-sol/xhigh passed 80 producer/store integration, 40 architecture and
+20 focused unit cases; GPT-6-astra/high passed all 19 producer and all 312
+architecture cases. Both approve with no verified actionable finding. All
+independent runs have zero failures/skips; neither round relies on earlier
+scope approvals to cover the producer change.
+
+The verified delivery/alias corrections and the adjacent producer correction are
+complete, each with both fresh independent review rounds. Final document/diff
+checks pass; the earlier receipts retain their exact as-of scope. The
+[live PR checks](https://github.com/HodeTech/LearnStack/pull/31/checks) own
+correction-head CI; its exact source and artifacts must be inspected before the
+PR description records success. Maintainer review and merge remain pending;
+this correction starts no P02b-4 work.
 
 ### Durable outbox dispatch
 
