@@ -3582,7 +3582,7 @@ ownership remain authoritative.
 |---|---|
 | Independent stock server pools | Transactional 1, external 2, control 1 workers by default; finite dedicated feature pools, at most 8 pools/64 queues, 1–16 workers per pool, sum at most 32 per API instance |
 | Operational tenant/group ceiling | Positive 1–1,024, default 1; optional Hard LimitKey intersects it; no tenant-supplied pool/group |
-| Retained actual overruns/cleanup | At most 4 per pool; stop new starts in that pool, retain job identity/occupancy; other pools progress |
+| Retained actual overruns/cleanup | Stop-new-start threshold 4 per pool; atomic accounting, retain every admitted task; hard bound configured workers + 4, at most 20 per pool; other pools progress |
 | Outstanding synchronous bridge calls | At most 4; wait at most 10 s, retain actual operation; do not block other control lanes |
 | SQL and external reconciliation probe | SQL positive, at most 5 s/default 5 s; provider probe positive, at most 30 s/default 10 s |
 | Short root/prepare/finalize | Positive, at most 5 min/default 30 s; no long external operation inside |
@@ -3650,8 +3650,8 @@ maintainer before dependent work. Development stays on `development` throughout.
    confirmed ExecuteIntent, no-UoW external adapter, renewal, typed reconciliation,
    quiescence proof/quarantine and bounded finalization. Prove each crash/unknown
    COMMIT boundary, provider accepted-before-ACK, paused-old-start/NotFound traps,
-   stale outcomes/revisions, deadline/cleanup saturation, no seventh effect and
-   domain known-failure/terminal behavior without rerunning external work.
+   stale outcomes/revisions, simultaneous overruns/cleanup saturation, no seventh
+   effect and domain known-failure/terminal behavior without rerunning external work.
 8. **Durable recurrence and restricted fan-out.** Implement frozen monotonic manifests,
    UTC slots/CoalesceLatest/jitter, minimal lifecycle projection, atomic pages/
    recipients and witness-bound app submission. Prove mixed revisions/ticks,

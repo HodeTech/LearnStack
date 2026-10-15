@@ -545,8 +545,13 @@ adapter. No tenant/trace/actor/parameter/secret is allowed in vendor storage/log
 
 Bound every SQL/probe/wait; retain scopes/tasks/cancellation callbacks and renewal
 through actual completion. A wait deadline does not kill managed code or synchronous
-vendor creation. Four retained overruns per pool stop its new starts; affected job
-identities remain blocked, while other pools/tenants progress. One shared finite
+vendor creation. Four retained overruns per pool are the stop-new-start threshold,
+not permission to discard concurrent work already admitted. Atomic pool admission/
+retention accounting bounds actual retained executions by configured workers plus
+four, at most twenty per pool. Record an overrun before releasing its wrapper slot.
+Retain/observe/renew all admitted work through real cleanup; affected job identities
+remain blocked while other pools/tenants progress.
+Synchronous bridge calls keep their separate hard limit of four. One shared finite
 shutdown join budget covers all pools and bridge operations.
 
 Renew using database time, matching token/phase and an unexpired lease; no expired
