@@ -35,6 +35,13 @@ with tempfile.TemporaryDirectory(prefix='learnstack-hangfire-distribution-contro
     kit=published/'third-party/hangfire'
     rejects('missing corresponding source',kit/'postgres/corresponding-source.tar.gz',lambda p:p.unlink())
     rejects('corrupt corresponding source',kit/'core/corresponding-source.tar.gz',lambda p:p.write_bytes(b'dirty-source-control'))
+    rejects('missing merged Cronos source',kit/'cronos/corresponding-source.tar.gz',lambda p:p.unlink())
+    rejects('corrupt merged Cronos source',kit/'cronos/corresponding-source.tar.gz',lambda p:p.write_bytes(b'dirty-source-control'))
+    rejects('missing merged Cronos MIT notice',kit/'cronos/LICENSE',lambda p:p.unlink())
+    rejects('changed merged Cronos MIT notice',kit/'cronos/LICENSE',lambda p:p.write_bytes(b'dirty-licence-control'))
+    def wrong_embedded_cronos_pin(path):
+        value=json.loads(path.read_text());value['cronos']['version']='0.11.0';path.write_text(json.dumps(value))
+    rejects('wrong merged Cronos pin',kit/'source-sha256.json',wrong_embedded_cronos_pin)
     rejects('missing LGPL licence',kit/'postgres/COPYING.LESSER',lambda p:p.unlink())
     rejects('changed licence',kit/'core/LICENSE.md',lambda p:p.write_bytes(b'dirty-licence-control'))
     rejects('missing replaceable assembly',published/'Hangfire.PostgreSql.dll',lambda p:p.unlink())

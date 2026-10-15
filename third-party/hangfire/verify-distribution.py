@@ -22,9 +22,9 @@ def digest(path):
 
 
 expected = {"Hangfire.Core": "1.8.25", "Hangfire.NetCore": "1.8.25", "Hangfire.PostgreSql": "1.21.1", "Newtonsoft.Json": "13.0.4", "Npgsql": "10.0.0", "Microsoft.Extensions.Hosting": "10.0.12"}
-source_commits = {"core": "1d4778c23410b365b5f9ce35458202efe0b0f3ea", "postgres": "e0a4001c6627695d61a0eea19d4403882e4cea34"}
-material_paths = {f"{component}/{name}" for component in source_commits for name in ("COPYING", "COPYING.LESSER", "LICENSE.md")}
-material_paths |= {"core/NOTICES", "dependency-notices/Apache-2.0.txt", "dependency-notices/Dapper-2.0.123-LICENSE.txt", "dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt", "dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md"}
+source_commits = {"core": "1d4778c23410b365b5f9ce35458202efe0b0f3ea", "postgres": "e0a4001c6627695d61a0eea19d4403882e4cea34", "cronos": "b2050abdf910bf5c3b7262d1a09d2c04c0f56f58"}
+material_paths = {f"{component}/{name}" for component in ("core", "postgres") for name in ("COPYING", "COPYING.LESSER", "LICENSE.md")}
+material_paths |= {"core/NOTICES", "cronos/LICENSE", "dependency-notices/Apache-2.0.txt", "dependency-notices/Dapper-2.0.123-LICENSE.txt", "dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt", "dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md"}
 material = json.loads((kit / "material-sha256.json").read_text())
 if set(material) != material_paths:
     raise SystemExit("Licence/notice manifest inventory differs from the qualified distribution")
@@ -37,6 +37,9 @@ if set(sources) != set(source_commits):
 for component, commit in source_commits.items():
     if sources[component]["commit"] != commit or digest(kit / component / "corresponding-source.tar.gz") != sources[component]["sha256"]:
         raise SystemExit(f"Unqualified corresponding source: {component}")
+embedded_cronos = {"version": "0.11.1", "tag": "v0.11.1", "embedded_in": "Hangfire.Core/1.8.25"}
+if any(sources["cronos"].get(key) != value for key, value in embedded_cronos.items()):
+    raise SystemExit("Unqualified internally merged Cronos dependency")
 
 assets_bytes = args.assets.read_bytes()
 assets = json.loads(assets_bytes)
@@ -86,5 +89,6 @@ print(json.dumps({
     "original_stock_assemblies": stock,
     "shared_assembly_sha256": assembly_hashes,
     "corresponding_source_verified": source_commits,
+    "internally_merged_dependencies": {"Cronos": embedded_cronos},
     "licence_notice_files_verified": sorted(material),
 }, indent=2))

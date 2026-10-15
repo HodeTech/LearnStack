@@ -237,7 +237,8 @@ Step 1 implements typed contracts and ordinary execution guards. Its
 owns completed validation and both review rounds. Step 2's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns locally validated schema/bootstrap and source/reset implementation under
-Accepted ADR-0058 (2026-10-16); both fresh Step 2 review rounds remain pending.
+Accepted ADR-0058 (2026-10-16); Round 1 corrections are validated and Round 2
+remains pending.
 Steps 3–9 remain pending.
 Phase 06 retains the full
 renderer/Studio expansion.

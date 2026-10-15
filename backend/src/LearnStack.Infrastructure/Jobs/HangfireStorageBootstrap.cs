@@ -75,6 +75,7 @@ public static class HangfireStorageBootstrap
               AND current_setting('idle_in_transaction_session_timeout')::interval <= interval '5 seconds'
               AND NOT has_schema_privilege(current_user,'public','CREATE')
             """);
+        HangfireSchemaShape.Verify(connection);
         foreach (var (table, columns) in HangfireStorageContract.Columns)
         {
             Require(connection, """
@@ -117,7 +118,7 @@ public static class HangfireStorageBootstrap
     private static void VerifyGuards(NpgsqlConnection connection)
     {
         var guards = HangfireStorageContract.Guards();
-        if (guards.Count != 8) throw new HangfireStorageRefusedException();
+        if (guards.Count != 11) throw new HangfireStorageRefusedException();
         foreach (var (name, definition) in guards)
             Require(connection, """
                 SELECT count(*) = 1 AND bool_and(p.proowner='learnstack_migration'::regrole AND NOT p.prosecdef
@@ -148,28 +149,24 @@ public static class HangfireStorageBootstrap
         }
     }
 
-    private static void VerifyMetadata(NpgsqlConnection connection) =>
+    private static void VerifyMetadata(NpgsqlConnection connection)
+    {
+        // The same read-only predicates validate retained rows and post-redaction
+        // trigger writes. Startup must not accept drift just because a guard was
+        // re-enabled after a previously invalid write.
         Require(connection, """
-            SELECT NOT EXISTS (
-              SELECT FROM public.jobqueue WHERE public.fn_hangfire_queue(queue) IS DISTINCT FROM true
-              UNION ALL SELECT FROM public.job WHERE public.fn_hangfire_invocation(invocationdata,arguments) IS DISTINCT FROM true
-              UNION ALL SELECT FROM public.state WHERE data ? 'Queue' AND public.fn_hangfire_queue(data->>'Queue') IS DISTINCT FROM true
-              UNION ALL SELECT FROM public.server WHERE public.fn_hangfire_server(id) IS DISTINCT FROM true
-                OR jsonb_typeof(data) IS DISTINCT FROM 'object' OR NOT data ?& ARRAY['WorkerCount','Queues','StartedAt']
-                OR (SELECT count(*) FROM jsonb_object_keys(data)) <> 3
-                OR jsonb_typeof(data->'WorkerCount') IS DISTINCT FROM 'number' OR (data->>'WorkerCount') !~ '^([1-9]|1[0-6])$'
-                OR jsonb_typeof(data->'Queues') IS DISTINCT FROM 'array' OR jsonb_array_length(data->'Queues') NOT BETWEEN 1 AND 64
-                OR EXISTS (SELECT FROM jsonb_array_elements(data->'Queues') queue WHERE jsonb_typeof(queue) <> 'string' OR public.fn_hangfire_queue(queue #>> '{}') IS DISTINCT FROM true)
-              UNION ALL SELECT FROM public.state CROSS JOIN LATERAL jsonb_each(coalesce(data,'{}')) pair
-                WHERE pair.key <> ALL(CASE name
-                  WHEN 'Enqueued' THEN ARRAY['EnqueuedAt','Queue'] WHEN 'Scheduled' THEN ARRAY['EnqueueAt','ScheduledAt']
-                  WHEN 'Processing' THEN ARRAY['StartedAt','ServerId','WorkerId'] WHEN 'Succeeded' THEN ARRAY['SucceededAt','PerformanceDuration','Latency','Result']
-                  WHEN 'Failed' THEN ARRAY['FailedAt','ExceptionType','ExceptionMessage','ExceptionDetails','ServerId'] WHEN 'Deleted' THEN ARRAY['DeletedAt','Exception'] ELSE ARRAY[]::text[] END)
-                  OR jsonb_typeof(pair.value) <> 'string'
-                  OR (pair.key IN ('ExceptionType','ExceptionMessage','ExceptionDetails','Exception','Result') AND pair.value <> '"transport_redacted"'::jsonb)
-              UNION ALL SELECT FROM public.state WHERE reason IS NOT NULL AND reason <> 'transport_redacted'
-              UNION ALL SELECT FROM public.hash WHERE field='Queue' AND public.fn_hangfire_queue(value) IS DISTINCT FROM true)
+            SELECT NOT EXISTS (SELECT FROM public.job
+              WHERE public.fn_hangfire_invocation(invocationdata,arguments) IS DISTINCT FROM true
+                 OR (statename IS NOT NULL AND statename NOT IN ('Enqueued','Scheduled','Processing','Succeeded','Failed','Deleted')))
+              AND NOT EXISTS (SELECT FROM public.state
+                WHERE public.fn_hangfire_state_valid(name,reason,data) IS DISTINCT FROM true)
+              AND NOT EXISTS (SELECT FROM public.jobparameter
+                WHERE public.fn_hangfire_parameter_valid(name,value) IS DISTINCT FROM true)
             """);
+        foreach (var table in new[] { "jobqueue", "server", "counter", "aggregatedcounter", "lock", "set", "list", "hash" })
+            Require(connection, $"SELECT NOT EXISTS (SELECT FROM public.\"{table}\" AS retained WHERE public.fn_hangfire_metadata_valid(@table,to_jsonb(retained)) IS DISTINCT FROM true)",
+                ("table", table));
+    }
 
     private static void Require(NpgsqlConnection connection, string sql, params (string Name, object Value)[] parameters)
     {

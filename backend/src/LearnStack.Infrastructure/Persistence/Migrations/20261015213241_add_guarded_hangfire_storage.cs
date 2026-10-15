@@ -23,6 +23,8 @@ public partial class add_guarded_hangfire_storage : Migration
         migrationBuilder.Sql("""
             DROP FUNCTION public.fn_hangfire_job_guard(), public.fn_hangfire_state_guard(),
                 public.fn_hangfire_parameter_guard(), public.fn_hangfire_metadata_guard();
+            DROP FUNCTION public.fn_hangfire_state_valid(text,text,jsonb),
+                public.fn_hangfire_parameter_valid(text,text), public.fn_hangfire_metadata_valid(text,jsonb);
             DROP FUNCTION public.fn_hangfire_invocation(jsonb,jsonb), public.fn_hangfire_recurrence(text),
                 public.fn_hangfire_queue(text), public.fn_hangfire_server(text);
             """);

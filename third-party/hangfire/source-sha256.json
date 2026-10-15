@@ -6,5 +6,12 @@
   "postgres": {
     "commit": "e0a4001c6627695d61a0eea19d4403882e4cea34",
     "sha256": "24d5e1d62b67258cecbd1765dbd03a764f59e40c91385f085dfd34fd66ff4d7b"
+  },
+  "cronos": {
+    "commit": "b2050abdf910bf5c3b7262d1a09d2c04c0f56f58",
+    "sha256": "5c387afdd2b62dc5473b815945705d59bf023300466c3fc24a55d69eebd84fbb",
+    "version": "0.11.1",
+    "tag": "v0.11.1",
+    "embedded_in": "Hangfire.Core/1.8.25"
   }
 }

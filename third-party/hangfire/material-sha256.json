@@ -9,5 +9,6 @@
   "dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md": "b98a397897ff55f76cddc380041507a95a896b2946e0188703bf0496793d6516",
   "postgres/COPYING": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
   "postgres/COPYING.LESSER": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
-  "postgres/LICENSE.md": "e3388ea0c5d8cb570d6baf32937523640c942a46b99ec509c8ca2e2d1a5c6e46"
+  "postgres/LICENSE.md": "e3388ea0c5d8cb570d6baf32937523640c942a46b99ec509c8ca2e2d1a5c6e46",
+  "cronos/LICENSE": "48e6c7a1b9a9e687391e6613269b4aa81b6c910f8e2bb53bee7a7e86e53b584a"
 }

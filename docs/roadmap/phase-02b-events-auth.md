@@ -3949,7 +3949,7 @@ runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
 ### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
 
-**Implemented and locally validated — both fresh review rounds pending.**
+**Implemented — Round 1 corrections validated; fresh Round 2 pending.**
 This step follows the completed Step 1 on `development` under Accepted ADR-0047.
 
 Two Platform migrations introduce seven authoritative job/control tables and the
@@ -4190,6 +4190,45 @@ owner, enabled-path response-loss and supported-pool-boundary progress controls;
 Step 9 owns complete enforcement. Those obligations remain Registered. The
 full Step 2 implementation is now committed for its first fresh review round;
 both round dispositions and verified fixes are recorded after they run.
+
+#### Step 2 review round 1 and verified corrections
+
+Three fresh reviewers examine `1b4ec7f4..583374f5`: GPT-6-astra/xhigh owns
+schema/isolation/state/indexes; GPT-6.1-sol/xhigh separately owns the vendor/source
+boundary and the proof/corpus lens. Their formal reports precede their authorized
+fix work. Root verifies four required findings against the implementation:
+
+- **Eligibility proof:** volatile candidate clocks scan 6,000 future rows when
+  fewer than ten rows are due. Stable statement-time cutoffs now supply actual
+  index bounds. Four migrated-schema controls cover zero/five due rows and detect
+  the old volatile scan; live post-lock lease checks remain separately required.
+- **Stored metadata:** a guard re-enabled after an invalid durable write did not
+  make the old partial startup scan reject every closed field. Shared read-only
+  predicates now serve post-redaction writes and startup, covering every vendor
+  metadata store. Twenty-six committed-drift/restored controls exercise them.
+- **Stock shape:** names/version alone accepted a missing unique key required by
+  stock `ON CONFLICT`. Startup now checks 58 column facts, 17 keys/constraints,
+  29 index definitions and nine sequence configurations/associations. Eleven
+  dirty/restored controls cover types/defaults/nullability/keys/indexes/sequences.
+- **Embedded material:** stock Core merges Cronos 0.11.1. Its exact MIT notice and
+  corresponding source are now in the kit, independently pinned to source commit
+  `b2050abdf910bf5c3b7262d1a09d2c04c0f56f58`, with five new failure controls.
+
+The live decisions index also distinguishes delivered source/reset proofs from
+pending Step 4 ownership and Step 9 enforcement. Accepted ADR bodies and earlier
+proposal/delivery receipts remain unchanged.
+
+Correction validation passes: Release build with zero warnings/errors; **193
+focused PostgreSQL cases**, zero failures/skips, in the final focused TRX. The
+actual fresh API publish verifies three source archives, twelve licence/notice
+files and original stock assemblies; fifteen planted defects refuse and recipient
+replacement inspection passes. Canonical guard SQL matches its embedded resource;
+first-party links/fragments, history preservation and whitespace pass.
+
+The first full correction-head Docker rerun was interrupted when its existing
+container stopped along with unrelated running containers. It is not passing
+regression evidence. Full regression is rerun after this correction commit and
+recorded with fresh Round 2. No worker/business activation is claimed here.
 
 ### Durable outbox dispatch
 
