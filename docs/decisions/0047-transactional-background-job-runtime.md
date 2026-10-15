@@ -6,6 +6,11 @@ Proposed — approval pending.
 
 **Draft date:** 2026-10-15
 
+**Review update — 2026-10-15.** The maintainer requested a deeper Hangfire
+comparison before choosing a runtime. The [expanded assessment](#hangfire-alternative-assessment-2026-10-15)
+includes isolated database experiments. The PostgreSQL design below is the initial
+proposal, not an accepted selection; Hangfire remains a viable customized option.
+
 This record closes no gate until the maintainer accepts it together with the
 [P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
 No job runtime, migration, grant or passing runtime proof is claimed by this draft.
@@ -29,24 +34,32 @@ No job runtime, migration, grant or passing runtime proof is claimed by this dra
 
 ## Considered Options
 
-1. **Bounded PostgreSQL default behind a scheduling port** — chosen. One
+1. **Bounded PostgreSQL default behind a scheduling port** — initial proposal. One
    authoritative job row uses the already pinned database/provider, existing owner
    lifecycle and familiar fenced transitions. LearnStack maintains this mechanism.
-2. **Hangfire 1.8.25 with Hangfire.PostgreSql 1.21.1** — rejected for this contract.
+2. **Unmodified Hangfire 1.8.25 with Hangfire.PostgreSql 1.21.1 alone** — insufficient
+   for the current transaction/audit contract.
    Its provider owns a separate transaction path; its public write interface does
    not expose the live connection/transaction required by `IAuditStore`. A normal
    state filter cannot supply the required same-transaction terminal audit.
-   A fork or replacement storage provider, plus schema/grant exceptions, exceeds
-   the bounded default. LGPL redistribution is an additional obligation, not the
-   deciding rejection reason.
-3. **Hangfire plus a LearnStack intent/completion ledger** — rejected. Reliable
-   handoff needs duplicate suppression and reconciliation across two durable job
-   state machines while business completion still needs a LearnStack fence.
+   Public storage customization can supply those primitives; a fork is not
+   inherently required. The expanded assessment distinguishes the working
+   experiment from the production storage/lifecycle work still required.
+3. **Stock Hangfire plus an authoritative LearnStack job record** — viable
+   alternative. Hangfire owns wakeup scheduling; LearnStack owns business execution,
+   attempts, completion and terminal audit. Reliable handoff and reconciliation
+   are extra work. There are two operational stores, but only one authoritative
+   business job state; describing both as business-authoritative ledgers was too broad.
 4. **In-memory scheduling or a post-commit callback** — rejected. A process crash
    can lose work; the current UoW deliberately exposes no post-commit hook.
 5. **Reuse integration-event deliveries as jobs** — rejected. Scheduled commands
    have one module owner and a due time, rather than a published fact and subscriber
    acceptance. Sharing lifecycle utilities does not make their identities equivalent.
+6. **Hangfire with a transaction-aware storage adapter** — viable alternative
+   requiring further production proof. Public subclass seams allow custom native
+   transaction commands without reflection or a Core fork. LearnStack would own
+   the customized SQL/state/lease integration and its upgrades. This is materially
+   more than adding an audit filter to the unmodified provider.
 
 ## Decision
 
@@ -322,6 +335,258 @@ Superseded ADR-0016's Hangfire references remain historical. ADR-0033 already
 replaced that record; current future maintenance authority is ADR-0028, whose
 vendor selection is expressly addressed here rather than rewriting ADR-0016.
 
+### Hangfire alternative assessment (2026-10-15)
+
+This assessment compares complete reliability boundaries, not enqueue API length.
+It updates the initial rejection rationale: stock integration is not sufficient,
+but customized Hangfire integration is possible. Runtime selection remains open
+for maintainer review. The Decision's PostgreSQL sections remain an initial
+candidate; selecting either Hangfire route requires revising those sections and
+the implementation plan before acceptance.
+
+#### Benefits and the boundary Hangfire does not supply
+
+Hangfire provides established immediate, delayed and cron-based recurring
+scheduling, worker lifecycle, retry/history and a monitoring UI. These are real
+advantages over maintaining those capabilities in LearnStack. P4 does not map
+the dashboard or define recurring business jobs, so those advantages are mostly
+for its next consumers; they are not irrelevant merely because they ship later.
+PostgreSQL storage is a community adapter, not an officially supported Hangfire
+storage backend. The Core feature set needed by P4 does not require Pro/Ace.
+See the [official overview](https://www.hangfire.io/overview.html).
+
+LearnStack still owns tenant/org admission, module authority, effective/causal actor,
+business transaction completion, external-effect idempotency and MUST audit. A
+Hangfire queue lease or Succeeded state alone does not prove those properties.
+
+Pinned source distinguishes four mechanisms:
+
+- `UseNativeDatabaseTransactions` affects queue/lock handling, not ordinary
+  job creation/state-transaction adoption. `EnableTransactionScopeEnlistment`
+  concerns `System.Transactions`, not adoption of the current explicit UoW
+  `DbTransaction`. An existing-connection factory alone changes neither fact.
+- A state filter is insufficient as the final durability boundary. The worker
+  can retry a failed transition and fall back to Failed with filters disabled.
+  If vendor terminal state is authoritative, its audit guard belongs below that
+  fallback in the storage transaction path.
+- Queue invisibility/fetched-time fencing is not the job business acquisition
+  fence. Worker state completion checks Processing state; the ordinary vendor
+  path does not bind that write to LearnStack's attempt epoch/commit gate.
+- Automatic retry elections count thrown failures. Setting five retry delays
+  does not bound crash/requeue executions to six committed business claims.
+
+These observations come from the pinned storage/options/queue and Core worker/
+state-changer sources linked below. They are specific to the inspected versions,
+not a claim that the library cannot be extended.
+
+#### Route H1 — stock provider, authoritative LearnStack job record
+
+Use Hangfire for durable wakeup scheduling. `public.background_jobs` remains the
+single business authority for parameters, attempts, admission, completion and
+terminal audit; vendor rows hold only opaque job references and operational data.
+
+```mermaid
+flowchart LR
+    C[Module command] --> T[Same transaction: business + job intent]
+    T --> H[Recoverable handoff]
+    H --> V[Hangfire: delayed wakeup]
+    V --> A[Closed adapter: job reference]
+    A --> E[LearnStack fenced ISender owner]
+    E --> B[Business + audit + job completion commit]
+```
+
+Text fallback: a command commits its durable job intent with business state; a
+recoverable bridge schedules a Hangfire wakeup; a fixed adapter invokes the
+LearnStack owner, which remains the authority on business completion.
+
+Required handoff contract:
+
+1. Read only committed intents. Do not call Hangfire directly inside the business
+   handler or use a post-commit in-memory callback as the durable bridge.
+2. Claim a handoff with a fresh token. Create/schedule the vendor wakeup, then
+   persist the observed vendor reference. The two commits are not atomic.
+3. Crash after vendor enqueue but before recording it may create another wakeup.
+   Duplicate wakeups must acquire the same logical job/fence; a losing duplicate
+   neither constructs a business handler nor spends another business attempt.
+4. A reconciler detects never-recorded, lost, terminal or exhausted vendor wakeups
+   for a still-pending logical job and schedules another bounded wakeup. A recorded
+   vendor reference cannot be treated as permanent evidence of future execution.
+5. Business transient failures update the logical availability/attempts. Wakeup
+   rescheduling respects that durable time. Vendor retry defaults cannot become a
+   second independent business retry budget.
+
+The wrapper returns bounded transport outcomes and keeps provider/business
+exceptions out of vendor failure payloads. Hangfire Succeeded means the wakeup
+was handled, not that business work succeeded. Its dashboard would need a clear
+link to authoritative LearnStack status; vendor requeue/delete does not reset a
+business terminal row. Operator permission/replay remain Phase 03 work.
+
+This route avoids maintaining a vendor SQL fork and retains its timer/recurrence
+machinery. It still needs LearnStack's job row, fence/gate, attempt policy,
+terminalizer, bridge and reconciler. It therefore does not remove most of the
+reliability code in the initial PostgreSQL proposal. That cost should be compared
+with the actual recurrence/operational benefits, not hidden as a simple adapter.
+
+#### Route H2 — transaction-aware provider customization
+
+Public overrides on storage, connection and write transaction allow LearnStack
+commands to use a caller-owned native connection/transaction. A production
+adapter could keep vendor job state authoritative instead of adding a second
+business-status ledger:
+
+- Initial job/parameter/state/queue commands borrow the admitted UoW pair and
+  flush without physically committing it. The producer owner remains the only
+  business commit point and records the successful scheduling receipt.
+- Add immutable logical UUID/tenant/org identity and a fresh execution epoch.
+  The request owner rechecks that epoch before business work and writes completion
+  through the customized storage on the same physical transaction.
+  The original acquisition cookie must reach the performer from that fetch;
+  rereading the latest token cannot authorize an older callback as a new owner.
+  Prove this propagation through the actual worker/connection/performer seams.
+- The worker's later acknowledgement observes the durable completed state. It
+  cannot repeat business work or rewrite a newer epoch. Unknown COMMIT, duplicate
+  queue entries and queue removal need real worker proofs, not just a SQL example.
+- Terminal storage commands perform fenced `UPDATE ... RETURNING`, mint the
+  actual-row witness and call the sixth audit writer before the same transaction
+  commits. No bypass of filters or alternate terminal state path may skip this.
+- All commands used by the enabled feature subset must be implemented or refuse
+  loudly. Inheriting a private command queue while overriding Commit to ignore it
+  is unsafe. Scheduled sets, hashes, counters, parameters, expiry and queue removal
+  cannot silently drop writes just because immediate enqueue worked.
+
+A public adapter does not necessarily require a Core or provider fork. It does
+own provider SQL/schema assumptions and needs upgrade qualification like a fork.
+If the public seams cannot cover a required path cleanly, a small audited provider
+fork is an explicit next choice, not an unreviewed reflection workaround.
+
+The larger unresolved integration is authority: stock workers load vendor
+invocations before tenant restoration, and global vendor tables contain no tenant
+key. A full design must specify exactly which tables/columns are protected tenant
+facts, which are control-plane metadata and how app-role parameter loading works.
+It cannot grant the bypass credential arbitrary business-parameter reads and call
+that the existing confined dispatcher contract. H2 remains a feasible candidate,
+not a production-ready security design established by the experiment below.
+
+#### Common Hangfire integration work
+
+- Keep a typed LearnStack scheduling port; modules never use Hangfire expressions,
+  clients, filters or runtime job types directly. Business execution still goes
+  through the existing audited `ISender` owner, not a directly activated handler.
+- Declare vendor control-plane storage explicitly. The pinned installer creates
+  twelve tables, including its schema-version table. `SchemaName=public` is
+  configurable; a separate `hangfire` schema is also an explicit schema/bootstrap
+  decision. Neither choice inherently requires a fifth role or runtime DDL.
+- Install the pinned schema through the migration/bootstrap path, disable runtime
+  preparation and define exact table/sequence grants. The four-role policy,
+  schema-wide sweeps and the vendor-control-plane exception need approval. There
+  is no blanket exemption for arbitrary payload tables or migration credentials
+  in the API. H1's opaque references make the exception narrower than full payloads.
+- Use one closed wrapper target with a precompiled type-token map. A custom
+  `UseTypeResolver` can avoid arbitrary `Type.GetType`/assembly lookup, but does
+  not restrict methods. Validate exact target/method/argument shape and declared
+  queue before performer/activator resolution, including static/inherited methods.
+- The wrapper/activator cannot resolve module services before tenant admission;
+  one boundary owns accessor/Activity restoration through actual cleanup. Vendor
+  cooperative cancellation does not replace the sticky business commit gate.
+- Sanitize vendor logs and persisted failure state below relevant fallback paths.
+  Only opaque references and closed outcomes enter control-plane data. Turning off
+  a dashboard does not prevent failure state/logging from retaining private values.
+- Review stock expiry/heartbeat/visibility/queue-order behavior against bounded
+  waits, fair service, reconciliation and shutdown. Vendor defaults are not the
+  accepted job policy merely because the package exposes them.
+
+For H1, the inspected version-23 vendor inventory is `schema`, `job`,
+`jobparameter`, `state`, `jobqueue`, `server`, `lock`, `set`, `hash`, `list`,
+`counter` and `aggregatedcounter`. The following is an observed candidate runtime
+grant boundary, not canonical SQL or permission to grant schema-wide ALL:
+
+| Vendor objects | Candidate confined-runtime operations |
+|---|---|
+| job, jobqueue, server, lock, set, hash, list, aggregatedcounter | SELECT / INSERT / UPDATE / DELETE |
+| jobparameter | SELECT / INSERT / UPDATE; job deletion cascades |
+| state | SELECT / INSERT; job deletion cascades |
+| counter | SELECT / INSERT / DELETE |
+| schema | SELECT for an adapter-owned exact-version check; no runtime mutation |
+| Nine insert sequences | USAGE, not ownership or DDL |
+
+`learnstack_app` and `learnstack_platform` need no vendor-object privileges in H1;
+the authoritative LearnStack row remains app-role RLS protected. Its control-plane
+tables need a named table-class/ACL/schema-sweep exception, not a claim that their
+opaque invocation JSON independently enforces tenant isolation. H2 needs its own
+more detailed app-submission/tenant-fact grant design and cannot inherit this H1
+matrix unchanged. Migration tests must verify actual ACLs and the pinned schema
+version rather than only asserting runtime preparation is disabled.
+
+#### Dependency, licence and compatibility evidence
+
+At review, the candidate stable pins are Hangfire Core/NetCore 1.8.25 and
+Hangfire.PostgreSql 1.21.1. P4 needs no dashboard, so NetCore can be the direct
+hosting integration; avoid the umbrella Hangfire package's SQL Server dependency.
+The inspected package metadata names source commits
+`1d4778c23410b365b5f9ce35458202efe0b0f3ea` and
+`e0a4001c6627695d61a0eea19d4403882e4cea34` respectively.
+
+An isolated net10.0 restore/build/basic DI-load probe with repository-equivalent
+Npgsql 10.0.0 / Hosting 10.0.12 succeeds. The unqualified graph selected
+Newtonsoft.Json 11.0.1 and emitted NU1903; a second probe explicitly pinned
+13.0.4 and built with zero warnings/errors. A selected Hangfire plan must carry
+that safe direct pin and review its complete lock graph, including Dapper and
+Dapper.AOT. No package was added to LearnStack by these experiments.
+
+NuGet's computed net10 compatibility is not an upstream certification. The
+inspected Core test targets stop at net8; the provider tests target net9 and its
+source dependency is Npgsql 6.0.11. Local compilation/loading is positive evidence
+for the candidate graph, not proof of real worker, RLS, crash or audit correctness.
+
+The official Hangfire packages offer LGPL-3.0-or-later/commercial choices; the
+community PostgreSQL provider has its own LGPLv3 licence. An official Hangfire
+purchase does not establish commercial rights to that provider. Distribution
+needs the relevant notices/licences and the chosen LGPL shared-library/relinking
+arrangement; a modified library additionally needs its corresponding source and
+change notices. These are licence-source facts, not a conclusion that LearnStack
+must publish all application source or that a particular container/EULA is compliant.
+Final distribution packaging remains a concrete qualification item if selected.
+
+#### Isolated feasibility results and limits
+
+Temporary experiments used exact Core 1.8.25 / PostgreSql 1.21.1 / Npgsql 10.0.0
+and a fresh PostgreSQL 18.4 container on a random loopback port. They used no
+existing database, service or credential, and changed no repository runtime file.
+The database spike used SDK 10.0.302 outside the repository, not its pinned
+10.0.112 SDK. Its eighteen focused cases passed and its owned container was
+removed. This is isolated feasibility evidence, not the repository test suite.
+
+| Experiment | Observed result | What it does not prove |
+|---|---|---|
+| Borrow explicit native transaction; native option × enlist option × create/write/real enqueue | All 12 combinations reject nested/concurrent transaction adoption | No claim that public customization is impossible |
+| Stock real enqueue owning its transaction | Commits successfully | Coupling to LearnStack's existing UoW |
+| Stock outer TransactionScope with no existing local transaction | Enqueue rolls back with that scope | An approved replacement for ADR-0040's explicit transaction model |
+| Public custom storage/connection/write subclasses; real client enqueue | External owner rollback/commit governs the inserted job | Full delayed/recurring/worker/state command coverage |
+| Custom terminal UPDATE RETURNING plus stand-in audit INSERT | Same txid; audit fault/owner rollback undoes both; commit retains both | Real IAuditStore, row witness, tenant RLS, role grants or stale-epoch protection |
+| Closed type resolver and malicious invocation probes with Newtonsoft 13.0.4 | Unknown/spoofed types and sampled hostile JSON refused without assembly loads | Exhaustive hostile-input proof |
+| Static string method and inherited wrapper method | Type resolution accepts them | Exact method admission; a resolver/JobActivator-only fence is insufficient |
+
+The database experiment implements a deliberately small immediate-enqueue command
+subset. It is not a reusable production provider and must not be copied into the
+application as if unimplemented operations were safe. Full Hangfire selection
+requires worker-level success/failure/crash/expiry/filter-fallback/uncertain-COMMIT,
+two-worker, isolation, cancellation and diagnostic proofs using LearnStack's real
+audit store. The initial six-step plan is reworked for H1 or H2 before acceptance.
+
+#### Decision comparison
+
+| Choice | Benefit | LearnStack maintenance | Present evidence |
+|---|---|---|---|
+| Bounded PostgreSQL default | One authoritative table and direct owner/audit integration | Entire bounded runner; later recurrence/operations capabilities | Existing reusable lifecycle plus source design; no job runtime yet |
+| H1 stock provider + authoritative job record | Mature timers/recurrence/worker tooling; stock vendor upgrade path | Business reliability plus durable handoff/reconciliation and status interpretation | Coherent architecture; full bridge/worker proof still required |
+| H2 transaction-aware Hangfire adapter | Mature Core scheduler with one authoritative job state | Customized storage/state/lease SQL, security boundary and every package upgrade | Native transaction primitives reproduced; production lifecycle/authority not proved |
+
+If the maintainer prefers Hangfire, H1 is the lower vendor-coupling route; H2 is
+the route for avoiding a second operational handoff, with a substantially larger
+storage-qualification obligation. Neither is a drop-in replacement for the
+approved event/job durability promises. The initial PostgreSQL preference remains
+open to that explicit choice rather than being justified by an impossibility claim.
+
 What would change the choice: measured recurrence, throughput, operational UI or
 cross-process scheduling requirements that outweigh maintaining this small runner.
 Those measurements must compare the full audit/identity integration, not just a
@@ -412,3 +677,17 @@ empty with a separate assertion and isolated test-only definitions.
 - [Pinned provider transaction implementation](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/1.21.1/src/Hangfire.PostgreSql/PostgreSqlWriteOnlyTransaction.cs)
 - [Hangfire write-transaction interface](https://github.com/HangfireIO/Hangfire/blob/v1.8.25/src/Hangfire.Core/Storage/IWriteOnlyTransaction.cs)
 - [Npgsql 10.0.0 licence](https://github.com/npgsql/npgsql/blob/v10.0.0/LICENSE)
+- [Hangfire features and storage support](https://www.hangfire.io/overview.html)
+- [Hangfire package licence scope](https://www.hangfire.io/licenses.html)
+- [Provider licence](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/e0a4001c6627695d61a0eea19d4403882e4cea34/LICENSE.md)
+- [LGPL combined-work conditions](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/COPYING.LESSER)
+- [Pinned provider options](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/e0a4001c6627695d61a0eea19d4403882e4cea34/src/Hangfire.PostgreSql/PostgreSqlStorageOptions.cs)
+- [Pinned provider queue](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/e0a4001c6627695d61a0eea19d4403882e4cea34/src/Hangfire.PostgreSql/PostgreSqlJobQueue.cs)
+- [Pinned provider schema scripts](https://github.com/hangfire-postgres/Hangfire.PostgreSql/tree/e0a4001c6627695d61a0eea19d4403882e4cea34/src/Hangfire.PostgreSql/Scripts)
+- [Pinned Core job factory](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Client/CoreBackgroundJobFactory.cs)
+- [Pinned worker state fallback](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Server/Worker.cs)
+- [Pinned state changer](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/States/BackgroundJobStateChanger.cs)
+- [Pinned configuration hooks](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/GlobalConfigurationExtensions.cs)
+- [Pinned invocation loader](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Storage/InvocationData.cs)
+- [Newtonsoft.Json 13.0.4](https://www.nuget.org/packages/Newtonsoft.Json/13.0.4)
+- [Newtonsoft security advisory](https://github.com/advisories/GHSA-5crp-9r3c-p9vr)

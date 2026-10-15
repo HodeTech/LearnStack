@@ -3509,6 +3509,13 @@ maintainer acceptance before runtime code, grants or migrations. Development
 stays on `development`. P02b-3's merge closeout is the inherited baseline; its
 dated receipts and all Accepted ADR bodies remain unchanged during drafting.
 
+**Maintainer direction — 2026-10-15.** Approval is withheld pending a deeper
+Hangfire comparison. ADR-0047's
+[expanded assessment](../decisions/0047-transactional-background-job-runtime.md#hangfire-alternative-assessment-2026-10-15)
+now distinguishes stock wakeup transport with an authoritative LearnStack row
+from transaction-aware provider customization. The initial PostgreSQL plan below
+is not selected or accepted. No runtime, migration or grant work is authorized.
+
 #### Problem and scope
 
 Deliver the first persistent background-job infrastructure with safe tenant/org
@@ -3664,6 +3671,30 @@ controls, relative links/fragments, added prose wrapping and whitespace checks.
 All earlier P02b delivery/review receipts and every prior ADR file are byte-preserved
 against `71568e78`. These are document/source checks; no job runtime exists and
 no runtime acceptance proof is claimed. Maintainer approval remains pending.
+
+#### Hangfire comparison follow-up (2026-10-15)
+
+The maintainer requested this assessment rather than accepting the initial
+PostgreSQL proposal. The [expanded ADR comparison](../decisions/0047-transactional-background-job-runtime.md#hangfire-alternative-assessment-2026-10-15)
+owns alternatives, trade-offs, package/source pins and evidence limits. Stock
+Hangfire plus an authoritative job record is viable; public transaction-aware
+storage customization is also physically feasible. Neither is accepted here.
+
+Three research agents inspected exact upstream/package sources, current owner
+contracts, dependencies, storage privileges and lifecycle boundaries. Isolated
+database experiments passed eighteen focused cases on fresh PostgreSQL 18.4;
+the owned container was removed and no existing service/database was touched.
+The native transaction spike used SDK 10.0.302 outside the repository, not pinned
+10.0.112. Separate exact-version invocation probes and .NET 10 dependency/basic
+load checks are recorded in the ADR. These do not prove production audit, RLS,
+worker/retry/cancellation or complete provider support.
+
+Two fresh reviewers, GPT-6-astra xhigh and GPT-6.1-sol high, checked the revised
+comparison against sources and experiments. Both approved the evidence/framing
+without required corrections; neither approved runtime implementation. Local
+document/corpus/ADR controls pass. Runtime choice and final acceptance still
+belong to the maintainer; a Hangfire choice revises the detailed design and steps
+before any implementation.
 
 #### Validation and carrier ownership
 
