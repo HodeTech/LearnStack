@@ -3973,9 +3973,11 @@ recorded after the actual checks; source-only inspection is not a runtime proof.
 driver timeout with zero. PostgreSQL statement/lock deadlines pass blocked-SQL
 checks, but a response-withholding proxy leaves the actual component pending.
 [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) proposes the
-explicit maintenance exception and ownership controls. It requires maintainer
-acceptance before dependent runtime; this step does not claim the socket
-obligation or full closeout is complete. Independent schema validation continues.
+selective maintenance configuration and ownership controls described in the
+[reassessment](#step-2-maintenance-reassessment). The earlier socket-exception
+proposal is withdrawn. Maintainer acceptance remains required before dependent
+runtime; this step claims neither completed qualification nor full closeout.
+Independent schema validation continues.
 
 #### Step 2 counter-maintenance decision review
 
@@ -3993,6 +3995,94 @@ review's availability caveat. A new GPT-6.1-sol xhigh reviewer independently
 approves the corrected whole proposal with no required findings after checking
 the exact Core/provider/Npgsql source and governance. Neither review claims
 passing runtime tests for the unimplemented maintenance owner.
+
+#### Step 2 maintenance reassessment
+
+The maintainer returns Request changes, not acceptance, on 2026-10-16. The
+initial proposal/reviews above are historical receipts; they do not close the new
+findings. Two independent source/research agents, GPT-6.1-sol xhigh and
+GPT-6-astra xhigh, verify the exact pinned Core/provider/Npgsql sources. Root
+independently reproduces PostgreSQL 18.4 timeout behavior.
+
+| Review issue | Verified disposition |
+|---|---|
+| Supersession/additive scope conflated | Valid. Revised Proposed ADR-0058 distinguishes selective configuration replacement from additive ownership/health/test seams; its former socket exception is withdrawn. Acceptance will name both in ADR-0047's dated amendment. |
+| Suppression loses all counter maintenance | False rejection premise in the earlier draft. Stock expiration deletes expired counters and compacts the two nonexpiring state totals; removal is now the proposed alternative. |
+| Expiration's five-minute wait and minimum-two sizing | Valid distinction. Retry-loop/whole-pass occupancy differs from per-command I/O. Two was never a topology capacity proof; that proposed rule is withdrawn. Step 4 must enumerate and qualify the actual supported acquisition floor. |
+| Aborted transaction retains former row locks | Not reproduced. A positive active lock is released on abort; a concurrent update succeeds before the timeout response is read. Idle-aborted session occupancy remains real and is tested separately. |
+| Missing interval/inventory/proof specificity | Valid. Revised proposal pins exact component/filter inventories and the expiration interval, assigns enforcement to Step 4, and maps proofs to the two existing canonical rules. |
+| Incorrect timeout anchor/ambiguous defaults | Corrected. The source link names Npgsql's actual timeout selection; driver defaults, statements and invocation waits are distinguished. |
+
+The proposed direction suppresses only stock `CountersAggregator` and optional
+`StatisticsHistoryAttribute`, preserving stock expiration/heartbeat and every
+finite command/socket requirement. Expiration still needs single-flight retained
+ownership: cancellation does not enter its synchronous SQL or lock-acquisition
+loops. Healthy pass pacing, shared shutdown and independent progress remain
+pending actual-runtime obligations, not consequences assumed from suppression.
+No production owner, filter removal or new source deadline is activated here.
+
+**Reproducible qualification commands** (Python 3, Docker and .NET 10):
+
+```bash
+python3 third-party/hangfire/qualification/probe-maintenance.py
+python3 third-party/hangfire/qualification/probe-pg-timeouts.py
+```
+
+The first command builds only a disposable exact-package project and starts an
+owned random-loopback PostgreSQL 18.4 container. It invokes actual stock
+`ExpirationManager.Execute`, the public filter-removal hook and actual stock
+aggregation through an ACKing response-withholding proxy. The second uses the
+PostgreSQL simple-query protocol to withhold client reads while an independent
+observer inspects backend/lock state. Both use synthetic data, finite waits and
+owned cleanup. They touch no development database or shared repository binaries.
+Neither substitutes for `learnstack_outbox_admin`/real worker/owner proofs.
+
+**Measured counter footprint.** Exact stock version-23 schema, default indexes,
+fresh/truncated table per case and autovacuum disabled for repeatable sizing.
+The denominator is vendor transitions between cleanup passes, not business jobs.
+Bytes are `pg_total_relation_size(counter)` including relation/index overhead;
+they exclude WAL, replication, other vendor tables and production bloat.
+
+| Transitions | One-row ordinary success | Two-row transition envelope |
+|---:|---:|---:|
+| 1,000 | 1,000 rows / 172,032 B | 2,000 rows / 286,720 B |
+| 10,000 | 10,000 rows / 1,048,576 B | 20,000 rows / 2,007,040 B |
+| 100,000 | 100,000 rows / 9,650,176 B | 200,000 rows / 19,210,240 B |
+
+The actual stock expiration pass reduces those six cases to one/two live rows
+and preserves the tested positive totals. Ordinary VACUUM does not shrink the
+previously allocated footprint in these cases. Stock delete-then-insert compaction
+is not atomic, can lose a subtotal and drops nonpositive raw sums; this experiment
+does not prove exact statistics accounting. Removal loses new vendor timelines.
+Cleanup outages and retained snapshots can grow backlog/disk, and failed vendor
+wakeups have their own nonexpiring retention. No bounded-disk or recovery-rate
+claim is made.
+
+The actual aggregator remains pending at eight seconds despite requested
+cancellation and five-second server/driver defaults. Releasing its proxy sockets
+settles the owned task with a driver failure; this proves the removed path's
+qualification gap, not a passing replacement owner. PostgreSQL's active lock
+control holds one relation lock; the aborted state holds zero and an independent
+update succeeds. Two 350 ms statements pass a 500 ms per-statement limit; a
+500 ms idle-in-transaction limit terminates the remaining aborted backend.
+Idle cleanup is session hygiene, not a guarantee that an ACKing proxy releases
+its client socket.
+
+Standards 20's existing `hangfire`-schema drift is independently corrected against
+Accepted ADR-0047 (`public`). Proposed ADR-0058 changes remain approval-gated;
+the two fresh proposal review rounds and their dispositions are recorded after
+they actually run.
+
+**Revised proposal Round 1.** A fresh GPT-6-astra xhigh reviewer approves the
+whole revised proposal, carrier edits and qualification artifacts with no
+remaining findings. The initial component-name mismatch is corrected to the
+actual `PostgreSqlHeartbeatProcess` type. Root reruns both committed-source
+experiments successfully: all six footprint cases, expired/future controls,
+public selective component/filter removal, eight-second blackhole retention and
+late cleanup, and all PostgreSQL timeout/lock controls pass. Both owned containers
+and temporary projects are removed. The reviewer independently checks 450 local
+links/fragments, Python syntax and scoped whitespace. This is proposal review,
+not either formal Step 2 runtime/schema review or maintainer acceptance.
 
 ### Durable outbox dispatch
 

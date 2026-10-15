@@ -19,6 +19,8 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Background-job additions derive from
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -700,15 +702,25 @@ causal-envelope or payload read to the bypass scheduler. See
 
 ## Background Jobs and Hangfire
 
-- Long-running domain work (cohort enrollments, recording transcoding) goes on
-  Hangfire. Short-running idempotent work goes on `IEventBus` consumers; the two are
-  not interchangeable.
-- Job names are namespaced `{module}.{job-name}` (`enrollment.bulk_grant`,
-  `media.recording_transcode`).
-- Recurring jobs are declared in code and registered at startup; ad-hoc UI scheduling
-  is disabled.
-- Hangfire's storage is its own Postgres schema (`hangfire`), separate from any
-  module's schema.
+Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+owns H1: stock Hangfire transports opaque wakeups; LearnStack records own business
+intent, attempts, tenant/organization authority and completion. The
+[P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+owns current implementation/qualification status; worker activation is pending.
+
+- Modules submit typed registered jobs on their announced business transaction.
+  Transactional and external prepare/execute/finalize profiles retain distinct
+  owners; vendor success is not business completion. Events keep their independent
+  durable subscriber contract.
+- Definition/queue/recurrence keys come from finite code registries. Only the two
+  exact opaque wrappers reach vendor invocation storage. No UI-defined callbacks,
+  dashboard or serialized tenant/organization/context authority is admitted.
+- Version-23 vendor tables live in `public`, classified separately from
+  tenant-owned business tables. Migration-owned installation and exact runtime
+  grants follow [Database Standards](05-database.md); workers never prepare schema.
+- [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) remains
+  Proposed. Its maintenance configuration is not an implemented extension of
+  this standard; approval and replacement proofs remain pending.
 
 ## Network and Service Topology
 
