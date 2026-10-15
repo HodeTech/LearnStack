@@ -273,7 +273,6 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<IOutbox, PostgresOutbox>();
         services.TryAddScoped<PostgresDeliveryAcceptance>();
         services.TryAddScoped<IInboxGuard, PostgresInboxGuard>();
-        services.TryAddSingleton<DeliveryExecutor>();
 
         // The catalogue, merged once from every module's source. A singleton: it is built
         // at composition time and read on every request, and rebuilding it per scope would

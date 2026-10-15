@@ -424,21 +424,23 @@ runs on it.
 eight — both narrower than an earlier wording here, and both for reasons the shipped
 mechanism makes plain. Matching `[TenantOwned]` table names would put a parser between
 every query and the database to decide something the transaction already answers.
-And of the eight paths, only `TransactionBehavior` through
-`TransactionExecutionCoordinator` and the sanctioned `IUnitOfWork` announcement
-methods marks the ambient transaction today: two do not exist in code yet —
-the durable idempotency store, and the integration-event transport, which matters most,
-because it is the other setter that *opens* the ambient transaction and must therefore
-announce it when Phase 02b lands it — and the five that do, `OrganizationScopeValidator`,
+Of the eight logical paths, the MediatR transaction owner and P02b-3's integration
+transport mark the ambient transaction through sanctioned `IUnitOfWork`
+announcement methods. Durable acceptance and prepared subscriber execution both
+announce before their first app-role command; the production call-site census
+closes these implementations without adding a ninth logical setter. The durable
+idempotency store remains unimplemented. The five other paths,
+`OrganizationScopeValidator`,
 the two standalone audit writers and the two cached-projection loaders, issue raw
 `NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
-`TransactionBehavior` alone would reject the writes the idempotency store and the audit
-store legitimately make on their own short transactions — is real, and is answered by the
-guard reading a marker rather than a behavior's name: a setter marks the transaction it
+`TransactionBehavior` alone would reject legitimate transport and audit writes,
+and the future idempotency store's writes on its own short transaction — is real,
+and is answered by the guard reading a marker rather than a behavior's name:
+a setter marks the transaction it
 opens if and only if it reaches EF. The audit store's writers have landed and reach none;
 the durable idempotency store will mark its own if it does. It throws
 `TenantContextMissingException` when it has not, which

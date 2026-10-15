@@ -19,9 +19,9 @@ namespace LearnStack.SharedKernel.Messaging;
 /// handler; handlers do not call it. Business state, inbox completion and fenced
 /// delivery completion share one transaction. Durable acceptance, the shared
 /// <c>inbox_messages</c> table and the nonempty production proof for
-/// <c>Integration_Event_Handlers_Use_InboxGuard</c> belong to P02b-3.
+/// <c>Integration_Event_Handlers_Use_InboxGuard</c> are delivered by P02b-3.
 /// Publication now durably accepts delivery identities without constructing handlers;
-/// the business execution boundary is delivered separately in P02b-3.
+/// P02b-3 also delivers the separate business execution boundary.
 /// </para>
 /// </remarks>
 /// <remarks>

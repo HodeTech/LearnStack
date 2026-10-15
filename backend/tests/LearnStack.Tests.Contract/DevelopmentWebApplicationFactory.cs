@@ -20,8 +20,8 @@ namespace LearnStack.Tests.Contract;
 /// the SDK generates from and CI diffs, so it is served in every environment —
 /// and the environment override keeps the contract suite on one known environment.
 /// This served-contract fixture also removes the dispatcher workers because it owns
-/// no dispatcher database. Its retained private outbox health check intentionally
-/// remains Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
+/// no dispatcher database. Its retained private outbox and delivery health checks
+/// intentionally remain Unhealthy; the static <c>/healthz</c> liveness endpoint stays independent.
 /// </remarks>
 public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {

@@ -1627,7 +1627,8 @@ catalogue as the carrier of their status — so all three are Packet 10's.
 - **Source:** [Database Standards § Soft Delete](05-database.md).
 - **Type:** xUnit over the EF model (`LearnStack.Tests.Architecture`,
   `PersistenceConventionTests`). **Kind:** structural.
-- **Status:** **Implemented** (Packet 9, fifth review). Its companion,
+- **Status:** **Implemented** (`PersistenceConventionTests`, Packet 9, fifth review).
+  Its companion,
   `The_Soft_Delete_Index_Sweep_Can_Actually_Fail`, runs the predicate over a probe context
   carrying one unique index of each shape — counting deleted rows, partial, containing the
   primary key, and on a table with no `deleted_at` — and expects exactly the first.
@@ -2330,11 +2331,10 @@ because the filters hold, and removing both turns all five red.
 - **Status:** **Implemented** (`TenantContextGuardTests`, Packet 7 step 8).
 - **Phase:** 02a (Packet 7).
 - **Note:** the marker is a flag on `NpgsqlUnitOfWork`, read through the seam member
-  ADR-0040 Amendment 5 adds. **Only one of the eight sanctioned setters stamps it**, and
-  that is the honest count: `TransactionBehavior` via `SetTenantContextAsync`. Of the
-  other seven, **two do not exist in code yet** — the durable idempotency store, and the
-  integration-event transport, which is the one other setter that *opens* the ambient
-  transaction and will have to announce it when Phase 02b lands it — and the five that do,
+  ADR-0040 Amendment 5 adds. The MediatR transaction owner and P02b-3's transport
+  stamp it through `SetTenantContextAsync`; acceptance and prepared execution
+  announce their own ambient transaction before app-role commands. The durable
+  idempotency store remains unimplemented. The five other logical setters,
   `OrganizationScopeValidator`, the two standalone audit writers and the two cached
   projection loaders (`AuditConfig` and the tenant flags), issue raw `NpgsqlCommand`s on
   connections of their own, which EF interception cannot see, so they need neither a mark
@@ -3256,7 +3256,11 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
   and method argument membership states bound recursive helper traversal.
   The [lifecycle census](../../backend/tests/LearnStack.Tests.Architecture/IntegrationDeliveryLifecycleBoundaryTests.cs)
   pins typed unit/frame and database-transaction completion sites, including
-  known EF transaction/facade APIs, and their multiplicity. These are bounded
+  known EF transaction/facade APIs, and their multiplicity. It also pins the
+  three `SetTenantContextAsync` call sites in the ordinary owner, prepared delivery
+  owner and durable acceptance, with missing-site and extra interface/concrete/
+  inherited/async/delegate caller controls. These implement two of ADR-0040's
+  eight logical setter paths rather than adding a new path. These are bounded
   static capability checks, not arbitrary
   reflection, raw SQL transaction analysis or branch-order proofs; the real
   PostgreSQL tests own inbox-before-construction and transaction atomicity.

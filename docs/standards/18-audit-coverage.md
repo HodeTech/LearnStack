@@ -518,8 +518,9 @@ table above is the policy those deliverables implement, not a description of tod
   Tenancy owns off-path `platform.outbox.dead_letter` (P02b-2) and
   `platform.delivery.dead_letter` (P02b-3 Step 4); each is registered with its writer.
   Outcome success records terminal state, not publication. Invalid causal metadata
-  is omitted and a fresh validated attempt trace is used. Closed terminal values
-  live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.
+  is omitted and a fresh validated attempt trace is used. Absent optional causal
+  IDs are valid; SQL NULL alone does not invalidate a stored trace. Closed terminal
+  values live in bounded metadata; `AuditEntryDraft.Reason` remains for platform entry.
   Audit refusal retries terminalization without delivery. Because the bypass
   role ignores RLS, witness/call-path proof binds identity, not announced GUCs.
 - Entering `EnterPlatformAdminScope(reason)` writes that row through

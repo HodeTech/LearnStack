@@ -108,6 +108,7 @@ subscriber witness binds the actual tenant/subscription/event tuple and uses a
 validated attempt trace without causal-envelope or payload SELECT. Outcome success
 describes terminal state, not publication. Producer terminal audit omits invalid
 causal fields in favor of a fresh validated attempt trace.
+Absent optional causal IDs are valid and do not alone invalidate the stored trace.
 Closed terminal values use bounded metadata; `Reason` stays for platform entry.
 Audit failure retains terminal work for retry without delivery; uncertain COMMIT
 is reconciled before retry and cannot duplicate a completed terminal audit.

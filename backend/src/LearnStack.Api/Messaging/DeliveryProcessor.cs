@@ -17,7 +17,6 @@ public sealed partial class DeliveryProcessor : BackgroundService
     private readonly ILogger<DeliveryProcessor> _logger;
     private readonly object _attemptGate = new();
     private readonly List<DeliveryAttempt> _attempts = [];
-    private long? _lastRefreshTimestamp;
 
     public DeliveryProcessor(
         [FromKeyedServices(OutboxDispatcherDataSource.Key)] Lazy<NpgsqlDataSource> source,
@@ -280,10 +279,9 @@ public sealed partial class DeliveryProcessor : BackgroundService
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        var last = _lastRefreshTimestamp;
+        var last = _observation.Snapshot.LastSnapshotTimestamp;
         if (last is { } timestamp
             && _time.GetElapsedTime(timestamp, _time.GetTimestamp()) < _options.SnapshotInterval) return;
-        _lastRefreshTimestamp = _time.GetTimestamp();
         try
         {
             var queue = await _store.ReadSnapshotAsync(RetainedPartitions(), cancellationToken).ConfigureAwait(false);

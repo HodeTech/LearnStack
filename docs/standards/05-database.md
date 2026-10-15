@@ -1575,8 +1575,8 @@ and its MUST audit atomically. See
 
 ## Inbox
 
-**P02b-3 Step 1 implements the shared schema; Step 2 implements acceptance and
-inbox claims. Business completion and scheduling remain Steps 3–4.**
+**P02b-3 Steps 1–4 deliver the shared schema, durable acceptance, inbox claims,
+business completion and independent subscriber scheduling.**
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md#subscriber-acceptance-and-inbox-ownership)
 and the [accepted P02b-3 package](../roadmap/phase-02b-events-auth.md#accepted-storage-and-authority-details)
 define transport-owned deduplication and independent subscription delivery.
@@ -1603,7 +1603,7 @@ transaction makes it durable alongside business effects, produced outbox, MUST
 audit and fenced ledger completion. Rollback removes a new claim; targeted replay
 never resets completed inbox rows. Database triggers refuse inbox UPDATE, DELETE
 and TRUNCATE even as the owner; Phase 11 must explicitly decide any retention
-exception. Only `learnstack_app` updates `processed_at`.
+exception. Only `learnstack_app` updates the ledger's `processed_at`.
 Completion retains the paired lease token/expiry as inert provenance, because
 app grants cannot clear them. Every scheduler index and selection excludes
 completed rows. Terminal completion clears ownership. Replay count/timestamp

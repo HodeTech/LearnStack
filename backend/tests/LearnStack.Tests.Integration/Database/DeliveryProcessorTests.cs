@@ -367,6 +367,11 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
         fixture.Observation.Snapshot.Queue.Should().BeSameAs(good.Queue);
         fixture.Observation.Snapshot.LastSnapshotTimestamp.Should().Be(good.LastSnapshotTimestamp);
         fixture.Observation.IsHealthy.Should().BeFalse();
+
+        await fixture.SchemaAsync("GRANT SELECT (occurred_at) ON event_deliveries TO learnstack_outbox_admin");
+        await UntilAsync(() => !fixture.Observation.Snapshot.RefreshFailed);
+        fixture.Observation.Snapshot.LastSnapshotTimestamp.Should().Be(time.GetTimestamp(),
+            "a failed refresh must retry without advancing the successful-snapshot interval");
     }
 
     private sealed class SnapshotTimeProvider : TimeProvider

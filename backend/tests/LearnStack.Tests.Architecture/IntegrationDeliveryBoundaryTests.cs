@@ -36,6 +36,10 @@ public sealed partial class OutboxDispatchConventionTests
         using var census = ProductionCensus.Read();
         IntegrationDeliveryOffenders(census, ReadIntegrationDeliveryRegistration()).Should().BeEmpty(
             "Fix: declare every concrete integration handler as an Active scoped subscription and invoke it only through the inbox-owned delivery callback");
+        DeliveryOwnerOffenders(census).Should().BeEmpty(
+            "Fix: keep inbox claim, final fence and commit admission in the enumerated delivery owner path");
+        IntegrationLifecycleOffenders(census).Should().BeEmpty(
+            "Fix: let only the approved common owner and transport scopes announce tenants and complete delivery transactions");
     }
 
     [Fact]

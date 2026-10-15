@@ -684,6 +684,9 @@ rules:
   parameterized SQL; its terminal UPDATE and narrow witness-bound audit INSERT
   share one transaction. P02b-2 Step 2 implements that accepted exception; both
   independent review rounds passed.
+- Write `inbox_messages` or `event_deliveries` from a module or Seeder. ADR-0046's
+  transport-owned acceptance, inbox/business owner and confined scheduler alone
+  write their granted columns; handlers mutate business aggregates through commands.
 - Write rows through EF Core's set-based APIs — `ExecuteUpdate`, `ExecuteDelete`,
   `ExecuteSql*`. The audit capture sees only what the `ChangeTracker` holds
   ([ADR-0044 § 7](docs/decisions/0044-audit-write-path.md)), so such a write commits with

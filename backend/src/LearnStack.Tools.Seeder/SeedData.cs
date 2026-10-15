@@ -28,6 +28,7 @@ public static class SeedData
     public static readonly IReadOnlyList<SeedTenant> All = [English, Yoga];
 
     // Provisioning audits both sanctioned roots; follow-on organization and host each add one.
+    // Each tenant initializes two built-ins once; authored definitions audit registration and publication.
     public static long ExpectedAuditWrites => Inventory.Tenants * 4L + Inventory.Locales
         + All.Count * 2L + 2L * All.Sum(tenant => ContentTypes(tenant).Count() + Taxonomies(tenant).Count()) + Inventory.Themes
         + Inventory.Courses + Inventory.Lessons + Inventory.Translations

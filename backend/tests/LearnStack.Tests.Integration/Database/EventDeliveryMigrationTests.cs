@@ -1,5 +1,7 @@
 using System.Data.Common;
+using System.Reflection;
 using FluentAssertions;
+using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -500,20 +502,20 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
         }
         await using var scheduler = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         await using var queryTransaction = await scheduler.BeginTransactionAsync();
-        // This proves each partial index can satisfy the approved query/order;
+        // This proves each partial index can satisfy the production candidate query/order;
         // disabling sequential scans makes no claim about production cost estimates.
         await SchemaQueries.ExecuteAsync(scheduler, queryTransaction, "SET LOCAL enable_seqscan = off");
         var indexQueries = new[]
         {
-            ("pending", "terminal_reason IS NULL AND attempts < 6 AND locked_by IS NULL AND available_after <= clock_timestamp()", 3),
-            ("recovery", "terminal_reason IS NULL AND (locked_by IS NOT NULL OR attempts >= 6) AND ((locked_by IS NOT NULL AND locked_until <= clock_timestamp()) OR (locked_by IS NULL AND attempts >= 6))", 2),
-            ("terminal", "terminal_reason IS NOT NULL", 1),
+            ("pending", "Normal", 3),
+            ("recovery", "Recovery", 2),
+            ("terminal", "Terminal", 1),
         };
         foreach (var (suffix, predicate, expected) in indexQueries)
         {
             var rows = await SchemaQueries.ReadStringsAsync(scheduler, $"""
                 SELECT event_id::text || ':' || tenant_id::text || ':' || subscription_id FROM event_deliveries
-                WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND {predicate}
+                WHERE {DeliveryPredicate(predicate)}
                 ORDER BY available_after, occurred_at, event_id, tenant_id, subscription_id
                 """, queryTransaction);
             rows.Should().HaveCount(expected);
@@ -524,15 +526,34 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
                     $"{tiedEvent}:{SchemaFixture.TenantA}:{taxonomy}",
                     $"{tiedEvent}:{SchemaFixture.TenantB}:{Subscription}");
             }
-            var plans = await SchemaQueries.ReadStringsAsync(scheduler, $"""
-                EXPLAIN (FORMAT JSON) SELECT event_id, tenant_id, subscription_id FROM event_deliveries
-                WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND {predicate}
-                ORDER BY available_after, occurred_at, event_id, tenant_id, subscription_id
-                """, queryTransaction);
-            plans.Should().ContainSingle().Which.Should().Contain($"\"Index Name\": \"ix_event_deliveries_{suffix}\"")
+            await using var selection = DeliverySelection(scheduler, queryTransaction, predicate);
+            selection.CommandText = "EXPLAIN (FORMAT JSON) " + selection.CommandText;
+            var plan = (string)(await selection.ExecuteScalarAsync())!;
+            plan.Should().Contain($"\"Index Name\": \"ix_event_deliveries_{suffix}\"")
                 .And.NotContain("\"Node Type\": \"Sort\"")
                 .And.NotContain("\"Node Type\": \"Incremental Sort\"");
         }
+    }
+
+    private static string DeliveryPredicate(string name) =>
+        typeof(DeliveryDispatchStore).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)?.GetRawConstantValue() as string
+        ?? throw new InvalidOperationException("The production delivery eligibility predicate is missing: " + name);
+
+    private static NpgsqlCommand DeliverySelection(DbConnection scheduler, DbTransaction transaction, string predicate)
+    {
+        // Read the actual predicates, including time/lease and manifest/partition
+        // admission, so a production change cannot leave an independently copied
+        // WHERE clause passing. Locking and LIMIT match AcquireAsync's candidate.
+        var command = new NpgsqlCommand($"""
+            SELECT tenant_id, subscription_id, event_id FROM event_deliveries
+            WHERE {DeliveryPredicate(predicate)}{DeliveryPredicate("Admitted")}
+            ORDER BY available_after, occurred_at, event_id, tenant_id, subscription_id
+            FOR UPDATE SKIP LOCKED LIMIT 1
+            """, (NpgsqlConnection)scheduler, (NpgsqlTransaction)transaction);
+        command.Parameters.AddWithValue("held_types", Array.Empty<string>());
+        command.Parameters.AddWithValue("held_subscriptions", Array.Empty<string>());
+        command.Parameters.AddWithValue("blocked", Array.Empty<string>());
+        return command;
     }
 
     [Fact]

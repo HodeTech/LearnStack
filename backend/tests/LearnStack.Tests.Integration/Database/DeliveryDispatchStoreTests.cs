@@ -55,6 +55,63 @@ public sealed class DeliveryDispatchStoreTests(SchemaFixture schema)
     }
 
     [Fact]
+    public async Task Normal_unknown_commit_and_expired_recovery_have_distinct_stored_diagnostics()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlocked))!;
+
+        (await store.FailAsync(claim, DeliveryFailureReason.UnknownOutcome)).Should().BeTrue();
+        (await test.ReadAsync(id)).Error.Should().Be("execute:unknown:commit");
+
+        await test.DueAsync(id);
+        (await store.TryClaimAsync(NoBlocked)).Should().NotBeNull();
+        await test.ExpireAsync(id);
+        var recovery = (await store.TryAcquireRecoveryAsync(NoBlocked))!;
+        (await store.FailAsync(recovery, DeliveryFailureReason.UnknownOutcome)).Should().BeTrue();
+        (await test.ReadAsync(id)).Error.Should().Be("recovery:unknown:expired");
+    }
+
+    [Fact]
+    public async Task Normal_claim_cannot_terminalize_without_its_separate_acquisition()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlocked))!;
+        var before = await test.ReadAsync(id);
+
+        var rejected = () => store.TryTerminalizeAsync(claim, AttemptTrace);
+        await rejected.Should().ThrowAsync<ArgumentException>();
+
+        (await test.ReadAsync(id)).Should().Be(before);
+        (await test.AuditCountAsync()).Should().Be(0);
+        (await store.RequestTerminalAsync(claim, DeliveryTerminalReason.InvalidEnvelope)).Should().BeTrue();
+        var terminal = (await store.TryClaimTerminalAsync(NoBlocked))!;
+        (await store.TryTerminalizeAsync(terminal, AttemptTrace)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Terminal_claim_cannot_spend_an_execution_retry()
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        var id = await test.InsertAsync();
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlocked))!;
+        (await store.RequestTerminalAsync(claim, DeliveryTerminalReason.InvalidEnvelope)).Should().BeTrue();
+        var terminal = (await store.TryClaimTerminalAsync(NoBlocked))!;
+        var before = await test.ReadAsync(id);
+
+        var rejected = () => store.FailAsync(terminal, DeliveryFailureReason.ExecutionFailed);
+        await rejected.Should().ThrowAsync<ArgumentException>();
+
+        (await test.ReadAsync(id)).Should().Be(before);
+        (await test.AuditCountAsync()).Should().Be(0);
+        (await store.TryTerminalizeAsync(terminal, AttemptTrace)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Actual_claims_follow_all_five_index_order_keys()
     {
         await using var test = await TestDatabase.CreateAsync(schema.Postgres);

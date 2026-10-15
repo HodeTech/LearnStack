@@ -18,6 +18,9 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         + " AND (locked_by IS NOT NULL OR attempts >= 6)"
         + " AND ((locked_by IS NOT NULL AND locked_until <= clock_timestamp())"
         + " OR (locked_by IS NULL AND attempts >= 6))";
+    private const string Terminal = Incomplete + " AND terminal_reason IS NOT NULL"
+        + " AND available_after <= clock_timestamp()"
+        + " AND (locked_until IS NULL OR locked_until <= clock_timestamp())";
     private const string Held = "EXISTS (SELECT 1 FROM unnest(@held_types, @held_subscriptions)"
         + " AS held(type, subscription_id) WHERE held.type = event_deliveries.type"
         + " AND held.subscription_id = event_deliveries.subscription_id)";
@@ -63,9 +66,7 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
 
     public Task<DeliveryClaim?> TryClaimTerminalAsync(IReadOnlyCollection<string> blockedPartitions,
         CancellationToken cancellationToken = default) =>
-        AcquireAsync(DeliveryClaimKind.Terminal, Incomplete + " AND terminal_reason IS NOT NULL"
-            + " AND available_after <= clock_timestamp()"
-            + " AND (locked_until IS NULL OR locked_until <= clock_timestamp())", blockedPartitions, cancellationToken);
+        AcquireAsync(DeliveryClaimKind.Terminal, Terminal, blockedPartitions, cancellationToken);
 
     private async Task<DeliveryClaim?> AcquireAsync(DeliveryClaimKind kind, string eligibility,
         IReadOnlyCollection<string> blocked, CancellationToken cancellationToken)
@@ -112,7 +113,8 @@ public sealed class DeliveryDispatchStore : EventTerminalTransition.MintingSourc
         {
             DeliveryFailureReason.ExecutionFailed => "execute:failed:handler",
             DeliveryFailureReason.ExecutionTimeout => "execute:timeout:deadline",
-            DeliveryFailureReason.UnknownOutcome => "recovery:unknown:expired",
+            DeliveryFailureReason.UnknownOutcome => claim.Kind == DeliveryClaimKind.Recovery
+                ? "recovery:unknown:expired" : "execute:unknown:commit",
             _ => throw new ArgumentOutOfRangeException(nameof(reason)),
         };
         return UpdateAsync(claim, """

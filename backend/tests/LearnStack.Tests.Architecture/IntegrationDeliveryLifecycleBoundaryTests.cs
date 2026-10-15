@@ -3,6 +3,7 @@ using System.Data.Common;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -28,7 +29,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     /// <summary>
     /// ADR-0046's completion gate and ADR-0057's common owner: typed unit/frame and
-    /// database transaction completion stay with the enumerated owners. This protects
+    /// database transaction completion and tenant announcement stay with the enumerated owners. This protects
     /// the whole production helper surface without banning ambient-unit reads. It
     /// does not infer arbitrary reflection or SQL transaction-control dataflow.
     /// </summary>
@@ -51,7 +52,7 @@ public sealed partial class OutboxDispatchConventionTests
         var frame = types[(InfrastructureAssembly, LifecycleFrame)];
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
-                method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync"))
+                method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync"))
             .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
             .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
                     typeof(IDbContextTransaction), typeof(RelationalTransaction), typeof(DatabaseFacade) }
@@ -105,6 +106,13 @@ public sealed partial class OutboxDispatchConventionTests
                 && IntegrationLifecycleCapability(target, types) == "database.CommitAsync");
         AssertMutation(census, "a missing real physical completion site", () =>
             ReplaceInstruction(physicalCommit, OpCodes.Ldstr, "missing physical completion"), IntegrationLifecycleOffenders);
+        var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference target
+                && IntegrationLifecycleCapability(target, types) == "unit.announce").ToArray();
+        announcements.Should().HaveCount(3, "Fix: retain the ordinary owner and both durable transport announcement sites");
+        foreach (var announcement in announcements)
+            AssertMutation(census, "a missing real tenant announcement site", () =>
+                ReplaceInstruction(announcement, OpCodes.Ldstr, "missing tenant announcement"), IntegrationLifecycleOffenders);
         var clean = AddProbe(application, "CleanIntegrationLifecycleObserver");
         foreach (var method in unit.Methods.Where(method => method.IsGetter || method.Name == "MarkRollbackOnly")
                      .Concat(scope.Methods.Where(method => method.IsGetter)))
@@ -121,6 +129,7 @@ public sealed partial class OutboxDispatchConventionTests
             var offenders = IntegrationLifecycleCallsiteOffenders(census.Types, sites);
             foreach (var name in new[] { "Commit", "Rollback", "Begin", "Complete", "Fail", "Concrete", "RawCommit", "RawRollback",
                          "ConcreteRaw", "InheritedUnit", "InheritedRaw", "Async", "Capture", "Run",
+                         "Announce", "ConcreteAnnounce", "InheritedAnnounce", "AsyncAnnounce", "CaptureAnnouncement",
                          "EfCommit", "EfRollback", "EfCommitAsync", "EfRollbackAsync", "EfConcreteCommitAsync", "EfCurrentCommitAsync",
                          "EfFacadeCommit", "EfFacadeRollback", "EfFacadeCommitAsync", "EfFacadeRollbackAsync", "EfAsync", "EfCapture" })
                 offenders.Should().Contain(offender => offender.Contains("::" + name + "(", StringComparison.Ordinal),
@@ -153,6 +162,8 @@ public sealed partial class OutboxDispatchConventionTests
                 [[BoundaryCancellation], ["LearnStack.SharedKernel.Persistence.TransactionMode", BoundaryCancellation]]);
             CheckLifecycleDeclarations(type, "CommitAsync", LifecycleTask, [[BoundaryCancellation]]);
             CheckLifecycleDeclarations(type, "RollbackAsync", LifecycleTask, [[BoundaryCancellation]]);
+            CheckLifecycleDeclarations(type, "SetTenantContextAsync", LifecycleTask,
+                [["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation]]);
         }
         foreach (var type in new[] { scope, frame })
         {
@@ -183,6 +194,8 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation])],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
             ["unit.rollback"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync")],
+            ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
+                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"), Owner(InfrastructureAssembly, LifecycleFrame, "DisposeAsync")],
@@ -239,7 +252,9 @@ public sealed partial class OutboxDispatchConventionTests
                     && target.ReturnType.FullName == LifecycleScopeTask => "unit.begin-mode",
                 "CommitAsync" when cancellation && target.ReturnType.FullName == LifecycleTask => "unit.commit",
                 "RollbackAsync" when cancellation && target.ReturnType.FullName == LifecycleTask => "unit.rollback",
-                "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" => "invalid-unit",
+                "SetTenantContextAsync" when ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation])
+                    && target.ReturnType.FullName == LifecycleTask => "unit.announce",
+                "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync" => "invalid-unit",
                 _ => null,
             };
         if (types.TryGetValue((KernelAssembly, LifecycleScope), out var scope)
@@ -319,6 +334,11 @@ public sealed partial class OutboxDispatchConventionTests
         public static Task ViaHelper(IIntegrationLifecycleProbeHelper helper, IUnitOfWork unit) => helper.Run(unit);
         public static async Task Async(IUnitOfWork unit) { await Task.Yield(); await unit.CommitAsync(); }
         public static Func<CancellationToken, Task> Capture(IUnitOfWork unit) => unit.CommitAsync;
+        public static Task Announce(IUnitOfWork unit, ITenantContext context) => unit.SetTenantContextAsync(context);
+        public static Task ConcreteAnnounce(NpgsqlUnitOfWork unit, ITenantContext context) => unit.SetTenantContextAsync(context);
+        public static Task InheritedAnnounce(IIntegrationLifecycleProbeUnit unit, ITenantContext context) => unit.SetTenantContextAsync(context);
+        public static async Task AsyncAnnounce(IUnitOfWork unit, ITenantContext context) { await Task.Yield(); await unit.SetTenantContextAsync(context); }
+        public static Func<ITenantContext, CancellationToken, Task> CaptureAnnouncement(IUnitOfWork unit) => unit.SetTenantContextAsync;
         public static void EfCommit(IDbContextTransaction transaction) => transaction.Commit();
         public static void EfRollback(IDbContextTransaction transaction) => transaction.Rollback();
         public static Task EfCommitAsync(IDbContextTransaction transaction) => transaction.CommitAsync();

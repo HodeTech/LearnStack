@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace LearnStack.Api.Composition;
 
-/// <summary>Owns the dispatcher credential in the API composition root.</summary>
+/// <summary>Registers producer/subscriber dispatch and its API-owned dispatcher credential.</summary>
 public static class OutboxCompositionExtensions
 {
     public static IServiceCollection AddLearnStackOutboxDispatcher(

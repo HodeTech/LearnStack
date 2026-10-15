@@ -211,6 +211,12 @@ public sealed partial class CorpusConsistencyTests
 
             - **Status:** **Implemented** (`LearnStack.Tests.Integration`, `OtherTests`).
 
+            ### `A_Registered_Rule_With_Implemented_Prose`
+
+            - **Asserts:** a companion is **Implemented** in `SomeTests`.
+            - **Status:** **Registered.** A future test may become **Implemented**.
+            - **Phase:** later; the **Implemented** companion is `SomeTests`.
+
             ### `An-Analyzer-Rule`
 
             - **Status:** **Implemented** — `SomeTests.cs`.
@@ -286,9 +292,14 @@ public sealed partial class CorpusConsistencyTests
 
     /// <summary>Every catalogue entry whose Status reports Implemented, wherever it runs.</summary>
     private static List<(string Rule, string Status)> ImplementedEntries() =>
-        [.. CatalogueEntry().Matches(Catalogue())
-            .Where(entry => entry.Groups["status"].Value.Contains("**Implemented**", StringComparison.Ordinal))
-            .Select(entry => (entry.Groups["rule"].Value, entry.Groups["status"].Value))];
+        ImplementedEntriesIn(Catalogue());
+
+    private static List<(string Rule, string Status)> ImplementedEntriesIn(string catalogue) =>
+        [.. CatalogueEntry().Matches(catalogue)
+            .Select(entry => (Rule: entry.Groups["rule"].Value,
+                Status: CatalogueStatus().Match(entry.Groups["status"].Value)))
+            .Where(entry => entry.Status.Success && entry.Status.Groups["state"].Value == "Implemented")
+            .Select(entry => (entry.Rule, entry.Status.Value))];
 
     /// <summary>The test classes this assembly actually carries.</summary>
     /// <remarks>
@@ -324,11 +335,10 @@ public sealed partial class CorpusConsistencyTests
     /// </para>
     /// </remarks>
     private static List<string> ImplementedIn(string catalogue, IReadOnlyCollection<string>? classes = null) =>
-        [.. CatalogueEntry().Matches(catalogue)
-            .Where(entry => entry.Groups["status"].Value.Contains("**Implemented**", StringComparison.Ordinal))
-            .Where(entry => NamedClasses(entry.Groups["status"].Value)
+        [.. ImplementedEntriesIn(catalogue)
+            .Where(entry => NamedClasses(entry.Status)
                 .Any(name => (classes ?? ["SomeTests"]).Contains(name)))
-            .Select(entry => entry.Groups["rule"].Value)];
+            .Select(entry => entry.Rule)];
 
     /// <summary>The test classes a Status line names, with or without the file extension.</summary>
     private static List<string> NamedClasses(string status) =>
@@ -427,6 +437,12 @@ public sealed partial class CorpusConsistencyTests
     // they agreed with each other while both were short by one.
     [GeneratedRegex(@"^#{3,4} `(?<rule>[A-Za-z0-9_\-]+)`(?<status>.*?)(?=\n#{2,4} |\z)", RegexOptions.Singleline | RegexOptions.Multiline)]
     private static partial Regex CatalogueEntry();
+
+    // Read the declaration's first bold state, not an Implemented mention in its
+    // assertion, history, later fields or the explanation of a Registered status.
+    // Continuation lines still carry the test-class references the census resolves.
+    [GeneratedRegex(@"^- \*\*Status:\*\* \*\*(?<state>[^*\r\n]+)\*\*[^\r\n]*(?:\r?\n(?!- \*\*|#{1,6} )[^\r\n]*)*", RegexOptions.Multiline)]
+    private static partial Regex CatalogueStatus();
 
     // Three spellings, because the catalogue writes all three: the bare class, the file with
     // its extension, and `Class.Method` — which is how the entries outside this assembly name

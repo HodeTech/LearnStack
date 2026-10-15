@@ -513,6 +513,30 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Terminal_audit_keeps_valid_trace_for_absent_causal_values_but_replaces_it_for_empty_values(bool empty)
+    {
+        await using var test = await TestDatabase.CreateAsync(schema.Postgres);
+        Guid? causalValue = empty ? Guid.Empty : null;
+        var id = await test.InsertAsync(correlation: Traceparent, causation: causalValue, actor: causalValue, payload: "{}");
+        var store = test.Store();
+        var claim = (await store.TryClaimAsync(NoBlockedPartitions))!;
+        (await store.RequestTerminalAsync(claim, OutboxTerminalReason.InvalidEnvelope)).Should().BeTrue();
+        var terminal = (await store.TryClaimTerminalAsync(NoBlockedPartitions))!;
+
+        (await store.TryTerminalizeAsync(terminal, AttemptTraceparent)).Should().BeTrue();
+
+        var audit = await test.ReadAuditAsync();
+        audit.Correlation.Should().Be(empty ? AttemptTraceparent : Traceparent,
+            "SQL NULL is valid optional absence, while an empty stored identifier is invalid metadata");
+        using var metadata = JsonDocument.Parse(audit.Metadata);
+        metadata.RootElement.GetProperty("event_id").GetGuid().Should().Be(id);
+        metadata.RootElement.TryGetProperty("causation_id", out _).Should().BeFalse();
+        metadata.RootElement.TryGetProperty("causal_actor_user_id", out _).Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("tenant")]
     [InlineData("organization")]
     [InlineData("event")]
