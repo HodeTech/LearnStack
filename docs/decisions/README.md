@@ -89,7 +89,7 @@ name P02b-2/P02b-3 activation; acceptance claims no runtime delivery.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
-| 0047 | [Transactional Background Job Runtime](0047-transactional-background-job-runtime.md) | Proposed 2026-10-15: runtime/workload scope open; initial PostgreSQL candidate, viable Hangfire H1/H2 and unqualified Quartz alternative; transactional submission, tenant authority and atomic terminal audit required; no runtime implemented | P02b-4; route-specific design and maintainer acceptance before runtime |
+| 0047 | [Transactional Background Job Runtime](0047-transactional-background-job-runtime.md) | Proposed 2026-10-15: maintainer-selected H1/expanded scope; stock Hangfire opaque wakeups, authoritative transactional job/attempt records, external stages, tenant capacity and trusted recurrence/fan-out; no runtime implemented | P02b-4; final route-specific ADR/package acceptance before runtime |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and

@@ -329,19 +329,16 @@ roadmap never names a phase that builds any of it — while
   bounded, and the bound is a `LimitKey` so it becomes plan-gated the moment
   [Phase 02c](phase-02c-hub-foundation.md) supplies a real entitlement projection.
 
-**Runtime prerequisite review — 2026-10-15.** P02b-4's runtime selection remains
-Proposed. Its initial single-lane transactional candidate does not yet supply
-the long-running media worker or isolated capacity required here. Before the first
-media definition, this phase must deliver the external-operation contract in the
-[ADR-0047 workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations):
-short prepare/finalize transactions, external execution without an open business
-transaction, durable operation/revision identity, cancellation/reconciliation and
-stale-result rejection. Dedicated worker capacity and cross-instance tenant-limit
-admission are required; a queue name alone is insufficient. Nightly quota/orphan
-scans and source retention also require the durable trigger/fan-out contract
-before use if no earlier consumer delivered it. These are blocking feature
-obligations, not capabilities already shipped by P02b-4. The Hangfire attribution
-above is reconciled when ADR-0047 is accepted, not silently replaced by this note.
+**Runtime prerequisite review — 2026-10-15.** The maintainer selected expanded H1
+infrastructure for P02b-4; [ADR-0047 remains Proposed](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations).
+Its planned foundation supplies prepare/execute/finalize, dedicated dispatch slots,
+tenant reservations and recurrence/fan-out. This phase supplies ffmpeg/process-tree
+supervision, stable operation/artifact reconciliation and positive quiescence
+evidence, media definitions/recurrences and its coordinated production LimitKey.
+CPU/memory/process budgets are this phase's responsibility; dedicated queue slots
+alone do not isolate those resources. Prove actual media cancellation, stale-output
+rejection, tenant limits and nightly quota/orphan/source-retention flows before
+exit. P4's planned foundation is not claimed shipped by this note.
 
 ### Search — the port and its PostgreSQL default
 

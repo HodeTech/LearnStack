@@ -321,14 +321,14 @@ keeps the 24-hour cadence and 0–119-minute jitter; signed-key hardening and
 revocation-list operations remain Phase 11. This is a periodic job, distinct from
 the entitlement-push integration-event consumer above.
 
-Before its first scheduler writer, resolve durable recurrence and the restricted
-tenantless trigger → eligible-tenant enumeration → separately announced tenant
-submission path. Stable occurrence identity, bounded resumable fan-out and
-duplicate-tick controls are completion obligations. No tenant sentinel or general
-business bypass substitutes for that authority. The runtime and first-consumer
-contract are under [Proposed ADR-0047](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
-this plan entry accepts no new runtime or grant. Phase 04 can reach that common
-contract first through its nightly media work.
+The selected expanded P02b-4 proposal supplies durable recurrence and the
+restricted tenantless trigger → enumeration → separately announced submission
+foundation. This phase registers the real phone-home recurrence/child definitions
+and chooses the nonarchived policy that includes Suspended tenants. Verify stable
+occurrence/jitter, bounded resumable fan-out and duplicate-tick controls with the
+real Hub adapter here. No tenant sentinel or general business bypass substitutes
+for that authority. [ADR-0047 remains Proposed](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
+the foundation is planned, not yet delivered, and this entry accepts no new grant.
 
 ### `platform_host_to_tenant` mirroring
 

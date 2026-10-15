@@ -118,7 +118,8 @@ not deferred to the showcase phase.
   [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
   owns final verification. P02b-4's
   [background-job decision pass](phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-  is in progress; its Proposed ADR/package await approval before runtime.
+  is in progress; H1/expanded infrastructure is the selected direction.
+  Its Proposed ADR/package await final approval before runtime.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

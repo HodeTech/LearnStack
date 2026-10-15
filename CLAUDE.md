@@ -230,7 +230,8 @@ records subsequent runtime/proof corrections and their completed reviews. The
 [P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final source/merge and CI verification.
 P02b-4's [background-job decision pass](docs/roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
-is in progress; ADR-0047/package are Proposed and runtime awaits approval.
+is in progress; H1 and expanded infrastructure are the selected direction.
+ADR-0047/package remain Proposed and runtime awaits final approval.
 Phase 06 retains the full
 renderer/Studio expansion.
 

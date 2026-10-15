@@ -3503,164 +3503,176 @@ locally for this closeout. The final PR artifacts above supply their evidence.
 
 ### P02b-4 decision package (2026-10-15)
 
-**Proposed — approval pending.** This package and
-[ADR-0047](../decisions/0047-transactional-background-job-runtime.md) need explicit
-maintainer acceptance before runtime code, grants or migrations. Development
-stays on `development`. P02b-3's merge closeout is the inherited baseline; its
-dated receipts and all Accepted ADR bodies remain unchanged during drafting.
-
-**Maintainer direction — 2026-10-15.** Approval is withheld pending a deeper
-Hangfire comparison. ADR-0047's
-[expanded assessment](../decisions/0047-transactional-background-job-runtime.md#hangfire-alternative-assessment-2026-10-15)
-now distinguishes stock wakeup transport with an authoritative LearnStack row
-from transaction-aware provider customization. The initial PostgreSQL plan below
-is not selected or accepted. No runtime, migration or grant work is authorized.
-
-**Workload/corpus review — 2026-10-15.** Further maintainer review identified real
-first-consumer gaps. The [ADR workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations)
-now separates short transactional work from long external operations, isolated
-worker capacity, tenantless trigger/fan-out and logical schedule replacement.
-The original six-step plan is conditional. Route selection and a decision on
-retaining or expanding P4 scope are still required before final ADR approval.
+**Proposed — final approval pending.** The maintainer selected **H1: stock
+Hangfire plus an authoritative LearnStack job record**, with expanded P4
+infrastructure, on 2026-10-15. [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
+now proposes that single route. Direction/scope selection is not final acceptance:
+no runtime, package, migration or grant changes precede approval of this record.
+Development stays on `development`; all prior Accepted ADR bodies and P02b-0–3
+receipts remain unchanged during drafting.
 
 #### Problem and scope
 
-Deliver the first persistent background-job infrastructure with safe tenant/org
-submission and execution, cancellation/lease recovery, atomic terminal MUST audit
-and falsifiable enforcement. Supply no business job, recurring schedule or
-dashboard route. P02b-5–8 authentication/session work remains separate.
+Ship reusable durable tenant job infrastructure covering short transactional work,
+long external prepare/execute/finalize, isolated dispatch slots, cross-instance
+per-tenant admission, and recurrence/tenantless fan-out. Hangfire carries opaque
+wakeup/tick references; LearnStack is the only business job authority. No dashboard,
+production job/recurrence, ffmpeg implementation, Hub endpoint or privileged
+maintenance executor is added. P02b-5–8 authentication/session work is separate.
 
-The proposed default is PostgreSQL-backed. This is a runtime choice requiring
-approval, not a correction to an already accepted general Hangfire decision.
-ADR-0047 explicitly identifies the narrower future-audit Hangfire selection it
-would supersede in ADR-0028. Its options explain the maintenance trade-off.
+The [ADR workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations)
+owns mechanism/feature boundaries. Phase 04 keeps real media providers, process/
+resource limits, artifacts and coordinated concurrency keys; triggered 02c keeps
+phone-home definitions; 08a/08b keep notification/reminder domain semantics; 11
+keeps licence operational surround and privileged audit DDL/purge. These feature
+owners no longer need to invent the selected P4 long-operation/fan-out foundation.
 
 #### Verified premises and document review actions
 
-Read the applicable phase/architecture/standard/ADR carriers and traced the
-current owner, producer, audit, delivery, composition and context-census code at
-`71568e78`. Three independent inspections covered storage/runtime, context/
-transaction ownership and corpus/proof completeness. These are source/document
-inspections, not passing job runtime tests. Findings are review data and each
-accepted action below was checked against the current tree.
+Current transaction/producer/context/audit/entitlement seams and first consumers
+were traced after the P02b-3 closeout. Three read-only design inspections cover H1
+handoff (GPT-6-astra xhigh), external/capacity (GPT-6.1-sol xhigh) and recurrence/
+privilege/schema (GPT-6.1-sol xhigh). They supplement, not replace, the earlier
+comparison experiments and correction reviews recorded below. No runtime proof
+is claimed by these source/design inspections.
 
-| Finding | Verified authority | Proposed disposition |
-|---|---|---|
-| No scheduling port/package/runtime/storage | SharedKernel, central package pins and API composition | Introduce the bounded default rather than imply Hangfire shipped |
-| `hangfire` schema versus single `public` and four roles | Standards 20 Background Jobs; Standards 05 Database/roles | One `public.background_jobs` table with exact RLS and column grants; no fifth role/runtime DDL |
-| `JobActivator` versus `LearnStackJob` writers | ADR-0036 Rules/Amendment 2; architecture 09; catalogue | One `JobExecutor` writer; dated bounded supersession and named rule replacements |
-| Writer census described as two files | Current `TenantContextConstructionTests` has HTTP, bus and delivery-executor writers | Keep logical entry classes separate from exact file subjects; deliberately add the job writer |
-| Direct handler → vendor enqueue dual write | Architecture 33 propagation diagram; architecture 16 media flow | Immediate job INSERT on the announced producer transaction; receipt/rollback semantics included |
-| Calling `ISender` alone supplies no completion fence | `TransactionExecutionCoordinator.ExecuteAsync` versus prepared delivery | Add a closed root-job participant/gate to the existing request owner; no ninth setter/general callback |
-| Physical ReadOnly is currently selected only for PublicSurface | `TransactionBehavior`, ADR-0040 Amendment 8 and ADR-0052 | Bounded extension for exact framework pre-read, Audit Off and existing mode setup; public host admission unchanged |
-| Job causal metadata/diagnostics are not implemented by event-specific checks | Audit coordinator/store and rollback diagnostics | Extend the trusted async policy; separate JobId from event causation; bounded fault diagnostics |
-| Five job attempts versus six event/delivery claims | Standards 09 Background Jobs; accepted ADR-0046 | Six job claims and the same five delays; explicit replacement of old job retry prose |
-| Terminal event audit cannot stand for job audit | Five-method `IAuditStore`, restricted `EventTerminalTransition` | Add narrow job witness/sixth write; Tenancy-owned `platform.job.dead_letter` |
-| Future audit maintenance explicitly selects Hangfire | ADR-0028 Decision and amendments | Bounded runtime/vendor supersession only; preserve algorithm, cadence, retention and Phase 11 trigger |
-| Future licence maintenance also names Hangfire and colon IDs | ADR-0020 Phone-home implementation / Revocation list | Bounded runtime/identity supersession; preserve cadence/jitter/licence semantics and original feature owners |
-| Routine bypass exemption is dispatcher-only | ADR-0046 Routine bypass; Standards 18 Required Behaviours; this phase's Audit coverage wiring | Explicit conditional job-scheduler extension; business and platform-admin audit remain required |
-| Queue policy attributed to both phases | Phase 08a dependency table/Notifications | P4 proposes grammar/default reliability; 08a owns its assignments; earliest of 04/triggered 02c/08a owns recurrence and tenantless fan-out before first use |
-| Migration backfills appear to borrow runtime credentials | Standards 05 migration/backfill text | Separate deploy-time migration execution from tenant jobs; no migration credentials in API/runner |
-| Dashboard owner/runtime attribution is stale | Architecture 29/30 and infra/apisix README | P4 has no route; Phase 03 owns approved recovery UI/permission and Phase 11 the gateway surround |
-| No job workflow skill exists | Tracked skill catalogue and files | Add a short `add-background-job` skill with the completed boundary in Step 6 |
-
-The ongoing authority remains with the original documents until acceptance.
-This draft does not rewrite those carriers to describe an unapproved design as
-current implementation.
+| Verified gap | H1 contract/action |
+|---|---|
+| Vendor enqueue/state commits separately | Immediate authoritative INSERT + durable generation-fenced handoff/repair; callback never depends on ACK having arrived |
+| Wakeup duplication can become later retry | JobId plus wake generation; only business transition advances generation; resend retains it |
+| Stock retry count differs from six committed starts | Separate app-role admission/start receipt; capacity/duplicate/deferred work spends no attempt |
+| Current request owner has no job participant | Closed root/stage/recipient participants, exact mode mapping and existing eight setters |
+| Ambient/SystemActor is not a privilege boundary | Sticky positive request admission, root/nested/direct Platform/provisioning denial and separate bypass/admin-entry guards |
+| Long ffmpeg does not fit a DB transaction | Durable plan/execute-intent/outcome checkpoints; external execution/reconciliation with no business UoW |
+| Lease expiry does not stop provider work | Positive quiescence or quarantine; unresolved reservations never expire into free capacity |
+| Organization-scoped capacity misses other orgs | Tenant-wide control mutex/reservations; plan/operational ceiling applies across orgs/instances |
+| Framework can enumerate no tenant today | Named minimal lifecycle projection grant, bounded durable recipients and actual-row witness admission; no caller tenant selector |
+| Recurrence revision can duplicate a logical slot | Unique recurrence-key/UTC-slot independent of revision, monotonic activation, stable jitter and checkpoint/recipient atomicity |
+| Filters can be bypassed on vendor fallback | Migration-owned below-filter state/metadata guards and bounded log provider, pinned real-worker dirty controls |
+| Whole-schema tests assume every table is app-readable/RLS tenant data | Exact table classes, expected vendor/control 42501 denial, no unclassified-table exclusions |
+| No general runtime was Accepted | H1 retains audit-maintenance Hangfire choice; exact bounded identity/context/storage changes get dated Amendment navigation |
 
 #### Decisions requested together
 
-| Gate/contract | Proposed answer | Vehicle |
+| Gate/contract | Proposed H1 answer | Vehicle |
 |---|---|---|
-| G9 runtime/storage | Runtime/workload scope open; conditional PostgreSQL design or revised H1/H2/Quartz design must preserve common guarantees | ADR-0047; dated ADR-0003 Amendment for grant/confinement extension, not the mere new tenant table; canonical Standards 05/20 implementation after acceptance |
-| G9 enqueue and module ownership | Transactional, platform-stamped, own-module definitions only; immediate INSERT records ancestral produced work | ADR-0047 bounded ADR-0057 extension; runtime/caller guards |
-| G9 context/owner | `JobExecutor` alone; Ambient/SystemActor with separate cause; `ISender` root, closed owner participant/gate | ADR-0047 bounded ADR-0036/0032 replacements and additive ADR-0040 seam |
-| G7 job part | `platform.job.dead_letter`, MUST SecurityEvent, same-transaction actual-row witness/sixth write | ADR-0047; additive ADR-0044/0033 disclosures; Tenancy audit catalogue/matrix |
-| G8 job part | Extend only confined routine scheduler poll/claim/mark exemption, conditioned on exact grants, diagnostics, metrics/health and terminal MUST audit | ADR-0047 bounded ADR-0046/Standards 18 extension |
-| G9 retry/identity/queue | Six claims, fixed five delays, fenced recovery and fair terminal service; typed execution UUID, versioned definition, finite queues | ADR-0047; Standards 09/20 |
-| G9 platform/recurrence | Separate PlatformMaintenance refused in P4; Phase 11 privileged audit/retention executor; earliest of 04/triggered 02c/08a owns recurrence and restricted tenantless fan-out | ADR-0047 workload envelope; explicit consumer handoffs |
-| G17 job metrics | Finite registry job names plus fixed unknown/retired/invalid labels; no tenant/org/job/trace IDs | Standards 10 with first emitter |
-| Runtime replacement/licence | No package selected; exact graph/licence, workload fit and durable backlog migration required for the chosen route | ADR-0047; conditional ADR-0028 vendor supersession; outside ADR-0035's gated set |
+| G9 runtime/storage | Pinned stock Hangfire wakeups, authoritative tenant/org job row, exact public vendor-control class and four roles | ADR-0047; ADR-0003 Amendment for grant/confinement extension; canonical Standards 05/20 on implementation |
+| G9 ownership/submit | Typed own-module definitions, exact writable announcement, identifier-only frozen payload, immediate INSERT/ancestral receipt | ADR-0047; ADR-0057 extension and source guards |
+| G9 context/owner | JobExecutor alone; sticky ordinary ceiling; exact ISender roots/framework requests; staged owner participants | ADR-0036/0032 replacements; additive ADR-0040 and closed ADR-0052 mode extension |
+| G7 job part | Sixth WriteJobTerminalAsync, actual job-row witness, terminal state/MUST audit atomic | ADR-0044/0033/0046 navigation; Tenancy platform.job.dead_letter catalogue/matrix |
+| G8 job/recurrence part | Conditional routing/status exemption with exact grants/censuses, bounded diagnostics, metrics/health and terminal MUST | ADR-0046 / Standards 18 Required Behaviours extension; no general background/privileged exemption |
+| G9 profiles/capacity | Short transactional or staged external execution; renewable authority, positive quiescence, tenant reservations and disjoint pools | ADR-0047; real role/capacity/stale-effect proofs |
+| G9 recurrence/fan-out | UTC interval/daily, CoalesceLatest, durable slot/jitter, minimal lifecycle reader and restricted recipient producer | ADR-0047; exact Standards 05 enumeration exception and ADR-0057 producer origin |
+| G9 retry/readiness | Six normal starts; separate six finalize starts/recovery probe bounds; unknown/Pending defer, explicit retired tombstone | Standards 09/20, ADR-0047 mixed-version/capability queues |
+| G17 labels/observation | Finite definition/profile/recurrence/group categories, no tenant/org/job/trace labels; memory snapshots | Standards 10 with first emitters |
+| Dependency/licence | Core/NetCore 1.8.25, PostgreSql 1.21.1, Newtonsoft 13.0.4; stock shared assemblies, concrete graph/notices/source/relinking qualification | ADR-0047 and implementation packaging evidence; outside ADR-0035 gated set |
 
-G9 remains Open and G17's job part remains pending until approval. G7/G8's accepted
-event contracts are preserved; their new job parts are Proposed here. A
-Proposed answer does not change the register's existing accepted dates.
+G9 remains Open and new job parts remain Proposed until final acceptance. Existing
+G7/G8/event accepted dates are preserved. Production business and recurrence
+registries independently assert zero definitions; nonempty real runtime subjects
+and fixture-only definitions carry enforcement and behavior proofs.
 
 #### Runtime bounds and observation
 
+Bounds below are approval inputs for this expanded H1 contract. Invalid values or
+relationships refuse startup before workers; SQL/database time and actual task
+ownership remain authoritative.
+
 | Bound | Proposed value |
 |---|---|
-| Normal concurrent job execution | One per API instance; no cross-process ordering promise |
-| Retained overrun/callback cleanup capacity | Four; saturation stops acquisition |
-| SQL statement/deadline | Positive, at most 5 seconds; default 5 seconds |
-| Execution wait | Positive, at most 5 minutes; default 30 seconds |
-| Lease | At most 10 minutes; default 60 seconds; must exceed execution wait plus twice SQL timeout plus 5 seconds |
-| Poll / snapshot refresh | Poll 50 ms–1 second, default 200 ms; snapshot 1–60 seconds, default 5 seconds; successful claims do not force scans |
-| Shared shutdown join budget | Positive, at most 30 seconds; default 30 seconds; no per-task reset |
-| Progress deadline | At most 15 minutes; default 75 seconds; at least lease plus 15 seconds |
-| Serialized parameter / failure descriptor bound | 262,144 / 256 UTF-8 bytes |
+| Independent stock server pools | Transactional 1, external 2, control 1 workers by default; finite dedicated feature pools, at most 8 pools/64 queues, 1–16 workers per pool, sum at most 32 per API instance |
+| Operational tenant/group ceiling | Positive 1–1,024, default 1; optional Hard LimitKey intersects it; no tenant-supplied pool/group |
+| Retained actual overruns/cleanup | At most 4 per pool; stop new starts in that pool, retain job identity/occupancy; other pools progress |
+| Outstanding synchronous bridge calls | At most 4; wait at most 10 s, retain actual operation; do not block other control lanes |
+| SQL and external reconciliation probe | SQL positive, at most 5 s/default 5 s; provider probe positive, at most 30 s/default 10 s |
+| Short root/prepare/finalize | Positive, at most 5 min/default 30 s; no long external operation inside |
+| External run wait | Positive, at most 24 h/default 1 h; immutable per-attempt deadline |
+| Lease / renewal | Lease 15 s–10 min/default 60 s; renewal 1–60 s/default 15 s; lease > twice renewal + twice SQL timeout + 5 s |
+| Quiescence cancellation grace | Positive, at most 30 s/default 30 s; expiry never releases an unproved reservation |
+| Control poll / snapshot | Poll 50 ms–1 s/default 200 ms; snapshot 1–60 s/default 5 s; successful work does not force scans |
+| Handoff repair grace / batch | 15–300 s/default 60 s; at most 100 rows per quantum; same-generation resend |
+| Recovery probe cadence / unsuccessful budget | 5–300 s/default 30 s; 6 unsuccessful probes then quarantine; Running probes bounded by attempt deadline/grace |
+| Shared shutdown joins | Positive, at most 30 s/default 30 s across pools and bridge; no per-task reset |
+| Progress heartbeat deadline | At least lease + 15 s, at most 15 min/default 75 s; renewal/control progress counts, not long work completion |
+| Parameter / plan / outcome / failure descriptor | 262,144 / 65,536 / 65,536 / 256 UTF-8 bytes |
+| Recurrence interval / fan-out page | 1 min–366 days, UTC anchor; jitter 0–min(period, 2 h); at most 100 routes/page |
 
-These are the initial PostgreSQL transactional candidate's bounds, not selected
-runtime settings or a long-operation timeout contract. Invalid relationships
-refuse startup before acquisition. These bounds are proof
-subjects, not production p95 claims. An execution beyond the configured wait is
-retained/observed and cannot commit after losing admission. Long provider work
-needs bounded idempotent stages; P4 exposes no arbitrary orchestration callback.
+A plan cap is resolved through IFeatureFlags, capped by a positive operational
+ceiling. -1 means operational ceiling, 0 means no new admission, invalid/Soft/
+undeclared keys fail safely. No Media LimitKey is invented by this packet.
 
-Standards 10 owns the actual instrument inventory. Proposed job additions are
-`learnstack_job_dead_letter_total`, `learnstack_job_pending_count`,
-`learnstack_job_oldest_eligible_age_seconds`, `learnstack_job_deferred_count` and
-`learnstack_job_heartbeat_age_seconds`, alongside the already reserved duration
-and failure names. Counters distinguish confirmed failed/terminal transitions
-from unknown outcomes. Gauge callbacks read immutable memory snapshots, never
-SQL; refresh faults retain prior data and make health unhealthy. Register `jobs`
-health without mapping it; Phase 11 still owns `/readyz` and production alerts.
+Standards 10 owns final names/label inventory. Job observation includes pending,
+oldest eligible, deferred, retained/quarantined/reserved capacity, bridge repair,
+finalize/failure/lease loss, fan-out progress and heartbeat signals. Confirmed
+failure differs from unknown outcome. Register jobs health, unmapped; preserve
+healthz liveness and Phase 11 readyz/production-alert ownership. Normal valid
+long-running work is healthy; stale/faulted/retained/quarantined work is not.
 
-#### Implementation steps after approval
+#### Implementation steps after final approval
 
-Each step commits implementation and verification before review. Run two fresh
-independent agent rounds, verify every finding against current code, fix valid
-findings and commit, then advance automatically. Critical transaction/security
-reviews use GPT-6-astra xhigh; independent implementation/proof/corpus reviews
-use GPT-6.1-sol high or xhigh according to the changed surface. A new decision
-outside this accepted package returns to the maintainer before dependent code.
+Every step commits its implementation/validation, runs two fresh independent
+review-agent rounds, verifies/fixes findings and commits corrections, then advances
+automatically. Critical authority/state-machine reviews use GPT-6-astra xhigh;
+independent proof/composition/corpus lenses use GPT-6.1-sol high/xhigh. Each round
+uses new reviewers. A new decision outside this accepted package returns to the
+maintainer before dependent work. Development stays on `development` throughout.
 
-1. **Decision acceptance, contracts and storage.** Resolve runtime and workload
-   scope, revise these steps for that route, then commit acceptance/Amendments
-   first. Add typed port/definition/execution contracts and dedicated Jobs adapter
-   project; implement public-table migration, immutable facts, RLS, grants and
-   indexes. Reconcile canonical SQL/table inventory. Verify fresh migration/Down,
-   app-role tenant/org controls, exact bypass grants and real index plans.
-2. **Transactional stamped submission.** Implement registry, own-module producer
-   identity, serialization/provenance/size guards and immediate INSERT/receipts.
-   Prove rollback, nested absorbed refusal, missing/default/sentinel metadata,
-   TenantWide/Organization declaration and exact organization admission,
-   no-listener tracing, malicious getters and stale/foreign/read-only frames.
-   Include org-bound → TenantWide, tenant-wide → Organization and org A → B
-   refusals; nested sends cannot widen scope.
-3. **Request-owned execution.** Add framework pre-read, sole context writer,
-   trusted async attribution, root participant/fence/gate and lifecycle reuse.
-   Prove constructor-before-admission refusal, one-root execution, full atomicity,
-   nested sends, cancellation races, cleanup and uncertain/acknowledged COMMIT.
-   Keep preflight unlocked; prove expiry during execution and final lock waits,
-   concurrent recovery, and root/nested/direct Platform refusal before construction.
-4. **Scheduling, retry and terminal audit.** Implement due selection, leases,
-   recovery, six-claim transitions and fair normal/recovery/terminal service;
-   implement sixth audit seam/catalogue/matrix. Prove stale ownership refusal,
-   no seventh execution, audit rollback/commit-loss reconciliation and progress
-   during multi-record terminal audit failure for longer than one lease.
-   Pin the ordered Result/exception retry table and mixed-version
-   Active/Pending/unknown/retired readiness; deferred jobs spend no attempt.
-5. **Hosted lifecycle and observations.** Wire the API-only worker and existing
-   confined credential, bounded retained attempts/shutdown, snapshots/metrics and
-   registered health. Verify actual worker restart, scope/Activity restoration,
-   no payload access through bypass, saturation, invalid configuration and zero
-   production definitions/dashboard routes across all enum modes.
-6. **Enforcement and packet closeout.** Add nonempty runtime production censuses
-   and planted direct/interface/helper/async violations; replace the old two job
-   rules explicitly. Complete all carrier/skill/consumer handoffs. Run full backend,
-   frontend and demo regression, then open a reviewable PR from development to main.
-   Real CI and maintainer merge remain distinct from local completion.
+1. **Acceptance and typed contracts.** Commit final acceptance/dated Amendment
+   disclosures first, then add scheduling/profile/recurrence/identity contracts,
+   closed registries, request-scope admission and Jobs project boundaries. Register
+   canonical catalogue obligations without claiming enforcement before it ships.
+2. **Storage, dependencies and guarded bootstrap.** Add exact pins/graph/notices;
+   Platform migrations for authoritative/control/capacity/recipient and stock
+   vendor schema, immutable/transition/metadata guards, RLS/grants/indexes and
+   canonical Standards 05. Prove fresh/Down, every-table classes, expected 42501,
+   exact role/source guard, schema 23, below-filter containment and real index plans.
+3. **Submission and app-role admission.** Implement trusted producer stamping,
+   immediate INSERT/receipts, routing leases, scoped read-only envelope validation
+   and separate committed start receipts. Prove rollback/absorbed refusal,
+   getter/stale/read-only attacks, exact org/module scope, unknown/deferred readiness
+   and no handler construction before admission. Capacity integration follows step 6.
+4. **H1 wakeups and independent pools.** Implement bridge/reconciler, exact two
+   wrapper targets, generation fencing, guarded native connection factory and
+   disjoint server queues/pools. Prove real pinned worker create/init/ACK crashes,
+   duplicates/early/stale callbacks, vendor loss/fallback, malformed invocation,
+   bootstrap refusal, retained synchronous calls and construction-only fixture wiring.
+5. **Transactional owner and terminal audit.** Add root participant/gate, scoped
+   ordinary ceiling, async attribution and fair retry/recovery/terminal control.
+   Prove business/outbox/jobs/audit/completion atomically, lock-wait expiry,
+   Result/exception parity, uncertain COMMIT, no seventh start, actual-row sixth
+   audit seam substitutions, and terminal-audit backlog progress beyond a lease.
+6. **Tenant capacity reservations.** Implement group mutex/reservations and optional
+   Hard LimitKey resolution. Prove two instances/orgs share a tenant cap, capacity
+   refusal spends no attempt, unlimited/zero/downgrade/fault cases, exact app grants
+   and no TTL release of unresolved external occupancy; keep independent pools live.
+7. **External prepare/execute/finalize.** Implement immutable stage/attempt receipts,
+   confirmed ExecuteIntent, no-UoW external adapter, renewal, typed reconciliation,
+   quiescence proof/quarantine and bounded finalization. Prove each crash/unknown
+   COMMIT boundary, provider accepted-before-ACK, paused-old-start/NotFound traps,
+   stale outcomes/revisions, deadline/cleanup saturation, no seventh effect and
+   domain known-failure/terminal behavior without rerunning external work.
+8. **Durable recurrence and restricted fan-out.** Implement frozen monotonic manifests,
+   UTC slots/CoalesceLatest/jitter, minimal lifecycle projection, atomic pages/
+   recipients and witness-bound app submission. Prove mixed revisions/ticks,
+   suspended licence targets, cohort bounds, NULL-org dedup, forged/cross-tenant
+   witnesses, child acknowledgement loss, bounded fairness and no general selector.
+9. **Enforcement and packet closeout.** Finish full observation, exact production
+   censuses/planted violations, all carrier/feature/skill handoffs and the new job
+   skill. Run complete backend/frontend/demo regression and packaging/boot proof;
+   open the development → main PR with exact evidence. Real CI and maintainer merge
+   remain separate from local completion; zero production business definitions.
+
+#### Expanded H1 proposal review
+
+The final contract is drafted against the selected H1/expanded direction. The
+historical receipts below approve only their earlier document revisions; they do
+not substitute for two fresh reviews of this route-specific proposal. Current
+review/validation evidence is appended here after it actually runs.
+
+#### Earlier proposal and correction receipts (historical)
+
+These dated receipts precede the H1/expanded selection above. Their then-current
+open-choice/scope statements describe those revisions, not this final proposal.
 
 #### Decision review and approval readiness
 
@@ -3768,37 +3780,25 @@ workload scope and final route-specific ADR approval remain pending.
 
 #### Validation and carrier ownership
 
-Use `add-provider-adapter`, `add-ef-migration`, `add-mediatr-handler`,
-`add-audit-coverage`, `add-architecture-test`, `add-integration-test` and
-`run-tests-locally` for their corresponding implementation surfaces. Before edits,
-read every touched file and its direct dependencies. Architecture tests remain
-non-skippable. Real storage/role/fence/COMMIT controls use PostgreSQL Testcontainers,
-not EF in-memory substitutes. Test-only job definitions exercise the real shipped
-runtime; production registration independently asserts there are no business jobs.
+Use the existing provider/migration/MediatR/audit/architecture/integration workflows
+and run-tests-locally. Test real PostgreSQL, guarded roles and the actual pinned
+Hangfire workers; no EF in-memory substitute establishes isolation/atomicity.
+Stage dependencies/feature definitions stay explicit; no mock production job.
 
-The acceptance/implementation carrier inventory is:
+Acceptance/implementation reconciles ADR-0003/0010/0015/0017/0020/0023/0028/0032/
+0033/0036/0040/0044/0046/0052/0057 through dated Amendment navigation/additions,
+plus ADR-0047 and the index. Standards 02/05/06/09/10/11/15/18/20/21/index receive
+only implemented current rules; canonical DDL stays 05, metrics 10, proof names 21.
+Architecture 04/09/16/24/25/26/29/30/31/33, Tenancy audit/permission specs, glossary,
+root guidance/readmes, compose/launcher fixture wiring and applicable/new skills
+must follow the same delivered boundary. Phase 02c/04/08a/08b/11 handoffs keep
+business definitions/provider/privilege owners explicit. Hub endpoints are unchanged.
 
-- Decisions: ADR-0003/0010/0015/0017/0020/0023/0028/0032/0033/0035/0036/0040/0044/
-  0046/0052/0057 dated bounded
-  Amendment disclosures where affected, ADR-0047 and the index. Every touched Accepted
-  record keeps its body/acceptance metadata; allocate amendment numbers at writing.
-- Standards: 02/05/06/09/10/11/15/18/20/21 and their index where actual enforcement
-  changes. Canonical SQL stays in 05; metrics stay in 10; named proof rules in 21.
-- Architecture: 04/09/16/24/25/26/29/30/31/33; retain unaffected event, provider and
-  product contracts and remove misleading direct enqueue or vendor attribution.
-- Scope/terms: this phase, roadmap index, Phase 02c/04/08a/08b/11 job handoffs,
-  glossary,
-  Tenancy audit/permission matrices and relevant module specs.
-- Guidance/composition: CLAUDE, README, infra/apisix README, existing applicable
-  skills, the new job skill, context comments and exact source-census allow-lists.
-
-No fifth cross-module mechanism, Hub endpoint, new business aggregate or tenant
-authority source is introduced. Job identity/routing/parameter/causal retention
-joins P02b-8's erasure inventory; Phase 11 owns purge authority/intervals. Phase 03
-owns an operator recovery permission/surface/runbook contract, never a route
-silently enabled by this infrastructure packet. Audit partition maintenance and
-tenantless privileged execution remain Phase 11; no migration credential is
-forwarded to the API or jobs runner.
+P02b-8 inventories job/attempt/plan/outcome/reservation/recipient copies and vendor
+control metadata for erasure. Phase 11 owns actual retention/purge authority and
+intervals; stock vendor expiry deletes control metadata only, never authoritative
+business intent. Phase 03 owns operator replay/reconciliation/permission/runbook;
+no recovery route or unsafe reservation-release switch is exposed by P4.
 
 ### Durable outbox dispatch
 

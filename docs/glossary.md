@@ -321,7 +321,8 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 ## Background Jobs (Proposed)
 
 These terms belong to [Proposed ADR-0047](decisions/0047-transactional-background-job-runtime.md).
-Runtime selection and implementation remain unapproved as of 2026-10-15.
+The maintainer selected the H1 direction and expanded P02b-4 scope on 2026-10-15;
+final ADR acceptance and implementation remain pending.
 
 | Term | Definition |
 |------|------------|
@@ -331,6 +332,13 @@ Runtime selection and implementation remain unapproved as of 2026-10-15.
 | **Job scope** | Proposed tenant execution scope: `TenantWide` retains a NULL organization; `Organization` retains the exact non-NULL organization. Neither scope grants platform authority or all-organization access. |
 | **JobExecutor** | Proposed tenant execution boundary that validates stored authority, installs the job context and restores the previous context. No such runtime is implemented yet. |
 | **PlatformMaintenance** | Proposed separate execution class for privileged tenantless maintenance. It is unavailable to ordinary tenant jobs; declaring the class does not authorize a privileged executor. |
+| **Wakeup generation** | Positive monotonic version of one job's eligibility cycle. Hangfire carries the job ID and this generation; stale vendor callbacks cannot spend a later business attempt. |
+| **Job execution profile** | A finite definition's transactional or external execution shape. External work separates short prepare/finalize transactions from an operation that runs without a business transaction. |
+| **Job reservation** | Tenant-wide durable occupancy of a declared capacity group by one job attempt. Lease expiry does not release unresolved external occupancy. |
+| **External quiescence** | Positive evidence that an old external attempt has ended and cannot start late. Missing heartbeats, expired leases and provider NotFound alone do not prove it. |
+| **Job occurrence** | One durable logical UTC slot of a code-declared recurrence, independent of vendor tick IDs and duplicate wakeups. |
+| **Job recipient** | Immutable tenant/org routing intent for one occurrence, admitted through a restricted stored-row witness before a child job is submitted. |
+| **Job attempt** | One counted normal or finalize admission with typed AttemptId, immutable ordinal/deadline and write-once execution/outcome/quiescence evidence. Recovery probes are not counted attempts. |
 
 ## Foundation Infrastructure
 
