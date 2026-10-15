@@ -3945,6 +3945,55 @@ The implementation commit is `94b126b4`; verified Round 1 corrections are
 Step 2 now proceeds under the already accepted nine-step package. Remaining
 runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
+### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
+
+**In progress — implementation validation and both fresh review rounds pending.**
+This step follows the completed Step 1 on `development` under Accepted ADR-0047.
+
+Two Platform migrations introduce seven authoritative job/control tables and the
+pinned stock Hangfire version-23 inventory. Standards 05 owns their canonical
+DDL/grants and the explicit vendor-control table class. Existing schema sweeps
+enumerate all public tables, classify expected application SELECT denial, and
+continue actual tenant/organization isolation checks as `learnstack_app`.
+
+The vendor connection factory crosses the existing guarded lazy source on every
+acquisition. Reset-safe server statement/lock deadlines bound stock unlimited
+driver commands. Bootstrap verifies version, guard bodies/triggers, exact grants
+and metadata before constructing the provider. No production wrapper, scheduler
+or worker is activated by this step. Runtime admission, business completion,
+external execution and recurrence remain Steps 3–9.
+
+Recurrence facts now reject sub-microsecond precision before fingerprinting so
+durable PostgreSQL reconstruction cannot silently change a declared manifest.
+The dependency graph, corresponding-source/notice kit and copied publish output
+are part of this step's validation. Passing evidence and review dispositions are
+recorded after the actual checks; source-only inspection is not a runtime proof.
+
+**New qualification boundary.** The exact stock counter component overrides the
+driver timeout with zero. PostgreSQL statement/lock deadlines pass blocked-SQL
+checks, but a response-withholding proxy leaves the actual component pending.
+[ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md) proposes the
+explicit maintenance exception and ownership controls. It requires maintainer
+acceptance before dependent runtime; this step does not claim the socket
+obligation or full closeout is complete. Independent schema validation continues.
+
+#### Step 2 counter-maintenance decision review
+
+The isolated exact-pin response-loss experiment is independently repeated by the
+root agent on PostgreSQL 18.4: the actual stock counter task is still pending at
+eight seconds; closing the owned proxy sockets settles it with NpgsqlException.
+Both disposable containers/proxies are cleaned up. This proves the missing
+driver bound, not the proposed replacement ownership behavior.
+
+A fresh GPT-6-astra xhigh reviewer requests two corrections to Proposed ADR-0058:
+name both read/write I/O, and pace held/not-due returns because stock Core
+immediately reinvokes successful components. Root verifies and incorporates both.
+The shared pool minimum and real disposal/late-cleanup proofs address the same
+review's availability caveat. A new GPT-6.1-sol xhigh reviewer independently
+approves the corrected whole proposal with no required findings after checking
+the exact Core/provider/Npgsql source and governance. Neither review claims
+passing runtime tests for the unimplemented maintenance owner.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
