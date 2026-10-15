@@ -312,6 +312,24 @@ expiry.
 - The TTLs are the safety net, not the refresh mechanism: L1 60s, L2 15 minutes as an
   upper bound.
 
+### Periodic phone-home refresh
+
+[ADR-0020 Implementation notes](../decisions/0020-triple-deployment-hybrid-license.md#implementation-notes)
+assigns the initial online phone-home refresh job to this triggered phase.
+Its [phone-home contract](../decisions/0020-triple-deployment-hybrid-license.md#phone-home-implementation)
+keeps the 24-hour cadence and 0–119-minute jitter; signed-key hardening and
+revocation-list operations remain Phase 11. This is a periodic job, distinct from
+the entitlement-push integration-event consumer above.
+
+Before its first scheduler writer, resolve durable recurrence and the restricted
+tenantless trigger → eligible-tenant enumeration → separately announced tenant
+submission path. Stable occurrence identity, bounded resumable fan-out and
+duplicate-tick controls are completion obligations. No tenant sentinel or general
+business bypass substitutes for that authority. The runtime and first-consumer
+contract are under [Proposed ADR-0047](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations);
+this plan entry accepts no new runtime or grant. Phase 04 can reach that common
+contract first through its nightly media work.
+
 ### `platform_host_to_tenant` mirroring
 
 Host mappings arrive on their own endpoint, `PUT /api/internal/tenants/{id}/host-mappings`,

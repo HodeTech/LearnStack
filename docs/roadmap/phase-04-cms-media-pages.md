@@ -329,6 +329,20 @@ roadmap never names a phase that builds any of it — while
   bounded, and the bound is a `LimitKey` so it becomes plan-gated the moment
   [Phase 02c](phase-02c-hub-foundation.md) supplies a real entitlement projection.
 
+**Runtime prerequisite review — 2026-10-15.** P02b-4's runtime selection remains
+Proposed. Its initial single-lane transactional candidate does not yet supply
+the long-running media worker or isolated capacity required here. Before the first
+media definition, this phase must deliver the external-operation contract in the
+[ADR-0047 workload envelope](../decisions/0047-transactional-background-job-runtime.md#workload-envelope-and-first-consumer-obligations):
+short prepare/finalize transactions, external execution without an open business
+transaction, durable operation/revision identity, cancellation/reconciliation and
+stale-result rejection. Dedicated worker capacity and cross-instance tenant-limit
+admission are required; a queue name alone is insufficient. Nightly quota/orphan
+scans and source retention also require the durable trigger/fan-out contract
+before use if no earlier consumer delivered it. These are blocking feature
+obligations, not capabilities already shipped by P02b-4. The Hangfire attribution
+above is reconciled when ADR-0047 is accepted, not silently replaced by this note.
+
 ### Search — the port and its PostgreSQL default
 
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md) demand-gates Meilisearch

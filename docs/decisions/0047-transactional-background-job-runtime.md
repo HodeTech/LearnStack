@@ -11,6 +11,13 @@ comparison before choosing a runtime. The [expanded assessment](#hangfire-altern
 includes isolated database experiments. The PostgreSQL design below is the initial
 proposal, not an accepted selection; Hangfire remains a viable customized option.
 
+**Workload review — 2026-10-15.** The initial single-lane transactional proposal
+does not implement Phase 04's long-running media workers, isolated queue capacity
+or tenant concurrency limits. The [workload envelope](#workload-envelope-and-first-consumer-obligations)
+now separates those requirements from short transactional jobs. Runtime selection
+and the final implementation plan remain open; the earlier comparison reviews did
+not establish readiness for these additional requirements.
+
 This record closes no gate until the maintainer accepts it together with the
 [P02b-4 decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
 No job runtime, migration, grant or passing runtime proof is claimed by this draft.
@@ -28,9 +35,12 @@ No job runtime, migration, grant or passing runtime proof is claimed by this dra
   guarantees without becoming integration events or a fifth cross-module mechanism.
 - The current job carriers disagree on the context writer and describe a handler
   directly enqueueing outside its transaction. Both decisions precede any caller.
-- [Principles 9, 12 and 16](../standards/00-principles.md) favour a mature library
-  unless its integration needs a fork, duplicate durable state or weakened audit.
-  A first-party runner has a real maintenance cost; its scope must stay bounded.
+- [Principles 9, 11 and 16](../standards/00-principles.md) favour mature defaults,
+  reversible adapters and explicit first-consumer ownership. Principle 9 names
+  Hangfire; a first-party runner would be an exception needing a workload-based
+  justification, not a presumption that customization costs more. Principle 12
+  separately governs readability for every option. Neither integration cost nor
+  total maintenance cost has been measured for these candidates.
 
 ## Considered Options
 
@@ -50,25 +60,84 @@ No job runtime, migration, grant or passing runtime proof is claimed by this dra
    attempts, completion and terminal audit. Reliable handoff and reconciliation
    are extra work. There are two operational stores, but only one authoritative
    business job state; describing both as business-authoritative ledgers was too broad.
-4. **In-memory scheduling or a post-commit callback** — rejected. A process crash
-   can lose work; the current UoW deliberately exposes no post-commit hook.
-5. **Reuse integration-event deliveries as jobs** — rejected. Scheduled commands
-   have one module owner and a due time, rather than a published fact and subscriber
-   acceptance. Sharing lifecycle utilities does not make their identities equivalent.
-6. **Hangfire with a transaction-aware storage adapter** — viable alternative
+4. **Hangfire with a transaction-aware storage adapter (H2)** — viable alternative
    requiring further production proof. Public subclass seams allow custom native
    transaction commands without reflection or a Core fork. LearnStack would own
    the customized SQL/state/lease integration and its upgrades. This is materially
    more than adding an audit filter to the unmodified provider.
+5. **Quartz.NET with persistent storage** — a scheduling-focused candidate, not
+   rejected on capability grounds. Its official documentation covers persistent
+   triggers and joining an existing transaction. Exact-version submission,
+   completion/audit, privileges and lifecycle integration have not been qualified
+   here; those are required before selecting it. No assertion of incompatibility
+   or relative cost follows from the Hangfire experiments.
+6. **In-memory scheduling or a post-commit callback** — rejected. A process crash
+   can lose work; the current UoW deliberately exposes no post-commit hook.
+7. **Reuse integration-event deliveries as jobs** — rejected. Scheduled commands
+   have one module owner and a due time, rather than a published fact and subscriber
+   acceptance. Sharing lifecycle utilities does not make their identities equivalent.
 
 ## Decision
 
-LearnStack uses `IBackgroundJobScheduler` with `PostgresBackgroundJobScheduler` as
-its working default and a bounded API-hosted PostgreSQL runner. Submission writes
-one tenant-owned job row on the current announced producer transaction; execution
-uses one registered module request through `ISender`, with a closed job completion
-participant on the existing transaction owner. Terminal state and its MUST audit
-commit together. Modules see typed contracts, never storage or vendor APIs.
+No runtime is selected. This Proposed record compares PostgreSQL, Hangfire H1/H2
+and an unqualified Quartz.NET candidate. The common proposed boundary is typed,
+module-owned submission atomic with the requesting business transaction; restored
+tenant authority; fenced transactional completion; and terminal state atomic with
+its MUST audit. Modules see contracts, never vendor APIs. Maintainer selection,
+route-specific design and explicit acceptance precede implementation.
+
+### Workload envelope and first-consumer obligations
+
+[Background jobs and their identities/scopes](../glossary.md#background-jobs-proposed)
+have the following distinct workloads. A queue name is not reserved capacity.
+The bounds below apply to the initial **transactional** candidate only; they are
+not a claim that ffmpeg or network work fits a five-minute database transaction.
+
+| Workload | Required boundary | Owner before first use |
+|---|---|---|
+| Short tenant state change | One bounded request-owned transaction; business/outbox/audit/completion atomic; no long external work inside it | P02b-4 |
+| Transcode or other long external effect | Short prepare transaction, external execution with no open business UoW, short fenced finalize transaction; stable operation/attempt identity, reconciliation and stale-result rejection | Phase 04, before its first media worker; its scope already requires a dedicated queue and tenant LimitKey concurrency |
+| Periodic tenant work | Durable occurrence identity, UTC cadence/jitter/misfire policy and duplicate-tick suppression; each tenant operation gets its own announced producer frame | Earliest of Phase 04, triggered Phase 02c or Phase 08a, before its first periodic definition |
+| Tenantless trigger/enumeration/fan-out | Separate bounded authority to enumerate eligible tenants, checkpoint/retry pages and submit isolated tenant intents; no sentinel tenant and no implicit platform business authority | Same first periodic consumer; Phase 04's nightly media scans can arrive before Hub or notifications |
+| Installation-level revocation refresh | Tenantless external refresh with bounded network/secret access; no fake tenant announcement | Phase 11's licence operational surround, coordinated with Hub key/revocation publication |
+| Reminder cancellation/reschedule | Domain-owned logical occurrence and revision; stale/cancelled intent is a successful no-op before side effects; new revision schedules new work atomically | Phase 08b, using Phase 08a notification infrastructure |
+| Audit partition/retention maintenance | Privileged tenantless executor with named DDL/purge authority and MUST audit | Phase 11 under ADR-0028; distinct from ordinary tenant fan-out |
+
+Phase 04's [media pipeline](../roadmap/phase-04-cms-media-pages.md#media-library-and-the-transcoding-pipeline)
+and [media lifecycle](../architecture/16-media-pipeline.md) are
+concrete consumers. The long-operation contract must define isolated worker
+capacity, cross-instance tenant admission, lease renewal/loss, ffmpeg process
+ownership/cancellation and external artifact reconciliation. These are unmet by
+the single-lane candidate. Hangfire worker pools are relevant here, but they do not
+by themselves provide tenant limit enforcement or external-effect idempotency.
+
+P02b-4 currently proposes only short transactional execution and immediate/delayed
+submission. Long external execution, recurrence/fan-out and domain schedule
+mutation are additive feature contracts owned above, not delivered infrastructure.
+No generic `Cancel`/`Reschedule` API or generic natural-key uniqueness is claimed:
+`BackgroundJobId` identifies a submission, not a session/reminder occurrence.
+Phase 08b must choose the occurrence/revision key, deduplication storage and
+cancel-versus-send race policy before its writers. Cancellation of already-started
+external effects is cooperative and cannot promise recall of a delivered notice.
+
+The maintainer must choose whether to retain this bounded P02b-4 scope with those
+explicit first-consumer gates, or expand P02b-4 to implement the long-operation and
+trigger contracts now. An expanded scope needs revised steps and proof bounds
+before approval. No runtime option is presented as already satisfying that wider
+scope, and a Phase 04 exit cannot treat a queue label as its worker isolation proof.
+
+ADR-0020's Implementation notes already assigns phone-home refresh to triggered
+Phase 02c. Its phase document omitted that deliverable; the accompanying plan
+correction restores it. This is separate from Phase 11's signed-key hardening and
+revocation-list operations, and from Hub-owned publication. Phone-home is not an
+existing Phase 02c integration-event consumer.
+
+### Initial PostgreSQL candidate — conditional design
+
+The following detailed design applies only if the maintainer selects the bounded
+PostgreSQL route. H1/H2 or Quartz selection replaces its storage/host details and
+reconciles the supersession table before acceptance. None of these clauses grants
+implementation authority while this record is Proposed.
 
 ### Contract, ownership and submission
 
@@ -80,6 +149,9 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   a tenant-wide announcement (organization NULL); Organization requires a valid
   announced organization. Submission never drops/adds organization to fit a
   definition. Activation independently checks the stored scope before construction.
+  Consequently an org-bound host/request cannot submit a TenantWide definition;
+  it needs a separately admitted tenant-wide operation. TenantWide is not an
+  all-organizations bypass, and nested sends cannot widen or retarget its scope.
 - Parameter contracts live in their owning module's `Application.Contracts`;
   execution requests/registrations live in its `Application`. A module schedules
   only its own definitions. Another module must use an application contract or
@@ -120,6 +192,12 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   applies the exact canonical policy and restrictive write guards, immutability
   checks, row/byte bounds and matching scheduling indexes. No sentinel or empty
   tenant can be stored. Schema-wide RLS sweeps include this table from first boot.
+  Scheduling indexes are partial: completed/dead-letter rows are excluded; normal
+  selection also excludes terminal requests, leases and exhausted attempts.
+  Recovery and terminal indexes match their actual static predicates and selection
+  order, including both expired leases and unleased exhausted rows. Database-time
+  comparisons stay in acquisition SQL, not immutable index predicates. Verify
+  actual plans against mixed live/delayed/completed/terminal backlogs before exit.
 - `learnstack_app` inserts and reads job facts under RLS, and updates only the
   columns needed by fenced business completion. Routing, parameters and original
   causation cannot be rewritten after submission. Infrastructure SQL supplies
@@ -136,11 +214,28 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   outcomes, exact caller censuses, metrics/health and atomic MUST-audited terminal
   transitions are required.
   This grants no exemption to job business mutations, other background tasks or
-  `EnterPlatformAdminScope`'s pre-entry audit. Standards 18 carries this named
-  extension; removing its confinement/observation controls invalidates it.
+  `EnterPlatformAdminScope`'s pre-entry audit. Standards 18 carries the named
+  dispatcher exception today; acceptance would add the named job extension to
+  its Required Behaviours. Exact caller censuses are an additional condition here,
+  beyond ADR-0046's four conditions. Removing these controls invalidates exemption.
 - [Database Standards](../standards/05-database.md) owns canonical DDL and grants.
   Transport rows use the same explicit SQL/capture-exclusion treatment as outbox
   and delivery state; they are not unaudited business aggregates.
+
+The candidate column-authority matrix is explicit before canonical DDL is written:
+
+| Role | Permitted job access | Refused |
+|---|---|---|
+| `learnstack_app` | INSERT enumerated immutable facts plus initial due state; tenant/org-scoped SELECT; UPDATE only `processed_at` through fenced completion | Setting attempts, leases, terminal state or changing facts; cross-scope reads/writes |
+| `learnstack_outbox_admin` | SELECT identity/definition/queue/scope and scheduling/terminal state; UPDATE only `attempts`, `available_after`, `locked_by`, `locked_until`, `last_error`, `terminal_reason`, `dead_lettered_at` | INSERT, completion UPDATE, parameter/causal reads, business writes or DDL |
+| `learnstack_platform` | None in P02b-4 | Every job operation |
+| `learnstack_migration` | Migration-chain schema/grant changes | Runtime use by the API/runner |
+
+App INSERT cannot set attempts/lease/completion/terminal fields. Immutable guards
+and initial-state checks protect defaults; successful completion keeps token/lease
+as inert provenance rather than widening app UPDATE grants. Real denied-operation
+tests and catalogue ACL inspection pin this matrix. H1/H2 require their own vendor
+table matrix; this public-table matrix is not assumed to fit provider storage.
 
 ### One context writer and one transaction owner
 
@@ -152,6 +247,15 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   tenant/org, effective SystemActor, nullable causal actor and full traceparent.
   Default/uninitialized IDs, sentinel tenants and malformed traces are refused
   before business handler construction.
+  SystemActor is attribution, not platform authorization. Registry admission
+  rejects Platform-scope roots and privileged execution classes; runtime admission
+  rejects Platform-scope nested requests and platform-admin entry from this job
+  context before handler construction. Current authorization is pass-through, so
+  this needs an explicit job-path guard now, not reliance on Phase 03. Phase 03
+  must preserve that ceiling; privileged maintenance needs its separate contract.
+  Causal-human metadata grants no permissions. Tenant job code cannot resolve the
+  bypass data source or call a direct privileged executor; runtime guards and
+  whole-production caller censuses pin those paths as well as MediatR sends.
 - The bypass claim contains only routing facts. Parameter/envelope loading runs
   as `learnstack_app` through a framework-owned `ISender` read request and the
   existing announcement path. It resolves no business handler. Full validation
@@ -165,9 +269,14 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   a ninth business transaction or copy `PreparedDeliveryOwner`.
 - A restricted job participant is bound to that root request, unit, transaction
   generation, immutable loaded facts, job ID and acquisition token. After normal
-  announcement, the existing coordinator locks/rechecks the current row and live
-  lease before invoking the handler. A pre-existing transaction, read-only root,
-  changed envelope or stale token fails before business work.
+  announcement, an unlocked scoped read rechecks the current row, facts, token and
+  lease before invoking the handler. It holds no row lock through business work.
+  Immediately before completion, the coordinator locks the row, then evaluates
+  database time and token in a separate fenced UPDATE; expiry while waiting cannot
+  borrow an earlier time check. A pre-existing transaction, read-only root, changed
+  envelope or stale token fails preflight. Ownership lost after that read rolls
+  back business work at the final fence. Scheduler claim/recovery/terminal selection
+  uses `FOR UPDATE SKIP LOCKED`, bounded SQL deadlines and no handler-held lock.
 - Only the root consumes/completes the participant. Nested sends join the same
   owner and inherit producer/audit ancestry. The normal order remains handler,
   successful-save promotion, owner-only domain drain, pending MUST audit, then
@@ -191,19 +300,10 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   outcome, never exactly-once. External effects require the provider's stable
   job-ID idempotency or a durable outbox intent; a database fence cannot undo them.
 - Six committed normal claims spend the job's attempt budget, including a claim
-  followed by crash. Transient infrastructure/provider failures retry after
-  1 s, 5 s, 30 s, 5 min and 1 h. Permanent validation/business refusal, unknown or
-  retired definitions and invalid envelopes request terminalization. Unexpected
-  handler faults are bounded retries; cancellation/shutdown is not a permanent
-  business refusal. No per-definition retry override ships in P02b-4.
-  `ProviderException.IsClientError` is permanent; `InfrastructureException` and
-  provider faults with `IsClientError = false` are transient. Returned
-  `dependency_unavailable`/`audit_unavailable` failures are transient; ordinary
-  validation/authorization/business refusals are permanent. Store the closed
-  outcome category, not the caller's localized message. Deadline cancellation
-  recovers/retries within the same budget after durable reconciliation; host
-  shutdown leaves the live claim for recovery. An uncertain outcome is never
-  classified from exception text or assumed to be a rolled-back failure.
+  followed by crash. Bounded retries use 1 s, 5 s, 30 s, 5 min and 1 h; no
+  per-definition retry override ships in P02b-4. Apply the ordered table below
+  before persisting a closed outcome category. Error details/localized text never
+  classify a failure. Each retry constructs a fresh request and rereads state.
 - A fresh UUID acquisition token and database-time lease fence every transition.
   Expired work is reconciled/recovered before another execution; recovery spends
   no attempt. An expired sixth claim never executes a seventh time. A terminal
@@ -218,11 +318,30 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   attempt or terminalizing it. Reconciliation faults preserve the uncertainty.
 - A deadline bounds the wait, not managed-code lifetime. Retain/observe the task,
   scope and cancellation callbacks through actual completion; never dispose a
-  scope under live work. A retained overrun blocks its local job lane, four retained
-  executions stop acquisition, and health is unhealthy until cleanup completes.
+  scope under live work. A retained overrun blocks reacquisition of its same job
+  identity locally; other jobs can progress until four retained executions stop
+  acquisition. Health is unhealthy until cleanup completes.
 - One shared finite shutdown budget covers execution/callback/cleanup joins.
   Shutdown leaves uncertain live claims for expiry recovery and does not fabricate
   a persisted failure. Work cannot be forcibly killed by the runner.
+
+| Outcome, in precedence order | Disposition |
+|---|---|
+| Acknowledged COMMIT, including later cleanup fault | Successful; poison/dispose the scope without retrying committed work |
+| Uncertain COMMIT | Reconcile durable state first; a probe fault preserves uncertainty, never assumes rollback |
+| Host shutdown | Leave the live claim for expiry recovery; no fabricated persisted failure |
+| Execution deadline or cancellation that wins commit admission | Close the gate; recover/retry only after actual completion and durable reconciliation |
+| Returned top-level `concurrency_conflict`, `rate_limited`, `dependency_unavailable`, `audit_unavailable`; thrown `AggregateConcurrencyException`, `InfrastructureException`, `AuditWriteFailedException` | Bounded retry; identical disposition for returned/thrown concurrency |
+| Returned `validation_failed`, `not_found`, `unauthorized`, `forbidden`, `tenant_mismatch`, `business_rule_violation`, `resource_scope_violation`, `recording_consent_required`, `unsupported_locale`, `feature_disabled`, `audit_unclassified_operation`; thrown `DomainException` or `TenantContextMissingException` | Terminal request; authority/configuration refusal never grants a broader scope |
+| Provider exception translated to `rate_limited` or `dependency_unavailable` by its adapter | Bounded retry, before the general client-error rule; a provider 429 must not be marked permanent just because it is 4xx |
+| Other `ProviderException` with `IsClientError = true` / false | Terminal request / bounded retry respectively |
+| Unmapped Result code or unexpected exception | Bounded retry with fixed `unexpected_fault` category; never persist supplied text |
+
+HTTP-only idempotency/routing errors are not job control messages; if returned by
+a faulty handler they take the explicit unmapped fallback. A provider adapter
+must translate upstream throttling to the standard transient code. This does not
+change `IsClientError`'s existing error-capture semantics. Table tests cover Result
+and exception parity, fallback, provider-429 precedence and unknown-COMMIT priority.
 
 ### Terminal MUST audit
 
@@ -252,6 +371,16 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   Phase 08a chooses definition-to-queue assignments within this policy, not a second
   grammar/retry mechanism. Compatible versions need explicit registration; stored
   text never selects arbitrary CLR code.
+- Definition readiness is explicit: Active may execute; Pending or syntactically
+  valid unknown keys are deferred before claim/attempt spend and handler
+  construction. Older workers never terminalize newer definitions merely because
+  they do not recognize them. Deferred unknown work exposes a fixed deployment
+  mismatch diagnostic/count and unhealthy status, not unbounded identity labels.
+  Explicit retained retirement tombstones terminalize; malformed identities or
+  invalid envelopes on an admitted definition are permanent faults. Deploy
+  consumers before producers, retain compatible versions through backlog/rollback,
+  and retire only after old consumers are drained. Mixed-version proofs pin this;
+  ADR-0046's separate event identity policy is unchanged.
 - `Tenant` and `PlatformMaintenance` are separate execution classes. The latter
   has no tenant context, cannot use a sentinel as one, and is refused at submission
   and activation in P02b-4. Phase 11 owns its real privileged executor and audit
@@ -259,12 +388,15 @@ commit together. Modules see typed contracts, never storage or vendor APIs.
   authority and caller records that those operations need.
 - P02b-4 implements immediate/delayed tenant submission, not cron/calendar
   recurrence, arbitrary continuations, a workflow engine or an operator dashboard.
-  Phase 04 owns the first media definitions. Phase 02c's triggered phone-home
-  consumer or Phase 08a's recurring tenant definitions, whichever arrives first,
+  Phase 04 owns the first media definitions. Its periodic media lifecycle,
+  Phase 02c's triggered phone-home refresh or Phase 08a's recurring definitions,
+  whichever arrives first,
   owns a durable recurrence decision before those writers. Adding recurrence to
   the port is additive to immediate/delayed callers; no current payload depends on
   a cron engine or calendar policy.
-  Phase 11 owns audit maintenance cadence and its measured-growth trigger.
+  That decision also owns the separate tenantless trigger/enumerator/fan-out
+  contract in the workload envelope; declaring PlatformMaintenance does not supply
+  it. Phase 11 owns audit maintenance cadence and its measured-growth trigger.
   No business or recurring production definition is registered in this packet.
 
 ### Dependency and demand-gate position
@@ -275,10 +407,12 @@ is no vendor adapter silently waiting for a date. Measured scheduling needs that
 the bounded default cannot meet trigger a new runtime decision in Phase 11 (or
 the feature phase where that evidence first appears), including compatibility,
 transaction/audit and redistribution proofs. This is not an unimplemented
-four-part ADR-0035 entry.
+four-part ADR-0035 entry: this is a runtime selection outside that gated set, not
+a new gated component or a vendor exception already authorized by ADR-0035.
 
-The chosen implementation adds no third-party runtime package. It uses the
-repository's central pins: Npgsql 10.0.0, .NET hosting/EF 10.0.12 and MediatR 12.4.1.
+Only the initial PostgreSQL candidate adds no third-party runtime package. It uses
+the repository's central pins: Npgsql 10.0.0, .NET hosting/EF 10.0.12 and
+MediatR 12.4.1.
 Npgsql's PostgreSQL-style licence permits redistribution with its notices; the
 existing dependency graph/notice obligations remain. No Hangfire LGPL binary or
 commercial extension enters the graph. A future vendor choice needs its own
@@ -287,9 +421,13 @@ verdict. This dependency decision is independent of a hypothetical air-gapped sa
 
 ### Bounded supersessions and additive seams
 
-Acceptance preserves prior bodies and acceptance metadata. It adds dated
-disclosures naming the following precise replacements/additions; these are not
-ADR-0041 fact corrections or whole-record retirements.
+Acceptance preserves prior bodies and acceptance metadata. The new ADR carries
+normative bounded supersessions; dated **Amendments** in the old records disclose
+and link those changes without editing their Decisions. “Disclosure” describes
+that navigation content, not a separate governance instrument. Additive seams
+receive dated Amendments as well. These are not ADR-0041 fact corrections or
+whole-record retirements. The following inventory is conditional on PostgreSQL
+selection and must be reconciled for the selected route before acceptance.
 
 | Existing authority | Change under this ADR | Unchanged |
 |---|---|---|
@@ -302,15 +440,26 @@ ADR-0041 fact corrections or whole-record retirements.
 | ADR-0057 successful produced-work definition | Bounded extension: successful job INSERT also produces a sticky ancestral receipt | Existing outbox/save receipts, ordinary event/job-free refusal semantics, owner-only domain completion |
 | ADR-0040 shared owner contract | Add closed root-job participant/gate to its existing request entry; no new setter or general callback | One connection, eight setter sites, two entry shapes and nesting/read-only rules |
 | ADR-0040 Amendment 8 / ADR-0052 public read-mode selection | Bounded extension: the exact framework job pre-read also selects physical ReadOnly and its mode-setup-before-announcement order | Public requests still require PublicSurface and real matching host provenance; no caller mode override |
-| ADR-0044 five-write seam and dispatcher grant boundary; ADR-0033 durability | Add job-specific sixth write and same-transaction witness-bound terminal audit | Existing five writers, standalone restrictions and MUST fail-closed durability |
+| ADR-0033 three audit writes; ADR-0044 § 10 fourth write; ADR-0046 / ADR-0044 Amendment 10 fifth write and dispatcher boundary | Add job-specific sixth write and same-transaction witness-bound terminal audit | Existing five write methods, standalone restrictions and MUST fail-closed durability |
 | ADR-0003 four-role confinement, with ADR-0046 routing/status exception | Add the enumerated job status/routing grants on the same confined API data source | Four roles, `public`, app-role RLS, no payload read or runtime DDL |
-| ADR-0046 Routine confined dispatcher bypass / Standards 18 Audit coverage wiring | Bounded extension of the same conditional poll/claim/mark exemption to the confined job scheduler | No general background-task exemption; job business MUST audit and platform-admin pre-entry audit |
+| ADR-0046 Routine confined dispatcher bypass / Standards 18 Required Behaviours | Bounded extension of the same conditional poll/claim/mark exemption to the confined job scheduler; phase Audit coverage wiring mirrors it | No general background-task exemption; job business MUST audit and platform-admin pre-entry audit |
 | Standards 20 Hangfire/schema/names and Standards 09 job retry/dead-letter prose | Replace with this persistent default, identity/queue contract and six-claim terminal policy | Provider isolation and existing event retry budgets |
+| Standards 05 Data Migrations: larger migrations as idempotent Hangfire jobs using migration credentials | Separate deploy-time backfill execution from tenant application jobs; final carrier names the selected deploy-time mechanism | No migration credential in API/runner; existing migration safety and deployment ownership |
 
-ADR-0010/0017's Jobs (Hangfire) labels receive dated navigation to this runtime;
+ADR-0010's Architecture Tests Hangfire-payload bullet and ADR-0017's
+Cross-cutting Patterns “Jobs (Hangfire)” row receive dated Amendment navigation;
 their cross-module and tenant/organization obligations do not change. Hub-owned
 DNS/TLS/renewal jobs in ADR-0022 and architecture 27 are outside LearnStack's
 runtime decision and remain untouched. No Hub contract or runtime is selected here.
+
+The existing five audit methods are `WritePendingAsync`, `WriteStandaloneAsync`,
+`WriteBestEffortAsync`, `WritePlatformScopeAsync` and `WriteEventTerminalAsync`.
+The job write is a separate sixth method, not a sixth existing writer.
+
+ADR-0003's Amendment covers the expanded bypass grants/confinement (as Amendment 7
+did for dispatch), not the mere addition of a tenant-owned table under its existing
+policy. ADR-0036's Amendment points to the context-writer supersession. G9's vehicle
+is aligned with that distinction; an erratum is not used to change a decision.
 
 ## Context
 
@@ -321,15 +470,17 @@ is stale: the live accessor allow-list has HTTP, `InProcessEventBus` and
 
 `TransactionExecutionCoordinator` already owns successful-save/domain drain,
 pending MUST audit and COMMIT. Its request entry has no job completion capability;
-only prepared delivery has a participant/gate. Claiming atomic job completion by
-merely calling `ISender` would be false without the explicit additive seam above.
+delivery uses `PreparedDeliveryOwner` as a single-use entry token and separately
+uses `DeliveryCompletionParticipant` / `DeliveryCommitGate`. Claiming atomic job
+completion by merely calling `ISender` would be false without the additive seam above.
 
 The evaluated Hangfire PostgreSQL provider queues writes and commits through
 its own `UseTransaction`/`TransactionScope` path. Its public state filter interface
 does not supply the `DbConnection`/`DbTransaction` pair the current audit store
 requires. This is a bounded integration assessment of the pinned versions, not
 a claim that Hangfire cannot be customized. Building such a customization while
-also preserving RLS, grants and reliable submission costs more than this default.
+also preserving RLS, grants and reliable submission is additional work. No
+comparative cost result against a complete first-party runner has been measured.
 
 Superseded ADR-0016's Hangfire references remain historical. ADR-0033 already
 replaced that record; current future maintenance authority is ADR-0028, whose
@@ -349,8 +500,9 @@ the implementation plan before acceptance.
 Hangfire provides established immediate, delayed and cron-based recurring
 scheduling, worker lifecycle, retry/history and a monitoring UI. These are real
 advantages over maintaining those capabilities in LearnStack. P4 does not map
-the dashboard or define recurring business jobs, so those advantages are mostly
-for its next consumers; they are not irrelevant merely because they ship later.
+the dashboard or define recurring business jobs. Its first media consumer already
+requires separate worker capacity; recurrence and worker controls are therefore
+selection drivers now, even where their business definitions land in Phase 04.
 PostgreSQL storage is a community adapter, not an officially supported Hangfire
 storage backend. The Core feature set needed by P4 does not require Pro/Ace.
 See the [official overview](https://www.hangfire.io/overview.html).
@@ -580,18 +732,33 @@ audit store. The initial six-step plan is reworked for H1 or H2 before acceptanc
 | Bounded PostgreSQL default | One authoritative table and direct owner/audit integration | Entire bounded runner; later recurrence/operations capabilities | Existing reusable lifecycle plus source design; no job runtime yet |
 | H1 stock provider + authoritative job record | Mature timers/recurrence/worker tooling; stock vendor upgrade path | Business reliability plus durable handoff/reconciliation and status interpretation | Coherent architecture; full bridge/worker proof still required |
 | H2 transaction-aware Hangfire adapter | Mature Core scheduler with one authoritative job state | Customized storage/state/lease SQL, security boundary and every package upgrade | Native transaction primitives reproduced; production lifecycle/authority not proved |
+| Quartz.NET persistent scheduler | Timers/triggers; official documented transaction-joining route | Still needs exact-version audit/authority integration and lifecycle qualification | Documentation review only; no package pin, dependency/licence decision or experiment here |
 
 If the maintainer prefers Hangfire, H1 is the lower vendor-coupling route; H2 is
 the route for avoiding a second operational handoff, with a substantially larger
 storage-qualification obligation. Neither is a drop-in replacement for the
-approved event/job durability promises. The initial PostgreSQL preference remains
-open to that explicit choice rather than being justified by an impossibility claim.
+Accepted event durability and proposed job guarantees. The initial PostgreSQL
+preference is not justified by an impossibility or measured cost claim.
 
-What would change the choice: measured recurrence, throughput, operational UI or
-cross-process scheduling requirements that outweigh maintaining this small runner.
-Those measurements must compare the full audit/identity integration, not just a
-vendor's enqueue API. What is intentionally excluded now is listed above with its
-first-consumer phase; unsafe submission and terminal atomicity are not deferred.
+Against the actual first consumers, the single-lane PostgreSQL candidate needs
+an additional external-worker/isolated-capacity contract. H1 can use independent
+vendor worker pools, but still needs LearnStack's tenant admission, operation
+generation and reconciliation. H2 must prove those plus customized state authority.
+No route has yet proved the complete Phase 04 workload. Quartz.NET is a genuine
+candidate for a scheduling-first comparison: the official
+[persistent-store documentation](https://www.quartz-scheduler.net/documentation/quartz-3.x/tutorial/job-stores.html)
+documents Npgsql storage and an existing-transaction integration route. Its
+[job execution guidance](https://www.quartz-scheduler.net/documentation/faq.html)
+describes cooperative cancellation and per-job nonconcurrency, not LearnStack's
+tenant-cap or terminal-audit proof. A source/pin/transaction assessment is needed
+if the maintainer requests that route; the Hangfire spike cannot answer it.
+
+Selection must consider the already documented recurrence, external work and tenant
+capacity requirements, together with audit/identity integration. Further throughput
+or operating-cost measurements may distinguish candidates, but are not required
+to recognize Phase 04's existing needs. The workload table names the excluded
+capabilities and their blocking first-consumer owners. Submission/terminal
+atomicity, authority and the mixed-version policy belong in P02b-4 itself.
 
 ## Consequences
 
@@ -599,15 +766,19 @@ first-consumer phase; unsafe submission and terminal atomicity are not deferred.
 
 - Scheduling commits or rolls back with the act that requested it.
 - Existing database isolation and owner completion remain the authority.
-- One durable job state avoids a second vendor ledger and reconciliation bridge.
+- PostgreSQL and a qualified H2 design each have one authoritative job state.
+  H1 deliberately adds a second operational store with a recoverable handoff,
+  while retaining one business authority.
 - Future module definitions inherit a tested boundary and stable identity contract.
 
 ### Negative
 
-- LearnStack owns another durable queue implementation and its maintenance/tests.
-  Sharing closed lifecycle primitives must avoid a configurable universal framework.
-- There is no vendor dashboard or cron engine; future recurrence/privilege consumers
-  have explicit decisions to make before their first definitions.
+- PostgreSQL makes LearnStack own the entire bounded runner; H1 adds a bridge and
+  business ledger; H2 adds storage/state customization. No cost winner is measured.
+  Sharing lifecycle primitives must avoid a configurable universal framework.
+- The PostgreSQL candidate supplies no cron engine or isolated media capacity.
+  Vendor alternatives supply scheduling/worker primitives, but still require the
+  workload-specific authority and audit contracts before their first definitions.
 - Lease/fence correctness does not make external effects exactly-once or forcibly
   terminate uncooperative work. Long provider work needs bounded stages/provider
   idempotency rather than an unbounded database transaction.
@@ -621,7 +792,7 @@ first-consumer phase; unsafe submission and terminal atomicity are not deferred.
 
 The [decision package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15)
 owns implementation steps, runtime option bounds, validation and carrier inventory.
-Acceptance and its disclosures precede runtime code. Canonical SQL, metrics and
+Acceptance and its dated Amendments precede runtime code. Canonical SQL, metrics and
 catalogue rows land with their first implementation; none is marked Implemented
 merely by accepting this record.
 
@@ -629,6 +800,10 @@ The adapter lives in `LearnStack.Infrastructure.Jobs`; API composition owns host
 execution and observation. Reuse proven cancellation/gate/transition code only where
 its authority and audit identity remain explicit. No event witness can mint a job
 witness, and no job can borrow an event ID.
+
+Selection readiness also requires resolving the P02b-4 workload scope in the
+envelope above. The initial six-step PostgreSQL plan is conditional, not the
+approved implementation plan for H1/H2, Quartz or an expanded execution scope.
 
 ## Architecture Tests
 
@@ -648,8 +823,22 @@ The first replaces `Hangfire_Job_Payloads_Include_TenantId`; the restoration and
 owner rules replace `LearnStackJob_RunAsync_SetsTenantBeforeExecute`. The catalogue
 records these as named replacements, not unexplained deletion. Widen the existing
 context-construction, setter, connection, producer-receipt and audit-writer censuses.
+Specifically retain the canonical key
+`LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor` and explicitly reframe its
+assertion to the enumerated dispatcher **and job scheduler** consumers if the
+selected route shares that source. Its historical name does not authorize broader
+use: add exact caller/grant subjects and planted unauthorized resolution controls
+with implementation. A different credential design must name its replacement rule
+before acceptance; the currently Implemented assertion remains unchanged today.
 Real runtime subjects must be nonempty; business definitions remain deliberately
 empty with a separate assertion and isolated test-only definitions.
+
+The proof plan includes expiry during handler execution and row-lock waits;
+concurrent recovery and unrelated-job progress; root/nested/direct platform
+refusal before construction; exact organization/no-widening cases; Result/exception
+retry parity; and mixed-version Active/Pending/unknown/retired admission without
+spending attempts on deferred work. Consumer extensions require separate external
+effect, tenant-cap, duplicate-tick and cancel-versus-send proofs before use.
 
 ## References
 
@@ -672,7 +861,7 @@ empty with a separate assertion and isolated test-only definitions.
 - [ADR-0046 Durable Delivery](0046-durable-event-delivery-and-recovery.md)
 - [ADR-0052 Public Read Boundary](0052-anonymous-public-read-boundary.md)
 - [ADR-0057 Transactional Production](0057-transactional-event-production-and-completion.md)
-- [Hangfire 1.8.25 package](https://www.nuget.org/packages/Hangfire.AspNetCore/1.8.25)
+- [Hangfire.NetCore 1.8.25 package](https://www.nuget.org/packages/Hangfire.NetCore/1.8.25)
 - [Hangfire.PostgreSql 1.21.1 package](https://www.nuget.org/packages/Hangfire.PostgreSql/1.21.1)
 - [Pinned provider transaction implementation](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/1.21.1/src/Hangfire.PostgreSql/PostgreSqlWriteOnlyTransaction.cs)
 - [Hangfire write-transaction interface](https://github.com/HangfireIO/Hangfire/blob/v1.8.25/src/Hangfire.Core/Storage/IWriteOnlyTransaction.cs)
@@ -691,3 +880,11 @@ empty with a separate assertion and isolated test-only definitions.
 - [Pinned invocation loader](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Storage/InvocationData.cs)
 - [Newtonsoft.Json 13.0.4](https://www.nuget.org/packages/Newtonsoft.Json/13.0.4)
 - [Newtonsoft security advisory](https://github.com/advisories/GHSA-5crp-9r3c-p9vr)
+- [Database Standards](../standards/05-database.md)
+- [Error Handling Standards](../standards/09-error-handling.md)
+- [Audit Coverage Standards — Required Behaviours](../standards/18-audit-coverage.md#required-behaviours)
+- [Infrastructure Standards](../standards/20-infrastructure-stack.md)
+- [Architecture Test Catalogue](../standards/21-architecture-tests-catalogue.md)
+- [Media Pipeline](../architecture/16-media-pipeline.md)
+- [Quartz.NET persistent job stores](https://www.quartz-scheduler.net/documentation/quartz-3.x/tutorial/job-stores.html)
+- [Quartz.NET execution/cancellation FAQ](https://www.quartz-scheduler.net/documentation/faq.html)

@@ -318,6 +318,20 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 | **`ProviderException.IsClientError`** | Boolean flag set by adapters when translating upstream 4xx (`true`) or 5xx (`false`) responses. The L1 `IExceptionHandler` reads it to decide whether to Sentry-capture (only 5xx — provider's infra fault) or log-only (4xx — provider's user-error). |
 | **L1 / L2 / L3 (cache)** | "L1 cache" is the per-pod in-process layer — `InMemoryCacheService` today; "L2 cache" is the cross-pod Valkey state via Dapr. Both layers are managed through `ICacheService`; do not confuse with error-handling layers. See [20-infrastructure-stack.md § Cache layer cheat sheet](standards/20-infrastructure-stack.md). |
 
+## Background Jobs (Proposed)
+
+These terms belong to [Proposed ADR-0047](decisions/0047-transactional-background-job-runtime.md).
+Runtime selection and implementation remain unapproved as of 2026-10-15.
+
+| Term | Definition |
+|------|------------|
+| **Background job** | Durable intent to execute one module-owned operation at or after a UTC due time. It is distinct from an integration event, which publishes a fact for subscribers. |
+| **BackgroundJobId** | Proposed typed, application-minted UUIDv7 identifying one submitted job; distinct from its definition, a calendar occurrence, a vendor wakeup ID and an event ID. |
+| **Job definition** | A finite code registration binding a stable versioned key to its module, parameter contract, execution scope and queue. Persisted text does not select arbitrary CLR code. |
+| **Job scope** | Proposed tenant execution scope: `TenantWide` retains a NULL organization; `Organization` retains the exact non-NULL organization. Neither scope grants platform authority or all-organization access. |
+| **JobExecutor** | Proposed tenant execution boundary that validates stored authority, installs the job context and restores the previous context. No such runtime is implemented yet. |
+| **PlatformMaintenance** | Proposed separate execution class for privileged tenantless maintenance. It is unavailable to ordinary tenant jobs; declaring the class does not authorize a privileged executor. |
+
 ## Foundation Infrastructure
 
 | Term | Definition |
