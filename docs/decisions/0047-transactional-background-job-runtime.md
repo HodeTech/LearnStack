@@ -447,7 +447,8 @@ selection and must be reconciled for the selected route before acceptance.
 | Standards 05 Data Migrations: larger migrations as idempotent Hangfire jobs using migration credentials | Separate deploy-time backfill execution from tenant application jobs; final carrier names the selected deploy-time mechanism | No migration credential in API/runner; existing migration safety and deployment ownership |
 
 ADR-0010's Architecture Tests Hangfire-payload bullet and ADR-0017's
-Cross-cutting Patterns “Jobs (Hangfire)” row receive dated Amendment navigation;
+[Defense-in-depth (extending ADR-0003)](0017-tenant-organization-hierarchy.md#defense-in-depth-extending-adr-0003)
+“Jobs (Hangfire)” row receive dated Amendment navigation;
 their cross-module and tenant/organization obligations do not change. Hub-owned
 DNS/TLS/renewal jobs in ADR-0022 and architecture 27 are outside LearnStack's
 runtime decision and remain untouched. No Hub contract or runtime is selected here.

@@ -3757,6 +3757,15 @@ and 323 fragments, prose wrapping and `git diff --check`. All prior ADR files an
 P02b-0–3 receipts remain byte-preserved against `71568e78`. These checks run on
 documentation; no new runtime proof is claimed.
 
+Correction commit `ec1a5520` was reviewed in a fresh second round by GPT-6.1-sol
+xhigh (architecture/security) and GPT-6-astra high (corpus/evidence). The corpus
+review found one wrong section locator for ADR-0017's Jobs row; the linked
+Defense-in-depth heading replaces it, and focused reinspection verified the fix.
+Both reviewers approve the documentation correction with no remaining required
+findings. Final local link/fragment checks count 1,036 / 324 with zero errors;
+earlier ADRs/receipts and the docs-only scope remain verified. Runtime selection,
+workload scope and final route-specific ADR approval remain pending.
+
 #### Validation and carrier ownership
 
 Use `add-provider-adapter`, `add-ef-migration`, `add-mediatr-handler`,
