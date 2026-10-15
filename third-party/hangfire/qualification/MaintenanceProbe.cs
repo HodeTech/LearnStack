@@ -39,45 +39,51 @@ try
     await Sql(source, "ALTER TABLE public.counter SET (autovacuum_enabled=false); ALTER TABLE public.aggregatedcounter SET (autovacuum_enabled=false)");
     var measurements = new List<object>();
     foreach (var completions in new[] { 1_000, 10_000, 100_000 })
-    foreach (var rowsPerTransition in new[] { 1, 2 })
-    {
-        await Sql(source, "TRUNCATE public.counter,public.aggregatedcounter RESTART IDENTITY");
-        await using (var seed = source.CreateCommand("INSERT INTO public.counter(key,value) SELECT 'stats:succeeded',1 FROM generate_series(1,$1)"))
+        foreach (var rowsPerTransition in new[] { 1, 2 })
         {
-            seed.Parameters.Add(new NpgsqlParameter { Value = completions });
-            await seed.ExecuteNonQueryAsync();
+            await Sql(source, "TRUNCATE public.counter,public.aggregatedcounter RESTART IDENTITY");
+            await using (var seed = source.CreateCommand("INSERT INTO public.counter(key,value) SELECT 'stats:succeeded',1 FROM generate_series(1,$1)"))
+            {
+                seed.Parameters.Add(new NpgsqlParameter { Value = completions });
+                await seed.ExecuteNonQueryAsync();
+            }
+            if (rowsPerTransition == 2)
+            {
+                await using var seed = source.CreateCommand("INSERT INTO public.counter(key,value) SELECT 'stats:deleted',1 FROM generate_series(1,$1)");
+                seed.Parameters.Add(new NpgsqlParameter { Value = completions });
+                await seed.ExecuteNonQueryAsync();
+            }
+            var before = await Size(source);
+            using (var counters = (JobStorageConnection)storage.GetConnection())
+            {
+                Require(counters.GetCounter("stats:succeeded") == completions);
+                Require(counters.GetCounter("stats:deleted") == (rowsPerTransition == 2 ? completions : 0));
+            }
+            var elapsed = Stopwatch.StartNew();
+            // Actual stock Execute: positive 1 ms final interval, no replacement SQL.
+            // If waiting fails, Python owns the process and removes the server in finally.
+            var actual = Task.Run(() => expiration.Execute(CancellationToken.None));
+            await actual.WaitAsync(TimeSpan.FromSeconds(15));
+            elapsed.Stop();
+            var after = await Size(source);
+            Require(after.Rows == rowsPerTransition && after.Sum == (long)completions * rowsPerTransition);
+            using (var counters = (JobStorageConnection)storage.GetConnection())
+            {
+                Require(counters.GetCounter("stats:succeeded") == completions);
+                Require(counters.GetCounter("stats:deleted") == (rowsPerTransition == 2 ? completions : 0));
+            }
+            await Sql(source, "VACUUM public.counter");
+            var vacuumed = await Size(source);
+            measurements.Add(new
+            {
+                transitions = completions,
+                rows_per_transition = rowsPerTransition,
+                before,
+                after_actual_expiration_execute = after,
+                after_vacuum = vacuumed,
+                execution_ms = elapsed.ElapsedMilliseconds
+            });
         }
-        if (rowsPerTransition == 2)
-        {
-            await using var seed = source.CreateCommand("INSERT INTO public.counter(key,value) SELECT 'stats:deleted',1 FROM generate_series(1,$1)");
-            seed.Parameters.Add(new NpgsqlParameter { Value = completions });
-            await seed.ExecuteNonQueryAsync();
-        }
-        var before = await Size(source);
-        using (var counters = (JobStorageConnection)storage.GetConnection())
-        {
-            Require(counters.GetCounter("stats:succeeded") == completions);
-            Require(counters.GetCounter("stats:deleted") == (rowsPerTransition == 2 ? completions : 0));
-        }
-        var elapsed = Stopwatch.StartNew();
-        // Actual stock Execute: positive 1 ms final interval, no replacement SQL.
-        // If waiting fails, Python owns the process and removes the server in finally.
-        var actual = Task.Run(() => expiration.Execute(CancellationToken.None));
-        await actual.WaitAsync(TimeSpan.FromSeconds(15));
-        elapsed.Stop();
-        var after = await Size(source);
-        Require(after.Rows == rowsPerTransition && after.Sum == (long)completions * rowsPerTransition);
-        using (var counters = (JobStorageConnection)storage.GetConnection())
-        {
-            Require(counters.GetCounter("stats:succeeded") == completions);
-            Require(counters.GetCounter("stats:deleted") == (rowsPerTransition == 2 ? completions : 0));
-        }
-        await Sql(source, "VACUUM public.counter");
-        var vacuumed = await Size(source);
-        measurements.Add(new { transitions = completions, rows_per_transition = rowsPerTransition,
-            before, after_actual_expiration_execute = after, after_vacuum = vacuumed,
-            execution_ms = elapsed.ElapsedMilliseconds });
-    }
     await Sql(source, """
         TRUNCATE public.counter,public.aggregatedcounter RESTART IDENTITY;
         INSERT INTO public.counter(key,value,expireat) VALUES
@@ -122,17 +128,30 @@ try
     Require(releasedOutcome == "driver_failure");
     var version = await Scalar<string>(source, "SHOW server_version");
     Require(version.StartsWith("18.4", StringComparison.Ordinal));
-    Console.WriteLine(JsonSerializer.Serialize(new { pass = true, postgres = version,
-        stock_components = expected, global_history_removed_preserving_other_filters = true,
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        pass = true,
+        postgres = version,
+        stock_components = expected,
+        global_history_removed_preserving_other_filters = true,
         public_component_hook_suppresses_only_aggregator = true,
         actual_expiration_removes_expired_raw_and_aggregated_rows = true,
-        worker_or_business_admission_proof = false, measurements,
-        blackhole = new { actual_stock_execute = true, pending_after_eight_seconds = pendingAfterEightSeconds,
-            connection_default_command_timeout_seconds = 5, stock_aggregator_command_timeout_seconds = 0,
+        worker_or_business_admission_proof = false,
+        measurements,
+        blackhole = new
+        {
+            actual_stock_execute = true,
+            pending_after_eight_seconds = pendingAfterEightSeconds,
+            connection_default_command_timeout_seconds = 5,
+            stock_aggregator_command_timeout_seconds = 0,
             cancellation_timeout_ms = 1000,
-            server_statement_timeout_ms = 5000, server_lock_timeout_ms = 5000,
-            cancellation_requested = true, response_bytes_withheld = proxy.WithheldBytes,
-            actual_cleanup_after_socket_release = releasedOutcome } }));
+            server_statement_timeout_ms = 5000,
+            server_lock_timeout_ms = 5000,
+            cancellation_requested = true,
+            response_bytes_withheld = proxy.WithheldBytes,
+            actual_cleanup_after_socket_release = releasedOutcome
+        }
+    }));
 }
 catch
 {
@@ -144,17 +163,28 @@ catch
 static void Require(bool condition) { if (!condition) throw new InvalidOperationException(); }
 static string ConnectionString(int port) => new NpgsqlConnectionStringBuilder
 {
-    Host = "127.0.0.1", Port = port, Username = "postgres", Database = "postgres",
-    Pooling = false, Timeout = 5, CommandTimeout = 5, CancellationTimeout = 1000,
-    SslMode = SslMode.Disable, Enlist = false,
+    Host = "127.0.0.1",
+    Port = port,
+    Username = "postgres",
+    Database = "postgres",
+    Pooling = false,
+    Timeout = 5,
+    CommandTimeout = 5,
+    CancellationTimeout = 1000,
+    SslMode = SslMode.Disable,
+    Enlist = false,
     Options = "-c statement_timeout=5000 -c lock_timeout=5000",
 }.ConnectionString;
 static PostgreSqlStorageOptions Options(bool prepareSchema = false) => new()
 {
-    SchemaName = "public", PrepareSchemaIfNecessary = prepareSchema,
-    AllowDegradedModeWithoutStorage = false, StartupConnectionMaxRetries = 0,
-    EnableTransactionScopeEnlistment = false, UseNativeDatabaseTransactions = true,
-    UseSlidingInvisibilityTimeout = true, EnableLongPolling = false,
+    SchemaName = "public",
+    PrepareSchemaIfNecessary = prepareSchema,
+    AllowDegradedModeWithoutStorage = false,
+    StartupConnectionMaxRetries = 0,
+    EnableTransactionScopeEnlistment = false,
+    UseNativeDatabaseTransactions = true,
+    UseSlidingInvisibilityTimeout = true,
+    EnableLongPolling = false,
     JobExpirationCheckInterval = TimeSpan.FromMilliseconds(1),
     CountersAggregateInterval = TimeSpan.FromMilliseconds(1),
 };

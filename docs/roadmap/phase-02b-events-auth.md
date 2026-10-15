@@ -4084,6 +4084,22 @@ and temporary projects are removed. The reviewer independently checks 450 local
 links/fragments, Python syntax and scoped whitespace. This is proposal review,
 not either formal Step 2 runtime/schema review or maintainer acceptance.
 
+**Revised proposal Round 2.** A new GPT-6.1-sol xhigh reviewer independently
+approves `f5dd3a44..446d0a5f` plus the qualification-source formatting and protected
+timeout-probe cleanup edits, with zero required findings/nits. Both isolated
+commands pass again in that review, including all six footprint measurements,
+selective component/filter controls, actual expiration and the PostgreSQL
+abort/session controls. Owned teardown completes. The probe's non-whitespace C#
+characters are unchanged by formatting; folder-based format verification passes.
+Neither reviewer modifies files or uses proposal approval as runtime acceptance.
+
+Seven ADR-parser controls pass and ADR-0058 parses as Proposed. The changed-doc
+audit checks 37 Markdown files, 2,673 local links and 621 fragments with zero
+errors; whitespace is clean. Accepted ADR bodies remain byte-identical to the
+P02b-4 acceptance commit `affa0aca`. These decision experiments are not added to
+backend regression counts. Both fresh proposal rounds are complete; maintainer
+acceptance and Step 2/4 runtime qualification remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

@@ -162,6 +162,8 @@ def main():
             "idle_timeout_terminated_aborted_backend": True,
         }
     finally:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         for connection in connections:
             connection.close()
         if start_requested:
