@@ -43,7 +43,10 @@ bounded observation. Step 5 activates both real defaults and semantic Seeder han
 records the earlier immediate-invocation baseline. The producer/consumer diagrams
 and examples below describe the delivered ADR-0046 runtime. The
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns production enforcement, validation and review/PR status.
+records production enforcement, validation and reviews. P02b-3 is complete and
+merged through PR #31; its
+[merge closeout](../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification.
 
 The [P02b-1 decision package](../roadmap/phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
 and [Accepted ADR-0057](../decisions/0057-transactional-event-production-and-completion.md)
@@ -73,7 +76,8 @@ subscriptions are Active with Step 5 initialization and semantic Seeder handoff.
 [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
 records that step's validation and reviews; the
 [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns current enforcement, validation and review/PR status. Numerical
+records enforcement, validation and reviews; the merge closeout above owns final
+CI/merge verification. Numerical
 runtime bounds live in the package, canonical DDL/grants in Standards 05 and
 metric names in Standards 10.
 

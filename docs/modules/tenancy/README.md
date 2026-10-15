@@ -506,7 +506,10 @@ transport-owned inbox and independent delivery ledger. The stable identities are
 `customization.initialize-content-type-default.v1` for `card@1` content type and
 `customization.initialize-taxonomy-default.v1` for `plain@1` taxonomy. The
 [Step 5 record](../../roadmap/phase-02b-events-auth.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns validation/review status; neither subscription is a placeholder.
+records validation and reviews; neither subscription is a placeholder. P02b-3 is
+complete and merged through PR #31; its
+[merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification.
 
 | Topic | Payload | Publisher | Consumers | Phase |
 |---|---|---|---|---|

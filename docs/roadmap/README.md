@@ -93,7 +93,7 @@ not deferred to the showcase phase.
   [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
   owns final verification and the completed phase exit.
 - [Phase 02b: Events, Background Jobs, Identity, and Session](phase-02b-events-auth.md)
-  — **P02b-0 through P02b-2 complete; P02b-2 merged through PR #30 on 2026-10-13**. Its
+  — **P02b-0 through P02b-3 complete; P02b-3 merged through PR #31 on 2026-10-15**. Its
   [entry audit](phase-02b-events-auth.md#p02b-0-entry-verification-2026-10-12)
   verifies the inherited baseline; Accepted ADR-0057 and the
   [producer package](phase-02b-events-auth.md#p02b-1-decision-package-2026-10-12)
@@ -111,10 +111,12 @@ not deferred to the showcase phase.
   records completed enforcement/regression and both review rounds for all six
   steps. The
   [external follow-up](phase-02b-events-auth.md#p02b-3-external-review-follow-up-2026-10-15)
-  adds verified corrections and two further independent review rounds on the
-  same unmerged branch; the
+  adds verified corrections and two further independent review rounds; the
   [second follow-up](phase-02b-events-auth.md#p02b-3-second-external-review-follow-up-2026-10-15)
-  owns subsequent remediation status. PR review and merge remain pending.
+  records subsequent runtime/proof corrections and their completed reviews.
+  P02b-3 is complete and merged through PR #31 on 2026-10-15; its
+  [merge closeout](phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+  owns final verification. P02b-4's background-job decision pass is next.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

@@ -75,11 +75,13 @@ CI verification under Accepted ADR-0057. **P02b-2 is complete and merged** throu
 [PR #30](https://github.com/HodeTech/LearnStack/pull/30) on 2026-10-13. Its
 [merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
 records hosted dispatch, terminal audit, observation/enforcement, completed
-reviews and final CI verification under Accepted ADR-0046. P02b-3 implements
+reviews and final CI verification under Accepted ADR-0046. **P02b-3 is complete
+and merged** through [PR #31](https://github.com/HodeTech/LearnStack/pull/31) on
+2026-10-15. It delivers
 durable subscriber acceptance, shared inbox/delivery ledger, both real default
 subscriptions and Seeder handoff. Its
-[Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns enforcement and current review/PR status. P02b-4 background jobs follows;
+[merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification. P02b-4's background-job decision pass is next;
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.
@@ -130,14 +132,14 @@ proof pass real CI; the seventh required context is active. The
 owns CI enforcement, reviews and the positive phase-exit verdict.
 [PR #28](https://github.com/HodeTech/LearnStack/pull/28) is merged; the
 [merge closeout](docs/roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
-owns final verification. P02b-0 through P02b-2 are complete; the
-[P02b-2 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-2-merge-and-closeout-2026-10-13)
+owns final verification. P02b-0 through P02b-3 are complete; the
+[P02b-3 merge closeout](docs/roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
 owns final source/merge verification. P02b-3 Steps 1–5 implement durable acceptance,
 shared inbox/ledger, independent subscriber scheduling and both useful defaults
 with semantic Seeder handoff. Its
 [Step 6 record](docs/roadmap/phase-02b-events-auth.md#p02b-3-step-6--production-enforcement-and-pr-closeout-2026-10-13)
-owns completed enforcement/regression and both review rounds for all six steps;
-PR review and merge remain pending. The
+records completed enforcement/regression and both review rounds for all six steps.
+The merge closeout also records the verified external-review corrections. The
 [P02d-4 decision package](docs/roadmap/phase-02d-walking-skeleton.md#p02d-4-decision-package-2026-10-03)
 is Accepted — 2026-10-03. All four implementation steps and their review loops
 are complete. P02d-5 supplies trusted server rendering; P02d-6 supplies public

@@ -182,7 +182,9 @@ Built-ins use the separate semantic initialization path described below.
 
 ### Primary integration-event flow: provisioning defaults
 
-**Implemented by P02b-3 Step 5; validation/review status is recorded below.**
+**Implemented by P02b-3 Step 5; complete and merged through PR #31.** The
+[merge closeout](../../roadmap/phase-02b-events-auth.md#p02b-3-merge-and-closeout-2026-10-15)
+owns final verification; step-level validation/reviews are recorded below.
 [ADR-0057](../../decisions/0057-transactional-event-production-and-completion.md#first-useful-production-flow)
 authorizes independent `card@1` content-type and `plain@1` taxonomy initialization
 on completed tenant
