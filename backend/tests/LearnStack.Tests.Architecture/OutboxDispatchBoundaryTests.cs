@@ -129,7 +129,7 @@ public sealed partial class OutboxDispatchConventionTests
             return () => worker.Methods.Remove(method);
         }, CredentialOffenders);
         var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
-        foreach (var name in new[] { "ExecuteAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
+        foreach (var name in new[] { "ExecuteAsync", "ClaimNextAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
             AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
                 AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
         AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
@@ -656,7 +656,8 @@ public sealed partial class OutboxDispatchConventionTests
         var workerMethods = new[]
         {
             BoundaryWorkerConstructor(offenders, worker),
-            RequireBoundaryMethod(offenders, worker, "ExecuteAsync", BoundaryTask, MethodAttributes.Family, BoundaryCancellation),
+            RequireBoundaryMethod(offenders, worker, "ClaimNextAsync", "System.Threading.Tasks.Task`1<" + BoundaryClaim + ">",
+                MethodAttributes.Private, "System.String[]", BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "DispatchAsync", BoundaryTask, MethodAttributes.Private, BoundaryClaim, BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "DispatchNormalAsync", BoundaryTask, MethodAttributes.Private, BoundaryClaim, BoundaryCancellation),
             RequireBoundaryMethod(offenders, worker, "RefreshAsync", BoundaryTask, MethodAttributes.Private, "System.Boolean", BoundaryCancellation),

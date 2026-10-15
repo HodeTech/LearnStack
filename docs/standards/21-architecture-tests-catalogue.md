@@ -3406,7 +3406,8 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 
 #### `OutboxProcessor_NeverBlocks_OnSingleMessageFailure`
 
-- **Asserts:** ordinary publication failure permits unrelated eligible work to
+- **Asserts:** ordinary publication failure and a sustained terminal-audit failure
+  backlog permit unrelated normal publication and expired-claim recovery to
   progress. A callback ignoring cancellation retains its live task-owned scope,
   blocks its own partition and makes health unhealthy; unrelated keys progress
   within the approved four-task bound. Saturation stops acquisition, late results
@@ -3417,7 +3418,9 @@ Introduced by [Phase 02b](../roadmap/phase-02b-events-auth.md).
 - **Status:** **Implemented** (`OutboxProcessorTests`, `OutboxPublishAttemptTests`):
   actual hosted ordinary-failure, retained-scope/cleanup, partition hold, four-task
   saturation and finite-shutdown proofs; hostile synchronous construction and
-  cancellation callbacks retain ownership through completion.
+  cancellation callbacks retain ownership through completion. A real PostgreSQL
+  audit-grant refusal backlog outliving its leases preserves terminal rollback
+  while independent durable acceptance and recovery continue.
 - **Phase:** 02b.
 
 #### `Outbox_Claim_IsHeld_Until_Dispatch_Completes`

@@ -318,6 +318,60 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     }
 
     [Fact]
+    public async Task Terminal_audit_backlog_cannot_starve_normal_publication_or_expired_claim_recovery()
+    {
+        await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
+        var bounds = Bounds with
+        {
+            PublishTimeout = TimeSpan.FromSeconds(2),
+            LeaseDuration = TimeSpan.FromSeconds(5),
+            ProgressTimeout = TimeSpan.FromSeconds(6),
+            IdlePoll = TimeSpan.FromMilliseconds(50),
+            ShutdownTimeout = TimeSpan.FromSeconds(2),
+        };
+        var terminals = new List<Guid>();
+        for (var index = 0; index < 100; index++)
+        {
+            var id = await test.InsertAsync();
+            terminals.Add(id);
+            await test.RequestTerminalAsync(id);
+        }
+        var recovery = await test.InsertAsync();
+        await test.ExpireAsync(recovery, attempts: 5);
+        await test.AuditInsertGrantAsync(false);
+        test.Start(bounds, controlPublication: false);
+
+        // A repeated terminal acquisition requires a database lease to expire.
+        // The audit failure remains live when fresh publication is enqueued.
+        await UntilAsync(() => test.Logs.TerminalAuditFailures > terminals.Count,
+            proofTimeout: TimeSpan.FromSeconds(30));
+        test.Observation.Snapshot.TerminalAuditFailed.Should().BeTrue();
+        var normal = await test.InsertAsync();
+        await UntilAsync(async () => (await test.ReadAsync(normal)).ProcessedAt is not null
+            && (await test.ReadAsync(recovery)).LastError == "recovery:unknown:expired");
+        await test.Worker.StopAsync(CancellationToken.None).WaitAsync(ProofDeadline);
+
+        var published = await test.ReadAsync(normal);
+        published.Attempts.Should().Be(1);
+        published.LastError.Should().BeNull();
+        (await test.RetainedDeliveryCountAsync()).Should().Be(1,
+            "only the valid normal row reaches real app-role durable acceptance");
+        (await test.RetainedDeliveryCountAsync(normal)).Should().Be(1);
+        // WorkerHandler throws in its constructor; durable acceptance also proves
+        // that publication never constructed or invoked the business handler.
+        var recovered = await test.ReadAsync(recovery);
+        recovered.Attempts.Should().Be(5);
+        recovered.ProcessedAt.Should().BeNull();
+        recovered.TerminalReason.Should().BeNull();
+        test.Callbacks.Publications.Should().Be(0, "the shipped transport is unwrapped");
+        (await test.PendingTerminalCountAsync()).Should().Be(terminals.Count,
+            "failed MUST audit preserves every terminal request without publication");
+        (await test.ReadTerminalAuditsAsync()).Should().BeEmpty();
+        (await test.SchedulerCanInsertAuditAsync()).Should().BeFalse();
+        test.Observation.Snapshot.TerminalAuditFailed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Publication_failure_persists_a_closed_descriptor_and_allows_following_work()
     {
         await using var test = await WorkerDatabase.CreateAsync(schema.Postgres);
@@ -525,10 +579,17 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     private static Task UntilAsync(Func<bool> condition, CancellationToken cancellationToken = default)
         => UntilAsync(() => Task.FromResult(condition()), cancellationToken);
 
-    private static async Task UntilAsync(Func<Task<bool>> condition, CancellationToken cancellationToken = default)
+    private static Task UntilAsync(Func<bool> condition, TimeSpan proofTimeout)
+        => UntilAsync(() => Task.FromResult(condition()), proofTimeout, CancellationToken.None);
+
+    private static Task UntilAsync(Func<Task<bool>> condition, CancellationToken cancellationToken = default)
+        => UntilAsync(condition, ProofDeadline, cancellationToken);
+
+    private static async Task UntilAsync(Func<Task<bool>> condition, TimeSpan proofTimeout,
+        CancellationToken cancellationToken)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(ProofDeadline);
+        deadline.CancelAfter(proofTimeout);
         while (!await condition().WaitAsync(deadline.Token)) await Task.Delay(TimeSpan.FromMilliseconds(10), deadline.Token);
     }
 
@@ -926,6 +987,64 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             (await update.ExecuteNonQueryAsync()).Should().Be(1);
         }
 
+        public async Task RequestTerminalAsync(Guid id)
+        {
+            await using var connection = await _dispatchSource.OpenConnectionAsync();
+            await using var update = new NpgsqlCommand("""
+                UPDATE outbox_messages SET attempts = 6, terminal_reason = 'retry_exhausted'
+                WHERE id = @id
+                """, connection);
+            update.Parameters.AddWithValue("id", id);
+            (await update.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        public async Task ExpireAsync(Guid id, int attempts)
+        {
+            await using var connection = await _dispatchSource.OpenConnectionAsync();
+            await using var update = new NpgsqlCommand("""
+                UPDATE outbox_messages SET attempts = @attempts, locked_by = @token,
+                    locked_until = clock_timestamp() - interval '1 minute'
+                WHERE id = @id
+                """, connection);
+            update.Parameters.AddWithValue("attempts", attempts);
+            update.Parameters.AddWithValue("token", Guid.CreateVersion7().ToString("D"));
+            update.Parameters.AddWithValue("id", id);
+            (await update.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        public async Task<long> PendingTerminalCountAsync()
+        {
+            await using var connection = await _dispatchSource.OpenConnectionAsync();
+            await using var count = new NpgsqlCommand("""
+                SELECT count(*) FROM outbox_messages
+                WHERE terminal_reason = 'retry_exhausted' AND attempts = 6
+                  AND processed_at IS NULL AND dead_lettered_at IS NULL
+                """, connection);
+            return (long)(await count.ExecuteScalarAsync())!;
+        }
+
+        public async Task<long> RetainedDeliveryCountAsync(Guid? eventId = null)
+        {
+            await using var connection = await _appSource.OpenConnectionAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+            await SchemaQueries.AssertApplicationRoleAsync(connection);
+            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+            await using var count = new NpgsqlCommand("""
+                SELECT count(*) FROM event_deliveries WHERE tenant_id = @tenant
+                  AND (@event IS NULL OR event_id = @event)
+                """, connection, transaction);
+            count.Parameters.AddWithValue("tenant", SchemaFixture.TenantA);
+            count.Parameters.Add(new NpgsqlParameter("event", NpgsqlDbType.Uuid) { Value = (object?)eventId ?? DBNull.Value });
+            return (long)(await count.ExecuteScalarAsync())!;
+        }
+
+        public async Task<bool> SchedulerCanInsertAuditAsync()
+        {
+            await using var connection = await _dispatchSource.OpenConnectionAsync();
+            await using var command = new NpgsqlCommand("SELECT has_table_privilege(current_user, 'audit_log', 'INSERT')", connection);
+            return (bool)(await command.ExecuteScalarAsync())!;
+        }
+
         public async Task AuditInsertGrantAsync(bool grant)
         {
             await using var connection = await PostgresFixture.OpenAsync(_database.MigrationConnectionString);
@@ -1015,6 +1134,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
     {
         private readonly ConcurrentQueue<string> _messages = new();
         public string Text => string.Join('\n', _messages);
+        public int TerminalAuditFailures => _messages.Count(message => message.EndsWith(
+            "outcome terminal_audit_failed.", StringComparison.Ordinal));
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,

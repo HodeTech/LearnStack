@@ -3376,6 +3376,47 @@ request/handler discovery scans are separately documented scopes, not a claim
 of this shared production census. No new rule or deferred decision is silently
 introduced. Round 2 and correction-head CI remain pending here.
 
+#### Second follow-up review round 2
+
+Two new agents reviewed `b681edb8..a95ae2ec`. GPT-6-astra/xhigh reviewed runtime,
+acceptance, isolation and audit composition, independently passing 163 focused
+integration, 43 unit and 41 architecture cases. GPT-6.1-sol/xhigh reviewed proofs,
+corpus, ownership controls and governance, independently passing all 312
+architecture and 25 focused unit cases. All runs have zero failures/skips.
+Both approve with no verified actionable finding against that correction scope.
+
+The runtime reviewer separately identified the unchanged producer worker's same
+fixed class-priority pattern. This concern was not counted as a verified finding
+against the reviewed diff. The adjacent correction below owns its PostgreSQL
+verification and any resulting implementation/review evidence; the delivery and
+alias approvals do not substitute for reviewing that change.
+
+#### Adjacent producer fairness correction
+
+**Status: verified correction implemented; validation/reviews pending.** The
+producer worker's strict terminal/recovery/normal priority reproduced the same
+starvation in real PostgreSQL. With 100 terminal requests and only the scheduler
+role's audit INSERT denied, the regression passed its lease-cycle failure check
+then failed at the independent normal-publication/recovery deadline. The baseline
+producer source was unchanged. The fixed worker uses the same bounded rotating
+acquisition as the subscriber; its exact private credential-consumer signature
+and extra-overload control replace the prior call-site requirement.
+
+Accepted ADR-0046 requires continued unrelated eligible work and does not require
+strict claim-class priority. This is an implementation correction, with no new
+ADR, grant, lease, attempt, terminal-audit or publication-ownership contract.
+The regression requires actual unwrapped transport acceptance, no business
+construction, unchanged recovery attempts and every failed terminal request
+remaining intact without terminal audit while the grant stays denied.
+
+The unchanged baseline fails the new progress regression after its first
+lease-cycle check. After correction the full actual producer suite passes
+19 cases, zero failed/skipped; the new regression passes in 10.634 seconds.
+Release solution build has zero warnings/errors. All 1,864 unit, 312
+architecture, four contract and 176 Docker-free integration cases pass again;
+full format/diff and document checks pass. Two fresh independent reviews of
+this additional producer correction remain pending at this initial receipt.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
