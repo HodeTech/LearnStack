@@ -3625,7 +3625,8 @@ maintainer before dependent work. Development stays on `development` throughout.
    Platform migrations for authoritative/control/capacity/recipient and stock
    vendor schema, immutable/transition/metadata guards, RLS/grants/indexes and
    canonical Standards 05. Prove fresh/Down, every-table classes, expected 42501,
-   exact role/source guard, schema 23, below-filter containment and real index plans.
+   exact role/source guard, schema 23, below-filter containment, bounded vendor SQL
+   and real index plans; keep the unguarded notification reconnect path disabled.
 3. **Submission and app-role admission.** Implement trusted producer stamping,
    immediate INSERT/receipts, routing leases, scoped read-only envelope validation
    and separate committed start receipts. Prove rollback/absorbed refusal,
@@ -3655,7 +3656,8 @@ maintainer before dependent work. Development stays on `development` throughout.
    UTC slots/CoalesceLatest/jitter, minimal lifecycle projection, atomic pages/
    recipients and witness-bound app submission. Prove mixed revisions/ticks,
    suspended licence targets, cohort bounds, NULL-org dedup, forged/cross-tenant
-   witnesses, child acknowledgement loss, bounded fairness and no general selector.
+   witnesses, child acknowledgement loss, target scope/parameter binding, bounded
+   fairness and no general selector.
 9. **Enforcement and packet closeout.** Finish full observation, exact production
    censuses/planted violations, all carrier/feature/skill handoffs and the new job
    skill. Run complete backend/frontend/demo regression and packaging/boot proof;
@@ -3668,6 +3670,23 @@ The final contract is drafted against the selected H1/expanded direction. The
 historical receipts below approve only their earlier document revisions; they do
 not substitute for two fresh reviews of this route-specific proposal. Current
 review/validation evidence is appended here after it actually runs.
+
+Round 1 reviewed proposal commit `fa539176` with three fresh independent reviewers:
+GPT-6-astra xhigh (state/authority), GPT-6.1-sol xhigh (external/capacity) and
+GPT-6.1-sol xhigh (recurrence/corpus). All approve the Proposed documentation;
+none accepts the ADR or authorizes runtime. The state reviewer found one minor
+carrier omission: Standards 01/17 now explicitly distinguish the authoritative
+tenant envelope from opaque vendor wakeups/ticks. No confirmed lifecycle,
+unknown-COMMIT, generation, terminal-audit or ordinary-authority defect was found.
+
+Self-review additionally pins the disabled stock notification reconnect path and
+server-side SQL deadlines, including the counter aggregator's unlimited driver
+timeout. It makes future-due handoff checks and recurrence target parameter/scope
+binding explicit. These are proposal clarifications, not runtime changes or proof.
+Local validation passes five Release corpus tests, seven ADR workflow controls,
+1,059 local links and 321 fragments, added prose wrapping and whitespace checks.
+Prior ADR files and P02b-0–3 receipts remain byte-preserved against `71568e78`.
+Fresh Round 2 reviews the corrected complete proposal before final approval.
 
 #### Earlier proposal and correction receipts (historical)
 
@@ -3787,8 +3806,10 @@ Stage dependencies/feature definitions stay explicit; no mock production job.
 
 Acceptance/implementation reconciles ADR-0003/0010/0015/0017/0020/0023/0028/0032/
 0033/0036/0040/0044/0046/0052/0057 through dated Amendment navigation/additions,
-plus ADR-0047 and the index. Standards 02/05/06/09/10/11/15/18/20/21/index receive
+plus ADR-0047 and the index. Standards 01/02/05/06/09/10/11/15/17/18/20/21/index receive
 only implemented current rules; canonical DDL stays 05, metrics 10, proof names 21.
+Standards 01/17 distinguish the tenant-bearing authoritative job envelope from
+opaque vendor wakeups and tenantless ticks without weakening business isolation.
 Architecture 04/09/16/24/25/26/29/30/31/33, Tenancy audit/permission specs, glossary,
 root guidance/readmes, compose/launcher fixture wiring and applicable/new skills
 must follow the same delivered boundary. Phase 02c/04/08a/08b/11 handoffs keep

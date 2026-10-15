@@ -230,7 +230,13 @@ objects instead of silently omitting them. Tenant RLS checks remain unchanged.
 
 Provider options explicitly set `SchemaName=public`, preparation/degraded startup/
 ambient transaction enlistment false, native queue transactions true and sliding
-invisibility true. Exact-version/guard/ACL failures refuse real runtime startup.
+invisibility true. Pin `EnableLongPolling=false`: the stock notification reconnect
+path opens connections outside the named factory. Every enabled provider path
+must keep the guarded physical source. Apply bounded server statement/lock timeouts
+as well as connection/command/socket budgets; the pinned counter aggregator uses
+an explicit unlimited driver command timeout. Real blocked vendor SQL and reconnect
+controls prove these limits rather than relying on driver defaults.
+Exact-version/guard/ACL failures refuse real runtime startup.
 Vendor invisibility is operational only, never execution or quiescence authority.
 
 ### H1 handoff and generation fencing
@@ -257,6 +263,10 @@ registered profile; only LearnStack completion proves business success.
   from routing/execution ownership. Lease a bounded obligation with SKIP LOCKED,
   commit, then call the vendor outside that transaction. Store its returned ID only
   under the same generation/bridge-token fence; the callback may run before ACK.
+  A separate persisted handoff-check time starts immediately, including future-due
+  jobs, so the bridge can use stock delayed scheduling. ACK moves that check to at
+  least max(database-now, available_after) plus repair grace. New generations arm
+  it again; bridge selection does not repeatedly scan every future-due job.
 - Vendor wrappers accept only `(BackgroundJobId, wake_generation)` or a finite
   `(recurrence_key, revision)` tick. Close type resolution and exact target,
   MethodInfo/signature, arguments and queue admission before performer/activation.
@@ -426,6 +436,13 @@ target definition, UTC anchor/period, CoalesceLatest misfire policy, jitter and
 one finite recipient policy. P4 implements intervals/daily slots, not arbitrary
 calendar/cron policy or user-editable schedules. Hangfire recurring ticks are hints.
 
+A recurrence target uses a fixed typed occurrence-ID parameter contract, with no
+caller-supplied parameter factory or tenant selector. It is submitted only through
+the restricted recipient path; ordinary callers cannot forge an occurrence input.
+Registration checks tenant recipient policies against TenantWide targets and the
+organization policy against Organization targets. Feature request construction
+still occurs under the admitted route through the ordinary request boundary.
+
 - Authoritative uniqueness is `(recurrence_key, scheduled_at)`, independent of
   revision, so a deployment cannot duplicate one logical slot. New revisions
   activate at an explicit nondecreasing boundary; existing occurrences keep their
@@ -574,6 +591,7 @@ changes is an ADR-0041 fact correction or whole-record retirement.
 | Existing authority | Selected H1 addition/replacement | Preserved |
 |---|---|---|
 | ADR-0003 four-role/grant confinement; Standards 05 table classes/naming/tenant enumeration | Enumerated vendor-control exception, routing/control grants, app admission/checkpoint/reservation grants and minimal lifecycle inventory reader | Four roles, public schema, canonical tenant/org RLS, no runtime DDL/business bypass |
+| Standards 01 Tenant-Scoped Code / 17 payload blocker and self-review | Tenant/org belong in the authoritative LearnStack job envelope; opaque vendor wakeups and tenantless ticks carry no tenant payload | Validated context before business work; no tenant authority from a caller or vendor message |
 | ADR-0036 Rules/Amendment 2 job JobActivator | JobExecutor, including restricted recipient submission, is sole job context writer | HTTP factory/host provenance, event writers and context restoration |
 | ADR-0032 job restoration/correlation | Trusted job/recipient origins and bounded async diagnostics | Pipeline order and W3C trace contract |
 | ADR-0040 request owner; Amendment 8 / ADR-0052 read mode | Closed stage/recipient participants and sticky admission; exact framework read-only requests | Eight setters, two entry shapes, public host ceiling, nesting/aggregate rule |
@@ -799,6 +817,8 @@ admission, and Unknown occupancy stays held despite budget exhaustion.
 - [Newtonsoft.Json 13.0.4](https://www.nuget.org/packages/Newtonsoft.Json/13.0.4)
 - [Newtonsoft security advisory](https://github.com/advisories/GHSA-5crp-9r3c-p9vr)
 - [Database Standards](../standards/05-database.md)
+- [Architecture Standards — Tenant-Scoped Code](../standards/01-architecture-standards.md#tenant-scoped-code)
+- [Code Review Standards](../standards/17-code-review.md)
 - [Error Handling Standards](../standards/09-error-handling.md)
 - [Audit Coverage Standards — Required Behaviours](../standards/18-audit-coverage.md#required-behaviours)
 - [Infrastructure Standards](../standards/20-infrastructure-stack.md)
