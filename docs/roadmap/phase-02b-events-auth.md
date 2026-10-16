@@ -4796,6 +4796,23 @@ the complete server owner or activate workers. New proposal review receipts and
 actual implementation/test results will be recorded after they occur; no new
 passing production test, full Step 4 completion or current-head CI is implied.
 
+##### Required-startup proposal review round 1
+
+Two fresh independent reviewers inspect `6c52eaa1..34be14e6`: GPT-6-astra xhigh
+covers policy/lifecycle and GPT-6.1-sol xhigh covers proofs/governance. Both
+approve the Proposed documentation for maintainer consideration with no
+Blocker/Major, independently identifying one Minor: the consequence's “rare”
+frequency qualifier is unsupported. Root verifies/removes it, preserving the
+explicit absence of a genuine resource-failure experiment or likelihood estimate.
+The source-based state trigger, entire-host consequence, bounded supersession
+and pending implementation/proof gates remain unchanged.
+
+Root reads both final reports. Seven ADR parser controls, the six-file link/
+fragment sweep and diff/prose checks pass; all 52 baseline Accepted ADRs remain
+byte-identical. These are proposal checks, excluding the uncommitted independent
+bridge/wrapper/diagnostic slice. A new second review round follows this correction;
+ADR-0060 remains Proposed and no fatal-process runtime is authorized.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

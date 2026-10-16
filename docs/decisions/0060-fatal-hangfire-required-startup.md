@@ -176,7 +176,7 @@ and business recovery APIs. Existing Steps 5–9/Phase 03/Phase 11 retain their 
 ### Negative
 
 - One pool's required startup failure can terminate unrelated HTTP/pool work.
-- This rare source-level resource path has no genuine fault reproduction here.
+- This source-level resource path has no genuine fault reproduction here.
 - Failure produces no graceful cleanup and may require operator-driven restart.
 
 ### Neutral
