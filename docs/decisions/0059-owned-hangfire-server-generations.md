@@ -68,11 +68,26 @@ the convenience `BackgroundJobServer` constructor. Construct stock `Worker`,
 through their public APIs. Do not use the obsolete custom-performer constructor,
 copy vendor source, replace SQL or depend on private fields/reflection.
 
-Only the control pool runs delayed/recurring schedulers and the shared provider
-components. Business pools retain their disjoint stock workers and Core's required
-server processes. The exact process inventory, queue binding, filters, component
-selection and single shared provider heartbeat/expiration ownership remain pinned.
-All enabled acquisitions still cross the confined OutboxDispatcher source.
+Only the control pool runs delayed/recurring schedulers. Business pools retain
+their disjoint stock workers and Core's required server processes. Every stock
+server excludes automatic provider-component hosting: one API-instance owner,
+independent of all server generations, runs the shared stock fetched-job heartbeat
+and ADR-0058's expiration owner. Draining the control pool cannot stop fetched-job
+renewal or expiration for healthy pools. This provider heartbeat is distinct from
+the per-server metadata heartbeat intercepted below.
+
+Keep the same cached provider instance and fetched-job tracking across all pools.
+The component inventory still suppresses only the counter aggregator; hosting
+ownership changes without replacing the selected stock heartbeat/expiration code.
+Each shared component has one actual invocation at a time, owned background work,
+retained resources through completion and its own fixed health dimension. Apply
+ADR-0058's positive wait limit of at most five minutes plus at most one second of
+cleanup waiting to each; neither owns a business worker slot. Expiration keeps
+its one-millisecond internal interval and one-hour owner cadence. The fetched-job
+heartbeat retains its stock one-second pacing; no expiration cadence is applied
+to it. Both join under the same host deadline and outlive pool-local draining.
+The exact process/queue/filter inventory remains pinned; every enabled acquisition
+still crosses the confined OutboxDispatcher source.
 
 The first supplied dispatcher builder synchronously captures that generation's
 actual server context before it can admit supplied workers. An asynchronously
@@ -110,9 +125,11 @@ Draining atomically closes new admission for the affected pool, requests stock
 stop once and retains the actual stop/cancellation operations. Do not synchronously
 block propagation to other pools on one slow or throwing cancellation callback.
 The heartbeat's failure cannot return into Core's restart path until the captured
-generation shutdown witness shows the actual stock child join has finished.
-Use asynchronous completion signaling; do not join children from a synchronous
-cancellation callback.
+generation's normal-lifecycle child join has finished. The captured shutdown
+token is only a synchronization signal: final process teardown can cancel it
+early. Replacement additionally requires the actual outer join, all retained
+LearnStack cleanup and live host/restart gates. Use asynchronous completion
+signaling; do not join children from a synchronous cancellation callback.
 
 Set Core's internal shutdown join to `Timeout.InfiniteTimeSpan`. This is an actual
 completion join retained by the owner, not the caller's wait deadline and not an
@@ -140,8 +157,44 @@ Host stop closes restart and acquisition gates before requesting all pool stops.
 It uses ADR-0047's one existing external shutdown budget across pools, bridge,
 maintenance and cancellation/cleanup waits. It never resets the budget for a
 replacement or disposes unresolved work when caller waiting ends. Actual late
-joins stay observed on owned background execution; they cannot keep a process
-alive after its finite host wait or authorize fresh starts after stop.
+joins stay observed on owned background execution and cannot authorize fresh
+starts after stop. Owned worker threads are background threads; that fact alone
+does not qualify Core's separate synchronous process-exit handlers.
+
+#### Process exit and closed cancellation relay
+
+Normal host waiting and final OS process termination are separate boundaries.
+Core subscribes to `ProcessExit`/`DomainUnload` and synchronously cancels its token
+sources before its last-chance wait. Infinite internal shutdown does not disable
+that path. A blocking callback can therefore hold process exit after the external
+host wait has returned; zero last-chance timeout alone is insufficient.
+
+Register a closed nonblocking final-exit gate before creating stock servers;
+normal host stop already closes restart gates before exit. Final teardown cannot
+reopen them or turn a token signal into an actual-cleanup witness.
+Set stock `LastChanceTimeout=TimeSpan.Zero` to avoid a second per-pool exit join.
+Keep captured Core tokens inside the closed generation owner: its registrations
+only update fixed in-memory state or signal asynchronous completion. Never expose
+a Core token to a module/provider, link it directly to a source with arbitrary
+callbacks, join/dispose work in that callback or invoke a blocking observer. Relay
+cancellation to private execution sources through separately retained asynchronous
+cancellation operations. The vendor diagnostic observer on these paths also only
+records fixed memory state; sinks and supplied delegates do not run there.
+
+The closed relay and pinned vendor callbacks require explicit process-exit
+qualification. A dirty direct callback must reproduce the hang; the supported
+relay must let the child exit while its private background callback remains held.
+If this public configuration cannot qualify the boundary, refuse activation and
+reopen the decision; do not silently rely on foreground/background thread labels.
+Phase 11 still owns supervisor grace/hard-termination policy, not a hidden P4
+cleanup guarantee.
+
+On final process exit, Core can cancel its shutdown token before actual retained
+work finishes. Such termination is not graceful cleanup, business completion or
+external quiescence. Retained external reservations and uncertainty remain durable
+for recovery; no process-exit signal releases them. This proposal claims a finite
+normal host wait and qualified nonblocking exit callbacks, not successful cleanup
+of work terminated by the OS or an absolute OS scheduling deadline.
 
 Retained/draining generations and heartbeat faults make the registered, unmapped
 `jobs` check unhealthy under a finite pool key and fixed state/reason. Keep actual
@@ -160,7 +213,8 @@ The existing workers-plus-four, bridge-four and separate expiration bounds remai
 | Existing authority | Proposed change | Preserved |
 |---|---|---|
 | ADR-0047 H1 stock pools and Lifecycle and observation | Replace convenience-server/automatic restart policy with public stock composition and owner-controlled replacement after actual cleanup | Stock workers/schedulers/assemblies/SQL, H1 business authority, disjoint queues, attempt and capacity semantics |
-| ADR-0058 child-resource retention and shared host join | Add synchronous generation capture, heartbeat containment and actual-generation joins; internal Core join is infinite while external host waiting stays finite | Selective counter/history suppression, shared expiration/heartbeat, finite enabled SQL/socket budgets and one shared shutdown deadline |
+| ADR-0058 child-resource retention and shared host join | Add synchronous generation capture, server-heartbeat containment, actual-generation joins and closed cancellation relay; explicitly qualify final process exit separately from graceful cleanup | Selective counter/history suppression, finite enabled SQL/socket budgets and one shared external shutdown deadline |
+| ADR-0058 shared provider heartbeat/expiration | Host both selected components independently of pool generations, with single-flight owned invocations | The same stock code/cached tracking, expiration cadence, retained resources and no business worker/reservation |
 
 The policy replacement and additive owner seams are new normative content. On
 acceptance, dated Amendments in ADR-0047 and ADR-0058 disclose/link them while
@@ -188,12 +242,19 @@ A second experiment holds the heartbeat fault until a ready shutdown witness.
 It retains one generation and accessible tokens until the actual operation is
 released. That experiment alone does not prove startup: a queued sentinel can
 be skipped after stop. Synchronous public builder experiments then force failure
-before capture,
-after worker start and during managed supplied-builder construction. Their owned
+before capture, after worker start and during managed supplied-builder
+construction. Their owned
 variants preserve token/resource lifetime; the raw builder-failure control
 reproduces premature disposal. These qualify only the tested public mechanism,
 not arbitrary partial-resource construction, fatal runtime failure or production
 PostgreSQL/multiple-pool behavior.
+Two child-process controls distinguish normal host waiting from final process
+exit. A direct Core shutdown callback remains blocked after the finite host wait;
+the parent terminates and joins that dirty child. With only closed asynchronous
+signals on Core tokens, the positive child exits while an actual stock process
+and a private cancellation callback remain held. A test-only observer confirms
+Core reached its forced shutdown signal. This proves neither actual cleanup nor
+production callback confinement; final teardown aborts unresolved background work.
 The [Step 4 decision receipt](../roadmap/phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
 owns reproducible commands, results and limits; experiments are not shipped
 enforcement or acceptance.
@@ -229,8 +290,9 @@ occupancy. Phase 03 operator recovery and Phase 11 supervision remain unchanged.
 
 ## Implementation Notes
 
-P02b-4 Step 4 owns the public compositor, synchronous capture, classified heartbeat
-window, per-pool generation owner, actual shutdown retention and boundary proofs.
+P02b-4 Step 4 owns the public compositor, synchronous capture, classified server
+heartbeat window, per-pool generation owner, independent shared component owner,
+closed cancellation relay, actual shutdown retention and process-exit proofs.
 Step 9 owns final observation/censuses and full regression. Existing Accepted
 records, Standards 05/10/20/21, Events and Outbox architecture and current roadmap
 carriers receive the named update only after maintainer acceptance and delivery
@@ -253,8 +315,10 @@ Extend existing canonical obligations without inventing a parallel rule spelling
 Mandatory controls include stock restart as a dirty control; missing-server and
 persistent/transient heartbeat faults; successful heartbeat reset; before-capture,
 after-capture and partial-start failures; held SQL and cancellation/disposal;
-host stop during draining/backoff; late completion; exact one replacement only
-after both stock and LearnStack cleanup; and truthful health while retained.
+control-pool draining while shared provider heartbeat/healthy pools continue;
+direct-callback versus closed-relay process exit; host stop during draining/backoff;
+late completion; exact one replacement only after both stock and LearnStack
+cleanup; and truthful health while retained.
 Use real pinned workers/PostgreSQL and actual role/grants in production proofs.
 Restoring stock restart, skipping capture, returning a heartbeat fault early or
 starting replacement before cleanup must fail the production predicates. The

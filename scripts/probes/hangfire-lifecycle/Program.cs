@@ -15,6 +15,11 @@ if (args[0].StartsWith("builder-", StringComparison.Ordinal))
     await BuilderProbe.RunAsync(args[0]);
     return;
 }
+if (args[0].StartsWith("exit-", StringComparison.Ordinal))
+{
+    await ExitProbe.RunAsync(args[0]);
+    return;
+}
 if (args[0] != "stock-restart") throw new ArgumentException("Unknown lifecycle probe mode.");
 var watch = Stopwatch.StartNew();
 void Emit(object row) => Console.WriteLine(JsonSerializer.Serialize(new { elapsed_ms = watch.ElapsedMilliseconds, row }));

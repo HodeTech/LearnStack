@@ -4472,6 +4472,8 @@ python3 scripts/probe-hangfire-lifecycle.py
 | Fault after worker start | One actual generation remains owned through finite caller wait; release precedes shutdown witness and actual join |
 | Managed supplied-builder fault | Guarded failure requests draining, retains earlier actual work and skips later builders |
 | Raw supplied-builder fault | Dirty control reproduces early joined outer owner and disposed tokens while actual work remains live |
+| Direct process-exit callback | Dirty child remains live inside Core cancellation after the finite host wait; parent terminates and joins it |
+| Closed process-exit relay | Actual Core exit runs without joining the held private callback/stock process; child exits zero, without a cleanup/quiescence claim |
 
 These are assertion-bearing isolated feasibility controls, not LearnStack's
 production worker/PostgreSQL regression or implemented catalogue enforcement.
@@ -4481,9 +4483,43 @@ owe real production controls. Fatal memory/thread-start failures are not qualifi
 by the controlled managed-builder experiment. Missing context or elapsed waiting
 cannot be interpreted as successful cleanup.
 
-The proposal and its repeatable source are under independent review. Final review
-and local validation receipts are appended only after they run. Maintainer
-acceptance remains required before implementing this changed runtime policy.
+#### Proposal review round 1 and verified corrections
+
+Two fresh independent reviewers inspect `def48a1a..f8ff691f`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/corpus/governance. The proof reviewer independently builds/runs all five
+initial controls, checks links/history and interrupts the actual launcher to
+verify owned-child cleanup. It approves without a finding. The lifecycle reviewer
+confirms two Major decision gaps; root verifies both against pinned vendor source:
+
+- The cached provider fetched-job heartbeat cannot belong to the replaceable
+  control generation. The revision gives shared stock heartbeat/expiration an
+  API-instance owner independent of every pool; all Core servers exclude provider
+  component hosting. Control-pool-held-drain/healthy-pool renewal becomes an
+  explicit real-production proof obligation.
+- Core's synchronous process-exit cancellation is a separate boundary from the
+  finite host wait. The revision selects zero last-chance wait and a closed,
+  asynchronous cancellation relay, requires child-process qualification and
+  forbids treating exit/forced token signals as cleanup or external quiescence.
+
+The lifecycle reviewer then provides isolated exit-control implementation help;
+that support is not a fresh review of the revision. Root inspects/integrates it
+and independently passes all seven committed controls with zero build warnings
+or errors. The unsafe direct callback stays held until parent-owned termination;
+the positive observer confirms actual Core exit while private work remains held.
+Every child is joined before its temporary build tree is removed. These remain
+narrow feasibility controls, not production qualification. ADR-0047/0058 are
+byte-preserved; acceptance and all dependent Step 4 runtime remain pending.
+
+Root also interrupts the launcher while its unsafe exit callback is held:
+launcher exit 143, the actual child is gone and the owned temporary tree is
+removed. Five Release corpus controls and seven ADR parser controls pass; the
+first-party sweep checks 37 Markdown files, 2,708 local links and 643 fragments
+without errors and preserves all prior authorized history. These are focused
+proposal checks; the full 4,152-case Step 3 result is not rerun or relabelled.
+
+A fresh second proposal-review round and final validation are still pending.
+Maintainer acceptance remains required before implementing this changed policy.
 
 ### Durable outbox dispatch
 
