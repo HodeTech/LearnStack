@@ -5697,8 +5697,9 @@ final observation/enforcement and full packet regression remain Step 9.
 
 ### P02b-4 external completed-failure proposal (2026-10-16)
 
-**ADR-0061 remains Proposed; revision after the 2026-10-17 maintainer review
-requires explicit reapproval.**
+**Initial proposal status, before the 2026-10-17 acceptance: Proposed; the
+maintainer's first review required changes and explicit reapproval.** Current
+acceptance is recorded [below](#adr-0061-acceptance-and-step-7-contract-2026-10-17).
 Step 7 preparation identified an unanswered report-policy input: direct completed
 Failed/Cancelled reports carry outcome/quiescence, without classifying the failure
 or granting retry of the same stable logical operation. Existing guards permit
@@ -5711,8 +5712,9 @@ Its initial source/contract audit was against `6a2ded99`. No dependent Step 7 ru
 authorized by this proposal. Step 6 capacity work continues under Accepted
 ADR-0047; the existing nine-step review/commit loop remains unchanged.
 
-Two fresh independent proposal reviewers (GPT-6-astra xhigh and GPT-6.1-sol
-xhigh) approve for maintainer consideration without verified findings. They
+**Initial-draft reviews at `8e0f982b`:** two fresh independent proposal reviewers
+(GPT-6-astra xhigh and GPT-6.1-sol xhigh) approve that initial draft for maintainer
+consideration without verified findings. They
 check the actual contract/guard/grant and reason carriers, the exact bounded
 supersession, restart equivalence and discriminating pending proof obligations.
 The corpus reviewer independently verifies the ADR's links/anchors, Proposed
@@ -5721,6 +5723,7 @@ precedes dependent Step 7 implementation.
 
 #### ADR-0061 revision after maintainer review (2026-10-17)
 
+**Historical revision record, before acceptance below.**
 The maintainer requested changes to the initial proposal; that review was not
 approval. Source checks confirm the missing finalization/terminal policy guards,
 the app/control ownership distinction and the absence of durable cancellation
@@ -5746,6 +5749,38 @@ Error Handling's inherited five-attempt/jitter summary is independently reconcil
 with already Accepted ADR-0047. This does not accept ADR-0061 or change its budgets.
 No Accepted ADR body is edited. Explicit maintainer acceptance and its own decision
 commit still precede dependent Step 7 implementation; Step 6 continues independently.
+
+### ADR-0061 acceptance and Step 7 contract (2026-10-17)
+
+**ADR-0061 is Accepted — 2026-10-17.** The maintainer's latest review considers
+the previous seven gaps closed and finds no acceptance blocker, conditional on
+correcting the catalogue Status step lists before the acceptance commit. This
+decision includes Storage Steps 1–2, 6–9 and Retries Steps 4–5, 7 and 9; all seven
+affected rules remain Registered, with counts unchanged. Their extended Asserts
+record pending Step 7 qualification and Step 9 enforcement, not completed proofs.
+
+[ADR-0061](../decisions/0061-known-external-job-failure-policy.md) selects the
+three-state policy, Permanent only for Failed and deterministic database retry,
+finalization and reason guards. The app owns the immutable attempt outcome/policy
+and finalization selection; actual returned row facts bind terminal audit.
+[ADR-0047 Amendment 4](../decisions/0047-transactional-background-job-runtime.md#amendment-4--known-completed-external-failure-policy-2026-10-17)
+discloses the exact completed-report input replacement and additive seams without
+rewriting the Accepted body. The decision index, glossary, Error Handling status
+and all seven catalogue assertions are synchronized in this acceptance decision.
+
+Winning owned stop closes new outcome-checkpoint and COMMIT admission even with
+a live database lease; an already admitted COMMIT retains its actual result.
+Durable confirmed outcomes win over later reports. Honored cancellation remains
+Cancelled across restart. A nonrepeatable cancellation may finally fail the same
+job during deploy through the prepared domain finalizer and atomic MUST audit;
+the Transient taxonomy supplies no promise of resumability.
+
+Step 7 now implements and qualifies this contract before external activation,
+including the forward migration and normative implementation carriers. Step 9
+closes full enforcement/regression. The nine-step sequence and two fresh
+independent implementation review rounds per step continue; the historical draft
+reviews above do not satisfy them. Step 6 capacity work remains independently
+authorized under ADR-0047. Acceptance supplies no new runtime or passing proof.
 
 ### Durable outbox dispatch
 

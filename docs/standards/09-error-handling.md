@@ -11,7 +11,8 @@ Bootstrap response ownership and renderer Retry-After qualification derive from
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Background-job policy derives from
-[ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md) and
+[ADR-0061](../decisions/0061-known-external-job-failure-policy.md).
 
 How LearnStack represents, propagates, surfaces, and recovers from failures.
 
@@ -566,17 +567,22 @@ own current implementation and remaining external/finalization enforcement.
 - Count at most six normal admissions and six separate finalize admissions.
   Retries use the five fixed ordinal delays: 1 s, 5 s, 30 s, 5 min and 1 h.
   A duplicate vendor wakeup or recovery probe spends no business attempt.
-- Preserve the accepted top-level Result/exception classification. Owned lease
-  loss, deadline or shutdown retains uncertain work; it invents neither a permanent
-  refusal nor positive quiescence. Never release occupancy from elapsed time.
+- Preserve top-level Result/exception classification for ordinary requests and
+  invocation, Prepare and Finalize failures. Known completed external Failed/
+  Cancelled reports use Accepted ADR-0061's explicit policy. Owned lease loss,
+  deadline or shutdown closes new checkpoint/COMMIT admission and retains work;
+  an already admitted COMMIT keeps its actual result. Never infer permanent
+  refusal or positive quiescence from cancellation or elapsed time.
 - Keep terminal state on the authoritative job row. Its fenced transition and
   terminal MUST audit commit together; prepared domain failure uses its audited
   finalizer. No duplicate dead-letter table is required.
 - Phase 03 owns audited operator inspection/reconciliation and replay permission;
   no operator surface is claimed here.
 
-[ADR-0061](../decisions/0061-known-external-job-failure-policy.md) remains Proposed
-for the known completed external-failure branch. It authorizes no dependent runtime.
+[Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md) owns
+the known completed external-failure branch. Step 7 implements and qualifies its
+report, storage and finalization contract before external activation; Step 9 owns
+full enforcement. Acceptance supplies no completed runtime proof.
 
 ## Outbox
 

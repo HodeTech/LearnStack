@@ -28,7 +28,9 @@ owns validation, review and PR closeout status),
 [ADR-0059 Owned Hangfire Server Generations](../decisions/0059-owned-hangfire-server-generations.md)
 (Accepted 2026-10-16; lifecycle qualification Registered),
 [ADR-0060 Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
-(Accepted 2026-10-16; exceptional boundary proofs Registered, runtime pending). The
+(Accepted 2026-10-16; exceptional boundary proofs Registered, runtime pending),
+[ADR-0061 Known External Job Failure Policy](../decisions/0061-known-external-job-failure-policy.md)
+(Accepted 2026-10-17; completed-failure obligations Registered, Step 7 pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -5092,7 +5094,10 @@ extends the existing bootstrap and independent-capacity assertions below.
 adds public lifecycle/conditional-cleanup, closed storage and generation ownership
 qualification to the existing bootstrap, credential and capacity obligations.
 [Accepted ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md#architecture-tests)
-adds the exceptional fatal-boundary assignments below; no rule is promoted by
+adds the exceptional fatal-boundary assignments below.
+[Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md#architecture-tests)
+extends seven existing assertions for completed external-failure policy; Step 7
+qualification and Step 9 enforcement remain pending. No rule is promoted by
 acceptance. All nineteen names are Registered. A step's partial foundation is not
 enforcement of the complete assertion; promotion names its actual tests when they ship.
 Production business/recurrence registries remain empty; real framework subjects
@@ -5138,7 +5143,13 @@ and fixture definitions must make the eventual controls non-vacuous.
 
 - **Asserts:** only actual fenced UPDATE RETURNING mints the job witness; the two
   enumerated app/bypass callers bind stored identities and live transaction to the
-  sixth audit write. Identity substitution or audit failure rolls both writes back.
+  sixth audit write. Bind the actual selected normal outcome kind/policy, module
+  reason, attempt counts and finalization status; the app path also binds its exact
+  root/generation and current finalize attempt. Derive finite class/retry metadata
+  solely from the stored policy; finalizer refusal/exhaustion preserves those facts
+  and honestly reports incomplete business finalization. Substituted/draft-only
+  facts refuse state and audit. Audit failure rolls back business and terminal
+  writes; uncertain COMMIT reconciles the actual row without duplicate audit.
 - **Type:** writer/minting census and real PostgreSQL terminal-atomicity controls.
   **Kind:** structural + behavioural.
 - **Status:** **Registered** — P02b-4 Steps 5, 7 and 9.
@@ -5148,18 +5159,39 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** six committed normal admissions and fixed backoffs, parity for
   Result/exception refusals and fair control quanta prevent a seventh start or
   starvation of healthy jobs during a terminal-audit backlog longer than a lease.
+  Completed external failure uses ADR-0061's deterministic priority: Permanent,
+  then TransientNotRepeatable, then repeatable-budget exhaustion, including on
+  admission six. Only eligible TransientRepeatable outcomes permit normal retry;
+  both retry gates refuse success, selected finalization, forbidden/incomplete
+  policy or unresolved prior effects. JobId, immutable plan and OperationId remain
+  stable while the next counted attempt receives a fresh AttemptId. Control
+  progress never bypasses quiescence or prepared domain finalization.
 - **Type:** actual worker/PostgreSQL retry, crash and backlog controls.
   **Kind:** behavioural.
-- **Status:** **Registered** — P02b-4 Steps 4–5 and 9.
+- **Status:** **Registered** — P02b-4 Steps 4–5, 7 and 9.
 
 ### `BackgroundJob_Storage_And_Credentials_Are_Confined`
 
 - **Asserts:** exact table classes, canonical RLS, column grants, immutable facts
   and named guarded credential consumers hold; app/vendor/control denials and
   unclassified tables fail loudly. No arbitrary business bypass or runtime DDL.
+  One nullable normal-attempt policy commits write-once with exact outcome kind
+  and positive quiescence: absent before outcome/on success/finalize/no-start-only
+  records, required on Failed/Cancelled, Permanent only on Failed. SQL NULL and
+  partial-fact controls reject invalid shapes, admission seeding, foreign/stale
+  facts and filling/clearing/overwrite. Database gates enforce eligible return to
+  Pending and next admission, current-normal-outcome selection, exact module and
+  terminal reasons and fresh database time after locking. App alone checkpoints
+  outcome/release and initial FinalizePending selection. The policy extension adds
+  only app checkpoint UPDATE and control status SELECT; no payload access or
+  control attempt/reservation UPDATE is added.
+  Locked fresh-statement probes retain uncertain receipts; typed outcome bytes
+  require announced app reads. Forward migration refuses incomplete/incompatible
+  retained history without guessing policy. Dirty predicate/grant controls prove
+  each denial.
 - **Type:** whole-schema/consumer census and real app/role/denied-column probes.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 1–2, 6, 8–9.
+- **Status:** **Registered** — P02b-4 Steps 1–2, 6–9.
 
 ### `BackgroundJob_Runtime_Has_No_Production_Definitions_Or_Dashboard`
 
@@ -5215,15 +5247,31 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** tenant/group mutex and reservations enforce the effective operational/
   Hard LimitKey cap across orgs/instances. Refusal spends no attempt; downgrade,
   unknown effects, lease expiry and lookup faults never silently free occupancy.
+  The app-owned outcome/quiescence checkpoint releases the exact old reservation
+  atomically for retry, success finalization and failure finalization. Nonrepeatable
+  policy or later finalizer fault cannot retain occupancy whose release committed.
+  Uncertain COMMIT remains unresolved until a locked actual-row receipt decides it;
+  actual task/callback cleanup stays owned separately. Any later normal attempt
+  reacquires capacity through ordinary admission; no TTL supplies release proof.
 - **Type:** actual two-instance/org app-role PostgreSQL admission controls.
   **Kind:** behavioural.
 - **Status:** **Registered** — P02b-4 Steps 6–7 and 9.
 
 ### `BackgroundJob_External_Work_Has_No_Business_Transaction`
 
-- **Asserts:** typed Execute/Reconcile adapters receive no UoW, DbContext, sender,
-  locator or callback; prepare/arm/outcome/finalize checkpoints use separate short
-  owners and external work runs only after confirmed ExecuteIntent.
+- **Asserts:** typed adapters expose exactly Execute/Reconcile and receive no UoW,
+  DbContext, sender, locator or callback; prepare/arm/outcome/finalize checkpoints
+  use separate short owners and external work follows confirmed ExecuteIntent.
+  Both methods use distinct Succeeded, Failed and Cancelled factories: completed
+  reports require typed outcome and positive quiescence; success has no policy,
+  Failed explicitly supplies one of three nonzero values, and Cancelled permits
+  only TransientRepeatable/TransientNotRepeatable. Running/Unknown/NeverStarted
+  carry none of those completed facts. Default/undefined/missing policy and
+  Cancelled/Permanent reject unchanged. Distinct factories replace generic
+  Completed; no failure policy defaults. Adapter translation grants repeatability
+  only for another fenced attempt of the same OperationId/plan. Direct completed
+  reports through Execute
+  and Reconcile require no prior exception to select the correct policy.
 - **Type:** adapter dependency/capability census and real stage/transaction controls.
   **Kind:** structural + behavioural.
 - **Status:** **Registered** — P02b-4 Steps 1, 7 and 9.
@@ -5233,6 +5281,22 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** paused old starts, NotFound after intent, lost acceptance ACK and
   exhausted probes preserve unknown effect/quarantine. Only positive fenced
   provider/supervisor or actual task/process-tree proof can release reservations.
+  Invalid reports grant no release/retry/finalization. Acknowledged or locked-
+  confirmed outcome/policy wins over later conflicting reports; the selected normal
+  outcome pointer remains authority while the current finalize attempt supplies
+  only its fresh fence. No late report causes overwrite, conflict quarantine, new
+  Execute or provider validation of committed facts. Uncertain checkpoint COMMIT
+  requires locking the actual row and reading its receipt in a fresh statement;
+  unlocked NULL/probe timeout supplies no rollback proof. Winning lease-loss,
+  deadline or shutdown stop forbids new outcome-checkpoint/COMMIT admission even
+  with a live lease; already admitted COMMIT retains its actual acknowledged or
+  locked-reconciled result. Preserve late completed facts for fresh eligible
+  recovery without reopening stopped gates. Honored cancellation remains Cancelled
+  with truthful repeatability across restart; token requests/exceptions prove no
+  completion or quiescence. An independent Failed/Permanent racing stop stays
+  representable, while a planted adapter causal misreport remains a protocol fault,
+  not runtime-certified truth. Stop/checkpoint/lost-ACK/restart controls discriminate
+  durable authority from ephemeral stop flags and uncommitted observations.
 - **Type:** real engine with explicit fixture provider/process/fault controls.
   **Kind:** behavioural.
 - **Status:** **Registered** — P02b-4 Steps 7 and 9.
@@ -5240,8 +5304,23 @@ and fixture definitions must make the eventual controls non-vacuous.
 ### `BackgroundJob_Finalization_Retries_Are_Bounded`
 
 - **Asserts:** separate six committed finalize admissions never rerun Execute.
-  Known failure finalization commits domain state and both audits atomically;
-  refusal/exhaustion retains outcome and reports unapplied business finalization.
+  ADR-0061's selected status/module/terminal reason mapping is exact: success
+  selects Succeeded with no failure reason; every selected completed-failure row
+  selects Failed.
+  Failed/Permanent uses ExternalFailed/permanent_failure; nonrepeatable Failed or
+  Cancelled uses matching ExternalFailed/ExternalCancelled and
+  external_retry_forbidden; exhausted TransientRepeatable uses
+  NormalAttemptsExhausted/retry_exhausted. Early repeatable failure selects no final
+  status and retries only when eligible. Early finalization and false exhaustion
+  refuse; stored outcome kind preserves Failed versus Cancelled.
+  Domain failure finalization returns Result.Ok and commits domain state plus
+  business/terminal MUST audits and terminal state on the app owner. Nonrepeatable
+  honored cancellation may finally fail that same job during deploy through this
+  audited finalizer. FinalizePending stays eligible; permanent refusal or transient
+  six-finalize exhaustion selects finalize_refused/finalize_exhausted, preserves
+  the exact outcome/policy and reports unapplied business finalization. Audit
+  rollback, lost COMMIT ACK and conflicting reports never repeat a committed
+  finalizer or invent business Failed state.
 - **Type:** real app-role stage/uncertain-COMMIT/audit-rollback controls.
   **Kind:** behavioural.
 - **Status:** **Registered** — P02b-4 Steps 7 and 9.

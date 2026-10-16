@@ -2,15 +2,11 @@
 
 ## Status
 
-Proposed — revised after Request Changes; explicit maintainer reapproval pending.
-No dependent Step 7 runtime or migration is authorized.
+Accepted — 2026-10-17. Step 7 implements this decision before external activation;
+its runtime, migration and proof obligations remain pending.
 
 **Date:** 2026-10-17
 **Deciders:** @cemil
-
-This review date records a revised proposal, not acceptance. P02b-4 Step 6 capacity
-work remains independently authorized. The three-state policy and restriction of
-Permanent to Failed are new choices presented for approval in this revision.
 
 ## Decision Drivers
 
@@ -32,7 +28,7 @@ Permanent to Failed are new choices presented for approval in this revision.
 
 ## Considered Options
 
-1. **One explicit three-state completed-failure policy** (recommended).
+1. **One explicit three-state completed-failure policy** (chosen).
    Permanent, TransientRepeatable and TransientNotRepeatable encode the useful
    classification/permission combinations without a redundant Permanent/permitted
    state. Store one immutable value; derive finite audit facts from it.
@@ -42,7 +38,7 @@ Permanent to Failed are new choices presented for approval in this revision.
 3. **Normalized standard code plus retry permission** (viable alternative).
    Normalize reports into an explicit closed subset of existing standard codes and
    reuse the classifier. Extend the subset only if necessary; a new code set is
-   not inherently required. Permission remains independent. The recommended option
+   not inherently required. Permission remains independent. The chosen option
    keeps completed reports small but adds a parallel classification mechanism.
 4. **Every completed Failed/Cancelled report is final** (rejected).
    Removes legitimate transient retries allowed by ADR-0047's same-operation contract.
@@ -62,7 +58,7 @@ LearnStack uses one explicit completed-failure policy: Permanent,
 TransientRepeatable or TransientNotRepeatable. Permanent is valid only for Failed;
 Cancelled requires one of the two Transient policies. The exact attempt stores the
 policy with its outcome and quiescence, and storage enforces retry, finalization and
-terminal-reason selection. This decision becomes binding only after reapproval.
+terminal-reason selection.
 
 ### Closed report boundary
 
@@ -76,10 +72,11 @@ Reconcile. Both obey the same report matrix:
 | Cancelled | Typed outcome and positive quiescence | TransientRepeatable or TransientNotRepeatable |
 | Running, Unknown, NeverStarted | No completed outcome, quiescence or failure policy | Absent |
 
-Use distinct Succeeded, Failed and Cancelled factories. Failed/Cancelled require
-the explicit policy parameter; no existing Completed overload may silently default
-them. The policy enum has three nonzero values; omitted, default/zero and undefined
-values are invalid. Cancelled/Permanent is rejected unchanged on both adapter paths.
+Replace the existing public Completed factory with distinct Succeeded, Failed and
+Cancelled factories; retain no Completed overload. Failed/Cancelled require the
+explicit policy parameter. The policy enum has three nonzero values; omitted,
+default/zero and undefined values are invalid. Cancelled/Permanent is rejected
+unchanged on both adapter paths.
 No runtime conversion repairs it into Transient or changes it to Failed.
 
 The adapter translates provider/supervisor facts. It grants repeatability only when
@@ -111,8 +108,13 @@ Lease loss, execution deadline and host shutdown close the current start/commit
 gates and request owned cancellation. A new Failed/Cancelled report cannot bypass
 that precedence: retain its exact facts and quiescence, and defer disposition to
 fresh eligible recovery authority. Do not reclassify or erase the observation.
-Positive completed success remains success; an already committed outcome wins.
-No report reopens a closed gate or authorizes new execution by recovery.
+If stop wins the commit gate, the old owner cannot issue a new outcome checkpoint
+or admit its COMMIT, even while its lease remains live. Uncommitted observations
+remain in memory for eligible recovery; already issued SQL may still return and
+roll back. If COMMIT admission won first, preserve its actual acknowledged or
+uncertain result and reconcile it; later stop cannot declare rollback. Positive
+completed success remains success; an already committed outcome wins. No report
+reopens a closed gate or authorizes new execution by recovery.
 
 A token request or OperationCanceledException proves neither completed cancellation
 nor quiescence. When an operation actually ends by honoring runtime cancellation,
@@ -125,7 +127,7 @@ A genuinely independent Failed/Permanent outcome racing shutdown stays represent
 and unchanged; fresh recovery may apply it. The generic runtime cannot distinguish
 that truth from an adapter falsely calling its own cancellation Failed/Permanent.
 Adapter qualification must establish this boundary, just as it establishes truthful
-quiescence. This proposal claims no runtime certification of external causality.
+quiescence. This decision claims no runtime certification of external causality.
 
 Restart equivalence means identical valid immutable facts select identical policy,
 independently of ephemeral stop flags. It does not make a stopped owner equivalent
@@ -147,7 +149,7 @@ occupancy whose release committed. An unconfirmed COMMIT retains uncertainty unt
 locked reconciliation proves its receipt. Actual task/callback cleanup remains owned
 separately; a later normal attempt reacquires capacity through ordinary admission.
 
-| Durable facts, in precedence order | Selected status | Module reason / stored finalization reason | Terminal reason after successful domain failure finalization |
+| Durable facts, in precedence order | Finalization status | Module reason / stored finalization reason | Terminal reason after successful domain failure finalization |
 |---|---|---|---|
 | Succeeded | Succeeded | None / `none` | None; complete successfully |
 | Failed / Permanent | Failed | ExternalFailed / `external_failed` | `permanent_failure` |
@@ -220,6 +222,8 @@ migration and runtime must implement all of these gates:
 Terminal metadata carries the applicable stored policy plus finite class and
 same-operation retry meaning derived solely from it: Permanent/no grant,
 Transient/permitted or Transient/forbidden. They are not separately writable facts.
+On retry exhaustion, permitted describes adapter repeatability; six admissions
+still forbid another normal attempt.
 Preserve them on finalizer refusal/exhaustion alongside the incomplete projection;
 leave them absent on paths without a completed failure. No provider text or payload
 bytes enter audit. Business MUST audit precedes the terminal fence/MUST row and
@@ -244,24 +248,25 @@ status projection, explicit repeatability meaning, deterministic storage gates a
 `external_retry_forbidden` with bound audit facts. There was no direct completed-report
 mapping to replace. Existing table precedence, unknown-effect rules, stable identity,
 budgets, privileges, quiescence and H1 ownership remain, including owned cancellation
-before ordinary failure classification. This proposal makes those boundaries explicit.
+before ordinary failure classification. This decision makes those boundaries explicit.
 
 This is a changed normative decision, not an
 [ADR-0041 correction](0041-correcting-false-statements-in-accepted-adrs.md#decision)
-of a false historical statement. On explicit acceptance, append a dated ADR-0047
-amendment naming the bounded replacement and additive seams. Leave its Accepted
-body/date/deciders intact; do not retire the record or allocate an amendment early.
+of a false historical statement. ADR-0047
+[Amendment 4](0047-transactional-background-job-runtime.md#amendment-4--known-completed-external-failure-policy-2026-10-17)
+names the bounded replacement and additive seams. Its Accepted body/date/deciders
+remain intact; the record is not retired.
 
 ## Context
 
 Step 1 delivered the typed external contract; Step 2 qualified known-failure retry
 and selected-outcome retry refusal. These controls establish admissible transitions,
 not the missing classifier. Step 7 preparation at source `6a2ded99` identified that
-gap before activation. The 2026-10-17 Request Changes review motivates this revision;
-it supplies neither acceptance nor runtime evidence.
+gap before external activation. The report contract and storage guards need a
+shared policy that remains reproducible after lost responses and process restart.
 
 A stable provider key may remember final failure or permit another fenced attempt.
-The proposed policy distinguishes those cases without provider-specific runtime code.
+The policy distinguishes those cases without provider-specific runtime code.
 The dedicated terminal reason separates nonrepeatable transient policy from permanent
 failure. Restricting Permanent to Failed also prevents Cancelled/Permanent acquiring
 different interpretations when an old stop flag disappears.
@@ -285,6 +290,9 @@ method, request identity, stop-marker inference or default retry grant is implic
   adapters and runtime must qualify their boundary, precedence and future consistency.
 - Adapters must reproduce truthful completed-attempt facts, including cancellation
   meaning. Generic runtime validation cannot establish provider causality.
+- An adapter honoring shutdown may truthfully report Cancelled/TransientNotRepeatable.
+  A graceful shutdown or deploy can therefore lead to final failure with
+  `external_retry_forbidden` and MUST dead-letter audit for a nonrepeatable provider.
 - A forward migration, guards, reason carriers, witness metadata and proofs add work.
 - Legacy incomplete history refuses migration rather than receiving invented policy.
 
@@ -296,7 +304,7 @@ method, request identity, stop-marker inference or default retry grant is implic
 
 ## Implementation Notes
 
-After acceptance, Step 7 implements this report/storage/control/finalizer contract
+Step 7 implements this report/storage/control/finalizer contract
 before external activation. Step 9 closes full enforcement and regression. Phase 04
 owns real providers/process supervision and domain definitions; P02b-4 qualifies
 explicit fixture adapters through the real engine with no production definition.
@@ -313,18 +321,20 @@ Tenancy retains `platform.job.dead_letter`, MUST/SecurityEvent/off-path, and its
 audit matrix. `PostgresAuditStore` preserves the sixth audit seam and live witness
 validation; Tenancy's declaration is not the job-reason validator. Add no audit method.
 
-Publication includes a clearly Proposed glossary pointer; acceptance later updates
-its status. After acceptance update the ADR-0047 disclosure, decision index, current
-P02b-4 record, Standards 05/09/18/20/21, Events/Outbox architecture and applicable
-Tenancy audit description. Error Handling's inherited retry summary must separately
+Acceptance updates the ADR-0047 amendment, decision index, glossary, current P02b-4
+record and the assigned catalogue assertions and implementation steps. Step 7
+synchronizes Standards 05/09/18/20, Events/Outbox architecture and the applicable
+Tenancy audit description with implementation. Error Handling's inherited retry
+summary must separately
 match Accepted ADR-0047's six normal/six finalize admissions, five fixed delays,
 authoritative-row terminal state and Phase 03 operator ownership. Synchronizing
-that carrier drift is not a new budget decision or proof of this proposal.
+that carrier drift is not a new budget decision or passing runtime proof.
 
 ## Architecture Tests
 
 Extend these seven existing **Registered** rules with the assigned assertions.
-Acceptance updates Asserts only; it promotes no rule and changes no catalogue count.
+Acceptance updates Asserts and the assigned implementation steps in Status;
+it promotes no rule and changes no catalogue count.
 All proofs are mandatory and pending in Step 7, with Step 9's full closure gate.
 
 | Canonical rule | Assigned obligations |

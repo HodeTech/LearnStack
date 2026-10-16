@@ -897,6 +897,46 @@ fact correction or whole-record replacement. Original body, metadata and prior
 amendments remain intact. Step 4 implements/qualifies the boundary; Step 9 owns
 full enforcement. Acceptance supplies no runtime delivery or activation proof.
 
+### Amendment 4 — known completed external failure policy (2026-10-17)
+
+Accepted [ADR-0061](0061-known-external-job-failure-policy.md) narrowly replaces
+the input restriction “Classify the top-level code/type only.” in
+[Attempts, terminal audit and diagnostics](#attempts-terminal-audit-and-diagnostics)
+only for known completed external Failed/Cancelled reports. Ordinary requests and
+invocation, Prepare and Finalize failures retain the existing classifier. This
+changed normative decision is not an ADR-0041 correction or a whole-record
+supersession; the original body, Status, Date, Deciders and earlier amendments
+remain intact.
+
+The additive contract selects one nonzero three-state policy: Permanent,
+TransientRepeatable or TransientNotRepeatable. Permanent is valid only for Failed;
+Cancelled requires one of the two Transient policies. Distinct Succeeded, Failed
+and Cancelled factories replace the generic Completed factory and enforce the
+closed report matrix. One nullable immutable normal-attempt policy commits with
+the exact outcome and positive quiescence. Storage enforces both retry gates,
+write-once finalization selection and exact module/terminal reasons. The actual
+terminal UPDATE RETURNING and job witness bind the selected normal outcome/policy,
+module reason, attempt counts and finalization status, with finite audit facts
+derived solely from that policy.
+
+Acknowledged or locked-confirmed durable outcome facts win over later conflicting
+reports. A winning owned stop forbids a new outcome checkpoint or COMMIT admission,
+even while the database lease remains live; an already admitted COMMIT retains its
+actual acknowledged or locked-reconciled result. Fresh eligible recovery may apply
+valid exact completed facts. Honored runtime cancellation remains Cancelled across
+restart; an independent Failed/Permanent racing stop remains representable.
+TransientNotRepeatable cancellation can finally fail the same job during a deploy,
+through the prepared domain finalizer and atomic business/terminal MUST audit;
+Transient names this taxonomy, not resumability. Generic runtime validation does
+not certify the adapter's external causal truth.
+
+The [P02b-4 acceptance record](../roadmap/phase-02b-events-auth.md#adr-0061-acceptance-and-step-7-contract-2026-10-17)
+owns acceptance and carrier synchronization. Step 7 implements and qualifies the
+report/storage/control/finalizer contract before external activation; Step 9 owns
+full enforcement and regression. The seven affected existing catalogue rules
+remain Registered and catalogue counts do not change. Acceptance supplies no
+runtime, migration or passing proof claim; canonical SQL stays in Standard 05.
+
 ## References
 
 - [ADR-0003 Tenant Isolation](0003-tenant-isolation-defense-in-depth.md)
