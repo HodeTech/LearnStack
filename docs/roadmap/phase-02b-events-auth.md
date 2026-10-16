@@ -4813,6 +4813,25 @@ byte-identical. These are proposal checks, excluding the uncommitted independent
 bridge/wrapper/diagnostic slice. A new second review round follows this correction;
 ADR-0060 remains Proposed and no fatal-process runtime is authorized.
 
+##### Required-startup proposal review round 2
+
+Two new independent reviewers inspect `6c52eaa1..ac5a1cd3`: GPT-6-astra xhigh
+covers policy/lifecycle and GPT-6.1-sol xhigh covers proofs/governance. Both
+approve the Proposed documentation for maintainer consideration with zero
+Blocker/Major/Minor/Suggestion findings. Root reads both complete final reports.
+The proof review independently checks all 52 baseline Accepted ADRs byte-for-byte,
+ADR-0059 Accepted/ADR-0060 Proposed, 706 local links and 295 fragments with no
+missing targets, unchanged catalogue bytes/counts, added prose/private-reference
+checks and clean diff whitespace. Neither review runs shared builds, database
+experiments or production qualification; no genuine Linux resource-failure or
+frequency claim is introduced.
+
+The proposal is ready for maintainer consideration. Its entire-API interruption,
+operator restart and absence of graceful cleanup remain explicit costs; fatal
+runtime and activation still require acceptance. Independent Step 4 foundation
+validation proceeds under the existing Accepted decisions and is recorded
+separately. Steps 4–9 remain incomplete; no push, PR or current-head CI is claimed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
