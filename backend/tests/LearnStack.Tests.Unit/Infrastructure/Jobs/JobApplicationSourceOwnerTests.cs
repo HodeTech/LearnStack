@@ -9,6 +9,41 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
 public sealed class JobApplicationSourceOwnerTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Executor_join_waits_for_actual_cleanup_and_preserves_the_original_issuance_state(bool closed, bool dirty)
+    {
+        var owner = JobApplicationSourceOwner.Create();
+        using var binding = owner.Enter();
+        var connectionCleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var connection = Substitute.For<DbConnection>();
+#pragma warning disable CA2012 // This call configures NSubstitute; no real disposal ValueTask is issued.
+        connection.DisposeAsync().Returns(new ValueTask(connectionCleanup.Task));
+#pragma warning restore CA2012
+        var resources = owner.BeginAuditConfigLoad();
+        resources.HoldConnection(connection);
+        var actual = FailedQueryAsync(resources);
+        resources.HoldActualTask(actual);
+        if (closed) owner.CloseIssuance();
+
+        var join = owner.JoinAuxiliaryCleanupAsync();
+        join.IsCompleted.Should().BeFalse();
+        RefusesFurtherWork(owner);
+        if (dirty) connectionCleanup.SetException(new InvalidOperationException("actual disposal fault"));
+        else connectionCleanup.SetResult();
+
+        (await join).Should().Be(!dirty);
+        actual.IsFaulted.Should().BeTrue("a failed query is observed independently of its resource cleanup");
+        owner.CleanupConfirmed.Should().Be(!dirty);
+        var activate = () => owner.RequireFreshScopeReady();
+        if (closed || dirty) activate.Should().Throw<InvalidOperationException>();
+        else activate.Should().NotThrow("a successful framework admission keeps its original open owner");
+        (await owner.JoinAuxiliaryCleanupAsync()).Should().Be(!dirty);
+    }
+
     [Fact]
     public async Task Abandoned_loader_keeps_its_slot_until_actual_task_and_cleanup_both_finish()
     {
@@ -170,5 +205,15 @@ public sealed class JobApplicationSourceOwnerTests
         killswitch.Should().Throw<InvalidOperationException>();
         var activate = () => owner.RequireBusinessReady();
         activate.Should().Throw<InvalidOperationException>();
+    }
+
+    private static async Task FailedQueryAsync(JobApplicationAuxiliaryResources resources)
+    {
+        try
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("ordinary query failure");
+        }
+        finally { await resources.CleanupAsync(); }
     }
 }

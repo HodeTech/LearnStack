@@ -155,6 +155,15 @@ public sealed class JobApplicationSourceOwner
         lock (_sync) _closed = true;
     }
 
+    /// <summary>Joins the original auxiliary loader before the executor freezes its cleanup result.</summary>
+    public async Task<bool> JoinAuxiliaryCleanupAsync()
+    {
+        JobApplicationAuxiliaryResources? auxiliary;
+        lock (_sync) auxiliary = _auxiliary;
+        if (auxiliary is not null) await auxiliary.JoinActualTaskAsync().ConfigureAwait(false);
+        return CleanupConfirmed;
+    }
+
     public JobApplicationAuxiliaryResources BeginAuditConfigLoad() => BeginAuxiliary();
     public JobApplicationAuxiliaryResources BeginStandaloneAudit() => BeginAuxiliary();
     public JobApplicationAuxiliaryResources BeginTenantFlagsLoad() => BeginAuxiliary();
@@ -331,6 +340,20 @@ public sealed class JobApplicationAuxiliaryResources
             if (_released || !_cleanupConfirmed || _actualTask?.IsCompleted != true) return;
         }
         _owner.Release(this);
+    }
+
+    internal async Task JoinActualTaskAsync()
+    {
+        Task? actual;
+        lock (_sync) actual = _actualTask;
+        if (actual is null) return;
+        try { await actual.ConfigureAwait(false); }
+        catch (Exception failure) when (failure.GetType() != typeof(OutOfMemoryException)
+            && failure.GetType() != typeof(StackOverflowException))
+        {
+            // A query failure is not a resource-cleanup failure. CleanupAsync
+            // supplies the independent positive witness, including after timeout.
+        }
     }
 
     internal bool IsReleased => Volatile.Read(ref _released);

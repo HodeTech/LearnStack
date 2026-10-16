@@ -189,14 +189,14 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                     }
                 }
             }
-            if (command?.Receipt is null || cleanupFailed || !sourceOwner.CleanupConfirmed) sourceOwner.CloseIssuance();
-            cleanupFailed |= !sourceOwner.CleanupConfirmed;
             try { sourceBinding.Dispose(); }
             catch
             {
                 cleanupFailed = true;
                 retainedCleanup.Add(new(null, null, null, null, null, sourceBinding));
             }
+            cleanupFailed |= !await sourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
+            if (command?.Receipt is null || cleanupFailed) sourceOwner.CloseIssuance();
             publication.SettleNoReceipt();
         }
         return new(outcome, command?.Receipt, cleanupFailed, sourceOwner)

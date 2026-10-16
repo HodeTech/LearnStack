@@ -5480,7 +5480,8 @@ this closeout.
 
 ### P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)
 
-**Implementation is locally validated; both fresh review rounds are pending.**
+**Implementation and first-round corrections are locally validated; the second
+fresh full review round is pending.**
 The existing approved package
 owns this step; no new decision or approval is pending. Source implements the
 closed ordinary root participant, acknowledged start publication, immutable job
@@ -5544,6 +5545,57 @@ added twice. Together these runs establish 1,810 unique passing Docker cases and
 Formatting, seven ADR parser controls, 1,755 local links and 500 fragments pass.
 Both fresh full review rounds follow the validated implementation commit; no
 completed review or Step 5 closeout is claimed. Steps 6–9 remain pending.
+
+#### Step 5 review round 1
+
+Three fresh independent reviewers inspected `4826b7df..9b634405`: owner,
+authority and lifetime (GPT-6-astra xhigh), control/SQL/terminal audit
+(GPT-6.1-sol xhigh), and proof/composition/corpus (GPT-6.1-sol xhigh). The last
+lens reviewed all 109 changed files and independently recalculated the composite
+TRX totals and original-JOIN mutation/restoration evidence. Two confirmed groups
+required correction; no additional Blocker or verified finding remained.
+
+- A cache caller could return while the original auxiliary task still cleaned
+  its connection. The executor froze this pending state as a permanent cleanup
+  failure, preventing eventual positive generation release. It now joins that
+  exact task without the expired caller token before deciding cleanup. Business
+  issuance closes first; framework's prior binding closes while its successful
+  admission keeps the same owner open. Genuine disposal failure stays retained.
+  Exact caller/signature controls reject extra, async, detached, missing and
+  token-taking joins. Four unit cases and native clean/dirty controls exercise
+  original loader cleanup, private callbacks, retained identity, healthy later
+  work and both requested source disposals.
+- Business COMMIT-acknowledgement loss and final lock-wait expiry previously had
+  real PostgreSQL direct-executor controls only. New pinned native-worker cases
+  stage organization, child-job, outbox and MUST-audit effects. Lost ACK retains
+  the actual identity while a fresh database probe is causally locked, then
+  resolves without a duplicate effect or vendor retry. Expired/live final-lock
+  controls prove atomic rollback/commit and the actual retry disposition.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,216 cases; the complete architecture run passes all 328 in 18 minutes
+3 seconds; 36 focused PostgreSQL cases pass, including the five new native rows.
+All report zero skips. The initial focused run passed 34 of 36; both failures
+were the new auxiliary fixture attempting a second rollback after its lock had
+already been released. Explicit lock ownership fixes teardown, and the same
+36-case rerun passes without weakening a production assertion.
+
+The actual-source control restores the old pending-cleanup snapshot temporarily.
+It builds, and both native auxiliary variants fail specifically because the
+business task completed before its original cleanup. Restoring the exact source
+bytes, rebuilding and rerunning makes both pass. Raw exception logging observed in two existing helpers was not established as
+a new Step 5 disclosure or violated decision; it was not promoted to a finding
+or bundled into this correction.
+
+The focused run overlaps 31 prior Docker cases and adds five. Combining current
+complete unit/architecture, prior contract/HTTP, and the existing corrected Docker
+receipts gives 1,815 distinct passing Docker and 4,539 distinct passing backend
+cases, using `(testId, testName)` identity. This is explicitly composite evidence,
+not another complete-suite rerun or current-head CI claim. Formatting, the
+nonempty/zero-skip runner, seven ADR parser controls and local links/fragments pass.
+
+The second full fresh review round follows the correction commit. Step 5 and
+Steps 6–9 are not declared complete by this first-round receipt.
 
 ### Durable outbox dispatch
 

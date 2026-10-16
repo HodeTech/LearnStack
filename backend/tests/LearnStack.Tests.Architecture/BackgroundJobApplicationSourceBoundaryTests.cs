@@ -47,18 +47,27 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("Job application-source constructors are closed");
         var ownerSurface = new[] { "Create", "get_Current", "Enter", "get_CleanupConfirmed", "RequireBusinessReady",
             "RequireFreshScopeReady", "RequireOwnedMainUnit", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction",
-            "ReportMainTransactionCleanup", "ReportMainCleanup", "RefuseUnrelatedRead", "CloseIssuance",
+            "ReportMainTransactionCleanup", "ReportMainCleanup", "RefuseUnrelatedRead", "CloseIssuance", "JoinAuxiliaryCleanupAsync",
             "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad", "BeginKillswitchLoad" };
         var resourceSurface = new[] { "HoldConnection", "HoldTransaction", "HoldCommand", "HoldReader", "HoldActualTask",
             "DisposeReaderAsync", "CleanupAsync" };
         CheckSurface(owner, ownerSurface);
         CheckSurface(resources, resourceSurface);
+        if (!owner.Methods.Any(method => method.Name == "JoinAuxiliaryCleanupAsync" && method.IsPublic
+                && !method.IsStatic && method.Parameters.Count == 0
+                && method.ReturnType.FullName == "System.Threading.Tasks.Task`1<System.Boolean>")
+            || !resources.Methods.Any(method => method.Name == "JoinActualTaskAsync" && method.IsAssembly
+                && !method.IsStatic && method.Parameters.Count == 0
+                && method.ReturnType.FullName == "System.Threading.Tasks.Task"))
+            offenders.Add("Auxiliary cleanup joins accept no token, callback or replacement task");
         var sites = CallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
 
         Exact(owner, "Create", [(JobExecutorType, "ExecutePublishedAsync")]);
         Exact(owner, ".ctor", [(AppJobOwner, "Create")]);
         Exact(owner, "Enter", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync")]);
+        Exact(owner, "JoinAuxiliaryCleanupAsync", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync")]);
+        Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
         Exact(owner, "BeginAuditConfigLoad", [(AppJobAuditConfig, "StartLoadAsync")]);
         Exact(owner, "BeginStandaloneAudit", [(AppJobAuditStore, "WriteOwnTransactionAsync")]);
         Exact(owner, "BeginTenantFlagsLoad", [(AppJobFlags, "StartTenantFlagsLoadAsync")]);
@@ -128,9 +137,10 @@ public sealed partial class OutboxDispatchConventionTests
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var guardedOwnerMethods = new[] { ".ctor", "Create", "Enter", "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad",
             "BeginKillswitchLoad", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction", "ReportMainTransactionCleanup",
-            "ReportMainCleanup", "RefuseUnrelatedRead" };
+            "ReportMainCleanup", "RefuseUnrelatedRead", "JoinAuxiliaryCleanupAsync" };
         foreach (var target in owner.Methods.Where(method => guardedOwnerMethods.Contains(method.Name, StringComparer.Ordinal))
-                     .Concat(resources.Methods.Where(method => method.IsPublic || method.IsConstructor)).ToArray())
+                     .Concat(resources.Methods.Where(method => method.IsPublic || method.IsConstructor
+                         || method.Name == "JoinActualTaskAsync")).ToArray())
         {
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
                 AssertMutation(census, "an off-owner job application-source capability through " + opcode,
@@ -153,6 +163,22 @@ public sealed partial class OutboxDispatchConventionTests
             owner.Methods.Add(extra);
             return () => owner.Methods.Remove(extra);
         }, JobApplicationSourceOffenders);
+        foreach (var join in new[] { owner.Methods.Single(method => method.Name == "JoinAuxiliaryCleanupAsync"),
+                     resources.Methods.Single(method => method.Name == "JoinActualTaskAsync") })
+        {
+            var declaringType = join.DeclaringType;
+            AssertMutation(census, "an auxiliary join accepting a caller cancellation token", () =>
+            {
+                var token = new ParameterDefinition(join.Module.ImportReference(typeof(CancellationToken)));
+                join.Parameters.Add(token);
+                return () => join.Parameters.Remove(token);
+            }, JobApplicationSourceOffenders);
+            AssertMutation(census, "a missing actual auxiliary join", () =>
+            {
+                declaringType.Methods.Remove(join);
+                return () => declaringType.Methods.Add(join);
+            }, JobApplicationSourceOffenders);
+        }
     }
 
     private static SortedSet<string> JobApplicationFactoryOffenders(ProductionCensus census)

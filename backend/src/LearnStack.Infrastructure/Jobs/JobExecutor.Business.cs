@@ -72,8 +72,8 @@ public sealed partial class JobExecutor
         {
             if (scope is { } owned)
                 cleanupFailed |= !await CleanupScopeAsync(owned, unit, null, retained).ConfigureAwait(false);
-            cleanupFailed |= !receipt.SourceOwner.CleanupConfirmed;
             receipt.SourceOwner.CloseIssuance();
+            cleanupFailed |= !await receipt.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
             try { activity?.Dispose(); }
             catch
             {

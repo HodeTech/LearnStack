@@ -53,6 +53,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
     public string ConnectionString { get; }
     public int DroppedCommitResponses => Volatile.Read(ref _droppedCommitResponses);
+    public int CompletedCommits => Volatile.Read(ref _completedCommits);
     public int AcceptedConnections => Volatile.Read(ref _acceptedConnections);
     public Task CommitResponseHeld => _commitResponseHeld.Task;
     public void ReleaseHeldResponse() => _releaseHeldResponse.TrySetResult();
