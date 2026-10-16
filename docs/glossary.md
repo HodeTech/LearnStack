@@ -322,7 +322,7 @@ These entries distinguish P02d-2 contracts from P02d-3 internal read contracts:
 
 ## Background Jobs
 
-These terms belong to
+Unless explicitly marked Proposed, these terms belong to
 [Accepted ADR-0047](decisions/0047-transactional-background-job-runtime.md), accepted with the expanded nine-step P02b-4 package on 2026-10-15. The contract is
 accepted; the [P02b-4 delivery records](roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
 own implementation and review status. Production business definitions remain empty.
@@ -361,6 +361,7 @@ own implementation and review status. Production business definitions remain emp
 | **Job execution profile** | A finite definition's transactional or external execution shape. External work separates short prepare/finalize transactions from an operation that runs without a business transaction. |
 | **Job reservation** | Tenant-wide durable occupancy of a declared capacity group by one job attempt. Lease expiry does not release unresolved external occupancy. |
 | **External quiescence** | Positive evidence that an old external attempt has ended and cannot start late. Missing heartbeats, expired leases and provider NotFound alone do not prove it. |
+| **Completed external failure policy (Proposed)** | Proposed bounded classification of a known external failure and whether the same stable operation may be attempted again. [ADR-0061](decisions/0061-known-external-job-failure-policy.md) owns the three-state proposal and cancellation restriction; maintainer reapproval and dependent implementation remain pending. |
 | **Job occurrence** | One durable logical UTC slot of a code-declared recurrence, independent of vendor tick IDs and duplicate wakeups. |
 | **Job recipient** | Immutable tenant/org routing intent for one occurrence, admitted through a restricted stored-row witness before a child job is submitted. |
 | **Job attempt** | One counted normal or finalize admission with typed AttemptId, immutable ordinal/deadline and write-once execution/outcome/quiescence evidence. Recovery probes are not counted attempts. |

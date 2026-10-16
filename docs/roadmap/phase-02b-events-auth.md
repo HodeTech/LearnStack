@@ -5697,16 +5697,17 @@ final observation/enforcement and full packet regression remain Step 9.
 
 ### P02b-4 external completed-failure proposal (2026-10-16)
 
-**ADR-0061 is Proposed; maintainer approval is pending.**
+**ADR-0061 remains Proposed; revision after the 2026-10-17 maintainer review
+requires explicit reapproval.**
 Step 7 preparation identified an unanswered report-policy input: direct completed
 Failed/Cancelled reports carry outcome/quiescence, without classifying the failure
 or granting retry of the same stable logical operation. Existing guards permit
 both retry and finalization; they do not select between them.
 
-[ADR-0061](../decisions/0061-known-external-job-failure-policy.md) proposes explicit
-failure class and same-operation permission, write-once status, and an honest
-terminal code when transient work cannot be repeated. Its source/contract audit
-is against `6a2ded99`. No dependent Step 7 runtime or migration is implemented or
+The initial [ADR-0061](../decisions/0061-known-external-job-failure-policy.md) draft
+at `8e0f982b` proposed separate failure class and same-operation permission,
+write-once status and a terminal code when transient work cannot be repeated.
+Its initial source/contract audit was against `6a2ded99`. No dependent Step 7 runtime or migration is implemented or
 authorized by this proposal. Step 6 capacity work continues under Accepted
 ADR-0047; the existing nine-step review/commit loop remains unchanged.
 
@@ -5717,6 +5718,34 @@ supersession, restart equivalence and discriminating pending proof obligations.
 The corpus reviewer independently verifies the ADR's links/anchors, Proposed
 status and prose width. No runtime test is claimed. Maintainer acceptance still
 precedes dependent Step 7 implementation.
+
+#### ADR-0061 revision after maintainer review (2026-10-17)
+
+The maintainer requested changes to the initial proposal; that review was not
+approval. Source checks confirm the missing finalization/terminal policy guards,
+the app/control ownership distinction and the absence of durable cancellation
+origin. The [revised ADR](../decisions/0061-known-external-job-failure-policy.md)
+remains Proposed and supplies the complete decision and proof inventory.
+
+The new choices for reapproval are one nonzero three-state policy and Permanent
+only for Failed. Cancelled explicitly states repeatability of the same operation;
+malformed Permanent cancellation is rejected without rewriting it. Adapter truth
+must survive reconciliation, while the runtime claims no certification of external
+causality. App-owned selection, deterministic storage and actual-row-bound audit
+cover retry, finalization and terminal reasons. The ADR separately maps module
+reasons, capacity release and all seven affected Registered rules.
+
+Two new independent reviewers, GPT-6-astra xhigh and GPT-6.1-sol xhigh, approve the
+full revised proposal for maintainer consideration without Blocker/Major findings.
+Their verified Minor corrections name stored outcome kind rather than an
+identifier DTO, and publish a clearly Proposed glossary pointer now. Both reviewers
+verify those corrections without further findings. These are source/design reviews;
+no new runtime, migration or passing execution proof is claimed.
+
+Error Handling's inherited five-attempt/jitter summary is independently reconciled
+with already Accepted ADR-0047. This does not accept ADR-0061 or change its budgets.
+No Accepted ADR body is edited. Explicit maintainer acceptance and its own decision
+commit still precede dependent Step 7 implementation; Step 6 continues independently.
 
 ### Durable outbox dispatch
 
