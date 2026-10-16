@@ -99,12 +99,25 @@ internal sealed class HangfireGenerationWork
         // unresolved resource owners after a wrapper returns. No delegate runs here.
         private Task<PostgresBackgroundJobRoutingStore.OwnedRoutingRead>? _routing;
         private Task<JobStartExecutionResult>? _admission;
+        private HangfireInvocationContract.BoundInvocation? _framework;
         private bool _completing;
         private int _retained;
+        private int _admissionClosed;
 
         internal CancellationToken Token => _private.Token;
         internal bool IsRetained => Volatile.Read(ref _retained) != 0;
         internal bool MarkRetainedOnce() => Interlocked.Exchange(ref _retained, 1) == 0;
+        internal bool TryAdmitContinuation() => Interlocked.CompareExchange(ref _admissionClosed, 0, 0) == 0;
+
+        internal void HoldInvocation(HangfireInvocationContract.BoundInvocation invocation)
+        {
+            ArgumentNullException.ThrowIfNull(invocation);
+            lock (_sync)
+            {
+                if (_completing || _framework is not null) throw new InvalidOperationException("A job invocation owns one framework operation.");
+                _framework = invocation;
+            }
+        }
 
         internal void HoldRouting(Task<PostgresBackgroundJobRoutingStore.OwnedRoutingRead> task)
         {
@@ -130,8 +143,16 @@ internal sealed class HangfireGenerationWork
         // slot. It still owns the actual execution and calls CompleteAsync later.
         internal void MarkRetained() => owner.MarkRetained(this);
 
+        internal void ExpireWait()
+        {
+            Interlocked.Exchange(ref _admissionClosed, 1);
+            owner.MarkRetained(this);
+            RequestCancellation();
+        }
+
         internal void RequestCancellation()
         {
+            Interlocked.Exchange(ref _admissionClosed, 1);
             lock (_sync)
             {
                 if (_completing || _cancellationObservation is not null) return;
@@ -162,7 +183,7 @@ internal sealed class HangfireGenerationWork
                 if (cancellation is { IsCompleted: false }) owner.MarkRetained(this);
                 if (cancellation is not null && !await cancellation.ConfigureAwait(false)) return;
                 _private.Dispose();
-                lock (_sync) { _routing = null; _admission = null; }
+                lock (_sync) { _routing = null; _admission = null; _framework = null; }
                 owner.Release(this);
             }
             catch (Exception exception) when (Catchable(exception))

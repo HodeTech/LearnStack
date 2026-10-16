@@ -92,7 +92,7 @@ public sealed partial class HangfireGenerationTests
         await AssertNoBusinessAdmissionAsync(source);
     }
 
-    private static IFetchedJob FetchWithAcceleratedRenewal(PostgreSqlStorage provider,
+    internal static IFetchedJob FetchWithAcceleratedRenewal(PostgreSqlStorage provider,
         IStorageConnection connection, string[] queues, CancellationToken cancellationToken)
     {
         var options = typeof(PostgreSqlStorage).GetProperty("Options", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -111,7 +111,7 @@ public sealed partial class HangfireGenerationTests
         finally { options.InvisibilityTimeout = original; }
     }
 
-    private static async Task<DateTime> FetchedAtAsync(PrivilegedDataSource source, string vendor,
+    internal static async Task<DateTime> FetchedAtAsync(PrivilegedDataSource source, string vendor,
         CancellationToken cancellationToken)
     {
         await using var sql = await source.OpenConnectionAsync(cancellationToken);
@@ -121,7 +121,7 @@ public sealed partial class HangfireGenerationTests
         return (DateTime)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
-    private static async Task SetFetchedRenewalPrivilegeAsync(DisposableSchemaDatabase database,
+    internal static async Task SetFetchedRenewalPrivilegeAsync(DisposableSchemaDatabase database,
         bool grant, CancellationToken cancellationToken)
     {
         await using var sql = (NpgsqlConnection)await PostgresFixture.OpenAsync(

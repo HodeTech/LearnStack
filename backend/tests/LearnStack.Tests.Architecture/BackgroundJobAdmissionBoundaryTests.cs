@@ -307,17 +307,19 @@ public sealed partial class OutboxDispatchConventionTests
             "Hangfire.Server.PerformContext");
         var invocationConstructor = RequireBoundaryMethod(offenders, invocation, ".ctor", "System.Void", MethodAttributes.Public,
             "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration);
-        var run = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
+        _ = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
+        var framework = RequireBoundaryMethod(offenders, invocation, "RunFrameworkAsync", BoundaryTask, MethodAttributes.Private,
+            "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation");
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRoutingStore, "TryClaimOwnedAsync", reader,
-            [publicReader + ":call", run + ":callvirt"]);
+            [publicReader + ":call", framework + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, ".ctor", activatorConstructor,
             [create + ":newobj", bind + ":newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, "Bind", bind, [bindGeneration + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobInvocationContract, "BindGeneration", bindGeneration,
             [HangfireGenerationConstructorId + ":call"]);
-        var expected = new[] { MethodId(composition), create, activatorConstructor, bind, begin, invocationConstructor, run }
+        var expected = new[] { MethodId(composition), create, activatorConstructor, bind, begin, invocationConstructor, framework }
             .Concat(factory is null ? [] : new[] { MethodId(factory) })
             .Concat([RuntimeConstructorId, RuntimeFactoryId, RuntimePreallocateId]);
         CheckSet(offenders, "privileged job-routing store consumers", ownedBodies
@@ -335,7 +337,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var (holder, accesses) in new[]
                  {
                      (activator, new[] { activatorConstructor + ":stfld", bind + ":ldfld", begin + ":ldfld" }),
-                     (invocation, new[] { invocationConstructor + ":stfld", run + ":ldfld" }),
+                     (invocation, new[] { invocationConstructor + ":stfld", framework + ":ldfld" }),
                  })
             CheckSet(offenders, TypeId(holder) + " routing capability field access", ownedBodies
                     .SelectMany(item => item.Body.Body.Instructions
@@ -390,7 +392,7 @@ public sealed partial class OutboxDispatchConventionTests
         }
         var cleanActivator = AddProbe(application, "CleanBoundInvocationIdentityObserver");
         AddCall(cleanActivator, "ObserveIdentity", bound.Methods.Single(method => method.Name == "get_Type"), OpCodes.Callvirt);
-        try { CredentialOffenders(census).Should().BeEmpty("immutable invocation identity does not forward routing authority"); }
+        try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("immutable invocation identity does not forward routing authority"); }
         finally { application.Types.Remove(cleanActivator); }
         var executor = types[(InfrastructureAssembly, JobExecutorType)];
         AssertMutation(census, "dynamic business construction in the framework executor", () =>

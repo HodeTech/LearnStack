@@ -5323,6 +5323,82 @@ the changes after Step 3 closeout `def48a1a`. The earlier slice reviews remain
 scoped receipts. Step 4 is not closed until both full rounds and their verified
 corrections complete; Steps 5–9 remain pending.
 
+##### Full Step 4 review round 1 (2026-10-16)
+
+Three fresh reviewers inspect `def48a1a..a1832c6e`: GPT-6 Astra/xhigh covers
+runtime/lifecycle; GPT-6.1 Sol/xhigh covers evidence/censuses; a second
+GPT-6.1 Sol/xhigh covers security/composition/corpus. They inspect the passing
+receipts without rerunning the toolchain. Four unique Major findings are verified
+against current source; the security review independently confirms the same
+metadata-heartbeat finding rather than adding another issue.
+
+- A held routing/framework cleanup has no finite wrapper-wait transition to
+  retained/unhealthy ownership. The correction reuses the existing short-work
+  wait bound and preserves actual work/callback/source ownership after return.
+- The facade drops the running generation's metadata-heartbeat fault during its
+  retry window. Aggregate health must preserve that fault before drain and reset
+  only after actual stored recovery.
+- Shared expiration/fetched-job component state/outcome and ownership facts do
+  not reach the registered health result. Fixed memory-only dimensions restore
+  those distinct observations without mapping readiness.
+- The production final-exit child holds actual Core control work but no actual
+  private cancellation callback. The isolated prototype remains decision support;
+  a combined shipped-relay positive and direct-Core-callback dirty control are
+  required in the qualified production child.
+
+Corrections and their regression qualification are in progress. The optional
+scan-cost suggestion scopes repeated type/call/body inventories to one detector
+evaluation, preserving fresh mutations/restoration and measuring the full suite
+before any performance claim. No Accepted decision changes. Step 9 retains the
+existing Standards 10/11 carrier sweep for legacy vendor-payload wording and the
+retired `Hangfire_Job_Payloads_Include_TenantId` spelling. No later step or full
+Step 4 review gate is closed by this record.
+
+The first correction run passes 33 of 35 focused PostgreSQL/Core-phase cases,
+including both real native framework expiry cases and all 24 Core-phase controls.
+Its two health failures are investigated rather than relabeled as qualification.
+One fixture fetches through a second provider whose renewal inventory is separate;
+the corrected control uses the facade's actual provider and a fixed fixture-only
+orphan queue with no native consumer. The metadata control also exposes PostgreSQL
+`query_canceled` (57014), which the pinned driver's generic transient list omits.
+The exact code now follows the already accepted timeout-retry policy; no other
+classification or retry bound changes. Both corrected health cases pass in a
+fresh 14-second run. Complete correction-head regression remains pending.
+
+##### Full Step 4 round-1 correction validation (2026-10-16)
+
+Root verifies all four findings against the current implementation and completes
+their corrections. The finite framework wait owns its actual operation before
+scheduling; expiry closes later admission and records retained ownership before
+returning the native slot. Real native controls cover held asynchronous cleanup
+and held synchronous framework execution, independent healthy admission below the
+retained threshold, and positive source/generation cleanup after release.
+
+Real PostgreSQL controls verify metadata-heartbeat timeout/recovery through the
+registered health result, distinct failed fetched-job renewal/recovery, and held
+expiration ownership. The production exit child now retains its actual private
+callback through finite host waiting and native zero exit. Its separate unsafe
+direct-Core-callback control requires supervised timeout, owned kill and actual
+join; those facts are explicitly refused by the normal-exit predicate. These are
+synthetic callback/fault controls over the shipped owners, not native resource
+failure incidence or a claim of cleanup at process exit.
+
+The corrected Release solution build passes with CI warnings-as-errors and zero
+warnings/errors. Fresh complete suites pass 2,166 unit, 321 architecture, four
+contract, 176 Docker-free integration and 1,741 Docker/PostgreSQL integration
+cases: 4,408 backend cases, zero failures/skips. The Docker suite takes 10m10s;
+the architecture suite takes 12m26s. The latter is a measured run duration, not a
+controlled speedup claim. Scoped inventory caching preserves mutation/undo and
+exception freshness controls without adding a global cache or a new rule.
+
+All 22 changed C# files are formatted. Seven ADR parser controls, 1,917 local
+links, 557 fragments, changed prose wrapping and whitespace checks pass. Earlier
+failed focused runs are excluded from the passing complete-suite total; focused
+controls overlap it and are not added again. No frontend/demo/current-head CI is
+claimed here; Step 9 owns packet-wide reruns. Round 1's verified corrections are
+qualified; a fresh full Step 4 round 2 follows their commit. Step 4 remains open
+until that round and any verified corrections complete. Steps 5–9 remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

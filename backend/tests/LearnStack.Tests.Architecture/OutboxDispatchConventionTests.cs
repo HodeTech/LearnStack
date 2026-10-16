@@ -524,28 +524,29 @@ public sealed partial class OutboxDispatchConventionTests
     private static void AssertMutation(ProductionCensus census, string description, Func<Action> mutate,
         Func<ProductionCensus, SortedSet<string>> detector)
     {
-        Scan().Should().BeEmpty("Fix: the planted control requires a clean nonempty production baseline");
+        EvaluateDetector(census, detector).Should().BeEmpty("Fix: the planted control requires a clean nonempty production baseline");
         var undo = mutate();
         try
         {
-            Scan().Should().NotBeEmpty("Fix: the same production detector must reject " + description);
+            EvaluateDetector(census, detector).Should().NotBeEmpty("Fix: the same production detector must reject " + description);
         }
         finally
         {
             undo();
         }
-        Scan().Should().BeEmpty("Fix: removing the planted offender must restore a clean production census");
+        EvaluateDetector(census, detector).Should().BeEmpty("Fix: removing the planted offender must restore a clean production census");
+    }
 
-        SortedSet<string> Scan()
-        {
-            using var scope = census.BeginDetectorScan();
-            return detector(census);
-        }
+    private static SortedSet<string> EvaluateDetector(ProductionCensus census, Func<ProductionCensus, SortedSet<string>> detector)
+    {
+        using var scope = census.BeginDetectorScan();
+        return detector(census);
     }
 
     private static void AssertDetectorScanCache(ProductionCensus census, ModuleDefinition module, MethodReference target)
     {
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("unscoped reads must rebuild after arbitrary metadata edits");
+        ReferenceEquals(OwnedBodies(census), OwnedBodies(census)).Should().BeFalse("unscoped body ownership reads must remain fresh");
         var probeKey = (module.Assembly.Name.Name, "ReviewProbe.DetectorScanProbe");
         var owner = module.Assembly.Name.Name + ":System.Void " + probeKey.Item2 + "::Run()";
         AssertMutation(census, "a newly added async subject visible only in the dirty detector scan", () =>
@@ -554,7 +555,11 @@ public sealed partial class OutboxDispatchConventionTests
             ReferenceEquals(current.Types, current.Types).Should().BeTrue("one detector call reuses its type index");
             var sites = CallSites(current);
             ReferenceEquals(sites, CallSites(current)).Should().BeTrue("one detector call reuses its read-only call-site snapshot");
+            var bodies = OwnedBodies(current);
+            ReferenceEquals(bodies, OwnedBodies(current)).Should().BeTrue("one detector call reuses its read-only body ownership snapshot");
             var present = current.Types.ContainsKey(probeKey);
+            bodies.Any(item => item.Body.Name == "MoveNext" && MethodId(item.Owner) == owner).Should().Be(present,
+                "attribute-linked body ownership must reflect each baseline, mutation and restoration");
             sites.Any(site => site.Owner == owner && MethodId(site.Target) == MethodId(target)).Should().Be(present,
                 "the type index and attribute-linked async calls must both reflect each baseline, mutation and restoration");
             var offenders = new SortedSet<string>(StringComparer.Ordinal);
@@ -562,6 +567,17 @@ public sealed partial class OutboxDispatchConventionTests
             return offenders;
         });
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("the final scan must release its cache");
+        ReferenceEquals(OwnedBodies(census), OwnedBodies(census)).Should().BeFalse("the final scan must release body ownership");
+        var failure = new InvalidOperationException("synthetic detector failure");
+        var failingScan = () => EvaluateDetector(census, current =>
+        {
+            _ = current.Types;
+            _ = OwnedBodies(current);
+            _ = CallSites(current);
+            throw failure;
+        });
+        failingScan.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
+        ReferenceEquals(census.Types, census.Types).Should().BeFalse("a failed detector must also release its scan");
     }
 
     private static Action ChangeAttributes<T>(Func<T> read, Action<T> write, T replacement)
@@ -637,6 +653,9 @@ public sealed partial class OutboxDispatchConventionTests
         public IEnumerable<(string Owner, MethodReference Target)> ReadCallSites(IEnumerable<(string Owner, MethodReference Target)> sites) =>
             _scan is { } scan ? scan.CallSites ??= Array.AsReadOnly(sites.ToArray()) : sites;
 
+        public IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> ReadOwnedBodies(IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
+            _scan is { } scan ? scan.OwnedBodies ??= Array.AsReadOnly(bodies.ToArray()) : bodies;
+
         private Dictionary<(string Assembly, string Type), TypeDefinition> BuildTypes() =>
             Modules.SelectMany(module => module.GetTypes()).ToDictionary(Key);
 
@@ -644,12 +663,14 @@ public sealed partial class OutboxDispatchConventionTests
         {
             internal Dictionary<(string Assembly, string Type), TypeDefinition>? Types { get; set; }
             internal IReadOnlyList<(string Owner, MethodReference Target)>? CallSites { get; set; }
+            internal IReadOnlyList<(MethodDefinition Body, MethodDefinition Owner)>? OwnedBodies { get; set; }
 
             public void Dispose()
             {
                 if (ReferenceEquals(census._scan, this)) census._scan = null;
                 Types = null;
                 CallSites = null;
+                OwnedBodies = null;
             }
         }
 

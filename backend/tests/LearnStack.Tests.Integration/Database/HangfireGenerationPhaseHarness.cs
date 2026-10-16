@@ -462,7 +462,8 @@ internal sealed record GenerationPhaseEvidence(GenerationPhaseReceipt Receipt, i
     bool InternalTopologyQualified, bool OriginalVendorBinaries, string Mutation);
 
 internal sealed record GenerationPhaseChild(bool Exited, int? ExitCode, bool TimedOut, bool Diagnostic,
-    bool Finally, bool ProcessExit, bool ProtocolInvalid, string[] Events, long Discarded);
+    bool Finally, bool ProcessExit, bool ProtocolInvalid, string[] Events, long Discarded,
+    bool ExternalKill = false, bool OwnedProcessJoined = false);
 
 internal sealed record GenerationPhaseReceipt(int Protocol, string Error, string Scenario, string Runtime,
     string Architecture, string Collector, bool BenignControlPassed, GenerationPhaseChild Twin,
@@ -476,6 +477,7 @@ internal sealed record GenerationPhaseReceipt(int Protocol, string Error, string
     private static readonly string[] ChildFields =
     [
         "Exited", "ExitCode", "TimedOut", "Diagnostic", "Finally", "ProcessExit", "ProtocolInvalid", "Events", "Discarded",
+        "ExternalKill", "OwnedProcessJoined",
     ];
     internal static readonly string[] EventNames =
     [
@@ -486,6 +488,8 @@ internal sealed record GenerationPhaseReceipt(int Protocol, string Error, string
         "startup_stalled", "late_handle", "late_progress", "late_cleanup",
         "capture_dispose_returned", "second_announcement_returned", "constructor_boundary_returned",
         "outer_completion_returned", "fatal_gate_returned",
+        "private_callback_held", "private_cancel_retained", "finite_host_wait_ended",
+        "private_callback_joined", "main_returning_unresolved", "direct_core_callback_entered",
     ];
 
     internal static GenerationPhaseReceipt Parse(string stdout, string prefix)

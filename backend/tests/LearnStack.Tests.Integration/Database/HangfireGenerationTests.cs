@@ -204,7 +204,7 @@ public sealed partial class HangfireGenerationTests(SchemaFixture schema)
     private static PrivilegedDataSource Source(DisposableSchemaDatabase database) =>
         new(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
 
-    private static string CreateOrphanWakeup(PostgreSqlStorage provider, HangfireRuntimeFilters filters,
+    internal static string CreateOrphanWakeup(PostgreSqlStorage provider, HangfireRuntimeFilters filters,
         BackgroundJobWorkerPoolRegistration pool) => CreateWakeup(provider, filters, pool,
             BackgroundJobId.From(Guid.CreateVersion7()));
 

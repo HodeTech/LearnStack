@@ -106,7 +106,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths()
     {
         using var census = ProductionCensus.Read();
-        CredentialOffenders(census).Should().BeEmpty("the three actual cleanup owners are nonempty clean subjects");
+        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the three actual cleanup owners are nonempty clean subjects");
         foreach (var name in new[] { Store, DeliveryStore, JobBridgeStore })
         {
             var store = census.Types[(InfrastructureAssembly, name)];
@@ -163,7 +163,7 @@ public sealed partial class OutboxDispatchConventionTests
                 return () => property.SetMethod = null;
             }, CredentialOffenders);
             var clean = AddCall(owner, "ReadDeclaredRuntimeType", owner.Module.ImportReference(typeof(object).GetMethod(nameof(GetType))!), OpCodes.Callvirt);
-            try { CredentialOffenders(census).Should().BeEmpty("a memory-only helper grants no acquisition, disposal or store capability"); }
+            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("a memory-only helper grants no acquisition, disposal or store capability"); }
             finally { owner.Methods.Remove(clean); }
         }
     }

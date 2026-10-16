@@ -98,7 +98,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers()
     {
         using var census = ProductionCensus.Read();
-        CredentialOffenders(census).Should().BeEmpty("the actual bridge store and its bridge owner must be nonempty clean subjects");
+        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the actual bridge store and its bridge owner must be nonempty clean subjects");
         var store = census.Types[(InfrastructureAssembly, JobBridgeStore)];
         var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);

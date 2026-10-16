@@ -42,7 +42,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor()
     {
         using var census = ProductionCensus.Read();
-        CredentialOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty(
             "Fix: confine each keyed source to its exact production registration, lazy factory and consumer; "
             + "the platform key never authorizes the dispatcher or its helpers");
     }
@@ -259,7 +259,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var name in new[] { "UnrelatedLiteral", "UnrelatedDynamic", "Dictionary", "CredentialDiagnostic" })
         {
             var undo = AddCompiledCredentialProbe(application, name);
-            try { CredentialOffenders(census).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
+            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: unrelated configuration, dictionary indexers and diagnostics remain valid"); }
             finally { undo(); }
         }
     }
@@ -390,7 +390,7 @@ public sealed partial class OutboxDispatchConventionTests
         AddCall(type, "CallUnrelatedPublisher", unrelated, OpCodes.Call);
         try
         {
-            CredentialOffenders(census).Should().BeEmpty("Fix: both distinct production keys and ordinary unkeyed resolution remain valid");
+            EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("Fix: both distinct production keys and ordinary unkeyed resolution remain valid");
             PublicationOffenders(census).Should().BeEmpty("Fix: unrelated methods named PublishAsync are not event-bus publication");
         }
         finally { module.Types.Remove(type); }

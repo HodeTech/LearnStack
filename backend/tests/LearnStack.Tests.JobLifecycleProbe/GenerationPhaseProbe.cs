@@ -15,12 +15,19 @@ internal static class GenerationPhaseProbe
     internal const string EventPrefix = "LearnStackGenerationEvent:";
     private const string Root = "/proof";
     private static readonly TimeSpan ChildBudget = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DirectCallbackWait = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan OwnedProcessJoinBudget = TimeSpan.FromSeconds(10);
+    private static readonly string[] DirectCallbackEvents =
+    [
+        "armed", "fault_site", "first_announcement", "required_thread_held", "private_callback_held",
+        "private_cancel_retained", "finite_host_wait_ended", "main_returning_unresolved", "direct_core_callback_entered",
+    ];
     private static readonly string[] Scenarios =
     [
         "gen_constructor_before", "gen_constructor_after", "gen_required_before_capture",
         "gen_supplied_after_capture", "gen_post_builder", "gen_notify_succeeded", "gen_wait_entry",
         "gen_dispose_second_announce", "gen_dispose_outer_complete", "gen_announce_log",
-        "gen_host_stop", "gen_final_exit", "gen_process_exit",
+        "gen_host_stop", "gen_final_exit", "gen_process_exit", "gen_process_exit_direct",
         "gen_stall_constructor", "gen_stall_required", "gen_stall_supplied", "gen_stall_postbuilder",
     ];
     internal static readonly string[] Events =
@@ -32,6 +39,8 @@ internal static class GenerationPhaseProbe
         "startup_stalled", "late_handle", "late_progress", "late_cleanup",
         "capture_dispose_returned", "second_announcement_returned", "constructor_boundary_returned",
         "outer_completion_returned", "fatal_gate_returned",
+        "private_callback_held", "private_cancel_retained", "finite_host_wait_ended",
+        "private_callback_joined", "main_returning_unresolved", "direct_core_callback_entered",
     ];
 
     internal static bool IsScenario(string value) => Scenarios.Contains(value, StringComparer.Ordinal);
@@ -64,6 +73,7 @@ internal static class GenerationPhaseProbe
             var twin = await ObserveChildAsync(scenario, twin: true, envelope, mutation).ConfigureAwait(false);
             var twinPassed = twin.Exited && twin.ExitCode == 0 && !twin.TimedOut && !twin.Diagnostic
                 && twin.Finally && twin.ProcessExit && !twin.ProtocolInvalid
+                && !twin.ExternalKill && !twin.OwnedProcessJoined
                 && twin.Events.Contains("armed", StringComparer.Ordinal)
                 && twin.Events.Contains("fault_site", StringComparer.Ordinal)
                 && twin.Events.Contains("normal_cleanup", StringComparer.Ordinal)
@@ -85,7 +95,10 @@ internal static class GenerationPhaseProbe
             Emit(new PhaseReceipt(1, "none", scenario, RuntimeInformation.FrameworkDescription,
                 RuntimeInformation.ProcessArchitecture.ToString(), File.ReadAllText("/proc/sys/kernel/core_pattern").Trim(),
                 true, twin, observed, artifacts, rows.Item1, rows.Item2));
-            return observed.Exited && !observed.TimedOut && artifacts ? 0 : 79;
+            // A dirty hang is a decisive control only after explicit owned kill
+            // and actual process/output join. It is never a native-exit success.
+            var dirtyJoined = scenario == "gen_process_exit_direct" && QualifiedDirectCallbackHang(observed);
+            return observed.Exited && artifacts && (!observed.TimedOut || dirtyJoined) ? 0 : 79;
         }
         catch (Exception failure) when (failure.GetType() != typeof(OutOfMemoryException)
             && failure.GetType() != typeof(StackOverflowException))
@@ -191,27 +204,63 @@ internal static class GenerationPhaseProbe
         process.StandardInput.Close();
         try
         {
-            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+            var actualExit = process.WaitForExitAsync(deadline.Token);
+            if (!twin && scenario == "gen_process_exit_direct")
+            {
+                var first = await Task.WhenAny(actualExit, stdout.DirectCallbackEntered.Task)
+                    .WaitAsync(deadline.Token).ConfigureAwait(false);
+                if (first == stdout.DirectCallbackEntered.Task)
+                {
+                    try { await actualExit.WaitAsync(DirectCallbackWait, deadline.Token).ConfigureAwait(false); }
+                    catch (TimeoutException)
+                    {
+                        return await TerminateAndJoinAsync().ConfigureAwait(false);
+                    }
+                }
+                else await actualExit.ConfigureAwait(false);
+            }
+            else await actualExit.ConfigureAwait(false);
             await Task.WhenAll(outDrain, errorDrain).WaitAsync(deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
-            // A timeout is a failed qualification. Later container teardown is
-            // failure cleanup and cannot supply an expected native exit.
-            return Observation(exited: false, exitCode: null, timedOut: true);
+            // Explicitly settle only this owned child before the supervisor
+            // leaves. Even a successful kill/join cannot rescue normal proof.
+            return await TerminateAndJoinAsync().ConfigureAwait(false);
         }
         return Observation(process.HasExited, process.ExitCode, timedOut: false);
 
-        ChildObservation Observation(bool exited, int? exitCode, bool timedOut) => new(exited, exitCode, timedOut,
+        async Task<ChildObservation> TerminateAndJoinAsync()
+        {
+            using var cleanupDeadline = new CancellationTokenSource(OwnedProcessJoinBudget);
+            var externalKill = !process.HasExited;
+            if (externalKill) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cleanupDeadline.Token).ConfigureAwait(false);
+            await Task.WhenAll(outDrain, errorDrain).WaitAsync(cleanupDeadline.Token).ConfigureAwait(false);
+            if (!process.HasExited) throw Refused();
+            return Observation(exited: true, exitCode: process.ExitCode, timedOut: true,
+                externalKill: externalKill, ownedProcessJoined: true);
+        }
+
+        ChildObservation Observation(bool exited, int? exitCode, bool timedOut,
+            bool externalKill = false, bool ownedProcessJoined = false) => new(exited, exitCode, timedOut,
             stderr.Diagnostic, HasSentinel("finally.flag"), HasSentinel("process-exit.flag"),
             stdout.ProtocolInvalid || stderr.ProtocolInvalid, stdout.Observed.ToArray(),
-            Math.Min(1_000_000, stdout.Discarded + stderr.Discarded));
+            Math.Min(1_000_000, stdout.Discarded + stderr.Discarded), externalKill, ownedProcessJoined);
         bool HasSentinel(string name)
         {
             var path = Path.Combine(directory, name);
             return File.Exists(path) && new FileInfo(path).Length == 4 && File.ReadAllText(path) == "done";
         }
     }
+
+    private static bool QualifiedDirectCallbackHang(ChildObservation child) => child.Exited && child.ExitCode == 137
+        && child.TimedOut && child.ExternalKill && child.OwnedProcessJoined && !child.Diagnostic
+        && child.Finally && child.ProcessExit && !child.ProtocolInvalid
+        && DirectCallbackEvents.All(value => child.Events.Contains(value, StringComparer.Ordinal))
+        && !child.Events.Contains("final_observed", StringComparer.Ordinal)
+        && !child.Events.Contains("normal_cleanup", StringComparer.Ordinal)
+        && !child.Events.Contains("private_callback_joined", StringComparer.Ordinal);
 
     private static async Task<(long Servers, long Business)> ReadRowsAsync(string connectionString)
     {
@@ -267,7 +316,8 @@ internal static class GenerationPhaseProbe
 
     private sealed record FixtureEnvelope(int Protocol, string ConnectionString);
     private sealed record ChildObservation(bool Exited, int? ExitCode, bool TimedOut, bool Diagnostic,
-        bool Finally, bool ProcessExit, bool ProtocolInvalid, string[] Events, long Discarded);
+        bool Finally, bool ProcessExit, bool ProtocolInvalid, string[] Events, long Discarded,
+        bool ExternalKill, bool OwnedProcessJoined);
     private sealed record PhaseReceipt(int Protocol, string Error, string Scenario, string Runtime,
         string Architecture, string Collector, bool BenignControlPassed, ChildObservation Twin,
         ChildObservation? Child, bool ArtifactsAllowed, long ServerRowsAfter, long BusinessRowsAfter);
@@ -277,6 +327,7 @@ internal static class GenerationPhaseProbe
         private readonly StringBuilder _line = new(256);
         private bool _overflow;
         internal List<string> Observed { get; } = [];
+        internal TaskCompletionSource DirectCallbackEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool Diagnostic { get; private set; }
         internal bool ProtocolInvalid { get; private set; }
         internal long Discarded { get; private set; }
@@ -309,7 +360,11 @@ internal static class GenerationPhaseProbe
                 var marker = value[EventPrefix.Length..];
                 if (!Events.Contains(marker, StringComparer.Ordinal) || Observed.Contains(marker, StringComparer.Ordinal)
                     || Observed.Count >= Events.Length) ProtocolInvalid = true;
-                else Observed.Add(marker);
+                else
+                {
+                    Observed.Add(marker);
+                    if (marker == "direct_core_callback_entered") DirectCallbackEntered.TrySetResult();
+                }
             }
             else if (!_overflow && !allowEvents && (value == diagnostic || value == "Process terminated. " + diagnostic))
                 Diagnostic = true;

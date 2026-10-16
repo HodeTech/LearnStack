@@ -10,7 +10,9 @@ input, mounted read-only at `/opt/probe`; writable scratch is an isolated tmpfs.
 
 Every fatal case first runs a benign twin proving the `finally` and `ProcessExit`
 sentinels work. The actual production gate supplies the only fatal sink. A wait
-timeout fails qualification; container teardown never counts as observed FailFast.
+timeout cannot supply an expected native result; container teardown never counts
+as observed FailFast. The explicitly dirty direct-callback control below requires
+its own supervised timeout/kill/join and is refused by the normal exit predicate.
 Only fixed sentinels are allowed in the writable scratch mount. Raw runtime stderr
 is drained and discarded after recognizing its exact fixed diagnostic.
 
@@ -51,6 +53,30 @@ post-marker wait setup, required disposal that skips removal, second announcemen
 actual outer completion, host-stop priority, final-teardown priority and actual
 ProcessExit registration order. Retained stock threads are held by a synthetic
 logger barrier; that evidence is not business work or an external cleanup witness.
+
+The production `gen_process_exit` case additionally admits one actual
+generation-owned private invocation and holds a callback on its real private
+token. Real `RequestHostStop` issues the production `CancelAsync` relay; its
+actual observer and invocation cleanup stay pending after finite caller waiting.
+The private source remains accessible, and the same retained generation/source
+ownership survives until process exit. A post-Core observer must see the closed
+final gate, unjoined Core/framework cleanup and the still-held private callback
+before the supervisor observes native zero. This fixture invocation and callback
+hold are synthetic; they do not activate business work or reproduce a native
+resource failure. Its benign twin releases the same callback and joins the real
+private cleanup and generation before exiting.
+
+The separate `gen_process_exit_direct` child adds a deliberately unsafe callback
+on the actual captured Core shutdown token. That synchronous callback waits for
+the same held production private cleanup and prevents the post-Core observer
+from running. After its exact entry marker, the supervisor requires a bounded
+one-second unsuccessful exit wait, explicitly kills only its owned child process
+tree, and joins its actual exit and final output before returning. The receipt
+records `TimedOut`, `ExternalKill` and `OwnedProcessJoined`; the normal native-exit
+predicate rejects any such cleanup. Native SIGKILL and a normally exited
+supervisor are observed before container teardown. Ordinary unexpected child
+timeouts also receive owned kill/join but remain failed qualification. No timeout,
+kill, source-disposal request or process exit claims actual private cleanup.
 
 Four clock-controlled stalls retain real Core construction or required/supplied
 startup work through the observation deadline. Late publication/progress must remain

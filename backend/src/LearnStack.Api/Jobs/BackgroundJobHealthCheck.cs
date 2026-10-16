@@ -14,6 +14,7 @@ public sealed class BackgroundJobHealthCheck(BackgroundJobRuntime runtime) : IHe
         var snapshot = runtime.Snapshot;
         var data = new Dictionary<string, object>(StringComparer.Ordinal) { ["state"] = snapshot.State.ToString() };
         foreach (var pool in snapshot.Pools) data.Add("pool:" + pool.Pool, pool);
+        foreach (var component in snapshot.Maintenance) data.Add("maintenance:" + component.Component, component);
         return Task.FromResult(snapshot.IsHealthy
             ? HealthCheckResult.Healthy(data: data)
             : HealthCheckResult.Unhealthy("Background jobs are not healthy.", data: data));

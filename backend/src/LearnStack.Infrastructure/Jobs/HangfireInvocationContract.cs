@@ -96,6 +96,10 @@ public static class HangfireInvocationContract
     internal sealed class BoundInvocation(Job job, PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
         HangfireGeneration? owner = null)
     {
+        private readonly TaskCompletionSource<Task> _operationPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Task? _operationObserver;
+        private Task<bool>? _wrapperWait;
+        private bool _cleanupConfirmed;
         private int _entered;
         private int _closed;
         internal Type Type => job.Type;
@@ -110,9 +114,71 @@ public static class HangfireInvocationContract
             if (owner?.TryAdmitInvocation() == false) return;
             var work = owner?.TryBeginWork();
             if (owner is not null && work is null) return;
+            if (work is null)
+            {
+                // Unbound activation is used only by direct contract fixtures.
+                await RunFrameworkAsync(id, generation, null).ConfigureAwait(false);
+                return;
+            }
+
+            // The active generation roots this exact operation before either
+            // scheduling or a possibly blocking synchronous framework prefix.
+            work.HoldInvocation(this);
+            _operationObserver = ObserveOperationAsync(work);
+            _wrapperWait = WaitForOperationAsync(work, owner!.InvocationWait, owner.InvocationTime);
+            try
+            {
+                Task operation;
+                if (ExecutionContext.IsFlowSuppressed()) operation = Task.Run(() => RunFrameworkAsync(id, generation, work));
+                else
+                {
+                    using (ExecutionContext.SuppressFlow())
+                        operation = Task.Run(() => RunFrameworkAsync(id, generation, work));
+                }
+                _operationPublished.TrySetResult(operation);
+            }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                // No returned task is not a positive no-issued-work witness.
+                // The prebound observer and concrete invocation stay retained.
+                work.ExpireWait();
+            }
+            if (await _wrapperWait.ConfigureAwait(false))
+                await (await _operationPublished.Task.ConfigureAwait(false)).ConfigureAwait(false);
+        }
+
+        private async Task ObserveOperationAsync(HangfireGenerationWork.Invocation work)
+        {
+            var operation = await _operationPublished.Task.ConfigureAwait(false);
+            // Observe faults even after the native wrapper has stopped waiting.
+            // Only its actual return and positive cleanup release the work entry.
+            await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await work.CompleteAsync(_cleanupConfirmed).ConfigureAwait(false);
+        }
+
+        private async Task<bool> WaitForOperationAsync(HangfireGenerationWork.Invocation work,
+            TimeSpan timeout, TimeProvider time)
+        {
+            try
+            {
+                await _operationObserver!.WaitAsync(timeout, time).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                // Close later admission and account retained work before giving
+                // the stock slot back; cancellation callbacks remain owned.
+                work.ExpireWait();
+                return false;
+            }
+        }
+
+        private async Task RunFrameworkAsync(BackgroundJobId id, long generation, HangfireGenerationWork.Invocation? work)
+        {
             var cleanupConfirmed = false;
             try
             {
+                if (!MayContinue(work)) { cleanupConfirmed = true; return; }
                 var token = work?.Token ?? CancellationToken.None;
                 var route = routing.TryClaimOwnedAsync(id, generation, token);
                 work?.HoldRouting(route);
@@ -120,10 +186,10 @@ public static class HangfireInvocationContract
                 cleanupConfirmed = read.CleanupConfirmed;
                 if (!cleanupConfirmed || read.Failed || read.Claim is not { } claim) return;
                 if (claim.Queue != job.Queue) throw Refused();
-                if (owner?.TryAdmitInvocation() == false) return;
+                if (!MayContinue(work)) return;
                 // Step 4 supplies transport and committed admission only. Step 5
                 // extends JobExecutor with the business participant/completion owner.
-                var admission = executor.ExecuteAsync(claim, startGate: owner is null ? null : owner.TryAdmitInvocation,
+                var admission = executor.ExecuteAsync(claim, startGate: () => MayContinue(work),
                     cancellationToken: token);
                 work?.HoldAdmission(admission);
                 cleanupConfirmed = false;
@@ -132,9 +198,15 @@ public static class HangfireInvocationContract
             }
             finally
             {
-                if (work is not null) await work.CompleteAsync(cleanupConfirmed).ConfigureAwait(false);
+                _cleanupConfirmed = cleanupConfirmed;
             }
         }
+
+        private bool MayContinue(HangfireGenerationWork.Invocation? work) => owner?.TryAdmitInvocation() != false
+            && work?.TryAdmitContinuation() != false;
+
+        private static bool Catchable(Exception failure) => failure.GetType() != typeof(OutOfMemoryException)
+            && failure.GetType() != typeof(StackOverflowException);
 
         internal Task RunTickAsync(string key, long revision)
         {

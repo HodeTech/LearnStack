@@ -111,6 +111,10 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal Task<bool> Ready => _ready.Task;
     internal Task Completion => _completion.Task;
+    // The current framework invocation is short work; its external wait reuses
+    // the validated transactional bound while each SQL operation keeps its own.
+    internal TimeSpan InvocationWait => _bounds.TransactionTimeout;
+    internal TimeProvider InvocationTime => _time;
     internal HangfireGenerationWorkSnapshot WorkSnapshot => _work.Snapshot;
     internal bool TryAdmitInvocation() => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result && _work.CanStart && _gate.TryAdmit()
         && Interlocked.CompareExchange(ref _draining, 0, 0) == 0;
@@ -507,6 +511,10 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
     private static bool Catchable(Exception failure) => failure.GetType() != typeof(OutOfMemoryException)
         && failure.GetType() != typeof(StackOverflowException);
     private static bool Transient(Exception? failure) => failure is TimeoutException or IOException or OperationCanceledException
+        // PostgreSQL statement_timeout reports query_canceled, which Npgsql's
+        // generic IsTransient list omits. It is this owned callback's bounded
+        // storage timeout, not a schema/configuration refusal.
+        || failure is PostgresException { SqlState: PostgresErrorCodes.QueryCanceled }
         || failure is NpgsqlException { IsTransient: true };
     private static InvalidOperationException Refused() => new("The owned Hangfire lifecycle refused continuation.");
 

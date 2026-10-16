@@ -300,7 +300,10 @@ public sealed partial class OutboxDispatchConventionTests
         return offenders;
     }
 
-    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> OwnedBodies(ProductionCensus census)
+    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> OwnedBodies(ProductionCensus census) =>
+        census.ReadOwnedBodies(EnumerateOwnedBodies(census));
+
+    private static IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> EnumerateOwnedBodies(ProductionCensus census)
     {
         var owners = census.Types.Values.SelectMany(type => type.Methods)
             .SelectMany(method => method.CustomAttributes.Where(attribute => attribute.AttributeType.FullName is

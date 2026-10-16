@@ -17,7 +17,7 @@ if [ "$#" -eq 2 ]; then
 fi
 case "$1" in
     benign|constructor|startup_unwind|lifecycle_unwind|host_stop_then_fatal|final_exit_then_fatal) ;;
-    gen_constructor_before|gen_constructor_after|gen_required_before_capture|gen_supplied_after_capture|gen_post_builder|gen_notify_succeeded|gen_wait_entry|gen_dispose_second_announce|gen_dispose_outer_complete|gen_announce_log|gen_host_stop|gen_final_exit|gen_process_exit) ;;
+    gen_constructor_before|gen_constructor_after|gen_required_before_capture|gen_supplied_after_capture|gen_post_builder|gen_notify_succeeded|gen_wait_entry|gen_dispose_second_announce|gen_dispose_outer_complete|gen_announce_log|gen_host_stop|gen_final_exit|gen_process_exit|gen_process_exit_direct) ;;
     gen_stall_constructor|gen_stall_required|gen_stall_supplied|gen_stall_postbuilder) ;;
     *) refuse argument_refused ;;
 esac

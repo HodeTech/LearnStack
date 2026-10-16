@@ -752,8 +752,18 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   binding cannot stand in for completed messaging work. The facade owns bootstrap,
   pools, shared components and bridge under one finite external shutdown budget;
   actual joins continue after caller waiting ends. Its health check reads memory
-  and remains unmapped. Implementation is in progress; both full Step 4 review
-  rounds remain pending.
+  and remains unmapped. Step 4 implementation remains in progress; its full first
+  review's corrections are qualified and the fresh full second round is pending.
+- The current short routing/admission invocation reuses `TransactionTimeout`
+  (default 30 seconds, maximum five minutes) as its whole external wrapper wait;
+  individual SQL deadlines remain narrower. Expiry records retained ownership and
+  closes late admission before the native wrapper returns. Actual work, private
+  cancellation callbacks and cleanup remain owned independently of that wait.
+- A per-pool server-metadata heartbeat fault makes `jobs` unhealthy during retry,
+  before draining. Only confirmed stored heartbeat success clears it. Two fixed
+  maintenance health entries separately report expiration and fetched-job renewal
+  state, outcome, actual join, resource ownership and storage fault. No provider
+  object or SQL runs in health observation.
 - Modules submit typed registered jobs on their announced business transaction.
   Transactional and external prepare/execute/finalize profiles retain distinct
   owners; vendor success is not business completion. Events keep their independent

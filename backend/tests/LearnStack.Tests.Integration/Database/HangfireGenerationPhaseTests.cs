@@ -44,6 +44,41 @@ public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
             "native termination is decisive only with the actual Core phase and qualified normal twin");
     }
 
+    [Fact]
+    public async Task A_direct_Core_callback_hangs_the_actual_private_relay_until_only_its_owned_child_is_killed_and_joined()
+    {
+        var evidence = await HangfireGenerationPhaseHarness.RunAsync("gen_process_exit_direct");
+        output.WriteLine(JsonSerializer.Serialize(evidence));
+        evidence.SupervisorExitCode.Should().Be(0, "the supervisor must actually join the dirty child before container cleanup");
+        evidence.InternalTopologyQualified.Should().BeTrue();
+        evidence.OriginalVendorBinaries.Should().BeTrue();
+        var receipt = evidence.Receipt;
+        receipt.Error.Should().Be("none");
+        receipt.BenignControlPassed.Should().BeTrue();
+        receipt.ArtifactsAllowed.Should().BeTrue();
+        receipt.ServerRowsAfter.Should().Be(1);
+        receipt.BusinessRowsAfter.Should().Be(0);
+        PrivateCallbackTwin(receipt.Twin).Should().BeTrue("the same real private callback must join when the benign twin releases it");
+        receipt.Child.Should().NotBeNull();
+        var child = receipt.Child!;
+        child.Exited.Should().BeTrue();
+        child.ExitCode.Should().Be(137, "only the supervisor's explicit SIGKILL settles this deliberately blocked child");
+        child.TimedOut.Should().BeTrue();
+        child.ExternalKill.Should().BeTrue();
+        child.OwnedProcessJoined.Should().BeTrue();
+        child.Diagnostic.Should().BeFalse();
+        child.Finally.Should().BeTrue();
+        child.ProcessExit.Should().BeTrue("the pre-Core sentinel runs before Core enters the dirty synchronous callback");
+        child.ProtocolInvalid.Should().BeFalse();
+        child.Events.Should().Contain("armed").And.Contain("fault_site").And.Contain("first_announcement")
+            .And.Contain("required_thread_held").And.Contain("direct_core_callback_entered");
+        PrivateCallbackHeld(child).Should().BeTrue();
+        Before(child, "main_returning_unresolved", "direct_core_callback_entered").Should().BeTrue();
+        child.Events.Should().NotContain("final_observed").And.NotContain("private_callback_joined").And.NotContain("normal_cleanup");
+        Refusal(receipt, receipt.Scenario).Should().Be("external_cleanup",
+            "owned timeout cleanup must never satisfy the normal native-exit predicate");
+    }
+
     [Theory]
     [InlineData("sink", "gen_post_builder", "fatal_gate_returned", "native_result", 0)]
     [InlineData("constructor", "gen_constructor_before", "constructor_boundary_returned", "native_result", 0)]
@@ -122,12 +157,40 @@ public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
             clean with { Child = child with { Events = [.. child.Events, "second_announcement_returned"] } },
             clean with { Child = child with { ExitCode = 0, Diagnostic = false, Finally = true, ProcessExit = true } },
             clean with { Child = child with { Exited = false, TimedOut = true } },
+            clean with { Child = child with { ExternalKill = true } },
+            clean with { Child = child with { OwnedProcessJoined = true } },
             clean with { ArtifactsAllowed = false },
             clean with { ServerRowsAfter = 2 },
             clean with { BusinessRowsAfter = 1 },
             clean with { BenignControlPassed = false },
             clean with { Twin = twin with { Events = twin.Events.Where(value => value != "normal_cleanup").ToArray() } },
         }) Refusal(dirty, clean.Scenario).Should().NotBe("none");
+
+        var callbackEvents = new[] { "armed", "first_announcement", "required_thread_held", "fault_site",
+            "private_callback_held", "private_cancel_retained", "finite_host_wait_ended", "main_returning_unresolved", "final_observed" };
+        var callbackTwin = twin with
+        {
+            Events = ["armed", "first_announcement", "required_thread_held", "fault_site", "private_callback_held",
+                "private_cancel_retained", "finite_host_wait_ended", "private_callback_joined", "capture_dispose", "removal_entered", "normal_cleanup"],
+        };
+        var callbackChild = new GenerationPhaseChild(true, 0, false, false, true, true, false, callbackEvents, 0);
+        var callbackReceipt = clean with { Scenario = "gen_process_exit", Twin = callbackTwin, Child = callbackChild };
+        Refusal(callbackReceipt, callbackReceipt.Scenario).Should().Be("none");
+        foreach (var marker in new[] { "private_callback_held", "private_cancel_retained", "finite_host_wait_ended", "main_returning_unresolved", "final_observed" })
+            Refusal(callbackReceipt with { Child = callbackChild with { Events = callbackEvents.Where(value => value != marker).ToArray() } },
+                callbackReceipt.Scenario).Should().NotBe("none", "each actual relay/exit observation is mandatory");
+        foreach (var wrong in new[]
+        {
+            callbackChild with { Events = [.. callbackEvents, "private_callback_joined"] },
+            callbackChild with { Events = [.. callbackEvents, "direct_core_callback_entered"] },
+            callbackChild with { Events = [.. callbackEvents, "normal_cleanup"] },
+            callbackChild with { ExternalKill = true },
+            callbackChild with { OwnedProcessJoined = true },
+            callbackChild with { TimedOut = true },
+            callbackChild with { ExitCode = 137 },
+        }) Refusal(callbackReceipt with { Child = wrong }, callbackReceipt.Scenario).Should().NotBe("none");
+        Refusal(callbackReceipt with { Twin = callbackTwin with { Events = twin.Events } }, callbackReceipt.Scenario)
+            .Should().NotBe("none", "an unrelated benign cleanup does not qualify the private callback twin");
         // Predicate controls are deliberately labelled separately from an
         // actual same-child suppression mutation, which owns its own run.
     }
@@ -140,6 +203,7 @@ public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
         if (!receipt.BenignControlPassed || !Normal(receipt.Twin) || !Has(receipt.Twin, "normal_cleanup")) return "normal_twin";
         if (!receipt.ArtifactsAllowed || receipt.BusinessRowsAfter != 0 || receipt.ServerRowsAfter is < 0 or > 1) return "artifacts_or_rows";
         var child = receipt.Child;
+        if (child is { ExternalKill: true } or { OwnedProcessJoined: true }) return "external_cleanup";
         if (child is null || child.ProtocolInvalid || !child.Exited || child.TimedOut
             || child.Discarded is < 0 or > 1_000_000 || !Has(child, "armed") || !Has(child, "fault_site")) return "phase_or_exit";
         var stalled = scenario.StartsWith("gen_stall_", StringComparison.Ordinal);
@@ -187,15 +251,30 @@ public sealed class HangfireGenerationPhaseTests(ITestOutputHelper output)
                 && Before(child, "host_stopped", "fault_site") && !Has(child, "final_selected") ? "none" : "host_stop",
             "gen_final_exit" => Normal(child) && Has(child, "final_selected") && Has(child, "terminal_retained")
                 && !Has(child, "normal_cleanup") && Before(child, "final_selected", "fault_site") ? "none" : "final_priority",
-            "gen_process_exit" => Normal(child) && Has(child, "final_observed") && !Has(child, "final_selected")
-                && !Has(child, "normal_cleanup") ? "none" : "process_exit_order",
+            "gen_process_exit" => Normal(child) && PrivateCallbackTwin(receipt.Twin) && PrivateCallbackHeld(child)
+                && Has(child, "final_observed") && Before(child, "main_returning_unresolved", "final_observed")
+                && !Has(child, "final_selected") && !Has(child, "direct_core_callback_entered")
+                && !Has(child, "private_callback_joined") && !Has(child, "normal_cleanup") ? "none" : "process_exit_order",
             _ => "unknown_scenario",
         };
     }
 
     private static bool Normal(GenerationPhaseChild child) => child.Exited && child.ExitCode == 0 && !child.TimedOut
         && !child.Diagnostic && child.Finally && child.ProcessExit && !child.ProtocolInvalid
+        && !child.ExternalKill && !child.OwnedProcessJoined
         && Has(child, "armed") && Has(child, "fault_site");
+    private static bool PrivateCallbackHeld(GenerationPhaseChild child) => Has(child, "private_callback_held")
+        && Has(child, "private_cancel_retained") && Has(child, "finite_host_wait_ended") && Has(child, "main_returning_unresolved")
+        && Before(child, "private_callback_held", "private_cancel_retained")
+        && Before(child, "private_cancel_retained", "finite_host_wait_ended")
+        && Before(child, "finite_host_wait_ended", "main_returning_unresolved");
+    private static bool PrivateCallbackTwin(GenerationPhaseChild child) => Normal(child)
+        && Has(child, "private_callback_held") && Has(child, "private_cancel_retained") && Has(child, "finite_host_wait_ended")
+        && Has(child, "private_callback_joined") && Has(child, "normal_cleanup")
+        && Before(child, "private_callback_held", "private_cancel_retained")
+        && Before(child, "private_cancel_retained", "finite_host_wait_ended")
+        && Before(child, "finite_host_wait_ended", "private_callback_joined")
+        && Before(child, "private_callback_joined", "normal_cleanup");
     private static bool Has(GenerationPhaseChild child, string marker) => child.Events.Contains(marker, StringComparer.Ordinal);
     private static bool Before(GenerationPhaseChild child, string first, string second) =>
         Array.IndexOf(child.Events, first) >= 0 && Array.IndexOf(child.Events, first) < Array.IndexOf(child.Events, second);

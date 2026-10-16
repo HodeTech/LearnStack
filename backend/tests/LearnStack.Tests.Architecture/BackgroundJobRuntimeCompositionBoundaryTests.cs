@@ -457,7 +457,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void Background_job_runtime_source_pin_and_messaging_owners_reject_off_owner_escapes()
     {
         using var census = ProductionCensus.Read();
-        RuntimeLifetimeOffenders(census).Should().BeEmpty("the actual runtime, source and two messaging lifetimes must be clean nonempty subjects");
+        EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty("the actual runtime, source and two messaging lifetimes must be clean nonempty subjects");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var types = census.Types;
         var bridge = types[(InfrastructureAssembly, JobBridge)];
@@ -552,7 +552,7 @@ public sealed partial class OutboxDispatchConventionTests
             ReplaceInstruction(maximum, OpCodes.Nop, null!), RuntimeLifetimeOffenders);
         var clean = AddProbe(application, "CleanRuntimeLifetimeObserver");
         AddCall(clean, "ReadTaskStatus", application.ImportReference(typeof(Task).GetProperty(nameof(Task.IsCompletedSuccessfully))!.GetMethod!), OpCodes.Callvirt);
-        try { RuntimeLifetimeOffenders(census).Should().BeEmpty("ordinary task-state observations acquire no lifetime authority"); }
+        try { EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty("ordinary task-state observations acquire no lifetime authority"); }
         finally { application.Types.Remove(clean); }
     }
 }

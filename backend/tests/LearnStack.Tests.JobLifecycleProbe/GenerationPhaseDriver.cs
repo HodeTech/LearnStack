@@ -49,6 +49,8 @@ internal static class GenerationPhaseDriver
         var generation = new HangfireGeneration(provider, inventory, HangfireRuntimeFilters.Create(),
             activator, pool, gate, bounds, (TimeProvider?)clock ?? TimeProvider.System);
         state.Generation = generation;
+        if (scenario is "gen_process_exit" or "gen_process_exit_direct")
+            source.RetainBackgroundJobsUntil(generation.Completion);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => GenerationPhaseProbe.Sentinel(directory, "process-exit.flag");
         try
         {
@@ -134,6 +136,9 @@ internal static class GenerationPhaseDriver
                 }
             }
 
+            if (scenario is "gen_process_exit" or "gen_process_exit_direct")
+                return await ProvePrivateCallbackExitAsync(generation, state, gate, scenario, twin).ConfigureAwait(false);
+
             if (twin)
             {
                 await state.FaultSite.Task.WaitAsync(WaitBudget).ConfigureAwait(false);
@@ -146,23 +151,6 @@ internal static class GenerationPhaseDriver
                 Require(joined.NormalChildrenJoined && joined.OuterJoined && joined.CleanupComplete
                     && !generation.TryAdmitInvocation());
                 state.Emit("normal_cleanup");
-                return 0;
-            }
-
-            if (scenario == "gen_process_exit")
-            {
-                Require(await generation.Ready.WaitAsync(WaitBudget).ConfigureAwait(false));
-                await state.HeldRequired.Task.WaitAsync(WaitBudget).ConfigureAwait(false);
-                state.Fault(captured: true, waited: true, requireHeld: true);
-                // Registered after the actual Core server: observe the real
-                // ProcessExit ordering, not a direct BeginFinalExit substitute.
-                AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-                {
-                    var snapshot = generation.Snapshot;
-                    if (gate.State == BackgroundJobProcessState.FinalExit && !gate.TryAdmit()
-                        && !snapshot.NormalChildrenJoined && !snapshot.CleanupComplete)
-                        state.Emit("final_observed");
-                };
                 return 0;
             }
 
@@ -186,8 +174,119 @@ internal static class GenerationPhaseDriver
         finally
         {
             state.ReleaseStall.TrySetResult();
-            if (scenario != "gen_process_exit" || twin) state.ReleaseRequired.TrySetResult();
+            if (scenario is not ("gen_process_exit" or "gen_process_exit_direct") || twin)
+                state.ReleaseRequired.TrySetResult();
             GenerationPhaseProbe.Sentinel(directory, "finally.flag");
+        }
+    }
+
+    private static async Task<int> ProvePrivateCallbackExitAsync(HangfireGeneration generation, PhaseState state,
+        BackgroundJobRuntimeGate gate, string scenario, bool twin)
+    {
+        Require(await generation.Ready.WaitAsync(WaitBudget).ConfigureAwait(false));
+        await state.HeldRequired.Task.WaitAsync(WaitBudget).ConfigureAwait(false);
+        state.Fault(captured: true, waited: true, requireHeld: true);
+        var invocation = generation.TryBeginWork() ?? throw Refused();
+        var token = invocation.Token;
+        var callback = new ExitPrivateCallback(state);
+        var registration = token.UnsafeRegister(static value => ((ExitPrivateCallback)value!).Run(), callback);
+        gate.StopStarts();
+        // This calls the shipped private-source relay. No test cancellation
+        // source or completion signal substitutes for its actual operation.
+        await Task.Run(generation.RequestHostStop).WaitAsync(WaitBudget).ConfigureAwait(false);
+        await callback.Entered.Task.WaitAsync(WaitBudget).ConfigureAwait(false);
+        var cancellation = CoreFixtureAccess.PrivateCancellationObservation(invocation);
+        var cleanup = invocation.CompleteAsync(cleanupConfirmed: true);
+        Require(token.IsCancellationRequested && !cancellation.IsCompleted && !cleanup.IsCompleted
+            && callback.IsHeld && generation.WorkSnapshot == new HangfireGenerationWorkSnapshot(0, 1, true));
+        _ = token.WaitHandle;
+        state.Emit("private_cancel_retained");
+
+        using (var callerWait = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
+        {
+            var expired = false;
+            try { await generation.StopAsync(callerWait.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (callerWait.IsCancellationRequested) { expired = true; }
+            Require(expired && HeldBeforeExit());
+        }
+        state.Emit("finite_host_wait_ended");
+
+        if (twin)
+        {
+            callback.Release.Set();
+            await cleanup.WaitAsync(WaitBudget).ConfigureAwait(false);
+            await registration.DisposeAsync().ConfigureAwait(false);
+            Require(cancellation.IsCompletedSuccessfully && !callback.IsHeld);
+            state.Emit("private_callback_joined");
+            state.ReleaseRequired.TrySetResult();
+            await generation.Completion.WaitAsync(WaitBudget).ConfigureAwait(false);
+            var joined = generation.Snapshot;
+            Require(joined.NormalChildrenJoined && joined.OuterJoined && joined.CleanupComplete
+                && generation.WorkSnapshot == new HangfireGenerationWorkSnapshot(0, 0, true));
+            callback.Release.Dispose();
+            state.Emit("normal_cleanup");
+            return 0;
+        }
+
+        if (scenario == "gen_process_exit_direct")
+        {
+            // Deliberately unsafe child-only control: Core synchronously joins
+            // the actual private cleanup whose callback is still held. The
+            // isolated supervisor must kill and join this child; that result
+            // can never satisfy the ordinary native-exit predicate.
+            _ = CoreFixtureAccess.Context(generation).ShutdownToken.UnsafeRegister(_ =>
+            {
+                Require(callback.IsHeld && !cleanup.IsCompleted && !cancellation.IsCompleted);
+                state.Emit("direct_core_callback_entered");
+                cleanup.GetAwaiter().GetResult();
+            }, null);
+        }
+
+        // Registered after the real Core handler. Positive exit must reach this
+        // observer while the actual private callback and its relay remain held.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            var snapshot = generation.Snapshot;
+            if (gate.State == BackgroundJobProcessState.FinalExit && !gate.TryAdmit()
+                && !snapshot.NormalChildrenJoined && !snapshot.CleanupComplete
+                && !generation.Completion.IsCompleted && callback.IsHeld
+                && !cancellation.IsCompleted && !cleanup.IsCompleted
+                && generation.WorkSnapshot == new HangfireGenerationWorkSnapshot(0, 1, true))
+                state.Emit("final_observed");
+        };
+        Require(HeldBeforeExit());
+        state.Emit("main_returning_unresolved");
+        // Retain the registrations, private source, actual cancellation/cleanup
+        // tasks and callback barrier through final teardown. This is no join.
+        return 0;
+
+        bool HeldBeforeExit()
+        {
+            var snapshot = generation.Snapshot;
+            return gate.State == BackgroundJobProcessState.Stopping && !generation.TryAdmitInvocation()
+                && !snapshot.NormalChildrenJoined && !snapshot.OuterJoined && !snapshot.CleanupComplete
+                && !generation.Completion.IsCompleted && callback.IsHeld
+                && !cancellation.IsCompleted && !cleanup.IsCompleted;
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+        Justification = "The benign twin disposes the barrier only after actual callback cleanup; the unresolved exit control retains it through process teardown.")]
+    private sealed class ExitPrivateCallback(PhaseState state)
+    {
+        private int _held;
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal ManualResetEventSlim Release { get; } = new();
+        internal bool IsHeld => Volatile.Read(ref _held) != 0;
+
+        internal void Run()
+        {
+            Require(Thread.CurrentThread.IsBackground);
+            Volatile.Write(ref _held, 1);
+            state.Emit("private_callback_held");
+            Entered.TrySetResult();
+            Release.Wait();
+            Volatile.Write(ref _held, 0);
         }
     }
 
@@ -462,9 +561,16 @@ internal static class CoreFixtureAccess
             builders[1] = new DecoratedBuilder(builders[1], state, Placement.RequiredStall);
         if (scenario is "gen_dispose_second_announce" or "gen_dispose_outer_complete")
             builders[0] = new DecoratedBuilder(builders[0], state, Placement.RequiredDisposal);
-        if (scenario is "gen_wait_entry" or "gen_process_exit")
+        if (scenario is "gen_wait_entry" or "gen_process_exit" or "gen_process_exit_direct")
             builders[^1] = new DecoratedBuilder(builders[^1], state, Placement.WaitEntry);
     }
+
+    internal static BackgroundServerContext Context(HangfireGeneration generation) => Field<BackgroundServerContext>(generation, "_context");
+
+    // This exact production observer directly awaits the real CancelAsync task;
+    // the callback hold above independently proves that cancellation is in flight.
+    internal static Task<bool> PrivateCancellationObservation(HangfireGenerationWork.Invocation invocation) =>
+        Field<Task<bool>>(invocation, "_cancellationObservation");
 
     private static T Field<T>(object owner, string name)
     {

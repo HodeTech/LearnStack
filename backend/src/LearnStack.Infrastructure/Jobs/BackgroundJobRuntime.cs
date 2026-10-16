@@ -8,17 +8,21 @@ namespace LearnStack.Infrastructure.Jobs;
 
 public enum BackgroundJobRuntimeState { NotStarted, Bootstrapping, Starting, Running, Stopping, Retained, Stopped }
 
-public sealed record BackgroundJobPoolHealth(string Pool, string State, string Reason, int RetainedInvocations);
+public sealed record BackgroundJobPoolHealth(string Pool, string State, string Reason, int RetainedInvocations,
+    bool MetadataHeartbeatFault);
+
+public sealed record BackgroundJobMaintenanceHealth(string Component, string State, string Outcome,
+    long Invocations, bool ActualJoined, bool OwnsResources, bool StorageFault, bool IsHealthy);
 
 public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState State,
     BackgroundJobPhysicalCapacity Capacity, int RunningPools, int RetainedPools,
     int RetainedInvocations, BackgroundJobBridgeSnapshot? Bridge, bool BridgeHealthy, bool ExpirationHealthy,
     bool FetchedJobHeartbeatHealthy, bool BootstrapJoined, bool CleanupConfirmed,
-    IReadOnlyList<BackgroundJobPoolHealth> Pools)
+    IReadOnlyList<BackgroundJobPoolHealth> Pools, IReadOnlyList<BackgroundJobMaintenanceHealth> Maintenance)
 {
     public bool IsHealthy => State == BackgroundJobRuntimeState.Running && BridgeHealthy
         && ExpirationHealthy && FetchedJobHeartbeatHealthy && RunningPools == Capacity.Pools
-        && RetainedPools == 0 && RetainedInvocations == 0;
+        && RetainedPools == 0 && RetainedInvocations == 0 && Pools.All(pool => !pool.MetadataHeartbeatFault);
 }
 
 /// <summary>API-instance owner; actual joins alone release bootstrap, pools, shared work and bridge.</summary>
@@ -168,20 +172,30 @@ public sealed class BackgroundJobRuntime
                 var bridgeHealthy = !_bridgeFault && _bridge?.HasUnconfirmedCleanup == false
                     && bridge is { Retained: 0, LastProgressTimestamp: { } progress }
                     && _time.GetElapsedTime(progress, _time.GetTimestamp()) <= _bounds.ProgressTimeout;
-                var expiration = _shared?.Expiration.IsHealthy == true;
-                var heartbeat = _shared?.FetchedJobHeartbeat.IsHealthy == true;
+                var expiration = _shared?.Expiration;
+                var heartbeat = _shared?.FetchedJobHeartbeat;
+                var expirationHealthy = expiration?.IsHealthy == true;
+                var heartbeatHealthy = heartbeat?.IsHealthy == true;
                 var state = _state;
                 if (_cleanupFault || _waitExpired && !Completion.IsCompleted) state = BackgroundJobRuntimeState.Retained;
                 else if (retained > 0 || retainedInvocations > 0 || closedRunning) state = BackgroundJobRuntimeState.Retained;
                 else if (!_stopping && state == BackgroundJobRuntimeState.Starting && running == _capacity.Pools
-                         && retained == 0 && bridgeHealthy && expiration && heartbeat) state = BackgroundJobRuntimeState.Running;
-                return new(state, _capacity, running, retained, retainedInvocations, bridge, bridgeHealthy, expiration, heartbeat,
+                         && retained == 0 && bridgeHealthy && expirationHealthy && heartbeatHealthy) state = BackgroundJobRuntimeState.Running;
+                return new(state, _capacity, running, retained, retainedInvocations, bridge, bridgeHealthy, expirationHealthy, heartbeatHealthy,
                     !_started || _bootstrap.ActualJoined, Completion.IsCompletedSuccessfully,
                     pools.Select(pool => new BackgroundJobPoolHealth(pool.Pool, pool.State.ToString(),
-                        (pool.Generation?.Reason ?? HangfireGenerationReason.None).ToString(), pool.Work?.Retained ?? 0)).ToArray());
+                        (pool.Generation?.Reason ?? HangfireGenerationReason.None).ToString(), pool.Work?.Retained ?? 0,
+                        pool.Generation?.HeartbeatFault == true)).ToArray(),
+                    [MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat)]);
             }
         }
     }
+
+    private static BackgroundJobMaintenanceHealth MaintenanceHealth(string component, HangfireSharedComponentSnapshot? snapshot) =>
+        new(component, (snapshot?.State ?? HangfireSharedComponentState.NotStarted).ToString(),
+            (snapshot?.Outcome ?? HangfireSharedComponentOutcome.None).ToString(), snapshot?.Invocations ?? 0,
+            snapshot?.ActualJoined ?? true, snapshot?.OwnsResources == true, snapshot?.StorageFault == true,
+            snapshot?.IsHealthy == true);
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {

@@ -234,6 +234,50 @@ public sealed class HangfireGenerationWorkTests
     }
 
     [Fact]
+    public async Task Wrapper_expiry_closes_late_admission_before_return_and_retains_its_actual_cancellation_callback()
+    {
+        var work = Work();
+        var invocation = Begin(work);
+        var token = invocation.Token;
+        var entered = Signal();
+        using var release = new ManualResetEventSlim();
+        using var registration = token.Register(() =>
+        {
+            entered.TrySetResult();
+            if (!release.Wait(CallbackWait)) throw new TimeoutException("The expired invocation callback was not released.");
+        });
+        Task? completion = null;
+        try
+        {
+            await Task.Run(invocation.ExpireWait).WaitAsync(TestWait);
+            await entered.Task.WaitAsync(TestWait);
+            invocation.TryAdmitContinuation().Should().BeFalse();
+            token.IsCancellationRequested.Should().BeTrue();
+            token.WaitHandle.Should().NotBeNull();
+            work.Snapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
+            var healthy = Begin(work);
+            healthy.TryAdmitContinuation().Should().BeTrue("expiry closes this invocation, not its healthy pool");
+            await healthy.CompleteAsync(true).WaitAsync(TestWait);
+
+            completion = invocation.CompleteAsync(true);
+            completion.IsCompleted.Should().BeFalse("the real callback still owns the private source");
+            work.CloseStarts();
+            work.Completion.IsCompleted.Should().BeFalse();
+            invocation.ExpireWait();
+            work.Snapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, true));
+        }
+        finally
+        {
+            release.Set();
+            completion ??= invocation.CompleteAsync(true);
+            await completion.WaitAsync(TestWait);
+        }
+        await work.Completion.WaitAsync(TestWait);
+        var handle = () => token.WaitHandle;
+        handle.Should().Throw<ObjectDisposedException>();
+    }
+
+    [Fact]
     public async Task Host_stop_still_cancels_an_overrun_after_its_wrapper_has_reported_unknown_cleanup()
     {
         var work = Work();
@@ -258,7 +302,7 @@ public sealed class HangfireGenerationWorkTests
         var active = Enumerable.Range(0, 6).Select(_ => Begin(work)).ToList();
         try
         {
-            foreach (var invocation in active.Take(3)) invocation.MarkRetained();
+            foreach (var invocation in active.Take(3)) invocation.ExpireWait();
             work.Snapshot.Should().Be(new HangfireGenerationWorkSnapshot(3, 3, false));
             work.TryBegin().Should().BeNull("the actual workers-plus-four bound is already occupied");
 
@@ -268,8 +312,8 @@ public sealed class HangfireGenerationWorkTests
             active.Remove(running);
             var replacement = Begin(work);
             active.Add(replacement);
-            replacement.MarkRetained();
-            replacement.MarkRetained();
+            replacement.ExpireWait();
+            replacement.ExpireWait();
             work.Snapshot.Should().Be(new HangfireGenerationWorkSnapshot(2, 4, false));
 
             running = active[3];

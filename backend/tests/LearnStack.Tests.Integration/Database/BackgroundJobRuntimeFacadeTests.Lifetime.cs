@@ -3,10 +3,12 @@ using System.Reflection;
 using System.Text.Json;
 using FluentAssertions;
 using Hangfire.Server;
+using LearnStack.Api.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
 using Xunit;
 
@@ -16,19 +18,33 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
-    [Fact]
-    public async Task Source_disposal_after_stop_keeps_actual_native_cleanup_and_later_Core_removal_usable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Native_framework_wait_retains_actual_cleanup_and_releases_its_slot_before_host_stop(bool synchronousPrefix)
     {
         await using var database = await DatabaseAsync();
         var physical = new BackgroundJobPhysicalPoolSettings(true, 45);
         var applicationName = "facade_cleanup_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
         var cleanup = new FacadeCleanupSignals();
+        using var prefixRelease = new ManualResetEventSlim();
+        var reads = 0;
         var observation = new BackgroundJobAdmissionObservation
         {
             OnRead = (_query, services) =>
             {
-                _ = services.GetRequiredService<FacadeHeldReadCleanup>();
+                if (Interlocked.Increment(ref reads) == 1)
+                {
+                    _ = services.GetRequiredService<FacadeHeldReadCleanup>();
+                    if (synchronousPrefix)
+                    {
+                        // Synchronous handler code belongs to the retained
+                        // operation, independently of the native wrapper wait.
+                        cleanup.Entered.TrySetResult();
+                        if (!prefixRelease.Wait(TestWait)) throw new TimeoutException("The framework prefix was not released.");
+                    }
+                }
                 return Task.CompletedTask;
             },
         };
@@ -38,23 +54,39 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddScoped(_ => new FacadeHeldReadCleanup(cleanup));
         });
         using var globals = new GlobalFilterSnapshot();
-        var runtime = Runtime(host.Services, source, physical: physical);
+        var bounds = new BackgroundJobRuntimeOptions { TransactionTimeout = TimeSpan.FromSeconds(2) };
+        var runtime = Runtime(host.Services, source, bounds, physical);
         var disposal = SourceDisposalObserver(source);
+        LearnStack.SharedKernel.Jobs.BackgroundJobId job;
         try
         {
             await runtime.StartAsync();
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
-            var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
             await cleanup.Entered.Task.WaitAsync(TestWait);
             var transactional = ActualGeneration(runtime, "transactional");
-            transactional.WorkSnapshot.Running.Should().Be(1);
+            await EventuallyAsync(() => Task.FromResult(transactional.WorkSnapshot.Retained == 1));
+            transactional.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
+            runtime.Snapshot.IsHealthy.Should().BeFalse();
+            await EventuallyAsync(async () => await VendorAsync(source, job) is { } vendor
+                && await StateAsync(source, vendor) == "Succeeded");
+            cleanup.Joined.Task.IsCompleted.Should().BeFalse();
+            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);
+
+            // The one native transactional slot is usable while fewer than four
+            // prior framework invocations remain retained in this generation.
+            var positive = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            await EventuallyAsync(async () => await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, positive) == 1
+                && await VendorAsync(source, positive) is { } vendor && await StateAsync(source, vendor) == "Succeeded");
+            transactional.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
 
             // This is actual native wakeup/framework execution. Only the DI
             // disposable is test-owned and deliberately ignores cancellation;
             // no synthetic generation ticket substitutes for the real work.
             runtime.RequestStop();
-            transactional.Snapshot.NormalChildrenJoined.Should().BeFalse();
-            transactional.Snapshot.OuterJoined.Should().BeFalse();
+            await EventuallyAsync(() => Task.FromResult(transactional.Snapshot.OuterJoined));
+            transactional.Snapshot.NormalChildrenJoined.Should().BeTrue();
+            transactional.Completion.IsCompleted.Should().BeFalse("stock completion cannot join retained private framework cleanup");
             source.Dispose();
             using var callerWait = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
             await FluentActions.Awaiting(() => runtime.StopAsync(callerWait.Token))
@@ -67,8 +99,6 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             disposal.IsCompleted.Should().BeFalse();
             source.HasUnconfirmedCleanup.Should().BeFalse("pending ownership is not a disposal fault");
             await AssertGuardedPoolAsync(source, physical);
-            (await IndependentServerCountAsync(database)).Should().BeGreaterThan(0,
-                "the held native worker still needs its later Core removal acquisition");
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0,
                 "stop closes new admission while the actual pre-read scope is still unwinding");
 
@@ -80,6 +110,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         finally
         {
             cleanup.Release.TrySetResult();
+            prefixRelease.Set();
             using var deadline = new CancellationTokenSource(TestWait);
             await runtime.StopAsync(deadline.Token);
             await runtime.Completion.WaitAsync(TestWait);
@@ -88,6 +119,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
 
         cleanup.Joined.Task.IsCompletedSuccessfully.Should().BeTrue();
         observation.ReadScopeDisposed.Should().BeTrue();
+        (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0,
+            "late actual cleanup cannot reopen admission after the wrapper deadline");
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         (await IndependentServerCountAsync(database)).Should().Be(0);
         await EventuallyAsync(async () => await PoolBackendCountAsync(database, applicationName) == 0);
@@ -151,6 +184,18 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             expiration.Completion.IsCompleted.Should().BeFalse();
             PoolStatistics(source).Busy.Should().BeInRange(1, 45);
             runtime.Snapshot.RunningPools.Should().Be(3);
+            var health = await new BackgroundJobHealthCheck(runtime).CheckHealthAsync(new HealthCheckContext());
+            health.Status.Should().Be(HealthStatus.Unhealthy);
+            health.Data["maintenance:expiration"].Should().BeOfType<BackgroundJobMaintenanceHealth>()
+                .Which.Should().BeEquivalentTo(new
+                {
+                    State = "Retained",
+                    ActualJoined = false,
+                    OwnsResources = true,
+                    IsHealthy = false,
+                });
+            health.Data["maintenance:fetched_job_heartbeat"].Should().BeOfType<BackgroundJobMaintenanceHealth>()
+                .Which.IsHealthy.Should().BeTrue("shared fetched-job renewal remains independent of the held expiration pass");
             ActualGeneration(runtime, "transactional").Snapshot.Draining.Should().BeFalse();
             probe.Constructions.Should().BeEmpty("Step 4 admits framework work without activating business handlers");
             // Actual other-pool admission at the supported boundary is proved;

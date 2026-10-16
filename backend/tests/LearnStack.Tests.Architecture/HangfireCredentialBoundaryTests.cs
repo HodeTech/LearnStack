@@ -15,7 +15,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void Vendor_connection_capability_rejects_extra_acquisition_forwarding_and_factory_construction()
     {
         using var census = ProductionCensus.Read();
-        CredentialOffenders(census).Should().BeEmpty("the actual vendor factory and bootstrap must be clean subjects");
+        EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("the actual vendor factory and bootstrap must be clean subjects");
         var source = census.Types[(InfrastructureAssembly, BoundaryGuardedSource)];
         var acquire = source.Methods.Single(method => method.Name == "OpenConnection");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
