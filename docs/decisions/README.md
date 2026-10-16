@@ -34,6 +34,13 @@ ADR-0003/0010/0015/0017/0020/0023/0028/0032/0033/0036/0040/0044/0046/0052/0057
 preserve original bodies/metadata and link the bounded authority; acceptance
 claims no job runtime or enforcement.
 
+[ADR-0059](0059-owned-hangfire-server-generations.md) adds owned server lifecycle
+and supersedes only two ADR-0047 same-pool progress readings during generation
+draining. [ADR-0047 Amendment 2](0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+discloses that bounded change; [ADR-0058 Amendment 2](0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+adds shared-component ownership navigation only. Implementation and production
+qualification remain pending.
+
 ## Active ADRs
 
 | # | Title | Topic |
@@ -92,13 +99,13 @@ claims no job runtime or enforcement.
 | 0056 | [Public Demo Browser and Lighthouse Enforcement](0056-public-demo-browser-and-lighthouse-enforcement.md) | Accepted 2026-10-11: pinned Lighthouse/Playwright Chromium, seed-derived nine-page browser proof, 27 serial audits, actual-page admission, normalized gzip/CLS/accessibility hard checks and advisory timings delivered; four proof rules Implemented, real PR CI/artifacts pass and seventh required context activated ([Amendment 1](0056-public-demo-browser-and-lighthouse-enforcement.md#amendment-1--p02d-7-enforcement-delivery-2026-10-11)); complete and merged through PR #28 on 2026-10-11 ([merge closeout](../roadmap/phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)) |
 | 0057 | [Transactional Event Production and Completion](0057-transactional-event-production-and-completion.md) | Accepted 2026-10-12: immediate ambient enqueue, owner-only domain completion, sticky produced-work refusal protection, identifier-only bounded payloads and completed-provisioning publisher; eight producer rules Implemented; Steps 1–3 implement shared execution, immediate enqueue, successful-save collection and the publisher; Step 4 adds production censuses and catalogue enforcement. P02b-1 is complete and merged through PR #29 on 2026-10-12; the [merge closeout](../roadmap/phase-02b-events-auth.md#p02b-1-merge-and-closeout-2026-10-12) owns final verification. Amendment 1 links delivery verification and review status. [Amendment 2 (2026-10-12)](0057-transactional-event-production-and-completion.md#amendment-2--correct-adr-0032-clause-locators-2026-10-12) corrects the ADR-0032 clause locators through inline errata; the Decision and bounded supersession are unchanged. [Amendment 3](0057-transactional-event-production-and-completion.md#amendment-3--useful-default-consumers-and-semantic-seed-handoff-2026-10-13) records the two Active default subscriptions and semantic Seeder handoff delivered in P02b-3. |
 | 0058 | [Bounded Stock Hangfire Maintenance](0058-bounded-stock-hangfire-maintenance.md) | Accepted 2026-10-16: selective stock aggregation/history suppression, shared owned expiration, finite enabled I/O and reset-safe idle-session cleanup; [ADR-0047 Amendment 1](0047-transactional-background-job-runtime.md#amendment-1--maintenance-replacement-and-additive-ownership-seams-2026-10-16) records the configuration replacement and additive seams. [Amendment 1](0058-bounded-stock-hangfire-maintenance.md#amendment-1--sourcereset-qualification-delivered-2026-10-16) records completed Step 2 source/reset qualification and both reviews; Step 4 owner/component/filter/pool-boundary proofs and Step 9 enforcement remain pending; both canonical obligations remain Registered |
+| 0059 | [Owned Hangfire Server Generations](0059-owned-hangfire-server-generations.md) | Accepted 2026-10-16: additive public stock lifecycle composition, one actual generation per pool and replacement after actual cleanup; bounded supersession of exactly two ADR-0047 same-pool progress clauses during generation draining, with additive ADR-0058 component ownership. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16) is authorized; implementation, production qualification and activation remain pending |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0059 | [Owned Hangfire Server Generations](0059-owned-hangfire-server-generations.md) | Proposed 2026-10-16: additive lifecycle composition and bounded affected-pool availability supersession, with owner-controlled replacement after actual cleanup; no dependent runtime approved | P02b-4 Step 4 lifecycle qualification before worker activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

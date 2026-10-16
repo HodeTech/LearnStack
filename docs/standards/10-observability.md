@@ -6,6 +6,9 @@ Producer additions derive from
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
 Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
+Accepted job-lifecycle observation derives from
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md);
+implementation remains P02b-4 Steps 4 and 9.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -345,6 +348,19 @@ stops serving past a configured unhealthy window, are demand-gated to
 [Phase 11](../roadmap/phase-11-production-hardening.md) —
 [ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md) states all four of
 [ADR-0035](../decisions/0035-demand-gated-infrastructure.md)'s requirements for it.
+
+**Accepted job-lifecycle observation — 2026-10-16.** ADR-0059 requires unmapped
+`jobs` health to distinguish generation draining/retention, actual running work,
+last confirmed server-metadata heartbeat and independent shared-component faults.
+Pool labels come only from the finite registry, with fixed state/reason codes;
+they supply no readiness mapping. Interception or elapsed caller waiting cannot
+restore health, and a missing server row proves neither business completion nor
+external quiescence. Closed vendor callbacks record fixed memory state only;
+provider exceptions, SQL and tenant/job/actor/trace/parameter values stay out.
+The [Step 4 acceptance record](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+owns pending lifecycle qualification; Step 9 owns final instruments/censuses.
+This acceptance adds no emitter or health registration. Phase 11 retains
+readiness routing, alert thresholds and process supervision.
 
 ### Business Metrics
 

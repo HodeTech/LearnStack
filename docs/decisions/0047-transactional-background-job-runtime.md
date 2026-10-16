@@ -828,6 +828,53 @@ enforcement and regression. Acceptance precedes dependent implementation and
 claims no completed runtime proof. Business authority, roles, grants, schema,
 attempts and existing execution/bridge ownership bounds remain unchanged.
 
+### Amendment 2 — owned server lifecycle and bounded availability supersession (2026-10-16)
+
+Accepted [ADR-0059](0059-owned-hangfire-server-generations.md) adds the concrete
+H1 server lifecycle: public stock process composition, one owned generation per
+pool, closed lifecycle storage/connection fences and replacement only after
+actual stock and LearnStack work, callbacks and cleanup finish. Neither this
+record nor ADR-0058 previously selected a convenience constructor or automatic
+restart policy. That integration is additive; it is not a replacement or
+correction of an earlier constructor/restart decision.
+
+API-instance ownership of shared stock fetched-job heartbeat and expiration is
+independent of every pool generation. Fixed options, synchronous context capture,
+the local-drain/host-stop distinction, retained cancellation/cleanup and the
+qualified nonblocking process-exit relay follow ADR-0059. The existing one finite
+external host join budget does not become an internal disposal deadline.
+
+**Bounded availability supersession:** ADR-0059 qualifies only the affected-pool
+progress reading of these two clauses during generation-control draining:
+
+- [Tenant capacity and independent pools](#tenant-capacity-and-independent-pools):
+  “A lost worker may reduce availability by quarantining capacity; unrelated
+  tenants and transactional pools remain serviceable.”
+- [Lifecycle and observation](#lifecycle-and-observation):
+  “Retain/observe/renew all admitted work through real cleanup; affected job
+  identities remain blocked while other pools/tenants progress.”
+
+While that generation drains or its old work/cleanup remains unresolved, unrelated
+tenants assigned to the same pool can also remain blocked until actual cleanup,
+including after storage recovery, with an unused slot and below four retained
+overruns. Other healthy pools remain independent subject to shared dependencies.
+Four retained overruns still stop new starts in an otherwise serviceable generation;
+actual retention/cleanup continues. Generation draining is an additional stop
+trigger, not permission to weaken workers-plus-four or bridge-four hard bounds.
+Fair independent orchestration, business attempts, reservation ownership and
+positive quiescence remain unchanged. No wider progress or whole-record
+supersession is selected.
+
+This new normative qualification has explicit maintainer acceptance on
+2026-10-16; it is not an ADR-0041 fact correction or an implicit reading of the
+earlier promise. This record's original Status, Date, Deciders, Decision and
+earlier amendment remain intact. ADR-0058 receives only an additive ownership
+amendment. The [Step 4 acceptance record](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+owns carrier inventory and implementation timing. Acceptance authorizes the
+adapted Step 4; actual worker/PostgreSQL, surface-parity, startup/resource,
+multi-pool and exit qualification remain mandatory before activation. No runtime
+delivery or enforcement is claimed by this amendment.
+
 ## References
 
 - [ADR-0003 Tenant Isolation](0003-tenant-isolation-defense-in-depth.md)

@@ -270,6 +270,36 @@ wording records acceptance-time state. Step 4 component/filter selection,
 expiration ownership and supported-pool progress, and Step 9 full enforcement
 remain pending. The two canonical obligations remain Registered.
 
+### Amendment 2 — independent shared component ownership (2026-10-16)
+
+Accepted [ADR-0059](0059-owned-hangfire-server-generations.md) adds explicit
+hosting ownership for the selected stock components. One API-instance owner,
+independent of every pool generation, owns both the shared fetched-job heartbeat
+and this record's existing expiration owner. Stock servers do not automatically
+host provider components. Bootstrap materializes the exact inventory once and
+freezes the selected component instances, preserving the cached provider and its
+shared fetched-job tracking. A control-pool drain therefore cannot stop these
+shared components for healthy pools.
+
+Each component has one actual invocation at a time, owned background work,
+resources retained through real completion and a separate fixed health dimension.
+The positive wait of at most five minutes plus at most one second of cleanup
+waiting applies to each; neither owns a business worker slot. Expiration keeps
+its one-millisecond internal interval and completion-based one-hour owner cadence;
+fetched-job heartbeat keeps its stock one-second pacing. Both join under the
+same finite external host deadline, with unresolved actual work retained.
+ADR-0059 owns the closed cancellation relay and process-exit qualification.
+
+This amendment is additive ownership navigation only. Exact aggregation/history
+suppression, stock code/SQL, enabled I/O bounds, source/reset settings, roles,
+grants, schema, business authority and reservation rules are unchanged. The
+bounded availability supersession belongs only to the two ADR-0047 clauses
+disclosed in [its Amendment 2](0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16).
+This record's original Status, Date, Deciders, Decision and earlier amendment
+remain intact; no ADR-0041 correction or whole-record replacement is made.
+Step 4 ownership/component/lifecycle/pool proofs and Step 9 enforcement remain
+pending. Acceptance claims no implemented maintenance or heartbeat owner.
+
 ## References
 
 - [ADR-0047](0047-transactional-background-job-runtime.md).

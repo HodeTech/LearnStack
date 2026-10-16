@@ -242,8 +242,9 @@ verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Steps 4–9 remain pending.
-Step 4's [lifecycle decision](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
-is Proposed under ADR-0059; dependent worker activation awaits maintainer approval.
+Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
+implementation, production qualification and worker activation remain pending.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -459,8 +460,9 @@ Then read the phase that is live and the one it stands on:
   Step 2 is implemented and locally validated under ADR-0058, Accepted —
   2026-10-16; both fresh Step 2 reviews and critical-fix verification are complete.
   Step 3 submission/admission is complete with both fresh review rounds;
-  Steps 4–9 retain runtime activation
-  and enforcement.
+  ADR-0059 and the Step 4 adaptation are Accepted — 2026-10-16; implementation
+  and production qualification remain pending. Steps 4–9 retain runtime
+  activation and enforcement.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

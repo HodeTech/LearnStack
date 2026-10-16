@@ -2,15 +2,19 @@
 
 ## Status
 
-Proposed — maintainer approval pending.
+Accepted — 2026-10-16.
 
 **Date:** 2026-10-16 **Deciders:** @cemil
 
-This proposal adds H1 server-lifecycle/ownership policy and a bounded
-availability qualification of the two ADR-0047 clauses named below;
-it does not accept itself or authorize dependent runtime. Accepted ADR-0047 and
-ADR-0058 remain the current contracts. P02b-4 Step 3 is complete; Step 4's
-lifecycle qualification exposed the issue below before worker activation.
+**Maintainer acceptance — 2026-10-16.** The maintainer approves the revised
+decision and P02b-4 Step 4 adaptation at `0db27eb6` on `development`.
+This adds H1 server-lifecycle/ownership policy and the bounded availability
+qualification of exactly the two ADR-0047 clauses named below.
+[ADR-0047 Amendment 2](0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+discloses both; [ADR-0058 Amendment 2](0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+adds component-ownership navigation only. Step 3 is complete. Acceptance
+authorizes dependent Step 4 implementation; production qualification and worker
+activation remain pending. Acceptance claims neither delivery nor enforcement.
 
 ## Decision Drivers
 
@@ -32,7 +36,7 @@ lifecycle qualification exposed the issue below before worker activation.
 
 ## Considered Options
 
-1. **LearnStack owns replacement after actual generation cleanup** (recommended).
+1. **LearnStack owns replacement after actual generation cleanup** (chosen).
    Public composition retains stock processes; a closed heartbeat adapter requests
    draining rather than allowing Core to replace live children. Other pools remain
    serviceable when their dependencies are healthy. A replacement waits for actual
@@ -70,7 +74,7 @@ lifecycle qualification exposed the issue below before worker activation.
 
 ## Decision
 
-**Proposed decision:** LearnStack owns each pool's Hangfire server generation and
+LearnStack owns each pool's Hangfire server generation and
 replaces it only after actual stock dispatchers, admitted work, callbacks and
 cleanup from that generation finish. A public compositor uses pinned stock Core
 workers/schedulers and the existing guarded provider. A closed per-pool storage seam
@@ -136,7 +140,7 @@ decision is reopened; a timeout is never a substitute for the missing witness.
 
 ### Concrete storage seam and sole replacement owner
 
-The proposed internal `PoolHangfireStorage : JobStorage` delegates to one shared,
+The internal `PoolHangfireStorage : JobStorage` delegates to one shared,
 guarded `PostgreSqlStorage`; it never creates another provider or physical source.
 Its `GetConnection()` returns a closed `PoolHangfireConnection` derived from
 `JobStorageConnection`, with lazy provider acquisition. This concrete base matters:
@@ -350,7 +354,7 @@ cleanup guarantee.
 On final process exit, Core can cancel its shutdown token before actual retained
 work finishes. Such termination is not graceful cleanup, business completion or
 external quiescence. Retained external reservations and uncertainty remain durable
-for recovery; no process-exit signal releases them. This proposal claims a finite
+for recovery; no process-exit signal releases them. This decision claims a finite
 normal host wait and qualified nonblocking exit callbacks, not successful cleanup
 of work terminated by the OS or an absolute OS scheduling deadline.
 
@@ -364,7 +368,7 @@ Phase 11 still owns readiness routing, alert thresholds and process supervision.
 The physical-acquisition census counts one live generation per pool only after
 these invariants are proved. Step 4 still enumerates nested/retained acquisitions,
 enforces its qualified supported configuration and proves independent progress at
-that boundary. This proposal chooses no guessed numeric floor or nonpooled rule.
+that boundary. This decision chooses no guessed numeric floor or nonpooled rule.
 The existing workers-plus-four, bridge-four and separate expiration bounds remain.
 
 ### Additive integration and bounded availability supersession
@@ -405,13 +409,13 @@ trigger. Worker/retention hard bounds, fair independent
 orchestration, reservation ownership and positive quiescence remain unchanged.
 No wider tenant-progress or whole-record replacement is selected.
 
-On acceptance, a dated ADR-0047 Amendment discloses both the additive integration
+The dated ADR-0047 Amendment discloses both the additive integration
 and this named bounded availability supersession, preserving its prior Decision
 and acceptance metadata. ADR-0058 receives only an additive ownership Amendment.
 There is no previously selected convenience/restart sentence to supersede or
 correct, and no ADR-0041 fact correction or whole-record retirement. This new
-availability qualification requires maintainer approval rather than being treated
-as an implicit condition of the earlier promise. No role, grant, schema, business
+availability qualification has explicit maintainer approval; it is not an
+implicit condition of the earlier promise. No role, grant, schema, business
 request, generic owner, context setter or public recovery API is added.
 
 ## Context
@@ -455,7 +459,7 @@ The [Step 4 decision receipt](../roadmap/phase-02b-events-auth.md#p02b-4-step-4-
 owns reproducible commands, results and limits; experiments are not shipped
 enforcement or acceptance.
 
-**What changes this recommendation:** a qualified upstream lifecycle fix, loss
+**What changes this decision:** a qualified upstream lifecycle fix, loss
 of the required public seams, or failure of startup/actual-join/pool-progress
 qualification. Such failure reopens the choice; it does not permit live overlap,
 an unrecorded fork or smaller ownership claims.
@@ -496,8 +500,8 @@ closed cancellation relay, exact fixed options, actual shutdown retention and
 process-exit proofs. Step 8 owns missing-tick recurrence recovery qualification.
 Step 9 owns final observation/censuses and full regression. Existing Accepted
 records, Standards 05/10/20/21, Events and Outbox architecture and current roadmap
-carriers receive the named update only after maintainer acceptance and delivery
-where appropriate. No dependent runtime is implemented by this Proposed record.
+carriers receive acceptance references now and delivery updates only with the
+corresponding implementation. This acceptance implements no dependent runtime.
 
 ## Architecture Tests
 

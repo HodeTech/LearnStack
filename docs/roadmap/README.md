@@ -130,8 +130,9 @@ verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Steps 4–9 remain pending.
-Step 4's [lifecycle decision](phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
-is Proposed under ADR-0059; dependent worker activation awaits maintainer approval.
+Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
+implementation, production qualification and worker activation remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

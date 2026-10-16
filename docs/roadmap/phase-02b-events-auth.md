@@ -20,8 +20,9 @@ its [closeout](#step-2-final-proof-and-closeout) records both fresh review round
 critical-fix verification and passing regression. Step 3 submission/admission is
 complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns both review rounds and passing 4,152-case backend verification. Step 4's
-[lifecycle decision](#p02b-4-step-4--server-generation-decision-2026-10-16) is
-Proposed under ADR-0059; dependent worker activation awaits approval.
+[lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
+ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
+implementation, production qualification and worker activation remain pending.
 Steps 4–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -4434,6 +4435,11 @@ is implied by this local step closeout.
 
 ### P02b-4 Step 4 — server-generation decision (2026-10-16)
 
+**Current authority:** [maintainer acceptance and the Step 4 adaptation](#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+below accept ADR-0059 on 2026-10-16. The following preparation and review receipts
+retain their original pre-acceptance state; implementation and production
+qualification remain pending.
+
 **Preparation only; ADR-0059 Proposed, approval pending.** Step 3 closes at
 `def48a1a`, with runtime `0ddcb3e7` and both required fresh review rounds complete.
 The complete H1/expanded implementation remains authorized, but the newly exposed
@@ -4681,6 +4687,79 @@ parity, multi-pool and exit controls remain mandatory before activation; Steps
 5–9 remain pending. Work stays on `development`; no dependent runtime, push,
 PR or current-head CI result is implied by this proposal closeout.
 
+#### Maintainer acceptance and Step 4 adaptation (2026-10-16)
+
+**Accepted — 2026-10-16, @cemil.** The maintainer explicitly approves revised
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) and the Step 4
+adaptation reviewed at `0db27eb6` on `development`. This closes the new-ADR
+approval gate and authorizes dependent implementation after the acceptance
+commit. It completes no implementation step or production activation proof.
+The nineteen-control experiment and earlier review/validation receipts retain
+their recorded scope; acceptance neither reruns them nor expands their claims.
+
+The accepted change has two distinct parts:
+
+- **Additive lifecycle integration:** public stock process composition, one
+  actual generation per pool, synchronous context capture, closed storage and
+  lifecycle disposal fences, classified metadata-heartbeat retry, sole owner
+  replacement after actual stock/LearnStack cleanup, separate shared component
+  ownership and a qualified closed process-exit relay.
+- **Bounded availability supersession:** only the two ADR-0047 progress clauses
+  quoted in ADR-0059 are qualified during generation-control drain. Unrelated
+  tenants in the same pool can remain blocked after storage recovery, with a
+  spare slot and below four retained overruns, until actual cleanup completes.
+  Healthy other pools remain independent subject to common dependencies.
+  Four overruns still stop new starts in an otherwise serviceable generation;
+  actual retention continues. Hard bounds, fair independent orchestration,
+  attempts, reservation ownership and positive quiescence remain unchanged.
+
+[ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+discloses both parts. [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+is additive component-ownership navigation only. Both preserve the prior
+Accepted bodies, acceptance metadata and earlier amendments. No whole-record
+supersession or ADR-0041 fact correction is selected.
+
+**Adapted Step 4:** the original H1 wakeup/bridge/wrapper/pool work remains in
+scope, with ADR-0058's component/filter and maintenance obligations. ADR-0059
+adds the public compositor and complete concrete storage/connection surface,
+one-shot announcement/removal stop fences, exact fixed options/queue metadata,
+local drain without business cancellation, retained actual stock/LearnStack
+joins and API-instance shared fetched-job heartbeat/expiration hosting.
+The closed diagnostic observer, cancellation relay and process-exit boundary
+must be qualified before worker activation; unresolved startup/resource cleanup
+refuses activation and reopens the decision, rather than granting replacement.
+
+Real pinned worker/PostgreSQL controls remain mandatory for full provider-surface
+parity and capability census; acquisition/disposal/startup and heartbeat faults;
+nonoverlap and no early token/resource disposal; control-pool drain with healthy
+pool renewal and due delayed-handoff repair; common outage/recovery with a held
+operation and a spare slot still closed; host stop/backoff/late completion; and
+direct-callback versus closed-relay process exit. The final simultaneous physical
+acquisition census must enforce its qualified supported configuration/floor and
+prove progress at that boundary; no guessed numeric floor is accepted.
+
+Step 8 retains missing-native-tick recurrence/CoalesceLatest qualification.
+Steps 5–9 retain business completion/terminal audit, tenant capacity, external
+effects, recurrence and final enforcement under their existing approved scope.
+The nine-step sequence and two fresh independent review rounds per step remain
+authorized. Phase 03 operator recovery and Phase 11 readiness/supervision remain
+with those owners.
+
+**Carrier inventory at acceptance:**
+
+| Carrier | Acceptance effect / remaining implementation owner |
+|---|---|
+| [Standards 05](../standards/05-database.md#background-jobs) | Existing canonical schema/grants/source deadlines remain unchanged. Step 4 must qualify every concrete connection/compositor acquisition lane and the supported pool boundary; this acceptance adds no DDL or grant |
+| [Standards 10](../standards/10-observability.md#health-checks) | Accepted lifecycle observation reference only. Step 4 supplies truthful drain/heartbeat/shared-component health; Step 9 owns final instruments/censuses. No new emitter or mapped readiness is claimed |
+| [Standards 20](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire) | Accepted lifecycle and bounded availability reference; implementation/activation remain pending |
+| [Standards 21](../standards/21-architecture-tests-catalogue.md) | ADR-0059 extends the existing bootstrap, independent-capacity and credential-confinement obligations by reference; all three remain Registered. Step 4 supplies real subjects/controls; Step 9 closes enforcement. No rule, method or Implemented count changes |
+| [Events and Outbox architecture](../architecture/15-event-and-outbox.md#background-job-transport-and-maintenance) | Accepted server/component ownership and availability reference; delivered Steps 1–3 and pending Steps 4–9 remain distinct |
+
+This documentation-only acceptance precedes dependent runtime changes. It
+claims no new worker, maintenance owner, production qualification, full backend
+rerun, CI result or packet closeout. Earlier pending-approval wording is dated
+history; current implementation and activation remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
@@ -4836,6 +4915,14 @@ separate budgets. Health is registered, not mapped; `/healthz` stays liveness an
 Phase 11 owns `/readyz` and production alert windows.
 
 ### Background jobs
+
+**Current acceptance — 2026-10-16.** ADR-0047 selects the general H1 runtime;
+ADR-0058 adds its maintenance policy and ADR-0059 adds the
+[accepted Step 4 lifecycle adaptation](#maintainer-acceptance-and-step-4-adaptation-2026-10-16).
+Steps 1–3 are complete; Steps 4–9 remain pending. The pre-acceptance preparation
+checklist below records the original G9 questions and proposed delivery shape;
+the accepted decision package and later step records above own current authority
+and implementation status.
 
 No Accepted record selects the general background-job runtime. ADR-0028 selects
 Hangfire specifically for future audit maintenance; that narrower decision must

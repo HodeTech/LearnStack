@@ -95,8 +95,9 @@ verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Steps 4–9 remain pending.
-Step 4's [lifecycle decision](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
-is Proposed under ADR-0059; dependent worker activation awaits maintainer approval.
+Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
+implementation, production qualification and worker activation remain pending.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

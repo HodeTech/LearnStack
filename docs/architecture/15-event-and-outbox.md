@@ -716,6 +716,21 @@ wait, retained actual work/resources, paced completion and one shared shutdown
 budget. Retained maintenance makes unmapped `jobs` health unhealthy with a separate
 fixed maintenance dimension; Phase 11 owns readiness routing and alert policy.
 
+**Accepted server lifecycle — 2026-10-16.**
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) adds public
+stock composition, one actual generation per pool and replacement only after
+actual stock/LearnStack cleanup. Shared fetched-job heartbeat and expiration
+outlive pool-local drain under independent API-instance ownership. This adds
+no business cancellation or quiescence signal. During generation-control drain,
+unrelated tenants in the same pool can stay blocked with spare capacity and
+below four retained overruns after storage recovery; healthy other pools remain
+independent subject to shared dependencies. The exact two-clause supersession
+is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
+[ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
+adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+is authorized, with implementation, real worker/PostgreSQL, surface/lifecycle,
+multi-pool and process-exit qualification still pending before activation.
+
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session
 cleanup. [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire)

@@ -23,6 +23,8 @@ Background-job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 Vendor-maintenance configuration and ownership derive from
 [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
+Accepted server lifecycle and its bounded availability qualification derive from
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -709,6 +711,24 @@ owns H1: stock Hangfire transports opaque wakeups; LearnStack records own busine
 intent, attempts, tenant/organization authority and completion. The
 [P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns current implementation/qualification status; worker activation is pending.
+
+**Accepted lifecycle addition — 2026-10-16.**
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) selects public
+stock process composition and one actual generation per pool, replaced only
+after actual stock/LearnStack work, callbacks and cleanup finish. Shared fetched-job
+heartbeat and expiration belong to an API-instance owner independent of every
+pool generation. Local drain closes admission without canceling admitted private
+work; host stop uses the existing finite shared external join budget. Exact fixed
+options, concrete storage/connection surface parity, lifecycle fences, closed
+cancellation/diagnostic callbacks and process exit require production qualification.
+Only the two ADR-0047 progress clauses disclosed in
+[Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+are qualified: a draining pool can block unrelated same-pool tenants with a spare
+slot and below four retained overruns, including after storage recovery, until
+actual cleanup. Other healthy pools remain independent subject to common
+dependencies; hard retention bounds, attempts, reservations and quiescence hold.
+The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
+is authorized; implementation, production proofs and activation remain pending.
 
 - Modules submit typed registered jobs on their announced business transaction.
   Transactional and external prepare/execute/finalize profiles retain distinct
