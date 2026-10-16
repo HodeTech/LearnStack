@@ -4518,8 +4518,31 @@ first-party sweep checks 37 Markdown files, 2,708 local links and 643 fragments
 without errors and preserves all prior authorized history. These are focused
 proposal checks; the full 4,152-case Step 3 result is not rerun or relabelled.
 
-A fresh second proposal-review round and final validation are still pending.
-Maintainer acceptance remains required before implementing this changed policy.
+#### Proposal review round 2 and approval-readiness closeout
+
+Two new independent reviewers inspect `def48a1a..878bcd49` after the verified
+first-round corrections: GPT-6 Astra with xhigh effort covers lifecycle/authority;
+GPT-6.1 Sol with xhigh effort covers proofs/governance. Both approve the Proposed
+change with no Blocker, Major or Minor finding. Each independently builds/runs all
+seven isolated controls with zero warnings/errors. The lifecycle reviewer verifies
+committed source archive hashes and extracted bytes. The proof reviewer also
+interrupts the actual unsafe-callback child and forces the external watchdog;
+both paths join the real child and remove the owned temporary tree. A watchdog
+failure is not reported as a successful experiment.
+
+The initial proposal/probes are `f8ff691f`; verified first-round corrections and
+exit controls are `2103f059`; the primary status pointers are `878bcd49`. Root
+reads both final reports and execution logs, verifies focused final results of
+five Release corpus controls and seven ADR parser controls, and repeats the
+37-file sweep: 2,711 local links, 646 fragments, zero errors. All 53 previously
+Accepted ADRs are byte-identical across this proposal range. No full backend,
+production PostgreSQL/worker or multi-pool result is inferred from these checks.
+
+Proposal review is complete; ADR-0059 remains Proposed pending maintainer
+acceptance. This closeout changes only the review receipt, not the reviewed
+policy/probes. The user's requirement to approve new ADRs before dependent
+implementation remains the gate. Step 4's real qualification and Steps 5–9 are
+pending; no worker, maintenance owner or replacement policy is activated here.
 
 ### Durable outbox dispatch
 
