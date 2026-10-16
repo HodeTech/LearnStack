@@ -106,7 +106,7 @@ qualification remain pending.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0060 | [Fatal Hangfire Required Startup](0060-fatal-hangfire-required-startup.md) | Proposed 2026-10-16: bounded fatal-process startup policy for Core's inaccessible pre-capture construction; source-level qualification gap, no genuine resource-failure reproduction or dependent runtime | P02b-4 Step 4 startup-qualification gate before worker activation |
+| 0060 | [Fatal Hangfire Startup and Unsafe Unwind](0060-fatal-hangfire-startup-and-unsafe-unwind.md) | Proposed 2026-10-16: revised conservative process policy for opaque startup and before/after-capture unsafe unwind; quarantine compared, operational owners explicit; approval/runtime qualification pending | P02b-4 Step 4 startup-qualification gate before worker activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

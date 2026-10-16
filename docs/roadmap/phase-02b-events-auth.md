@@ -24,7 +24,10 @@ owns both review rounds and passing 4,152-case backend verification. Step 4's
 ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
 implementation, production qualification and worker activation remain pending.
 The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
-opens Proposed ADR-0060; dependent fatal-process runtime requires approval.
+opens Proposed ADR-0060; the [external-review revision](#adr-0060-external-review-revision-2026-10-16)
+compares quarantine and broadens the proposed state classification to unsafe
+Core unwind after capture. Fatal runtime still requires approval. The independent
+bridge/storage slice is committed at `422519b0`; its reviews remain open.
 Steps 4–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -4781,7 +4784,7 @@ No genuine Linux resource-failure experiment, ordinary SQL/configuration
 counterexample or frequency estimate is claimed. A hostile global logger or
 invalid input is not a supported-production counterexample.
 
-[ADR-0060](../decisions/0060-fatal-hangfire-required-startup.md) proposes the narrow
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md) proposes the narrow
 fatal-process alternative: after prevalidation, unowned constructor/required
 startup failure closes starts/replacement and terminates the entire API without
 a graceful-cleanup claim. This interrupts unrelated pools/HTTP traffic; durable
@@ -4889,6 +4892,106 @@ No failing check is skipped or broadened to allow arbitrary callers.
 Two fresh independent slice-review rounds follow the initial implementation
 commit. They do not close full Step 4's real generation, maintenance,
 cancellation/exit, multi-pool progress or connection-floor gates.
+
+##### Independent foundation review corrections (2026-10-16)
+
+The initial foundation review was interrupted before final reports; it is not
+counted as a completed round. A resumed independent GPT-6-astra xhigh R1 inspects
+the complete committed slice and surrounding runtime/census paths. It verifies
+one Major: raw filter concatenation bypasses stock precedence and lets the global
+retry execute before the wrapper's zero-retry attribute. The separately identified
+bridge-source forwarding gap also needs exact capability enforcement.
+
+Commit `9db4822d` uses the stock filter-provider collection, preserves the admitted
+global instances and pins the bridge store's signatures, source captures,
+acquisitions, consumers and holders. Actual StateMachine controls distinguish
+failed-state retention from the raw-concatenation retry/schedule outcome. Two
+fresh independent R2 reviewers (GPT-6-astra xhigh runtime and GPT-6.1-sol xhigh
+proof/security) inspect the corrections. The proof reviewer finds one further
+Major: a pre-creation global retry registered at order 100 wins stock precedence.
+Root verifies it and refuses nonstock retry registration order before changing
+history; both wrappers now have effective-filter and actual state-election controls.
+Both reviewers independently verify the final fix with zero remaining findings.
+
+Before the last two-line registration guard, Release build, Unit 2,058,
+Architecture 317 and focused real-PostgreSQL 93 pass, with zero failures/skips.
+After that guard and its added controls, Release build remains warning/error-free,
+all 2,061 unit cases and four targeted credential/catalogue architecture cases
+pass. Direct TRX counters and the guarded runner confirm execution and zero skips.
+Pre-commit formatting leaves all four reviewed C# hashes unchanged. This is not a
+new full backend/renderer/demo/CI receipt; no fatal runtime or worker is activated.
+Full Step 4's complete-runtime review and qualification gates remain open.
+
+##### ADR-0060 external-review revision (2026-10-16)
+
+The maintainer requests changes to the Proposed record. The earlier two clean
+proposal-review receipts remain historical; they do not close these later verified
+gaps or authorize fatal runtime. Root rechecks pinned Core and official .NET source,
+reads two independent state/policy analyses and revises the proposal before seeking
+new approval. No genuine Linux resource failure, new runtime experiment or incidence
+estimate is claimed.
+
+The revised file is
+[ADR-0060: Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
+Renaming the Proposed file reflects its explicit before/after-capture scope; earlier
+record links resolve forward to that current proposal. All Accepted ADR bodies,
+metadata and prior amendments remain unchanged.
+
+| Verified review gap | Revision / deliberate boundary |
+|---|---|
+| M1: fatal rationale relied on the old cleanup promise | Quarantine remains a viable policy alternative. Fatal is a conservative integrity/visible-failure preference with the whole-API cost, not technical necessity or proof that private controls execute business work |
+| M2: Phase 11 ownership was absent from its roadmap | Reliability scope, deliverables and completion now explicitly own supervision/restart/backoff/crash-loop, termination/dump policies and the triggered worker-process topology decision; no present supervisor is claimed |
+| M3: constructor predicate exceeded proved live-thread cases | Entire prevalidated constructor failure is explicitly conservative, including pre-thread false positives; no private instruction boundary is inferred from exception type/text |
+| M4: capture did not cover Core post-builder/notification unwind | Separate progress and conditional normal-join facts; owned disposal, removal, second-announcement and outer-completion observations cover skipped waiting/removal. Closed logger/timer/final-exit premises must be qualified before activation |
+
+The revision also names process-wide starts/ExecuteIntent gates and earlier-admission
+uncertainty, host-stop versus final-teardown priority, retained unhealthy stalled
+startup under the existing ProgressTimeout, finite pool/stage diagnostics, runtime/
+Linux resource/collector dump prerequisites and orphan process-tree consequences.
+Exact ADR-0059 qualification/availability clauses and its Option 4 are disclosed;
+three existing canonical test obligations receive explicit prospective assignments.
+No new rule/count/status or caller enforcement is declared implemented.
+
+The suggested automatic exact-OOM crash outcome is not established and is not used
+as a policy argument. Existing API blast-radius, manual-restart, dump-risk and durable
+reservation disclosures were already present; their concrete controls/owners are
+strengthened rather than presented as newly discovered guarantees. Synthetic fault
+placement remains distinct from real stock and genuine resource evidence. Proposed
+and Accepted policies are not silently conflated.
+
+The independent foundation corrections above own their source capability and
+filter proof/review receipt. Neither workstream completes Step 4 or permits
+fatal activation. The following records own the proposal's fresh reviews.
+
+**Revision review round 1:** two fresh independent reviewers (GPT-6-astra xhigh
+lifecycle and GPT-6.1-sol xhigh governance/proofs) inspect the frozen eight-document
+revision against `422519b0`. Both request changes for one Major and one Minor.
+Root reads both full reports, verifies ADR-0047's preserved other-pool progress
+clauses/Amendment 2 and adds its prospective dated bounded disclosure alongside
+ADR-0059. The second-announcement fatal predicate now requires missing normal
+child-join evidence, preserving nonfatal post-join cleanup. Known pre-child refusal
+precedence and complete-boundary announcement confirmation are explicit.
+
+Both independently confirm the state-model, conservative/quarantine tradeoff,
+Phase 11 owners, dump/collector prerequisites and pending proof limits. Static
+checks preserve all 52 Accepted ADRs; the governance review independently checks
+1,290 local targets / 394 applicable fragments with no errors. Root's parser and
+whitespace checks pass. No reviewer runs shared tests or resource experiments.
+The independent bridge fix adds two architecture methods (222 → 224), without any
+rule/status/Implemented-count promotion; its execution receipt is separate.
+A fresh second revision review follows these corrections; approval remains pending.
+
+**Revision review round 2:** fresh independent GPT-6-astra xhigh lifecycle and
+GPT-6.1-sol xhigh governance/proof reviewers approve the corrected eight-document
+proposal with zero findings. Both recheck the frozen hashes and all 52 unchanged
+Accepted ADR files; the governance reviewer verifies the four exact authority
+quotes, unique Registered proof names and unchanged Implemented-rule count.
+Root reads both full reports and reruns seven ADR parser controls, the changed-doc
+sweep (1,291 local links / 395 fragments, zero errors) and whitespace checks.
+No reviewer executes a resource, fatal-child, worker or PostgreSQL experiment.
+These are proposal-review receipts, not maintainer acceptance or runtime proof.
+The revised ADR-0060 remains Proposed; dependent fatal implementation still waits
+for approval, and real lifecycle qualification precedes activation.
 
 ### Durable outbox dispatch
 
