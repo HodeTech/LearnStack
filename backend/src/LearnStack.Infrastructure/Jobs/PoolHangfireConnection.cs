@@ -6,7 +6,8 @@ using Hangfire.Storage;
 namespace LearnStack.Infrastructure.Jobs;
 
 /// <summary>Preserves the concrete extended connection API and isolates the three server lifecycle calls.</summary>
-internal sealed class PoolHangfireConnection(JobStorage provider, PoolHangfireLifecycle lifecycle, bool readOnly)
+internal sealed class PoolHangfireConnection(JobStorage provider, PoolHangfireLifecycle lifecycle, bool readOnly,
+    PoolHangfireStorage? contract = null)
     : JobStorageConnection
 {
     private readonly JobStorage _provider = provider ?? throw new ArgumentNullException(nameof(provider));
@@ -79,7 +80,7 @@ internal sealed class PoolHangfireConnection(JobStorage provider, PoolHangfireLi
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(_provider, readOnly, method, serverId, context);
+            return new(_provider, readOnly, method, serverId, context, contract);
         }
     }
 
@@ -90,6 +91,7 @@ internal sealed class PoolHangfireConnection(JobStorage provider, PoolHangfireLi
             lock (_gate)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                contract?.ValidateContract();
                 if (_connection is not null) return _connection;
                 var connection = readOnly ? _provider.GetReadOnlyConnection() : _provider.GetConnection();
                 if (connection is JobStorageConnection extended) return _connection = extended;
@@ -120,13 +122,15 @@ internal sealed record PoolHangfireLifecycleResult(Exception? Failure, Exception
 
 /// <summary>An exact stock lifecycle call; no arbitrary callback or raw connection leaves this capability.</summary>
 internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool readOnly,
-    PoolHangfireLifecycleMethod method, string serverId, ServerContext? context)
+    PoolHangfireLifecycleMethod method, string serverId, ServerContext? context, PoolHangfireStorage? contract = null)
 {
     private readonly object _gate = new();
     private IStorageConnection? _retainedConnection;
     private bool _executing;
     private bool _attempted;
     private bool _succeeded;
+
+    internal PoolHangfireLifecycleMethod Method => method;
 
     internal bool RetainsConnection
     {
@@ -150,6 +154,7 @@ internal sealed class PoolHangfireLifecycleOperation(JobStorage provider, bool r
         var invoked = false;
         try
         {
+            contract?.ValidateContract();
             connection = readOnly ? provider.GetReadOnlyConnection() : provider.GetConnection();
             switch (method)
             {

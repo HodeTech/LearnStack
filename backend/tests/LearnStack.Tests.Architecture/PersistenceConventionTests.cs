@@ -406,6 +406,12 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
     {
+        ["LearnStack.Infrastructure/Jobs/HangfireGeneration.cs"] =
+            "One process-owned Core generation observes its startup, stop and actual joins independently; "
+            + "stock operations use confined provider connections, never a scoped ambient unit (ADR-0059/0060).",
+        ["LearnStack.Infrastructure/Jobs/HangfireSharedComponents.cs"] =
+            "Two process-owned stock maintenance lanes retain actual native work and cancellation cleanup; "
+            + "neither component holds an ambient unit or module DbContext (ADR-0058/0059).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobBridge.cs"] =
             "Process-owned bridge joins already-started stock client calls at shutdown; "
             + "each SQL quantum owns its own privileged connection and no ambient unit of work (ADR-0047).",

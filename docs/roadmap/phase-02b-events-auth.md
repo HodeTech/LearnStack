@@ -5027,6 +5027,65 @@ corpus architecture cases and a 1,543-local-link / 468-fragment sweep pass, with
 zero failures/skips or broken targets. Published catalogue counts/statuses remain
 unchanged. The acceptance commit contains documentation only.
 
+##### Owned generation and maintenance foundation (2026-10-16)
+
+**Implementation slice; Step 4 remains in progress.** ADR-0060 acceptance at
+`e0d39bf5` precedes this dependent runtime. `HangfireGeneration` retains actual
+construction, stop, startup observation and uncanceled Core completion separately
+from caller waiting. A synchronous context capture and Core-facing wait-entry
+marker distinguish progress from the qualified normal child-join witness.
+Successful removal/disposal is also required before cleanup is acknowledged;
+joined but unresolved cleanup stays retained. A stop that wins before Start has
+its own positive no-Core completion path.
+
+The shared component owner retains the two frozen stock components independently
+of pool drain. Native startup, invocation, actual join and cancellation callbacks
+have distinct owners. Each lane observes its five-minute wait plus one-second
+cleanup bound without releasing resources or starting another pass early.
+Expiration keeps its one-hour cadence; fetched-job heartbeat keeps stock pacing.
+
+One closed process gate arbitrates host stop, final teardown and the sole
+preallocated pool/stage fatal sink. Its final-exit callback registers before Core.
+The gated native connection factory permits normal stock cleanup during host drain
+and refuses fatal/final-teardown issuance. Bound activators/wakeups recheck the
+same generation at activation, routing and app admission. The framework scope
+retains that closed memory predicate and rechecks it after actual row-lock waits,
+before spending an attempt. No module-supplied context or transaction owner changes.
+
+Focused source feedback fixes pre-lifecycle expiration drift, stop-before-start,
+missing removal/disposal evidence and owner clock/timer failures. Ordinary provider
+failures remain contained through the real stop/child-join fence. Two new structural
+facts pin the actual fatal capability/sink and public Core constructor, with
+direct/delegate/async/overload/interface/forwarding dirty controls. The catalogue
+method total becomes 226; all 19 P4 obligations remain Registered and the
+Implemented-rule count remains 202. Per-detector body snapshots are rebuilt after
+every mutation; no process-wide mutation cache hides added or removed subjects.
+
+Validation currently records a zero-warning/error solution build, 2,083 Unit cases
+and 133 focused PostgreSQL/process cases, with zero failures/skips. The latter
+include ten real generation controls, app-role admission closure during a real row
+lock, real stock parity/bridge/admission regressions and seven Linux gate cases.
+The full Architecture run and final per-detector optimization rerun each pass
+319 cases, with zero failures/skips.
+
+The Linux sidecar runs the real production sink only in an isolated .NET 10.0.10
+Arm64 child. A benign twin proves cleanup sentinels; fatal exit 134 omits them.
+The shell verifies soft/hard core limits zero and the nonpiped `core` collector
+before managed entry. Child environment is cleared, modern/legacy dumps disabled,
+root/input binaries read-only, scratch isolated and network disabled. The initial
+archive-copy setup refuses the read-only root; a read-only mount of staged proof
+binaries fixes setup without changing dump/collector policy. Actual native and
+supervisor exits, fixed diagnostics and artifact allowlists pass. These are direct
+gate/synthetic-stage controls, not genuine Core resource-failure reproduction or
+generation phase-dominance proof.
+
+The production API does not construct or activate these owners yet. Full pool
+replacement/retained LearnStack work, independent bridge/control composition,
+supported physical-acquisition boundary and remaining lifecycle/fault/exit proofs
+remain in Step 4. Its complete implementation commit and two fresh full-step
+review rounds still precede Step 5. This slice claims no new business execution,
+recurrence, readiness mapping, production recovery, CI success or packet closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

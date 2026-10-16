@@ -55,11 +55,36 @@ public sealed class PoolHangfireStorageTests
         var pool = new PoolHangfireStorage(provider, new RecordingLifecycle(), []);
         pool.JobExpirationTimeout.Should().Be(provider.JobExpirationTimeout);
         pool.JobExpirationTimeout = TimeSpan.FromDays(3);
-        var divergent = () => pool.GetConnection();
+        using var connection = (JobStorageConnection)pool.GetConnection();
+        var divergent = () => connection.GetUtcDateTime();
         divergent.Should().Throw<InvalidOperationException>();
         pool.JobExpirationTimeout = TimeSpan.FromDays(2);
         provider.JobExpirationTimeout = TimeSpan.FromDays(4);
         divergent.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData("announce", false)]
+    [InlineData("announce", true)]
+    [InlineData("heartbeat", false)]
+    [InlineData("heartbeat", true)]
+    [InlineData("remove", false)]
+    [InlineData("remove", true)]
+    public void Expiration_drift_is_contained_inside_the_lifecycle_before_provider_acquisition(string method, bool providerDrift)
+    {
+        var provider = Provider();
+        var lifecycle = new RecordingLifecycle();
+        var pool = new PoolHangfireStorage(provider, lifecycle, []);
+        if (providerDrift) provider.JobExpirationTimeout += TimeSpan.FromDays(1);
+        else pool.JobExpirationTimeout += TimeSpan.FromDays(1);
+        using var connection = (JobStorageConnection)pool.GetConnection();
+
+        var invoke = () => Invoke(connection, method);
+        invoke.Should().NotThrow();
+        lifecycle.Result!.Succeeded.Should().BeFalse();
+        lifecycle.Result.Failure.Should().BeOfType<InvalidOperationException>();
+        lifecycle.Result.DisposalFailure.Should().BeNull();
+        provider.DidNotReceive().GetConnection();
     }
 
     [Fact]

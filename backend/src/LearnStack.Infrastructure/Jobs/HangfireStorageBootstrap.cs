@@ -14,7 +14,7 @@ namespace LearnStack.Infrastructure.Jobs;
 public static class HangfireStorageBootstrap
 {
     public static PostgreSqlStorage Create(PrivilegedDataSource source,
-        BackgroundJobInfrastructureRegistry registry, HangfireBoundedLogProvider diagnostics)
+        BackgroundJobInfrastructureRegistry registry, HangfireBoundedLogProvider diagnostics, BackgroundJobRuntimeGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(registry);
@@ -23,9 +23,10 @@ public static class HangfireStorageBootstrap
         LogProvider.SetCurrentLogProvider(diagnostics);
         try
         {
+            if (gate?.TryAdmit() == false) throw new HangfireStorageRefusedException();
             using var connection = source.OpenConnection();
             Verify(connection, registry);
-            return new PostgreSqlStorage(new HangfireConnectionFactory(source), Options());
+            return new PostgreSqlStorage(new HangfireConnectionFactory(source, gate), Options());
         }
         catch (Exception failure) when (failure is not HangfireStorageRefusedException)
         {

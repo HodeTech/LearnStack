@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>false</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <UseAppHost>false</UseAppHost>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/LearnStack.Infrastructure/LearnStack.Infrastructure.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <None Update="preflight.sh" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>

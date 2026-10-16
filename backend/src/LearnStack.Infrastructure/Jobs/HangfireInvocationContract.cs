@@ -39,6 +39,9 @@ public static class HangfireInvocationContract
         return new ClosedActivator(pool, routing, executor, recurrences);
     }
 
+    internal static JobActivator BindGeneration(JobActivator activator, HangfireGeneration generation) =>
+        activator is ClosedActivator closed ? closed.Bind(generation) : throw Refused();
+
     internal static void Validate(Job job, BackgroundJobWorkerPoolRegistration pool,
         BackgroundJobRecurrenceRegistry recurrences)
     {
@@ -60,14 +63,18 @@ public static class HangfireInvocationContract
 
     private sealed class ClosedActivator(BackgroundJobWorkerPoolRegistration pool,
         PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
-        BackgroundJobRecurrenceRegistry recurrences) : JobActivator
+        BackgroundJobRecurrenceRegistry recurrences, HangfireGeneration? generation = null) : JobActivator
     {
+        internal ClosedActivator Bind(HangfireGeneration owner) => generation is null
+            ? new(pool, routing, executor, recurrences, owner) : throw Refused();
+
         public override JobActivatorScope BeginScope(PerformContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
             var job = context.BackgroundJob.Job;
             Validate(job, pool, recurrences);
-            return new ClosedScope(new BoundInvocation(job, routing, executor));
+            if (generation?.TryAdmitInvocation() == false) throw Refused();
+            return new ClosedScope(new BoundInvocation(job, routing, executor, generation));
         }
 
         public override object ActivateJob(Type jobType) => throw Refused();
@@ -86,7 +93,8 @@ public static class HangfireInvocationContract
         public override void DisposeScope() => invocation.Close();
     }
 
-    internal sealed class BoundInvocation(Job job, PostgresBackgroundJobRoutingStore routing, JobExecutor executor)
+    internal sealed class BoundInvocation(Job job, PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
+        HangfireGeneration? owner = null)
     {
         private int _entered;
         private int _closed;
@@ -99,12 +107,14 @@ public static class HangfireInvocationContract
             if (Volatile.Read(ref _closed) != 0 || Type != typeof(HangfireJobWakeup) || job.Args[0] is not BackgroundJobId bound || bound != id
                 || job.Args[1] is not long expected || expected != generation
                 || Interlocked.Exchange(ref _entered, 1) != 0) throw Refused();
+            if (owner?.TryAdmitInvocation() == false) return;
             var claim = await routing.TryClaimAsync(id, generation).ConfigureAwait(false);
             if (claim is null) return;
             if (claim.Queue != job.Queue) throw Refused();
+            if (owner?.TryAdmitInvocation() == false) return;
             // Step 4 supplies transport and committed admission only. Step 5
             // extends JobExecutor with the business participant/completion owner.
-            _ = await executor.ExecuteAsync(claim).ConfigureAwait(false);
+            _ = await executor.ExecuteAsync(claim, startGate: owner is null ? null : owner.TryAdmitInvocation).ConfigureAwait(false);
         }
 
         internal Task RunTickAsync(string key, long revision)

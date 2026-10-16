@@ -34,8 +34,10 @@ internal sealed class PoolHangfireStorage : JobStorage
 
     public override bool LinearizableReads => Provider.LinearizableReads;
     public override IMonitoringApi GetMonitoringApi() => Provider.GetMonitoringApi();
-    public override IStorageConnection GetConnection() => new PoolHangfireConnection(Provider, _lifecycle, readOnly: false);
-    public override IStorageConnection GetReadOnlyConnection() => new PoolHangfireConnection(Provider, _lifecycle, readOnly: true);
+    // A lifecycle acquisition must not throw a drift refusal into Core's restart
+    // catch before the owner can contain it. Validation stays inside actual use.
+    public override IStorageConnection GetConnection() => new PoolHangfireConnection(_provider, _lifecycle, readOnly: false, this);
+    public override IStorageConnection GetReadOnlyConnection() => new PoolHangfireConnection(_provider, _lifecycle, readOnly: true, this);
     public override IEnumerable<IBackgroundProcess> GetServerRequiredProcesses() => Provider.GetServerRequiredProcesses();
     public override IEnumerable<IBackgroundProcess> GetStorageWideProcesses() => Provider.GetStorageWideProcesses();
     public override IEnumerable<IStateHandler> GetStateHandlers() => Provider.GetStateHandlers();
@@ -57,9 +59,14 @@ internal sealed class PoolHangfireStorage : JobStorage
         {
             // JobStorage's setter is nonvirtual. Refuse drift at every delegated entry
             // rather than silently letting pool and provider state policies diverge.
-            if (JobExpirationTimeout != _expirationTimeout || _provider.JobExpirationTimeout != _expirationTimeout)
-                throw new InvalidOperationException("The shared storage expiration contract changed after composition.");
+            ValidateContract();
             return _provider;
         }
+    }
+
+    internal void ValidateContract()
+    {
+        if (JobExpirationTimeout != _expirationTimeout || _provider.JobExpirationTimeout != _expirationTimeout)
+            throw new InvalidOperationException("The shared storage expiration contract changed after composition.");
     }
 }

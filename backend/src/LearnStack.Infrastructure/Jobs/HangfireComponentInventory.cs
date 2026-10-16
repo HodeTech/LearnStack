@@ -8,10 +8,13 @@ namespace LearnStack.Infrastructure.Jobs;
 #pragma warning disable CS0618
 internal sealed class HangfireComponentInventory
 {
+    private readonly PostgreSqlStorage _storage;
+
     internal HangfireComponentInventory(PostgreSqlStorage storage)
     {
         ArgumentNullException.ThrowIfNull(storage);
         if (storage.GetType() != typeof(PostgreSqlStorage)) throw new HangfireStorageRefusedException();
+        _storage = storage;
         var components = storage.GetComponents().ToArray();
         var expected = new[]
         {
@@ -34,5 +37,6 @@ internal sealed class HangfireComponentInventory
     internal IServerComponent Expiration { get; }
     internal IServerComponent FetchedJobHeartbeat { get; }
     internal IReadOnlyList<IServerComponent> Selected { get; }
+    internal bool BelongsTo(PostgreSqlStorage storage) => ReferenceEquals(_storage, storage);
 }
 #pragma warning restore CS0618

@@ -730,7 +730,8 @@ slot and below four retained overruns, including after storage recovery, until
 actual cleanup. Other healthy pools remain independent subject to common
 dependencies; hard retention bounds, attempts, reservations and quiescence hold.
 The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-is authorized; implementation, production proofs and activation remain pending.
+is authorized and implementation is in progress; full production qualification
+and activation remain pending.
 
 **Accepted exceptional boundary — 2026-10-16.**
 [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md) selects

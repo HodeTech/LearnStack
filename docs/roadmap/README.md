@@ -131,8 +131,8 @@ Step 3 submission/admission is complete with both fresh review rounds; its
 [record](phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Steps 4–9 remain pending.
 Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
-implementation, production qualification and worker activation remain pending.
+and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 implementation is in
+progress; complete production qualification and worker activation remain pending.
 The [required-startup qualification record](phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
 records the reviewed ADR-0060 revision. Its
 [acceptance](phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)

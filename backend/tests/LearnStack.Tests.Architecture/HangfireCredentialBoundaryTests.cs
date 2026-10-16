@@ -80,7 +80,8 @@ public sealed partial class OutboxDispatchConventionTests
 
         if (!census.Types.TryGetValue((InfrastructureAssembly, VendorFactory), out var factory)
             || !census.Types.TryGetValue((InfrastructureAssembly, VendorBootstrap), out var bootstrap)) return;
-        var constructor = RequireBoundaryMethod(offenders, factory, ".ctor", "System.Void", MethodAttributes.Public, BoundaryGuardedSource);
+        var constructor = RequireBoundaryMethod(offenders, factory, ".ctor", "System.Void", MethodAttributes.Public,
+            BoundaryGuardedSource, "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeGate");
         var reader = RequireBoundaryMethod(offenders, factory, "GetOrCreateConnection", "Npgsql.NpgsqlConnection", MethodAttributes.Public);
         CheckSourceFieldAccess(offenders, census, factory, constructor, [reader]);
         if (factory.Interfaces.Count != 1 || factory.Interfaces[0].InterfaceType.FullName != "Hangfire.PostgreSql.IConnectionFactory")
@@ -89,7 +90,8 @@ public sealed partial class OutboxDispatchConventionTests
         if (create.Length != 1 || !create[0].IsPublic || !create[0].IsStatic || create[0].HasGenericParameters
             || create[0].ReturnType.FullName != "Hangfire.PostgreSql.PostgreSqlStorage"
             || !ParametersMatch(create[0], [BoundaryGuardedSource,
-                "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", "LearnStack.Infrastructure.Jobs.HangfireBoundedLogProvider"]))
+                "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", "LearnStack.Infrastructure.Jobs.HangfireBoundedLogProvider",
+                "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeGate"]))
             offenders.Add("Vendor bootstrap requires its exact static storage-validation entry");
         CheckSet(offenders, "vendor connection factory construction callers", CallSites(census)
             .Where(site => site.Target.DeclaringType.FullName == VendorFactory && site.Target.Name == ".ctor")

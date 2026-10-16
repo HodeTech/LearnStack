@@ -157,10 +157,10 @@ public sealed class BackgroundJobExecutionAdmission(
     }
 
     /// <summary>Starts the opaque routing capability before the app-role pre-read.</summary>
-    public IDisposable EnterFramework(BackgroundJobRoutingClaim claim)
+    public IDisposable EnterFramework(BackgroundJobRoutingClaim claim, Func<bool>? startGate = null)
     {
         ArgumentNullException.ThrowIfNull(claim);
-        if (CurrentFrame.Value is not null || !ValidTenant(claim.TenantId)
+        if (startGate?.Invoke() == false || CurrentFrame.Value is not null || !ValidTenant(claim.TenantId)
             || !ValidOrganization(claim.OrganizationId)) throw Denied();
         var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
         foreach (var required in BackgroundJobFrameworkRequests.All)
@@ -170,7 +170,7 @@ public sealed class BackgroundJobExecutionAdmission(
         var admitted = new Admission(claim.TenantId, claim.OrganizationId,
             claim.OrganizationId is null ? BackgroundJobScope.TenantWide : BackgroundJobScope.Organization,
             typeof(ReadBackgroundJobEnvelopeQuery), Array.Empty<Type>().ToFrozenSet(), metadata);
-        var frame = new Frame(admitted, claim);
+        var frame = new Frame(admitted, claim, startGate: startGate);
         CurrentFrame.Value = frame;
         return new Scope(frame);
     }
@@ -197,7 +197,7 @@ public sealed class BackgroundJobExecutionAdmission(
         ArgumentNullException.ThrowIfNull(command);
         if (CurrentFrame.Value is not { } frame || !IsLive(frame)
             || !ReferenceEquals(frame.Claim, command.Claim) || !ReferenceEquals(frame.Envelope, command.Envelope)
-            || frame.Envelope is null) throw Denied();
+            || frame.Envelope is null || frame.StartGate?.Invoke() == false) throw Denied();
     }
 
     /// <summary>A legacy direct owner cannot borrow the currently active framework request.</summary>
@@ -273,12 +273,14 @@ public sealed class BackgroundJobExecutionAdmission(
 
     // Lifecycle revocation is separate from the immutable authority snapshot. A task
     // retaining a closed frame stays refused after its owner's execution flow restores.
-    private sealed class Frame(Admission admission, BackgroundJobRoutingClaim? claim = null, ConfirmedStartReceipt? receipt = null)
+    private sealed class Frame(Admission admission, BackgroundJobRoutingClaim? claim = null, ConfirmedStartReceipt? receipt = null,
+        Func<bool>? startGate = null)
     {
         private int _closed;
         public Admission Admission { get; } = admission;
         public BackgroundJobRoutingClaim? Claim { get; } = claim;
         public ConfirmedStartReceipt? Receipt { get; } = receipt;
+        public Func<bool>? StartGate { get; } = startGate;
         public BackgroundJobEnvelope? Envelope { get; set; }
         public bool IsOpen => Volatile.Read(ref _closed) == 0;
         public void Close() => Interlocked.Exchange(ref _closed, 1);

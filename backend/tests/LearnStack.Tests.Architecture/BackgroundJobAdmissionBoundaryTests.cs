@@ -256,15 +256,26 @@ public sealed partial class OutboxDispatchConventionTests
     private static void CheckJobRoutingCredentials(SortedSet<string> offenders, ProductionCensus census,
         MethodDefinition composition, MethodDefinition? factory)
     {
-        var store = census.Types[(InfrastructureAssembly, JobRoutingStore)];
+        // Rebuilt on every detector invocation, including every planted mutation.
+        var ownedBodies = OwnedBodies(census).ToArray();
+        var types = census.Types;
+        var store = types[(InfrastructureAssembly, JobRoutingStore)];
         if (!store.IsSealed) offenders.Add("The privileged job-routing store must remain sealed");
         var constructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
             BoundaryGuardedSource, "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
             "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory");
         var reader = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobRoutingClaim + ">",
             MethodAttributes.Public, "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", BoundaryCancellation);
-        CheckSourceFieldAccess(offenders, census, store, constructor, [reader]);
-        var types = census.Types;
+        var sourceFields = store.Fields.Where(field => field.Name == "_source").ToArray();
+        if (sourceFields.Length != 1 || !sourceFields[0].IsPrivate || !sourceFields[0].IsInitOnly || sourceFields[0].IsStatic
+            || sourceFields[0].FieldType.FullName != BoundaryGuardedSource)
+            offenders.Add(TypeId(store) + ": requires its private readonly lazy source");
+        else
+            CheckSet(offenders, TypeId(store) + " privileged source field access", ownedBodies
+                .SelectMany(item => item.Body.Body.Instructions.Where(instruction => instruction.Operand is FieldReference field
+                        && SameType(field.DeclaringType, store) && field.Name == sourceFields[0].Name)
+                    .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)),
+                [constructor + ":stfld", reader + ":ldfld"]);
         foreach (var name in new[] { JobInvocationContract, JobClosedActivator, JobBoundInvocation })
             if (!types.ContainsKey((InfrastructureAssembly, name))) offenders.Add("Missing closed routing consumer: " + name);
         if (offenders.Any(offender => offender.StartsWith("Missing closed routing consumer:", StringComparison.Ordinal))) return;
@@ -285,34 +296,47 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("Routing capability holders must retain their closed nested visibility and sealed identity");
         var activatorConstructor = RequireBoundaryMethod(offenders, activator, ".ctor", "System.Void", MethodAttributes.Public,
             "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration", JobRoutingStore, JobExecutorType,
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry");
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", JobGeneration);
+        var bind = RequireBoundaryMethod(offenders, activator, "Bind", JobClosedActivator, MethodAttributes.Assembly, JobGeneration);
+        var bindGeneration = RequireHangfireStaticMethod(offenders, contract, "BindGeneration", "Hangfire.JobActivator",
+            MethodAttributes.Assembly, "Hangfire.JobActivator", JobGeneration);
         var begin = RequireBoundaryMethod(offenders, activator, "BeginScope", "Hangfire.JobActivatorScope", MethodAttributes.Public,
             "Hangfire.Server.PerformContext");
         var invocationConstructor = RequireBoundaryMethod(offenders, invocation, ".ctor", "System.Void", MethodAttributes.Public,
-            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType);
+            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration);
         var run = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
-        var expected = new[] { MethodId(composition), create, activatorConstructor, begin, invocationConstructor, run }
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, ".ctor", activatorConstructor,
+            [create + ":newobj", bind + ":newobj"]);
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, "Bind", bind, [bindGeneration + ":callvirt"]);
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobInvocationContract, "BindGeneration", bindGeneration,
+            [HangfireGenerationConstructorId + ":call"]);
+        var expected = new[] { MethodId(composition), create, activatorConstructor, bind, begin, invocationConstructor, run }
             .Concat(factory is null ? [] : new[] { MethodId(factory) });
-        CheckSet(offenders, "privileged job-routing store consumers", OwnedBodies(census)
+        CheckSet(offenders, "privileged job-routing store consumers", ownedBodies
             .Where(item => item.Owner.DeclaringType.FullName != JobRoutingStore && ReferencesCapability(item.Body, JobRoutingStore))
-            .Select(item => MethodId(item.Owner)).Concat(census.Types.Values.SelectMany(type => type.Methods)
+            .Select(item => MethodId(item.Owner)).Concat(types.Values.SelectMany(type => type.Methods)
                 .Where(method => !method.HasBody && method.DeclaringType.FullName != JobRoutingStore && ReferencesCapability(method, JobRoutingStore))
                 .Select(MethodId)).Distinct(StringComparer.Ordinal), expected);
-        var stateMachines = OwnedBodies(census).Where(item => item.Body != item.Owner && item.Owner.DeclaringType.FullName == JobRoutingStore)
+        var stateMachines = ownedBodies.Where(item => item.Body != item.Owner && item.Owner.DeclaringType.FullName == JobRoutingStore)
             .Select(item => Key(item.Body.DeclaringType)).ToHashSet();
-        var fields = census.Types.Values.SelectMany(type => type.Fields).Where(field => field.FieldType.FullName == JobRoutingStore
+        var fields = types.Values.SelectMany(type => type.Fields).Where(field => field.FieldType.FullName == JobRoutingStore
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"));
         CheckSet(offenders, "privileged job-routing store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
             [TypeId(activator) + ":<routing>P", TypeId(invocation) + ":<routing>P"]);
         if (fields.Any(field => !field.IsPrivate || field.IsStatic)) offenders.Add("Routing capability holders must remain private instance fields");
-        foreach (var (holder, write, read) in new[] { (activator, activatorConstructor, begin), (invocation, invocationConstructor, run) })
-            CheckSet(offenders, TypeId(holder) + " routing capability field access", OwnedBodies(census)
+        foreach (var (holder, accesses) in new[]
+                 {
+                     (activator, new[] { activatorConstructor + ":stfld", bind + ":ldfld", begin + ":ldfld" }),
+                     (invocation, new[] { invocationConstructor + ":stfld", run + ":ldfld" }),
+                 })
+            CheckSet(offenders, TypeId(holder) + " routing capability field access", ownedBodies
                     .SelectMany(item => item.Body.Body.Instructions
                         .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, holder)
                             && field.Name == "<routing>P")
                         .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)),
-                [write + ":stfld", read + ":ldfld"]);
+                accesses);
     }
 
     private static void AssertJobStepThreeControls(ProductionCensus census)
@@ -329,6 +353,39 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var holder in new[] { JobClosedActivator, JobBoundInvocation })
             AssertMutation(census, "a closed activator routing-capability forwarding helper", () =>
                 AddBoundaryFieldGetter(types[(InfrastructureAssembly, holder)], "UnexpectedRoutingAccessor", "<routing>P"), CredentialOffenders);
+        var activator = types[(InfrastructureAssembly, JobClosedActivator)];
+        var bound = types[(InfrastructureAssembly, JobBoundInvocation)];
+        var binding = types[(InfrastructureAssembly, JobInvocationContract)].Methods.Single(method => method.Name == "BindGeneration");
+        var bindingCapabilities = new[] { activator.Methods.Single(method => method.Name == ".ctor"),
+            activator.Methods.Single(method => method.Name == "Bind"), bound.Methods.Single(method => method.Name == ".ctor"), binding };
+        foreach (var capability in bindingCapabilities)
+        {
+            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
+                AssertMutation(census, "an extra generation-bound activator capability through " + opcode, () =>
+                    AddCallProbe(application, "ExtraBoundActivatorCapability", capability, opcode), CredentialOffenders);
+            AssertMutation(census, "an asynchronous generation-bound activator capability", () =>
+                AddAsyncCallProbe(application, "AsyncBoundActivatorCapability", capability), CredentialOffenders);
+            AssertMutation(census, "an activator capability overload borrowing the approved name", () =>
+            {
+                var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                return () => capability.DeclaringType.Methods.Remove(method);
+            }, CredentialOffenders);
+        }
+        var bindingSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference target && bindingCapabilities.Any(capability =>
+                SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
+        bindingSites.Should().HaveCount(5, "the two activator constructors, bound invocation and both binding seams must be live");
+        foreach (var instruction in bindingSites)
+        {
+            AssertMutation(census, "a missing actual generation-bound construction or binding site", () =>
+                ReplaceInstruction(instruction, OpCodes.Nop, null!), CredentialOffenders);
+            AssertMutation(census, "a delegate escape inside an approved binding caller", () =>
+                ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand), CredentialOffenders);
+        }
+        var cleanActivator = AddProbe(application, "CleanBoundInvocationIdentityObserver");
+        AddCall(cleanActivator, "ObserveIdentity", bound.Methods.Single(method => method.Name == "get_Type"), OpCodes.Callvirt);
+        try { CredentialOffenders(census).Should().BeEmpty("immutable invocation identity does not forward routing authority"); }
+        finally { application.Types.Remove(cleanActivator); }
         var executor = types[(InfrastructureAssembly, JobExecutorType)];
         AssertMutation(census, "dynamic business construction in the framework executor", () =>
         {

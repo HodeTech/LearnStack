@@ -26,7 +26,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
     BackgroundJobExecutionAdmission admission, BackgroundJobRuntimeOptions options)
 {
     public async Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
-        CancellationToken cancellationToken = default)
+        Func<bool>? startGate = null, CancellationToken cancellationToken = default)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
@@ -44,7 +44,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         try
         {
             accessor.Current = null;
-            authority = admission.EnterFramework(claim);
+            authority = admission.EnterFramework(claim, startGate);
             cancellationToken.ThrowIfCancellationRequested();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
