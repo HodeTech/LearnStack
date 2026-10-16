@@ -119,9 +119,10 @@ public sealed partial class HangfireGenerationTests(SchemaFixture schema)
         var topology = host.Services.GetRequiredService<BackgroundJobDefinitionRegistry>().Infrastructure;
         var gate = new BackgroundJobRuntimeGate(topology);
         var filters = HangfireRuntimeFilters.Create();
-        var provider = HangfireStorageBootstrap.Create(source, topology, new HangfireBoundedLogProvider(), gate);
+        var diagnostics = new HangfireBoundedLogProvider();
+        var provider = HangfireStorageBootstrap.Create(source, topology, diagnostics, gate);
         var inventory = new HangfireComponentInventory(provider);
-        var shared = new HangfireSharedComponents(inventory, gate, TimeProvider.System);
+        var shared = new HangfireSharedComponents(inventory, gate, TimeProvider.System, diagnostics);
         var generations = topology.Pools.Values.ToDictionary(pool => pool.Name,
             pool => Generation(host.Services, provider, inventory, filters, pool, gate), StringComparer.Ordinal);
         shared.Start();

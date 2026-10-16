@@ -5064,7 +5064,8 @@ every mutation; no process-wide mutation cache hides added or removed subjects.
 Validation currently records a zero-warning/error solution build, 2,083 Unit cases
 and 133 focused PostgreSQL/process cases, with zero failures/skips. The latter
 include ten real generation controls, app-role admission closure during a real row
-lock, real stock parity/bridge/admission regressions and seven Linux gate cases.
+lock, real stock parity/bridge/admission regressions, six Linux scenarios and
+one in-memory receipt-predicate control.
 The full Architecture run and final per-detector optimization rerun each pass
 319 cases, with zero failures/skips.
 
@@ -5085,6 +5086,37 @@ supported physical-acquisition boundary and remaining lifecycle/fault/exit proof
 remain in Step 4. Its complete implementation commit and two fresh full-step
 review rounds still precede Step 5. This slice claims no new business execution,
 recurrence, readiness mapping, production recovery, CI success or packet closeout.
+
+##### Foundation review round 1 and verified corrections (2026-10-16)
+
+Two fresh independent reviewers inspect `e0d39bf5..e1e6db42`: GPT-6 Astra with
+xhigh effort covers runtime authority/lifecycle; GPT-6.1 Sol with xhigh effort
+covers proofs/corpus. Both use standards-check then code-review lenses. These
+are focused foundation reviews, not the still-required full Step 4 rounds.
+
+Root verifies one Major finding against the pinned provider source: fetched-job
+renewal catches acquisition/SQL failures internally and returns normally. The
+shared owner could incorrectly report that returned pass healthy. The correction
+binds the closed diagnostics instance, preserves swallowed faults/ownership loss
+through empty passes, and requires a clean pass containing actual renewal SQL
+before clearing known storage failure. Return/join and storage health are distinct.
+No provider message factory is evaluated and stock code/SQL remain unchanged.
+
+The real disposable-PostgreSQL regression fetches a stock wakeup, revokes only its
+renewal-column permission and proves unchanged fetched-at, recorded fault and an
+unhealthy returned/joined pass. Restoring permission must produce actual fetched-at
+progress and healthy recovery with historical faults preserved. Fixture-only
+cadence acceleration is explicit; the stock one-second pass pacing is unchanged.
+Ten shared-owner unit cases and eleven generation PostgreSQL cases pass with zero
+failures/skips. The combined bridge/generation regression passes 33 cases.
+The initial new fixture does not compile against the provider's internal Options
+property; narrow test-only reflection corrects cadence access. A ten-case run of
+the previous integration binary is excluded from the new regression evidence.
+
+The proof reviewer reports no Blocker/Major/Minor. Both verified suggestions are
+applied: the constructor-shape assertion includes public and nonpublic members;
+the foundation receipt distinguishes six Linux scenarios from its one in-memory
+predicate control. Complete Step 4 qualification/activation remains pending.
 
 ### Durable outbox dispatch
 

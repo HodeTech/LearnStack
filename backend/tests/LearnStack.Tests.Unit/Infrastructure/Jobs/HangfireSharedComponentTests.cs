@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using FluentAssertions;
 using Hangfire.PostgreSql;
+using Hangfire.Logging;
 using Hangfire.Server;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
@@ -18,13 +19,13 @@ public sealed class HangfireSharedComponentTests
     [Fact]
     public async Task The_production_owner_has_only_the_exact_inventory_constructor_and_stop_before_start_acquires_nothing()
     {
-        var constructor = typeof(HangfireSharedComponents).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
+        var constructor = typeof(HangfireSharedComponents).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
             .Should().ContainSingle().Which;
         constructor.GetParameters().Select(parameter => parameter.ParameterType).Should().Equal(
-            typeof(HangfireComponentInventory), typeof(BackgroundJobRuntimeGate), typeof(TimeProvider));
+            typeof(HangfireComponentInventory), typeof(BackgroundJobRuntimeGate), typeof(TimeProvider), typeof(HangfireBoundedLogProvider));
         using var source = new PrivilegedDataSource(() => throw new InvalidOperationException("Must not acquire"));
         var provider = new PostgreSqlStorage(new HangfireConnectionFactory(source), HangfireStorageBootstrap.Options());
-        var owner = new HangfireSharedComponents(new(provider), Gate(), TimeProvider.System);
+        var owner = new HangfireSharedComponents(new(provider), Gate(), TimeProvider.System, new());
 
         await owner.StopAsync(CancellationToken.None);
         owner.Start();
@@ -166,6 +167,41 @@ public sealed class HangfireSharedComponentTests
     }
 
     [Fact]
+    public async Task A_swallowed_renewal_fault_stays_unhealthy_through_empty_passes_until_positive_clean_renewal()
+    {
+        var diagnostics = new HangfireBoundedLogProvider();
+        using var component = new SwallowedFailureComponent(diagnostics.GetLogger("Hangfire.PostgreSql.PostgreSqlFetchedJob"));
+        var time = new ManualTimeProvider();
+        var worker = new HangfireSharedComponentWorker(component, HangfireSharedComponentKind.FetchedJobHeartbeat,
+            Gate(), time, diagnostics);
+        try
+        {
+            worker.Start();
+            component.ReleasePass();
+            await Eventually(() => component.Passes == 1 && time.HasDelay(HangfireSharedComponentWorker.FailureBackoff));
+            worker.Snapshot.StorageFault.Should().BeTrue();
+            worker.Snapshot.IsHealthy.Should().BeFalse();
+            worker.Snapshot.ActualJoined.Should().BeTrue("the swallowed failure returned and its actual invocation joined");
+
+            component.Mode = 1; // A normal return with no due renewal is not recovery evidence.
+            time.Advance(HangfireSharedComponentWorker.FailureBackoff);
+            component.ReleasePass();
+            await Eventually(() => component.Passes == 2 && time.HasDelay(HangfireSharedComponentWorker.FailureBackoff));
+            worker.Snapshot.StorageFault.Should().BeTrue();
+            worker.Snapshot.IsHealthy.Should().BeFalse();
+
+            component.Mode = 2; // The pinned success signal follows real renewal SQL.
+            time.Advance(HangfireSharedComponentWorker.FailureBackoff);
+            component.ReleasePass();
+            await Eventually(() => component.Passes == 3 && worker.Snapshot.IsHealthy);
+            worker.Snapshot.StorageFault.Should().BeFalse();
+            diagnostics.FetchedHeartbeat.Faults.Should().Be(1);
+            diagnostics.FetchedHeartbeat.Renewals.Should().Be(1);
+        }
+        finally { await worker.StopAsync(CancellationToken.None).WaitAsync(TestWait); }
+    }
+
+    [Fact]
     public async Task One_blocked_cancellation_callback_cannot_block_the_other_lane_or_dispose_late_cleanup()
     {
         using var first = new HeldComponent(blockCancellation: true);
@@ -251,7 +287,7 @@ public sealed class HangfireSharedComponentTests
         var gate = Gate();
         gate.StopStarts();
         var worker = new HangfireSharedComponentWorker(component, HangfireSharedComponentKind.Expiration,
-            gate, TimeProvider.System);
+            gate, TimeProvider.System, new());
         worker.Start();
         await worker.Completion.WaitAsync(TestWait);
         component.Invocations.Should().Be(0);
@@ -297,7 +333,7 @@ public sealed class HangfireSharedComponentTests
 
     private static BackgroundJobRuntimeGate Gate() => new(BackgroundJobInfrastructureRegistry.CreateDefault());
     private static HangfireSharedComponentWorker Worker(IServerComponent component, HangfireSharedComponentKind kind,
-        TimeProvider timeProvider) => new(component, kind, Gate(), timeProvider);
+        TimeProvider timeProvider) => new(component, kind, Gate(), timeProvider, new());
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private static async Task Eventually(Func<bool> predicate)
@@ -308,6 +344,25 @@ public sealed class HangfireSharedComponentTests
             if (deadline.Elapsed >= TestWait) throw new TimeoutException("The owned component state did not arrive.");
             await Task.Delay(TimeSpan.FromMilliseconds(10));
         }
+    }
+
+    private sealed class SwallowedFailureComponent(ILog logger) : IServerComponent, IDisposable
+    {
+        private readonly SemaphoreSlim _permits = new(0);
+        private int _mode, _passes;
+        internal int Mode { set => Volatile.Write(ref _mode, value); }
+        internal int Passes => Volatile.Read(ref _passes);
+        internal void ReleasePass() => _permits.Release();
+        public void Execute(CancellationToken cancellationToken)
+        {
+            _permits.Wait(cancellationToken);
+            var mode = Volatile.Read(ref _mode);
+            if (mode == 0) logger.Log(LogLevel.Debug, () => throw new InvalidOperationException("Must not evaluate provider text."),
+                new InvalidOperationException("Synthetic swallowed renewal failure."));
+            if (mode == 2) logger.Log(LogLevel.Trace, () => throw new InvalidOperationException("Must not evaluate provider text."));
+            Interlocked.Increment(ref _passes);
+        }
+        public void Dispose() => _permits.Dispose();
     }
 
     private sealed class HeldComponent(bool blockCancellation = false) : IServerComponent, IDisposable

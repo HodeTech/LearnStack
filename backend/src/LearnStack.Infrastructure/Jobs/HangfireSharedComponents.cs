@@ -9,9 +9,9 @@ internal enum HangfireSharedComponentOutcome { None, Completed, Canceled, Failed
 
 internal sealed record HangfireSharedComponentSnapshot(HangfireSharedComponentKind Kind,
     HangfireSharedComponentState State, HangfireSharedComponentOutcome Outcome,
-    long Invocations, bool ActualJoined, bool OwnsResources)
+    long Invocations, bool ActualJoined, bool OwnsResources, bool StorageFault)
 {
-    internal bool IsHealthy => (State is HangfireSharedComponentState.Running or HangfireSharedComponentState.Waiting)
+    internal bool IsHealthy => !StorageFault && (State is HangfireSharedComponentState.Running or HangfireSharedComponentState.Waiting)
         && Outcome is not (HangfireSharedComponentOutcome.Failed or HangfireSharedComponentOutcome.StartFailed
             or HangfireSharedComponentOutcome.CancellationFault or HangfireSharedComponentOutcome.CleanupFailed);
 }
@@ -23,11 +23,11 @@ internal sealed class HangfireSharedComponents
     private readonly HangfireSharedComponentWorker _heartbeat;
 
     internal HangfireSharedComponents(HangfireComponentInventory inventory, BackgroundJobRuntimeGate gate,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider, HangfireBoundedLogProvider diagnostics)
     {
         ArgumentNullException.ThrowIfNull(inventory);
-        _expiration = new(inventory.Expiration, HangfireSharedComponentKind.Expiration, gate, timeProvider);
-        _heartbeat = new(inventory.FetchedJobHeartbeat, HangfireSharedComponentKind.FetchedJobHeartbeat, gate, timeProvider);
+        _expiration = new(inventory.Expiration, HangfireSharedComponentKind.Expiration, gate, timeProvider, diagnostics);
+        _heartbeat = new(inventory.FetchedJobHeartbeat, HangfireSharedComponentKind.FetchedJobHeartbeat, gate, timeProvider, diagnostics);
         Completion = Task.WhenAll(_expiration.Completion, _heartbeat.Completion);
     }
 
@@ -70,6 +70,9 @@ internal sealed class HangfireSharedComponentWorker
     private readonly HangfireSharedComponentKind _kind;
     private readonly BackgroundJobRuntimeGate _gate;
     private readonly TimeProvider _timeProvider;
+    private readonly HangfireBoundedLogProvider _diagnostics;
+    private long _confirmedFaults, _confirmedOwnershipLosses;
+    private bool _storageFault;
     private readonly TaskCompletionSource _stop = Signal();
     private readonly TaskCompletionSource _completion = Signal();
     private bool _started;
@@ -81,13 +84,14 @@ internal sealed class HangfireSharedComponentWorker
     private Task? _loop;
 
     internal HangfireSharedComponentWorker(IServerComponent component, HangfireSharedComponentKind kind,
-        BackgroundJobRuntimeGate gate, TimeProvider timeProvider)
+        BackgroundJobRuntimeGate gate, TimeProvider timeProvider, HangfireBoundedLogProvider diagnostics)
     {
         _component = component ?? throw new ArgumentNullException(nameof(component));
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         _kind = kind;
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _diagnostics = diagnostics ?? throw new ArgumentNullException(nameof(diagnostics));
     }
 
     internal Task Completion => _completion.Task;
@@ -102,7 +106,7 @@ internal sealed class HangfireSharedComponentWorker
                 return new(_kind, retainedOutcome == HangfireSharedComponentOutcome.None
                         ? _state : HangfireSharedComponentState.CleanupFault,
                     retainedOutcome == HangfireSharedComponentOutcome.None ? _outcome : retainedOutcome,
-                    _invocations, _current?.ActualJoined ?? true, _current is { Completion.IsCompleted: false });
+                    _invocations, _current?.ActualJoined ?? true, _current is { Completion.IsCompleted: false }, HasStorageFault());
             }
         }
     }
@@ -227,6 +231,33 @@ internal sealed class HangfireSharedComponentWorker
         }
     }
 
+    private bool HasStorageFault()
+    {
+        if (_kind != HangfireSharedComponentKind.FetchedJobHeartbeat) return false;
+        var current = _diagnostics.FetchedHeartbeat;
+        return _storageFault || current.Faults != _confirmedFaults || current.OwnershipLosses != _confirmedOwnershipLosses;
+    }
+
+    private HangfireSharedComponentOutcome ObserveReturn(HangfireFetchedHeartbeatDiagnostics before)
+    {
+        if (_kind != HangfireSharedComponentKind.FetchedJobHeartbeat) return HangfireSharedComponentOutcome.Completed;
+        var after = _diagnostics.FetchedHeartbeat;
+        lock (_sync)
+        {
+            if (after.Faults != before.Faults || after.OwnershipLosses != before.OwnershipLosses)
+                _storageFault = true;
+            else if (after.Renewals > before.Renewals)
+            {
+                // An empty/not-yet-due pass cannot erase a known fault. A clean
+                // pass containing real renewal SQL is positive recovery evidence.
+                _storageFault = false;
+                _confirmedFaults = after.Faults;
+                _confirmedOwnershipLosses = after.OwnershipLosses;
+            }
+            return HasStorageFault() ? HangfireSharedComponentOutcome.Failed : HangfireSharedComponentOutcome.Completed;
+        }
+    }
+
     private void SetState(HangfireSharedComponentState state,
         HangfireSharedComponentOutcome outcome = HangfireSharedComponentOutcome.None)
     {
@@ -344,8 +375,9 @@ internal sealed class HangfireSharedComponentWorker
                 // immediately before issuing the selected stock invocation.
                 if (!_cancellation.IsCancellationRequested && _owner.TryIssueInvocation(_cancellation.Token))
                 {
+                    var before = _owner._diagnostics.FetchedHeartbeat;
                     _owner._component.Execute(_cancellation.Token);
-                    result = HangfireSharedComponentOutcome.Completed;
+                    result = _owner.ObserveReturn(before);
                 }
             }
             catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)

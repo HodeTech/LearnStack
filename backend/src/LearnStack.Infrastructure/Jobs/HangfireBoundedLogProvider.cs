@@ -6,12 +6,23 @@ public enum HangfireDiagnosticLevel { Trace, Debug, Information, Warning, Error,
 public enum HangfireDiagnosticOutcome { Operational, Fault }
 public enum HangfireDiagnosticSource { Other, ServerHeartbeat, FetchedJobHeartbeat, Expiration }
 
+internal sealed record HangfireFetchedHeartbeatDiagnostics(long Faults, long Renewals, long OwnershipLosses);
+
 /// <summary>Closed memory-only recording; no supplied callback runs on a vendor or exit thread.</summary>
 public sealed class HangfireBoundedLogProvider : ILogProvider
 {
     private const int LevelCount = 6;
     private const int OutcomeCount = 2;
     private readonly BoundedLog[] _loggers = Enumerable.Range(0, 4).Select(_ => new BoundedLog()).ToArray();
+
+    // In the pinned fetched-job implementation, Trace follows the actual
+    // renewal SQL; Warn means its fetched-at fence was lost. No message factory
+    // or provider data is evaluated to observe these finite source/level facts.
+    internal HangfireFetchedHeartbeatDiagnostics FetchedHeartbeat => new(
+        Enum.GetValues<HangfireDiagnosticLevel>().Sum(level => Count(level,
+            HangfireDiagnosticOutcome.Fault, HangfireDiagnosticSource.FetchedJobHeartbeat)),
+        Count(HangfireDiagnosticLevel.Trace, HangfireDiagnosticOutcome.Operational, HangfireDiagnosticSource.FetchedJobHeartbeat),
+        Count(HangfireDiagnosticLevel.Warning, HangfireDiagnosticOutcome.Operational, HangfireDiagnosticSource.FetchedJobHeartbeat));
 
     public ILog GetLogger(string name) => _loggers[(int)(name switch
     {
