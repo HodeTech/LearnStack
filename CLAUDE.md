@@ -245,6 +245,8 @@ owns implementation and review status. Steps 4–9 remain pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
 implementation, production qualification and worker activation remain pending.
+The [required-startup qualification record](docs/roadmap/phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
+opens Proposed ADR-0060; its fatal-process policy requires approval before use.
 Phase 06 retains the full
 renderer/Studio expansion.
 

@@ -23,6 +23,8 @@ owns both review rounds and passing 4,152-case backend verification. Step 4's
 [lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
 ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
 implementation, production qualification and worker activation remain pending.
+The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
+opens Proposed ADR-0060; dependent fatal-process runtime requires approval.
 Steps 4–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -4759,6 +4761,40 @@ This documentation-only acceptance precedes dependent runtime changes. It
 claims no new worker, maintenance owner, production qualification, full backend
 rerun, CI result or packet closeout. Earlier pending-approval wording is dated
 history; current implementation and activation remain pending.
+
+#### Step 4 required-startup qualification (2026-10-16)
+
+ADR-0059 acceptance commits at `6c52eaa1` before dependent work. Root verifies
+two independent source/design inspections (GPT-6-astra xhigh and GPT-6.1-sol
+xhigh) against pinned Core and official .NET 10.0.10 source. Normal lifecycle
+containment is implementable, but the literal required-startup join-before-dispose
+obligation remains unqualified through the current public seams.
+
+Core starts metadata heartbeat and prepends private watchdog/cancellation builders
+before supplied capture. If required construction throws, it skips the child join
+and disposes prior controls before removal reaches the storage fence. Keeping that
+uncaptured generation retained prevents replacement, but cannot undo disposal.
+.NET distinguishes exact native-create OOM from a later initialization wrapper;
+Core's exact exception predicate does not itself exclude ThreadStartException.
+The identified Unix path concerns stack/TLS/runtime resource initialization.
+No genuine Linux resource-failure experiment, ordinary SQL/configuration
+counterexample or frequency estimate is claimed. A hostile global logger or
+invalid input is not a supported-production counterexample.
+
+[ADR-0060](../decisions/0060-fatal-hangfire-required-startup.md) proposes the narrow
+fatal-process alternative: after prevalidation, unowned constructor/required
+startup failure closes starts/replacement and terminates the entire API without
+a graceful-cleanup claim. This interrupts unrelated pools/HTTP traffic; durable
+attempts, external uncertainty and reservations remain authoritative. Normal
+announcement/database faults, captured builders, local drain and host stop retain
+ADR-0059's policy. The proposal neither accepts itself nor authorizes termination
+runtime. It applies ADR-0059's existing decision-reopening gate.
+
+Independent bridge, closed diagnostics, selective component/filter inventory and
+storage/parity work continue under the Accepted contracts. They do not qualify
+the complete server owner or activate workers. New proposal review receipts and
+actual implementation/test results will be recorded after they occur; no new
+passing production test, full Step 4 completion or current-head CI is implied.
 
 ### Durable outbox dispatch
 
