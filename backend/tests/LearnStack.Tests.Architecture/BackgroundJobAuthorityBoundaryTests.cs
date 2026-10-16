@@ -12,13 +12,16 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobTransactionBehavior = "LearnStack.Application.Pipeline.TransactionBehavior`2";
     private const string PrivilegedSource = "LearnStack.Infrastructure.Persistence.PrivilegedDataSource";
 
-    /// <summary>ADR-0047 ordinary execution authority; Step 1 prepares the closed activation seam.</summary>
+    /// <summary>ADR-0047 ordinary execution authority and Step 3's live framework admission.</summary>
     [Fact]
     public void Background_job_admission_and_privileged_entries_keep_their_closed_preconstruction_seams()
     {
         using var census = ProductionCensus.Read();
         JobAuthorityOffenders(census).Should().BeEmpty(
             "Fix: retain the independent sticky admission, exact pipeline gate and guards at every alternate/privileged entry");
+        JobStepThreeOffenders(census).Should().BeEmpty(
+            "Fix: retain the exact producer, opaque routing capability and acknowledged app-role start receipt path");
+        CheckJobFrameworkMetadata();
     }
 
     /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
@@ -41,6 +44,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var guard in guards)
             AssertMutation(census, "a missing actual job authority gate", () =>
                 ReplaceInstruction(guard, OpCodes.Ldstr, "missing job authority gate"), JobAuthorityOffenders);
+        AssertJobStepThreeControls(census);
     }
 
     private static SortedSet<string> JobAuthorityOffenders(ProductionCensus census)
@@ -53,28 +57,28 @@ public sealed partial class OutboxDispatchConventionTests
         if (offenders.Count != 0) return offenders;
         var admission = types[(DeliveryApplication, JobAdmission)];
         var enter = admission.Methods.Where(method => method.Name == "Enter").ToArray();
-        if (enter.Length != 1 || !ParametersMatch(enter[0], ["System.String", "LearnStack.SharedKernel.Identifiers.TenantId",
-                "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>", "LearnStack.SharedKernel.Jobs.BackgroundJobExecutionStage"]))
-            offenders.Add("Admission activation must use its one registered definition/scope/stage contract");
+        if (enter.Length != 1 || !ParametersMatch(enter[0], [JobStartReceipt]))
+            offenders.Add("Admission activation must consume its one confirmed start receipt contract");
         var snapshot = admission.NestedTypes.SingleOrDefault(type => type.Name == "Admission");
         if (snapshot is null || !snapshot.IsSealed || snapshot.Fields.Any(field => !field.IsInitOnly)
             || snapshot.Fields.Any(field => field.FieldType.FullName is "LearnStack.SharedKernel.Jobs.IBackgroundJobRequestCatalog"
                 or "LearnStack.SharedKernel.Audit.IAuditCatalog"))
             offenders.Add("Admission must retain a sealed immutable snapshot without mutable catalogue authority");
         var sites = CallSites(census).Where(site => site.Target.DeclaringType.FullName == JobAdmission).ToArray();
-        // Step 1 prepares the activation seam. JobExecutor is not implemented yet;
-        // no synthetic production caller is added to make this empty set look live.
+        // Step 3 records confirmed admission; business execution belongs to Step 5.
+        // The separate framework activator below is already a nonempty production path.
         CheckSet(offenders, "ordinary job admission activators", sites.Where(site => site.Target.Name == "Enter").Select(site => site.Owner), []);
         CheckSet(offenders, "job request gate", sites.Where(site => site.Target.Name == "TryEnterRequest").Select(site => site.Owner),
             [Owner(DeliveryApplication, JobTenantBehavior, "Handle")]);
         CheckSet(offenders, "closed framework transaction mode", sites.Where(site => site.Target.Name == "ModeFor").Select(site => site.Owner),
             [Owner(DeliveryApplication, JobTransactionBehavior, "Handle")]);
         CheckSet(offenders, "job context owner gates", sites.Where(site => site.Target.Name == "RequireContext").Select(site => site.Owner),
-            [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
+            [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => site.Owner),
             [Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnection"), Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, BoundaryPlatform, "EnterAsync"), Owner(InfrastructureAssembly, BoundaryTransport, "PublishAsync"),
              Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteAsync"), Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteControlledAsync"),
+             Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"),
              Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync")]);
         return offenders;
 

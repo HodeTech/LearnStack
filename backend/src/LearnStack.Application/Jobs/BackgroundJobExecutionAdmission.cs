@@ -25,10 +25,13 @@ public sealed class BackgroundJobExecutionAdmission(
     /// Activates one registered definition. Only the job executor may call this in
     /// production; neither request types nor a caller-selected scope are accepted.
     /// </summary>
-    public IDisposable Enter(string definitionKey, TenantId tenantId, OrganizationId? organizationId,
-        BackgroundJobExecutionStage stage = BackgroundJobExecutionStage.Transactional)
+    public IDisposable Enter(ConfirmedStartReceipt receipt)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(definitionKey);
+        ArgumentNullException.ThrowIfNull(receipt);
+        var definitionKey = receipt.Envelope.DefinitionKey;
+        var tenantId = receipt.Envelope.TenantId;
+        var organizationId = receipt.Envelope.OrganizationId;
+        var stage = receipt.Stage;
         if (CurrentFrame.Value is not null || !ValidTenant(tenantId)
             || !ValidOrganization(organizationId)
             || !definitions.TryGet(definitionKey, out var definition)
@@ -52,7 +55,8 @@ public sealed class BackgroundJobExecutionAdmission(
         var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
         var admitted = new Admission(tenantId, organizationId, definition.Scope, root,
             definition.NestedRequestTypes.Except(definition.RootRequestTypes).ToFrozenSet(), metadata);
-        var frame = new Frame(admitted);
+        receipt.Consume();
+        var frame = new Frame(admitted, receipt: receipt);
         CurrentFrame.Value = frame;
         return new Scope(frame);
     }
@@ -63,7 +67,15 @@ public sealed class BackgroundJobExecutionAdmission(
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(context);
         var frame = CurrentFrame.Value;
-        if (frame is null) return true;
+        if (frame is null) return !IsFramework(requestType);
+        if (frame.Claim is { } claim)
+        {
+            if (!IsLive(frame) || !frame.Admission.Requests.TryGetValue(requestType, out var framework)
+                || !framework.AuditPermits || CurrentRequest.Value is not null) return false;
+            return frame.Envelope is null
+                ? requestType == typeof(ReadBackgroundJobEnvelopeQuery) && !context.IsResolved
+                : requestType == typeof(AdmitBackgroundJobAttemptCommand) && MatchesRoute(claim, context);
+        }
         if (!IsLive(frame) || !MatchesContext(frame.Admission, context)
             || typeof(IProvisionsTenant).IsAssignableFrom(requestType)
             || requestType.IsDefined(typeof(AllowsUnresolvedTenantContextAttribute), inherit: false)
@@ -123,7 +135,9 @@ public sealed class BackgroundJobExecutionAdmission(
     {
         ArgumentNullException.ThrowIfNull(context);
         if (CurrentFrame.Value is { } frame
-            && (!IsLive(frame) || provisioning is not null || !MatchesContext(frame.Admission, context))) throw Denied();
+            && (!IsLive(frame) || provisioning is not null
+                || (frame.Claim is not null ? !PermitsFrameworkContext(frame, context)
+                    : !MatchesContext(frame.Admission, context)))) throw Denied();
     }
 
     /// <summary>Refuses privileged or alternate asynchronous entry even after accessor replacement.</summary>
@@ -137,14 +151,99 @@ public sealed class BackgroundJobExecutionAdmission(
     {
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(catalog);
-        var frameworkReadOnly = CurrentFrame.Value is { } frame
-            ? frame.Admission.Requests.TryGetValue(requestType, out var snapshot)
-                && snapshot.Classification == BackgroundJobRequestClassification.FrameworkReadOnly
-            : catalog.TryGet(requestType, out var request) && request.RequestType == requestType
-                && request.Classification == BackgroundJobRequestClassification.FrameworkReadOnly;
         return requestType.IsDefined(typeof(PublicSurfaceAttribute), inherit: false)
-            || frameworkReadOnly
+            || requestType == typeof(ReadBackgroundJobEnvelopeQuery)
             ? TransactionMode.ReadOnly : TransactionMode.ReadWrite;
+    }
+
+    /// <summary>Starts the opaque routing capability before the app-role pre-read.</summary>
+    public IDisposable EnterFramework(BackgroundJobRoutingClaim claim)
+    {
+        ArgumentNullException.ThrowIfNull(claim);
+        if (CurrentFrame.Value is not null || !ValidTenant(claim.TenantId)
+            || !ValidOrganization(claim.OrganizationId)) throw Denied();
+        var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
+        foreach (var required in BackgroundJobFrameworkRequests.All)
+            if (!metadata.TryGetValue(required.RequestType, out var found) || !found.AuditPermits
+                || found.Classification != required.Classification) throw Denied();
+        claim.EnterOnce();
+        var admitted = new Admission(claim.TenantId, claim.OrganizationId,
+            claim.OrganizationId is null ? BackgroundJobScope.TenantWide : BackgroundJobScope.Organization,
+            typeof(ReadBackgroundJobEnvelopeQuery), Array.Empty<Type>().ToFrozenSet(), metadata);
+        var frame = new Frame(admitted, claim);
+        CurrentFrame.Value = frame;
+        return new Scope(frame);
+    }
+
+    /// <summary>Only JobExecutor advances its live framework scope after validated app-role reading.</summary>
+    public static void InstallValidatedEnvelope(BackgroundJobRoutingClaim claim, BackgroundJobEnvelope envelope)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        RequireRead(claim);
+        if (CurrentRequest.Value is not null || envelope.JobId != claim.JobId || envelope.TenantId != claim.TenantId
+            || envelope.OrganizationId != claim.OrganizationId || envelope.DefinitionKey != claim.DefinitionKey
+            || envelope.Queue != claim.Queue || envelope.OriginalDueAt != claim.OriginalDueAt) throw Denied();
+        CurrentFrame.Value!.Envelope = envelope;
+    }
+
+    public static void RequireRead(BackgroundJobRoutingClaim claim)
+    {
+        if (CurrentFrame.Value is not { } frame || !IsLive(frame)
+            || !ReferenceEquals(frame.Claim, claim) || frame.Envelope is not null) throw Denied();
+    }
+
+    public static void RequireStart(AdmitBackgroundJobAttemptCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (CurrentFrame.Value is not { } frame || !IsLive(frame)
+            || !ReferenceEquals(frame.Claim, command.Claim) || !ReferenceEquals(frame.Envelope, command.Envelope)
+            || frame.Envelope is null) throw Denied();
+    }
+
+    /// <summary>A legacy direct owner cannot borrow the currently active framework request.</summary>
+    internal static void RequireOperation(Type? operationType)
+    {
+        if (CurrentFrame.Value is { Claim: not null } frame
+            && (!IsLive(frame) || CurrentRequest.Value is null
+                || operationType != (frame.Envelope is null ? typeof(ReadBackgroundJobEnvelopeQuery)
+                    : typeof(AdmitBackgroundJobAttemptCommand)))) throw Denied();
+    }
+
+    internal static ITenantContext AnnouncementContext(ITenantContext context, Type? operationType)
+    {
+        if (CurrentFrame.Value is { Claim: { } claim, Envelope: null } frame)
+        {
+            if (operationType != typeof(ReadBackgroundJobEnvelopeQuery) || !PermitsFrameworkContext(frame, context)) throw Denied();
+            return new RoutingContext(claim);
+        }
+        return context;
+    }
+
+    public static bool PermitsUnresolvedRead(Type requestType, ITenantContext context) =>
+        requestType == typeof(ReadBackgroundJobEnvelopeQuery) && !context.IsResolved
+        && CurrentFrame.Value is { Claim: not null, Envelope: null } frame && IsLive(frame);
+
+    internal static BackgroundJobId? ParentJobId => CurrentFrame.Value?.Receipt?.Envelope.JobId;
+    internal static Guid? IncomingEventId => CurrentFrame.Value?.Receipt?.Envelope.IncomingEventId;
+
+    private static bool IsFramework(Type requestType) => requestType == typeof(ReadBackgroundJobEnvelopeQuery)
+        || requestType == typeof(AdmitBackgroundJobAttemptCommand);
+    private static bool PermitsFrameworkContext(Frame frame, ITenantContext context) =>
+        frame.Envelope is null ? !context.IsResolved && CurrentRequest.Value is { IsOrdinary: false }
+            : MatchesRoute(frame.Claim!, context) && CurrentRequest.Value is { IsOrdinary: false };
+    private static bool MatchesRoute(BackgroundJobRoutingClaim claim, ITenantContext context) =>
+        context.IsResolved && context.Origin == TenantContextOrigin.Ambient && context.HostScope is null
+        && context.UserId == UserId.SystemActor && context.TenantId == claim.TenantId
+        && context.OrganizationId == claim.OrganizationId;
+
+    private sealed class RoutingContext(BackgroundJobRoutingClaim claim) : ITenantContext
+    {
+        public bool IsResolved => true;
+        public TenantId TenantId => claim.TenantId;
+        public OrganizationId? OrganizationId => claim.OrganizationId;
+        public UserId? UserId => null;
+        public string? CorrelationId => null;
+        public string? ModuleName => null;
     }
 
     private static bool MatchesContext(Admission admitted, ITenantContext context) =>
@@ -174,10 +273,13 @@ public sealed class BackgroundJobExecutionAdmission(
 
     // Lifecycle revocation is separate from the immutable authority snapshot. A task
     // retaining a closed frame stays refused after its owner's execution flow restores.
-    private sealed class Frame(Admission admission)
+    private sealed class Frame(Admission admission, BackgroundJobRoutingClaim? claim = null, ConfirmedStartReceipt? receipt = null)
     {
         private int _closed;
         public Admission Admission { get; } = admission;
+        public BackgroundJobRoutingClaim? Claim { get; } = claim;
+        public ConfirmedStartReceipt? Receipt { get; } = receipt;
+        public BackgroundJobEnvelope? Envelope { get; set; }
         public bool IsOpen => Volatile.Read(ref _closed) == 0;
         public void Close() => Interlocked.Exchange(ref _closed, 1);
     }

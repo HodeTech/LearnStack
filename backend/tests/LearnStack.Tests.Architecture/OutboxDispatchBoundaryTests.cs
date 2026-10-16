@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Messaging;
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.MultiTenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -479,7 +480,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var subject in new[] { (BoundaryApi, BoundaryComposition), (BoundaryApi, BoundaryPersistence),
                      (BoundaryApi, BoundaryWorker), (BoundaryApi, DeliveryWorker), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, BoundaryPlatform),
-                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store) })
+                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store), (InfrastructureAssembly, JobRoutingStore) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing credential subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
 
@@ -547,6 +548,19 @@ public sealed partial class OutboxDispatchConventionTests
         }
 
         var sites = CallSites(census).ToArray();
+        var routingDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(PostgresBackgroundJobRoutingStore));
+        var routingFactory = routingDescriptor.ImplementationFactory is { } implementationFactory
+            ? FindRuntimeMethod(census, implementationFactory.Method) : null;
+        if (routingFactory is null || routingDescriptor.Lifetime != ServiceLifetime.Singleton)
+            offenders.Add("Missing actual singleton job-routing store factory");
+        else
+        {
+            expectedResolvers.Add(MethodId(routingFactory));
+            if (!DelegateTargets(outboxRoot).Any(target => MethodId(target) == MethodId(routingFactory)))
+                offenders.Add("Job-routing store factory must be registered by the outbox root");
+            CheckLiteralKeyResolver(offenders, routingFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
+        }
         CheckSet(offenders, "keyed resolver callers", sites.Where(site => IsKeyedResolution(site.Target)).Select(site => site.Owner), expectedResolvers);
         CheckSet(offenders, "keyed registration callers", sites.Where(site => IsKeyedRegistration(site.Target)).Select(site => site.Owner), expectedFactories);
         CheckSet(offenders, "outbox pool construction", sites.Where(site => site.Target.DeclaringType.FullName == BoundarySource
@@ -622,6 +636,7 @@ public sealed partial class OutboxDispatchConventionTests
         ]);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
         CheckDeliveryCredentials(offenders, census, outboxRoot, deliveryFactory);
+        CheckJobRoutingCredentials(offenders, census, outboxRoot, routingFactory);
         CheckPrivilegedAcquisitions(offenders, census);
         return offenders;
     }

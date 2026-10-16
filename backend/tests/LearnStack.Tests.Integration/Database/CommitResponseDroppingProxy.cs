@@ -20,9 +20,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly Task _accepting;
     private int _droppedCommitResponses;
     private int _acceptedConnections;
+    private readonly int _commitsToPass;
+    private int _completedCommits;
 
-    public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false)
+    public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false, int commitsToPass = 0)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(commitsToPass);
+        _commitsToPass = commitsToPass;
         _rejectReconciliationConnections = rejectReconciliationConnections;
         var target = new NpgsqlConnectionStringBuilder(connectionString);
         _targetHost = target.Host ?? throw new ArgumentException("The test proxy requires a PostgreSQL host.", nameof(connectionString));
@@ -139,6 +143,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             var body = new byte[length - 4];
             await server.ReadExactlyAsync(body, cancellationToken);
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
+                && Interlocked.Increment(ref _completedCommits) > _commitsToPass
                 && Interlocked.CompareExchange(ref _droppedCommitResponses, 1, 0) == 0)
             {
                 // The real server has committed. Forward neither CommandComplete

@@ -1,4 +1,5 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
@@ -63,6 +64,11 @@ public static class OutboxCompositionExtensions
             services.AddHostedService<DeliveryProcessor>();
             services.AddHealthChecks().AddCheck<DeliveryHealthCheck>(DeliveryHealthCheck.Name);
         }
+        services.TryAddSingleton(provider => new PostgresBackgroundJobRoutingStore(
+            provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key),
+            provider.GetRequiredService<BackgroundJobDefinitionRegistry>(),
+            provider.GetRequiredService<BackgroundJobRuntimeOptions>(),
+            provider.GetRequiredService<IGuidFactory>()));
         return services;
     }
 }

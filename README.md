@@ -92,7 +92,9 @@ owns completed validation and both review rounds. Step 2's
 owns locally validated schema/bootstrap and source/reset implementation under
 Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
 verification are complete.
-Steps 3–9 remain pending.
+Step 3 submission/admission is in progress; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns implementation and review status. Steps 4–9 remain pending.
 Phase 02b remains in progress.
 [P02d-1](docs/roadmap/phase-02d-walking-skeleton.md#merge-and-closeout-2026-09-14) is
 **complete and merged**: Education domain, schema and isolation proofs.

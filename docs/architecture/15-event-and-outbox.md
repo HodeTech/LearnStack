@@ -725,12 +725,14 @@ vendor totals are not authoritative business outcomes; fewer live rows do not
 promise bounded disk/backlog or recovery rate. Phase 11 owns operational retention,
 space and measured production capacity.
 
-The [Step 2 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
-owns current delivery status. Acceptance precedes source/reset qualification;
+The [Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and-closeout)
+owns completed schema/bootstrap/source qualification. The
+[Step 3 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns submission and app-role admission implementation/review status;
 Step 4 owns actual component/filter selection, the shared expiration owner and
 final acquisition-census/supported-pool-boundary progress proofs. Step 9 owns full
 observation/enforcement. Both extended canonical obligations remain Registered;
-no maintenance runtime or full Step 2 closeout is claimed by acceptance.
+no maintenance runtime is claimed by decision acceptance or Step 2 completion.
 
 ## Service extraction readiness
 

@@ -15,7 +15,8 @@ public sealed class BackgroundJobRegistryTests
     {
         var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
         definitions.DefinitionKeys.Should().BeEmpty();
-        definitions.All.Should().BeEmpty();
+        definitions.All.Select(request => request.RequestType).Should().BeEquivalentTo(
+            LearnStack.Application.Jobs.BackgroundJobFrameworkRequests.All.Select(request => request.RequestType));
         BackgroundJobRecurrenceRegistry.CreateEmpty().Keys.Should().BeEmpty();
         definitions.Infrastructure.Pools.Values.Select(pool => (pool.Kind, pool.Workers))
             .Should().BeEquivalentTo(new[] { (BackgroundJobWorkerPoolKind.Transactional, 1),

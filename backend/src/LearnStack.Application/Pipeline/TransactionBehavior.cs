@@ -25,8 +25,8 @@ public sealed class TransactionBehavior<TRequest, TResponse>(TransactionExecutio
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(next);
-        return coordinator.ExecuteAsync(
-            request as IProvisionsTenant, BackgroundJobExecutionAdmission.ModeFor(typeof(TRequest), requests), typeof(TRequest).Name,
+        return coordinator.ExecuteRequestAsync(
+            request, BackgroundJobExecutionAdmission.ModeFor(typeof(TRequest), requests),
             () => next(), cancellationToken);
     }
 }

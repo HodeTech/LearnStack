@@ -146,7 +146,7 @@ public sealed class DeliveryExecutor(
                         var response = await audit.ExecuteAsync(subscription.HandlerType, null,
                             () => transaction.ExecutePreparedDeliveryAsync(prepared, completion, claim.EventId,
                                 () => InvokeAsync(services, subscription, envelope.Event, cancellationToken),
-                                cancellationToken), cancellationToken).ConfigureAwait(false);
+                                operationType: subscription.HandlerType, cancellationToken: cancellationToken), cancellationToken).ConfigureAwait(false);
                         if (response.IsFailure) outcome = DeliveryExecutionOutcome.Refused;
                     }
                     else
@@ -154,7 +154,7 @@ public sealed class DeliveryExecutor(
                         // A durable inbox duplicate bypasses classification and
                         // construction, but still completes this claim under its fence.
                         await transaction.ExecutePreparedDeliveryAsync(prepared, completion, claim.EventId,
-                            () => Task.FromResult(Result<None>.Ok(None.Value)), cancellationToken).ConfigureAwait(false);
+                            () => Task.FromResult(Result<None>.Ok(None.Value)), cancellationToken: cancellationToken).ConfigureAwait(false);
                     }
                 }
             }

@@ -48,7 +48,7 @@ public sealed class TransactionBehaviorTests
     public sealed record FrameworkQuery : IRequest<Result<string>>;
 
     [Fact]
-    public async Task Exact_framework_pre_read_selects_the_same_physical_read_only_mode_without_a_public_marker()
+    public async Task Caller_framework_metadata_cannot_choose_a_physical_read_only_transaction()
     {
         var unit = new RecordingUnitOfWork();
         var producer = new ProducerExecution(unit);
@@ -64,7 +64,7 @@ public sealed class TransactionBehaviorTests
                 NullLogger<TransactionExecutionCoordinator>.Instance), requests);
         var result = await behavior.Handle(new FrameworkQuery(), () =>
         {
-            unit.Mode.Should().Be(TransactionMode.ReadOnly);
+            unit.Mode.Should().Be(TransactionMode.ReadWrite);
             unit.Calls.Add("framework-handler");
             return Task.FromResult(Result.Ok("read"));
         }, default);

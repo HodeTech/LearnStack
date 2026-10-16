@@ -190,7 +190,7 @@ public sealed partial class OutboxDispatchConventionTests
         var expected = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
             ["unit.begin"] = [Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
-            ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteAsync"),
+            ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation])],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
             ["unit.rollback"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync")],
@@ -205,6 +205,7 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobRoutingStore", "TryClaimAsync"),
                 Owner(AuditAssembly, AuditStore, "WriteOwnTransactionAsync"),
                 Owner(AuditAssembly, "LearnStack.Infrastructure.Audit.AuditConfigService", "LoadAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform, "RecordAsync"), Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "CommitAsync"),

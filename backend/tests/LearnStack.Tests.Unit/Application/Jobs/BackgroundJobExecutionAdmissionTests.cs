@@ -209,7 +209,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
         using var admission = fixture.Enter();
         fixture.Catalog.Overrides[typeof(Unlisted)] = new(typeof(Unlisted), BackgroundJobRequestClassification.FrameworkReadWrite, null);
         fixture.Catalog.Overrides[typeof(FrameworkRead)] = new(typeof(FrameworkRead), BackgroundJobRequestClassification.FrameworkReadWrite, null);
-        BackgroundJobExecutionAdmission.ModeFor(typeof(FrameworkRead), fixture.Catalog).Should().Be(TransactionMode.ReadOnly);
+        BackgroundJobExecutionAdmission.ModeFor(typeof(ReadBackgroundJobEnvelopeQuery), fixture.Catalog).Should().Be(TransactionMode.ReadOnly);
         (await scope.ServiceProvider.GetRequiredService<ISender>().Send(new Unlisted())).Error!.Code.Should().Be("forbidden");
         fixture.Constructed.Should().BeEmpty();
     }
@@ -232,7 +232,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
     public void Framework_mode_is_exact_and_does_not_depend_on_a_job_or_public_host_marker()
     {
         var fixture = new Fixture();
-        BackgroundJobExecutionAdmission.ModeFor(typeof(FrameworkRead), fixture.Catalog).Should().Be(TransactionMode.ReadOnly);
+        BackgroundJobExecutionAdmission.ModeFor(typeof(ReadBackgroundJobEnvelopeQuery), fixture.Catalog).Should().Be(TransactionMode.ReadOnly);
         BackgroundJobExecutionAdmission.ModeFor(typeof(FrameworkWrite), fixture.Catalog).Should().Be(TransactionMode.ReadWrite);
         BackgroundJobExecutionAdmission.ModeFor(typeof(Nested), fixture.Catalog).Should().Be(TransactionMode.ReadWrite);
         BackgroundJobExecutionAdmission.ModeFor(typeof(Unlisted), fixture.Catalog).Should().Be(TransactionMode.ReadWrite);
@@ -245,9 +245,9 @@ public sealed class BackgroundJobExecutionAdmissionTests
         var fixture = new Fixture();
         foreach (var action in new Action[]
                  {
-                     () => fixture.Admission.Enter("tenancy.unknown.v1", fixture.Context.TenantId, null),
-                     () => fixture.Admission.Enter(Fixture.Key, TenantId.PlatformSentinel, null),
-                     () => fixture.Admission.Enter(Fixture.Key, fixture.Context.TenantId, OrganizationId.From(Guid.CreateVersion7())),
+                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create("tenancy.unknown.v1", fixture.Context.TenantId, null, BackgroundJobExecutionStage.Transactional)),
+                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create(Fixture.Key, TenantId.PlatformSentinel, null, BackgroundJobExecutionStage.Transactional)),
+                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, OrganizationId.From(Guid.CreateVersion7()), BackgroundJobExecutionStage.Transactional)),
                  }) action.Should().Throw<InvalidOperationException>();
         fixture.Catalog.Readiness = BackgroundJobDefinitionReadiness.Pending;
         var pending = () => fixture.Enter();
@@ -311,7 +311,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
         public BackgroundJobExecutionAdmission Admission { get; }
         public Fixture() => Admission = new(Catalog, Catalog, new AuditCatalog([new Source()]));
         public IDisposable Enter(BackgroundJobExecutionStage stage = BackgroundJobExecutionStage.Transactional) =>
-            Admission.Enter(Key, Context.TenantId, Context.OrganizationId, stage);
+            Admission.Enter(JobAdmissionFixtureReceipt.Create(Key, Context.TenantId, Context.OrganizationId, stage));
         public ServiceProvider Services()
         {
             var services = new ServiceCollection().AddSingleton(this).AddTransient(_ => Context);

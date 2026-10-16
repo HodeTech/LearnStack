@@ -46,6 +46,8 @@
          against the real LearnStack.Api host. -->
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
+    <!-- Separate test-only module assemblies exercise real job ownership checks. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
 </Project>

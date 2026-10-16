@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Data.Common;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
@@ -22,7 +24,7 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
     /// actual production must pass <see cref="RequireAnnouncement"/>.
     /// </summary>
     internal Invocation BeginInvocation(bool isTransactionOwner, UserId? causalActor = null,
-        Guid? incomingEventId = null)
+        Guid? incomingEventId = null, Type? operationType = null, BackgroundJobId? parentJobId = null)
     {
         if (_dispatch is not null)
         {
@@ -54,7 +56,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
 
         var invocation = new Invocation(this, _current, announcement, hasOwner, isTransactionOwner, ownedActivity,
             _current is null ? causalActor : _current.CausalActor,
-            _current is null ? incomingEventId : _current.IncomingEventId);
+            _current is null ? incomingEventId : _current.IncomingEventId, operationType,
+            _current is null ? parentJobId : _current.ParentJobId);
         _current = invocation;
         return invocation;
     }
@@ -114,6 +117,65 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         return new IntegrationEventEnvelope(integrationEvent, traceparent,
             announcement.OrganizationId?.Value, CausationId: _dispatch?.EventId ?? _current!.IncomingEventId,
             ActorUserId: _dispatch is null ? _current!.CausalActor : _dispatch.Origin.CausalActor);
+    }
+
+    /// <summary>Captures the exact trusted producer operation and live physical transaction.</summary>
+    public JobOrigin CaptureJobOrigin(IUnitOfWork expectedUnit)
+    {
+        var announcement = RequireAnnouncement(expectedUnit);
+        var invocation = _dispatch?.Origin.Invocation ?? _current!;
+        var operation = invocation.OperationType
+            ?? throw new InvalidOperationException("Job submission requires a trusted typed operation.");
+        var traceparent = _dispatch?.Origin.Traceparent ?? Activity.Current?.Id;
+        if (traceparent is null || !ActivityContext.TryParse(traceparent, null, out _))
+            throw new InvalidOperationException("Job submission requires a W3C Activity.");
+        return new JobOrigin(this, _current!, invocation, _dispatch, unitOfWork.Transaction!, operation,
+            announcement, traceparent, _dispatch?.Origin.CausalActor ?? invocation.CausalActor,
+            _dispatch?.EventId ?? invocation.IncomingEventId, invocation.ParentJobId);
+    }
+
+    /// <summary>Revalidates after arbitrary serialization and before the actual INSERT.</summary>
+    public void RequireJobOrigin(JobOrigin origin, IUnitOfWork expectedUnit)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        var announcement = RequireAnnouncement(expectedUnit);
+        if (!ReferenceEquals(origin.Execution, this) || !ReferenceEquals(origin.CurrentInvocation, _current)
+            || !ReferenceEquals(origin.Dispatch, _dispatch) || !ReferenceEquals(origin.Transaction, unitOfWork.Transaction)
+            || origin.Announcement != announcement
+            || !ReferenceEquals(origin.Invocation, _dispatch?.Origin.Invocation ?? _current))
+            throw new InvalidOperationException("The job origin no longer belongs to the active producer invocation.");
+    }
+
+    /// <summary>Opaque scheduling origin, with diagnostic data that grants no standalone authority.</summary>
+    public sealed class JobOrigin
+    {
+        internal JobOrigin(ProducerExecution execution, Invocation currentInvocation, Invocation invocation,
+            object? dispatch, DbTransaction transaction, Type operationType, TenantContextAnnouncement announcement,
+            string traceparent, UserId? causalActor, Guid? incomingEventId, BackgroundJobId? parentJobId)
+        {
+            Execution = execution;
+            CurrentInvocation = currentInvocation;
+            Invocation = invocation;
+            Dispatch = dispatch;
+            Transaction = transaction;
+            OperationType = operationType;
+            Announcement = announcement;
+            Traceparent = traceparent;
+            CausalActor = causalActor;
+            IncomingEventId = incomingEventId;
+            ParentJobId = parentJobId;
+        }
+        internal ProducerExecution Execution { get; }
+        internal Invocation CurrentInvocation { get; }
+        internal Invocation Invocation { get; }
+        internal object? Dispatch { get; }
+        internal DbTransaction Transaction { get; }
+        public Type OperationType { get; }
+        public TenantContextAnnouncement Announcement { get; }
+        public string Traceparent { get; }
+        public UserId? CausalActor { get; }
+        public Guid? IncomingEventId { get; }
+        public BackgroundJobId? ParentJobId { get; }
     }
 
     /// <summary>Captures successful-save attribution without retaining ambient Activity state.</summary>
@@ -259,7 +321,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         internal Invocation(
             ProducerExecution execution, Invocation? parent,
             TenantContextAnnouncement? announcement, bool hasOwner, bool isTransactionOwner,
-            Activity? ownedActivity, UserId? causalActor, Guid? incomingEventId)
+            Activity? ownedActivity, UserId? causalActor, Guid? incomingEventId,
+            Type? operationType, BackgroundJobId? parentJobId)
         {
             _execution = execution;
             Parent = parent;
@@ -269,6 +332,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
             _ownedActivity = ownedActivity;
             CausalActor = causalActor;
             IncomingEventId = incomingEventId;
+            OperationType = operationType;
+            ParentJobId = parentJobId;
         }
 
         internal Invocation? Parent { get; }
@@ -277,6 +342,8 @@ public sealed class ProducerExecution(IUnitOfWork unitOfWork)
         internal bool IsTransactionOwner { get; }
         internal UserId? CausalActor { get; }
         internal Guid? IncomingEventId { get; }
+        internal Type? OperationType { get; }
+        internal BackgroundJobId? ParentJobId { get; }
 
         /// <summary>Successful production by this invocation or any descendant.</summary>
         public bool HasProducedWork { get; internal set; }

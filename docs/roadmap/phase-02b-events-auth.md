@@ -17,8 +17,10 @@ P02b-4 Step 1 implements contracts and ordinary execution guards; its
 [record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
 review status. Step 2 is complete under ADR-0058, Accepted — 2026-10-16;
 its [closeout](#step-2-final-proof-and-closeout) records both fresh review rounds,
-critical-fix verification and passing regression. Steps 3–9 and P02b-5–8 remain
-pending. Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
+critical-fix verification and passing regression. Step 3 submission/admission is
+in progress; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns implementation and review status. Steps 4–9 and P02b-5–8 remain pending.
+Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
 its [merge closeout](phase-02d-walking-skeleton.md#p02d-7-merge-and-closeout-2026-10-11)
@@ -127,10 +129,11 @@ At the [P02b-0 entry audit](#p02b-0-entry-verification-2026-10-12), `IOutbox`
 and step 7's implementation were absent. P02b-1 Step 2 now supplies immediate
 enqueue and the enrollment/invariant guard. P02b-2 Step 3 implements the
 API-host `OutboxProcessor` BackgroundService, with both independent review
-rounds complete. Still absent are `IInboxGuard`, `inbox_messages`, Hangfire and its
-package pins, and the realm's protocol mappers. Packet 5 documented a planned
-`IInboxGuard` seam in comments, without an interface declaration. P02b-3 owns its
-shared transport implementation and table under ADR-0046.
+rounds complete. P02b-3 delivers `IInboxGuard` and `inbox_messages` as shared
+transport infrastructure under ADR-0046. P02b-4 Step 2 delivers the Hangfire pins
+and guarded storage; Step 4 retains vendor worker activation. The realm's
+protocol mappers remain P02b-5 work. Packet 5's earlier `IInboxGuard` references
+were planned comments, not an interface declaration.
 
 ### What this phase is not
 
@@ -4296,6 +4299,60 @@ Step 3 now owns submission and app-role admission. Step 4 still owns actual work
 component/filter/maintenance/pool qualification; Step 9 owns full observation and
 enforcement. Both extended ADR-0058 catalogue obligations remain Registered.
 No production job definition, recurrence or worker is activated by Step 2.
+
+### P02b-4 Step 3 — submission and app-role admission (2026-10-16)
+
+**Implementation validated locally.** Both required fresh review rounds remain pending.
+Accepted ADR-0047 and the approved Step 3 plan govern this work; no new decision
+or worker activation is implied by this record.
+
+Submission stamps the actual typed producer operation, live announcement and
+physical transaction. The ordinary scheduling port accepts only its declared
+parameter type and owning module, requires exact tenant/organization scope,
+and inserts intent on that same transaction. Serialization and injected clock/ID
+operations cannot borrow stale enrollment. Successful INSERT adds a sticky
+produced-work receipt; the existing owner remains responsible for commit.
+
+Routing claims are separate from business attempts. An opaque returned-row claim
+authorizes only the exact framework read/start requests. App-role envelope
+validation uses a physically read-only frame before installing the verified
+Ambient/SystemActor context. A separate writable start frame locks/rechecks the
+row and can authorize later execution only through an acknowledged-commit
+receipt. Unknown COMMIT is not activation authority; acknowledged commit remains
+distinguishable from subsequent cleanup failure.
+
+The committed proof set covers real app-role isolation, immutable routing facts,
+read-only validation, unknown/Pending/early/stale callbacks, concurrent starts,
+lock-wait expiry, absorbed producer refusal and uncertain commit. No business
+request/handler may be constructed by admission. Capacity-bound/external starts
+remain deferred until their approved implementation steps.
+
+The first full run exposes three obsolete proof expectations: synthetic request
+metadata is no longer allowed to select physical read-only mode; failed audit
+rows remain durable after rollback; organization-scoped audit reads need the
+same organization announcement. The corrected expectations retain all business/
+job rollback assertions. A planted overload also exposes a detector exception;
+explicit declaration-count diagnostics now distinguish the violation from a
+clean production baseline.
+
+Root independently reproduces DI stopping disposal after the first throwing
+async disposable. The executor retains each actual unit before handler resolution
+and awaits its cleanup if scope disposal faults, while keeping context/authority
+installed. Physical connection-close controls pass for failed pre-read cleanup
+and post-acknowledgement start cleanup. Activity observer faults also preserve
+acknowledged receipts and restoration.
+
+Release CI-style build has zero warnings/errors. All **38 focused PostgreSQL
+cases pass**, zero failures/skips, including real physical generation substitution
+at constructor/clock/ID callbacks, read-only RLS and write-refusal controls,
+forced concurrent starts, lock-wait expiry, dropped COMMIT acknowledgement and
+cleanup faults. Typed Pending submission commits backlog but cannot route/start.
+Unit 2,018, contract 4 and Docker-free integration 176 pass; the complete
+architecture suite separately passes 315 cases, including dirty/clean capability
+controls. Full solution formatting verifies 972 files without changes; seven ADR
+parser controls and local link/fragment/history/whitespace checks pass.
+The final combined Docker-free receipt and complete Docker regression remain
+pending in this receipt. Neither formal review round is claimed by self-review.
 
 ### Durable outbox dispatch
 

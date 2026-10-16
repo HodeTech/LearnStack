@@ -127,7 +127,9 @@ owns completed validation and both review rounds. Step 2's
 owns locally validated schema/bootstrap and source/reset implementation under
 Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
 verification are complete.
-Steps 3–9 remain pending.
+Step 3 submission/admission is in progress; its
+[record](phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns implementation and review status. Steps 4–9 remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

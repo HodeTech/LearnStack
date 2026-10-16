@@ -89,7 +89,8 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         // host provenance, even when a type also carries the unresolved marker.
         if (!tenantContext.IsResolved)
         {
-            return AllowsUnresolved && !IsPublicSurface
+            return (AllowsUnresolved && !IsPublicSurface)
+                || BackgroundJobExecutionAdmission.PermitsUnresolvedRead(typeof(TRequest), tenantContext)
                 ? await next().ConfigureAwait(false)
                 : Result.FailFor<TResponse>(TenantMismatchError);
         }

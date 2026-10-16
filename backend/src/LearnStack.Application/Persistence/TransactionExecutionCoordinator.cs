@@ -27,17 +27,28 @@ public sealed class TransactionExecutionCoordinator(
     /// Announces before dispatch, retains producer ancestry through completion,
     /// and reports the actual durability boundary (ADR-0057).
     /// </summary>
-    public async Task<TResponse> ExecuteAsync<TResponse>(
+    internal Task<TResponse> ExecuteRequestAsync<TRequest, TResponse>(TRequest request,
+        TransactionMode mode, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
+        where TRequest : notnull where TResponse : IResultBase =>
+        ExecuteCoreAsync(request as IProvisionsTenant, mode, typeof(TRequest).Name, next,
+            typeof(TRequest), request as AdmitBackgroundJobAttemptCommand, cancellationToken);
+
+    public Task<TResponse> ExecuteAsync<TResponse>(IProvisionsTenant? provisioning, TransactionMode mode,
+        string operationName, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
+        where TResponse : IResultBase => ExecuteCoreAsync(provisioning, mode, operationName, next, null, null, cancellationToken);
+
+    private async Task<TResponse> ExecuteCoreAsync<TResponse>(
         IProvisionsTenant? provisioning,
         TransactionMode mode,
         string operationName,
-        Func<Task<TResponse>> next,
-        CancellationToken cancellationToken = default)
+        Func<Task<TResponse>> next, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
+        CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
         ArgumentNullException.ThrowIfNull(next);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
         BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
+        BackgroundJobExecutionAdmission.RequireOperation(operationType);
         var openingOwner = !unitOfWork.HasActiveTransaction;
         IUnitOfWorkScope scope;
         try
@@ -63,7 +74,7 @@ public sealed class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, cancellationToken);
+            null, null, null, operationType, admission, cancellationToken);
     }
 
     /// <summary>
@@ -84,7 +95,7 @@ public sealed class TransactionExecutionCoordinator(
         DeliveryCompletionParticipant completion,
         Guid incomingEventId,
         Func<Task<TResponse>> next,
-        CancellationToken cancellationToken = default)
+        Type? operationType = null, CancellationToken cancellationToken = default)
         where TResponse : IResultBase
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
@@ -99,7 +110,7 @@ public sealed class TransactionExecutionCoordinator(
         completion.RequireUnit(unitOfWork);
         var frame = owner.Consume(unitOfWork, tenantContext);
         return ExecuteFrameAsync(frame, null, "delivery", next, owner, completion,
-            incomingEventId, cancellationToken);
+            incomingEventId, operationType, null, cancellationToken);
     }
 
     private async Task<TResponse> ExecuteFrameAsync<TResponse>(
@@ -109,7 +120,7 @@ public sealed class TransactionExecutionCoordinator(
         Func<Task<TResponse>> next,
         PreparedDeliveryOwner? preparedOwner,
         DeliveryCompletionParticipant? completion,
-        Guid? incomingEventId,
+        Guid? incomingEventId, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -133,7 +144,8 @@ public sealed class TransactionExecutionCoordinator(
             }
             else
             {
-                await unitOfWork.SetTenantContextAsync(tenantContext, cancellationToken);
+                await unitOfWork.SetTenantContextAsync(
+                    BackgroundJobExecutionAdmission.AnnouncementContext(tenantContext, operationType), cancellationToken);
             }
 
             // Capture causal identity at the trusted entry. Nested invocations inherit it;
@@ -142,7 +154,10 @@ public sealed class TransactionExecutionCoordinator(
                 ? tenantContext.CausalActorUserId
                     ?? (tenantContext.UserId == UserId.SystemActor ? null : tenantContext.UserId)
                 : null;
-            using var invocation = producer.BeginInvocation(scope.IsOwner, causalActor, incomingEventId);
+            admission?.BindOwner(unitOfWork, scope.IsOwner);
+            using var invocation = producer.BeginInvocation(scope.IsOwner, causalActor,
+                incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId, operationType,
+                BackgroundJobExecutionAdmission.ParentJobId);
             var response = await next();
             if (response.IsFailure)
             {
@@ -182,6 +197,7 @@ public sealed class TransactionExecutionCoordinator(
             }
 
             // No await between the atomic admission above and the owned Complete call.
+            admission?.MarkCommitting(unitOfWork);
             committing = true;
             try
             {
@@ -208,6 +224,7 @@ public sealed class TransactionExecutionCoordinator(
 
             if (scope.IsOwner)
             {
+                admission?.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
             }

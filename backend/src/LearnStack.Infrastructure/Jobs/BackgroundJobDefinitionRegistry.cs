@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using LearnStack.Application.Jobs;
 using System.Diagnostics.CodeAnalysis;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
@@ -34,8 +35,8 @@ public sealed class BackgroundJobDefinitionRegistry : IBackgroundJobDefinitionCa
     public IReadOnlyList<string> RetiredKeys { get; }
     public BackgroundJobInfrastructureRegistry Infrastructure { get; }
 
-    /// <summary>P4 intentionally has no production business definitions or permitted job requests.</summary>
-    public static BackgroundJobDefinitionRegistry CreateEmpty() => Create([], [], []);
+    /// <summary>P4 intentionally has no production business definitions; only the two exact framework requests.</summary>
+    public static BackgroundJobDefinitionRegistry CreateEmpty() => Create([], BackgroundJobFrameworkRequests.All, []);
 
     public static BackgroundJobDefinitionRegistry Create(
         IEnumerable<BackgroundJobDefinitionRegistration> definitions,
