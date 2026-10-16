@@ -9,6 +9,7 @@ public sealed partial class OutboxDispatchConventionTests
 {
     private const string VendorFactory = "LearnStack.Infrastructure.Jobs.HangfireConnectionFactory";
     private const string VendorBootstrap = "LearnStack.Infrastructure.Jobs.HangfireStorageBootstrap";
+    private const string JobBridgeStore = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore";
 
     [Fact]
     public void Vendor_connection_capability_rejects_extra_acquisition_forwarding_and_factory_construction()
@@ -58,6 +59,7 @@ public sealed partial class OutboxDispatchConventionTests
             (InfrastructureAssembly, Store, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" }),
             (InfrastructureAssembly, DeliveryStore, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync", "ReplayAsync" }),
             (InfrastructureAssembly, JobRoutingStore, new[] { "TryClaimAsync" }),
+            (InfrastructureAssembly, JobBridgeStore, new[] { "OpenConnectionAsync" }),
             (InfrastructureAssembly, BoundaryPlatform, new[] { "EnterAsync" }),
             (InfrastructureAssembly, VendorFactory, new[] { "GetOrCreateConnection" }),
             (InfrastructureAssembly, VendorBootstrap, new[] { "Create" }),

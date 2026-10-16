@@ -155,6 +155,7 @@ BEGIN
         OR ((row_data->>'resource') LIKE 'public:lock:recurring-job:%' AND public.fn_hangfire_recurrence(substr((row_data->>'resource'),27)));
     WHEN 'set' THEN valid := (row_data->>'score')::float8 NOT IN ('Infinity'::float8,'-Infinity'::float8,'NaN'::float8)
         AND (((row_data->>'key') IN ('schedule','failed','succeeded','deleted','processing') AND (row_data->>'value') ~ '^[1-9][0-9]{0,18}$')
+        OR ((row_data->>'key') = 'schedule' AND (row_data->>'value') ~ '^[a-z][a-z0-9_]{0,49}:[1-9][0-9]{0,18}$')
         OR ((row_data->>'key') = 'recurring-jobs' AND public.fn_hangfire_recurrence((row_data->>'value'))));
     WHEN 'list' THEN valid := (row_data->>'key') IN ('failed','succeeded','deleted') AND (row_data->>'value') ~ '^[1-9][0-9]{0,18}$';
     WHEN 'hash' THEN

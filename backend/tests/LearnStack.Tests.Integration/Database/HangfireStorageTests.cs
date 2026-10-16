@@ -188,7 +188,7 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
     }
 
     [Fact]
-    public async Task Real_pinned_worker_deserialize_refusal_and_disabled_filter_fallback_persist_only_redacted_failure()
+    public async Task Real_pinned_worker_disabled_filter_fallback_persists_only_redacted_failure()
     {
         await using var source = Source();
         var storage = HangfireStorageBootstrap.Create(source, BackgroundJobInfrastructureRegistry.CreateDefault(), Diagnostics());
@@ -202,8 +202,9 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
         {
             using (var vendor = storage.GetConnection())
             {
-                var load = () => vendor.GetJobData(id.ToString(System.Globalization.CultureInfo.InvariantCulture)).EnsureLoaded();
-                load.Should().Throw<JobLoadException>();
+                var data = vendor.GetJobData(id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                data.EnsureLoaded();
+                data.Job.Type.Should().Be<HangfireJobWakeup>();
             }
             var performer = new RefusePerformer();
             var changer = new FilterFailure(new BackgroundJobStateChanger(new EmptyFilters()));
@@ -214,7 +215,7 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
             worker.Execute(new BackgroundProcessContext("learnstack-transactional:1:11111111-1111-4111-8111-111111111111",
                 storage, new Dictionary<string, object>(), Guid.NewGuid(), stop.Token, stop.Token, stop.Token));
             changer.DisabledFiltersObserved.Should().BeTrue();
-            performer.WasCalled.Should().BeFalse();
+            performer.WasCalled.Should().BeFalse("the injected Processing-state failure occurs before execution");
             await using var connection = await source.OpenConnectionAsync();
             ((string)(await ScalarAsync(connection, "SELECT statename FROM public.job WHERE id=@id", ("id", id)))!).Should().Be("Failed");
             var state = (string)(await ScalarAsync(connection, "SELECT reason || data::text FROM public.state WHERE jobid=@id ORDER BY id DESC LIMIT 1", ("id", id)))!;
@@ -267,7 +268,7 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
     }
 
     private PrivilegedDataSource Source() => new(() => OutboxDispatcherDataSource.Build(schema.Postgres.OutboxConnectionString));
-    private static HangfireBoundedLogProvider Diagnostics() => new(_ => { });
+    private static HangfireBoundedLogProvider Diagnostics() => new();
     private async Task OwnerAsync(string sql)
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(schema.Postgres.MigrationConnectionString);
@@ -317,7 +318,7 @@ public sealed partial class HangfireStorageTests(SchemaFixture schema) : IClassF
         public object Perform(PerformContext context)
         {
             WasCalled = true;
-            throw new InvalidOperationException("A missing wrapper must never activate a business performer.");
+            throw new InvalidOperationException("A refused Processing transition must never invoke the business performer.");
         }
     }
     private sealed class FilterFailure(IBackgroundJobStateChanger inner) : IBackgroundJobStateChanger

@@ -206,6 +206,9 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobRoutingStore", "TryClaimAsync"),
+                // Bridge transport hints own short privileged transactions, never business completion.
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "TryClaimAsync"),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "UpdateAsync"),
                 Owner(AuditAssembly, AuditStore, "WriteOwnTransactionAsync"),
                 Owner(AuditAssembly, "LearnStack.Infrastructure.Audit.AuditConfigService", "LoadAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform, "RecordAsync"), Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "CommitAsync"),

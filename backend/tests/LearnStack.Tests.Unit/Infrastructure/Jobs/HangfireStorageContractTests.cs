@@ -13,6 +13,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
+[Collection(HangfireGlobalConfigurationIsolation.Name)]
 public sealed class HangfireStorageContractTests
 {
     [Fact]
@@ -27,19 +28,36 @@ public sealed class HangfireStorageContractTests
         options.EnableLongPolling.Should().BeFalse();
         options.UseNativeDatabaseTransactions.Should().BeTrue();
         options.UseSlidingInvisibilityTimeout.Should().BeTrue();
+        options.JobExpirationCheckInterval.Should().Be(TimeSpan.FromMilliseconds(1));
     }
 
     [Fact]
     public void The_bounded_log_boundary_never_evaluates_a_factory_or_retains_an_exception_or_logger_name()
     {
-        var observations = new List<HangfireDiagnostic>();
-        var logger = new HangfireBoundedLogProvider(observations.Add).GetLogger("synthetic-secret-canary");
+        var diagnostics = new HangfireBoundedLogProvider();
+        var logger = diagnostics.GetLogger("synthetic-secret-canary");
         logger.Log(LogLevel.Error, () => throw new InvalidOperationException("Must never run"),
             new InvalidOperationException("synthetic-secret-canary")).Should().BeTrue();
-        observations.Should().Equal(new HangfireDiagnostic(HangfireDiagnosticLevel.Error, HangfireDiagnosticOutcome.Fault));
+        diagnostics.Count(HangfireDiagnosticLevel.Error, HangfireDiagnosticOutcome.Fault).Should().Be(1);
         logger.Log(LogLevel.Info, null!).Should().BeTrue();
-        observations.Should().HaveCount(1);
+        diagnostics.Count(HangfireDiagnosticLevel.Information, HangfireDiagnosticOutcome.Operational).Should().Be(0);
         logger.Log((LogLevel)int.MaxValue, () => throw new InvalidOperationException()).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Vendor_and_exit_logging_has_no_supplied_observer_and_only_fixed_memory_dimensions()
+    {
+        typeof(HangfireBoundedLogProvider).GetConstructors().Should().ContainSingle()
+            .Which.GetParameters().Should().BeEmpty("vendor callbacks must not invoke an arbitrary observer");
+        var diagnostics = new HangfireBoundedLogProvider();
+        Parallel.For(0, 100, _ => diagnostics.GetLogger("Hangfire.PostgreSql.PostgreSqlFetchedJob")
+            .Log(LogLevel.Debug, () => throw new InvalidOperationException("Must never run"),
+                new InvalidOperationException("synthetic-secret-canary")));
+        diagnostics.Count(HangfireDiagnosticLevel.Debug, HangfireDiagnosticOutcome.Fault,
+            HangfireDiagnosticSource.FetchedJobHeartbeat).Should().Be(100);
+        diagnostics.Count(HangfireDiagnosticLevel.Debug, HangfireDiagnosticOutcome.Fault,
+            HangfireDiagnosticSource.Expiration).Should().Be(0);
+        diagnostics.Count(HangfireDiagnosticLevel.Debug, HangfireDiagnosticOutcome.Fault).Should().Be(0);
     }
 
     [Fact]
@@ -49,8 +67,9 @@ public sealed class HangfireStorageContractTests
         JsonConvert.SerializeObject(id).Should().Be("\"11111111-1111-7111-8111-111111111111\"");
         JsonConvert.DeserializeObject<BackgroundJobId>(JsonConvert.SerializeObject(id)).Should().Be(id);
         TypeDescriptor.GetConverter(typeof(BackgroundJobId)).CanConvertFrom(typeof(string)).Should().BeTrue();
-        var job = new Job(typeof(ShapeFixture), typeof(ShapeFixture).GetMethod(nameof(ShapeFixture.RunAsync))!, [id, 1L]);
+        var job = new Job(typeof(HangfireJobWakeup), HangfireInvocationContract.JobMethod, [id, 1L], "transactional");
         var previous = TypeHelper.CurrentTypeSerializer;
+        var previousResolver = TypeHelper.CurrentTypeResolver;
         try
         {
             HangfireStorageBootstrap.ConfigureWireFormat();
@@ -59,7 +78,11 @@ public sealed class HangfireStorageContractTests
             invocation.Arguments.Should().Be("[\"\\\"11111111-1111-7111-8111-111111111111\\\"\",\"1\"]");
             invocation.DeserializeJob().Args.Should().Equal(id, 1L);
         }
-        finally { TypeHelper.CurrentTypeSerializer = previous; }
+        finally
+        {
+            TypeHelper.CurrentTypeSerializer = previous;
+            TypeHelper.CurrentTypeResolver = previousResolver;
+        }
     }
 
     [Fact]
@@ -96,13 +119,4 @@ public sealed class HangfireStorageContractTests
         }
     }
 
-    public sealed class ShapeFixture
-    {
-        private int _calls;
-        public Task RunAsync(BackgroundJobId id, long generation)
-        {
-            _calls++;
-            return Task.CompletedTask;
-        }
-    }
 }

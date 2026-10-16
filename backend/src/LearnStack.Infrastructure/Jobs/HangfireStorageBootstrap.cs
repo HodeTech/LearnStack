@@ -38,6 +38,7 @@ public static class HangfireStorageBootstrap
     internal static void ConfigureWireFormat() => GlobalConfiguration.Configuration
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_110)
         .UseSimpleAssemblyNameTypeSerializer()
+        .UseTypeResolver(HangfireInvocationContract.ResolveType)
         .UseSerializerSettings(new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.None,
@@ -60,6 +61,7 @@ public static class HangfireStorageBootstrap
         QueuePollInterval = TimeSpan.FromMilliseconds(200),
         DistributedLockTimeout = TimeSpan.FromSeconds(5),
         TransactionSynchronisationTimeout = TimeSpan.FromSeconds(5),
+        JobExpirationCheckInterval = TimeSpan.FromMilliseconds(1),
     };
 
     private static void Verify(NpgsqlConnection connection, BackgroundJobInfrastructureRegistry registry)

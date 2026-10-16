@@ -406,6 +406,9 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
     {
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobBridge.cs"] =
+            "Process-owned bridge joins already-started stock client calls at shutdown; "
+            + "each SQL quantum owns its own privileged connection and no ambient unit of work (ADR-0047).",
         ["LearnStack.Infrastructure/Caching/InMemoryCacheService.cs"] =
             "Singleton cache flights race their service-owned deadline and retain abandoned factories until termination; "
             + "they hold no scoped unit of work or module DbContext.",

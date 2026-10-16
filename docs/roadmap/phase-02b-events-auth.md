@@ -4832,6 +4832,64 @@ runtime and activation still require acceptance. Independent Step 4 foundation
 validation proceeds under the existing Accepted decisions and is recorded
 separately. Steps 4–9 remain incomplete; no push, PR or current-head CI is claimed.
 
+##### Independent Step 4 foundation slice (2026-10-16)
+
+This slice implements the already-authorized H1 transport and public storage
+boundary while ADR-0060 remains Proposed. It does not implement fatal termination,
+compose Core generations, host shared maintenance or activate API workers.
+Full Step 4 and Steps 5–9 remain pending under their accepted ownership.
+
+- The bridge claims committed intent in a short privileged transaction, retains
+  at most four actual synchronous stock-client calls on background threads and
+  suppresses ambient execution context/culture. Vendor IDs remain hints; absent,
+  failed or succeeded vendor rows permit same-generation repair without spending
+  business attempts. ACK/deferral locks the actual row before rechecking current
+  database-time lease/token/generation fences; callback admission may precede ACK.
+  Host stop closes acquisition and retains actual calls through late completion.
+- Exact opaque wrappers and a five-token resolver reject arbitrary CLR lookup.
+  The closed activator binds a registered pool, invocation and single-use scope;
+  it reaches Step 3's framework admission only. Business completion stays Step 5;
+  recurrence materialization stays Step 8 and cannot currently report success.
+- Concrete pool storage/connection wrappers preserve the complete pinned public
+  surface, provider features, extended casts, transactions, fetched jobs and locks.
+  Only announcement, metadata heartbeat and removal enter the closed lifecycle
+  operation. Failed disposal remains retained; this is no proof of the pending
+  complete generation owner or every physical provider cleanup outcome.
+- Fail-closed component/filter inventories retain exact stock instances and required
+  filters while suppressing the counter aggregator/history. Vendor diagnostics use
+  fixed memory-only counters without evaluating messages or invoking observers.
+  Existing capability, authority, transaction and parallelism censuses enumerate
+  the new exact callers and retain their planted extra/missing-site controls.
+
+Real delayed creation exposed a predicate mismatch: stock explicit-queue scheduling
+stores `queue:id` in the `schedule` set, while the prior guard admitted only numeric
+IDs. The fix preserves immutable queue binding, restricts the added form to that
+key and bounded queue/ID grammar, and reconciles the canonical SQL. An additive
+Platform migration supports already-installed stores; reverse/reapply, malformed
+and wrong-key controls exercise the boundary. Fixture corrections preserve the
+actual ACK-after-lock-expiry and below-filter redaction assertions, and replace the
+old missing-wrapper assumption with a positive load of the now-present wrapper.
+Earlier recorded Step 2/3 evidence is unchanged.
+
+**Initial slice validation:** Release warning-as-error build passes with zero
+warnings/errors. Unit 2,056, Architecture 315, Contract 4, Docker-free HTTP
+integration 176 and focused real-PostgreSQL bridge/parity/storage/rollback 94
+pass: 2,645 tests, zero failures/skips. TRX counters are checked directly and by
+the guarded test receipt. Seven ADR parser controls and a three-file sweep of
+533 local links / 193 fragments pass. C# formatting and diff whitespace pass.
+This is a focused slice receipt, not a full backend/renderer/demo/CI rerun.
+
+The first runs found the queued-schedule guard mismatch, a completed-locker
+rollback in the proof, an inadmissible RetryCount test value and the old absent
+wrapper assumption. The corrected PostgreSQL set passes in full. Initial
+architecture failures identify only newly sanctioned caller inventories; exact
+entries and forwarding/removal mutants now pass the full architecture assembly.
+No failing check is skipped or broadened to allow arbitrary callers.
+
+Two fresh independent slice-review rounds follow the initial implementation
+commit. They do not close full Step 4's real generation, maintenance,
+cancellation/exit, multi-pool progress or connection-floor gates.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

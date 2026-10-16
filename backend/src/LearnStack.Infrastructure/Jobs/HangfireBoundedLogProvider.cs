@@ -4,16 +4,40 @@ namespace LearnStack.Infrastructure.Jobs;
 
 public enum HangfireDiagnosticLevel { Trace, Debug, Information, Warning, Error, Fatal }
 public enum HangfireDiagnosticOutcome { Operational, Fault }
-public readonly record struct HangfireDiagnostic(HangfireDiagnosticLevel Level, HangfireDiagnosticOutcome Outcome);
+public enum HangfireDiagnosticSource { Other, ServerHeartbeat, FetchedJobHeartbeat, Expiration }
 
-/// <summary>No arbitrary message factory, logger name or exception survives this boundary.</summary>
-public sealed class HangfireBoundedLogProvider(Action<HangfireDiagnostic> observe) : ILogProvider
+/// <summary>Closed memory-only recording; no supplied callback runs on a vendor or exit thread.</summary>
+public sealed class HangfireBoundedLogProvider : ILogProvider
 {
-    private readonly ILog _logger = new BoundedLog(observe ?? throw new ArgumentNullException(nameof(observe)));
-    public ILog GetLogger(string name) => _logger;
+    private const int LevelCount = 6;
+    private const int OutcomeCount = 2;
+    private readonly BoundedLog[] _loggers = Enumerable.Range(0, 4).Select(_ => new BoundedLog()).ToArray();
 
-    private sealed class BoundedLog(Action<HangfireDiagnostic> observe) : ILog
+    public ILog GetLogger(string name) => _loggers[(int)(name switch
     {
+        "Hangfire.Server.ServerHeartbeatProcess" => HangfireDiagnosticSource.ServerHeartbeat,
+        "Hangfire.PostgreSql.PostgreSqlHeartbeatProcess" or "Hangfire.PostgreSql.PostgreSqlFetchedJob"
+            => HangfireDiagnosticSource.FetchedJobHeartbeat,
+        "Hangfire.PostgreSql.ExpirationManager" => HangfireDiagnosticSource.Expiration,
+        _ => HangfireDiagnosticSource.Other,
+    })];
+
+    /// <summary>A finite counter dimension; reading invokes no provider, sink or delegate.</summary>
+    public long Count(HangfireDiagnosticLevel level, HangfireDiagnosticOutcome outcome,
+        HangfireDiagnosticSource source = HangfireDiagnosticSource.Other)
+    {
+        if (!Enum.IsDefined(level) || !Enum.IsDefined(outcome) || !Enum.IsDefined(source))
+            throw new ArgumentOutOfRangeException(nameof(level));
+        return _loggers[(int)source].Count(level, outcome);
+    }
+
+    private sealed class BoundedLog : ILog
+    {
+        private readonly long[] _counts = new long[LevelCount * OutcomeCount];
+
+        internal long Count(HangfireDiagnosticLevel level, HangfireDiagnosticOutcome outcome) =>
+            Interlocked.Read(ref _counts[(int)level * OutcomeCount + (int)outcome]);
+
         public bool Log(LogLevel logLevel, Func<string> messageFunc, Exception? exception = null)
         {
             if (messageFunc is null) return Enum.IsDefined(logLevel);
@@ -28,7 +52,8 @@ public sealed class HangfireBoundedLogProvider(Action<HangfireDiagnostic> observ
                 _ => (HangfireDiagnosticLevel?)null,
             };
             if (level is null) return false;
-            observe(new(level.Value, exception is null ? HangfireDiagnosticOutcome.Operational : HangfireDiagnosticOutcome.Fault));
+            var outcome = exception is null ? HangfireDiagnosticOutcome.Operational : HangfireDiagnosticOutcome.Fault;
+            Interlocked.Increment(ref _counts[(int)level.Value * OutcomeCount + (int)outcome]);
             return true;
         }
     }

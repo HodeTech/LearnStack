@@ -11,6 +11,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobTenantBehavior = "LearnStack.Application.Pipeline.TenantContextBehavior`2";
     private const string JobTransactionBehavior = "LearnStack.Application.Pipeline.TransactionBehavior`2";
     private const string PrivilegedSource = "LearnStack.Infrastructure.Persistence.PrivilegedDataSource";
+    private const string JobBridge = "LearnStack.Infrastructure.Jobs.BackgroundJobBridge";
 
     /// <summary>ADR-0047 ordinary execution authority and Step 3's live framework admission.</summary>
     [Fact]
@@ -52,7 +53,8 @@ public sealed partial class OutboxDispatchConventionTests
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var types = census.Types;
         foreach (var subject in new[] { (DeliveryApplication, JobAdmission), (InfrastructureAssembly, PrivilegedSource),
-                     (DeliveryApplication, JobTenantBehavior), (DeliveryApplication, JobTransactionBehavior) })
+                     (DeliveryApplication, JobTenantBehavior), (DeliveryApplication, JobTransactionBehavior),
+                     (InfrastructureAssembly, JobBridge), (InfrastructureAssembly, JobBridgeStore) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing job authority subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var admission = types[(DeliveryApplication, JobAdmission)];
@@ -79,6 +81,16 @@ public sealed partial class OutboxDispatchConventionTests
              Owner(InfrastructureAssembly, BoundaryPlatform, "EnterAsync"), Owner(InfrastructureAssembly, BoundaryTransport, "PublishAsync"),
              Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteAsync"), Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteControlledAsync"),
              Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"),
+             RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridge)], "RunQuantumAsync", BoundaryBooleanTask,
+                 MethodAttributes.Public, BoundaryCancellation),
+             RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridge)], "StopAsync", BoundaryTask,
+                 MethodAttributes.Public, BoundaryCancellation),
+             RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridgeStore)], "TryClaimAsync",
+                 "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaim>", MethodAttributes.Assembly,
+                 "System.Collections.Generic.IReadOnlyCollection`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>", BoundaryCancellation),
+             RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridgeStore)], "UpdateAsync", BoundaryBooleanTask,
+                 MethodAttributes.Private, "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaim", "System.String",
+                 "System.Nullable`1<LearnStack.Infrastructure.Jobs.BackgroundJobBridgeDeferral>", BoundaryCancellation),
              Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync")]);
         return offenders;
 

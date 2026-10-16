@@ -14,6 +14,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobRoutingClaim = "LearnStack.Application.Jobs.BackgroundJobRoutingClaim";
     private const string JobClaimSource = JobRoutingClaim + "/MintingSource";
     private const string JobRoutingStore = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobRoutingStore";
+    private const string JobInvocationContract = "LearnStack.Infrastructure.Jobs.HangfireInvocationContract";
+    private const string JobClosedActivator = JobInvocationContract + "/ClosedActivator";
+    private const string JobBoundInvocation = JobInvocationContract + "/BoundInvocation";
     private const string JobScheduler = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobScheduler";
     private const string JobExecutorType = "LearnStack.Infrastructure.Jobs.JobExecutor";
     private const string JobReadRequest = "LearnStack.Application.Jobs.ReadBackgroundJobEnvelopeQuery";
@@ -261,7 +264,36 @@ public sealed partial class OutboxDispatchConventionTests
         var reader = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobRoutingClaim + ">",
             MethodAttributes.Public, "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", BoundaryCancellation);
         CheckSourceFieldAccess(offenders, census, store, constructor, [reader]);
-        var expected = new[] { MethodId(composition) }.Concat(factory is null ? [] : new[] { MethodId(factory) });
+        var types = census.Types;
+        foreach (var name in new[] { JobInvocationContract, JobClosedActivator, JobBoundInvocation })
+            if (!types.ContainsKey((InfrastructureAssembly, name))) offenders.Add("Missing closed routing consumer: " + name);
+        if (offenders.Any(offender => offender.StartsWith("Missing closed routing consumer:", StringComparison.Ordinal))) return;
+        var contract = types[(InfrastructureAssembly, JobInvocationContract)];
+        var activator = types[(InfrastructureAssembly, JobClosedActivator)];
+        var invocation = types[(InfrastructureAssembly, JobBoundInvocation)];
+        var creates = contract.Methods.Where(method => method.Name == "CreateActivator").ToArray();
+        var create = InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator("
+            + "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration,LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry,"
+            + JobRoutingStore + "," + JobExecutorType + ",LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry)";
+        if (creates.Length != 1 || !creates[0].IsPublic || !creates[0].IsStatic || creates[0].HasGenericParameters
+            || creates[0].ReturnType.FullName != "Hangfire.JobActivator"
+            || !ParametersMatch(creates[0], ["LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration",
+                "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", JobRoutingStore, JobExecutorType,
+                "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry"]))
+            offenders.Add("The closed job activator factory requires its exact static signature");
+        if (!activator.IsNestedPrivate || !activator.IsSealed || !invocation.IsNestedAssembly || !invocation.IsSealed)
+            offenders.Add("Routing capability holders must retain their closed nested visibility and sealed identity");
+        var activatorConstructor = RequireBoundaryMethod(offenders, activator, ".ctor", "System.Void", MethodAttributes.Public,
+            "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration", JobRoutingStore, JobExecutorType,
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry");
+        var begin = RequireBoundaryMethod(offenders, activator, "BeginScope", "Hangfire.JobActivatorScope", MethodAttributes.Public,
+            "Hangfire.Server.PerformContext");
+        var invocationConstructor = RequireBoundaryMethod(offenders, invocation, ".ctor", "System.Void", MethodAttributes.Public,
+            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType);
+        var run = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
+            "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
+        var expected = new[] { MethodId(composition), create, activatorConstructor, begin, invocationConstructor, run }
+            .Concat(factory is null ? [] : new[] { MethodId(factory) });
         CheckSet(offenders, "privileged job-routing store consumers", OwnedBodies(census)
             .Where(item => item.Owner.DeclaringType.FullName != JobRoutingStore && ReferencesCapability(item.Body, JobRoutingStore))
             .Select(item => MethodId(item.Owner)).Concat(census.Types.Values.SelectMany(type => type.Methods)
@@ -271,7 +303,16 @@ public sealed partial class OutboxDispatchConventionTests
             .Select(item => Key(item.Body.DeclaringType)).ToHashSet();
         var fields = census.Types.Values.SelectMany(type => type.Fields).Where(field => field.FieldType.FullName == JobRoutingStore
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"));
-        CheckSet(offenders, "privileged job-routing store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name), []);
+        CheckSet(offenders, "privileged job-routing store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
+            [TypeId(activator) + ":<routing>P", TypeId(invocation) + ":<routing>P"]);
+        if (fields.Any(field => !field.IsPrivate || field.IsStatic)) offenders.Add("Routing capability holders must remain private instance fields");
+        foreach (var (holder, write, read) in new[] { (activator, activatorConstructor, begin), (invocation, invocationConstructor, run) })
+            CheckSet(offenders, TypeId(holder) + " routing capability field access", OwnedBodies(census)
+                    .SelectMany(item => item.Body.Body.Instructions
+                        .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, holder)
+                            && field.Name == "<routing>P")
+                        .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)),
+                [write + ":stfld", read + ":ldfld"]);
     }
 
     private static void AssertJobStepThreeControls(ProductionCensus census)
@@ -285,6 +326,9 @@ public sealed partial class OutboxDispatchConventionTests
                     AddCallProbe(application, "ExtraRoutingStoreConsumer", capability, opcode), CredentialOffenders);
         AssertMutation(census, "a routing-source forwarding overload", () =>
             AddBoundaryFieldGetter(routing, "TryClaimAsync", "_source"), CredentialOffenders);
+        foreach (var holder in new[] { JobClosedActivator, JobBoundInvocation })
+            AssertMutation(census, "a closed activator routing-capability forwarding helper", () =>
+                AddBoundaryFieldGetter(types[(InfrastructureAssembly, holder)], "UnexpectedRoutingAccessor", "<routing>P"), CredentialOffenders);
         var executor = types[(InfrastructureAssembly, JobExecutorType)];
         AssertMutation(census, "dynamic business construction in the framework executor", () =>
         {
