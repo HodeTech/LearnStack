@@ -63,6 +63,109 @@ public sealed partial class BackgroundJobStorageMigrationTests
         await AssertSeventhRefusedAsync(database, job.JobId, "normal", null);
     }
 
+    [Theory]
+    [InlineData("succeeded", false, false)]
+    [InlineData("failed", false, true)]
+    [InlineData("cancelled", false, true)]
+    [InlineData("failed", true, false)]
+    [InlineData(null, false, false)]
+    public async Task External_recovery_retries_only_unselected_failed_or_cancelled_outcomes(
+        string? outcomeKind, bool selectFinalization, bool canRetry)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var job = await NewExternalOutcomeAsync(database, recordOutcome: false);
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                UPDATE background_job_attempts SET outcome = CASE WHEN @outcome_kind::text IS NULL THEN NULL ELSE '{}' END,
+                    outcome_kind = @outcome_kind,
+                    outcome_at = CASE WHEN @outcome_kind::text IS NULL THEN NULL ELSE clock_timestamp() END,
+                    quiescence_id = uuidv7(),
+                    quiescence_kind = 'provider_fenced', quiescent_at = clock_timestamp() WHERE id = @attempt;
+                """, ("outcome_kind", (object?)outcomeKind ?? DBNull.Value), ("attempt", job.AttemptId));
+            if (selectFinalization)
+                await SchemaQueries.ExecuteAsync(app, transaction, """
+                    UPDATE background_jobs SET final_outcome_attempt_id = @attempt, finalization_status = 'failed',
+                        finalization_reason = 'external_failed', phase = 'finalize_pending' WHERE id = @job;
+                    """, ("attempt", job.AttemptId), ("job", job.JobId));
+            await transaction.CommitAsync();
+        }
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            var release = async () => await SchemaQueries.ExecuteAsync(app, transaction, """
+                UPDATE background_job_reservations SET released_at = clock_timestamp(), release_reason = 'quiescent'
+                    WHERE job_id = @job AND attempt_id = @attempt;
+                """, ("job", job.JobId), ("attempt", job.AttemptId));
+            if (outcomeKind is null)
+            {
+                var refusal = (await release.Should().ThrowAsync<PostgresException>()).Which;
+                refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+                refusal.MessageText.Should().Be("reservation release requires positive completion or quiescence");
+            }
+            else
+            {
+                await release();
+                await transaction.CommitAsync();
+            }
+        }
+        if (selectFinalization)
+            await AdmitCountedStageAsync(database, job, Guid.CreateVersion7(), "finalize", 1, job.AttemptId, default);
+
+        await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        (await SchemaQueries.ReadStringsAsync(dispatcher, "SELECT current_user")).Should()
+            .Equal("learnstack_outbox_admin");
+        await SchemaQueries.ExecuteAsync(dispatcher, null, """
+            UPDATE background_jobs SET ownership_until = clock_timestamp() - interval '1 second' WHERE id = @job;
+            UPDATE background_jobs SET phase = 'reconciling', ownership_kind = 'recovery', ownership_token = uuidv7(),
+                ownership_until = clock_timestamp() + interval '1 minute' WHERE id = @job;
+            """, ("job", job.JobId));
+        if (outcomeKind is null)
+        {
+            var terminalize = async () => await SchemaQueries.ExecuteAsync(dispatcher, null, """
+                UPDATE background_jobs SET phase = 'terminal_pending', terminal_reason = 'permanent_failure' WHERE id = @job;
+                """, ("job", job.JobId));
+            var terminalRefusal = (await terminalize.Should().ThrowAsync<PostgresException>()).Which;
+            terminalRefusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+            terminalRefusal.MessageText.Should().Be("unresolved external effects cannot retry or terminalize");
+            await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+            await using var transaction = await app.BeginTransactionAsync();
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            var finalize = async () => await SchemaQueries.ExecuteAsync(app, transaction, """
+                UPDATE background_jobs SET final_outcome_attempt_id = @attempt, finalization_status = 'failed',
+                    finalization_reason = 'permanent_failure', phase = 'finalize_pending' WHERE id = @job;
+                """, ("attempt", job.AttemptId), ("job", job.JobId));
+            var finalizeRefusal = (await finalize.Should().ThrowAsync<PostgresException>()).Which;
+            finalizeRefusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+            finalizeRefusal.MessageText.Should().Be("unresolved external effects cannot retry or terminalize");
+        }
+        var retry = async () => await SchemaQueries.ExecuteAsync(dispatcher, null, """
+            UPDATE background_jobs SET phase = 'pending', ownership_kind = NULL, ownership_token = NULL,
+                ownership_until = NULL WHERE id = @job;
+            """, ("job", job.JobId));
+        if (canRetry)
+            await retry();
+        else
+        {
+            var refusal = (await retry.Should().ThrowAsync<PostgresException>()).Which;
+            refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+            refusal.MessageText.Should().Be(outcomeKind is null
+                    ? "external retry requires positive prior-attempt evidence"
+                    : "known final outcome cannot reopen normal execution",
+                "positive quiescence and a live recovery claim must reach the outcome guard");
+        }
+        (await SchemaQueries.ReadStringsAsync(dispatcher, "SELECT phase FROM background_jobs")).Should()
+            .Equal(canRetry ? "pending" : "reconciling");
+        (await SchemaQueries.CountAsync(dispatcher, "SELECT normal_attempts::bigint FROM background_jobs"))
+            .Should().Be(1L, "recovery never spends another normal attempt");
+        (await SchemaQueries.CountAsync(dispatcher, "SELECT count(*) FROM background_job_reservations WHERE released_at IS NULL"))
+            .Should().Be(outcomeKind is null ? 1L : 0L, "quiescence alone cannot release unknown external occupancy");
+    }
+
     [Fact]
     public async Task Null_organization_recipient_routes_are_deduplicated_for_the_same_occurrence()
     {
@@ -142,11 +245,12 @@ public sealed partial class BackgroundJobStorageMigrationTests
                 UPDATE background_job_attempts SET plan_fingerprint = repeat('a',64), operation_id = @operation,
                     execute_intent_at = clock_timestamp() WHERE id = @attempt;
                 UPDATE background_jobs SET phase = 'executing' WHERE id = @job;
-                UPDATE background_job_attempts SET outcome = '{}', outcome_kind = 'succeeded', outcome_at = clock_timestamp(),
+                UPDATE background_job_attempts SET outcome = '{}', outcome_kind = @outcome_kind, outcome_at = clock_timestamp(),
                     quiescence_id = uuidv7(), quiescence_kind = 'provider_fenced', quiescent_at = clock_timestamp() WHERE id = @attempt;
                 UPDATE background_job_reservations SET released_at = clock_timestamp(), release_reason = 'quiescent'
                     WHERE job_id = @job AND attempt_id = @attempt;
-                """, ("tenant", SchemaFixture.TenantA), ("job", job.JobId), ("attempt", attempt), ("operation", operation));
+                """, ("tenant", SchemaFixture.TenantA), ("job", job.JobId), ("attempt", attempt), ("operation", operation),
+                ("outcome_kind", ordinal == 6 ? "succeeded" : ordinal % 2 == 0 ? "cancelled" : "failed"));
         }
         await transaction.CommitAsync();
     }

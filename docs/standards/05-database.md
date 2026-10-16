@@ -2549,14 +2549,25 @@ BEGIN
             RAISE EXCEPTION 'finalization requires positive selected-attempt evidence' USING ERRCODE = '23514';
         END IF;
     END IF;
-    IF NEW.phase = 'pending' AND OLD.phase <> NEW.phase AND NEW.profile = 'external'
+    IF NEW.profile = 'external'
+       AND (NEW.phase = 'pending' OR (admission AND NEW.normal_attempts <> OLD.normal_attempts))
+       AND (NEW.finalization_status IS NOT NULL OR EXISTS (
+           SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
+               AND a.job_id = NEW.id AND a.stage = 'normal' AND a.outcome_kind = 'succeeded')) THEN
+        RAISE EXCEPTION 'known final outcome cannot reopen normal execution' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.profile = 'external'
+       AND (NEW.phase = 'pending' OR (admission AND NEW.normal_attempts <> OLD.normal_attempts))
        AND EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
-           AND a.job_id = NEW.id AND a.stage = 'normal' AND a.no_start_at IS NULL AND a.quiescent_at IS NULL) THEN
+           AND a.job_id = NEW.id AND a.stage = 'normal'
+           AND (NOT admission OR a.id IS DISTINCT FROM NEW.current_attempt_id)
+           AND a.no_start_at IS NULL AND (a.quiescent_at IS NULL OR a.outcome_kind IS NULL)) THEN
         RAISE EXCEPTION 'external retry requires positive prior-attempt evidence' USING ERRCODE = '23514';
     END IF;
     IF NEW.phase IN ('pending', 'finalize_pending', 'terminal_pending') AND OLD.phase <> NEW.phase AND NEW.profile = 'external'
        AND EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
-           AND a.job_id = NEW.id AND a.execute_intent_at IS NOT NULL AND a.quiescent_at IS NULL) THEN
+           AND a.job_id = NEW.id AND a.execute_intent_at IS NOT NULL
+           AND (a.quiescent_at IS NULL OR a.outcome_kind IS NULL)) THEN
         RAISE EXCEPTION 'unresolved external effects cannot retry or terminalize' USING ERRCODE = '23514';
     END IF;
     IF NEW.phase = 'completed' AND (NEW.processed_at IS NULL
@@ -2741,7 +2752,7 @@ CREATE FUNCTION public.fn_background_job_reservations_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
 DECLARE attempt record;
 BEGIN
-    SELECT a.organization_id, a.stage, a.no_start_at, a.quiescent_at, j.capacity_group,
+    SELECT a.organization_id, a.stage, a.no_start_at, a.quiescent_at, a.outcome_kind, j.capacity_group,
            j.current_attempt_id, j.processed_at INTO attempt
       FROM public.background_job_attempts a JOIN public.background_jobs j
         ON j.tenant_id = a.tenant_id AND j.id = a.job_id
@@ -2770,7 +2781,7 @@ BEGIN
         IF NEW.released_at IS NOT NULL AND OLD.released_at IS NULL AND NOT
            ((NEW.release_reason = 'completed' AND attempt.processed_at IS NOT NULL)
             OR (NEW.release_reason = 'never_started' AND attempt.no_start_at IS NOT NULL)
-            OR (NEW.release_reason = 'quiescent' AND attempt.quiescent_at IS NOT NULL)) THEN
+            OR (NEW.release_reason = 'quiescent' AND attempt.quiescent_at IS NOT NULL AND attempt.outcome_kind IS NOT NULL)) THEN
             RAISE EXCEPTION 'reservation release requires positive completion or quiescence' USING ERRCODE = '23514';
         END IF;
     END IF;

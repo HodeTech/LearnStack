@@ -3949,7 +3949,7 @@ runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
 ### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
 
-**Implemented — Round 1 corrections validated; fresh Round 2 pending.**
+**Implemented — both fresh reviews run; final correction verification pending.**
 This step follows the completed Step 1 on `development` under Accepted ADR-0047.
 
 Two Platform migrations introduce seven authoritative job/control tables and the
@@ -4229,6 +4229,42 @@ The first full correction-head Docker rerun was interrupted when its existing
 container stopped along with unrelated running containers. It is not passing
 regression evidence. Full regression is rerun after this correction commit and
 recorded with fresh Round 2. No worker/business activation is claimed here.
+
+#### Step 2 review round 2 and external-outcome corrections
+
+Three new reviewers independently examine `1b4ec7f4..a593cd22`: GPT-6-astra/xhigh
+owns storage/state/isolation; two GPT-6.1-sol/xhigh reviewers separately own the
+vendor/source and proof/corpus lenses. The latter two approve their code/proof
+scope. Root verifies the corpus review's stale live CLAUDE entry and reconciles it
+with the other status carriers, preserving dated historical receipts.
+
+The storage reviewer reproduces a prohibited second ExecuteIntent after a durable
+successful external outcome using real app/dispatcher roles with guards enabled.
+Root also verifies that quiescence without a known outcome was incorrectly enough
+for retry/release/terminalization. The correction now:
+
+- refuses a new normal cycle after success or selected finalization;
+- requires known outcome plus quiescence, or positive no-start, for a prior normal
+  attempt, excluding only the newly inserted receipt during its own admission;
+- keeps unknown effects from pending/finalize/terminal transitions and reservation
+  release, retaining occupancy;
+- preserves failed/cancelled retry and separately counted finalize stages.
+
+Five real-role regression cases distinguish success, failed, cancelled, selected
+failure finalization and unknown effect. The original twelve-receipt positive
+fixture now records retryable known failures before its last successful normal
+attempt. An independent scratch PostgreSQL control observes the old Unknown path
+commit a second ExecuteIntent, then verifies the corrected refusals and both
+known-failure positive controls. Its owned containers are removed.
+
+**Validation boundary:** the preceding Release binaries pass Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and Docker integration
+1,594: **4,084 cases**, zero failures/skips. The final outcome correction then
+passes a fresh Release build with zero warnings/errors and **198 focused
+PostgreSQL cases**, zero failures/skips. Full canonical DDL equality and first-party
+link/fragment/history/whitespace checks pass. Fresh final-binary regression and an
+additional independent critical-fix review follow the correction commit; neither
+is claimed complete in this receipt.
 
 ### Durable outbox dispatch
 
