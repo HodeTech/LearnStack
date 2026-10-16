@@ -242,6 +242,8 @@ verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Steps 4–9 remain pending.
+Step 4's [lifecycle decision](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-4--server-generation-decision-2026-10-16)
+is Proposed under ADR-0059; dependent worker activation awaits maintainer approval.
 Phase 06 retains the full
 renderer/Studio expansion.
 
