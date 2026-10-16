@@ -3,14 +3,14 @@ using Hangfire.Common;
 
 namespace LearnStack.Infrastructure.Jobs;
 
-/// <summary>Snapshot the pinned global filters and retain exact wrapper attributes.</summary>
+/// <summary>Snapshot pinned globals and apply stock filter precedence to wrapper attributes.</summary>
 internal sealed class HangfireRuntimeFilters : IJobFilterProvider
 {
     private static readonly object Gate = new();
-    private readonly JobFilter[] _globals;
-    private readonly JobFilterAttributeFilterProvider _attributes = new();
+    private readonly JobFilterProviderCollection _filters;
 
-    private HangfireRuntimeFilters(JobFilter[] globals) => _globals = globals;
+    private HangfireRuntimeFilters(JobFilter[] globals) => _filters = new(
+        new FrozenGlobalFilters(globals), new JobFilterAttributeFilterProvider());
 
     internal static HangfireRuntimeFilters Create()
     {
@@ -22,8 +22,10 @@ internal sealed class HangfireRuntimeFilters : IJobFilterProvider
                 typeof(CaptureCultureAttribute), typeof(AutomaticRetryAttribute),
                 typeof(ContinuationsSupportAttribute),
             };
+            var retryOrder = new AutomaticRetryAttribute().Order;
             if (required.Any(type => before.Count(filter => filter.Instance?.GetType() == type) != 1)
                 || before.Count(filter => filter.Instance?.GetType() == typeof(StatisticsHistoryAttribute)) > 1
+                || before.Any(filter => filter.Instance is AutomaticRetryAttribute && filter.Order != retryOrder)
                 || before.Any(filter => filter.Instance is null
                     || !required.Contains(filter.Instance.GetType())
                         && filter.Instance.GetType() != typeof(StatisticsHistoryAttribute)))
@@ -41,6 +43,11 @@ internal sealed class HangfireRuntimeFilters : IJobFilterProvider
     public IEnumerable<JobFilter> GetFilters(Job job)
     {
         ArgumentNullException.ThrowIfNull(job);
-        return _globals.Concat(_attributes.GetFilters(job));
+        return _filters.GetFilters(job);
+    }
+
+    private sealed class FrozenGlobalFilters(JobFilter[] globals) : IJobFilterProvider
+    {
+        public IEnumerable<JobFilter> GetFilters(Job job) => globals;
     }
 }

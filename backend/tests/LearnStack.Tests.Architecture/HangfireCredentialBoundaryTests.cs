@@ -48,7 +48,7 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static void CheckPrivilegedAcquisitions(SortedSet<string> offenders, ProductionCensus census)
     {
-        var expected = new List<string>();
+        var expected = new List<string> { CheckJobBridgeCredentials(offenders, census) };
         // These are capability acquisition sites, not every method of a permitted
         // type. Delegates and real compiler-linked async bodies share their owner's
         // identity; an overload or unrelated helper never grants itself authority.
@@ -59,7 +59,6 @@ public sealed partial class OutboxDispatchConventionTests
             (InfrastructureAssembly, Store, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" }),
             (InfrastructureAssembly, DeliveryStore, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync", "ReplayAsync" }),
             (InfrastructureAssembly, JobRoutingStore, new[] { "TryClaimAsync" }),
-            (InfrastructureAssembly, JobBridgeStore, new[] { "OpenConnectionAsync" }),
             (InfrastructureAssembly, BoundaryPlatform, new[] { "EnterAsync" }),
             (InfrastructureAssembly, VendorFactory, new[] { "GetOrCreateConnection" }),
             (InfrastructureAssembly, VendorBootstrap, new[] { "Create" }),

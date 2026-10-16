@@ -117,7 +117,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**222 test methods run in
+**224 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -5075,6 +5075,9 @@ Source: [Accepted ADR-0047](../decisions/0047-transactional-background-job-runti
 and the [nine-step package](../roadmap/phase-02b-events-auth.md#p02b-4-decision-package-2026-10-15).
 [Accepted ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md#architecture-tests)
 extends the existing bootstrap and independent-capacity assertions below.
+[Accepted ADR-0059](../decisions/0059-owned-hangfire-server-generations.md#architecture-tests)
+adds public lifecycle/conditional-cleanup, closed storage and generation ownership
+qualification to the existing bootstrap, credential and capacity obligations.
 All nineteen names are Registered. A step's partial foundation is not enforcement
 of the complete assertion; promotion names its actual tests when they ship.
 Production business/recurrence registries remain empty; real framework subjects
