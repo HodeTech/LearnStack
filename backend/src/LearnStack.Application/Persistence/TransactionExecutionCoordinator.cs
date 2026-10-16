@@ -49,6 +49,7 @@ public sealed class TransactionExecutionCoordinator(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
         BackgroundJobExecutionAdmission.RequireContext(tenantContext, provisioning);
         BackgroundJobExecutionAdmission.RequireOperation(operationType);
+        var jobCompletion = BackgroundJobExecutionAdmission.RequireOwnerEntry(unitOfWork, mode, operationType, tenantContext);
         var openingOwner = !unitOfWork.HasActiveTransaction;
         IUnitOfWorkScope scope;
         try
@@ -74,7 +75,7 @@ public sealed class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, operationType, admission, cancellationToken);
+            null, null, null, operationType, admission, jobCompletion, cancellationToken);
     }
 
     /// <summary>
@@ -110,7 +111,7 @@ public sealed class TransactionExecutionCoordinator(
         completion.RequireUnit(unitOfWork);
         var frame = owner.Consume(unitOfWork, tenantContext);
         return ExecuteFrameAsync(frame, null, "delivery", next, owner, completion,
-            incomingEventId, operationType, null, cancellationToken);
+            incomingEventId, operationType, null, null, cancellationToken);
     }
 
     private async Task<TResponse> ExecuteFrameAsync<TResponse>(
@@ -121,6 +122,7 @@ public sealed class TransactionExecutionCoordinator(
         PreparedDeliveryOwner? preparedOwner,
         DeliveryCompletionParticipant? completion,
         Guid? incomingEventId, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
+        BackgroundJobCompletionParticipant? jobCompletion,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -155,6 +157,9 @@ public sealed class TransactionExecutionCoordinator(
                     ?? (tenantContext.UserId == UserId.SystemActor ? null : tenantContext.UserId)
                 : null;
             admission?.BindOwner(unitOfWork, scope.IsOwner);
+            if (jobCompletion is not null)
+                await BackgroundJobExecutionAdmission.BindOwnerAsync(jobCompletion, unitOfWork, scope.IsOwner,
+                    cancellationToken).ConfigureAwait(false);
             using var invocation = producer.BeginInvocation(scope.IsOwner, causalActor,
                 incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId, operationType,
                 BackgroundJobExecutionAdmission.ParentJobId);
@@ -165,6 +170,7 @@ public sealed class TransactionExecutionCoordinator(
                 // merely because an ancestor absorbs this refusal.
                 if (invocation.HasProducedWork) unitOfWork.MarkRollbackOnly();
                 await scope.FailAsync(CancellationToken.None);
+                jobCompletion?.Gate.RecordRolledBack();
                 if (scope.IsOwner) capture.MarkRolledBack();
                 return response;
             }
@@ -196,6 +202,16 @@ public sealed class TransactionExecutionCoordinator(
                 }
             }
 
+            if (jobCompletion is not null)
+            {
+                if (!scope.IsOwner || completion is not null || preparedOwner is not null)
+                    throw new InvalidOperationException("Job completion belongs only to its ordinary root owner.");
+                await BackgroundJobExecutionAdmission.FenceOwnerAsync(jobCompletion, unitOfWork,
+                    cancellationToken).ConfigureAwait(false);
+                if (!jobCompletion.Gate.TryBeginCommit())
+                    throw new OperationCanceledException("Job commit admission is closed.", cancellationToken);
+            }
+
             // No await between the atomic admission above and the owned Complete call.
             admission?.MarkCommitting(unitOfWork);
             committing = true;
@@ -224,6 +240,7 @@ public sealed class TransactionExecutionCoordinator(
 
             if (scope.IsOwner)
             {
+                jobCompletion?.Gate.RecordCommitted();
                 admission?.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
@@ -239,11 +256,12 @@ public sealed class TransactionExecutionCoordinator(
             try
             {
                 await scope.FailAsync(CancellationToken.None);
+                jobCompletion?.Gate.RecordRolledBack();
             }
             catch (Exception rollbackFailure)
             {
                 LogRollbackFailure(logger, operationName,
-                    tenantContext is EventTenantContext ? null : rollbackFailure);
+                    AsyncExecutionDiagnostics.IsTrusted(tenantContext) ? null : rollbackFailure);
             }
 
             if (scope.IsOwner && capture.State != AuditIntentState.Indeterminate)

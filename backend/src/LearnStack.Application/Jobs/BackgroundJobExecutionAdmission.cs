@@ -25,9 +25,12 @@ public sealed class BackgroundJobExecutionAdmission(
     /// Activates one registered definition. Only the job executor may call this in
     /// production; neither request types nor a caller-selected scope are accepted.
     /// </summary>
-    public IDisposable Enter(ConfirmedStartReceipt receipt)
+    public IDisposable Enter(ConfirmedStartReceipt receipt, IUnitOfWork unit, BackgroundJobCompletionParticipant completion)
     {
         ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(unit);
+        ArgumentNullException.ThrowIfNull(completion);
+        completion.RequireArmed(receipt, unit);
         var definitionKey = receipt.Envelope.DefinitionKey;
         var tenantId = receipt.Envelope.TenantId;
         var organizationId = receipt.Envelope.OrganizationId;
@@ -56,7 +59,7 @@ public sealed class BackgroundJobExecutionAdmission(
         var admitted = new Admission(tenantId, organizationId, definition.Scope, root,
             definition.NestedRequestTypes.Except(definition.RootRequestTypes).ToFrozenSet(), metadata);
         receipt.Consume();
-        var frame = new Frame(admitted, receipt: receipt);
+        var frame = new Frame(admitted, receipt: receipt, unit: unit, completion: completion);
         CurrentFrame.Value = frame;
         return new Scope(frame);
     }
@@ -77,6 +80,7 @@ public sealed class BackgroundJobExecutionAdmission(
                 : requestType == typeof(AdmitBackgroundJobAttemptCommand) && MatchesRoute(claim, context);
         }
         if (!IsLive(frame) || !MatchesContext(frame.Admission, context)
+            || frame.Completion?.PermitsContext(context) != true
             || typeof(IProvisionsTenant).IsAssignableFrom(requestType)
             || requestType.IsDefined(typeof(AllowsUnresolvedTenantContextAttribute), inherit: false)
             || requestType.IsDefined(typeof(PublicSurfaceAttribute), inherit: false)) return false;
@@ -86,7 +90,8 @@ public sealed class BackgroundJobExecutionAdmission(
         return request.Classification switch
         {
             BackgroundJobRequestClassification.Ordinary => request.Scope == admitted.Scope
-                && (HasOrdinaryParent(frame) ? admitted.NestedRequestTypes.Contains(requestType) : admitted.RootRequestType == requestType),
+                && (HasOrdinaryParent(frame) ? admitted.NestedRequestTypes.Contains(requestType)
+                    : !frame.RootClaimed && admitted.RootRequestType == requestType),
             BackgroundJobRequestClassification.FrameworkReadOnly or BackgroundJobRequestClassification.FrameworkReadWrite =>
                 request.Scope is null,
             _ => false,
@@ -99,8 +104,10 @@ public sealed class BackgroundJobExecutionAdmission(
         scope = null;
         if (!PermitsRequest(requestType, context)) return false;
         if (CurrentFrame.Value is not { } frame) return true;
-        var invocation = new RequestFrame(frame, CurrentRequest.Value,
-            frame.Admission.Requests[requestType].Classification == BackgroundJobRequestClassification.Ordinary);
+        var ordinary = frame.Admission.Requests[requestType].Classification == BackgroundJobRequestClassification.Ordinary;
+        var root = ordinary && !HasOrdinaryParent(frame);
+        if (root && !frame.TryClaimRoot()) return false;
+        var invocation = new RequestFrame(frame, CurrentRequest.Value, requestType, ordinary, root);
         CurrentRequest.Value = invocation;
         scope = new RequestScope(invocation);
         return true;
@@ -137,7 +144,7 @@ public sealed class BackgroundJobExecutionAdmission(
         if (CurrentFrame.Value is { } frame
             && (!IsLive(frame) || provisioning is not null
                 || (frame.Claim is not null ? !PermitsFrameworkContext(frame, context)
-                    : !MatchesContext(frame.Admission, context)))) throw Denied();
+                    : !MatchesContext(frame.Admission, context) || frame.Completion?.PermitsContext(context) != true))) throw Denied();
     }
 
     /// <summary>Refuses privileged or alternate asynchronous entry even after accessor replacement.</summary>
@@ -203,10 +210,51 @@ public sealed class BackgroundJobExecutionAdmission(
     /// <summary>A legacy direct owner cannot borrow the currently active framework request.</summary>
     internal static void RequireOperation(Type? operationType)
     {
-        if (CurrentFrame.Value is { Claim: not null } frame
-            && (!IsLive(frame) || CurrentRequest.Value is null
-                || operationType != (frame.Envelope is null ? typeof(ReadBackgroundJobEnvelopeQuery)
-                    : typeof(AdmitBackgroundJobAttemptCommand)))) throw Denied();
+        if (CurrentFrame.Value is not { } frame) return;
+        if (!IsLive(frame) || CurrentRequest.Value is not { } request
+            || operationType is null || request.RequestType != operationType) throw Denied();
+        if (frame.Claim is not null
+            && operationType != (frame.Envelope is null ? typeof(ReadBackgroundJobEnvelopeQuery)
+                : typeof(AdmitBackgroundJobAttemptCommand))) throw Denied();
+    }
+
+    /// <summary>Closes direct and fresh-scope escapes before a second transaction can begin.</summary>
+    internal static BackgroundJobCompletionParticipant? RequireOwnerEntry(IUnitOfWork unit, TransactionMode mode,
+        Type? operationType, ITenantContext context)
+    {
+        RequireOperation(operationType);
+        if (CurrentFrame.Value is not { Receipt: not null } frame) return null;
+        RequireContext(context);
+        if (!ReferenceEquals(frame.Unit, unit) || frame.Completion is not { } completion
+            || CurrentRequest.Value is not { } request || !ReferenceEquals(request.Execution, frame)) throw Denied();
+        completion.RequireEntry(unit, request.IsRoot, mode);
+        return request.IsRoot ? completion : null;
+    }
+
+    internal static async Task BindOwnerAsync(BackgroundJobCompletionParticipant completion, IUnitOfWork unit,
+        bool owner, CancellationToken cancellationToken)
+    {
+        var request = RequireRootParticipant(completion, unit);
+        await completion.BindAndPreflightAsync(unit, owner, request.RequestType, request, cancellationToken).ConfigureAwait(false);
+        _ = RequireRootParticipant(completion, unit);
+    }
+
+    internal static async Task FenceOwnerAsync(BackgroundJobCompletionParticipant completion, IUnitOfWork unit,
+        CancellationToken cancellationToken)
+    {
+        var request = RequireRootParticipant(completion, unit);
+        await completion.FenceOwnerAsync(unit, request.RequestType, request, cancellationToken).ConfigureAwait(false);
+        _ = RequireRootParticipant(completion, unit);
+    }
+
+    private static RequestFrame RequireRootParticipant(BackgroundJobCompletionParticipant completion, IUnitOfWork unit)
+    {
+        if (CurrentFrame.Value is not { Receipt: not null } frame || !IsLive(frame)
+            || !ReferenceEquals(frame.Unit, unit) || !ReferenceEquals(frame.Completion, completion)
+            || CurrentRequest.Value is not { IsRoot: true } request
+            || !ReferenceEquals(request.Execution, frame) || request.RequestType != frame.Admission.RootRequestType)
+            throw Denied();
+        return request;
     }
 
     internal static ITenantContext AnnouncementContext(ITenantContext context, Type? operationType)
@@ -274,24 +322,31 @@ public sealed class BackgroundJobExecutionAdmission(
     // Lifecycle revocation is separate from the immutable authority snapshot. A task
     // retaining a closed frame stays refused after its owner's execution flow restores.
     private sealed class Frame(Admission admission, BackgroundJobRoutingClaim? claim = null, ConfirmedStartReceipt? receipt = null,
-        Func<bool>? startGate = null)
+        Func<bool>? startGate = null, IUnitOfWork? unit = null, BackgroundJobCompletionParticipant? completion = null)
     {
         private int _closed;
+        private int _rootClaimed;
         public Admission Admission { get; } = admission;
         public BackgroundJobRoutingClaim? Claim { get; } = claim;
         public ConfirmedStartReceipt? Receipt { get; } = receipt;
         public Func<bool>? StartGate { get; } = startGate;
+        public IUnitOfWork? Unit { get; } = unit;
+        public BackgroundJobCompletionParticipant? Completion { get; } = completion;
+        public bool RootClaimed => Volatile.Read(ref _rootClaimed) != 0;
+        public bool TryClaimRoot() => Interlocked.CompareExchange(ref _rootClaimed, 1, 0) == 0;
         public BackgroundJobEnvelope? Envelope { get; set; }
         public bool IsOpen => Volatile.Read(ref _closed) == 0;
         public void Close() => Interlocked.Exchange(ref _closed, 1);
     }
 
-    private sealed class RequestFrame(Frame execution, RequestFrame? parent, bool isOrdinary)
+    private sealed class RequestFrame(Frame execution, RequestFrame? parent, Type requestType, bool isOrdinary, bool isRoot)
     {
         private int _closed;
         public Frame Execution { get; } = execution;
         public RequestFrame? Parent { get; } = parent;
+        public Type RequestType { get; } = requestType;
         public bool IsOrdinary { get; } = isOrdinary;
+        public bool IsRoot { get; } = isRoot;
         public bool IsOpen => Volatile.Read(ref _closed) == 0;
         public void Close() => Interlocked.Exchange(ref _closed, 1);
     }

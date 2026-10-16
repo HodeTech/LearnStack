@@ -11,6 +11,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Application.Jobs;
@@ -27,9 +28,36 @@ public sealed class BackgroundJobExecutionAdmissionTests
         using var admission = fixture.Enter();
 
         (await sender.Send(new Root(new Nested()))).IsSuccess.Should().BeTrue();
+        (await sender.Send(new Root(new Nested()))).Error!.Code.Should().Be("forbidden", "one receipt claims one ordinary root even after success");
         (await sender.Send(new FrameworkRead())).IsSuccess.Should().BeTrue();
         (await sender.Send(new FrameworkWrite())).IsSuccess.Should().BeTrue();
         fixture.Constructed.Should().BeEquivalentTo([typeof(Root), typeof(Nested), typeof(FrameworkRead), typeof(FrameworkWrite)]);
+    }
+
+    [Theory]
+    [InlineData("receipt")]
+    [InlineData("unit")]
+    [InlineData("accessor_reference")]
+    [InlineData("closed_gate")]
+    public async Task A_participant_refuses_substituted_receipt_unit_context_or_closed_gate_before_begin(string changed)
+    {
+        var fixture = new Fixture();
+        var accessor = new StaticTenantContextAccessor(fixture.Context);
+        var unit = Substitute.For<IUnitOfWork>();
+        var participant = new ProbeCompletion(unit, accessor);
+        var gate = new BackgroundJobCommitGate();
+        var receipt = JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, null,
+            BackgroundJobExecutionStage.Transactional);
+        participant.Arm(receipt, gate);
+        if (changed == "accessor_reference") accessor.Current = ((JobContext)fixture.Context) with { };
+        if (changed == "closed_gate") gate.Close();
+        var substitute = changed == "receipt" ? JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId,
+            null, BackgroundJobExecutionStage.Transactional) : receipt;
+        var other = changed == "unit" ? Substitute.For<IUnitOfWork>() : unit;
+        var activate = () => fixture.Admission.Enter(substitute, other, participant);
+        activate.Should().Throw<InvalidOperationException>();
+        await unit.DidNotReceiveWithAnyArgs().BeginTransactionAsync(default(TransactionMode), default);
+        await other.DidNotReceiveWithAnyArgs().BeginTransactionAsync(default(TransactionMode), default);
     }
 
     [Theory]
@@ -173,7 +201,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
         {
             (await sender.Send(new FinalizeProbe())).Error!.Code.Should().Be("forbidden");
             (await sender.Send(new Root(new FinalizeProbe()))).Error!.Code.Should().Be("forbidden");
-            (await sender.Send(new Root(new Nested()))).IsSuccess.Should().BeTrue();
+            (await sender.Send(new Root(new Nested()))).Error!.Code.Should().Be("forbidden");
         }
         using (fixture.Enter(BackgroundJobExecutionStage.Finalize))
         {
@@ -224,7 +252,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
         using var admission = fixture.Enter();
         var canceled = async () => await sender.Send(new Root(new Nested()), new CancellationToken(canceled: true));
         await canceled.Should().ThrowAsync<OperationCanceledException>();
-        (await sender.Send(new Root(new Nested()))).IsSuccess.Should().BeTrue();
+        (await sender.Send(new Root(new Nested()))).Error!.Code.Should().Be("forbidden");
         (await sender.Send(new Unlisted())).Error!.Code.Should().Be("forbidden");
     }
 
@@ -245,9 +273,9 @@ public sealed class BackgroundJobExecutionAdmissionTests
         var fixture = new Fixture();
         foreach (var action in new Action[]
                  {
-                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create("tenancy.unknown.v1", fixture.Context.TenantId, null, BackgroundJobExecutionStage.Transactional)),
-                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create(Fixture.Key, TenantId.PlatformSentinel, null, BackgroundJobExecutionStage.Transactional)),
-                     () => fixture.Admission.Enter(JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, OrganizationId.From(Guid.CreateVersion7()), BackgroundJobExecutionStage.Transactional)),
+                     () => fixture.EnterReceipt(JobAdmissionFixtureReceipt.Create("tenancy.unknown.v1", fixture.Context.TenantId, null, BackgroundJobExecutionStage.Transactional)),
+                     () => fixture.EnterReceipt(JobAdmissionFixtureReceipt.Create(Fixture.Key, TenantId.PlatformSentinel, null, BackgroundJobExecutionStage.Transactional)),
+                     () => fixture.EnterReceipt(JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, OrganizationId.From(Guid.CreateVersion7()), BackgroundJobExecutionStage.Transactional)),
                  }) action.Should().Throw<InvalidOperationException>();
         fixture.Catalog.Readiness = BackgroundJobDefinitionReadiness.Pending;
         var pending = () => fixture.Enter();
@@ -311,7 +339,14 @@ public sealed class BackgroundJobExecutionAdmissionTests
         public BackgroundJobExecutionAdmission Admission { get; }
         public Fixture() => Admission = new(Catalog, Catalog, new AuditCatalog([new Source()]));
         public IDisposable Enter(BackgroundJobExecutionStage stage = BackgroundJobExecutionStage.Transactional) =>
-            Admission.Enter(JobAdmissionFixtureReceipt.Create(Key, Context.TenantId, Context.OrganizationId, stage));
+            EnterReceipt(JobAdmissionFixtureReceipt.Create(Key, Context.TenantId, Context.OrganizationId, stage));
+        public IDisposable EnterReceipt(ConfirmedStartReceipt receipt)
+        {
+            var unit = Substitute.For<IUnitOfWork>();
+            var participant = new ProbeCompletion(unit, _accessor);
+            participant.Arm(receipt, new BackgroundJobCommitGate());
+            return Admission.Enter(receipt, unit, participant);
+        }
         public ServiceProvider Services()
         {
             var services = new ServiceCollection().AddSingleton(this).AddTransient(_ => Context);
@@ -327,6 +362,13 @@ public sealed class BackgroundJobExecutionAdmissionTests
                     typeof(Handler<>).MakeGenericType(type));
             return services.BuildServiceProvider();
         }
+    }
+
+    private sealed class ProbeCompletion(IUnitOfWork unit, ITenantContextAccessor accessor)
+        : BackgroundJobCompletionParticipant(unit, accessor)
+    {
+        protected override Task PreflightAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        protected override Task FenceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     public sealed class Catalog : IBackgroundJobDefinitionCatalog, IBackgroundJobRequestCatalog

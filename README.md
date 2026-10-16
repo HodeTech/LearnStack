@@ -95,7 +95,9 @@ verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns implementation and review status. Step 4 is locally complete after both full
-review rounds and verified corrections. Step 5 is in progress; Steps 6–9 remain pending.
+review rounds and verified corrections. Step 5 is in progress; its
+[record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
+owns qualification and pending review gates. Steps 6–9 remain pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.

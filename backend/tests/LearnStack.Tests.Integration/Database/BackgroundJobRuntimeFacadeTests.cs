@@ -24,8 +24,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
     private static BackgroundJobRuntimeFixture Fixture => BackgroundJobRuntimeFixture.Shared;
 
     [Theory]
-    [InlineData(false, 3, 4, 1, 16, 45)]
-    [InlineData(true, 8, 32, 6, 64, 151)]
+    [InlineData(false, 3, 4, 1, 16, 50)]
+    [InlineData(true, 8, 32, 6, 64, 156)]
     public async Task Direct_real_composition_uses_one_pool_manifest_and_joins_all_owners_before_source_disposal(
         bool maximum, int pools, int workers, int controls, int invocations, int connections)
     {
@@ -67,8 +67,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
         runtime.Snapshot.IsHealthy.Should().BeFalse();
         (await IndependentServerCountAsync(database)).Should().Be(0);
         await EventuallyAsync(async () => await PoolBackendCountAsync(database, applicationName) == 0);
-        // These actual generations qualify the current Step 4 manifest only;
-        // this is neither simultaneous saturation nor future Steps 5–8 SQL coverage.
+        // These actual generations qualify the current manifest and cleanup;
+        // this is neither simultaneous saturation nor future Steps 6–8 SQL coverage.
     }
 
     [Fact]
@@ -201,7 +201,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
         var routing = new PostgresBackgroundJobRoutingStore(source, definitions, bounds, ids, gate);
         var runtime = new BackgroundJobRuntime(source, definitions, BackgroundJobRecurrenceRegistry.CreateEmpty(),
             services.GetRequiredService<JobExecutor>(), routing, gate, bounds, ids, timeProvider ?? TimeProvider.System,
-            physical ?? new(false, 100), new HangfireBoundedLogProvider());
+            physical ?? new(false, 100), new HangfireBoundedLogProvider(),
+            services.GetRequiredService<ApplicationDataSourceLifetime>());
         // The direct host removes both API messaging workers before startup.
         // Each completed task is a no-issued-work fact, never a substitute for
         // an actual production processor's startup/main-loop completion.
@@ -225,6 +226,23 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
         await using var connection = await source.OpenConnectionAsync();
         await using var command = new NpgsqlCommand("SELECT count(*) FROM public.server", connection);
         return (long)(await command.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<bool> NativeBusinessCompletedAsync(DisposableSchemaDatabase database,
+        PrivilegedDataSource source, BackgroundJobId job)
+    {
+        var row = await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job);
+        if (row is not { Phase: "completed", NormalAttempts: 1 }) return false;
+        // Completion deliberately clears the mutable vendor hint. Observe the
+        // actual opaque stock wakeup independently instead of waiting for that
+        // hint to reappear or equating native success with business completion.
+        await using var connection = await source.OpenConnectionAsync();
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT 1 FROM public.job
+                WHERE arguments->>0=@job AND arguments->>1='1' AND statename='Succeeded')
+            """, connection);
+        command.Parameters.AddWithValue("job", System.Text.Json.JsonSerializer.Serialize(job.Value));
+        return (bool)(await command.ExecuteScalarAsync())!;
     }
 
     private static async Task<string?> VendorAsync(PrivilegedDataSource source, BackgroundJobId job)

@@ -207,6 +207,7 @@ public sealed class CachedHostToTenantResolver(
 
     private async Task<HostResolution?> ReadAsync(string host, CancellationToken cancellationToken)
     {
+        LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.RefuseUnrelatedRead();
         // The policy on this table admits exactly the row the resolver ANNOUNCES.
         // Without the SET LOCAL the predicate is NULL and the query returns
         // nothing, so the miss path opens its own transaction: SET LOCAL outside a

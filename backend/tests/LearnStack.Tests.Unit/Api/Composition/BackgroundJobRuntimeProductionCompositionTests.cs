@@ -20,7 +20,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
     [Fact]
     public async Task Mandatory_hosted_aliases_bind_the_actual_messaging_instances_and_keep_the_source_lazy()
     {
-        var builder = Builder(45);
+        var builder = Builder(50);
         builder.Services.AddLearnStackPersistence(builder.Configuration);
         builder.Services.AddLearnStackOutboxDispatcher(builder.Configuration);
         await using var services = builder.Services.BuildServiceProvider();
@@ -53,7 +53,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
     [Fact]
     public async Task Captured_capacity_refuses_one_below_the_supported_floor_before_source_construction()
     {
-        var builder = Builder(44);
+        var builder = Builder(49);
         builder.Services.AddLearnStackPersistence(builder.Configuration);
         builder.Configuration["ConnectionStrings:OutboxDispatcher"] = Connection(100);
         await using var services = builder.Services.BuildServiceProvider();
@@ -61,7 +61,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
         var resolve = () => services.GetRequiredService<BackgroundJobRuntime>();
         resolve.Should().Throw<ArgumentException>().WithMessage("*supported physical capacity*");
         source.IsValueCreated.Should().BeFalse();
-        services.GetRequiredService<BackgroundJobPhysicalPoolSettings>().MaxPoolSize.Should().Be(44,
+        services.GetRequiredService<BackgroundJobPhysicalPoolSettings>().MaxPoolSize.Should().Be(49,
             "the source and its sanitized settings must use the same immutable registration input");
     }
 

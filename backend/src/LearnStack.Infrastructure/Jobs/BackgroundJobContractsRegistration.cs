@@ -24,6 +24,7 @@ public static class BackgroundJobContractsRegistration
         services.TryAddSingleton<BackgroundJobRuntimeOptions>();
         services.TryAddSingleton<JobExecutor>();
         services.TryAddScoped<IBackgroundJobScheduler, PostgresBackgroundJobScheduler>();
+        services.TryAddScoped<BackgroundJobCompletionParticipant, PostgresBackgroundJobCompletion>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuditCatalogSource, BackgroundJobAuditCatalogSource>());
         services.TryAddTransient<IRequestHandler<ReadBackgroundJobEnvelopeQuery, Result<BackgroundJobEnvelope>>, ReadBackgroundJobEnvelopeQueryHandler>();
         services.TryAddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, AdmitBackgroundJobAttemptCommandHandler>();

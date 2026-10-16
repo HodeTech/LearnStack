@@ -744,6 +744,10 @@ public sealed class PlatformAdminScopeTests
             AuditEntryDraft entry, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task WriteJobTerminalAsync(AuditEntryDraft entry, JobTerminalTransition transition,
+            System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction transaction,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException("The job-terminal path has its own cases.");
+
         public Task WriteEventTerminalAsync(
             AuditEntryDraft entry,
             EventTerminalTransition transition,

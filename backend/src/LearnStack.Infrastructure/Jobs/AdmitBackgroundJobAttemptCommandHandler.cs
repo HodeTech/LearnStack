@@ -46,13 +46,23 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
                 AND ownership_until > clock_timestamp() AND available_after <= clock_timestamp()
                 AND profile = 'transactional' AND capacity_group IS NULL AND phase = 'pending' AND normal_attempts < 6
                 AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL
+            RETURNING ordinal, admitted_at, deadline
             """, request.Claim, options);
         insert.Parameters.AddWithValue("attempt", attempt.Value);
         insert.Parameters.AddWithValue("generation", request.Claim.WakeGeneration);
         insert.Parameters.AddWithValue("token", request.Claim.Token);
         insert.Parameters.AddWithValue("duration", options.TransactionTimeout);
-        if (await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
-            return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
+        int ordinal;
+        DateTimeOffset admittedAt;
+        DateTimeOffset deadline;
+        await using (var inserted = await insert.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (!await inserted.ReadAsync(cancellationToken).ConfigureAwait(false))
+                return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
+            ordinal = inserted.GetInt32(0);
+            admittedAt = inserted.GetFieldValue<DateTimeOffset>(1);
+            deadline = inserted.GetFieldValue<DateTimeOffset>(2);
+        }
         await using var update = BackgroundJobEnvelopeSql.Command(unit, """
             UPDATE background_jobs SET normal_attempts = normal_attempts + 1, current_attempt_id = @attempt,
                 phase = 'executing', attempt_deadline =
@@ -61,16 +71,19 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
                 AND ownership_token = @token AND ownership_kind = 'routing' AND ownership_until > clock_timestamp()
                 AND available_after <= clock_timestamp() AND phase = 'pending' AND normal_attempts < 6
                 AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL
+            RETURNING normal_attempts, attempt_deadline, ownership_until
             """, request.Claim, options);
         update.Parameters.AddWithValue("attempt", attempt.Value);
         update.Parameters.AddWithValue("generation", request.Claim.WakeGeneration);
         update.Parameters.AddWithValue("token", request.Claim.Token);
-        if (await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+        await using var updated = await update.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await updated.ReadAsync(cancellationToken).ConfigureAwait(false)
+            || updated.GetInt32(0) != ordinal || updated.GetFieldValue<DateTimeOffset>(1) != deadline)
         {
             unit.MarkRollbackOnly();
             return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
         }
-        request.RecordAttempt(unit, attempt);
+        request.RecordAttempt(unit, attempt, ordinal, admittedAt, deadline, updated.GetFieldValue<DateTimeOffset>(2));
         return Result<None>.Ok(None.Value);
     }
 }

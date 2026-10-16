@@ -18,11 +18,13 @@ public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState Stat
     BackgroundJobPhysicalCapacity Capacity, int RunningPools, int RetainedPools,
     int RetainedInvocations, BackgroundJobBridgeSnapshot? Bridge, bool BridgeHealthy, bool ExpirationHealthy,
     bool FetchedJobHeartbeatHealthy, bool BootstrapJoined, bool CleanupConfirmed,
-    IReadOnlyList<BackgroundJobPoolHealth> Pools, IReadOnlyList<BackgroundJobMaintenanceHealth> Maintenance)
+    IReadOnlyList<BackgroundJobPoolHealth> Pools, IReadOnlyList<BackgroundJobMaintenanceHealth> Maintenance,
+    BackgroundJobControlHealth? Control = null, BackgroundJobApplicationCapacity? ApplicationCapacity = null)
 {
     public bool IsHealthy => State == BackgroundJobRuntimeState.Running && BridgeHealthy
         && ExpirationHealthy && FetchedJobHeartbeatHealthy && RunningPools == Capacity.Pools
-        && RetainedPools == 0 && RetainedInvocations == 0 && Pools.All(pool => !pool.MetadataHeartbeatFault);
+        && RetainedPools == 0 && RetainedInvocations == 0 && Pools.All(pool => !pool.MetadataHeartbeatFault)
+        && Control is { RenewalHealthy: true, RecoveryHealthy: true, TerminalHealthy: true };
 }
 
 /// <summary>API-instance owner; actual joins alone release bootstrap, pools, shared work and bridge.</summary>
@@ -43,6 +45,8 @@ public sealed class BackgroundJobRuntime
     private readonly TimeProvider _time;
     private readonly HangfireBoundedLogProvider _diagnostics;
     private readonly BackgroundJobPhysicalCapacity _capacity;
+    private readonly BackgroundJobApplicationCapacity _applicationCapacity;
+    private readonly BackgroundJobControl _jobs;
     private readonly CancellationTokenSource _control = new();
     private readonly TaskCompletionSource _stop = Signal();
     private readonly TaskCompletionSource _completion;
@@ -66,7 +70,8 @@ public sealed class BackgroundJobRuntime
     internal BackgroundJobRuntime(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
         BackgroundJobRecurrenceRegistry recurrences, JobExecutor executor, PostgresBackgroundJobRoutingStore routing,
         BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds, IGuidFactory ids, TimeProvider time,
-        BackgroundJobPhysicalPoolSettings poolSettings, HangfireBoundedLogProvider diagnostics)
+        BackgroundJobPhysicalPoolSettings poolSettings, HangfireBoundedLogProvider diagnostics,
+        ApplicationDataSourceLifetime? applicationSource = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(definitions);
@@ -81,6 +86,8 @@ public sealed class BackgroundJobRuntime
         bounds.Validate();
         _capacity = BackgroundJobPhysicalCapacity.Calculate(definitions.Infrastructure);
         _capacity.Validate(poolSettings);
+        _applicationCapacity = BackgroundJobApplicationCapacity.Calculate(definitions.Infrastructure);
+        if (applicationSource is not null) _applicationCapacity.Validate(applicationSource.PoolSettings);
         _source = source;
         _definitions = definitions;
         _recurrences = recurrences;
@@ -91,6 +98,7 @@ public sealed class BackgroundJobRuntime
         _ids = ids;
         _time = time;
         _diagnostics = diagnostics;
+        _jobs = new(source, definitions, executor.ScopeFactory, gate, bounds, ids, time);
         // The source pin retains these tasks. Their state must retain the
         // concrete owner even after an observer returns with cleanup unresolved.
         _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,6 +119,7 @@ public sealed class BackgroundJobRuntime
             }
         }
         _source.RetainBackgroundJobsUntil(_sourceLifetime);
+        applicationSource?.RetainBackgroundJobsUntil(_sourceLifetime);
     }
 
     public Task Completion => _completion.Task;
@@ -186,7 +195,8 @@ public sealed class BackgroundJobRuntime
                     pools.Select(pool => new BackgroundJobPoolHealth(pool.Pool, pool.State.ToString(),
                         (pool.Generation?.Reason ?? HangfireGenerationReason.None).ToString(), pool.Work?.Retained ?? 0,
                         pool.Generation?.HeartbeatFault == true)).ToArray(),
-                    [MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat)]);
+                    [MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat)],
+                    _jobs.Snapshot, _applicationCapacity);
             }
         }
     }
@@ -252,6 +262,7 @@ public sealed class BackgroundJobRuntime
                 _runPublished.TrySetResult(null);
             }
         }
+        _jobs.RequestStop();
         _stop.TrySetResult();
     }
 
@@ -288,6 +299,7 @@ public sealed class BackgroundJobRuntime
             HangfirePoolOwner[] pools;
             lock (_sync) { pools = _pools.ToArray(); _state = BackgroundJobRuntimeState.Starting; }
             _shared!.Start(); // PreallocateOwners published both independent shared owners.
+            _jobs.Start();
             foreach (var pool in pools) pool.Start();
             _bridgeLoop = RunBridgeAsync();
             _issued.TrySetResult(true);
@@ -313,7 +325,7 @@ public sealed class BackgroundJobRuntime
         foreach (var pool in _definitions.Infrastructure.Pools.Values.OrderBy(pool => pool.Name, StringComparer.Ordinal))
         {
             var activator = HangfireInvocationContract.CreateActivator(pool, _definitions.Infrastructure,
-                _routing, _executor, _recurrences);
+                _routing, _executor, _recurrences, _jobs);
             var owner = new HangfirePoolOwner(provider, inventory, filters, activator, pool, _gate, _bounds, _time);
             lock (_sync) _pools.Add(owner);
         }
@@ -351,6 +363,7 @@ public sealed class BackgroundJobRuntime
         HangfireSharedComponents? shared;
         BackgroundJobBridge? bridge;
         lock (_sync) { pools = _pools.ToArray(); shared = _shared; bridge = _bridge; }
+        _jobs.RequestStop();
         foreach (var pool in pools)
         {
             try { pool.RequestStop(); }
@@ -359,6 +372,7 @@ public sealed class BackgroundJobRuntime
         try { shared?.RequestStop(); }
         catch (Exception failure) when (Catchable(failure)) { RetainCleanup(); }
         var joins = pools.Select(pool => pool.Completion).ToList();
+        joins.Add(_jobs.Completion);
         if (shared is not null) joins.Add(shared.Completion);
         if (_bridgeLoop is not null) joins.Add(_bridgeLoop);
         try { _controlCancellation = _control.CancelAsync(); joins.Add(_controlCancellation); }
@@ -383,7 +397,11 @@ public sealed class BackgroundJobRuntime
         {
             var actual = await _runPublished.Task.ConfigureAwait(false);
             if (actual is not null) await actual.ConfigureAwait(false);
-            else _control.Dispose(); // No runtime operation was ever issued.
+            else
+            {
+                await _jobs.Completion.ConfigureAwait(false);
+                _control.Dispose(); // No runtime operation was ever issued.
+            }
             lock (_sync)
             {
                 if (_cleanupFault) return;

@@ -57,6 +57,21 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         admitted.CurrentAttempt.Should().Be(result.Receipt.AttemptId.Value);
         admitted.OwnershipKind.Should().Be("execution");
         admitted.Phase.Should().Be("executing");
+        result.Receipt.NormalAttemptOrdinal.Should().Be(admitted.NormalAttempts);
+        result.Receipt.OwnershipUntil.Should().Be(admitted.OwnershipUntil);
+        await using (var read = await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await read.BeginTransactionAsync())
+        {
+            await EducationSchemaSeed.AnnounceAsync(read, transaction, SchemaFixture.TenantA, null);
+            await using var exact = new NpgsqlCommand("SELECT admitted_at, deadline FROM background_job_attempts WHERE id=@attempt",
+                (NpgsqlConnection)read, (NpgsqlTransaction)transaction);
+            exact.Parameters.AddWithValue("attempt", result.Receipt.AttemptId.Value);
+            await using var receiptRow = await exact.ExecuteReaderAsync();
+            (await receiptRow.ReadAsync()).Should().BeTrue();
+            result.Receipt.AdmittedAt.Should().Be(receiptRow.GetFieldValue<DateTimeOffset>(0));
+            result.Receipt.Deadline.Should().Be(receiptRow.GetFieldValue<DateTimeOffset>(1),
+                "business and runtime receive the actual immutable database deadline, never a new local timeout");
+        }
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
         (await store.TryClaimAsync(job, 1)).Should().BeNull("even an execution lease cannot be claimed as routing");
         probe.Constructions.Should().BeEmpty();

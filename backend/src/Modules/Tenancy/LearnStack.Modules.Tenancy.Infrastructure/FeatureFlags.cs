@@ -3,6 +3,7 @@ using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -135,9 +136,10 @@ public sealed class FeatureFlags(
 
         try
         {
+            var sourceOwner = JobApplicationSourceOwner.Current;
             flags = await cache.GetOrSetAsync(
                 CacheKey.ForTenant(tenantId.Value, "tenancy", "feature-flags"),
-                token => LoadTenantFlagsAsync(tenantId, token),
+                token => StartTenantFlagsLoadAsync(tenantId, sourceOwner, token),
                 new CacheOptions(TenantFlagTtl),
                 ct).ConfigureAwait(false);
         }
@@ -218,57 +220,97 @@ public sealed class FeatureFlags(
     /// Packet 9, reading as a role that row security does not bind.
     /// </para>
     /// </remarks>
-    private async Task<IReadOnlyDictionary<string, string>> LoadTenantFlagsAsync(
-        TenantId tenantId, CancellationToken ct)
+    private Task<IReadOnlyDictionary<string, string>> StartTenantFlagsLoadAsync(
+        TenantId tenantId, JobApplicationSourceOwner? sourceOwner, CancellationToken ct)
     {
-        await using var connection = await dataSource.Value
-            .OpenConnectionAsync(ct).ConfigureAwait(false);
+        if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
+        var resources = sourceOwner.BeginTenantFlagsLoad();
+        var actual = LoadTenantFlagsAsync(tenantId, resources, ct);
+        resources.HoldActualTask(actual);
+        return actual;
+    }
 
-        await using var transaction = await connection
-            .BeginTransactionAsync(ct).ConfigureAwait(false);
-
-        // Read-only is the property that makes an out-of-band announcement of app.tenant_id
-        // acceptable: learnstack_app holds INSERT, UPDATE and DELETE on tenant_feature_flags,
-        // so nothing but this statement stops a later edit here from writing under an
-        // announcement no request made.
-        //
-        // It precedes the announcement because the statement binds only what FOLLOWS it.
-        // PostgreSQL accepts it after other statements — measured, including after an INSERT,
-        // which still commits — so "first" is the rule's doing, not the server's
-        // (Out_Of_Band_Setters_Open_Read_Only_Transactions).
-        await using (var readOnly = new NpgsqlCommand(
-            "SET TRANSACTION READ ONLY", connection, transaction))
+    private async Task<IReadOnlyDictionary<string, string>> LoadTenantFlagsAsync(
+        TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken ct)
+    {
+        NpgsqlConnection? connection = null;
+        NpgsqlTransaction? transaction = null;
+        NpgsqlCommand? readOnly = null;
+        NpgsqlCommand? announce = null;
+        NpgsqlCommand? read = null;
+        NpgsqlDataReader? reader = null;
+        try
         {
+            connection = dataSource.Value.CreateConnection();
+            resources?.HoldConnection(connection);
+            await connection.OpenAsync(ct).ConfigureAwait(false);
+            transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            resources?.HoldTransaction(transaction);
+            readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction);
+            resources?.HoldCommand(readOnly);
             await readOnly.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-        }
-
-        await using (var announce = new NpgsqlCommand(
-            "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction))
-        {
+            announce = new NpgsqlCommand(
+                "SELECT set_config('app.tenant_id', @tenant, true)", connection, transaction);
+            resources?.HoldCommand(announce);
             announce.Parameters.AddWithValue("tenant", tenantId.Value.ToString());
             await announce.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-        }
-
-        var flags = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        await using (var read = new NpgsqlCommand(
-            "SELECT key, value::text FROM tenant_feature_flags WHERE tenant_id = @tenant",
-            connection,
-            transaction))
-        {
+            read = new NpgsqlCommand(
+                "SELECT key, value::text FROM tenant_feature_flags WHERE tenant_id = @tenant", connection, transaction);
+            resources?.HoldCommand(read);
             read.Parameters.AddWithValue("tenant", tenantId.Value);
-
-            await using var reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
-
+            reader = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            resources?.HoldReader(reader);
+            var flags = new Dictionary<string, string>(StringComparer.Ordinal);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
-            {
                 flags[reader.GetString(0)] = reader.GetString(1);
-            }
+            if (resources is not null) await resources.DisposeReaderAsync().ConfigureAwait(false);
+            else { var completedReader = reader; reader = null; await completedReader.DisposeAsync().ConfigureAwait(false); }
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            return flags;
         }
+        finally
+        {
+            if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false);
+            else await CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection).ConfigureAwait(false);
+        }
+    }
 
-        await transaction.CommitAsync(ct).ConfigureAwait(false);
-
-        return flags;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types",
+        Justification = "All outer resources receive their cleanup attempt; the final disposal failure is rethrown.")]
+    private static async ValueTask CleanupUnownedAsync(NpgsqlDataReader? reader, NpgsqlCommand? read, NpgsqlCommand? announce, NpgsqlCommand? readOnly, NpgsqlTransaction? transaction, NpgsqlConnection? connection)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        if (reader is not null)
+        {
+            try { await reader.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (read is not null)
+        {
+            try { await read.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (announce is not null)
+        {
+            try { await announce.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (readOnly is not null)
+        {
+            try { await readOnly.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (transaction is not null)
+        {
+            try { await transaction.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        if (connection is not null)
+        {
+            try { await connection.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception exception) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception); }
+        }
+        failure?.Throw();
     }
 
     private static FeatureDescriptor Descriptor(FeatureKey key) =>

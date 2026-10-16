@@ -200,9 +200,11 @@ public sealed class TenantContextConstructionTests
                 "LearnStack.Infrastructure/Messaging/InProcessEventBus.cs",
                 "LearnStack.Infrastructure/Messaging/DeliveryExecutor.cs",
                 "LearnStack.Infrastructure/Jobs/JobExecutor.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.Business.cs",
             ],
             "three of the four logical writers have landed — HTTP, jobs and the integration-event "
-            + "acceptance/execution scopes. HubCorrelationMiddleware belongs to its later phase; a fifth writer is how a "
+            + "acceptance/execution scopes; both JobExecutor partials belong to one logical writer. "
+            + "HubCorrelationMiddleware belongs to its later phase; a fifth writer is how a "
             + "request runs under a tenant nothing resolved");
     }
 

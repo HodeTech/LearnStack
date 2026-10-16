@@ -53,7 +53,7 @@ public sealed class BackgroundJobRuntimeTests
         using var source = Source();
         var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
         var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
-        var construct = () => Runtime(source, definitions, gate, new(true, 44));
+        var construct = () => Runtime(source, definitions, gate, new(true, 49));
         construct.Should().Throw<ArgumentException>();
         source.IsValueCreated.Should().BeFalse();
         gate.IsOpen.Should().BeTrue();

@@ -27,14 +27,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Actual_API_composition_keeps_shared_source_after_host_disposal_until_the_last_messaging_SQL_owner_joins(bool holdDelivery)
+    public async Task Actual_API_composition_keeps_both_sources_after_host_disposal_until_the_last_messaging_SQL_owner_joins(bool holdDelivery)
     {
         await using var database = await DatabaseAsync();
         var applicationName = "composed_lifetime_" + Guid.NewGuid().ToString("N");
         var connectionString = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
         {
             Pooling = true,
-            MaxPoolSize = 45,
+            MaxPoolSize = 50,
             ApplicationName = applicationName,
         }.ConnectionString;
         var cleanup = new FacadeCleanupSignals();
@@ -51,6 +51,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var delivery = services.GetRequiredService<DeliveryProcessor>();
         var source = services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
         var disposal = SourceDisposalObserver(source);
+        var applicationSource = services.GetRequiredService<ApplicationDataSourceLifetime>();
+        var applicationDisposal = (Task)typeof(ApplicationDataSourceLifetime).GetField("_retentionObserver", PrivateInstance)!.GetValue(applicationSource)!;
         hosted.OfType<BackgroundJobHostedService>().Should().ContainSingle().Which.Should().BeSameAs(jobs);
         hosted.OfType<OutboxProcessor>().Should().ContainSingle().Which.Should().BeSameAs(outbox);
         hosted.OfType<DeliveryProcessor>().Should().ContainSingle().Which.Should().BeSameAs(delivery);
@@ -67,11 +69,15 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var otherCompletion = holdDelivery ? outbox.PrivilegedCompletion : delivery.PrivilegedCompletion;
         try
         {
+            // A real application-role checkout warms the exact registered source;
+            // this is not a synthetic replacement or an HTTP throughput proof.
+            await using (var warm = await applicationSource.Source.Value.OpenConnectionAsync())
+                await SchemaQueries.AssertApplicationRoleAsync(warm);
             await application.StartAsync();
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy
                 && services.GetRequiredService<OutboxObservation>().IsHealthy
                 && services.GetRequiredService<DeliveryObservation>().IsHealthy));
-            await AssertGuardedPoolAsync(source, new(true, 45));
+            await AssertGuardedPoolAsync(source, new(true, 50));
             (await ServerCountAsync(source)).Should().Be(3);
             outbox.ExecuteTask.Should().NotBeNull();
             delivery.ExecuteTask.Should().NotBeNull();
@@ -123,17 +129,24 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             otherCompletion.IsCompletedSuccessfully.Should().BeTrue();
             source.IsDisposalComplete.Should().BeFalse();
             disposal.IsCompleted.Should().BeFalse();
+            applicationDisposal.IsCompleted.Should().BeFalse();
+            applicationSource.IsDisposalComplete.Should().BeFalse();
+            applicationSource.Source.IsValueCreated.Should().BeTrue();
+            await using (var remaining = await applicationSource.Source.Value.OpenConnectionAsync())
+                await SchemaQueries.AssertApplicationRoleAsync(remaining);
             source.HasUnconfirmedCleanup.Should().BeFalse("pending scope ownership is not a disposal fault");
             PoolStatistics(source).Busy.Should().Be(1);
-            await AssertGuardedPoolAsync(source, new(true, 45));
+            await AssertGuardedPoolAsync(source, new(true, 50));
             PoolStatistics(source).Busy.Should().Be(1);
 
             cleanup.Release.TrySetResult();
             await Task.WhenAll(runtime.Completion, outbox.PrivilegedCompletion, delivery.PrivilegedCompletion).WaitAsync(TestWait);
-            await disposal.WaitAsync(TestWait);
+            await Task.WhenAll(disposal, applicationDisposal).WaitAsync(TestWait);
             heldExecution.IsCompleted.Should().BeTrue();
             cleanup.Joined.Task.IsCompletedSuccessfully.Should().BeTrue();
             source.IsDisposalComplete.Should().BeTrue();
+            applicationSource.IsDisposalComplete.Should().BeTrue();
+            applicationSource.HasUnconfirmedCleanup.Should().BeFalse();
             source.HasUnconfirmedCleanup.Should().BeFalse();
             SourceDisposalObserver(source).Should().BeSameAs(disposal);
             await AssertComposedTerminalCommittedAsync(database, holdDelivery, eventId, subscription);
@@ -145,7 +158,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             cleanup.Release.TrySetResult();
             await application.DisposeAsync();
             await Task.WhenAll(runtime.Completion, outbox.PrivilegedCompletion, delivery.PrivilegedCompletion).WaitAsync(TestWait);
-            await disposal.WaitAsync(TestWait);
+            await Task.WhenAll(disposal, applicationDisposal).WaitAsync(TestWait);
         }
     }
 

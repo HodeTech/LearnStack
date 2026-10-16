@@ -60,7 +60,8 @@ public sealed partial class OutboxDispatchConventionTests
         if (offenders.Count != 0) return offenders;
         var admission = types[(DeliveryApplication, JobAdmission)];
         var enter = admission.Methods.Where(method => method.Name == "Enter").ToArray();
-        if (enter.Length != 1 || !ParametersMatch(enter[0], [JobStartReceipt]))
+        if (enter.Length != 1 || !ParametersMatch(enter[0], [JobStartReceipt, LifecycleUnit,
+                "LearnStack.Application.Jobs.BackgroundJobCompletionParticipant"]))
             offenders.Add("Admission activation must consume its one confirmed start receipt contract");
         var snapshot = admission.NestedTypes.SingleOrDefault(type => type.Name == "Admission");
         if (snapshot is null || !snapshot.IsSealed || snapshot.Fields.Any(field => !field.IsInitOnly)
@@ -68,22 +69,32 @@ public sealed partial class OutboxDispatchConventionTests
                 or "LearnStack.SharedKernel.Audit.IAuditCatalog"))
             offenders.Add("Admission must retain a sealed immutable snapshot without mutable catalogue authority");
         var sites = CallSites(census).Where(site => site.Target.DeclaringType.FullName == JobAdmission).ToArray();
-        // Step 3 records confirmed admission; business execution belongs to Step 5.
-        // The separate framework activator below is already a nonempty production path.
-        CheckSet(offenders, "ordinary job admission activators", sites.Where(site => site.Target.Name == "Enter").Select(site => site.Owner), []);
+        CheckSet(offenders, "ordinary job admission activators", sites.Where(site => site.Target.Name == "Enter").Select(site => site.Owner),
+            [Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync")]);
         CheckSet(offenders, "job request gate", sites.Where(site => site.Target.Name == "TryEnterRequest").Select(site => site.Owner),
             [Owner(DeliveryApplication, JobTenantBehavior, "Handle")]);
         CheckSet(offenders, "closed framework transaction mode", sites.Where(site => site.Target.Name == "ModeFor").Select(site => site.Owner),
             [Owner(DeliveryApplication, JobTransactionBehavior, "Handle")]);
         CheckSet(offenders, "job context owner gates", sites.Where(site => site.Target.Name == "RequireContext").Select(site => site.Owner),
-            [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
+            [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
+             Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
+             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync")]);
         CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => site.Owner),
             [Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnection"), Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, Store, "OpenConnectionAsync"), Owner(InfrastructureAssembly, DeliveryStore, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, BoundaryPlatform, "EnterAsync"), Owner(InfrastructureAssembly, BoundaryTransport, "PublishAsync"),
              Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteAsync"), Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteControlledAsync"),
              Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync"), Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimOwnedAsync"),
-             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"),
+             Owner(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobControl", "TryBegin"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RenewBatchAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "FinishKnownRollbackAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RequestInvalidEnvelopeAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RunRecoveryQuantumAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryClaimTerminalAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryTerminalizeAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "BackoffKnownAuditRollbackAsync"),
              Owner(InfrastructureAssembly, JobRuntime, "BindMessagingLifetime"), Owner(InfrastructureAssembly, JobRuntime, "StartAsync"),
              Owner(InfrastructureAssembly, JobRuntime, "RequestStop"), Owner(InfrastructureAssembly, JobRuntime, "StopAsync"),
              RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridge)], "RunQuantumAsync", BoundaryBooleanTask,

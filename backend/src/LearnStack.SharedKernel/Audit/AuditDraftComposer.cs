@@ -162,17 +162,21 @@ public static class AuditDraftComposer
 
     private static string? ComposeMetadata(AuditIntent intent)
     {
-        if (intent.CausationId is null && intent.CausalActorUserId is null) return null;
+        if (intent.CausationId is null && intent.CausalActorUserId is null
+            && intent.JobId is null && intent.ParentJobId is null) return null;
         if (intent.CausationId == Guid.Empty
             || (intent.CausalActorUserId is { } actor
-                && (!actor.IsInitialized() || actor.Value == Guid.Empty)))
+                && (!actor.IsInitialized() || actor.Value == Guid.Empty))
+            || intent.JobId is { } job && (!job.IsInitialized() || job.Value.Version != 7)
+            || intent.ParentJobId is { } parent && (!parent.IsInitialized() || parent.Value.Version != 7
+                || intent.JobId is null || parent == intent.JobId))
         {
-            throw new ArgumentException("Delivery audit metadata requires initialized, nonempty identifiers.", nameof(intent));
+            throw new ArgumentException("Asynchronous audit metadata requires valid distinct identifiers.", nameof(intent));
         }
 
         // This closed identifier-only shape is shared by both writing paths; it
         // grants no arbitrary metadata channel to an intent or business handler.
-        var fields = new List<string>(2);
+        var fields = new List<string>(4);
         if (intent.CausationId is { } causation)
         {
             fields.Add("\"causation_id\":" + AuditJson.Quote(causation.ToString("D")));
@@ -182,6 +186,11 @@ public static class AuditDraftComposer
         {
             fields.Add("\"causal_actor_user_id\":" + AuditJson.Quote(causalActor.Value.ToString("D")));
         }
+
+        if (intent.JobId is { } jobId)
+            fields.Add("\"job_id\":" + AuditJson.Quote(jobId.Value.ToString("D")));
+        if (intent.ParentJobId is { } parentJobId)
+            fields.Add("\"parent_job_id\":" + AuditJson.Quote(parentJobId.Value.ToString("D")));
 
         return "{" + string.Join(',', fields) + "}";
     }

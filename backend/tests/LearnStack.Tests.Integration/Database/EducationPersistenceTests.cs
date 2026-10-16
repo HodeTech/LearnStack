@@ -41,7 +41,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
     public async Task CompositionRoot_ResolvesEducationOnTheOwningConnectionAndTransaction(bool seeder, bool organizationScoped)
     {
         await using var dataSource = NpgsqlDataSource.Create(schema.Postgres.AppConnectionString);
-        await using var provider = BuildProvider(dataSource, seeder, organizationScoped);
+        await using var provider = BuildProvider(dataSource, schema.Postgres.AppConnectionString, seeder, organizationScoped);
         await using var operation = await Operation.OpenAsync(provider);
 
         operation.Frame.IsOwner.Should().BeTrue();
@@ -72,7 +72,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var provider = BuildProvider(dataSource, seeder: false, organizationScoped);
+        await using var provider = BuildProvider(dataSource, database.AppConnectionString, seeder: false, organizationScoped);
         var organization = organizationScoped ? OrganizationId.From(SchemaFixture.OrgA1) : (OrganizationId?)null;
 
         await using (var creating = await Operation.OpenAsync(provider))
@@ -186,7 +186,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var provider = BuildProvider(dataSource, seeder: true, organizationScoped: false);
+        await using var provider = BuildProvider(dataSource, database.AppConnectionString, seeder: true, organizationScoped: false);
         await CreateRootsAsync(provider, lessonRoot);
 
         await using var winner = await Operation.OpenAsync(provider);
@@ -278,7 +278,7 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
         change.Fields.Should().NotContain(field => field.Path.EndsWith("/Version", StringComparison.Ordinal));
     }
 
-    private static ServiceProvider BuildProvider(NpgsqlDataSource dataSource, bool seeder, bool organizationScoped)
+    private static ServiceProvider BuildProvider(NpgsqlDataSource dataSource, string appConnectionString, bool seeder, bool organizationScoped)
     {
         var tenant = new EducationTenant(organizationScoped);
         if (seeder)
@@ -290,12 +290,11 @@ public sealed class EducationPersistenceTests(SchemaFixture schema)
         services.AddLogging();
         services.AddLearnStackBackgroundJobContracts();
         services.AddLearnStackMediatRPipeline();
-        services.AddSingleton(dataSource);
         services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(tenant));
         services.AddTransient<ITenantContext>(provider =>
             provider.GetRequiredService<ITenantContextAccessor>().Current ?? UnresolvedTenantContext.Instance);
         services.AddLearnStackPersistence(new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?> { ["ConnectionStrings:Default"] = dataSource.ConnectionString }).Build());
+            new Dictionary<string, string?> { ["ConnectionStrings:Default"] = appConnectionString }).Build());
         return services.BuildServiceProvider();
     }
 

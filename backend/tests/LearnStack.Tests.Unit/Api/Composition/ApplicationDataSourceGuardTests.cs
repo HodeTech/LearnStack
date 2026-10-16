@@ -3,6 +3,8 @@ using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using LearnStack.SharedKernel.Persistence;
+using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Unit.Api.Composition;
@@ -226,5 +228,27 @@ public sealed class ApplicationDataSourceGuardTests
         var register = () => services.AddLearnStackPersistence(configuration);
 
         register.Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task The_API_registers_only_the_owned_lazy_source_and_the_named_unit_factory()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLearnStackPersistence(new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["ConnectionStrings:Default"] = Valid }).Build());
+        services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(NpgsqlDataSource));
+        var unitRegistration = services.Single(descriptor => descriptor.ServiceType == typeof(IUnitOfWork));
+        unitRegistration.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        unitRegistration.ImplementationType.Should().BeNull();
+        unitRegistration.ImplementationFactory!.Method.DeclaringType.Should().Be(typeof(PersistenceCompositionExtensions));
+        unitRegistration.ImplementationFactory.Method.Name.Should().Be("CreateUnitOfWork");
+        await using var provider = services.BuildServiceProvider();
+        var lifetime = provider.GetRequiredService<ApplicationDataSourceLifetime>();
+        provider.GetRequiredService<Lazy<NpgsqlDataSource>>().Should().BeSameAs(lifetime.Source);
+        lifetime.Source.IsValueCreated.Should().BeFalse();
+        await using var scope = provider.CreateAsyncScope();
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().Should().BeOfType<NpgsqlUnitOfWork>();
+        lifetime.Source.IsValueCreated.Should().BeTrue("resolving the named unit factory builds the same guarded source without opening a socket");
     }
 }

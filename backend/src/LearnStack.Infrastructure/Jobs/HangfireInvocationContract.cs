@@ -28,7 +28,12 @@ public static class HangfireInvocationContract
 
     public static JobActivator CreateActivator(BackgroundJobWorkerPoolRegistration pool,
         BackgroundJobInfrastructureRegistry topology, PostgresBackgroundJobRoutingStore routing,
-        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences)
+        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences) =>
+        CreateActivator(pool, topology, routing, executor, recurrences, null);
+
+    internal static JobActivator CreateActivator(BackgroundJobWorkerPoolRegistration pool,
+        BackgroundJobInfrastructureRegistry topology, PostgresBackgroundJobRoutingStore routing,
+        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences, BackgroundJobControl? jobs)
     {
         ArgumentNullException.ThrowIfNull(pool);
         ArgumentNullException.ThrowIfNull(topology);
@@ -36,7 +41,7 @@ public static class HangfireInvocationContract
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(recurrences);
         if (!topology.Pools.TryGetValue(pool.Name, out var registered) || !ReferenceEquals(pool, registered)) throw Refused();
-        return new ClosedActivator(pool, routing, executor, recurrences);
+        return new ClosedActivator(pool, routing, executor, recurrences, jobs);
     }
 
     internal static JobActivator BindGeneration(JobActivator activator, HangfireGeneration generation) =>
@@ -63,10 +68,11 @@ public static class HangfireInvocationContract
 
     private sealed class ClosedActivator(BackgroundJobWorkerPoolRegistration pool,
         PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
-        BackgroundJobRecurrenceRegistry recurrences, HangfireGeneration? generation = null) : JobActivator
+        BackgroundJobRecurrenceRegistry recurrences, BackgroundJobControl? jobs,
+        HangfireGeneration? generation = null) : JobActivator
     {
         internal ClosedActivator Bind(HangfireGeneration owner) => generation is null
-            ? new(pool, routing, executor, recurrences, owner) : throw Refused();
+            ? new(pool, routing, executor, recurrences, jobs, owner) : throw Refused();
 
         public override JobActivatorScope BeginScope(PerformContext context)
         {
@@ -74,7 +80,7 @@ public static class HangfireInvocationContract
             var job = context.BackgroundJob.Job;
             Validate(job, pool, recurrences);
             if (generation?.TryAdmitInvocation() == false) throw Refused();
-            return new ClosedScope(new BoundInvocation(job, routing, executor, generation));
+            return new ClosedScope(new BoundInvocation(job, routing, executor, generation, jobs));
         }
 
         public override object ActivateJob(Type jobType) => throw Refused();
@@ -94,7 +100,7 @@ public static class HangfireInvocationContract
     }
 
     internal sealed class BoundInvocation(Job job, PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
-        HangfireGeneration? owner = null)
+        HangfireGeneration? owner = null, BackgroundJobControl? jobs = null)
     {
         private readonly TaskCompletionSource<Task> _operationPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _operationObserver;
@@ -176,6 +182,7 @@ public static class HangfireInvocationContract
         private async Task RunFrameworkAsync(BackgroundJobId id, long generation, HangfireGenerationWork.Invocation? work)
         {
             var cleanupConfirmed = false;
+            BackgroundJobExecutionControl? execution = null;
             try
             {
                 if (!MayContinue(work)) { cleanupConfirmed = true; return; }
@@ -187,17 +194,42 @@ public static class HangfireInvocationContract
                 if (!cleanupConfirmed || read.Failed || read.Claim is not { } claim) return;
                 if (claim.Queue != job.Queue) throw Refused();
                 if (!MayContinue(work)) return;
-                // Step 4 supplies transport and committed admission only. Step 5
-                // extends JobExecutor with the business participant/completion owner.
-                var admission = executor.ExecuteAsync(claim, startGate: () => MayContinue(work),
-                    cancellationToken: token);
+                // Direct unbound contract fixtures exercise framework admission
+                // alone. Actual facade generations always bind the closed owner.
+                if (jobs is not null && work is not null)
+                {
+                    execution = jobs.TryBegin(claim, work);
+                    if (execution is null) return;
+                    work.HoldExecution(execution);
+                }
+                var admission = execution is null
+                    ? executor.ExecuteAsync(claim, startGate: () => MayContinue(work), cancellationToken: token)
+                    : executor.ExecutePublishedAsync(claim, execution.Publication, () => MayContinue(work), token);
                 work?.HoldAdmission(admission);
+                execution?.HoldAdmission(admission);
                 cleanupConfirmed = false;
                 var result = await admission.ConfigureAwait(false);
                 cleanupConfirmed = !result.CleanupFailed;
+                if (!cleanupConfirmed || execution is null) return;
+                await execution.WaitForPublicationAsync().ConfigureAwait(false);
+                if (result.Outcome == JobStartExecutionOutcome.Started && result.Receipt is { } receipt
+                    && !execution.Gate.IsClosed && !execution.Token.IsCancellationRequested)
+                {
+                    // A local generation drain closes new admission, not an
+                    // already acknowledged business execution or its renewal.
+                    var business = executor.ExecuteBusinessAsync(receipt, execution.Gate, execution.Token);
+                    execution.HoldBusiness(business);
+                    work!.HoldBusiness(business);
+                    cleanupConfirmed = false;
+                    var completed = await business.ConfigureAwait(false);
+                    cleanupConfirmed = await jobs!.FinishBusinessAsync(execution, completed).ConfigureAwait(false);
+                }
+                else cleanupConfirmed = await jobs!.FinishAdmissionAsync(execution, result).ConfigureAwait(false);
             }
             finally
             {
+                if (execution is not null)
+                    cleanupConfirmed = await execution.JoinAsync(cleanupConfirmed).ConfigureAwait(false);
                 _cleanupConfirmed = cleanupConfirmed;
             }
         }

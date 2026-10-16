@@ -15,6 +15,25 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
     private const string Predecessor = "20261013083903_add_event_delivery_and_inbox";
 
     [Fact]
+    public async Task Forward_count_lock_correction_reverts_and_reapplies_only_its_function()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var context = Platform(database);
+        var current = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var changed = current.Single(item => item.StartsWith("function:", StringComparison.Ordinal)
+            && item.Contains("FUNCTION public.fn_background_job_attempt_counts()", StringComparison.Ordinal));
+        changed.Should().Contain("target_job FOR NO KEY UPDATE;");
+        await context.GetService<IMigrator>().MigrateAsync("20261016170000_allow_queued_hangfire_schedule");
+        var previous = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        previous.Except(current).Should().ContainSingle().Which.Should()
+            .Be(changed.Replace("target_job FOR NO KEY UPDATE;", "target_job FOR UPDATE;", StringComparison.Ordinal));
+        current.Except(previous).Should().ContainSingle().Which.Should().Be(changed);
+        await context.Database.MigrateAsync();
+        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
+        context.Database.HasPendingModelChanges().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Fresh_down_reapply_restores_every_job_object_and_retains_existing_event_storage()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);

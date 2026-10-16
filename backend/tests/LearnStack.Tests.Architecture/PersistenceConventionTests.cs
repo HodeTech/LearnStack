@@ -8,6 +8,7 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
@@ -303,7 +304,8 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Application/Messaging/DomainEventCollector.cs",
             "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
         ], "the census includes shared scoped execution state, not only module callers");
-        ParallelSites.Keys.Should().BeSubsetOf(relativeFiles, "an exception must name a real scanned source file");
+        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Should().BeSubsetOf(relativeFiles,
+            "an exception must name a real scanned source file");
 
         ParallelOffenders(sourceRoot, files).Should().BeEmpty(
             "modules and their shared execution code run one operation at a time on the ambient connection "
@@ -344,6 +346,41 @@ public sealed partial class PersistenceConventionTests
             File.WriteAllText(Path.Combine(sourceRoot, forbidden[1]), "await first; await second;");
             ParallelOffenders(sourceRoot, files).Should().BeEquivalentTo(forbidden.Where(path => path != forbidden[1]),
                 "sequential shared execution remains legal under the same predicate");
+
+            foreach (var (relative, site) in RetainedLoaderSites)
+            {
+                var production = File.ReadAllText(Path.Combine(RepositoryPaths.BackendSrc(), relative));
+                var probe = Path.Combine(sourceRoot, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(probe)!);
+                File.WriteAllText(probe, production);
+                ParallelOffenders(sourceRoot, [probe]).Should().BeEmpty(
+                    "the exact private factory owns one independent connection and retains its actual task before returning it");
+                string[] dirty =
+                [
+                    production.Replace("resources.HoldActualTask(actual);", "", StringComparison.Ordinal),
+                    production.Replace("resources.HoldActualTask(actual);", "resources.HoldActualTask(Task.CompletedTask);", StringComparison.Ordinal),
+                    production.Replace("return actual;", "return Task.CompletedTask;", StringComparison.Ordinal),
+                    production.Replace(site.Source + ".Value.CreateConnection()", "unit.Connection", StringComparison.Ordinal),
+                    production.Replace("resources?.HoldConnection(connection);", "", StringComparison.Ordinal),
+                    production.Replace("await resources.CleanupAsync().ConfigureAwait(false);", "await unit.DisposeAsync();", StringComparison.Ordinal),
+                    production + "\ninternal sealed class ExtraParallelProbe { private async Task RunAsync() { await Task.WhenAll(first, second); } }",
+                    production + "\ninternal sealed class ExtraStoredProbe { private void Run() { var rows = store.ReadAsync(ct); } }",
+                ];
+                foreach (var planted in dirty)
+                {
+                    planted.Should().NotBe(production, "every dirty control must change the actual approved subject");
+                    File.WriteAllText(probe, planted);
+                    ParallelOffenders(sourceRoot, [probe]).Should().Equal([relative],
+                        "the exception cannot lose actual ownership or lend permission to another operation in the same file");
+                }
+                File.WriteAllText(probe, production +
+                    "\ninternal sealed class SequentialProbe { private async Task RunAsync() { await first; await second; } }");
+                ParallelOffenders(sourceRoot, [probe]).Should().BeEmpty(
+                    "ordinary sequential work elsewhere in the same file remains legal");
+                File.WriteAllText(probe, production.Replace(site.Starter + "(", "RemovedStarter(", StringComparison.Ordinal));
+                ParallelOffenders(sourceRoot, [probe]).Should().Equal([relative],
+                    "a missing retained-loader subject cannot make the exception vacuous");
+            }
         }
         finally
         {
@@ -362,10 +399,136 @@ public sealed partial class PersistenceConventionTests
             .ToArray();
 
     private static string[] ParallelOffenders(string sourceRoot, IEnumerable<string> files) =>
-        files.Where(file => FansOut(StripComments(File.ReadAllText(file))))
-            .Select(file => Path.GetRelativePath(sourceRoot, file).Replace('\\', '/'))
-            .Where(file => !ParallelSites.ContainsKey(file))
-            .ToArray();
+        files.Select(file => (Path: Path.GetRelativePath(sourceRoot, file).Replace('\\', '/'),
+                Code: StripComments(File.ReadAllText(file))))
+            .Where(file => !ParallelSites.ContainsKey(file.Path))
+            .Where(file => RetainedLoaderSites.TryGetValue(file.Path, out var site)
+                ? RetainedLoaderScanText(file.Code, site) is not { } scan || FansOut(scan)
+                : FansOut(file.Code))
+            .Select(file => file.Path).ToArray();
+
+    // These four private starters retain one actual auxiliary operation before a cache or
+    // audit caller can observe its Task. They use an independent connection, never the
+    // ambient unit. Only that validated initializer is omitted from the fan-out scan;
+    // every other statement in each file still participates (ADR-0040/0047).
+    private sealed record RetainedLoaderSite(string Type, string Starter, string Core, string Source,
+        string Cancellation, string Parameters, string StarterBody, string Cleanup, string[] Helpers);
+
+    private static readonly Dictionary<string, RetainedLoaderSite> RetainedLoaderSites = new(StringComparer.Ordinal)
+    {
+        ["LearnStack.Infrastructure.Audit/AuditConfigService.cs"] = new(
+            "LearnStack.Infrastructure.Audit.AuditConfigService`0", "StartLoadAsync", "LoadAsync", "dataSource",
+            "cancellationToken", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
+            """
+            { if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
+              var resources = sourceOwner.BeginAuditConfigLoad();
+              var actual = LoadAsync(tenantId, resources, cancellationToken);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection)", ["CleanupUnownedAsync"]),
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs"] = new(
+            "LearnStack.Infrastructure.Audit.PostgresAuditStore`0", "WriteOwnTransactionAsync", "WriteOwnTransactionCoreAsync", "_dataSource",
+            "cancellationToken", "AuditEntryDraft entry, LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
+            """
+            { var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
+              if (owner is null) return WriteOwnTransactionCoreAsync(entry, null, cancellationToken);
+              var resources = owner.BeginStandaloneAudit();
+              var actual = WriteOwnTransactionCoreAsync(entry, resources, cancellationToken);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(command, announce, transaction, connection)", ["CleanupUnownedAsync", "Add", "Bind"]),
+        ["Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs"] = new(
+            "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags`0", "StartTenantFlagsLoadAsync", "LoadTenantFlagsAsync", "dataSource",
+            "ct", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken ct",
+            """
+            { if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
+              var resources = sourceOwner.BeginTenantFlagsLoad();
+              var actual = LoadTenantFlagsAsync(tenantId, resources, ct);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, announce, readOnly, transaction, connection)", ["CleanupUnownedAsync"]),
+        ["Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/KillswitchOverlay.cs"] = new(
+            "LearnStack.Modules.Tenancy.Infrastructure.KillswitchOverlay`0", "StartLoadAsync", "LoadAsync", "dataSource",
+            "ct", "JobApplicationAuxiliaryResources? resources, CancellationToken ct",
+            """
+            { if (sourceOwner is null) return LoadAsync(null, ct);
+              var resources = sourceOwner.BeginKillswitchLoad();
+              var actual = LoadAsync(resources, ct);
+              resources.HoldActualTask(actual); return actual; }
+            """, "CleanupUnownedAsync(reader, read, connection)", ["CleanupUnownedAsync"]),
+    };
+
+    private static string? RetainedLoaderScanText(string code, RetainedLoaderSite site)
+    {
+        var syntax = CSharpSyntaxTree.ParseText(code).GetRoot();
+        var types = syntax.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(type => TypeIdentity(type) == site.Type).ToArray();
+        if (syntax.ContainsDiagnostics || types.Length != 1) return null;
+        var starters = types[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == site.Starter).ToArray();
+        var cores = types[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == site.Core).ToArray();
+        if (starters.Length != 1 || cores.Length != 1 || !IsPrivate(starters[0]) || !IsPrivate(cores[0])
+            || !SyntaxFactory.AreEquivalent(starters[0].Body, SyntaxFactory.ParseStatement(site.StarterBody))
+            || !SyntaxFactory.AreEquivalent(cores[0].ParameterList, SyntaxFactory.ParseParameterList("(" + site.Parameters + ")"))
+            || !cores[0].Modifiers.Any(token => token.IsKind(SyntaxKind.AsyncKeyword))
+            || cores[0].Body is not { } body) return null;
+        var owned = body.Statements.OfType<TryStatementSyntax>().ToArray();
+        if (owned.Length != 1 || owned[0].Catches.Count != 0 || owned[0].Finally is not { } cleanup
+            || owned[0].Block.Statements.Count < 3) return null;
+        var prefix = new[] { "connection = " + site.Source + ".Value.CreateConnection();",
+            "resources?.HoldConnection(connection);", "await connection.OpenAsync(" + site.Cancellation + ").ConfigureAwait(false);" };
+        if (prefix.Where((statement, index) => !SyntaxFactory.AreEquivalent(owned[0].Block.Statements[index],
+                SyntaxFactory.ParseStatement(statement))).Any()
+            || !SyntaxFactory.AreEquivalent(cleanup.Block, SyntaxFactory.ParseStatement(
+                "{ if (resources is not null) await resources.CleanupAsync().ConfigureAwait(false); else await "
+                + site.Cleanup + ".ConfigureAwait(false); }"))) return null;
+        var calls = body.DescendantNodes().OfType<InvocationExpressionSyntax>().ToArray();
+        if (calls.Count(call => CalledName(call) == "CreateConnection") != 1
+            || calls.Count(call => CalledName(call) is "OpenAsync" or "OpenConnectionAsync") != 1
+            || body.DescendantNodes().OfType<AnonymousFunctionExpressionSyntax>().Any()
+            || calls.Any(call => call.Expression is IdentifierNameSyntax name
+                && !site.Helpers.Contains(name.Identifier.ValueText, StringComparer.Ordinal))) return null;
+        // A receiver must be a concrete parameter/local, the one lazy source, or the
+        // dictionary's comparer. No injected ambient unit/context/service locator can
+        // supply SQL, and no callback can be smuggled into these exact parameters.
+        var roots = cores[0].ParameterList.Parameters.Select(parameter => parameter.Identifier.ValueText)
+            .Concat(body.DescendantNodes().OfType<VariableDeclaratorSyntax>().Select(variable => variable.Identifier.ValueText))
+            .Concat(site.Helpers).Append(site.Source).Append("StringComparer").Append("string").ToHashSet(StringComparer.Ordinal);
+        var names = roots.Concat(["var", "NpgsqlConnection", "NpgsqlTransaction", "NpgsqlCommand", "NpgsqlDataReader", "InsertSql"])
+            .ToHashSet(StringComparer.Ordinal);
+        if (body.DescendantNodes().OfType<IdentifierNameSyntax>().Any(name =>
+                !(name.Parent is MemberAccessExpressionSyntax access && ReferenceEquals(access.Name, name))
+                && !(name.Parent is MemberBindingExpressionSyntax binding && ReferenceEquals(binding.Name, name))
+                && !names.Contains(name.Identifier.ValueText))) return null;
+        if (body.DescendantNodes().OfType<MemberAccessExpressionSyntax>().Any(access => !roots.Contains(ReceiverRoot(access)))
+            || body.DescendantNodes().OfType<ConditionalAccessExpressionSyntax>().Any(access => !roots.Contains(ReceiverRoot(access)))
+            || body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Any(creation =>
+                creation.Type is not IdentifierNameSyntax { Identifier.ValueText: "NpgsqlCommand" }
+                && creation.Type is not GenericNameSyntax { Identifier.ValueText: "Dictionary" })) return null;
+        var actual = starters[0].Body!.DescendantNodes().OfType<VariableDeclaratorSyntax>()
+            .Single(variable => variable.Identifier.ValueText == "actual").Initializer!.Value;
+        return code.Remove(actual.SpanStart, actual.Span.Length).Insert(actual.SpanStart, "default!");
+
+        static bool IsPrivate(MethodDeclarationSyntax method) =>
+            method.Modifiers.Any(token => token.IsKind(SyntaxKind.PrivateKeyword));
+        static string? CalledName(InvocationExpressionSyntax call) => call.Expression switch
+        {
+            IdentifierNameSyntax name => name.Identifier.ValueText,
+            MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
+            MemberBindingExpressionSyntax binding => binding.Name.Identifier.ValueText,
+            _ => null,
+        };
+        static string ReceiverRoot(ExpressionSyntax expression) => expression switch
+        {
+            PredefinedTypeSyntax { Keyword.ValueText: "string" } => "string",
+            IdentifierNameSyntax name => name.Identifier.ValueText,
+            MemberAccessExpressionSyntax access => ReceiverRoot(access.Expression),
+            InvocationExpressionSyntax call => ReceiverRoot(call.Expression),
+            ConditionalAccessExpressionSyntax access => ReceiverRoot(access.Expression),
+            MemberBindingExpressionSyntax binding when binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault() is { } conditional
+                => ReceiverRoot(conditional.Expression),
+            ParenthesizedExpressionSyntax parenthesized => ReceiverRoot(parenthesized.Expression),
+            _ => "<unapproved receiver>",
+        };
+    }
 
     [Fact]
     public void The_Parallelism_Scan_Can_Actually_Fail()
@@ -406,6 +569,15 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
     {
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobControl.cs"] =
+            "The process-owned independent renewal, recovery and terminal lanes retain their own privileged operations; "
+            + "none invokes a handler or uses an ambient unit or module DbContext (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobRenewalOperation.cs"] =
+            "One prebound renewal owner retains its actual privileged SQL task and a separate bounded wait; "
+            + "both belong to the process lane, never an ambient unit or module DbContext (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobExecutionControl.cs"] =
+            "One generation-owned identity retains task, lease and cancellation observations through actual cleanup; "
+            + "this helper acquires no connection, ambient unit or module DbContext (ADR-0047/0059).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobRuntime.cs"] =
             "The process facade retains bootstrap, independent pool/shared/bridge owners and the fixed messaging/source lifetime; "
             + "all SQL is privileged or privately scoped, with no ambient unit or module DbContext (ADR-0047/0059/0060).",

@@ -130,8 +130,8 @@ public sealed class BackgroundJobFrameworkAdmissionTests
         var fixture = new BackgroundJobExecutionAdmissionTests.Fixture();
         var receipt = JobAdmissionFixtureReceipt.Create(BackgroundJobExecutionAdmissionTests.Fixture.Key,
             fixture.Context.TenantId, null, BackgroundJobExecutionStage.Transactional);
-        fixture.Admission.Enter(receipt).Dispose();
-        var reuse = () => fixture.Admission.Enter(receipt);
+        fixture.EnterReceipt(receipt).Dispose();
+        var reuse = () => fixture.EnterReceipt(receipt);
         reuse.Should().Throw<InvalidOperationException>();
     }
 

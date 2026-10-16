@@ -695,7 +695,9 @@ are the Hub's public API, governed by the Hub repository.
 Accepted ADR-0046 adds the confined fifth method
 `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
 DbTransaction, CancellationToken)`, implemented in P02b-2 Step 2 with both
-independent review rounds complete. The delivered store has five write methods.
+independent review rounds complete. P02b-4 Step 5 adds ADR-0047's separate sixth
+`WriteJobTerminalAsync` method
+with its actual job-row witness; its delivery record owns qualification/reviews.
 Its restricted witness comes only from the actual successful fenced terminal UPDATE.
 The store validates declared operation/class/type, row identity and live caller
 transaction, then INSERTs without opening/committing a transaction. Existing four
@@ -712,7 +714,7 @@ Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 owns H1: stock Hangfire transports opaque wakeups; LearnStack records own business
 intent, attempts, tenant/organization authority and completion. The
 [P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-owns current implementation/qualification status; worker activation is pending.
+owns current implementation/qualification status; Step 4 qualifies API activation.
 
 **Accepted lifecycle addition — 2026-10-16.**
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) selects public

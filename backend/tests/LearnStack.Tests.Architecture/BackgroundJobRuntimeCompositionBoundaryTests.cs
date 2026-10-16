@@ -23,6 +23,7 @@ public sealed partial class OutboxDispatchConventionTests
         "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", JobExecutorType, JobRoutingStore,
         JobRuntimeGate, "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
         "System.TimeProvider", JobPoolSettings, "LearnStack.Infrastructure.Jobs.HangfireBoundedLogProvider",
+        "LearnStack.Infrastructure.Persistence.ApplicationDataSourceLifetime",
     ];
     private static string RuntimeConstructorId => InfrastructureAssembly + ":System.Void " + JobRuntime
         + "::.ctor(" + string.Join(",", RuntimeConstructorParameters) + ")";
@@ -140,7 +141,7 @@ public sealed partial class OutboxDispatchConventionTests
             [constructor + ":stfld", constructor + ":ldfld", preallocate + ":ldfld", bootstrapExecute + ":ldfld"]);
         CheckReadonlyField(runtime, "_routing", JobRoutingStore, [constructor + ":stfld", preallocate + ":ldfld"]);
         CheckReadonlyField(runtime, "_sourceLifetime", BoundaryTask,
-            [constructor + ":stfld", constructor + ":stfld", constructor + ":ldfld"]);
+            [constructor + ":stfld", constructor + ":stfld", constructor + ":ldfld", constructor + ":ldfld"]);
         CheckReadonlyField(runtime, "_completion", CompletionSource,
             [constructor + ":stfld", completion + ":ldfld", runtimeObservation + ":ldfld"]);
         CheckReadonlyField(runtime, "_messagingCompletion", CompletionSource,
@@ -373,7 +374,10 @@ public sealed partial class OutboxDispatchConventionTests
                          ("LearnStack.Infrastructure.Jobs.HangfirePoolOwner", ".ctor", new[] { preallocate }),
                          ("LearnStack.Infrastructure.Jobs.HangfireSharedComponents", ".ctor", new[] { preallocate }),
                          ("LearnStack.Infrastructure.Jobs.HangfireWakeupClient", ".ctor", new[] { preallocate }),
-                         (JobInvocationContract, "CreateActivator", new[] { preallocate }),
+                         (JobInvocationContract, "CreateActivator", new[] { preallocate,
+                             InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator("
+                             + "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration,LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry,"
+                             + JobRoutingStore + "," + JobExecutorType + ",LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry)" }),
                          ("LearnStack.Infrastructure.Jobs.HangfirePoolOwner", "Start", new[] { run }),
                          ("LearnStack.Infrastructure.Jobs.HangfireSharedComponents", "Start", new[] { run }),
                          (JobBridge, "RunQuantumAsync", new[] { bridgeLoop }),

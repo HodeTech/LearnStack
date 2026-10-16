@@ -3,7 +3,7 @@ namespace LearnStack.Infrastructure.Jobs;
 /// <summary>Sanitized settings captured from the same connection string as the shared dispatcher source.</summary>
 public sealed record BackgroundJobPhysicalPoolSettings(bool Pooling, int MaxPoolSize);
 
-/// <summary>The conservative current Step 4 acquisition manifest; later SQL owners require requalification.</summary>
+/// <summary>The conservative current acquisition manifest; later SQL owners require requalification.</summary>
 public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int ControlPools,
     int InvocationOwners, int RequiredConnections)
 {
@@ -16,8 +16,10 @@ public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int C
         var invocations = topology.Pools.Values.Sum(pool => BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers));
         // Stock W + four per-pool controls/lifecycle + two schedulers per
         // Control pool + shared/bridge/messaging eleven + retained routing U.
+        // Step 5 adds one batch renewal slot, two recovery/probe slots and
+        // two terminal/probe slots. Cleanup failure seals its exact lane.
         return new(pools, workers, controls, invocations,
-            checked(workers + 4 * pools + 2 * controls + 11 + invocations));
+            checked(workers + 4 * pools + 2 * controls + 16 + invocations));
     }
 
     public void Validate(BackgroundJobPhysicalPoolSettings settings)

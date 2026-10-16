@@ -750,6 +750,21 @@ SQL lane. Application callback completion is a separate ownership concern.
 owns the source-release contract and current physical floor; adding later SQL
 lanes requires requalification.
 
+Step 5 extends the same facade with independently bounded renewal, retry/recovery
+and terminal lanes. A confirmed start publishes immutable authority before
+business work; the existing ordinary transaction owner binds root, unit,
+announcement and final row/time fence. Business state, child jobs, outbox and MUST
+audit commit with completion. The sixth audit seam binds actual returned terminal
+identity to the same connection/transaction. Known rollback and unknown COMMIT
+remain distinct; a locked header precedes a fresh attempt-ledger read.
+
+The stable lazy application source now has a single disposal owner, sharing the
+job/messaging release witnesses. Job main/auxiliary operation bounds retain
+abandoned loaders and failed cleanup; independent HTTP/delivery headroom is not
+implied. The [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
+owns implementation, qualification and review status. Capacity reservations,
+external execution and recurrence remain Steps 6–8.
+
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session
 cleanup. [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire)

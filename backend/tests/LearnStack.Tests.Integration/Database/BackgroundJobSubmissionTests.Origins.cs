@@ -8,7 +8,6 @@ using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Time;
-using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -46,19 +45,17 @@ public sealed partial class BackgroundJobSubmissionTests
             pending.ParentJob.Should().Be(parent.Value);
             pending.IncomingEvent.Should().Be(incoming);
             pending.CausalActor.Should().Be(BackgroundJobRuntimeFixture.Human);
+            (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, child.Value)).Should().BeNull(
+                "the child stays inside the parent business transaction until its completion is acknowledged");
             return Result.Ok(None.Value);
         };
-        // Step 3 returns a genuine committed capability without activating business.
-        // Exercise its ordinary authority seam explicitly to validate child stamping;
-        // this is not a claim that the later production business stage is active.
-        using (host.Services.GetRequiredService<BackgroundJobExecutionAdmission>().Enter(start.Receipt!))
-        {
-            await using var scope = host.Services.CreateAsyncScope();
-            var root = Activator.CreateInstance(Fixture.RequestType("TenantRoot"), Fixture.Parameters())!;
-            var result = (Result<None>)(await scope.ServiceProvider.GetRequiredService<ISender>().Send(root))!;
-            result.IsSuccess.Should().BeTrue();
-            AssertClean(scope.ServiceProvider);
-        }
+        var result = await host.Services.GetRequiredService<JobExecutor>()
+            .ExecuteBusinessAsync(start.Receipt!, new BackgroundJobCommitGate());
+        result.CommitAcknowledged.Should().BeTrue();
+        result.CleanupFailed.Should().BeFalse();
+        result.SourceOwner.Should().BeSameAs(start.SourceOwner);
+        result.SourceOwner.CleanupConfirmed.Should().BeTrue();
+        (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, parent))!.Phase.Should().Be("completed");
         var row = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, child!.Value))!;
         row.Id.Should().NotBe(parent.Value).And.NotBe(incoming);
         row.ParentJob.Should().Be(parent.Value);

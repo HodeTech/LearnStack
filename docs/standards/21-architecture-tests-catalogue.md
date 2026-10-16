@@ -121,12 +121,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**228 test methods run in
+**235 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–4.
+P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–5.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -4457,11 +4457,11 @@ structural test proves — and what it does not.
   the same reason `Effective_Host_Computed_In_One_Place` is a scan. The needle
   (`.Current =`) is receiver-agnostic, so an unrelated `Activity.Current =` would trip
   it; that is a false positive to exempt by path, never a reason to filter by folder.
-- **Note:** **two of the four logical boundaries exist** — TenantResolverMiddleware
-  and the integration-event acceptance/execution scope in InProcessEventBus and
-  DeliveryExecutor. HubCorrelationMiddleware belongs to Phase 02c; the accepted
-  JobExecutor writer and its positive census extension remain P02b-4 implementation.
-  Until they land the rule's live work is the **negative** — no writer outside the set.
+- **Note:** **three of the four logical boundaries exist** — TenantResolverMiddleware,
+  the integration-event acceptance/execution scope in InProcessEventBus and
+  DeliveryExecutor, and JobExecutor's framework/business partials. The two JobExecutor
+  files are one logical writer. HubCorrelationMiddleware belongs to Phase 02c.
+  The whole-source census also refuses every writer outside the exact file set.
   The first version of the test scanned only files whose path contained `Tenancy`,
   which deleted the `InProcessEventBus` writer from its own expectation *and* let a
   fifth writer anywhere else in the tree pass green: a rule whose job is the negative

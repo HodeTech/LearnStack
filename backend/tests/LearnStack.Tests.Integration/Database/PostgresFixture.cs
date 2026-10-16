@@ -83,6 +83,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     // test a database no deployment uses.
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.4-alpine")
         .WithDatabase(Database)
+        // Qualification can hold the supported job application (108) and
+        // privileged (156) source boundaries together, plus fixture observers.
+        .WithCommand("-c", "max_connections=300")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .WithEnvironment("LEARNSTACK_MIGRATION_PW", MigrationPassword)

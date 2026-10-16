@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.SharedKernel.Audit;
 
@@ -104,6 +105,12 @@ public sealed record AuditIntent(
 
     /// <summary>The original causal actor, separate from the effective system actor.</summary>
     public UserId? CausalActorUserId { get; init; }
+
+    /// <summary>The current job identity, separate from incoming event causation.</summary>
+    public BackgroundJobId? JobId { get; init; }
+
+    /// <summary>The producing parent job, when this is a child job.</summary>
+    public BackgroundJobId? ParentJobId { get; init; }
 
     /// <summary>
     /// The instance the row is about, when the handler designated one through

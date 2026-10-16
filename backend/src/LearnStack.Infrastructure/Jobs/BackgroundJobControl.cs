@@ -1,0 +1,558 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using LearnStack.Application.Jobs;
+using LearnStack.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Identifiers;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LearnStack.Infrastructure.Jobs;
+
+public sealed record BackgroundJobControlHealth(int Executions, int PendingOutcomes,
+    bool RenewalHealthy, bool RecoveryHealthy, bool TerminalHealthy, bool CleanupConfirmed,
+    long Renewals, long Retries, long Terminalized, long UnknownOutcomes);
+
+/// <summary>Independent finite renewal, recovery and terminal lanes; none invokes module work.</summary>
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "The facade owns actual lane completion and the private cancellation source, including retained cleanup.")]
+internal sealed class BackgroundJobControl
+{
+    private readonly object _sync = new();
+    private readonly Dictionary<Guid, BackgroundJobExecutionControl> _executions = [];
+    private readonly List<CompletionRequest> _requests = [];
+    private readonly PostgresBackgroundJobControlStore _store;
+    private readonly PostgresBackgroundJobTerminalStore _terminal;
+    private readonly BackgroundJobRuntimeGate _gate;
+    private readonly BackgroundJobRuntimeOptions _bounds;
+    private readonly TimeProvider _time;
+    private readonly CancellationTokenSource _stop = new();
+    private readonly TaskCompletionSource _stopRequested = Signal();
+    private readonly TaskCompletionSource<Task[]> _loopsPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _completion;
+    private readonly Task _stopRelay, _completionObservation;
+    // These exact slots retain returned failed-cleanup resources. A probe has
+    // its own one slot; neither lane may recursively acquire another probe.
+    private OwnedBackgroundJobControl<IReadOnlyList<BackgroundJobRenewal>>? _renewalOperation;
+    private BackgroundJobRenewalOperation? _renewalFlight;
+    private object? _controlOperation, _terminalOperation;
+    private OwnedBackgroundJobControl<BackgroundJobProbeResult>? _controlProbe, _terminalProbe;
+    private PendingCommitCursor? _pendingControl, _pendingTerminal;
+    private Activity? _terminalActivity;
+    private Task? _cancellation;
+    private bool _started, _stopping, _cleanupFault, _renewalFault, _controlFault, _terminalFault;
+    private bool _controlSealed;
+    private long? _renewalProgress, _controlProgress, _terminalProgress;
+    private long _renewals, _retries, _terminalized, _unknown;
+
+    internal BackgroundJobControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
+        IServiceScopeFactory scopes, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
+        IGuidFactory ids, TimeProvider time)
+    {
+        _store = new(source, definitions, bounds, ids, gate);
+        _terminal = new(source, scopes, bounds, ids, gate);
+        _gate = gate;
+        _bounds = bounds;
+        _time = time;
+        _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
+        _stopRelay = RelayStopAsync();
+        _completionObservation = ObserveCompletionAsync();
+    }
+
+    internal Task Completion => _completion.Task;
+    internal BackgroundJobControlHealth Snapshot
+    {
+        get
+        {
+            lock (_sync)
+                return new(_executions.Count, _requests.Count + PendingCount(_pendingControl) + PendingCount(_pendingTerminal),
+                    !_cleanupFault && !_renewalFault && !_executions.Values.Any(item => item.RenewalRefused) && Fresh(_renewalProgress),
+                    !_cleanupFault && !_controlFault && _pendingControl is null && Fresh(_controlProgress),
+                    !_cleanupFault && !_terminalFault && _pendingTerminal is null && Fresh(_terminalProgress), Completion.IsCompletedSuccessfully,
+                    _renewals, _retries, _terminalized, _unknown);
+        }
+    }
+
+    internal BackgroundJobExecutionControl? TryBegin(BackgroundJobRoutingClaim claim,
+        HangfireGenerationWork.Invocation work)
+    {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        lock (_sync)
+        {
+            if (_stopping || !_gate.TryAdmit() || !work.TryAdmitContinuation()
+                || RetainedIds().Contains(claim.JobId.Value) || _executions.Count >= 64) return null;
+            var execution = new BackgroundJobExecutionControl(this, work, claim, _time);
+            _executions.Add(claim.JobId.Value, execution);
+            return execution;
+        }
+    }
+
+    internal void Release(BackgroundJobExecutionControl execution)
+    {
+        lock (_sync)
+        {
+            if (!_executions.TryGetValue(execution.Claim.JobId.Value, out var actual)
+                || !ReferenceEquals(actual, execution))
+                throw new InvalidOperationException("Only the actual execution's final cleanup releases its identity.");
+            _executions.Remove(execution.Claim.JobId.Value);
+        }
+    }
+
+    internal void Start()
+    {
+        lock (_sync)
+        {
+            if (_started || _stopping) throw new InvalidOperationException("Job control starts once.");
+            _started = true;
+        }
+        var loops = new List<Task>();
+        try
+        {
+            // The facade already roots this owner before any synchronous store
+            // prefix. Separate tasks prevent held terminal audit from stopping
+            // renewal, recovery, bridge or native healthy business admission.
+            if (ExecutionContext.IsFlowSuppressed()) ScheduleLoops(loops);
+            else { using (ExecutionContext.SuppressFlow()) ScheduleLoops(loops); }
+        }
+        catch (Exception failure) when (Catchable(failure)) { RetainCleanup(); }
+        finally { _loopsPublished.TrySetResult(loops.ToArray()); }
+    }
+
+    private void ScheduleLoops(List<Task> loops)
+    {
+        loops.Add(Task.Run(RunRenewalAsync));
+        loops.Add(Task.Run(RunControlAsync));
+        loops.Add(Task.Run(RunTerminalAsync));
+    }
+
+    internal void RequestStop()
+    {
+        lock (_sync)
+        {
+            _stopping = true;
+            if (!_started) _loopsPublished.TrySetResult([]);
+        }
+        _stopRequested.TrySetResult();
+    }
+
+    internal Task<bool> FinishAdmissionAsync(BackgroundJobExecutionControl execution, JobStartExecutionResult result)
+    {
+        if (result.CleanupFailed) return Task.FromResult(false);
+        return result.Outcome switch
+        {
+            JobStartExecutionOutcome.Indeterminate => Enqueue(new(execution, RequestKind.Admission,
+                BackgroundJobCommitProbe.ForAdmission(execution.Claim), null, _time.GetTimestamp())),
+            JobStartExecutionOutcome.InvalidEnvelope => Enqueue(new(execution, RequestKind.InvalidEnvelope,
+                null, null, _time.GetTimestamp())),
+            _ => Task.FromResult(true),
+        };
+    }
+
+    internal Task<bool> FinishBusinessAsync(BackgroundJobExecutionControl execution, JobBusinessExecutionResult result)
+    {
+        if (result.CleanupFailed) return Task.FromResult(false);
+        if (result.CommitAcknowledged) return Task.FromResult(true);
+        if (execution.Identity is not { } identity) return Task.FromResult(false);
+        execution.Gate.Close();
+        if (result.DurableOutcomeUncertain)
+            return Enqueue(new(execution, RequestKind.Business, BackgroundJobCommitProbe.ForBusiness(identity),
+                new(BackgroundJobFailureDisposition.Retry, "unexpected_fault", null), _time.GetTimestamp()));
+        if (result.KnownRollback && result.Decision.Disposition is BackgroundJobFailureDisposition.Retry or BackgroundJobFailureDisposition.Terminal)
+            return Enqueue(new(execution, RequestKind.Business, null, result.Decision, _time.GetTimestamp()));
+        // Owned deadline/shutdown leaves the counted receipt for fenced recovery;
+        // a canceled wait is never a permanent business refusal.
+        return Task.FromResult(true);
+    }
+
+    private Task<bool> Enqueue(CompletionRequest request)
+    {
+        lock (_sync)
+        {
+            if (_stopping) return Task.FromResult(true); // Actual work is done; no new control issuance on host stop.
+            if (_requests.Count >= 128) { _cleanupFault = true; return Task.FromResult(false); }
+            _requests.Add(request);
+            return request.Completion.Task;
+        }
+    }
+
+    private async Task RunRenewalAsync()
+    {
+        while (!_stop.IsCancellationRequested)
+        {
+            BackgroundJobExecutionControl[] active;
+            lock (_sync) active = _executions.Values.Where(item => item.RenewalPermitted).ToArray();
+            try
+            {
+                if (active.Length > 0)
+                {
+                    _renewalFlight = new(_store, active, _bounds, _time, _stop.Token);
+                    _renewalFlight.Start();
+                    var timely = await _renewalFlight.TimelyReturn.ConfigureAwait(false);
+                    if (!timely)
+                    {
+                        foreach (var execution in active) execution.RefuseRenewal();
+                        lock (_sync) _renewalFault = true;
+                    }
+                    // A finite wait is not actual batch/connection cleanup. This
+                    // lane issues nothing else until the original task returns.
+                    _renewalOperation = await _renewalFlight.Completion.ConfigureAwait(false);
+                    if (_renewalOperation.CommitAcknowledged && !_renewalOperation.Failed)
+                    {
+                        var rows = _renewalOperation.Value ?? [];
+                        var renewed = rows.Select(row => row.Identity).ToHashSet();
+                        foreach (var row in rows)
+                        {
+                            var execution = active.Single(item => ReferenceEquals(item.Identity, row.Identity));
+                            if (!execution.Gate.CommitAcknowledged) execution.RecordRenewal(row, _renewalFlight.IssuedAt);
+                        }
+                        foreach (var execution in active)
+                            if (!renewed.Contains(execution.Identity!) && !execution.Gate.CommitAcknowledged) execution.RefuseRenewal();
+                        lock (_sync) _renewals += renewed.Count;
+                    }
+                    else
+                    {
+                        foreach (var execution in active) execution.RefuseRenewal();
+                        lock (_sync) _renewalFault = true;
+                        if (_renewalOperation.CommitUncertain)
+                        {
+                            lock (_sync) _unknown++;
+                            foreach (var probe in _renewalOperation.Probes)
+                            {
+                                var execution = active.Single(item => item.Claim.JobId.Value == probe.JobId);
+                                _ = Enqueue(new(execution, RequestKind.Renewal, probe, null, _time.GetTimestamp()));
+                            }
+                        }
+                    }
+                    if (!_renewalOperation.CleanupConfirmed) { RetainCleanup(); return; }
+                    lock (_sync) _renewalFault = !timely || _renewalOperation.Failed;
+                    _renewalOperation = null;
+                    _renewalFlight = null;
+                }
+                lock (_sync)
+                {
+                    if (active.Length == 0) _renewalFault = _executions.Values.Any(item => item.RenewalRefused);
+                    _renewalProgress = _time.GetTimestamp();
+                }
+                await Task.Delay(_bounds.RenewalInterval, _time, _stop.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                foreach (var execution in active) execution.RefuseRenewal();
+                lock (_sync) _renewalFault = true;
+                if (_renewalFlight is not null && _renewalOperation?.CleanupConfirmed != true)
+                { RetainCleanup(); return; }
+                _renewalOperation = null;
+                _renewalFlight = null;
+                await PauseAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task RunControlAsync()
+    {
+        var lane = 0;
+        var outcomeTurn = true;
+        while (!_stop.IsCancellationRequested)
+        {
+            try
+            {
+                CompletionRequest? request;
+                lock (_sync) request = outcomeTurn ? _requests.FirstOrDefault(item => _time.GetTimestamp() >= item.Due) : null;
+                outcomeTurn = !outcomeTurn;
+                if (request is not null)
+                {
+                    await ProcessRequestAsync(request).ConfigureAwait(false);
+                    lock (_sync) if (_controlSealed) return;
+                }
+                else
+                {
+                    PendingCommitCursor? pending;
+                    lock (_sync) pending = _pendingControl;
+                    if (pending is not null)
+                    {
+                        if (!await ProbePendingAsync(pending, terminal: false).ConfigureAwait(false)) return;
+                    }
+                    else
+                    {
+                        var selected = (BackgroundJobControlLane)lane;
+                        lane = (lane + 1) % 3;
+                        var operation = await _store.RunRecoveryQuantumAsync(selected, RetainedIds(), _stop.Token).ConfigureAwait(false);
+                        _controlOperation = operation;
+                        if (!await QualifyControlAsync(operation, retainPendingProbes: true).ConfigureAwait(false)) return;
+                        _controlOperation = null;
+                    }
+                }
+                lock (_sync) _controlProgress = _time.GetTimestamp();
+                await PauseAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                lock (_sync) _controlFault = true;
+                await PauseAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task ProcessRequestAsync(CompletionRequest request)
+    {
+        if (request.Probe is { } probe)
+        {
+            _controlProbe = await _store.ProbeCommitAsync(probe, _stop.Token).ConfigureAwait(false);
+            if (!_controlProbe.CleanupConfirmed) { SealControl(); return; }
+            if (_controlProbe.Failed || _controlProbe.Value is not { Disposition: not (BackgroundJobProbeDisposition.Unresolved or BackgroundJobProbeDisposition.Missing) } resolution)
+            {
+                lock (_sync) { _controlFault = true; _unknown++; request.Due = Later(_bounds.RecoveryProbeInterval); }
+                _controlProbe = null;
+                return;
+            }
+            _controlProbe = null;
+            if (request.Kind != RequestKind.Business || resolution.Disposition != BackgroundJobProbeDisposition.RolledBack)
+            {
+                FinishRequest(request, true);
+                return;
+            }
+            request.Probe = null; // Actual row lock established the original business rollback.
+        }
+        if (request.Kind == RequestKind.InvalidEnvelope)
+        {
+            var operation = await _store.RequestInvalidEnvelopeAsync(request.Execution.Claim, _stop.Token).ConfigureAwait(false);
+            _controlOperation = operation;
+            if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
+            if (operation.CommitUncertain) { request.Probe = operation.Probes.SingleOrDefault(); request.Due = Later(_bounds.RecoveryProbeInterval); }
+            else FinishRequest(request, true);
+        }
+        else if (request.Kind == RequestKind.Business && request.Execution.Identity is { } identity && request.Decision is { } decision)
+        {
+            var operation = await _store.FinishKnownRollbackAsync(identity, decision, _stop.Token).ConfigureAwait(false);
+            _controlOperation = operation;
+            if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
+            if (operation.CommitUncertain) { request.Probe = operation.Probes.SingleOrDefault(); request.Due = Later(_bounds.RecoveryProbeInterval); }
+            else
+            {
+                if (operation.Value is { Phase: "pending" }) lock (_sync) _retries++;
+                FinishRequest(request, true);
+            }
+        }
+        else FinishRequest(request, true);
+        _controlOperation = null;
+    }
+
+    private Task<bool> QualifyControlAsync<T>(OwnedBackgroundJobControl<T> operation, bool retainPendingProbes = false)
+    {
+        lock (_sync) { _controlFault = operation.Failed; if (operation.CommitUncertain) _unknown++; }
+        if (!operation.CleanupConfirmed)
+        {
+            // Keep the original actual resources and its immutable probes in
+            // the main slot. No disposal failure grants replacement issuance.
+            SealControl();
+            return Task.FromResult(false);
+        }
+        if (retainPendingProbes && operation.CommitUncertain && operation.Probes.Count != 0)
+        {
+            lock (_sync)
+            {
+                if (_pendingControl is not null || operation.Probes.Count > BackgroundJobControlLimits.MaximumProbeBatch)
+                { _cleanupFault = true; _controlSealed = true; return Task.FromResult(false); }
+                _pendingControl = new(operation.Probes, _time.GetTimestamp());
+            }
+        }
+        return Task.FromResult(true);
+    }
+
+    private async Task RunTerminalAsync()
+    {
+        while (!_stop.IsCancellationRequested)
+        {
+            try
+            {
+                PendingCommitCursor? pending;
+                lock (_sync) pending = _pendingTerminal;
+                if (pending is not null)
+                {
+                    if (!await ProbePendingAsync(pending, terminal: true).ConfigureAwait(false)) return;
+                    lock (_sync) _terminalProgress = _time.GetTimestamp();
+                    await PauseAsync().ConfigureAwait(false);
+                    continue;
+                }
+                var acquired = await _terminal.TryClaimTerminalAsync(RetainedIds(), _stop.Token).ConfigureAwait(false);
+                _terminalOperation = acquired;
+                if (!await QualifyTerminalAsync(acquired).ConfigureAwait(false)) return;
+                if (acquired.Value is { } claim)
+                {
+                    _terminalActivity = new Activity("job.terminal").SetIdFormat(ActivityIdFormat.W3C);
+                    _terminalActivity.Start();
+                    var operation = await _terminal.TryTerminalizeAsync(claim, _terminalActivity.Id!, _stop.Token).ConfigureAwait(false);
+                    _terminalOperation = operation;
+                    if (!await QualifyTerminalAsync(operation).ConfigureAwait(false)) return;
+                    if (operation.CommitAcknowledged && operation.Value is not null) lock (_sync) _terminalized++;
+                    else if (operation.KnownRollback && operation.Failed)
+                    {
+                        var backoff = await _terminal.BackoffKnownAuditRollbackAsync(claim, _stop.Token).ConfigureAwait(false);
+                        _terminalOperation = backoff;
+                        if (!await QualifyTerminalAsync(backoff).ConfigureAwait(false)) return;
+                    }
+                    _terminalActivity.Dispose();
+                    _terminalActivity = null;
+                }
+                _terminalOperation = null;
+                lock (_sync) _terminalProgress = _time.GetTimestamp();
+                await PauseAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                lock (_sync) _terminalFault = true;
+                if (_terminalActivity is not null) { RetainCleanup(); return; }
+                await PauseAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private Task<bool> QualifyTerminalAsync<T>(OwnedBackgroundJobControl<T> operation)
+    {
+        lock (_sync) { _terminalFault = operation.Failed; if (operation.CommitUncertain) _unknown++; }
+        if (!operation.CleanupConfirmed)
+        {
+            // The original result retains both failed cleanup and unresolved
+            // durable facts. Neither a caller timeout nor cleanup is a probe.
+            RetainCleanup();
+            return Task.FromResult(false);
+        }
+        if (operation.CommitUncertain && operation.Probes.Count != 0)
+        {
+            lock (_sync)
+            {
+                if (_pendingTerminal is not null || operation.Probes.Count != 1)
+                { _cleanupFault = true; _terminalFault = true; return Task.FromResult(false); }
+                _pendingTerminal = new(operation.Probes, _time.GetTimestamp());
+            }
+        }
+        return Task.FromResult(true);
+    }
+
+    private async Task<bool> ProbePendingAsync(PendingCommitCursor cursor, bool terminal)
+    {
+        BackgroundJobCommitProbe probe;
+        lock (_sync)
+        {
+            if (_time.GetTimestamp() < cursor.Due) return true;
+            probe = cursor.Probes[cursor.Index];
+        }
+        // This is the lane's one fresh probe slot. A failed read probe never
+        // produces another probe or consumes a business attempt.
+        var observed = await _store.ProbeCommitAsync(probe, _stop.Token).ConfigureAwait(false);
+        if (terminal) _terminalProbe = observed; else _controlProbe = observed;
+        if (!observed.CleanupConfirmed)
+        {
+            if (terminal) RetainCleanup(); else SealControl();
+            return false;
+        }
+        lock (_sync)
+        {
+            if (observed.Failed || observed.Value is null
+                || observed.Value.Disposition is BackgroundJobProbeDisposition.Unresolved or BackgroundJobProbeDisposition.Missing)
+            {
+                cursor.Due = Later(_bounds.RecoveryProbeInterval);
+                if (terminal) _terminalFault = true; else _controlFault = true;
+            }
+            else
+            {
+                if (terminal && observed.Value.Disposition == BackgroundJobProbeDisposition.TerminalCompleted) _terminalized++;
+                cursor.Index++;
+                cursor.Due = _time.GetTimestamp();
+                if (cursor.Index == cursor.Probes.Count)
+                {
+                    if (terminal) { _pendingTerminal = null; _terminalFault = false; }
+                    else { _pendingControl = null; _controlFault = false; }
+                }
+            }
+        }
+        // Only the positively cleaned concrete read is forgotten. Its failed
+        // or missing result leaves the original cursor and job exclusions live.
+        if (terminal) _terminalProbe = null; else _controlProbe = null;
+        return true;
+    }
+
+    private async Task RelayStopAsync()
+    {
+        await _stopRequested.Task.ConfigureAwait(false);
+        BackgroundJobExecutionControl[] executions;
+        CompletionRequest[] requests;
+        lock (_sync) { executions = _executions.Values.ToArray(); requests = _requests.ToArray(); }
+        foreach (var execution in executions) execution.CloseExecution();
+        // Business work has already returned before its completion request is
+        // queued. Host stop leaves its durable lease for fenced future recovery.
+        foreach (var request in requests) request.Completion.TrySetResult(true);
+        try { _cancellation = _stop.CancelAsync(); await _cancellation.ConfigureAwait(false); }
+        catch (Exception failure) when (Catchable(failure)) { RetainCleanup(); }
+    }
+
+    private async Task ObserveCompletionAsync()
+    {
+        try
+        {
+            var loops = await _loopsPublished.Task.ConfigureAwait(false);
+            await Task.WhenAll(loops).ConfigureAwait(false);
+            await _stopRelay.ConfigureAwait(false);
+            _stop.Dispose();
+            lock (_sync) { if (!_cleanupFault) _completion.TrySetResult(); }
+        }
+        catch (Exception failure) when (Catchable(failure)) { RetainCleanup(); }
+    }
+
+    private Guid[] RetainedIds()
+    {
+        lock (_sync) return _executions.Keys.Concat(_requests.Select(request => request.Execution.Claim.JobId.Value))
+            .Concat(_pendingControl?.Probes.Select(probe => probe.JobId) ?? [])
+            .Concat(_pendingTerminal?.Probes.Select(probe => probe.JobId) ?? [])
+            .Concat(RetainedOperationIds(_controlOperation)).Concat(RetainedOperationIds(_terminalOperation))
+            .Distinct().ToArray();
+    }
+
+    private static IEnumerable<Guid> RetainedOperationIds(object? operation) => operation switch
+    {
+        OwnedBackgroundJobControl<BackgroundJobControlChange> { CleanupConfirmed: false } owned => owned.Probes.Select(probe => probe.JobId),
+        OwnedBackgroundJobControl<IReadOnlyList<BackgroundJobControlChange>> { CleanupConfirmed: false } owned => owned.Probes.Select(probe => probe.JobId),
+        OwnedBackgroundJobControl<BackgroundJobTerminalClaim> { CleanupConfirmed: false } owned => owned.Probes.Select(probe => probe.JobId),
+        _ => [],
+    };
+
+    private void FinishRequest(CompletionRequest request, bool cleanup)
+    {
+        lock (_sync) _requests.Remove(request);
+        request.Completion.TrySetResult(cleanup);
+    }
+
+    private async Task PauseAsync()
+    {
+        try { await Task.Delay(_bounds.ControlPoll, _time, _stop.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+    }
+
+    private long Later(TimeSpan delay) => checked(_time.GetTimestamp() + (long)(delay.TotalSeconds * _time.TimestampFrequency));
+    private bool Fresh(long? timestamp) => timestamp is { } value && _time.GetElapsedTime(value, _time.GetTimestamp()) <= _bounds.ProgressTimeout;
+    private static int PendingCount(PendingCommitCursor? cursor) => cursor is null ? 0 : cursor.Probes.Count - cursor.Index;
+    private void RetainCleanup() { lock (_sync) _cleanupFault = true; }
+    private void SealControl() { lock (_sync) { _controlSealed = true; _cleanupFault = true; _controlFault = true; } }
+    private static bool Catchable(Exception failure) => BackgroundJobControlResources.Catchable(failure);
+    private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private enum RequestKind { Admission, Business, InvalidEnvelope, Renewal }
+    private sealed class CompletionRequest(BackgroundJobExecutionControl execution, RequestKind kind,
+        BackgroundJobCommitProbe? probe, BackgroundJobFailureDecision? decision, long due)
+    {
+        internal BackgroundJobExecutionControl Execution { get; } = execution;
+        internal RequestKind Kind { get; } = kind;
+        internal BackgroundJobCommitProbe? Probe { get; set; } = probe;
+        internal BackgroundJobFailureDecision? Decision { get; } = decision;
+        internal long Due { get; set; } = due;
+        internal TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class PendingCommitCursor(IReadOnlyList<BackgroundJobCommitProbe> probes, long due)
+    {
+        internal System.Collections.ObjectModel.ReadOnlyCollection<BackgroundJobCommitProbe> Probes { get; } = Array.AsReadOnly(probes.ToArray());
+        internal int Index { get; set; }
+        internal long Due { get; set; } = due;
+    }
+}

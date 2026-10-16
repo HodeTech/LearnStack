@@ -5478,6 +5478,73 @@ capacity, external effects, recurrence and packet-wide enforcement/CI. No fronte
 demo, current-head CI or completed production business definition is claimed by
 this closeout.
 
+### P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)
+
+**Implementation is locally validated; both fresh review rounds are pending.**
+The existing approved package
+owns this step; no new decision or approval is pending. Source implements the
+closed ordinary root participant, acknowledged start publication, immutable job
+attribution, final row/time fence and sticky cancellation-versus-COMMIT gate.
+Business state, child jobs, outbox/domain completion and MUST audit share the
+existing transaction owner. Positive COMMIT acknowledgement remains distinct
+from subsequent scope/source cleanup; unknown COMMIT needs a real locked probe.
+
+Independent finite renewal, retry/recovery and terminal lanes retain actual SQL,
+probe and cleanup owners. Six acknowledged starts preserve the five accepted
+backoffs; unknown/Pending definitions defer, explicit retirement terminalizes.
+The sixth audit seam binds only actual returned job-transition values and the
+same live transaction. Terminal audit failure does not advance business work.
+Source and application-pool ownership are qualified against the formulas in
+[Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity),
+including timed-out auxiliary loaders and separately declared shared headroom.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,212 cases with zero skips. Initial PostgreSQL qualification exposed
+reserved SQL naming, transition cleanup and two real concurrency defects:
+
+- A joined admission probe could refresh the locked job header while retaining
+  an older attempt snapshot. It now reads the immutable attempt in a fresh
+  statement after locking the header, on the same connection/transaction. The
+  restored original JOIN fails the committed-admission regression while its
+  rollback control passes; restoring the correction makes both cases pass.
+- Deferred count validation upgraded the parent lock to `FOR UPDATE`, blocking
+  renewal COMMIT behind an unrelated child's key-share lock. A forward migration
+  uses `FOR NO KEY UPDATE`, preserving count-writer serialization and applied
+  history. Real child-lock renewal and exact one-function Down/Up controls pass.
+
+Focused real PostgreSQL controls pass for business/outbox/child-job/MUST-audit
+atomicity, stale authority, lock-wait expiry, uncertain COMMIT, terminal witness
+substitution, and native terminal-audit backlog progress beyond two leases.
+Actual application and privileged sources remain retained through ignored
+cancellation, held callback and messaging cleanup controls. These overlapping
+focused receipts are not a second complete backend run.
+
+The first full architecture run records 322 passing and six failing cases out
+of 328, with zero skips. Failures identify the published method count, the same
+JobExecutor's additional partial path, exact physical transaction-owner lists
+and retained-factory scanning. Corrections preserve finite ownership and planted
+controls; four focused count/writer/parallelism reruns pass. The new orchestration
+detector indexes each evaluation's actual field instructions once, retaining every
+mutation/restoration check. The corrected complete architecture run passes all
+328 cases in 17 minutes 31 seconds. A fresh complete run also passes 2,212 unit,
+four contract and 176 Docker-free HTTP cases, all with zero skips.
+
+The complete Docker run records 1,771 passing and 39 failing cases out of 1,810
+in 13 minutes 1 second, with zero skips. All failures belong to two old fixtures:
+DeliveryExecution's observed-unit factory still resolved the removed raw source
+alias, and EducationPersistence passed the driver's password-free connection
+string view to its API composition. The former now passes the existing lazy
+source explicitly; the latter supplies original fixture configuration while
+preserving the Seeder's caller-owned source. No raw alias or second DI disposer
+is restored. After a clean Release build, both complete classes pass all 43 cases
+in 19 seconds, with zero skips. Their four overlapping earlier passes are not
+added twice. Together these runs establish 1,810 unique passing Docker cases and
+4,530 unique passing backend cases; this is not a second complete-suite rerun.
+
+Formatting, seven ADR parser controls, 1,755 local links and 500 fragments pass.
+Both fresh full review rounds follow the validated implementation commit; no
+completed review or Step 5 closeout is claimed. Steps 6–9 remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

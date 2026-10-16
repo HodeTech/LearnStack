@@ -44,5 +44,6 @@ public static class BackgroundJobRuntimeRegistration
         services.GetRequiredService<IGuidFactory>(),
         services.GetRequiredService<TimeProvider>(),
         services.GetRequiredService<BackgroundJobPhysicalPoolSettings>(),
-        services.GetRequiredService<HangfireBoundedLogProvider>());
+        services.GetRequiredService<HangfireBoundedLogProvider>(),
+        services.GetRequiredService<ApplicationDataSourceLifetime>());
 }

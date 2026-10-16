@@ -2719,7 +2719,7 @@ BEGIN
     target_tenant := NEW.tenant_id;
     IF TG_TABLE_NAME = 'background_jobs' THEN target_job := NEW.id; ELSE target_job := NEW.job_id; END IF;
     SELECT j.normal_attempts, j.finalize_attempts, j.current_attempt_id, j.capacity_group INTO job
-      FROM public.background_jobs j WHERE j.tenant_id = target_tenant AND j.id = target_job FOR UPDATE;
+      FROM public.background_jobs j WHERE j.tenant_id = target_tenant AND j.id = target_job FOR NO KEY UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'attempt job unavailable' USING ERRCODE = '23514'; END IF;
     SELECT count(*) FILTER (WHERE a.stage = 'normal'), count(*) FILTER (WHERE a.stage = 'finalize')
       INTO normal_count, finalize_count FROM public.background_job_attempts a
@@ -3600,20 +3600,37 @@ application callbacks or private driver tasks. Failed opens rely on the pinned
 driver's qualified ordinary unwind; an arbitrary driver-cleanup fault is not a
 release guarantee.
 
-`BackgroundJobPhysicalCapacity` calculates the current Step 4 floor as
-`W + 4P + 2C + 11 + U = 2W + 8P + 2C + 11`, where `W` is total workers, `P` is
+`BackgroundJobPhysicalCapacity` calculates the current Step 5 floor as
+`W + 4P + 2C + 16 + U = 2W + 8P + 2C + 16`, where `W` is total workers, `P` is
 pools, `C` is control pools and `U = W + 4P` is retained invocation/routing owners.
-The fixed eleven covers two shared components, four bridge calls, one bridge SQL
-lane and two depth-two messaging lanes. The default topology requires **45**;
-the maximum valid topology requires **151**. Pooled startup refuses a lower
-`MaxPoolSize` before bootstrap, using settings captured from the same immutable
-configuration as the source. Nonpooling remains allowed with the same owner
-bounds; its positive `MaxPoolSize` setting is not a physical-checkout cap.
+The original eleven covers two shared components, four bridge calls, one bridge
+SQL lane and two depth-two messaging lanes. Step 5 adds one batch-renewal slot,
+one recovery slot plus its fresh-probe slot, and one terminal slot plus its
+fresh-probe slot. Failed cleanup retains the concrete owner and seals that lane;
+probes do not recursively acquire another probe. The default topology requires
+**50**; the maximum valid topology requires **156**. Pooled startup refuses a
+lower `MaxPoolSize` before bootstrap, using settings captured from the same
+immutable configuration as the source. Nonpooling remains allowed with the same
+owner bounds; its positive `MaxPoolSize` is not a physical-checkout cap.
 
-This is the current Step 4 acquisition inventory, not a deployment-wide
-PostgreSQL capacity guarantee. Independent progress at the supported boundary
-still requires real qualification. Later SQL lanes require a new census and
-requalification; Phase 11 owns measured production capacity and PgBouncer.
+The API application source has one `ApplicationDataSourceLifetime` owner and a
+stable `Lazy<NpgsqlDataSource>` registration, without a raw-source DI alias.
+Container disposal requests release; actual release waits for the same job and
+messaging completion witnesses. Each job invocation's `JobApplicationSourceOwner`
+permits one main unit and one independently tracked auxiliary operation. Cache
+waiter expiry cannot replace the actual loader, connection or failed cleanup.
+The four closed auxiliary helpers are audit-config, standalone/best-effort audit,
+tenant flags and killswitch reads; nested ordinary work shares the same main unit.
+The job-only application floor is `2Ut`, where `Ut` sums workers-plus-four only
+for transactional pools: **10** by default and **108** at its maximum topology.
+Unrelated HTTP/delivery demand requires separately budgeted headroom. This floor
+is not a bound on arbitrary arrivals or total application-source demand.
+
+These are current acquisition inventories under Accepted ADR-0047, not
+deployment-wide PostgreSQL capacity guarantees. Independent progress at each
+supported boundary requires real qualification in the Step 5 delivery record.
+Later SQL lanes require a new census and requalification; Phase 11 owns measured
+production capacity and PgBouncer.
 
 ## Backups
 

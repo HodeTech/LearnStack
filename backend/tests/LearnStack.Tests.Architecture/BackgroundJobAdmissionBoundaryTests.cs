@@ -92,15 +92,16 @@ public sealed partial class OutboxDispatchConventionTests
         Capability(DeliveryApplication, JobStartRequest, "MarkCommitting", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordCommitted", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordAttempt", [(InfrastructureAssembly, JobStartHandler, "Handle")]);
-        Capability(DeliveryApplication, JobAdmission, "EnterFramework", [(InfrastructureAssembly, JobExecutorType, "ExecuteAsync")]);
-        Capability(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope", [(InfrastructureAssembly, JobExecutorType, "ExecuteAsync")]);
+        Capability(DeliveryApplication, JobAdmission, "EnterFramework", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
+        Capability(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Capability(DeliveryApplication, JobAdmission, "RequireRead", [(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope"),
             (InfrastructureAssembly, JobReadHandler, "Handle"), (InfrastructureAssembly, JobReadHandler, "Handle")]);
         Capability(DeliveryApplication, JobAdmission, "RequireStart", [(DeliveryApplication, JobStartRequest, "BindOwner"),
             (DeliveryApplication, JobStartRequest, "RecordAttempt"), (InfrastructureAssembly, JobStartHandler, "Handle"),
             (InfrastructureAssembly, JobStartHandler, "Handle")]);
         Capability(DeliveryApplication, JobAdmission, "AnnouncementContext", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
-        Capability(DeliveryApplication, JobAdmission, "RequireOperation", [(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync")]);
+        Capability(DeliveryApplication, JobAdmission, "RequireOperation", [(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
+            (DeliveryApplication, JobAdmission, "RequireOwnerEntry")]);
         Capability(DeliveryApplication, JobAdmission, "PermitsUnresolvedRead", [(DeliveryApplication, JobTenantBehavior, "Handle")]);
         Capability(DeliveryApplication, JobOrigin, ".ctor", [(DeliveryApplication, DeliveryProducer, "CaptureJobOrigin")]);
         Capability(DeliveryApplication, DeliveryProducer, "CaptureJobOrigin", [(InfrastructureAssembly, JobScheduler, "SubmitAsync")]);
@@ -218,24 +219,30 @@ public sealed partial class OutboxDispatchConventionTests
         void CheckExecutorDispatch()
         {
             var executor = types[(InfrastructureAssembly, JobExecutorType)];
-            var owner = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteAsync");
+            var owner = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync");
+            var business = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync");
             var owners = executor.Methods.Select(MethodId).ToHashSet(StringComparer.Ordinal);
             var calls = sites.Where(site => owners.Contains(site.Owner)).ToArray();
             var services = calls.Where(site => site.Target.Name is "GetRequiredService" or "GetService" or "GetServices")
                 .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-service"));
             CheckSet(offenders, "framework executor service resolutions", services,
-                [owner + ":MediatR.ISender", owner + ":MediatR.ISender", owner + ":" + LifecycleUnit, owner + ":" + LifecycleUnit]);
+                [owner + ":MediatR.ISender", owner + ":MediatR.ISender", owner + ":" + LifecycleUnit, owner + ":" + LifecycleUnit,
+                 business + ":MediatR.ISender", business + ":" + LifecycleUnit,
+                 business + ":LearnStack.Application.Jobs.BackgroundJobCompletionParticipant",
+                 business + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry"]);
             var sends = calls.Where(site => site.Target.Name == "Send" && site.Target.DeclaringType.FullName == "MediatR.ISender")
                 .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-request"));
             CheckSet(offenders, "framework executor exact request dispatch", sends,
                 [owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.Application.Jobs.BackgroundJobEnvelope>",
-                 owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
+                 owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
+                 business + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
             foreach (var request in new[] { JobReadRequest, JobStartRequest })
                 CheckSet(offenders, "framework request construction " + request,
                     sites.Where(site => site.Target.Name == ".ctor" && site.Target.DeclaringType.FullName == request
                         && site.Target.Parameters.Count is 1 or 2 && site.Target.Parameters[0].ParameterType.FullName == JobRoutingClaim)
                         .Select(site => site.Owner), [owner]);
-            foreach (var target in OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor).SelectMany(item => MethodOperands(item.Body)))
+            foreach (var target in OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor
+                         && item.Owner.Name != "ExecuteBusinessAsync").SelectMany(item => MethodOperands(item.Body)))
                 if (target.DeclaringType.FullName is "System.Activator" or "System.Reflection.MethodBase" or "System.Reflection.MethodInfo"
                         or "System.Reflection.ConstructorInfo" || target.DeclaringType.FullName == "System.Type" && target.Name is "GetType" or "GetConstructor")
                     offenders.Add("Framework admission cannot dynamically construct or invoke a business request: " + target.FullName);
@@ -286,27 +293,38 @@ public sealed partial class OutboxDispatchConventionTests
         var activator = types[(InfrastructureAssembly, JobClosedActivator)];
         var invocation = types[(InfrastructureAssembly, JobBoundInvocation)];
         var creates = contract.Methods.Where(method => method.Name == "CreateActivator").ToArray();
-        var create = InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator("
-            + "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration,LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry,"
-            + JobRoutingStore + "," + JobExecutorType + ",LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry)";
-        if (creates.Length != 1 || !creates[0].IsPublic || !creates[0].IsStatic || creates[0].HasGenericParameters
-            || creates[0].ReturnType.FullName != "Hangfire.JobActivator"
-            || !ParametersMatch(creates[0], ["LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration",
-                "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", JobRoutingStore, JobExecutorType,
-                "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry"]))
-            offenders.Add("The closed job activator factory requires its exact static signature");
+        const string control = "LearnStack.Infrastructure.Jobs.BackgroundJobControl";
+        string[] createParameters = ["LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration",
+            "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", JobRoutingStore, JobExecutorType,
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry"];
+        var createPrefix = InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator(";
+        var create = createPrefix + string.Join(",", createParameters) + ")";
+        var controlledCreate = createPrefix + string.Join(",", createParameters.Append(control)) + ")";
+        if (creates.Length != 2) offenders.Add("The closed job activator factory requires exactly its admission and controlled overloads");
+        foreach (var (identity, visibility) in new[] { (create, MethodAttributes.Public), (controlledCreate, MethodAttributes.Assembly) })
+        {
+            var methods = creates.Where(method => MethodId(method) == identity).ToArray();
+            if (methods.Length != 1 || !methods[0].IsStatic || methods[0].HasGenericParameters
+                || (methods[0].Attributes & MethodAttributes.MemberAccessMask) != visibility)
+                offenders.Add(identity + ": requires its exact closed static declaration");
+        }
+        CheckSet(offenders, "exact admission and controlled activator factory callers", ownedBodies
+            .SelectMany(item => item.Body.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
+                    && method.DeclaringType.FullName == JobInvocationContract && method.Name == "CreateActivator")
+                .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name + ":" + MethodId((MethodReference)instruction.Operand))),
+            [create + ":call:" + controlledCreate, RuntimePreallocateId + ":call:" + controlledCreate]);
         if (!activator.IsNestedPrivate || !activator.IsSealed || !invocation.IsNestedAssembly || !invocation.IsSealed)
             offenders.Add("Routing capability holders must retain their closed nested visibility and sealed identity");
         var activatorConstructor = RequireBoundaryMethod(offenders, activator, ".ctor", "System.Void", MethodAttributes.Public,
             "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration", JobRoutingStore, JobExecutorType,
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", JobGeneration);
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", control, JobGeneration);
         var bind = RequireBoundaryMethod(offenders, activator, "Bind", JobClosedActivator, MethodAttributes.Assembly, JobGeneration);
         var bindGeneration = RequireHangfireStaticMethod(offenders, contract, "BindGeneration", "Hangfire.JobActivator",
             MethodAttributes.Assembly, "Hangfire.JobActivator", JobGeneration);
         var begin = RequireBoundaryMethod(offenders, activator, "BeginScope", "Hangfire.JobActivatorScope", MethodAttributes.Public,
             "Hangfire.Server.PerformContext");
         var invocationConstructor = RequireBoundaryMethod(offenders, invocation, ".ctor", "System.Void", MethodAttributes.Public,
-            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration);
+            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration, control);
         _ = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
         var framework = RequireBoundaryMethod(offenders, invocation, "RunFrameworkAsync", BoundaryTask, MethodAttributes.Private,
@@ -314,12 +332,12 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRoutingStore, "TryClaimOwnedAsync", reader,
             [publicReader + ":call", framework + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, ".ctor", activatorConstructor,
-            [create + ":newobj", bind + ":newobj"]);
+            [controlledCreate + ":newobj", bind + ":newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, "Bind", bind, [bindGeneration + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobInvocationContract, "BindGeneration", bindGeneration,
             [HangfireGenerationConstructorId + ":call"]);
-        var expected = new[] { MethodId(composition), create, activatorConstructor, bind, begin, invocationConstructor, framework }
+        var expected = new[] { MethodId(composition), create, controlledCreate, activatorConstructor, bind, begin, invocationConstructor, framework }
             .Concat(factory is null ? [] : new[] { MethodId(factory) })
             .Concat([RuntimeConstructorId, RuntimeFactoryId, RuntimePreallocateId]);
         CheckSet(offenders, "privileged job-routing store consumers", ownedBodies
@@ -365,7 +383,9 @@ public sealed partial class OutboxDispatchConventionTests
         var bound = types[(InfrastructureAssembly, JobBoundInvocation)];
         var binding = types[(InfrastructureAssembly, JobInvocationContract)].Methods.Single(method => method.Name == "BindGeneration");
         var bindingCapabilities = new[] { activator.Methods.Single(method => method.Name == ".ctor"),
-            activator.Methods.Single(method => method.Name == "Bind"), bound.Methods.Single(method => method.Name == ".ctor"), binding };
+            activator.Methods.Single(method => method.Name == "Bind"), bound.Methods.Single(method => method.Name == ".ctor"), binding }
+            .Concat(types[(InfrastructureAssembly, JobInvocationContract)].Methods.Where(method => method.Name == "CreateActivator")).ToArray();
+        bindingCapabilities.Should().HaveCount(6, "both exact activator factory declarations join the actual binding capability chain");
         foreach (var capability in bindingCapabilities)
         {
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
@@ -382,7 +402,7 @@ public sealed partial class OutboxDispatchConventionTests
         var bindingSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
             .Where(instruction => instruction.Operand is MethodReference target && bindingCapabilities.Any(capability =>
                 SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
-        bindingSites.Should().HaveCount(5, "the two activator constructors, bound invocation and both binding seams must be live");
+        bindingSites.Should().HaveCount(7, "both controlled factory calls, two activator constructors, bound invocation and both binding seams must be live");
         foreach (var instruction in bindingSites)
         {
             AssertMutation(census, "a missing actual generation-bound construction or binding site", () =>

@@ -59,6 +59,8 @@ public sealed partial class OutboxDispatchConventionTests
             (InfrastructureAssembly, Store, new[] { "OpenConnectionAsync" }),
             (InfrastructureAssembly, DeliveryStore, new[] { "OpenConnectionAsync" }),
             (InfrastructureAssembly, JobRoutingStore, new[] { "TryClaimOwnedAsync" }),
+            (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", new[] { "OpenAsync" }),
+            (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", new[] { "OpenAsync" }),
             (InfrastructureAssembly, BoundaryPlatform, new[] { "EnterAsync" }),
             (InfrastructureAssembly, VendorFactory, new[] { "GetOrCreateConnection" }),
             (InfrastructureAssembly, VendorBootstrap, new[] { "Create" }),

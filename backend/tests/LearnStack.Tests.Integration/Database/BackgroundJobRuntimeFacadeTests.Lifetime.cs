@@ -24,7 +24,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     public async Task Native_framework_wait_retains_actual_cleanup_and_releases_its_slot_before_host_stop(bool synchronousPrefix)
     {
         await using var database = await DatabaseAsync();
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 45);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
         var applicationName = "facade_cleanup_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
         var cleanup = new FacadeCleanupSignals();
@@ -76,8 +76,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             // The one native transactional slot is usable while fewer than four
             // prior framework invocations remain retained in this generation.
             var positive = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyAsync(async () => await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, positive) == 1
-                && await VendorAsync(source, positive) is { } vendor && await StateAsync(source, vendor) == "Succeeded");
+            await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, positive));
             transactional.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
 
             // This is actual native wakeup/framework execution. Only the DI
@@ -133,10 +132,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     }
 
     [Fact]
-    public async Task Pooled_boundary_45_keeps_actual_expiration_checkout_after_caller_timeout_while_transactional_admission_progresses()
+    public async Task Pooled_boundary_50_keeps_actual_expiration_checkout_after_caller_timeout_while_transactional_admission_progresses()
     {
         await using var database = await DatabaseAsync();
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 45);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
         var applicationName = "facade_capacity_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
         var probe = new BackgroundJobFixtureProbe();
@@ -163,15 +162,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 .Should().ThrowAsync<OperationCanceledException>();
             await EventuallyAsync(() => Task.FromResult(expiration.Snapshot.State == HangfireSharedComponentState.Retained));
             expiration.Completion.IsCompleted.Should().BeFalse();
-            PoolStatistics(source).Busy.Should().BeInRange(1, 45);
+            PoolStatistics(source).Busy.Should().BeInRange(1, 50);
 
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await EventuallyAsync(async () =>
-            {
-                if (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job) != 1) return false;
-                var vendor = await VendorAsync(source, job);
-                return vendor is not null && await StateAsync(source, vendor) == "Succeeded";
-            });
+            await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, job));
 
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.NormalAttempts.Should().Be(1);
             expiration.Snapshot.Should().BeEquivalentTo(new
@@ -182,7 +176,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 ActualJoined = false,
             });
             expiration.Completion.IsCompleted.Should().BeFalse();
-            PoolStatistics(source).Busy.Should().BeInRange(1, 45);
+            PoolStatistics(source).Busy.Should().BeInRange(1, 50);
             runtime.Snapshot.RunningPools.Should().Be(3);
             var health = await new BackgroundJobHealthCheck(runtime).CheckHealthAsync(new HealthCheckContext());
             health.Status.Should().Be(HealthStatus.Unhealthy);
@@ -197,7 +191,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             health.Data["maintenance:fetched_job_heartbeat"].Should().BeOfType<BackgroundJobMaintenanceHealth>()
                 .Which.IsHealthy.Should().BeTrue("shared fetched-job renewal remains independent of the held expiration pass");
             ActualGeneration(runtime, "transactional").Snapshot.Draining.Should().BeFalse();
-            probe.Constructions.Should().BeEmpty("Step 4 admits framework work without activating business handlers");
+            probe.Constructions.Should().ContainSingle().Which.Should().Be("TenantRoot",
+                "the healthy native wakeup now executes the admitted business owner");
             // Actual other-pool admission at the supported boundary is proved;
             // simultaneous saturation of every reserved lane is not asserted.
         }

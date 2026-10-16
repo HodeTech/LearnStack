@@ -161,15 +161,17 @@ will raise them — which this standard requires it to do.
 - **`(planned)` is re-checked, not an escape.** A row still marked `(planned)` whose
   command has since shipped **fails**. The marker is a claim the rule tests on every run,
   which is what stops the scoping from becoming a hole.
-- **`(off-path)` is for operations that are not MediatR requests at all.** Nine rows
+- **`(off-path)` is for operations that are not MediatR requests at all.** Ten rows
   carry it: Tenancy's `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
-  `platform.delivery.dead_letter`, `tenancy.killswitch.toggle`,
+  `platform.delivery.dead_letter`, `platform.job.dead_letter`,
+  `tenancy.killswitch.toggle`,
   `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
   and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
   request-type join in **both** directions and register by slug rather than by type — the
-  five whose writer ships through `DeclareOffPath` today, the other four when their
+  six whose writer ships through `DeclareOffPath` today, the other four when their
   writer lands. P02b-2 Step 2 registers the shipped producer terminal writer;
-  P02b-3 Step 4 adds subscriber terminal registration with its writer.
+  P02b-3 Step 4 adds subscriber terminal registration; P02b-4 Step 5 adds the
+  job terminal writer under Accepted ADR-0047.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
@@ -519,6 +521,13 @@ table above is the policy those deliverables implement, not a description of tod
   and same-transaction terminal MUST audit. Until P02b-4 implements those controls,
   acceptance grants no executable exemption; ordinary business mutations and
   privileged maintenance remain audited under their existing contracts.
+- Accepted ADR-0047's sixth `WriteJobTerminalAsync` method accepts only the actual
+  fenced job-transition witness and matching caller connection/transaction. It
+  validates stored tenant/organization/job/definition/attempt/acquisition values,
+  MUST/SecurityEvent classification and the exact `platform.job.dead_letter` draft.
+  It opens or commits no transaction; failed audit rolls back terminal state.
+  P02b-4 Step 5 implements this seam; its delivery record owns qualification and
+  review status. The event seam and original four writes retain their contracts.
 - `WriteEventTerminalAsync(AuditEntryDraft, EventTerminalTransition, DbConnection,
   DbTransaction, CancellationToken)` is the narrow fifth write, implemented in
   P02b-2 Step 2; both independent review rounds passed.

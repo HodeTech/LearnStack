@@ -31,7 +31,8 @@ internal sealed class JobAdmissionFixtureReceipt : BackgroundJobRoutingClaim.Min
         var command = new AdmitBackgroundJobAttemptCommand(claim, envelope);
         return (ConfirmedStartReceipt)(Activator.CreateInstance(typeof(ConfirmedStartReceipt),
             BindingFlags.Instance | BindingFlags.NonPublic, null,
-            [command, BackgroundJobAttemptId.From(Guid.CreateVersion7()), stage], null)
+            [command, BackgroundJobAttemptId.From(Guid.CreateVersion7()), stage, 1, due,
+                due.AddMinutes(2), due.AddMinutes(1), JobApplicationSourceOwner.Create()], null)
             ?? throw new InvalidOperationException("The synthetic test receipt could not be constructed."));
     }
 }

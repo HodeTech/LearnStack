@@ -106,6 +106,26 @@ public sealed partial class OutboxDispatchConventionTests
                 && IntegrationLifecycleCapability(target, types) == "database.CommitAsync");
         AssertMutation(census, "a missing real physical completion site", () =>
             ReplaceInstruction(physicalCommit, OpCodes.Ldstr, "missing physical completion"), IntegrationLifecycleOffenders);
+        foreach (var (assembly, type, name, parameters, terminalCapability) in new[]
+                 {
+                     (AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
+                         new[] { "LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation }, "database.CommitAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                 })
+        {
+            var owner = types[(assembly, type)].Methods.Single(method => method.Name == name && ParametersMatch(method, parameters));
+            var terminals = OwnedBodies(census).Where(item => item.Owner == owner)
+                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                    && IntegrationLifecycleCapability(target, types) == terminalCapability).ToArray();
+            terminals.Should().ContainSingle("the exact job helper owner must execute its real physical terminal operation");
+            AssertMutation(census, "a missing actual job helper terminal operation in " + MethodId(owner), () =>
+                ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing job helper terminal operation"), IntegrationLifecycleOffenders);
+        }
         var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
             .Where(instruction => instruction.Operand is MethodReference target
                 && IntegrationLifecycleCapability(target, types) == "unit.announce").ToArray();
@@ -210,14 +230,22 @@ public sealed partial class OutboxDispatchConventionTests
                 // Bridge transport hints own short privileged transactions, never business completion.
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "TryClaimAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "UpdateAsync"),
-                Owner(AuditAssembly, AuditStore, "WriteOwnTransactionAsync"),
+                Owner(AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
+                    ["LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
                 Owner(AuditAssembly, "LearnStack.Infrastructure.Audit.AuditConfigService", "LoadAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform, "RecordAsync"), Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "CommitAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver", "ReadAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator", "BelongsToTenantAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags", "LoadTenantFlagsAsync"),
             ],
-            ["database.RollbackAsync"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "RollbackCoreAsync"), Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "DisposeAsync")],
+            ["database.RollbackAsync"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "RollbackCoreAsync"),
+                Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "DisposeAsync"),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation])],
             ["database.Commit"] = [],
             ["database.Rollback"] = [],
         };

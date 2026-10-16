@@ -123,15 +123,14 @@ public static class PersistenceCompositionExtensions
             ValidateApplicationConnectionString(connectionString);
         }
 
-        services.TryAddSingleton(_ => BuildApplicationDataSource(connectionString));
+        services.TryAddSingleton(_ => new ApplicationDataSourceLifetime(connectionString));
 
         // And the Lazy over it — the ONE registration, which the host resolver, the
         // organization scope validator, the audit write path and the flag reads all take.
         // Same instance, deferred: a request on a platform host is answered from
         // Tenancy:PlatformHosts and must not pay for a credential it does not use — and the
         // Docker-free host suites have none at all.
-        services.TryAddSingleton(provider =>
-            new Lazy<NpgsqlDataSource>(provider.GetRequiredService<NpgsqlDataSource>));
+        services.TryAddSingleton(provider => provider.GetRequiredService<ApplicationDataSourceLifetime>().Source);
 
         // The platform credential — the second, separately-credentialed data source
         // ADR-0003 requires, keyed so only PlatformAdminScope resolves it. Validated at
@@ -162,7 +161,7 @@ public static class PersistenceCompositionExtensions
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
-        services.TryAddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
+        services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
 
         // Every module context goes through the helper. A registration that built
         // its own connection string would give the context its own connection,
@@ -325,6 +324,10 @@ public static class PersistenceCompositionExtensions
 
         return services;
     }
+
+    private static IUnitOfWork CreateUnitOfWork(IServiceProvider services) => new NpgsqlUnitOfWork(
+        services.GetRequiredService<Lazy<NpgsqlDataSource>>().Value,
+        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>());
 
     /// <summary>
     /// Validates <c>ConnectionStrings:Default</c> and builds the application data

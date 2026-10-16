@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -19,32 +20,42 @@ public enum JobStartExecutionOutcome
 }
 
 public sealed record JobStartExecutionResult(JobStartExecutionOutcome Outcome,
-    ConfirmedStartReceipt? Receipt, bool CleanupFailed)
+    ConfirmedStartReceipt? Receipt, bool CleanupFailed, JobApplicationSourceOwner SourceOwner)
 {
     internal IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup { get; init; } = [];
 }
 
 /// <summary>A faulted cleanup keeps its concrete resources; a completed async task alone does not.</summary>
 internal sealed class JobStartCleanupOwnership(AsyncServiceScope? scope, IUnitOfWork? unit,
-    CancellationTokenSource? deadline, Activity? activity, IDisposable? authority)
+    CancellationTokenSource? deadline, Activity? activity, IDisposable? authority, IDisposable? sourceBinding = null)
 {
     internal AsyncServiceScope? Scope { get; } = scope;
     internal IUnitOfWork? Unit { get; } = unit;
     internal CancellationTokenSource? Deadline { get; } = deadline;
     internal Activity? Activity { get; } = activity;
     internal IDisposable? Authority { get; } = authority;
+    internal IDisposable? SourceBinding { get; } = sourceBinding;
 }
 
-/// <summary>Owns framework validation/admission scopes; business activation belongs to the later executor stage.</summary>
-public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAccessor accessor,
+/// <summary>Owns separate framework admission and ordinary business scopes through actual cleanup.</summary>
+public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantContextAccessor accessor,
     BackgroundJobExecutionAdmission admission, BackgroundJobRuntimeOptions options)
 {
-    public async Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
-        Func<bool>? startGate = null, CancellationToken cancellationToken = default)
+    internal IServiceScopeFactory ScopeFactory => scopes;
+
+    public Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
+        Func<bool>? startGate = null, CancellationToken cancellationToken = default) =>
+        ExecutePublishedAsync(claim, new BackgroundJobStartPublication(), startGate, cancellationToken);
+
+    internal async Task<JobStartExecutionResult> ExecutePublishedAsync(BackgroundJobRoutingClaim claim,
+        BackgroundJobStartPublication publication, Func<bool>? startGate, CancellationToken cancellationToken)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
+        ArgumentNullException.ThrowIfNull(publication);
         options.Validate();
+        var sourceOwner = JobApplicationSourceOwner.Create();
+        var sourceBinding = sourceOwner.Enter();
         var previous = accessor.Current;
         var previousActivity = Activity.Current;
         AsyncServiceScope? scope = null;
@@ -61,6 +72,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
             accessor.Current = null;
             authority = admission.EnterFramework(claim, startGate);
             cancellationToken.ThrowIfCancellationRequested();
+            sourceOwner.RequireFreshScopeReady();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
             sqlDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -81,16 +93,18 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                 unit = null;
                 if (cleanupFailed)
                     throw new InvalidOperationException("The validated read scope did not clean up successfully.");
+                sourceOwner.RequireFreshScopeReady();
                 if (accessor.Current is not null)
                     throw new InvalidOperationException("Envelope validation cannot install tenant authority.");
                 BackgroundJobExecutionAdmission.InstallValidatedEnvelope(claim, read.Value);
-                accessor.Current = new JobTenantContext(read.Value);
+                accessor.Current = CreateContext(read.Value);
                 _ = ActivityContext.TryParse(read.Value.Traceparent, null, isRemote: true, out var parent);
                 activity = new Activity("job.admission").SetIdFormat(ActivityIdFormat.W3C)
                     .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags).Start();
                 scope = scopes.CreateAsyncScope();
                 unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 command = new AdmitBackgroundJobAttemptCommand(claim, read.Value);
+                publication.Bind(command);
                 // Each exact framework transaction has its own bound, including
                 // announcement and COMMIT. Keep its source through actual cleanup.
                 sqlDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -147,8 +161,16 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                 {
                     try
                     {
-                        Activity.Current = previousActivity;
-                        accessor.Current = previous;
+                        try
+                        {
+                            Activity.Current = previousActivity;
+                            accessor.Current = previous;
+                        }
+                        catch
+                        {
+                            cleanupFailed = true;
+                            retainedCleanup.Add(new(null, unit, null, activity, authority));
+                        }
                         try { authority?.Dispose(); }
                         catch
                         {
@@ -167,8 +189,17 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                     }
                 }
             }
+            if (command?.Receipt is null || cleanupFailed || !sourceOwner.CleanupConfirmed) sourceOwner.CloseIssuance();
+            cleanupFailed |= !sourceOwner.CleanupConfirmed;
+            try { sourceBinding.Dispose(); }
+            catch
+            {
+                cleanupFailed = true;
+                retainedCleanup.Add(new(null, null, null, null, null, sourceBinding));
+            }
+            publication.SettleNoReceipt();
         }
-        return new(outcome, command?.Receipt, cleanupFailed)
+        return new(outcome, command?.Receipt, cleanupFailed, sourceOwner)
         {
             RetainedCleanup = retainedCleanup.AsReadOnly(),
         };
@@ -207,15 +238,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         }
     }
 
-    private sealed class JobTenantContext(BackgroundJobEnvelope envelope) : ITenantContext
-    {
-        public bool IsResolved => true;
-        public TenantId TenantId => envelope.TenantId;
-        public OrganizationId? OrganizationId => envelope.OrganizationId;
-        public UserId? UserId => LearnStack.SharedKernel.Identifiers.UserId.SystemActor;
-        public UserId? CausalActorUserId => envelope.CausalActor;
-        public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
-        public string? CorrelationId => envelope.Traceparent;
-        public string? ModuleName => envelope.DefinitionKey.Split('.')[0];
-    }
+    private static JobTenantContext CreateContext(BackgroundJobEnvelope envelope) => JobTenantContext.FromValidatedJob(
+        envelope.TenantId, envelope.OrganizationId, envelope.JobId, envelope.ParentJobId, envelope.IncomingEventId,
+        envelope.CausalActor, envelope.Traceparent, envelope.DefinitionKey.Split('.')[0]);
 }

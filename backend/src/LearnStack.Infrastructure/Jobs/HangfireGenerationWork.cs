@@ -99,6 +99,8 @@ internal sealed class HangfireGenerationWork
         // unresolved resource owners after a wrapper returns. No delegate runs here.
         private Task<PostgresBackgroundJobRoutingStore.OwnedRoutingRead>? _routing;
         private Task<JobStartExecutionResult>? _admission;
+        private Task<JobBusinessExecutionResult>? _business;
+        private BackgroundJobExecutionControl? _execution;
         private HangfireInvocationContract.BoundInvocation? _framework;
         private bool _completing;
         private int _retained;
@@ -139,6 +141,27 @@ internal sealed class HangfireGenerationWork
             }
         }
 
+        internal void HoldExecution(BackgroundJobExecutionControl execution)
+        {
+            ArgumentNullException.ThrowIfNull(execution);
+            lock (_sync)
+            {
+                if (_completing || _execution is not null) throw new InvalidOperationException("A generation owns one business control.");
+                _execution = execution;
+                if (Volatile.Read(ref _admissionClosed) != 0) execution.Gate.Close();
+            }
+        }
+
+        internal void HoldBusiness(Task<JobBusinessExecutionResult> task)
+        {
+            ArgumentNullException.ThrowIfNull(task);
+            lock (_sync)
+            {
+                if (_completing || _business is not null) throw new InvalidOperationException("A generation owns one business operation.");
+                _business = task;
+            }
+        }
+
         // The execution owner records an overrun before returning its wrapper
         // slot. It still owns the actual execution and calls CompleteAsync later.
         internal void MarkRetained() => owner.MarkRetained(this);
@@ -155,6 +178,7 @@ internal sealed class HangfireGenerationWork
             Interlocked.Exchange(ref _admissionClosed, 1);
             lock (_sync)
             {
+                _execution?.Gate.Close();
                 if (_completing || _cancellationObservation is not null) return;
                 if (ExecutionContext.IsFlowSuppressed()) StartCancellationObservation();
                 else { using (ExecutionContext.SuppressFlow()) StartCancellationObservation(); }
@@ -183,7 +207,8 @@ internal sealed class HangfireGenerationWork
                 if (cancellation is { IsCompleted: false }) owner.MarkRetained(this);
                 if (cancellation is not null && !await cancellation.ConfigureAwait(false)) return;
                 _private.Dispose();
-                lock (_sync) { _routing = null; _admission = null; _framework = null; }
+                _execution?.ReleaseAfterPrivateCleanup();
+                lock (_sync) { _routing = null; _admission = null; _business = null; _execution = null; _framework = null; }
                 owner.Release(this);
             }
             catch (Exception exception) when (Catchable(exception))

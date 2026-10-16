@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
@@ -126,12 +127,16 @@ internal sealed class BackgroundJobRuntimeFixture
         _foreignApplication = foreignApplication.Assembly;
         var foreignInfrastructure = Compile(foreign + ".Infrastructure", "namespace LearnStack.Modules.JobsForeignFixture.Infrastructure; public sealed class AssemblyMarker { }");
         var foreignModule = new BackgroundJobModuleRegistration(foreignContracts.Assembly, foreignApplication.Assembly, foreignInfrastructure.Assembly);
+        var tenancyModule = new BackgroundJobModuleRegistration(typeof(CreateOrganizationCommand).Assembly,
+            typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
+            typeof(LearnStack.Modules.Tenancy.Infrastructure.AssemblyMarker).Assembly);
+        BackgroundJobModuleRegistration[] modules = [module, foreignModule, tenancyModule];
 
         var topology = BackgroundJobInfrastructureRegistry.Create(
             BackgroundJobInfrastructureRegistry.CreateDefault().Pools.Values,
             [new(CapacityGroup, RequestType("Declarations"))],
             [new(contracts.Assembly.GetType(Prefix + ".Application.Contracts.IOperation", true)!,
-                infrastructure.Assembly.GetType(Prefix + ".Infrastructure.Operation", true)!)], [module, foreignModule]);
+                infrastructure.Assembly.GetType(Prefix + ".Infrastructure.Operation", true)!)], modules);
         Registry = BackgroundJobDefinitionRegistry.Create(
             [Definition(TenantKey, "TenantRoot"), Definition(OrganizationKey, "OrganizationRoot", BackgroundJobScope.Organization),
              Definition(PendingKey, "PendingRoot", readiness: BackgroundJobDefinitionReadiness.Pending),
@@ -148,7 +153,8 @@ internal sealed class BackgroundJobRuntimeFixture
                 Ordinary("PendingRoot"), Ordinary("CapacityRoot"), Ordinary("Submit"),
                 Ordinary("SubmitOrganization", BackgroundJobScope.Organization), Ordinary("Nested"), Ordinary("Prepare"), Ordinary("Finalize"),
                 new BackgroundJobRequestDescriptor(ForeignRequestType, BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
-            }), [module, foreignModule], infrastructure: topology);
+                new BackgroundJobRequestDescriptor(typeof(CreateOrganizationCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
+            }), modules, infrastructure: topology);
     }
 
     internal Type RequestType(string name) => _application.GetType(Prefix + ".Application." + name, true)!;
@@ -200,7 +206,9 @@ internal sealed class BackgroundJobRuntimeFixture
         BackgroundJobScope scope = BackgroundJobScope.TenantWide,
         BackgroundJobDefinitionReadiness readiness = BackgroundJobDefinitionReadiness.Active, string? capacityGroup = null) =>
         new(key, RequestType("Declarations"), ParameterType, scope, readiness, "transactional",
-            BackgroundJobProfileRegistration.Transactional(RequestType(root)), capacityGroup: capacityGroup);
+            BackgroundJobProfileRegistration.Transactional(RequestType(root)),
+            nestedRequestTypes: scope == BackgroundJobScope.TenantWide ? [RequestType("Nested"), typeof(CreateOrganizationCommand)] : [],
+            capacityGroup: capacityGroup);
 
     private BackgroundJobRequestDescriptor Ordinary(string name, BackgroundJobScope scope = BackgroundJobScope.TenantWide) =>
         new(RequestType(name), BackgroundJobRequestClassification.Ordinary, scope);

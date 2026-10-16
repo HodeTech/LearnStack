@@ -146,7 +146,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 observation.Configure(services);
                 services.AddScoped(_ => new FacadeHeldReadCleanup(cleanupSignals));
             });
-            var physical = new BackgroundJobPhysicalPoolSettings(true, 45);
+            var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
             await using var source = Source(database, physical);
             using var globals = new GlobalFilterSnapshot();
             using var deadline = new CancellationTokenSource(HeartbeatQualificationWait);
@@ -238,7 +238,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 ActualGeneration(runtime, "transactional").Should().BeSameAs(affected);
                 cleanupSignals.Joined.Task.IsCompleted.Should().BeFalse();
                 await AssertGuardedPoolAsync(source, physical);
-                probe.Constructions.Should().BeEmpty("Step 4 qualifies actual framework transport without business activation");
+                probe.Constructions.Should().ContainSingle().Which.Should().Be("TenantRoot",
+                    "only the acknowledged pre-outage job reached business execution");
 
                 cleanupSignals.Release.TrySetResult();
                 await affected.Completion.WaitAsync(deadline.Token);

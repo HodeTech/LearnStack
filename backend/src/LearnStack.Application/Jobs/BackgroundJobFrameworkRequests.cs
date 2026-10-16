@@ -25,6 +25,11 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     private TenantContextAnnouncement? _announcement;
     private DbTransaction? _transaction;
     private BackgroundJobAttemptId? _attempt;
+    private int _ordinal;
+    private DateTimeOffset _admittedAt;
+    private DateTimeOffset _deadline;
+    private DateTimeOffset _ownershipUntil;
+    private BackgroundJobStartPublication? _publication;
 
     public BackgroundJobRoutingClaim Claim { get; } = claim ?? throw new ArgumentNullException(nameof(claim));
     public BackgroundJobEnvelope Envelope { get; } = envelope ?? throw new ArgumentNullException(nameof(envelope));
@@ -46,14 +51,28 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     }
 
     /// <summary>Called only after the app-role INSERT and summary UPDATE both succeeded.</summary>
-    public void RecordAttempt(IUnitOfWork unit, BackgroundJobAttemptId attempt)
+    public void RecordAttempt(IUnitOfWork unit, BackgroundJobAttemptId attempt, int ordinal,
+        DateTimeOffset admittedAt, DateTimeOffset deadline, DateTimeOffset ownershipUntil)
     {
         BackgroundJobExecutionAdmission.RequireStart(this);
         if (!ReferenceEquals(_unit, unit) || !ReferenceEquals(_transaction, unit.Transaction)
             || _announcement != unit.GetTenantContextAnnouncement(unit.Transaction)
-            || unit.IsRollbackOnly || _attempt is not null || !attempt.IsInitialized() || attempt.Value.Version != 7)
+            || unit.IsRollbackOnly || _attempt is not null || !attempt.IsInitialized() || attempt.Value.Version != 7
+            || ordinal is < 1 or > 6 || admittedAt >= deadline || ownershipUntil > deadline
+            || ownershipUntil <= admittedAt)
             throw new InvalidOperationException("The attempt does not belong to this admission owner.");
         _attempt = attempt;
+        _ordinal = ordinal;
+        _admittedAt = admittedAt;
+        _deadline = deadline;
+        _ownershipUntil = ownershipUntil;
+    }
+
+    internal void BindPublication(BackgroundJobStartPublication publication)
+    {
+        if (_publication is not null || _unit is not null || CommitStarted || Receipt is not null)
+            throw new InvalidOperationException("Publication must bind before admission begins.");
+        _publication = publication;
     }
 
     internal void MarkCommitting(IUnitOfWork unit)
@@ -69,7 +88,8 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     {
         if (!ReferenceEquals(_unit, unit) || !CommitStarted || _announcement is null || _attempt is not { } attempt || Receipt is not null)
             throw new InvalidOperationException("An acknowledged admission requires its exact recorded attempt.");
-        Receipt = ConfirmedStartReceipt.FromAcknowledged(this, attempt);
+        Receipt = ConfirmedStartReceipt.FromAcknowledged(this, attempt, _ordinal, _admittedAt, _deadline, _ownershipUntil);
+        _publication?.Publish(this, Receipt);
     }
 }
 
@@ -78,19 +98,33 @@ public sealed class ConfirmedStartReceipt
 {
     private int _consumed;
     private ConfirmedStartReceipt(AdmitBackgroundJobAttemptCommand command, BackgroundJobAttemptId attempt,
-        BackgroundJobExecutionStage stage)
+        BackgroundJobExecutionStage stage, int normalAttemptOrdinal, DateTimeOffset admittedAt,
+        DateTimeOffset deadline, DateTimeOffset ownershipUntil, JobApplicationSourceOwner sourceOwner)
     {
         Claim = command.Claim;
         Envelope = command.Envelope;
         AttemptId = attempt;
         Stage = stage;
+        NormalAttemptOrdinal = normalAttemptOrdinal;
+        AdmittedAt = admittedAt;
+        Deadline = deadline;
+        OwnershipUntil = ownershipUntil;
+        SourceOwner = sourceOwner;
     }
     public BackgroundJobRoutingClaim Claim { get; }
     public BackgroundJobEnvelope Envelope { get; }
     public BackgroundJobAttemptId AttemptId { get; }
     public BackgroundJobExecutionStage Stage { get; }
+    public int NormalAttemptOrdinal { get; }
+    public DateTimeOffset AdmittedAt { get; }
+    public DateTimeOffset Deadline { get; }
+    public DateTimeOffset OwnershipUntil { get; }
+    public JobApplicationSourceOwner SourceOwner { get; }
     internal static ConfirmedStartReceipt FromAcknowledged(AdmitBackgroundJobAttemptCommand command,
-        BackgroundJobAttemptId attempt) => new(command, attempt, BackgroundJobExecutionStage.Transactional);
+        BackgroundJobAttemptId attempt, int ordinal, DateTimeOffset admittedAt, DateTimeOffset deadline,
+        DateTimeOffset ownershipUntil) => new(command, attempt, BackgroundJobExecutionStage.Transactional,
+            ordinal, admittedAt, deadline, ownershipUntil, JobApplicationSourceOwner.Current
+                ?? throw new InvalidOperationException("Admission must retain its application-source owner."));
     internal void Consume()
     {
         if (Interlocked.Exchange(ref _consumed, 1) != 0)
