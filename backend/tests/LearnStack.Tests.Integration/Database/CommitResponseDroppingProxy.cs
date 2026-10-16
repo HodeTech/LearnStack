@@ -6,8 +6,8 @@ using Npgsql;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Forwards a real PostgreSQL session, dropping exactly one completed COMMIT's
-/// acknowledgement. It introduces an unknown client outcome after physical commit.
+/// Forwards a real PostgreSQL session, withholding exactly one completed COMMIT's
+/// acknowledgement. The optional held socket proves cancellation independently of disconnect.
 /// </summary>
 internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 {
@@ -17,17 +17,22 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly string _targetHost;
     private readonly int _targetPort;
     private readonly bool _rejectReconciliationConnections;
+    private readonly bool _holdCommitResponse;
+    private readonly TaskCompletionSource _commitResponseHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseHeldResponse = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task _accepting;
     private int _droppedCommitResponses;
     private int _acceptedConnections;
     private readonly int _commitsToPass;
     private int _completedCommits;
 
-    public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false, int commitsToPass = 0)
+    public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false,
+        int commitsToPass = 0, bool holdCommitResponse = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(commitsToPass);
         _commitsToPass = commitsToPass;
         _rejectReconciliationConnections = rejectReconciliationConnections;
+        _holdCommitResponse = holdCommitResponse;
         var target = new NpgsqlConnectionStringBuilder(connectionString);
         _targetHost = target.Host ?? throw new ArgumentException("The test proxy requires a PostgreSQL host.", nameof(connectionString));
         _targetPort = target.Port;
@@ -49,6 +54,8 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     public string ConnectionString { get; }
     public int DroppedCommitResponses => Volatile.Read(ref _droppedCommitResponses);
     public int AcceptedConnections => Volatile.Read(ref _acceptedConnections);
+    public Task CommitResponseHeld => _commitResponseHeld.Task;
+    public void ReleaseHeldResponse() => _releaseHeldResponse.TrySetResult();
 
     public async ValueTask DisposeAsync()
     {
@@ -147,7 +154,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                 && Interlocked.CompareExchange(ref _droppedCommitResponses, 1, 0) == 0)
             {
                 // The real server has committed. Forward neither CommandComplete
-                // nor its following ReadyForQuery; disposal closes this socket.
+                // nor its following ReadyForQuery. Held mode keeps both sockets
+                // alive until the client cancels or this owned proxy is disposed.
+                if (_holdCommitResponse)
+                {
+                    _commitResponseHeld.TrySetResult();
+                    await _releaseHeldResponse.Task.WaitAsync(cancellationToken);
+                }
                 return;
             }
 

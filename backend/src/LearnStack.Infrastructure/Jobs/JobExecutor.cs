@@ -23,13 +23,14 @@ public sealed record JobStartExecutionResult(JobStartExecutionOutcome Outcome,
 
 /// <summary>Owns framework validation/admission scopes; business activation belongs to the later executor stage.</summary>
 public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAccessor accessor,
-    BackgroundJobExecutionAdmission admission)
+    BackgroundJobExecutionAdmission admission, BackgroundJobRuntimeOptions options)
 {
     public async Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
         CancellationToken cancellationToken = default)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
+        options.Validate();
         var previous = accessor.Current;
         var previousActivity = Activity.Current;
         AsyncServiceScope? scope = null;
@@ -37,6 +38,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         Activity? activity = null;
         AdmitBackgroundJobAttemptCommand? command = null;
         IUnitOfWork? unit = null;
+        CancellationTokenSource? sqlDeadline = null;
         var outcome = JobStartExecutionOutcome.Failed;
         var cleanupFailed = false;
         try
@@ -46,8 +48,10 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
             cancellationToken.ThrowIfCancellationRequested();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            sqlDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            sqlDeadline.CancelAfter(options.SqlTimeout);
             var read = await scope.Value.ServiceProvider.GetRequiredService<ISender>()
-                .Send(new ReadBackgroundJobEnvelopeQuery(claim), cancellationToken).ConfigureAwait(false);
+                .Send(new ReadBackgroundJobEnvelopeQuery(claim), sqlDeadline.Token).ConfigureAwait(false);
             if (read.IsFailure)
             {
                 outcome = JobStartExecutionOutcome.InvalidEnvelope;
@@ -56,6 +60,8 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
             {
                 // The validated read owns no service subsequently used by admission or business work.
                 cleanupFailed = !await CleanupScopeAsync(scope.Value, unit).ConfigureAwait(false);
+                sqlDeadline.Dispose();
+                sqlDeadline = null;
                 scope = null;
                 unit = null;
                 if (cleanupFailed)
@@ -70,8 +76,12 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                 scope = scopes.CreateAsyncScope();
                 unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 command = new AdmitBackgroundJobAttemptCommand(claim, read.Value);
+                // Each exact framework transaction has its own bound, including
+                // announcement and COMMIT. Keep its source through actual cleanup.
+                sqlDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                sqlDeadline.CancelAfter(options.SqlTimeout);
                 var started = await scope.Value.ServiceProvider.GetRequiredService<ISender>()
-                    .Send(command, cancellationToken).ConfigureAwait(false);
+                    .Send(command, sqlDeadline.Token).ConfigureAwait(false);
                 outcome = started.IsSuccess && command.Receipt is not null
                     ? JobStartExecutionOutcome.Started : JobStartExecutionOutcome.LostClaim;
             }
@@ -87,7 +97,8 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
             {
                 outcome = command?.CommitStarted == true && unit?.IsRollbackOnly != true
                     ? JobStartExecutionOutcome.Indeterminate
-                    : exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+                    : exception is OperationCanceledException
+                        && (cancellationToken.IsCancellationRequested || sqlDeadline?.IsCancellationRequested == true)
                         ? JobStartExecutionOutcome.Canceled
                         : exception is ArgumentException && command is null
                             ? JobStartExecutionOutcome.InvalidEnvelope : JobStartExecutionOutcome.Failed;
@@ -116,9 +127,16 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                 }
                 finally
                 {
-                    Activity.Current = previousActivity;
-                    accessor.Current = previous;
-                    authority?.Dispose();
+                    try
+                    {
+                        Activity.Current = previousActivity;
+                        accessor.Current = previous;
+                        authority?.Dispose();
+                    }
+                    finally
+                    {
+                        sqlDeadline?.Dispose();
+                    }
                 }
             }
         }

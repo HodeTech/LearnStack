@@ -4354,6 +4354,46 @@ parser controls and local link/fragment/history/whitespace checks pass.
 The final combined Docker-free receipt and complete Docker regression remain
 pending in this receipt. Neither formal review round is claimed by self-review.
 
+#### Step 3 review round 1 and verified corrections
+
+Initial implementation is `63a7f4ac`. Three fresh independent reviewers inspect
+`483463fa..63a7f4ac`: GPT-6-astra/xhigh for authority/transaction boundaries,
+GPT-6-astra/xhigh for PostgreSQL/admission/concurrency, and GPT-6.1-sol/xhigh
+for proof/census/composition/corpus. Authority and proof reviews approve with
+no findings. Storage requests one verified correction: submission inherits
+the general app source's 30-second or unlimited command timeout, violating
+the accepted positive SQL budget of at most five seconds.
+
+The storage reviewer independently reproduces the pinned-driver defaults and
+real PostgreSQL blocked-INSERT behavior in a private disposable database. Root
+confirms the actual production command and accepted bound. Submission now validates
+the existing runtime options, applies an explicit command timeout and links its
+SQL cancellation deadline. Successful INSERT alone records produced work;
+statement failure still poisons the same owner. The same source review also
+identifies that announcement/COMMIT surrounding framework commands needs a bound;
+the executor gives each exact read/start frame its own SQL deadline, retained
+through actual cleanup. Unknown COMMIT still creates no activation receipt.
+
+The combined Docker-free run passes all four assemblies: Unit 2,018,
+architecture 315, contract 4 and integration 176 — **2,513 cases**, zero failures
+or skips, with runner nonempty/zero-skip validation. The initial complete Docker
+run executes 1,637 cases: 1,636 pass and one old domain-event cleanup test fails
+because its reflection call still supplies three producer-enrollment arguments
+after the signature gained two optional attribution arguments. Root checks every
+reflection reference and adapts that test to five arguments without changing its
+cleanup/rollback assertions. This failed run is not a passing regression receipt.
+
+The corrected Release build passes with zero warnings/errors. All 66 focused
+PostgreSQL cases pass, zero failures/skips: the 40 Step 3 cases include a real
+FK-lock-blocked INSERT and a live session withholding the actual start COMMIT
+acknowledgement; the other 26 cover domain-event production and the adapted
+reflection call. The timeout controls use an unlimited actual app command default,
+prove the production deadline wins before their independent proof timeout, and
+retain poisoning, no-false-receipt, physical cleanup and restoration assertions.
+Unit 2,018 and contract 4 pass again. The combined full backend rerun remains
+in progress; no empty-filter run is counted as evidence. Round 2 has not started.
+No runtime outside the approved Step 3 boundary is added.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

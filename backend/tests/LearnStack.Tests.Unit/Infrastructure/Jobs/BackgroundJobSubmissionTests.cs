@@ -38,7 +38,7 @@ public sealed class BackgroundJobSubmissionTests
         var clock = Substitute.For<IClock>();
         var ids = Substitute.For<IGuidFactory>();
         var scheduler = new PostgresBackgroundJobScheduler(unit, producer,
-            Fixture.Registry(Fixture.Transactional()), ids, clock);
+            Fixture.Registry(Fixture.Transactional()), ids, clock, new BackgroundJobRuntimeOptions());
         var payload = new ForbiddenGetter();
 
         var action = () => scheduler.EnqueueAsync(new BackgroundJobKey<ForbiddenGetter>("jobsfixture.run.v1"), payload);
@@ -66,7 +66,7 @@ public sealed class BackgroundJobSubmissionTests
             [Fixture.Ordinary("Root", registration.Scope)], [Fixture.Module], ["jobsfixture.retired.v1"]);
         var clock = Substitute.For<IClock>();
         var ids = Substitute.For<IGuidFactory>();
-        var scheduler = new PostgresBackgroundJobScheduler(unit, producer, registry, ids, clock);
+        var scheduler = new PostgresBackgroundJobScheduler(unit, producer, registry, ids, clock, new BackgroundJobRuntimeOptions());
         var key = refusal switch
         {
             "unknown" => "jobsfixture.future.v2",
@@ -103,7 +103,7 @@ public sealed class BackgroundJobSubmissionTests
             return Guid.CreateVersion7();
         });
         var scheduler = new PostgresBackgroundJobScheduler(unit, producer,
-            Fixture.Registry(Fixture.Transactional()), ids, clock);
+            Fixture.Registry(Fixture.Transactional()), ids, clock, new BackgroundJobRuntimeOptions());
 
         var action = () => Submit(scheduler, "jobsfixture.run.v1", Parameters());
         await action.Should().ThrowAsync<InvalidOperationException>();
@@ -120,7 +120,7 @@ public sealed class BackgroundJobSubmissionTests
         using var invocation = Enroll(producer, Fixture.Request("Root"));
         var foreign = Unit();
         var scheduler = new PostgresBackgroundJobScheduler(foreign, producer,
-            Fixture.Registry(Fixture.Transactional()), new FixedGuidFactory(), new FixedClock(Now));
+            Fixture.Registry(Fixture.Transactional()), new FixedGuidFactory(), new FixedClock(Now), new BackgroundJobRuntimeOptions());
         var action = () => Submit(scheduler, "jobsfixture.run.v1", Parameters());
         await action.Should().ThrowAsync<InvalidOperationException>();
         _ = foreign.DidNotReceive().Connection;
@@ -137,7 +137,7 @@ public sealed class BackgroundJobSubmissionTests
         using var invocation = Enroll(producer, Fixture.Request("Root"));
         var ids = new FixedGuidFactory(invalid == "empty" ? Guid.Empty : Guid.NewGuid());
         var scheduler = new PostgresBackgroundJobScheduler(unit, producer,
-            Fixture.Registry(Fixture.Transactional()), ids, new FixedClock(Now));
+            Fixture.Registry(Fixture.Transactional()), ids, new FixedClock(Now), new BackgroundJobRuntimeOptions());
         var action = () => Submit(scheduler, "jobsfixture.run.v1", Parameters());
         await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*UUIDv7*");
         _ = unit.DidNotReceive().Connection;
@@ -150,7 +150,7 @@ public sealed class BackgroundJobSubmissionTests
         var producer = new ProducerExecution(unit);
         using var invocation = Enroll(producer, Fixture.Request("Root"));
         var scheduler = new PostgresBackgroundJobScheduler(unit, producer,
-            Fixture.Registry(Fixture.Transactional()), new FixedGuidFactory(), new FixedClock(Now));
+            Fixture.Registry(Fixture.Transactional()), new FixedGuidFactory(), new FixedClock(Now), new BackgroundJobRuntimeOptions());
         var action = () => scheduler.EnqueueAsync(new BackgroundJobKey<IBackgroundJobParameters>("jobsfixture.run.v1"),
             (IBackgroundJobParameters)Parameters());
         await action.Should().ThrowAsync<ArgumentException>();

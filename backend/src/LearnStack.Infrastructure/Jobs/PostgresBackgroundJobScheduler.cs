@@ -11,7 +11,7 @@ namespace LearnStack.Infrastructure.Jobs;
 /// <summary>Persists module-owned intent on the existing announced producer transaction.</summary>
 public sealed class PostgresBackgroundJobScheduler(
     IUnitOfWork unitOfWork, ProducerExecution producer, BackgroundJobDefinitionRegistry registry,
-    IGuidFactory ids, IClock clock) : IBackgroundJobScheduler
+    IGuidFactory ids, IClock clock, BackgroundJobRuntimeOptions options) : IBackgroundJobScheduler
 {
     private const string InsertSql =
         """
@@ -43,6 +43,7 @@ public sealed class PostgresBackgroundJobScheduler(
         cancellationToken.ThrowIfCancellationRequested();
         // Check enrollment before payload access or Connection's lazy-open getter.
         var origin = producer.CaptureJobOrigin(unitOfWork);
+        options.Validate();
         if (!BackgroundJobNames.Definition(key.Value) || !registry.TryGet(key.Value, out var definition)
             || definition.ParameterType != typeof(TParameters)
             || parameters.GetType() != definition.ParameterType)
@@ -79,7 +80,8 @@ public sealed class PostgresBackgroundJobScheduler(
             || !ReferenceEquals(transaction.Connection, connection))
             throw new InvalidOperationException("Job persistence requires the ambient Npgsql connection and transaction.");
 
-        await using var command = new NpgsqlCommand(InsertSql, connection, transaction);
+        await using var command = new NpgsqlCommand(InsertSql, connection, transaction)
+        { CommandTimeout = (int)Math.Ceiling(options.SqlTimeout.TotalSeconds) };
         command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, id.Value);
         command.Parameters.AddWithValue("tenant_id", NpgsqlDbType.Uuid, announcement.TenantId.Value);
         command.Parameters.AddWithValue("organization_id", NpgsqlDbType.Uuid,
@@ -99,9 +101,11 @@ public sealed class PostgresBackgroundJobScheduler(
         producer.RequireJobOrigin(origin, unitOfWork);
         if (!ReferenceEquals(unitOfWork.Transaction, transaction))
             throw new InvalidOperationException("The producer transaction changed before job INSERT.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.SqlTimeout);
         try
         {
-            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            await command.ExecuteNonQueryAsync(deadline.Token).ConfigureAwait(false);
         }
         catch
         {
