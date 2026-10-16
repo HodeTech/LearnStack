@@ -18,8 +18,11 @@ P02b-4 Step 1 implements contracts and ordinary execution guards; its
 review status. Step 2 is complete under ADR-0058, Accepted — 2026-10-16;
 its [closeout](#step-2-final-proof-and-closeout) records both fresh review rounds,
 critical-fix verification and passing regression. Step 3 submission/admission is
-in progress; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
-owns implementation and review status. Steps 4–9 and P02b-5–8 remain pending.
+complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
+owns both review rounds and passing 4,152-case backend verification. Step 4's
+[lifecycle decision](#p02b-4-step-4--server-generation-decision-2026-10-16) is
+Proposed under ADR-0059; dependent worker activation awaits approval.
+Steps 4–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -4428,6 +4431,59 @@ execution; capacity/external/recurrence and full enforcement retain their approv
 Steps 6–9. No production business definition, recurrence, worker or dashboard is
 activated by Step 3. Work remains on `development`; no push, PR or CI-head success
 is implied by this local step closeout.
+
+### P02b-4 Step 4 — server-generation decision (2026-10-16)
+
+**Preparation only; ADR-0059 Proposed, approval pending.** Step 3 closes at
+`def48a1a`, with runtime `0ddcb3e7` and both required fresh review rounds complete.
+The complete H1/expanded implementation remains authorized, but the newly exposed
+restart-policy choice is outside ADR-0047/0058's accepted integration shape.
+No dependent worker, maintenance or restart runtime is activated here.
+
+Exact-pin source inspection exposes a lifecycle qualification gap: Core links
+child shutdown to its restart token, catches canceled joins and disposes live
+children before announcing a replacement. `ShutdownTimeout=Infinite` alone does
+not fix automatic restart. A connection-floor calculation based only on one
+configured generation is therefore conditional, not an accepted/proven number.
+The stock missing-server and sustained-heartbeat-failure paths both matter.
+
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md) proposes an
+owner per pool, public stock process composition, synchronous context capture,
+classified heartbeat retries and replacement only after actual stock/LearnStack
+cleanup. An affected pool can remain unhealthy/stopped while its work is unresolved;
+healthy pools remain independent. Host stop retains the existing one finite
+external budget. Stock SQL/binaries, roles/grants, job attempts, reservations and
+business authority are unchanged. A restart never supplies external quiescence.
+
+The decision-support probe uses actual pinned Core 1.8.25 dispatcher/server code,
+provider 1.21.1 loaded identity and the repository's pinned Npgsql/Newtonsoft graph,
+with fake storage to force lifecycle events. It uses no production credential,
+existing service/database or shared repository build output. The launcher builds
+in an owned temporary directory and takes versions from the central package file:
+
+```sh
+python3 scripts/probe-hangfire-lifecycle.py
+```
+
+| Probe | Required distinction |
+|---|---|
+| Stock restart | Second generation while first actual work remains live; old context token handles are disposed despite infinite internal shutdown |
+| Fault before synchronous capture | Actual required watchdog is held; stop occurs first; capture still executes, supplied workers stay closed, no early disposal/replacement |
+| Fault after worker start | One actual generation remains owned through finite caller wait; release precedes shutdown witness and actual join |
+| Managed supplied-builder fault | Guarded failure requests draining, retains earlier actual work and skips later builders |
+| Raw supplied-builder fault | Dirty control reproduces early joined outer owner and disposed tokens while actual work remains live |
+
+These are assertion-bearing isolated feasibility controls, not LearnStack's
+production worker/PostgreSQL regression or implemented catalogue enforcement.
+Generic heartbeat retries, multiple pools, partial-resource construction,
+source disposal, actual wrapper/business cleanup and restart-after-cleanup still
+owe real production controls. Fatal memory/thread-start failures are not qualified
+by the controlled managed-builder experiment. Missing context or elapsed waiting
+cannot be interpreted as successful cleanup.
+
+The proposal and its repeatable source are under independent review. Final review
+and local validation receipts are appended only after they run. Maintainer
+acceptance remains required before implementing this changed runtime policy.
 
 ### Durable outbox dispatch
 
