@@ -125,8 +125,8 @@ Step 1 implements typed contracts and ordinary execution guards. Its
 owns completed validation and both review rounds. Step 2's
 [record](phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns locally validated schema/bootstrap and source/reset implementation under
-Accepted ADR-0058 (2026-10-16); both fresh reviews have run and the final
-correction verification remains pending.
+Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
+verification are complete.
 Steps 3–9 remain pending.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions

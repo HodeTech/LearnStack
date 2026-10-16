@@ -255,6 +255,21 @@ false healthy state must fail production predicates. No task/CTS is disposed
 while actual work/callbacks use it. Passing experiments do not replace these
 mandatory, still-pending runtime controls.
 
+## Amendments
+
+### Amendment 1 — source/reset qualification delivered (2026-10-16)
+
+**Status: Accepted. Delivery note; no decision change.**
+P02b-4 Step 2 implements the shared five-second idle-session setting and proves
+cold/warm reset, real idle/aborted-idle cleanup and healthy source reuse alongside
+existing outbox/delivery transactions. Both fresh step reviews and verified-fix
+checks are complete; the
+[Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and-closeout)
+owns exact commit, regression and distribution evidence. The earlier pending
+wording records acceptance-time state. Step 4 component/filter selection,
+expiration ownership and supported-pool progress, and Step 9 full enforcement
+remain pending. The two canonical obligations remain Registered.
+
 ## References
 
 - [ADR-0047](0047-transactional-background-job-runtime.md).

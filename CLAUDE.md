@@ -237,8 +237,8 @@ Step 1 implements typed contracts and ordinary execution guards. Its
 owns completed validation and both review rounds. Step 2's
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns locally validated schema/bootstrap and source/reset implementation under
-Accepted ADR-0058 (2026-10-16); both fresh reviews have run and the final
-correction verification remains pending.
+Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
+verification are complete.
 Steps 3–9 remain pending.
 Phase 06 retains the full
 renderer/Studio expansion.
@@ -453,8 +453,8 @@ Then read the phase that is live and the one it stands on:
   P02b-4's background-job package and ADR-0047 are Accepted — 2026-10-15.
   Nine implementation steps are authorized on `development`; Step 1 is complete,
   Step 2 is implemented and locally validated under ADR-0058, Accepted —
-  2026-10-16; both fresh Step 2 reviews have run. Final correction verification,
-  runtime activation and enforcement remain pending.
+  2026-10-16; both fresh Step 2 reviews and critical-fix verification are complete.
+  Steps 3–9 retain runtime activation and enforcement.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

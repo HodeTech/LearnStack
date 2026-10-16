@@ -15,9 +15,9 @@ P02b-4's [decision package](#p02b-4-decision-package-2026-10-15) and ADR-0047 ar
 Accepted — 2026-10-15. Nine implementation steps are authorized on `development`;
 P02b-4 Step 1 implements contracts and ordinary execution guards; its
 [record](#p02b-4-step-1--contracts-and-authority-2026-10-16) owns validation and
-review status. Step 2 validation is active under ADR-0058, Accepted — 2026-10-16;
-its [record](#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16) owns
-source/reset and runtime qualification status. Steps 3–9 and P02b-5–8 remain
+review status. Step 2 is complete under ADR-0058, Accepted — 2026-10-16;
+its [closeout](#step-2-final-proof-and-closeout) records both fresh review rounds,
+critical-fix verification and passing regression. Steps 3–9 and P02b-5–8 remain
 pending. Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -3949,7 +3949,7 @@ runtime/dependency/storage/worker guarantees are not delivered by this closeout.
 
 ### P02b-4 Step 2 — storage and guarded vendor bootstrap (2026-10-16)
 
-**Implemented — both fresh reviews run; final correction verification pending.**
+**Complete — both fresh review rounds and critical-fix verification passed.**
 This step follows the completed Step 1 on `development` under Accepted ADR-0047.
 
 Two Platform migrations introduce seven authoritative job/control tables and the
@@ -4265,6 +4265,37 @@ PostgreSQL cases**, zero failures/skips. Full canonical DDL equality and first-p
 link/fragment/history/whitespace checks pass. Fresh final-binary regression and an
 additional independent critical-fix review follow the correction commit; neither
 is claimed complete in this receipt.
+
+#### Step 2 final proof and closeout
+
+Initial implementation is `583374f5`; Round 1 verified corrections are
+`a593cd22`; Round 2 outcome corrections are `5d55ee78`. A new GPT-6-astra/xhigh
+reviewer independently approves `a593cd22..5d55ee78` with no confirmed findings.
+It traces first/next admission, known/unknown effects, finalize, terminal and
+reservation paths, SQL-null behavior and exact refusal-message controls; canonical
+SQL parity and whitespace pass. This is source review, not a claimed test rerun.
+
+Fresh final binaries from `5d55ee78` pass **4,089 backend cases**: Unit 1,995,
+architecture 315, contract 4, Docker-free integration 176 and complete Docker
+integration 1,599, zero failures/skips. The final focused 198-case run overlaps
+that total. TRX runner checks require all four assemblies and zero unexecuted cases.
+Release CI-style build has zero warnings/errors; formatting passes. These fresh
+receipts supersede the interrupted Docker rerun and earlier regression heads.
+
+The final API publish independently verifies three complete source archives,
+twelve licence/notice files, the actual package/framework graphs and original
+stock assemblies. Fifteen planted defects refuse; recipient replacement inspection
+passes. A forced `autocrlf=true` checkout preserves all 36 upstream SQL/material/
+archive hashes. Canonical SQL/resource equality, first-party links/fragments,
+Accepted ADR/history preservation and whitespace pass. Owned test/probe containers
+and proxies are cleaned up; the two previously running Saydin services are running.
+
+Both required fresh Step 2 review rounds, all verified corrections and the extra
+critical-fix review are complete. No unresolved finding remains in this step.
+Step 3 now owns submission and app-role admission. Step 4 still owns actual worker/
+component/filter/maintenance/pool qualification; Step 9 owns full observation and
+enforcement. Both extended ADR-0058 catalogue obligations remain Registered.
+No production job definition, recurrence or worker is activated by Step 2.
 
 ### Durable outbox dispatch
 
