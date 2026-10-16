@@ -4437,7 +4437,8 @@ is implied by this local step closeout.
 **Preparation only; ADR-0059 Proposed, approval pending.** Step 3 closes at
 `def48a1a`, with runtime `0ddcb3e7` and both required fresh review rounds complete.
 The complete H1/expanded implementation remains authorized, but the newly exposed
-restart-policy choice is outside ADR-0047/0058's accepted integration shape.
+server-lifecycle choice needs explicit approval: ADR-0047/0058 select H1 and
+retention, but do not select a constructor or automatic-restart policy.
 No dependent worker, maintenance or restart runtime is activated here.
 
 Exact-pin source inspection exposes a lifecycle qualification gap: Core links
@@ -4543,6 +4544,62 @@ acceptance. This closeout changes only the review receipt, not the reviewed
 policy/probes. The user's requirement to approve new ADRs before dependent
 implementation remains the gate. Step 4's real qualification and Steps 5–9 are
 pending; no worker, maintenance owner or replacement policy is activated here.
+
+
+#### External proposal review and verified revision (2026-10-16)
+
+The maintainer's response to the approval request is a review, not acceptance.
+Root verifies its findings against `b49998d9`, the Accepted records and pinned
+Core/provider source, with separate lifecycle, storage-surface and options support
+investigations. Those investigators are not the fresh review rounds below.
+ADR-0059 remains Proposed and no dependent runtime is authorized by this revision.
+
+| Finding | Verified disposition |
+|---|---|
+| B1 outer retry/repeat owner | Valid. Core retries failed announcement before capture and repeats normal server return independently of heartbeat. Add a preallocated owner, lazy complete lifecycle boundary, one-shot announcement and terminal stop fence including removal/acquisition/disposal. |
+| B2 concrete seam and surface | Valid. Name the per-pool `JobStorage` / `JobStorageConnection` decorators, lazy acquisition and in-boundary lifecycle disposal. Preserve extended capabilities, actual transactions/fetched jobs and shared inventory; pin the obsolete API/upgrade and real-provider parity gates. |
+| B3 StopTimeout and running work | Valid. Fix both stop/shutdown timers to Infinite. Local drain closes fetch/admission without canceling admitted private work; host stop has a separate retained asynchronous cancellation signal. Pre-admission wakeups may requeue. |
+| B4 availability and alternatives | Valid tradeoff. Document shared-outage/all-pool drain and whole-pool blocking despite a spare slot or storage recovery. Compare no replacement and bounded two-generation shared budgets honestly; current probes do not disprove qualified overlap. Retain the proposed one-generation choice for approval. |
+| B5 delayed/recurring dependency | Valid. Control drain stops native timers. Require independent same-generation bridge repair in Step 4 and missing-tick durable occurrence recovery in Step 8, without inventing a universal latency SLA. |
+| B6 fixed options/metadata/margin | Valid. Pin server intervals, four-minute heartbeat cutoff below five-minute expiry, one-second pacing/five-second owner backoff and exact Queues/WorkerCount dictionary values. Step 4 startup validates these constants; they are not silently new public options. |
+| B7 replacement classification | Valid. Earlier ADRs selected stock pools/retention, not a convenience constructor or automatic-restart policy. Correct the Proposed ADR/live summary to an additive lifecycle decision; accepted history is untouched. |
+| B8 census/catchability | Valid. Name forbidden facade/registration paths and exact production capability scans. Catchability matches the pinned Core exact-type OOM/StackOverflow exclusions; require actual managed fault premises and closed diagnostic callbacks, not arbitrary throwing/blocking observers. |
+| B9 upstream issue | Suggestion, not an implementation requirement or authorization to publish. No public issue is filed; a concrete qualified upstream change remains an alternative, not assumed available evidence. |
+
+The second report's smaller terminology/reference notes are also verified:
+distinguish per-server metadata from storage-wide fetched-job heartbeat, separate
+component/filter suppression, label the finite pool observation dimension without
+mapping readiness, correct cancellation-timer wording and explain the whole-pass
+heartbeat wait. Add the Database/Observability/Events and Outbox references.
+
+Root integrates twelve additional isolated actual-Core controls into the same
+owned launcher, alongside the original seven. The current builder/exit controls
+use infinite stop timeout; exit cancellation now receives an explicit host signal,
+not the pool-local stopping token. All nineteen pass with zero build warnings or
+errors. The new controls distinguish:
+
+- Raw announcement failure and normal-return repetition from stop-fenced variants.
+- Announcement acquisition/disposal and removal/acquisition/disposal failures,
+  including faults held before owner handle publication and without capture.
+- An actual caught non-InvalidOperation managed builder fault, with no later start
+  and earlier actual work/tokens retained; the premise cannot be skipped by stop.
+- Infinite versus finite StopTimeout while actual work stays live, followed by
+  an independent host signal with its real cancellation/relay tasks held and joined.
+
+The normal-return pair deliberately allows a stock heartbeat restart with no held
+old work to isolate outer repetition/removal fencing. It does not qualify supported
+heartbeat containment. Fake lifecycle resources and held `IBackgroundProcess`
+work prove neither real PostgreSQL/Worker cancellation nor partial mandatory
+thread construction, complete provider parity, common-outage/multiple-pool repair
+or actual replacement. All remain named production activation gates. The earlier
+seven-control review receipts retain their as-of scope; they are not retrospectively
+expanded to cover this external revision.
+
+Root's isolated whitespace/Release verification passes after integration;
+all nineteen distinct controls pass, along with five Release corpus cases and
+seven ADR parser controls. The first-party history/link sweep is clean. These
+checks do not rerun or relabel the earlier full 4,152-case Step 3 evidence.
+Fresh review rounds and their closeout remain pending.
 
 ### Durable outbox dispatch
 

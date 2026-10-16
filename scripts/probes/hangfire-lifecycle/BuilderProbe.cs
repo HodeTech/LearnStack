@@ -36,7 +36,7 @@ static class BuilderProbe
             ServerTimeout = TimeSpan.FromMinutes(1),
             ServerCheckInterval = TimeSpan.FromHours(1),
             CancellationCheckInterval = TimeSpan.FromHours(1),
-            StopTimeout = TimeSpan.Zero,
+            StopTimeout = Timeout.InfiniteTimeSpan,
             ShutdownTimeout = Timeout.InfiniteTimeSpan,
             RestartDelay = TimeSpan.FromMilliseconds(25),
             ExcludeStorageProcesses = true,
@@ -265,9 +265,11 @@ sealed class ManagedBuilderGuard(DrainOwner owner, IBackgroundProcessDispatcherB
     {
         if (owner.IsDraining || context.StoppingToken.IsCancellationRequested) return new CompletedDispatcher();
         try { return inner.Create(context, options); }
-        catch (InvalidOperationException)
+        catch (Exception failure) when (failure.GetType() != typeof(OutOfMemoryException)
+            && failure.GetType() != typeof(StackOverflowException))
         {
-            // Concrete probe failure. Production must enumerate its bounded managed-failure contract.
+            // Match the pinned Core catchability predicate; this controlled failure
+            // creates no partial resources and cannot qualify arbitrary construction.
             owner.RequestDrain("managed_supplied_builder_failure");
             return new CompletedDispatcher();
         }

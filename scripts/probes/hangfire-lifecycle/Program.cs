@@ -10,6 +10,13 @@ using Hangfire.Storage;
 
 LogProvider.SetCurrentLogProvider(new SilentLogProvider());
 if (args.Length != 1) throw new ArgumentException("Select one declared lifecycle probe mode.");
+if (args[0] is "announce-raw" or "announce-owned" or "acquire-owned" or "dispose-owned"
+    or "normal-raw" or "normal-owned" or "remove-owned" or "remove-acquire-owned"
+    or "remove-dispose-owned" or "builder-owned" or "drain-infinite" or "drain-finite")
+{
+    await BoundaryProbe.RunAsync(args[0]);
+    return;
+}
 if (args[0].StartsWith("builder-", StringComparison.Ordinal))
 {
     await BuilderProbe.RunAsync(args[0]);

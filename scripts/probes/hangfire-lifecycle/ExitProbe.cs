@@ -25,7 +25,7 @@ public static class ExitProbe
             HeartbeatInterval = TimeSpan.FromHours(1),
             ServerCheckInterval = TimeSpan.FromHours(1),
             CancellationCheckInterval = TimeSpan.FromHours(1),
-            StopTimeout = TimeSpan.Zero,
+            StopTimeout = Timeout.InfiniteTimeSpan,
             ShutdownTimeout = Timeout.InfiniteTimeSpan,
             LastChanceTimeout = TimeSpan.Zero,
             ExcludeStorageProcesses = true,
@@ -47,6 +47,7 @@ public static class ExitProbe
         Require(storage.Announced == 1 && Volatile.Read(ref state.ProcessLive) == 1,
             "One actual generation must be running before the host stop.");
         state.Server.SendStop();
+        state.HostStopSignal.TrySetResult(); // Host stop is separate from pool-local Core stopping.
         if (state.IsRelay)
         {
             await state.ModuleCallbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -122,6 +123,7 @@ public static class ExitProbe
         public bool IsRelay => mode == "exit-owned-relay";
         public readonly TaskCompletionSource Captured = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource ProcessStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource HostStopSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource StopSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource ShutdownSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource CancellationPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -160,7 +162,7 @@ public static class ExitProbe
                 }));
                 state.Relay = Task.Run(async () =>
                 {
-                    await state.StopSignal.Task.ConfigureAwait(false);
+                    await state.HostStopSignal.Task.ConfigureAwait(false);
                     var actualCancellation = state.ModuleCancellationSource.CancelAsync();
                     state.ModuleCancellation = actualCancellation;
                     state.CancellationPublished.TrySetResult();

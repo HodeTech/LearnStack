@@ -6,7 +6,8 @@ Proposed — maintainer approval pending.
 
 **Date:** 2026-10-16 **Deciders:** @cemil
 
-This proposal changes the H1 server restart policy and adds a generation owner;
+This proposal adds H1 server-lifecycle and ownership policy not specified by the
+earlier records;
 it does not accept itself or authorize dependent runtime. Accepted ADR-0047 and
 ADR-0058 remain the current contracts. P02b-4 Step 3 is complete; Step 4's
 lifecycle qualification exposed the issue below before worker activation.
@@ -22,6 +23,8 @@ lifecycle qualification exposed the issue below before worker activation.
   unfinished child join and disposes the child's cancellation state. An isolated
   assertion-bearing experiment reproduces two live generations and disposed
   old-context tokens even with an infinite internal shutdown option.
+- Core also repeats its outer execution after normal return or catchable startup
+  failure. Containing only heartbeat cannot make LearnStack the sole restart owner.
 - H1 should retain stock workers, schedulers, SQL, assemblies and public extension
   seams. It must not silently acquire a vendor fork or private-reflection owner.
 - Missing vendor server metadata is not proof that business or external work
@@ -32,7 +35,8 @@ lifecycle qualification exposed the issue below before worker activation.
 1. **LearnStack owns replacement after actual generation cleanup** (recommended).
    Public composition retains stock processes; a closed heartbeat adapter requests
    draining rather than allowing Core to replace live children. Other pools remain
-   serviceable. A replacement waits for actual stock and LearnStack cleanup.
+   serviceable when their dependencies are healthy. A replacement waits for actual
+   stock and LearnStack cleanup, accepting the whole-pool availability cost below.
 2. **Keep stock automatic restart and increase the connection pool** (rejected).
    Repeated restarts can overlap generations. A larger pool neither retains their
    cancellation state nor proves a finite topology or independent capacity.
@@ -50,14 +54,30 @@ lifecycle qualification exposed the issue below before worker activation.
    automatic restart semantics, but takes responsibility for internal worker,
    watchdog, heartbeat and cancellation lifecycles and their upgrades.
 
+7. **Drain without in-process replacement** (viable, not selected). It has a
+   simpler closed lifecycle, but a recovered/clean pool remains stopped until a
+   host restart. The unmapped health check currently cannot trigger one; Phase 11
+   owns readiness/supervision. Replacement after actual cleanup restores service
+   without making that future supervisor a present recovery dependency.
+8. **At most two owned generations with shared capacity** (viable, not selected).
+   It could use a spare slot after storage recovery while old work remains held.
+   Both generations would need one shared dispatch budget, retained-work bound,
+   reservation accounting and host deadline, safe old resources and a hard cap
+   of two. This is different from unbounded stock restart; that dirty control
+   does not disprove it. P4 selects simpler single-generation ownership and its
+   availability cost rather than an unqualified cross-generation compositor.
+   Selecting overlap requires its own qualification and decision before use.
+
 ## Decision
 
 **Proposed decision:** LearnStack owns each pool's Hangfire server generation and
 replaces it only after actual stock dispatchers, admitted work, callbacks and
 cleanup from that generation finish. A public compositor uses pinned stock Core
-workers/schedulers and the existing guarded provider. A closed heartbeat adapter
-converts missing-server or exhausted heartbeat faults into pool draining; it does
-not let stock Core start a replacement over live work. The host's external shutdown
+workers/schedulers and the existing guarded provider. A closed per-pool storage seam
+contains announcement,
+metadata-heartbeat and removal paths and fences Core's outer repeat loop. Pool-local
+drain closes fetch/admission without canceling running work; only the owner may
+replace the generation after actual cleanup. The host's external shutdown
 wait remains finite and shared. Approval and real qualification precede activation.
 
 ### Public composition and registration
@@ -73,16 +93,22 @@ their disjoint stock workers and Core's required server processes. Every stock
 server excludes automatic provider-component hosting: one API-instance owner,
 independent of all server generations, runs the shared stock fetched-job heartbeat
 and ADR-0058's expiration owner. Draining the control pool cannot stop fetched-job
-renewal or expiration for healthy pools. This provider heartbeat is distinct from
-the per-server metadata heartbeat intercepted below.
+renewal or expiration for healthy pools. This storage-wide fetched-job
+heartbeat (`PostgreSqlHeartbeatProcess`) is distinct from per-server metadata
+heartbeat (`JobStorageConnection.Heartbeat`) intercepted below.
 
 Keep the same cached provider instance and fetched-job tracking across all pools.
-The component inventory still suppresses only the counter aggregator; hosting
-ownership changes without replacing the selected stock heartbeat/expiration code.
+The component inventory suppresses only `CountersAggregator`; removal of the
+`StatisticsHistoryAttribute` filter is separate. Hosting ownership changes without
+replacing the selected stock heartbeat/expiration code.
 Each shared component has one actual invocation at a time, owned background work,
 retained resources through completion and its own fixed health dimension. Apply
 ADR-0058's positive wait limit of at most five minutes plus at most one second of
-cleanup waiting to each; neither owns a business worker slot. Expiration keeps
+cleanup waiting to each; neither owns a business worker slot. For fetched-job
+heartbeat this bounds waiting on an entire pass across tracked jobs, each with
+finite native SQL, rather than its one-second pacing alone. A slow retained pass
+makes health unhealthy; the owner does not overlap it or promise recovery time.
+Expiration keeps
 its one-millisecond internal interval and one-hour owner cadence. The fetched-job
 heartbeat retains its stock one-second pacing; no expiration cadence is applied
 to it. Both join under the same host deadline and outlive pool-local draining.
@@ -94,22 +120,86 @@ actual server context before it can admit supplied workers. An asynchronously
 scheduled sentinel is insufficient: stopping can prevent its body ever running.
 The capture itself supplies no tenant, request or completion authority.
 
-Managed supplied-builder failure after capture requests draining and prevents
-later starts while allowing Core to reach its actual child join. Startup failures,
+All catchable supplied-builder failures after capture request draining and prevent
+later starts while allowing Core to reach its actual child join. Match the pinned
+Core `IsCatchableExceptionType` predicate: exclude exact `OutOfMemoryException`
+and `StackOverflowException` types; do not narrow it to `InvalidOperationException`.
+The builder must own any resources it acquires before throwing. A placeholder
+cannot prove those resources completed. Startup failures,
 including faults before capture and partial dispatcher construction, must fail
 closed without pretending a ready-generation experiment proves their cleanup.
 If the public seams cannot qualify this obligation, Step 4 remains blocked and the
 decision is reopened; a timeout is never a substitute for the missing witness.
 
+### Concrete storage seam and sole replacement owner
+
+The proposed internal `PoolHangfireStorage : JobStorage` delegates to one shared,
+guarded `PostgreSqlStorage`; it never creates another provider or physical source.
+Its `GetConnection()` returns a closed `PoolHangfireConnection` derived from
+`JobStorageConnection`, with lazy provider acquisition. This concrete base matters:
+the stock schedulers cast to `JobStorageConnection` for advertised batched-set
+features. A plain `IStorageConnection` wrapper would lose that capability.
+
+The connection acquires the real provider connection, invokes the original
+`AnnounceServer`, `Heartbeat` or `RemoveServer`, and finishes that connection's
+actual disposal inside the corresponding lifecycle boundary. Outer `Dispose`
+must not repeat that disposal. This contains acquisition/disposal faults before
+Core's catches, without caller inspection, replacement SQL or private reflection.
+Non-lifecycle methods and their disposal preserve ordinary provider behavior.
+Return actual provider transactions and fetched-job objects unchanged; do not
+replace their queue, lock, heartbeat tracking or feature identities.
+
+Forward the complete pinned storage/connection surface, including `HasFeature`,
+`LinearizableReads`, read-only connections, monitoring, state handlers, required
+and storage-wide processes, options diagnostics and every extended connection
+method. Copy and freeze the nonvirtual `JobExpirationTimeout` consistently with
+the shared provider. Bootstrap materializes the exact component inventory once,
+selects ADR-0058's two actual components and freezes those instances; forwarding
+`GetComponents()` returns that selection rather than re-running the provider's
+component factory. Provider-wide/required process inventories are also pinned.
+No server automatically hosts storage components. Pass storage explicitly; no
+`JobStorage.Current` get/set, global `UseStorage` or alternative hosted-server
+registration bypasses this owner. Existing serializer configuration stays separate.
+The obsolete `GetComponents`/
+`IServerComponent` seam has narrow CS0618/CS0672 handling (or the matching
+obsolete override annotation) and an upgrade gate;
+it is not silently substituted with a different provider feature contract.
+
+Behavioral parity compares the real guarded provider with the pool decorator for
+all non-lifecycle operations, features and object identities, with only the named
+ADR-0058 component selection and lifecycle interception as intentional differences.
+A public-surface census fails on any missing/new/changed member or capability.
+These real-provider controls remain mandatory; fake storage is not parity proof.
+
+Allocate the owner before constructing Core; publish its actual server handle
+once. A lifecycle fault before publication stays owned until `SendStop` completes;
+it cannot escape into Core's retry loop or require a not-yet-run capture sentinel.
+Only one announcement may reach the provider for that owner. A second attempt is
+refused before SQL and requests the same stop. For an announcement/acquisition/
+disposal fault, complete the stop fence before returning a closed failure to Core.
+Every removal path, including normal completion or failed removal/disposal, also
+completes that stop fence before Core's execution can return or throw. Thus Core's
+outer stopping token is canceled, not merely its restart-linked child tokens.
+`RestartDelay=Infinite` is not a substitute: Core normalizes nonpositive delays.
+
+Supplied-builder guards cover catchable construction faults before they leave
+`StartDispatchers`. Required-process construction and partial public-constructor
+failures still require actual cleanup qualification; a removal fence alone cannot
+undo an earlier premature child disposal. If those public paths cannot be safely
+qualified, startup refuses and this choice reopens. No second owner or server is
+created while the previous constructor, stop or cleanup remains unresolved.
+
 ### Heartbeat faults and draining
 
-Keep the actual stock provider heartbeat SQL and exact role guard. Capture
+Keep the actual per-server metadata heartbeat SQL and exact role guard. Capture
 `BackgroundServerGoneException` as an immediate missing-server drain. Retry
 transient storage/connect/timeout faults inside the same owned callback, with
-cancelable one-second pacing and a monotonic deadline at most five minutes after
-the last confirmed heartbeat or initial announcement. Five minutes is the pinned
-stock server-timeout default; this does not promise a separate fresh five minutes
-after every fault. Each native SQL attempt still has its existing finite budget.
+cancelable one-second pacing and a four-minute monotonic retry cutoff after the
+last confirmed metadata heartbeat or initial announcement. This leaves margin
+under the fixed five-minute server expiry, including the at-most-five-second SQL
+attempt. Do not start an attempt at/past the cutoff; a late attempt may consume
+only its existing finite I/O budget. This does not promise a fresh retry window
+after every fault or that another watchdog can never remove metadata.
 A confirmed stored heartbeat resets the deadline. Exhaustion requests draining;
 unexpected authority/configuration faults drain immediately with a closed reason.
 
@@ -131,11 +221,24 @@ early. Replacement additionally requires the actual outer join, all retained
 LearnStack cleanup and live host/restart gates. Use asynchronous completion
 signaling; do not join children from a synchronous cancellation callback.
 
-Set Core's internal shutdown join to `Timeout.InfiniteTimeSpan`. This is an actual
-completion join retained by the owner, not the caller's wait deadline and not an
-SQL/socket exception. Core's finite internal timer must not dispose work after
+Set `BackgroundProcessingServerOptions.ShutdownTimeout` to
+`Timeout.InfiniteTimeSpan` (the cancellation timer, not a join API). The owner
+retains the actual completion join separately from the caller's wait deadline;
+this setting grants no SQL/socket exception. Core's finite internal timer must not
+dispose work after
 the external host wait expires. The adapter must also prevent automatic restart;
 the option alone is insufficient.
+
+Set `StopTimeout=Timeout.InfiniteTimeSpan` as well. Pool-local drain cancels
+Core's `StoppingToken`, closing fetch and admission, but must not schedule its
+`StoppedToken` or cancel a running job's private execution source. In pinned Core,
+that stopped token feeds native job cancellation and requeue. Neither stopping
+nor stopped Core tokens are forwarded/linked to module cancellation. Host stop,
+execution deadline and lease-loss gates separately request owned asynchronous
+cancellation of private sources under ADR-0047; local drain supplies none of those
+business signals. Their actual operations/callbacks stay retained. A fetched or
+initializing wakeup not yet admitted to business execution may stop/requeue; local
+drain spends no business attempt merely for that pre-execution interruption.
 
 One actual stock generation exists per pool, including draining/retained work.
 Before replacement, also join every LearnStack execution, renewal, callback and
@@ -147,13 +250,60 @@ generation rather than granting a new one.
 After confirmed cleanup, the owner may replace the affected pool with the same
 finite manifest after a cancelable five-second backoff. Failed startup retries
 use the same backoff and unhealthy state; they do not create overlapping owners
-or allocate a new operation while the previous one remains live. Other pools and
-the serialized control lanes retain service. No restart changes a job generation,
+or allocate a new operation while the previous one remains live. Other healthy
+pools and independent LearnStack control lanes can retain service, subject to
+the timer/common-dependency limits below. No restart changes a job generation,
 business attempt, reservation, external effect or tenant authority.
+
+### Availability, timers and fixed server configuration
+
+Single-generation ownership deliberately stops the entire affected pool, including
+an unused slot, until all old work/cleanup finishes. A database/connectivity outage
+past the retry cutoff can drain every pool. Storage recovery alone cannot reopen
+a pool holding a long external operation. The default one-hour / maximum 24-hour
+external wait bounds caller waiting, not actual cleanup; the outage can last
+minutes, hours or indefinitely. Disjoint pools preserve capacity isolation when
+dependencies are healthy, not availability through a common database failure.
+
+Control-pool drain stops stock delayed promotion and recurring ticks until its
+replacement. Already enqueued immediate work on a healthy target pool can still
+run. The separate fair LearnStack bridge/occurrence/recipient loop is independent
+of that generation: after database recovery it repairs due handoffs with the same
+wake generation and materializes due logical recurrence slots without requiring
+a vendor tick, preserving CoalesceLatest. Repair grace/poll/page bounds are not
+an unconditional delivery-latency SLA under backlog or absent capacity. Step 4
+must prove a delayed due job is repaired while the control generation stays held;
+Step 8 must prove the missing-tick recurrence case, each with duplicates spending
+no extra business attempt or logical occurrence.
+
+Generation policy values are fixed internal constants, not new configuration
+inputs or module overrides. Startup validates the exact resulting options and
+manifest before starting a server; Step 4 adds the checks next to the existing
+`BackgroundJobRuntimeOptions.Validate()`/composition gates. An upgrade must
+requalify the matrix and complete acquisition/callback inventory.
+
+| Setting | Selected value/source |
+|---|---|
+| HeartbeatInterval | 30 seconds |
+| ServerTimeout / ServerCheckInterval | 5 minutes / 5 minutes |
+| CancellationCheckInterval | 5 seconds |
+| StopTimeout / ShutdownTimeout | Infinite / Infinite cancellation timers; owner retains actual joins |
+| LastChanceTimeout | Zero; no extra per-server final-exit join |
+| Owner retry cutoff / retry pacing / replacement backoff | 4 minutes after confirmed heartbeat, 1 second, 5 seconds |
+| Core RestartDelay | Pinned 15 seconds; cannot grant server replacement because lifecycle exits first complete the stop fence |
+| Core child RetryDelay | Preserve the pinned constructor default delegate, held by the closed compositor; no module/configuration override |
+| Core server properties `Queues` / `WorkerCount` | Exact frozen pool `string[]` and positive `int` count from the same finite manifest used to construct workers |
+
+`Queues`/`WorkerCount` are dictionary properties consumed by Core, not fields on
+`BackgroundProcessingServerOptions`. Missing/default-zero or divergent metadata
+refuses activation. The four-minute cutoff leaves a one-minute expiry margin;
+clock/storage scheduling can still cause a missing-server result, which drains
+safely. No timeout value is execution/quiescence authority.
 
 ### Host shutdown, bounds and observation
 
-Host stop closes restart and acquisition gates before requesting all pool stops.
+Host stop closes restart and acquisition gates before requesting all pool stops
+and separately signals the retained private-source cancellation relays.
 It uses ADR-0047's one existing external shutdown budget across pools, bridge,
 maintenance and cancellation/cleanup waits. It never resets the budget for a
 replacement or disposes unresolved work when caller waiting ends. Actual late
@@ -180,6 +330,11 @@ callbacks, join/dispose work in that callback or invoke a blocking observer. Rel
 cancellation to private execution sources through separately retained asynchronous
 cancellation operations. The vendor diagnostic observer on these paths also only
 records fixed memory state; sinks and supplied delegates do not run there.
+Step 4 must close/qualify the current `HangfireBoundedLogProvider` observer:
+its existing supplied `Action` bounds data but can still throw or block. Core logs
+before the heartbeat try; storage interception cannot contain that observer.
+An injected throwing/blocking observer must refuse activation, not leak into Core.
+Catchable owner/dispatcher callbacks use the same closed failure/retention policy.
 
 The closed relay and pinned vendor callbacks require explicit process-exit
 qualification. A dirty direct callback must reproduce the hang; the supported
@@ -197,7 +352,8 @@ normal host wait and qualified nonblocking exit callbacks, not successful cleanu
 of work terminated by the OS or an absolute OS scheduling deadline.
 
 Retained/draining generations and heartbeat faults make the registered, unmapped
-`jobs` check unhealthy under a finite pool key and fixed state/reason. Keep actual
+`jobs` check unhealthy under a finite registry pool label and fixed state/reason.
+That label is an observation dimension, not a readiness mapping. Keep actual
 running work, retained work and confirmed storage heartbeat distinct. Log no
 provider exception object, SQL, tenant, job, actor, parameter or trace value.
 Phase 11 still owns readiness routing, alert thresholds and process supervision.
@@ -208,19 +364,28 @@ enforces its qualified supported configuration and proves independent progress a
 that boundary. This proposal chooses no guessed numeric floor or nonpooled rule.
 The existing workers-plus-four, bridge-four and separate expiration bounds remain.
 
-### Configuration replacement and additive seams
+### Additive lifecycle policy and prior-contract preservation
 
-| Existing authority | Proposed change | Preserved |
+ADR-0047 says, “Use disjoint transactional/external/control capability queues with
+separate stock Hangfire server pools and worker counts.” Its lifecycle section
+also requires retained actual resources and one shared finite shutdown budget.
+Neither it nor ADR-0058 selects `BackgroundJobServer`, a convenience constructor
+or an automatic-restart policy. This ADR adds the concrete lifecycle integration
+needed to satisfy those obligations; it does not replace an earlier selected
+constructor/restart decision.
+
+| Existing authority | Additive seam | Preserved |
 |---|---|---|
-| ADR-0047 H1 stock pools and Lifecycle and observation | Replace convenience-server/automatic restart policy with public stock composition and owner-controlled replacement after actual cleanup | Stock workers/schedulers/assemblies/SQL, H1 business authority, disjoint queues, attempt and capacity semantics |
-| ADR-0058 child-resource retention and shared host join | Add synchronous generation capture, server-heartbeat containment, actual-generation joins and closed cancellation relay; explicitly qualify final process exit separately from graceful cleanup | Selective counter/history suppression, finite enabled SQL/socket budgets and one shared external shutdown deadline |
-| ADR-0058 shared provider heartbeat/expiration | Host both selected components independently of pool generations, with single-flight owned invocations | The same stock code/cached tracking, expiration cadence, retained resources and no business worker/reservation |
+| ADR-0047 stock pools and lifecycle | Public compositor, one-shot storage lifecycle fence, synchronous context capture, explicit local-drain/host-stop distinction and owner-controlled replacement | Stock code/SQL, disjoint queues, actual-work/attempt/capacity ownership and one host wait budget |
+| ADR-0058 component selection and resource retention | Independent shared fetched-job heartbeat hosting, frozen component instances, closed cancellation relay and qualified final process exit | Existing API-instance expiration owner/cadence, selective suppression and finite enabled I/O |
 
-The policy replacement and additive owner seams are new normative content. On
-acceptance, dated Amendments in ADR-0047 and ADR-0058 disclose/link them while
-preserving all earlier bytes and acceptance metadata. This is not an ADR-0041
-fact correction or whole-record retirement. There is no role, grant, schema,
-business request, generic owner, context setter or public recovery API addition.
+On acceptance, dated additive Amendments in ADR-0047 and ADR-0058 disclose/link
+this policy while preserving all prior bytes and acceptance metadata. There is
+no previously selected convenience/restart sentence to supersede or correct.
+This is not an ADR-0041 fact correction, configuration replacement or whole-record
+retirement. New lifecycle policy still requires maintainer approval. No role,
+grant, schema, business request, generic owner, context setter or public recovery
+API is added.
 
 ## Context
 
@@ -229,7 +394,11 @@ CTS. `WaitForDispatchers` catches cancellation of the linked shutdown token;
 `DisposeDispatchers` then disposes unfinished dispatchers. `BackgroundDispatcher`
 disposes its execution/countdown objects without joining the actual thread.
 Heartbeat requests this restart on missing server metadata and sustained storage
-faults. The outer host can still be running, so another generation can start.
+faults. Independently, `BackgroundExecution.Run` repeats after successful return
+and retries catchable exceptions until its outer stopping token is canceled.
+Announcement happens before child capture and before the generation's finally;
+removal follows normal/failed child execution. Containing only heartbeat is
+therefore incomplete. The outer host can still run while another generation starts.
 
 The initial exact-pin experiment holds an actual `IBackgroundProcess`, injects
 missing-server heartbeat metadata and observes a second generation while the
@@ -243,8 +412,8 @@ It retains one generation and accessible tokens until the actual operation is
 released. That experiment alone does not prove startup: a queued sentinel can
 be skipped after stop. Synchronous public builder experiments then force failure
 before capture, after worker start and during managed supplied-builder
-construction. Their owned
-variants preserve token/resource lifetime; the raw builder-failure control
+construction. Their owned variants preserve token/resource lifetime; the raw
+builder-failure control
 reproduces premature disposal. These qualify only the tested public mechanism,
 not arbitrary partial-resource construction, fatal runtime failure or production
 PostgreSQL/multiple-pool behavior.
@@ -280,7 +449,11 @@ occupancy. Phase 03 operator recovery and Phase 11 supervision remain unchanged.
 ### Negative
 
 - LearnStack owns a public process compositor, generation drain and retry policy.
+- A shared outage can drain every pool; one long/retained operation blocks all
+  fresh starts in its pool, including a spare slot, after storage recovers.
 - A pool can remain stopped indefinitely if actual work or cleanup never returns.
+- Control-pool drain delays stock timers; independent authoritative repair remains
+  required and does not supply an unconditional dispatch-latency guarantee.
 - Heartbeat interception and startup failures require pinned upgrade proofs.
 
 ### Neutral
@@ -292,7 +465,8 @@ occupancy. Phase 03 operator recovery and Phase 11 supervision remain unchanged.
 
 P02b-4 Step 4 owns the public compositor, synchronous capture, classified server
 heartbeat window, per-pool generation owner, independent shared component owner,
-closed cancellation relay, actual shutdown retention and process-exit proofs.
+closed cancellation relay, exact fixed options, actual shutdown retention and
+process-exit proofs. Step 8 owns missing-tick recurrence recovery qualification.
 Step 9 owns final observation/censuses and full regression. Existing Accepted
 records, Standards 05/10/20/21, Events and Outbox architecture and current roadmap
 carriers receive the named update only after maintainer acceptance and delivery
@@ -304,25 +478,37 @@ Extend existing canonical obligations without inventing a parallel rule spelling
 
 - `Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role`: exact public stock
   process/component/filter inventory, synchronous generation capture and closed
-  heartbeat path, acquisition/disposal fault containment, finite enabled I/O and
-  unchanged guarded source. Unsupported/missing owners refuse before activation.
+  lifecycle storage/connection seam, full public-surface/feature parity, exact
+  fixed options/metadata, acquisition/disposal fault containment and unchanged
+  guarded source. Enumerate production construction/registration calls and
+  reject `BackgroundJobServer`, `AddHangfireServer` and `UseHangfireServer` bypasses
+  outside the closed compositor. Public member, obsolete-seam or vendor upgrade
+  drift refuses before activation; no source-string-only bypass census.
 - `BackgroundJob_Worker_Pools_Reserve_Independent_Capacity`: actual-generation
   nonoverlap, no early token/server/resource disposal, retained actual stop/callback
-  ownership, independent healthy pools, supported floor and one host deadline.
+  ownership, sole outer-loop replacement owner, local drain without business
+  cancellation, independent healthy pools/repair, supported floor and one host
+  deadline. Two-generation budgets are not silently multiplied.
 - `BackgroundJob_Storage_And_Credentials_Are_Confined`: enumerate the concrete
   compositor/connection/owner capability callers; no forwarding or generic bypass.
 
 Mandatory controls include stock restart as a dirty control; missing-server and
-persistent/transient heartbeat faults; successful heartbeat reset; before-capture,
+persistent/transient metadata-heartbeat faults; successful heartbeat reset;
+announcement/acquisition/disposal faults before capture, normal removal/return,
+removal/disposal faults and contained startup exceptions; before-capture,
 after-capture and partial-start failures; held SQL and cancellation/disposal;
-control-pool draining while shared provider heartbeat/healthy pools continue;
+control-pool draining while shared fetched-job heartbeat/healthy pools continue
+and the independent bridge repairs a due delayed handoff; common database outage
+then recovery with one long retained operation and a spare slot still closed;
+infinite-versus-finite StopTimeout, separate host cancellation, fixed options and
+nonempty queues/positive worker-count metadata;
 direct-callback versus closed-relay process exit; host stop during draining/backoff;
 late completion; exact one replacement only after both stock and LearnStack
 cleanup; and truthful health while retained.
 Use real pinned workers/PostgreSQL and actual role/grants in production proofs.
 Restoring stock restart, skipping capture, returning a heartbeat fault early or
 starting replacement before cleanup must fail the production predicates. The
-isolated fake-storage experiment does not satisfy those obligations.
+isolated fake-storage experiments do not satisfy those production obligations.
 
 ## References
 
@@ -330,9 +516,15 @@ isolated fake-storage experiment does not satisfy those obligations.
 - [ADR-0058](0058-bounded-stock-hangfire-maintenance.md).
 - [Documentation governance](../standards/13-documentation.md#correcting-and-amending-adrs).
 - [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
+- [Database Standards](../standards/05-database.md).
+- [Observability Standards](../standards/10-observability.md).
+- [Events and Outbox architecture](../architecture/15-event-and-outbox.md).
 - [Architecture-test catalogue](../standards/21-architecture-tests-catalogue.md).
 - [Pinned Core generation owner](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Server/BackgroundServerProcess.cs).
 - [Pinned Core dispatcher](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Processing/BackgroundDispatcher.cs).
 - [Pinned Core heartbeat](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Server/ServerHeartbeatProcess.cs).
 - [Pinned public server composition](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Server/BackgroundProcessingServer.cs).
 - [Pinned provider connection](https://github.com/hangfire-postgres/Hangfire.PostgreSql/blob/e0a4001c6627695d61a0eea19d4403882e4cea34/src/Hangfire.PostgreSql/PostgreSqlConnection.cs).
+- [Pinned Core outer execution loop](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Processing/BackgroundExecution.cs).
+- [Pinned Core server options](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/Server/BackgroundProcessingServerOptions.cs).
+- [Pinned storage surface](https://github.com/HangfireIO/Hangfire/blob/1d4778c23410b365b5f9ce35458202efe0b0f3ea/src/Hangfire.Core/JobStorage.cs).

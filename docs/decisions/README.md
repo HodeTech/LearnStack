@@ -98,7 +98,7 @@ claims no job runtime or enforcement.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0059 | [Owned Hangfire Server Generations](0059-owned-hangfire-server-generations.md) | Proposed 2026-10-16: public stock composition and owner-controlled restart after actual generation cleanup; no dependent runtime approved | P02b-4 Step 4 lifecycle qualification before worker activation |
+| 0059 | [Owned Hangfire Server Generations](0059-owned-hangfire-server-generations.md) | Proposed 2026-10-16: additive public composition, one-shot storage lifecycle fences and owner-controlled replacement after actual cleanup; no dependent runtime approved | P02b-4 Step 4 lifecycle qualification before worker activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

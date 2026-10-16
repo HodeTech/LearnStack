@@ -20,7 +20,12 @@ import xml.etree.ElementTree as ET
 
 
 EXIT_MODES = ("exit-direct-callback", "exit-owned-relay")
-MODES = ("stock-restart", "builder-before", "builder-after", "builder-throw", "builder-throw-raw", *EXIT_MODES)
+BOUNDARY_MODES = (
+    "announce-raw", "announce-owned", "acquire-owned", "dispose-owned",
+    "normal-raw", "normal-owned", "remove-owned", "remove-acquire-owned",
+    "remove-dispose-owned", "builder-owned", "drain-infinite", "drain-finite",
+)
+MODES = ("stock-restart", "builder-before", "builder-after", "builder-throw", "builder-throw-raw", *EXIT_MODES, *BOUNDARY_MODES)
 PACKAGES = ("Hangfire.Core", "Hangfire.PostgreSql", "Npgsql", "Newtonsoft.Json")
 
 
@@ -166,7 +171,7 @@ def interrupted(signum, _frame):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=MODES, action="append", help="Run selected modes; default: all seven.")
+    parser.add_argument("--mode", choices=MODES, action="append", help="Run selected modes; default: all nineteen.")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     versions = {
@@ -191,7 +196,7 @@ def main():
         directory = Path(temporary)
         ET.ElementTree(project).write(directory / "probe.csproj", encoding="unicode")
         shutil.copy2(root / "backend/global.json", directory / "global.json")
-        for name in ("Program.cs", "BuilderProbe.cs", "ExitProbe.cs"):
+        for name in ("Program.cs", "BuilderProbe.cs", "ExitProbe.cs", "BoundaryProbe.cs"):
             shutil.copy2(root / "scripts/probes/hangfire-lifecycle" / name, directory / name)
         run_owned(["dotnet", "build", "probe.csproj", "--configuration", "Release", "-nodeReuse:false"],
                   directory, environment, 120)
