@@ -25,6 +25,8 @@ Vendor-maintenance configuration and ownership derive from
 [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
 Accepted server lifecycle and its bounded availability qualification derive from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
+The exceptional startup/unsafe-unwind process boundary derives from
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
 because they are easy to conflate:
@@ -729,6 +731,18 @@ actual cleanup. Other healthy pools remain independent subject to common
 dependencies; hard retention bounds, attempts, reservations and quiescence hold.
 The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 is authorized; implementation, production proofs and activation remain pending.
+
+**Accepted exceptional boundary — 2026-10-16.**
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md) selects
+nongraceful whole-API termination for opaque prevalidated constructor failure or
+observed Core unwind without qualified normal child-join evidence, before or after
+capture. This explicitly qualifies healthy-other-pool availability through dated
+ADR-0047/0059 amendments; ordinary classified pre-child faults, qualified cleanup
+and heartbeat draining retain ADR-0059. A startup stall alone is retained/unhealthy.
+Process-wide job-start/replacement gates close first; death releases no durable
+attempt, external uncertainty or reservation. Real fatal-child, callback/dump and
+worker/PostgreSQL qualification remains mandatory before activation. Phase 11 owns
+production supervision and crash diagnostics; acceptance claims no delivered runtime.
 
 - Modules submit typed registered jobs on their announced business transaction.
   Transactional and external prepare/execute/finalize profiles retain distinct

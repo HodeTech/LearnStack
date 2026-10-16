@@ -24,7 +24,11 @@ owns validation, review and PR closeout status),
 [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
 (Accepted 2026-10-15; P02b-4 obligations Registered, implementation in progress),
 [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
-(Accepted 2026-10-16; maintenance extensions Registered, runtime proofs pending). The
+(Accepted 2026-10-16; maintenance extensions Registered, runtime proofs pending),
+[ADR-0059 Owned Hangfire Server Generations](../decisions/0059-owned-hangfire-server-generations.md)
+(Accepted 2026-10-16; lifecycle qualification Registered),
+[ADR-0060 Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
+(Accepted 2026-10-16; exceptional boundary proofs Registered, runtime pending). The
 catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
@@ -5078,8 +5082,10 @@ extends the existing bootstrap and independent-capacity assertions below.
 [Accepted ADR-0059](../decisions/0059-owned-hangfire-server-generations.md#architecture-tests)
 adds public lifecycle/conditional-cleanup, closed storage and generation ownership
 qualification to the existing bootstrap, credential and capacity obligations.
-All nineteen names are Registered. A step's partial foundation is not enforcement
-of the complete assertion; promotion names its actual tests when they ship.
+[Accepted ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md#architecture-tests)
+adds the exceptional fatal-boundary assignments below; no rule is promoted by
+acceptance. All nineteen names are Registered. A step's partial foundation is not
+enforcement of the complete assertion; promotion names its actual tests when they ship.
 Production business/recurrence registries remain empty; real framework subjects
 and fixture definitions must make the eventual controls non-vacuous.
 
@@ -5169,6 +5175,9 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** exact two wrapper signatures/arguments/queues are admitted before
   activation; below-filter storage guards and bounded logging contain private
   values even on stock filter-disabled fallback or direct malformed writes.
+  Fatal diagnostics use a finite pool/stage set without exception objects; isolated
+  child environment/resource/collector prerequisites, absent dump artifacts and
+  finally/exit markers distinguish fatal from normal exit with a dirty gate control.
 - **Type:** invocation census, real worker fallback and stored/logged canary controls.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
@@ -5178,6 +5187,10 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** schema 23, exact stock objects/ACLs, guarded sync/async connections,
   disabled unguarded reconnect/schema preparation/degraded startup, bounded native
   SQL and the qualified dependency/licence graph are required before workers start.
+  Prevalidation and conditional-join premises precede activation. A nonempty exact
+  termination-capability census confines the sole FailFast(string) sink and callers;
+  exception overloads, alternate Exit/Kill and forwarding/delegate/async escapes fail.
+  Structural callers do not substitute for behavioral state-dominance proof.
   Exact pinned component/filter inventories selectively suppress aggregation/history
   while preserving expiration/heartbeat and required admission/retry filters, with
   a positive one-millisecond internal expiration interval and unchanged assemblies.
@@ -5255,7 +5268,12 @@ and fixture definitions must make the eventual controls non-vacuous.
 ### `BackgroundJob_Worker_Pools_Reserve_Independent_Capacity`
 
 - **Asserts:** finite disjoint queues and bounded server slots preserve other pools
-  under long work, blocked bridge calls and simultaneous overruns. Atomic stop-start
+  under long work, blocked bridge calls and simultaneous overruns, subject to the
+  explicit ADR-0059 drain and ADR-0060 whole-process availability exceptions.
+  Constructor/before-after-capture unwind, skipped removal, second announcement,
+  outer completion, retained startup stalls and global gate/stop/final-exit races
+  have decisive fatal and nonfatal controls; no missing join authorizes replacement.
+  Atomic stop-start
   thresholds retain all admitted work within workers-plus-four ownership bounds.
   One actual shared expiration invocation across actual pools uses an owned
   background thread, completion-based cadence and cancelable pacing without duplicate

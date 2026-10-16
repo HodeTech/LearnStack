@@ -24,10 +24,12 @@ owns both review rounds and passing 4,152-case backend verification. Step 4's
 ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
 implementation, production qualification and worker activation remain pending.
 The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
-opens Proposed ADR-0060; the [external-review revision](#adr-0060-external-review-revision-2026-10-16)
-compares quarantine and broadens the proposed state classification to unsafe
-Core unwind after capture. Fatal runtime still requires approval. The independent
-bridge/storage slice is committed at `422519b0`; its reviews remain open.
+records ADR-0060's reviewed revision; its
+[acceptance](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) on 2026-10-16
+authorizes dependent fatal/lifecycle implementation. Production qualification and
+activation remain pending. The independent bridge/storage foundation and verified
+review corrections are committed at `422519b0` / `9db4822d`; their scoped receipts
+below do not close full Step 4's runtime gates.
 Steps 4–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
@@ -4992,6 +4994,38 @@ No reviewer executes a resource, fatal-child, worker or PostgreSQL experiment.
 These are proposal-review receipts, not maintainer acceptance or runtime proof.
 The revised ADR-0060 remains Proposed; dependent fatal implementation still waits
 for approval, and real lifecycle qualification precedes activation.
+
+
+##### ADR-0060 acceptance and Step 4 continuation (2026-10-16)
+
+The maintainer approves the revised ADR-0060 at `189f3bcf` and explicitly requests
+implementation. Acceptance precedes dependent runtime commits on `development`.
+It selects the conservative opaque-construction/unsafe-unwind fatal policy after
+comparing viable quarantine, including before-thread false positives and the
+whole-API/healthy-pool availability cost. Stalled startup remains retained unhealthy
+ownership, not timeout-based fatal selection. No exit releases durable uncertainty
+or reservations; earlier-admission effects remain authoritative.
+
+The acceptance carrier commit adds dated bounded supersession amendments to
+ADR-0047 and ADR-0059, keeps their bodies/metadata intact, moves ADR-0060 into the
+Active index and reconciles current front doors, Standards 20/21, architecture 15
+and Phase 11's explicit operations ownership. Three existing canonical proof
+assertions are extended without changing Registered status or published counts.
+ADR-0058's ordinary maintenance contract remains unchanged.
+
+Step 4 resumes the actual generation owner, shared components, host/exit gates,
+closed fatal capability and real pinned worker/PostgreSQL qualification. It still
+must complete its implementation commit, two fresh independent full-step review
+rounds and verified fix commits before Step 5. Fatal child prerequisites must be
+qualified before launch; unsupported dump/collector settings fail, never skip.
+No acceptance receipt claims runtime delivery, production readiness or activation.
+
+Focused independent acceptance audit passes after fixing the Active-table row and
+derivation-header navigation. All 52 prior Accepted ADRs preserve their bodies;
+the two named amendments add only new lines. Seven ADR parser controls, five
+corpus architecture cases and a 1,543-local-link / 468-fragment sweep pass, with
+zero failures/skips or broken targets. Published catalogue counts/statuses remain
+unchanged. The acceptance commit contains documentation only.
 
 ### Durable outbox dispatch
 

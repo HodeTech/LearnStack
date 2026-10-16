@@ -134,10 +134,10 @@ Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-a
 and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
 implementation, production qualification and worker activation remain pending.
 The [required-startup qualification record](phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
-opens Proposed ADR-0060. Its
-[external-review revision](phase-02b-events-auth.md#adr-0060-external-review-revision-2026-10-16)
-compares quarantine and classifies unsafe unwind after capture. The revised fatal
-policy requires approval before implementation; qualification precedes activation.
+records the reviewed ADR-0060 revision. Its
+[acceptance](phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)
+authorizes the conservative fatal boundary and dependent implementation on
+2026-10-16. Real lifecycle qualification still precedes worker activation.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

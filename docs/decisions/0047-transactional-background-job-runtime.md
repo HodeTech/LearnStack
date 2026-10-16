@@ -875,6 +875,28 @@ adapted Step 4; actual worker/PostgreSQL, surface-parity, startup/resource,
 multi-pool and exit qualification remain mandatory before activation. No runtime
 delivery or enforcement is claimed by this amendment.
 
+### Amendment 3 — Fatal startup and unsafe-unwind boundary (2026-10-16)
+
+Accepted [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md) adds an
+explicit whole-API failure exception to the two progress clauses quoted in
+[Amendment 2](#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16)
+and that amendment's preserved healthy-other-pool independence/no-wider-progress
+reading. An opaque prevalidated Core constructor failure, or observed Core unwind
+without qualified normal child-join evidence before or after capture, selects
+closed process-wide job-start/replacement gates and nongraceful termination.
+The constructor classification deliberately includes pre-thread false positives.
+Healthy pools and HTTP work can be interrupted; quarantine remains a coherent
+alternative, not a disproved safety strategy.
+
+Ordinary classified pre-child faults, qualified joins/cleanup and heartbeat drain
+retain ADR-0059. A stalled startup is retained unhealthy ownership, not fatal
+merely because a deadline elapsed. No process exit supplies cleanup/quiescence,
+releases reservations, resets attempts or permits another external execution.
+This is a maintainer-approved bounded normative supersession, not an ADR-0041
+fact correction or whole-record replacement. Original body, metadata and prior
+amendments remain intact. Step 4 implements/qualifies the boundary; Step 9 owns
+full enforcement. Acceptance supplies no runtime delivery or activation proof.
+
 ## References
 
 - [ADR-0003 Tenant Isolation](0003-tenant-isolation-defense-in-depth.md)

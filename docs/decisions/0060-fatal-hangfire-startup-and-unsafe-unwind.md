@@ -2,16 +2,19 @@
 
 ## Status
 
-Proposed — maintainer approval pending.
+Accepted — 2026-10-16.
 
 **Date:** 2026-10-16 **Deciders:** @cemil
 
-This revision uses ADR-0059's qualification/reopening gate. It proposes a process
-boundary for opaque construction or observed Core unwind without qualified normal
-child-join evidence, including after capture. It changes the remedy and availability
-of healthy pools at that boundary; it does not establish that fatal termination
-is technically inevitable. ADR-0059 remains Accepted. No fatal runtime or worker
-activation is authorized by this proposal.
+**Maintainer acceptance — 2026-10-16.** The maintainer approves the reviewed
+revision at `189f3bcf` and authorizes dependent P02b-4 Step 4 implementation on
+`development`. This decision uses ADR-0059's qualification/reopening gate and
+selects a process boundary for opaque construction or Core unwind without
+qualified normal child-join evidence, including after capture. It changes the
+remedy and healthy-pool availability; fatal termination is not technically
+inevitable. ADR-0047 and ADR-0059 retain their historical bodies with dated bounded
+supersession amendments. Acceptance is not implementation, enforcement, worker
+activation or production qualification; those gates remain mandatory.
 
 ## Decision Drivers
 
@@ -24,7 +27,7 @@ activation is authorized by this proposal.
 - H1 means stock Hangfire transports wakeups while LearnStack owns durable business
   state. The integration should retain public seams and unchanged vendor assemblies/
   SQL, without manufacturing a child join from capture, a timeout or outer completion.
-- Permanent pool quarantine is a coherent availability alternative. This proposal
+- Permanent pool quarantine is a coherent availability alternative. This decision
   instead prefers an explicit process failure over continued service with unqualified
   private lifecycle ownership, accepting loss of healthy pools and HTTP work.
 - A fixed diagnostic and process exit give an operator/process observer a visible
@@ -35,7 +38,7 @@ activation is authorized by this proposal.
 
 ## Considered Options
 
-1. **Fatal boundary for unqualified construction/unwind** (chosen proposal).
+1. **Fatal boundary for unqualified construction/unwind** (chosen).
    Close process-wide job-start/replacement gates and request termination with a
    closed diagnostic. This is a conservative containment/operability preference,
    not proof that every selected state has a live leaked child.
@@ -45,7 +48,7 @@ activation is authorized by this proposal.
    work, not business handlers, and may exit after their next iteration. No public
    witness proves that every control exited safely after premature disposal.
    Quarantine cannot undo that disposal, but neither can fatal termination. Both
-   choices require changing ADR-0059's qualified-cleanup remedy. The proposal
+   choices require changing ADR-0059's qualified-cleanup remedy. The decision
    chooses a visible process boundary over retaining this unresolved state;
    quarantine has not been disproved or runtime-qualified by this investigation.
 3. **Ordinary host stop as the remedy** (not selected). It can stop known handles,
@@ -62,7 +65,7 @@ activation is authorized by this proposal.
 
 ## Decision
 
-**Proposed decision:** LearnStack selects nongraceful API-process termination for
+LearnStack selects nongraceful API-process termination for
 an opaque prevalidated constructor failure or an observed Core unwind lacking
 qualified normal child-join evidence. Capture alone is insufficient. A closed
 owner seals process-wide starts/replacement with fixed memory transitions, then
@@ -181,7 +184,7 @@ Termination interrupts all API/pool work and supplies no normal finally/exit cle
 in-process restart or finite OS deadline. P4 has no automatic supervisor recovery;
 a subsequent host start is operator-driven. Phase 11 explicitly owns supervision,
 restart/backoff/crash-loop and termination policy, plus the triggered worker-process
-topology decision. A separate worker host is not authorized by this proposal.
+topology decision. A separate worker host is not authorized by this decision.
 
 External providers and local child/process trees, including future ffmpeg work, may
 outlive the API. Parent death, missing metadata and expired leases do not fence late
@@ -215,7 +218,7 @@ From [Concrete storage seam and sole replacement owner](0059-owned-hangfire-serv
 
 ADR-0059 Option 1 states “Other pools remain serviceable when their dependencies
 are healthy.” Option 4 rejects whole-host drain on every heartbeat fault and states
-“Fatal process failures remain the deployment supervisor's concern.” This proposal
+“Fatal process failures remain the deployment supervisor's concern.” This decision
 preserves ordinary heartbeat retry/drain, but expressly selects application-detected
 fatal refusal for the opaque/unqualified states above, including during replacement
 of a previously healthy pool. Initial boot refusal can terminate the API; runtime
@@ -235,7 +238,7 @@ clauses still preserved by
 
 Amendment 2 expressly preserves “Other healthy pools remain independent subject to
 shared dependencies” and selects “No wider progress or whole-record supersession”.
-This proposal adds the named fatal-boundary exception to that narrower availability
+This decision adds the named fatal-boundary exception to that narrower availability
 reading, preserving normal draining/retry and all business/capacity authority.
 
 Only the selected unqualified construction/unwind remedy, conservative overlap and
@@ -306,13 +309,13 @@ is asserted by assigning that work.
 ## Implementation Notes
 
 P02b-4 Step 4 owns phase facts, startup observation, global gates, the closed fatal
-capability and child proofs; Step 9 owns full caller enforcement/regression. Before
-implementation, acceptance must update ADR-0059 and ADR-0047 by dated amendments,
-the decisions
+capability and child proofs; Step 9 owns full caller enforcement/regression. This
+acceptance updates ADR-0059 and ADR-0047 by dated amendments, the decisions
 index/current phase/front doors, Standards 20 § Background Jobs and Hangfire,
 Standards 21's named assertions below, and architecture 15 § Background job transport
-and maintenance. Phase 11's explicit supervision/dump/topology work is a carrier.
-No current catalogue status/count changes or runtime proof is claimed at proposal.
+and maintenance before dependent implementation. Phase 11's explicit
+supervision/dump/topology work is a carrier.
+No catalogue status/count promotion or runtime proof is claimed by acceptance.
 
 ## Architecture Tests
 

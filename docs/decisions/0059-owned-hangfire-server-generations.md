@@ -541,6 +541,34 @@ Restoring stock restart, skipping capture, returning a heartbeat fault early or
 starting replacement before cleanup must fail the production predicates. The
 isolated fake-storage experiments do not satisfy those production obligations.
 
+## Amendments
+
+### Amendment 1 — Fatal startup and unsafe-unwind boundary (2026-10-16)
+
+Accepted [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md) uses the
+qualification/reopening gates in [Public composition and registration](#public-composition-and-registration)
+and [Concrete storage seam and sole replacement owner](#concrete-storage-seam-and-sole-replacement-owner).
+It replaces the selected unqualified-construction/unwind remedy with a conservative
+fatal boundary, including opaque prevalidated constructor failures and observed
+Core unwind without qualified normal child-join evidence after capture. It does
+not retroactively claim cleanup or that every selected state has a live child.
+Initial refusal or runtime replacement can terminate the whole API.
+
+This explicitly qualifies Option 1's healthy-other-pool serviceability and Option
+4's supervisor-only fatal reading at that named boundary; ordinary heartbeat
+retry/drain is unchanged. The corresponding preserved ADR-0047 progress clauses
+are disclosed in its [Amendment 3](0047-transactional-background-job-runtime.md#amendment-3--fatal-startup-and-unsafe-unwind-boundary-2026-10-16).
+Qualified ordinary failures and joined cleanup remain retained/nonfatal. Final
+teardown invalidates normal-join inference; a startup stall alone is not fatal.
+No second owner, earlier cleanup inference or durable reservation release follows.
+
+The maintainer approves this bounded normative supersession on 2026-10-16.
+Original Status/Date/Deciders, Decision and rationale remain unchanged. This is
+not an ADR-0041 correction or whole-record retirement. No further ADR-0058 amendment
+is required: its ordinary shared-maintenance contract remains intact. Step 4's
+real lifecycle/fatal-child/worker/PostgreSQL qualification and Step 9 enforcement
+remain pending; acceptance authorizes implementation, not activation.
+
 ## References
 
 - [ADR-0047](0047-transactional-background-job-runtime.md).

@@ -731,6 +731,13 @@ adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-eve
 is authorized, with implementation, real worker/PostgreSQL, surface/lifecycle,
 multi-pool and process-exit qualification still pending before activation.
 
+**Accepted exceptional boundary — 2026-10-16.**
+Accepted [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
+adds a whole-API failure boundary to H1's ordinary per-pool ownership. Its exact
+trigger, global start gates, durable uncertainty and qualification requirements
+are carried by [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
+Step 4 owns implementation; acceptance provides no activated worker or crash proof.
+
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session
 cleanup. [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire)

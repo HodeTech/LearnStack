@@ -303,7 +303,8 @@ bounds request *cost* once a request is inside. Neither substitutes for the othe
   backoff and crash-loop alerts/runbooks. Preserve
   [ADR-0059's host/exit boundary](../decisions/0059-owned-hangfire-server-generations.md#host-shutdown-bounds-and-observation);
   [ADR-0060's fatal remedy](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
-  remains Proposed until accepted. P02b-4 promises no automatic supervisor restart.
+  is Accepted — 2026-10-16; its runtime qualification remains P02b-4 work.
+  P02b-4 promises no automatic supervisor restart.
   A restarted API supplies no positive external quiescence or reservation release.
 - **Production crash diagnostics.** Own runtime and OS crash-collector/dump policy:
   default enablement, secret exposure, access, storage, export and retention/deletion.
