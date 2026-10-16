@@ -129,6 +129,14 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async Task DisposeAsync() => await _container.DisposeAsync();
 
+    // Outage qualification creates its own local fixture. Never call these on
+    // SchemaFixture.Postgres: pausing that shared container would affect other proofs.
+    internal Task PauseOwnedServerAsync(CancellationToken cancellationToken = default) =>
+        _container.PauseAsync(cancellationToken);
+
+    internal Task UnpauseOwnedServerAsync(CancellationToken cancellationToken = default) =>
+        _container.UnpauseAsync(cancellationToken);
+
     /// <summary>
     /// Runs the roles script a second time against the already-provisioned
     /// cluster, so a test can assert that a re-run is a no-op rather than an error.

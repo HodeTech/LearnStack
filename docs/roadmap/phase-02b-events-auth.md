@@ -21,16 +21,16 @@ critical-fix verification and passing regression. Step 3 submission/admission is
 complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns both review rounds and passing 4,152-case backend verification. Step 4's
 [lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
-ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 implementation is in
-progress; complete production qualification and worker activation remain pending.
+ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
+composition qualification under Accepted ADR-0060; business execution stays Step 5.
 The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
 records ADR-0060's reviewed revision; its
 [acceptance](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) on 2026-10-16
-authorizes dependent fatal/lifecycle implementation. Production qualification and
-activation remain pending. Independent bridge/storage and owned lifecycle
-foundations, verified corrections and focused reviews are recorded below; those
-scoped receipts do not close full Step 4's runtime gates.
-Step 4 is in progress; Steps 5–9 and P02b-5–8 remain pending.
+authorizes dependent fatal/lifecycle implementation. The
+[Step 4 closeout](#full-step-4-round-2-correction-validation-and-closeout-2026-10-16)
+records passing qualification and both full review rounds with verified corrections.
+Step 4 is locally complete; Step 5 is in progress. Steps 6–9 and P02b-5–8 remain
+pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -5398,6 +5398,85 @@ controls overlap it and are not added again. No frontend/demo/current-head CI is
 claimed here; Step 9 owns packet-wide reruns. Round 1's verified corrections are
 qualified; a fresh full Step 4 round 2 follows their commit. Step 4 remains open
 until that round and any verified corrections complete. Steps 5–9 remain pending.
+
+##### Full Step 4 review round 2 (2026-10-16)
+
+Round-1 corrections are committed as `53ec8a4a`; normal Leakwatch/format hooks pass
+without changing the 22 validated C# source hashes. Three new independent
+reviewers inspect the complete `def48a1a..53ec8a4a` range (123 files): GPT-6
+Astra/xhigh for runtime/lifecycle and two GPT-6.1 Sol/xhigh reviewers for
+evidence/censuses and security/composition/corpus. They inspect the 4,408-case
+passing receipts without rerunning them and affirm all four first-round fixes.
+
+One unique Major qualification gap remains: ADR-0059 explicitly requires sustained
+metadata-heartbeat cutoff/reset and common database outage/recovery with an actual
+held old operation, a spare slot and fewer than four retained entries. Current
+controls prove real transient SQL recovery and separately requested drains, but
+do not compose that mandatory matrix. The runtime reviewer independently confirms
+the same gap; neither review alleges a demonstrated production-code failure.
+Root verifies the accepted obligation and missing coverage. Isolated PostgreSQL
+outage and owner-clock controls are being added before Step 4 closes; their native
+Core/SQL observations and logical clock advances remain separately labeled.
+
+The security/corpus review also verifies one Minor status mismatch: Standards 05
+and Events/Outbox architecture still describe both full reviews as pending. Their
+live summaries now delegate review dispositions to this owning record, preserving
+earlier dated receipts. No new ADR, runtime policy, grant or business definition
+is introduced by these corrections. New qualification and correction review remain
+pending; Steps 5–9 do not start until Step 4's verified findings are closed.
+
+##### Full Step 4 round-2 correction validation and closeout (2026-10-16)
+
+The two added controls exercise the shipped lifecycle with actual PostgreSQL.
+One holds the real server row, verifies transient failure without stored progress,
+then observes a stored success resetting the owner cutoff. At the renewed exact
+boundary, the owner refuses before provider acquisition or SQL. The other pauses
+only a test-owned PostgreSQL container and lets all three actual native metadata
+heartbeats fault. Owner-clock advances then drive past-cutoff drain. After real
+storage recovery, the two clean pools replace their generations and serve work;
+the affected pool retains its old actual scope cleanup despite a spare native
+slot and one retained entry. Only positive cleanup permits its one replacement
+and the pending admission. No shared fixture container is paused.
+
+These controls keep native Core heartbeat cadence and SQL/socket bounds real;
+the four-minute policy interval uses the owner's logical clock. The held scope
+is a synthetic barrier around actual native framework work. Neither test claims
+four minutes of wall-clock outage, genuine resource-exhaustion incidence,
+external-effect quiescence or production supervision.
+
+The final corrected-source focused run passes both controls. Three separately
+compiled, temporary mutations of actual production source each fail at the
+intended behavior: removed cutoff permits forbidden issuance; removed successful
+reset refuses the next valid heartbeat; replacing actual cleanup with the stock
+child join starts generation two while generation one still owns held cleanup.
+Each mutant builds successfully and executes its one expected failing case with
+zero skips. Original production bytes are restored and the CI-mode Release
+solution rebuild passes with zero warnings/errors. These expected red controls
+are not additional passing cases.
+
+A fresh independent runtime reviewer inspects the complete correction and all
+final receipts, verifies source hashes and restored production bytes, and finds
+no remaining issue. This supplements the full second round rather than replacing
+it. The status corrections in Database Standards and Events/Outbox architecture
+now link their current qualification to this owning record. No Accepted policy,
+grant, dependency, migration or production business definition changes.
+
+The final complete Docker/PostgreSQL suite passes 1,743 cases, zero failures/skips,
+in 12m33s. The unchanged non-Docker partitions retain the round-1 receipt: 2,166
+unit, 321 architecture, four contract and 176 HTTP integration cases. Together
+these cover 4,410 distinct backend cases; this is a combined receipt, not a fresh
+run of all five partitions at this correction. The two focused passes overlap
+that complete Docker suite and are not added again. Six current corpus/trait
+checks and seven ADR parser controls pass. The changed-document audit resolves
+1,919 local links and 559 fragments with zero errors; added prose wrapping and
+whitespace checks pass. None of these overlapping checks adds to the case total.
+
+Both full Step 4 reviews and all verified findings are closed. Step 4 is locally
+complete; Step 5 proceeds automatically on development with the existing approved
+transactional-owner, retry/recovery and terminal-audit scope. Steps 6–9 retain
+capacity, external effects, recurrence and packet-wide enforcement/CI. No frontend,
+demo, current-head CI or completed production business definition is claimed by
+this closeout.
 
 ### Durable outbox dispatch
 

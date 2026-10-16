@@ -3577,8 +3577,10 @@ construction. Contract-only registration remains lazy and activates no worker.
 The [Step 2 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns delivery status: Step 2 implements idle-session settings and source/reset
 qualification. The [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-owns current runtime/source qualification; implementation is in progress and both
-full Step 4 review rounds remain pending. Step 9 owns full observation/enforcement.
+owns current runtime/source qualification and full-step review dispositions.
+Step 4 is locally complete after both full review rounds and verified corrections.
+Later SQL lanes require fresh capacity qualification; Step 9 owns full
+observation/enforcement.
 
 #### Shared dispatcher source lifetime and capacity
 

@@ -430,7 +430,7 @@ public sealed class HangfirePoolOwnerTests(SchemaFixture schema)
 
     // Only owner/observer timers use this clock; Core workers, guarded provider
     // calls, actual joins and stock transport execution remain real operations.
-    private sealed class ManualTimeProvider : TimeProvider
+    internal sealed class ManualTimeProvider : TimeProvider
     {
         private readonly object _sync = new();
         private readonly HashSet<ManualTimer> _timers = [];
@@ -440,6 +440,7 @@ public sealed class HangfirePoolOwnerTests(SchemaFixture schema)
         public override DateTimeOffset GetUtcNow() { lock (_sync) return DateTimeOffset.UnixEpoch.AddTicks(_ticks); }
         internal int ActiveTimers { get { lock (_sync) return _timers.Count; } }
         internal bool HasDelay(TimeSpan delay) { lock (_sync) return _timers.Any(timer => timer.Duration == delay); }
+        internal int DelayCount(TimeSpan delay) { lock (_sync) return _timers.Count(timer => timer.Duration == delay); }
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {

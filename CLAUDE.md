@@ -241,18 +241,19 @@ Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
 verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
-owns implementation and review status. Step 4 is in progress; Steps 5–9 remain pending.
+owns implementation and review status. Step 4 is locally complete after both full
+review rounds and verified corrections. Step 5 is in progress; Steps 6–9 remain pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 implementation is in
-progress; complete production qualification and worker activation remain pending.
+and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
+composition qualification under Accepted ADR-0060; business execution stays Step 5.
 The [required-startup qualification record](docs/roadmap/phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
 records the reviewed ADR-0060 revision. Its
 [acceptance](docs/roadmap/phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)
 authorizes the conservative fatal boundary and dependent implementation on
-2026-10-16. Real lifecycle qualification still precedes worker activation.
+2026-10-16. Step 4 records passing real lifecycle qualification before activation.
 The [source-lifetime continuation](docs/roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-records the implemented pool/facade ownership and current local qualification;
-full Step 4 review gates remain open.
+records the implemented pool/facade ownership, passing local qualification and
+completed full Step 4 review gates. Production business definitions remain empty.
 Phase 06 retains the full
 renderer/Studio expansion.
 
@@ -468,9 +469,9 @@ Then read the phase that is live and the one it stands on:
   Step 2 is implemented and locally validated under ADR-0058, Accepted —
   2026-10-16; both fresh Step 2 reviews and critical-fix verification are complete.
   Step 3 submission/admission is complete with both fresh review rounds;
-  ADR-0059 and the Step 4 adaptation are Accepted — 2026-10-16; implementation
-  is in progress and production qualification remains pending. Steps 4–9 retain runtime
-  activation and enforcement.
+  ADR-0059 and the Step 4 adaptation are Accepted — 2026-10-16. Step 4 is locally
+  complete after both full reviews and verified corrections; Step 5 transactional
+  business execution is in progress. Steps 6–9 retain later infrastructure/enforcement.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

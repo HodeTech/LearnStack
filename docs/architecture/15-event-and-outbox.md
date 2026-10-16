@@ -728,8 +728,9 @@ independent subject to shared dependencies. The exact two-clause supersession
 is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
 [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
 adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-is authorized. Implementation is in progress; full production qualification and
-both full Step 4 review rounds remain pending before activation.
+is authorized. Implementation and full-step review corrections are locally complete;
+the [Step 4 record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns qualification of the shipped lifecycle/API composition and review dispositions.
 
 **Accepted exceptional boundary — 2026-10-16.**
 Accepted [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
@@ -763,9 +764,9 @@ owns completed schema/bootstrap/source qualification. The
 [Step 3 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns submission and app-role admission implementation/review status;
 the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
-owns facade/source-lifetime implementation and remaining qualification. Step 9
+owns completed facade/source-lifetime implementation and qualification. Step 9
 owns full observation/enforcement. Both extended canonical obligations remain
-Registered; decision acceptance and local slice proofs do not close full Step 4.
+Registered; Step 4 closeout does not claim later business or packet-wide enforcement.
 
 ## Service extraction readiness
 

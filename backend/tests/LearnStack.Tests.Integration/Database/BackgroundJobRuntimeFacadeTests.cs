@@ -191,7 +191,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
     }
 
     private static BackgroundJobRuntime Runtime(IServiceProvider services, PrivilegedDataSource source,
-        BackgroundJobRuntimeOptions? bounds = null, BackgroundJobPhysicalPoolSettings? physical = null)
+        BackgroundJobRuntimeOptions? bounds = null, BackgroundJobPhysicalPoolSettings? physical = null,
+        TimeProvider? timeProvider = null)
     {
         bounds ??= new();
         var definitions = services.GetRequiredService<BackgroundJobDefinitionRegistry>();
@@ -199,7 +200,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
         var ids = new SystemGuidFactory();
         var routing = new PostgresBackgroundJobRoutingStore(source, definitions, bounds, ids, gate);
         var runtime = new BackgroundJobRuntime(source, definitions, BackgroundJobRecurrenceRegistry.CreateEmpty(),
-            services.GetRequiredService<JobExecutor>(), routing, gate, bounds, ids, TimeProvider.System,
+            services.GetRequiredService<JobExecutor>(), routing, gate, bounds, ids, timeProvider ?? TimeProvider.System,
             physical ?? new(false, 100), new HangfireBoundedLogProvider());
         // The direct host removes both API messaging workers before startup.
         // Each completed task is a no-issued-work fact, never a substitute for
