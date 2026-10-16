@@ -25,9 +25,9 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("The privileged bridge store and bridge owner must remain public sealed subjects");
         var constructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
             BoundaryGuardedSource, "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory");
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", JobRuntimeGate);
         var reader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
-            "System.Threading.Tasks.ValueTask`1<Npgsql.NpgsqlConnection>", MethodAttributes.Private, BoundaryCancellation);
+            "System.Threading.Tasks.ValueTask`1<Npgsql.NpgsqlConnection>", MethodAttributes.Private, "System.Boolean", BoundaryCancellation);
         var claim = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobBridgeClaim + ">",
             MethodAttributes.Assembly, "System.Collections.Generic.IReadOnlyCollection`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>",
             BoundaryCancellation);
@@ -44,7 +44,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         var bridgeConstructor = RequireBoundaryMethod(offenders, bridge, ".ctor", "System.Void", MethodAttributes.Public,
             JobBridgeStore, "LearnStack.Infrastructure.Jobs.HangfireWakeupClient",
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider");
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider", JobRuntimeGate);
         var quantum = RequireBoundaryMethod(offenders, bridge, "RunQuantumAsync", BoundaryBooleanTask,
             MethodAttributes.Public, BoundaryCancellation);
         var stop = RequireBoundaryMethod(offenders, bridge, "StopAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation);

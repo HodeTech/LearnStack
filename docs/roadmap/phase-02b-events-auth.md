@@ -21,16 +21,16 @@ critical-fix verification and passing regression. Step 3 submission/admission is
 complete; its [record](#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns both review rounds and passing 4,152-case backend verification. Step 4's
 [lifecycle acceptance](#maintainer-acceptance-and-step-4-adaptation-2026-10-16) and
-ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
-implementation, production qualification and worker activation remain pending.
+ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 implementation is in
+progress; complete production qualification and worker activation remain pending.
 The [required-startup qualification](#step-4-required-startup-qualification-2026-10-16)
 records ADR-0060's reviewed revision; its
 [acceptance](#adr-0060-acceptance-and-step-4-continuation-2026-10-16) on 2026-10-16
 authorizes dependent fatal/lifecycle implementation. Production qualification and
-activation remain pending. The independent bridge/storage foundation and verified
-review corrections are committed at `422519b0` / `9db4822d`; their scoped receipts
-below do not close full Step 4's runtime gates.
-Steps 4–9 and P02b-5–8 remain pending.
+activation remain pending. Independent bridge/storage and owned lifecycle
+foundations, verified corrections and focused reviews are recorded below; those
+scoped receipts do not close full Step 4's runtime gates.
+Step 4 is in progress; Steps 5–9 and P02b-5–8 remain pending.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -4444,8 +4444,8 @@ is implied by this local step closeout.
 
 **Current authority:** [maintainer acceptance and the Step 4 adaptation](#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 below accept ADR-0059 on 2026-10-16. The following preparation and review receipts
-retain their original pre-acceptance state; implementation and production
-qualification remain pending.
+retain their original pre-acceptance state; implementation is in progress and full
+production qualification remains pending.
 
 **Preparation only; ADR-0059 Proposed, approval pending.** Step 3 closes at
 `def48a1a`, with runtime `0ddcb3e7` and both required fresh review rounds complete.
@@ -5117,6 +5117,70 @@ The proof reviewer reports no Blocker/Major/Minor. Both verified suggestions are
 applied: the constructor-shape assertion includes public and nonpublic members;
 the foundation receipt distinguishes six Linux scenarios from its one in-memory
 predicate control. Complete Step 4 qualification/activation remains pending.
+
+##### Foundation review round 2 (2026-10-16)
+
+Two new independent reviewers inspect `e0d39bf5..28433f29`: GPT-6 Astra with
+xhigh effort covers runtime and GPT-6.1 Sol with xhigh effort covers evidence/corpus.
+Both approve the scoped foundation with no Blocker/Major/Minor. They independently
+verify the swallowed-renewal mechanism, sticky health, positive storage recovery,
+constructor census and six-Linux/one-memory proof boundary. They do not rerun the
+toolchain or substitute their source review for the recorded execution receipts.
+
+Root verifies/applies the one nonblocking suggestion: README now distinguishes
+in-progress implementation from pending full qualification/activation and points
+its current-phase link to Phase 02b. Both focused foundation review rounds are
+complete; the remaining Step 4 integration and fresh full-step rounds stay open.
+
+##### Pool replacement and framework cleanup ownership (2026-10-16)
+
+**Further implementation slice; Step 4 remains in progress.** One closed
+`HangfirePoolOwner` retains each actual generation and its supervision task.
+Replacement requires positive generation cleanup, the fixed five-second backoff
+and live owner/process gates. A startup-stalled generation stays closed even
+after its late cleanup joins; stop-before-start has a positive no-issued-work path.
+
+Generation-local work owns private cancellation sources and the actual routing
+and admission tasks. Local drain closes starts without canceling that work;
+host stop requests asynchronous cancellation independently of Core tokens.
+Cancellation callbacks and failed cleanup remain owned after wrapper return.
+Four retained entries close further starts, with workers-plus-four as the hard
+ownership bound. Real stock joins do not substitute for private-work completion.
+
+Routing publishes its opaque claim only after acknowledged COMMIT and actual
+resource cleanup. Failed cleanup retains the concrete reader, command,
+transaction and connection. Framework admission likewise carries concrete failed
+scope/unit/activity/authority/source owners in its result: a completed async task
+may clear its state-machine locals. This correction preserves the actual failed
+DI scope and unit rather than relying on the completed task alone.
+
+Bridge operations bind ownership before scheduling native startup and recheck the
+process/local gates at actual creation and SQL acquisition. Startup return, native
+end, observer return and positive cleanup have separate witnesses. Unknown startup
+or observer cleanup cannot be pruned as completed; ordinary host stop preserves
+durable late-handoff repair without a new local ACK acquisition.
+
+Validation passes a zero-warning/error solution build, 2,109 Unit cases, 74 focused
+PostgreSQL cases and the full 319-case Architecture suite, all with zero skips.
+The PostgreSQL set includes six real pool-owner cases, seven routing-cleanup cases
+and five added generation-work cases. Those cover actual routing/DI cleanup held
+past stock joins, real native admission/cancellation, delayed callbacks and exact
+failed-scope retention. Four retained entries in the threshold proof are explicitly
+synthetic framework occupancy; native refusal/restored admission are real. The
+throwing-disposable proof repairs only its synthetic fixture during teardown and
+does not introduce a production recovery API.
+
+Initial architecture runs expose the moved routing transaction's stale exact
+caller inventories and the wrapper's declared sequential-task ownership exception.
+Updating those precise owners preserves the privileged-entry checks and planted
+controls; the fresh full rerun passes. A filter selecting no tests is excluded
+from evidence. Earlier failed runs are not added to passing counts.
+
+API facade/source-lifetime integration, supported physical capacity and full Core
+phase qualification remain pending. The new Core-phase fixture's first actual run
+fails during isolated PostgreSQL setup, before arming any fault; its receipt
+predicate passes. This is setup feedback, not fatal-policy qualification. Neither
+this slice nor its tests activate workers or close full Step 4's review gates.
 
 ### Durable outbox dispatch
 

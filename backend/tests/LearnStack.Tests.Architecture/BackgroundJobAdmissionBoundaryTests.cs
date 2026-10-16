@@ -83,7 +83,7 @@ public sealed partial class OutboxDispatchConventionTests
             [TypeId(types[(InfrastructureAssembly, JobRoutingStore)])]);
 
         Capability(DeliveryApplication, JobRoutingClaim, ".ctor", [(DeliveryApplication, JobClaimSource, "MintClaim")]);
-        Capability(DeliveryApplication, JobClaimSource, "MintClaim", [(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync")]);
+        Capability(DeliveryApplication, JobClaimSource, "MintClaim", [(InfrastructureAssembly, JobRoutingStore, "TryClaimOwnedAsync")]);
         Capability(DeliveryApplication, JobRoutingClaim, "EnterOnce", [(DeliveryApplication, JobAdmission, "EnterFramework")]);
         Capability(DeliveryApplication, JobStartReceipt, ".ctor", [(DeliveryApplication, JobStartReceipt, "FromAcknowledged")]);
         Capability(DeliveryApplication, JobStartReceipt, "FromAcknowledged", [(DeliveryApplication, JobStartRequest, "RecordCommitted")]);
@@ -263,9 +263,12 @@ public sealed partial class OutboxDispatchConventionTests
         if (!store.IsSealed) offenders.Add("The privileged job-routing store must remain sealed");
         var constructor = RequireBoundaryMethod(offenders, store, ".ctor", "System.Void", MethodAttributes.Public,
             BoundaryGuardedSource, "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory");
-        var reader = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobRoutingClaim + ">",
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", JobRuntimeGate);
+        var publicReader = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobRoutingClaim + ">",
             MethodAttributes.Public, "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", BoundaryCancellation);
+        var reader = RequireBoundaryMethod(offenders, store, "TryClaimOwnedAsync",
+            "System.Threading.Tasks.Task`1<" + JobRoutingStore + "/OwnedRoutingRead>",
+            MethodAttributes.Assembly, "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", BoundaryCancellation);
         var sourceFields = store.Fields.Where(field => field.Name == "_source").ToArray();
         if (sourceFields.Length != 1 || !sourceFields[0].IsPrivate || !sourceFields[0].IsInitOnly || sourceFields[0].IsStatic
             || sourceFields[0].FieldType.FullName != BoundaryGuardedSource)
@@ -306,6 +309,8 @@ public sealed partial class OutboxDispatchConventionTests
             "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration);
         var run = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRoutingStore, "TryClaimOwnedAsync", reader,
+            [publicReader + ":call", run + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, ".ctor", activatorConstructor,
             [create + ":newobj", bind + ":newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
@@ -344,7 +349,7 @@ public sealed partial class OutboxDispatchConventionTests
         var types = census.Types;
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var routing = types[(InfrastructureAssembly, JobRoutingStore)];
-        foreach (var capability in routing.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync"))
+        foreach (var capability in routing.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync" or "TryClaimOwnedAsync"))
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
                 AssertMutation(census, "a confined routing-store escape", () =>
                     AddCallProbe(application, "ExtraRoutingStoreConsumer", capability, opcode), CredentialOffenders);

@@ -108,13 +108,32 @@ public static class HangfireInvocationContract
                 || job.Args[1] is not long expected || expected != generation
                 || Interlocked.Exchange(ref _entered, 1) != 0) throw Refused();
             if (owner?.TryAdmitInvocation() == false) return;
-            var claim = await routing.TryClaimAsync(id, generation).ConfigureAwait(false);
-            if (claim is null) return;
-            if (claim.Queue != job.Queue) throw Refused();
-            if (owner?.TryAdmitInvocation() == false) return;
-            // Step 4 supplies transport and committed admission only. Step 5
-            // extends JobExecutor with the business participant/completion owner.
-            _ = await executor.ExecuteAsync(claim, startGate: owner is null ? null : owner.TryAdmitInvocation).ConfigureAwait(false);
+            var work = owner?.TryBeginWork();
+            if (owner is not null && work is null) return;
+            var cleanupConfirmed = false;
+            try
+            {
+                var token = work?.Token ?? CancellationToken.None;
+                var route = routing.TryClaimOwnedAsync(id, generation, token);
+                work?.HoldRouting(route);
+                var read = await route.ConfigureAwait(false);
+                cleanupConfirmed = read.CleanupConfirmed;
+                if (!cleanupConfirmed || read.Failed || read.Claim is not { } claim) return;
+                if (claim.Queue != job.Queue) throw Refused();
+                if (owner?.TryAdmitInvocation() == false) return;
+                // Step 4 supplies transport and committed admission only. Step 5
+                // extends JobExecutor with the business participant/completion owner.
+                var admission = executor.ExecuteAsync(claim, startGate: owner is null ? null : owner.TryAdmitInvocation,
+                    cancellationToken: token);
+                work?.HoldAdmission(admission);
+                cleanupConfirmed = false;
+                var result = await admission.ConfigureAwait(false);
+                cleanupConfirmed = !result.CleanupFailed;
+            }
+            finally
+            {
+                if (work is not null) await work.CompleteAsync(cleanupConfirmed).ConfigureAwait(false);
+            }
         }
 
         internal Task RunTickAsync(string key, long revision)

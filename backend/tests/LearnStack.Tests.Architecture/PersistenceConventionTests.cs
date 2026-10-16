@@ -412,6 +412,15 @@ public sealed partial class PersistenceConventionTests
         ["LearnStack.Infrastructure/Jobs/HangfireSharedComponents.cs"] =
             "Two process-owned stock maintenance lanes retain actual native work and cancellation cleanup; "
             + "neither component holds an ambient unit or module DbContext (ADR-0058/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireGenerationWork.cs"] =
+            "Generation-owned private cancellation observations retain callbacks through real cleanup; "
+            + "the helper acquires no ambient unit, module DbContext or physical connection (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireInvocationContract.cs"] =
+            "The closed transport wrapper retains actual routing/admission tasks for generation cleanup and awaits them sequentially; "
+            + "routing owns its privileged connection and JobExecutor creates fresh private scopes, never a wrapper ambient unit (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfirePoolOwner.cs"] =
+            "One process-owned supervision loop retains each stock generation through actual cleanup and backoff; "
+            + "it uses no ambient unit or module DbContext (ADR-0059).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobBridge.cs"] =
             "Process-owned bridge joins already-started stock client calls at shutdown; "
             + "each SQL quantum owns its own privileged connection and no ambient unit of work (ADR-0047).",

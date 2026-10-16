@@ -19,7 +19,21 @@ public enum JobStartExecutionOutcome
 }
 
 public sealed record JobStartExecutionResult(JobStartExecutionOutcome Outcome,
-    ConfirmedStartReceipt? Receipt, bool CleanupFailed);
+    ConfirmedStartReceipt? Receipt, bool CleanupFailed)
+{
+    internal IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup { get; init; } = [];
+}
+
+/// <summary>A faulted cleanup keeps its concrete resources; a completed async task alone does not.</summary>
+internal sealed class JobStartCleanupOwnership(AsyncServiceScope? scope, IUnitOfWork? unit,
+    CancellationTokenSource? deadline, Activity? activity, IDisposable? authority)
+{
+    internal AsyncServiceScope? Scope { get; } = scope;
+    internal IUnitOfWork? Unit { get; } = unit;
+    internal CancellationTokenSource? Deadline { get; } = deadline;
+    internal Activity? Activity { get; } = activity;
+    internal IDisposable? Authority { get; } = authority;
+}
 
 /// <summary>Owns framework validation/admission scopes; business activation belongs to the later executor stage.</summary>
 public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAccessor accessor,
@@ -41,6 +55,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         CancellationTokenSource? sqlDeadline = null;
         var outcome = JobStartExecutionOutcome.Failed;
         var cleanupFailed = false;
+        var retainedCleanup = new List<JobStartCleanupOwnership>();
         try
         {
             accessor.Current = null;
@@ -59,7 +74,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
             else
             {
                 // The validated read owns no service subsequently used by admission or business work.
-                cleanupFailed = !await CleanupScopeAsync(scope.Value, unit).ConfigureAwait(false);
+                cleanupFailed = !await CleanupScopeAsync(scope.Value, unit, sqlDeadline, retainedCleanup).ConfigureAwait(false);
                 sqlDeadline.Dispose();
                 sqlDeadline = null;
                 scope = null;
@@ -109,11 +124,13 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         {
             try
             {
-                if (scope is { } owned) cleanupFailed |= !await CleanupScopeAsync(owned, unit).ConfigureAwait(false);
+                if (scope is { } owned)
+                    cleanupFailed |= !await CleanupScopeAsync(owned, unit, sqlDeadline, retainedCleanup).ConfigureAwait(false);
             }
             catch
             {
                 cleanupFailed = true;
+                retainedCleanup.Add(new(scope, unit, sqlDeadline, null, null));
             }
             finally
             {
@@ -124,6 +141,7 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                 catch
                 {
                     cleanupFailed = true;
+                    retainedCleanup.Add(new(null, null, null, activity, null));
                 }
                 finally
                 {
@@ -131,19 +149,33 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
                     {
                         Activity.Current = previousActivity;
                         accessor.Current = previous;
-                        authority?.Dispose();
+                        try { authority?.Dispose(); }
+                        catch
+                        {
+                            cleanupFailed = true;
+                            retainedCleanup.Add(new(null, null, null, null, authority));
+                        }
                     }
                     finally
                     {
-                        sqlDeadline?.Dispose();
+                        try { sqlDeadline?.Dispose(); }
+                        catch
+                        {
+                            cleanupFailed = true;
+                            retainedCleanup.Add(new(null, null, sqlDeadline, null, null));
+                        }
                     }
                 }
             }
         }
-        return new(outcome, command?.Receipt, cleanupFailed);
+        return new(outcome, command?.Receipt, cleanupFailed)
+        {
+            RetainedCleanup = retainedCleanup.AsReadOnly(),
+        };
     }
 
-    private static async Task<bool> CleanupScopeAsync(AsyncServiceScope scope, IUnitOfWork? unit)
+    private static async Task<bool> CleanupScopeAsync(AsyncServiceScope scope, IUnitOfWork? unit,
+        CancellationTokenSource? deadline, List<JobStartCleanupOwnership> retained)
     {
         try
         {
@@ -152,6 +184,10 @@ public sealed class JobExecutor(IServiceScopeFactory scopes, ITenantContextAcces
         }
         catch
         {
+            // DI can stop before every service is disposed, and the fallback
+            // below can itself fail. Retain both actual owners in the result;
+            // async state machines are allowed to clear locals on completion.
+            retained.Add(new(scope, unit, deadline, null, null));
             // DI stops at the first throwing disposable and marks the scope disposed.
             // Retain the exact unit before handler resolution so a later service cannot
             // strand its connection. Its idempotent cleanup is awaited under the same

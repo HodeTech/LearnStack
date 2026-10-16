@@ -76,10 +76,11 @@ public sealed partial class OutboxDispatchConventionTests
             "System.Object", "System.EventArgs");
         var beginExit = RequireBoundaryMethod(offenders, gate, "BeginFinalExit", "System.Void", MethodAttributes.Assembly);
 
-        // This source slice is deliberately uncomposed. Host composition must add
-        // an exact caller contract here when it is implemented, never a wildcard.
+        // The process-wide host facade is still uncomposed. The closed pool owner
+        // alone constructs generations; host integration must name its exact gate caller.
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, ".ctor", gateConstructor, []);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobGeneration, ".ctor", generationConstructor, []);
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobGeneration, ".ctor", generationConstructor,
+            [InfrastructureAssembly + ":System.Threading.Tasks.Task LearnStack.Infrastructure.Jobs.HangfirePoolOwner::SuperviseAsync():newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "ForPool", forPool, [generationConstructor + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobFatalBoundary, "Terminate", poolFatal,
             [construct + ":callvirt", unwind + ":callvirt"]);

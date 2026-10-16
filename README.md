@@ -94,10 +94,10 @@ Accepted ADR-0058 (2026-10-16); both fresh review rounds and critical-fix
 verification are complete.
 Step 3 submission/admission is complete with both fresh review rounds; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
-owns implementation and review status. Steps 4–9 remain pending.
+owns implementation and review status. Step 4 is in progress; Steps 5–9 remain pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 is authorized;
-implementation, production qualification and worker activation remain pending.
+and ADR-0059 are Accepted — 2026-10-16. The adapted Step 4 implementation is in
+progress; complete production qualification and worker activation remain pending.
 The [required-startup qualification record](docs/roadmap/phase-02b-events-auth.md#step-4-required-startup-qualification-2026-10-16)
 records the reviewed ADR-0060 revision. Its
 [acceptance](docs/roadmap/phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)
@@ -376,7 +376,7 @@ docs/             Architecture, decisions, standards, roadmap and module specs
 | Your question | Start here |
 |---|---|
 | What are we building, and for whom? | [Platform vision](docs/architecture/01-platform-vision.md) · [MVP scope](docs/architecture/05-mvp-scope.md) |
-| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Current phase](docs/roadmap/phase-02d-walking-skeleton.md) |
+| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Current phase](docs/roadmap/phase-02b-events-auth.md) |
 | How do I contribute? | [Contributing](.github/CONTRIBUTING.md) · [Working agreement](CLAUDE.md) · [Engineering standards](docs/standards/README.md) |
 | Why was a decision made? | [ADR index](docs/decisions/README.md) |
 | How are institutions isolated? | [Tenant isolation](docs/architecture/09-tenant-isolation.md) · [Tenancy module](docs/modules/tenancy/README.md) |

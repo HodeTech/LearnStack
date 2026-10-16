@@ -34,6 +34,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
     private readonly BackgroundProcessingServerOptions _options;
     private readonly BackgroundJobRuntimeOptions _bounds;
     private readonly TimeProvider _time;
+    private readonly HangfireGenerationWork _work;
     private readonly Thread _constructor;
     private readonly TaskCompletionSource<BackgroundProcessingServer?> _published = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<bool> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -78,6 +79,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
         _pool = pool;
         _bounds = bounds;
         _time = timeProvider;
+        _work = new(pool, gate);
         _storage = new PoolHangfireStorage(provider, this, components.Selected);
         _options = CreateOptions(pool);
         var factory = new BackgroundJobFactory(filters);
@@ -109,8 +111,10 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal Task<bool> Ready => _ready.Task;
     internal Task Completion => _completion.Task;
-    internal bool TryAdmitInvocation() => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result && _gate.TryAdmit()
+    internal HangfireGenerationWorkSnapshot WorkSnapshot => _work.Snapshot;
+    internal bool TryAdmitInvocation() => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result && _work.CanStart && _gate.TryAdmit()
         && Interlocked.CompareExchange(ref _draining, 0, 0) == 0;
+    internal HangfireGenerationWork.Invocation? TryBeginWork() => TryAdmitInvocation() ? _work.TryBegin() : null;
     internal HangfireGenerationSnapshot Snapshot => new(
         _published.Task.IsCompletedSuccessfully && _published.Task.Result is not null,
         Volatile.Read(ref _context) is not null, _waitEntered.Task.IsCompleted,
@@ -159,6 +163,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal void RequestDrain(HangfireGenerationReason reason)
     {
+        _work.CloseStarts();
         if (Interlocked.Exchange(ref _draining, 1) == 0)
             Interlocked.CompareExchange(ref _reason, (int)reason, 0);
         _ready.TrySetResult(false);
@@ -175,8 +180,14 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal async Task StopAsync(CancellationToken callerBudget)
     {
-        RequestDrain(HangfireGenerationReason.HostStop);
+        RequestHostStop();
         await Completion.WaitAsync(callerBudget).ConfigureAwait(false);
+    }
+
+    internal void RequestHostStop()
+    {
+        RequestDrain(HangfireGenerationReason.HostStop);
+        _work.RequestHostStop();
     }
 
     internal override void AnnounceServer(PoolHangfireLifecycleOperation operation)
@@ -345,6 +356,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
             if (_startInvocation is not null) await _startInvocation.ConfigureAwait(false);
             while (_constructor.IsAlive) await Task.Delay(TimeSpan.FromMilliseconds(1)).ConfigureAwait(false);
             if (_startupObserver is not null) await _startupObserver.ConfigureAwait(false);
+            await _work.Completion.ConfigureAwait(false);
             if (Volatile.Read(ref _cleanupFault) != 0 || _gate.State is BackgroundJobProcessState.Fatal or BackgroundJobProcessState.FinalExit)
                 return;
             server.Dispose();
@@ -392,6 +404,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
         await _constructorReturned.Task.ConfigureAwait(false);
         while (_constructor.IsAlive) await Task.Delay(TimeSpan.FromMilliseconds(1)).ConfigureAwait(false);
         if (_startupObserver is not null) await _startupObserver.ConfigureAwait(false);
+        await _work.Completion.ConfigureAwait(false);
         if (Volatile.Read(ref _cleanupFault) != 0) return;
         Volatile.Write(ref _cleanupComplete, 1);
         _completion.TrySetResult();

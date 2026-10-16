@@ -12,7 +12,7 @@ public sealed record BackgroundJobBridgeSnapshot(int Outstanding, int Retained, 
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "The process-owned semaphore never creates a wait handle and remains live with retained operations.")]
 public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, HangfireWakeupClient client,
-    BackgroundJobRuntimeOptions options, TimeProvider time)
+    BackgroundJobRuntimeOptions options, TimeProvider time, BackgroundJobRuntimeGate? runtimeGate = null)
 {
     private readonly object _gate = new();
     private readonly List<BridgeOperation> _operations = [];
@@ -47,7 +47,8 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             lock (_gate)
             {
                 _operations.RemoveAll(operation => operation.Completion.IsCompleted);
-                if (_stopping || _operations.Count >= BackgroundJobRuntimeOptions.MaxOutstandingBridgeCalls) return false;
+                if (_stopping || runtimeGate is { IsOpen: false }
+                    || _operations.Count >= BackgroundJobRuntimeOptions.MaxOutstandingBridgeCalls) return false;
                 retained = _operations.Select(operation => operation.Claim.JobId).ToArray();
             }
             var claim = await store.TryClaimAsync(retained, cancellationToken).ConfigureAwait(false);
@@ -55,7 +56,7 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             lock (_gate)
             {
                 _lastProgress = time.GetTimestamp();
-                if (_stopping || claim is null) return false;
+                if (_stopping || runtimeGate is { IsOpen: false } || claim is null) return false;
             }
             if (!claim.CanHandoff)
             {
@@ -63,13 +64,16 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
                 lock (_gate) _deferred++;
                 return true;
             }
+            BridgeOperation operation;
             lock (_gate)
             {
-                if (_stopping) return false;
-                var operation = new BridgeOperation(claim, client, time.GetTimestamp(), this);
+                if (_stopping || runtimeGate is { IsOpen: false }) return false;
+                operation = new BridgeOperation(claim, client, time.GetTimestamp(), this);
                 _operations.Add(operation);
-                operation.Start();
             }
+            // Native startup may itself stall. Its bound owner is visible before
+            // scheduling, and no fixed-state lock is held across Task.Run/Start.
+            operation.ScheduleStart();
             return true;
         }
         finally { _quantum.Release(); }
@@ -91,38 +95,71 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
 
     private async Task ObserveAsync(BridgeOperation operation)
     {
-        var result = await operation.Result.Task.ConfigureAwait(false);
-        // Result signals the finished client call; wait for the actual thread to
-        // return before forgetting its owner. No thread-pool thread performs a join.
-        while (operation.Thread.IsAlive)
-            await Task.Delay(TimeSpan.FromMilliseconds(1), time, CancellationToken.None).ConfigureAwait(false);
         try
         {
-            lock (_gate) { if (_stopping) return; }
-            var changed = result is not null
-                ? await store.AcknowledgeAsync(operation.Claim, result).ConfigureAwait(false)
-                : await store.DeferAsync(operation.Claim, BackgroundJobBridgeDeferral.CreationFailed).ConfigureAwait(false);
-            lock (_gate)
+            // A native result can arrive before Thread.Start returns. Even a faulted
+            // startup task supplies no substitute for the thread/result witnesses.
+            await operation.Startup.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            var result = await operation.Result.Task.ConfigureAwait(false);
+            // Result signals the finished client call; wait for the actual thread to
+            // return before forgetting its owner. No thread-pool thread performs a join.
+            while (operation.Thread.IsAlive)
+                await Task.Delay(TimeSpan.FromMilliseconds(1), time, CancellationToken.None).ConfigureAwait(false);
+            try
             {
-                if (result is not null && changed) _acknowledged++;
-                else _failed++;
-                _lastProgress = time.GetTimestamp();
+                bool stopping;
+                lock (_gate) stopping = _stopping;
+                if (!stopping)
+                {
+                    var changed = result is not null
+                        ? await store.AcknowledgeAsync(operation.Claim, result).ConfigureAwait(false)
+                        : await store.DeferAsync(operation.Claim, BackgroundJobBridgeDeferral.CreationFailed).ConfigureAwait(false);
+                    lock (_gate)
+                    {
+                        if (result is not null && changed) _acknowledged++;
+                        else _failed++;
+                        _lastProgress = time.GetTimestamp();
+                    }
+                }
             }
+            catch (Exception exception) when (Catchable(exception))
+            {
+                // The actual ACK/deferral operation returned; its uncertain hint
+                // leaves a durable same-generation repair obligation.
+                lock (_gate) _failed++;
+            }
+            operation.Complete();
         }
-        catch
+        catch (Exception exception) when (Catchable(exception))
         {
-            // Failed/uncertain hints leave a durable same-generation repair obligation.
+            // A failed observer is not native-end/cleanup evidence. Retain its
+            // independent positive completion signal and close no ownership.
             lock (_gate) _failed++;
         }
     }
 
+    private static bool Catchable(Exception exception) => exception.GetType() != typeof(OutOfMemoryException)
+        && exception.GetType() != typeof(StackOverflowException);
+
+    private bool TryAdmitStart()
+    {
+        lock (_gate)
+            return !_stopping && (runtimeGate is null || runtimeGate.TryAdmit());
+    }
+
     private sealed class BridgeOperation
     {
+        private readonly BackgroundJobBridge _owner;
+        private readonly TaskCompletionSource<Task> _startup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         internal BridgeOperation(BackgroundJobBridgeClaim claim, HangfireWakeupClient client, long started,
             BackgroundJobBridge owner)
         {
+            _owner = owner;
             Claim = claim;
             Started = started;
+            Startup = _startup.Task.Unwrap();
             Thread = new Thread(() =>
             {
                 string? result = null;
@@ -132,10 +169,10 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
                 {
                     CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
                     CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
-                    result = client.Create(claim);
+                    // Scheduling and native startup are not Create admission.
+                    if (owner.TryAdmitStart()) result = client.Create(claim);
                 }
-                catch (Exception exception) when (exception.GetType() != typeof(OutOfMemoryException)
-                    && exception.GetType() != typeof(StackOverflowException))
+                catch (Exception exception) when (Catchable(exception))
                 { }
                 finally
                 {
@@ -147,17 +184,45 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             { IsBackground = true, Name = "learnstack-job-bridge" };
             // Bind observation before any start attempt. Even a catchable Start
             // failure cannot leave a default-completed owner to be pruned.
-            Completion = owner.ObserveAsync(this);
+            Observer = owner.ObserveAsync(this);
         }
 
         internal BackgroundJobBridgeClaim Claim { get; }
         internal long Started { get; }
         internal Thread Thread { get; }
         internal TaskCompletionSource<string?> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal Task Completion { get; }
+        internal Task Startup { get; }
+        internal Task Observer { get; }
+        internal Task Completion => _completion.Task;
+        internal void Complete() => _completion.TrySetResult();
+
+        internal void ScheduleStart()
+        {
+            try
+            {
+                Task startup;
+                if (ExecutionContext.IsFlowSuppressed()) startup = Task.Run(Start);
+                else
+                {
+                    using var suppressed = ExecutionContext.SuppressFlow();
+                    startup = Task.Run(Start);
+                }
+                _startup.TrySetResult(startup);
+            }
+            catch (Exception exception) when (Catchable(exception))
+            {
+                // Without the actual scheduled task, no witness excludes a late
+                // startup callback. Leave the prebound observer retained.
+            }
+        }
 
         internal void Start()
         {
+            if (!_owner.TryAdmitStart())
+            {
+                Result.TrySetResult(null);
+                return;
+            }
             try
             {
                 if (ExecutionContext.IsFlowSuppressed()) Thread.Start();
@@ -167,8 +232,7 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
                     Thread.Start();
                 }
             }
-            catch (Exception exception) when (exception.GetType() != typeof(OutOfMemoryException)
-                && exception.GetType() != typeof(StackOverflowException))
+            catch (Exception exception) when (Catchable(exception))
             {
                 // Only a positively unstarted/non-live thread proves no call
                 // began. Any live or uncertain thread keeps its bound observer

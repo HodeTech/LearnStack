@@ -45,7 +45,8 @@ internal enum BackgroundJobBridgeDeferral { DeploymentMismatch, CreationFailed }
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "The process-owned semaphore never creates a wait handle and remains live with retained operations.")]
 public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source,
-    BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids)
+    BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids,
+    BackgroundJobRuntimeGate? runtimeGate = null)
 {
     private readonly SemaphoreSlim _sqlLane = new(1, 1);
     private readonly object _acquisitionGate = new();
@@ -64,7 +65,7 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         await _sqlLane.WaitAsync(deadline.Token).ConfigureAwait(false);
         try
         {
-            await using var connection = await OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+            await using var connection = await OpenConnectionAsync(acquisition: true, deadline.Token).ConfigureAwait(false);
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
             await using var command = new NpgsqlCommand("""
                 WITH candidate AS (
@@ -123,7 +124,7 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         await _sqlLane.WaitAsync(deadline.Token).ConfigureAwait(false);
         try
         {
-            await using var connection = await OpenConnectionAsync(deadline.Token).ConfigureAwait(false);
+            await using var connection = await OpenConnectionAsync(acquisition: false, deadline.Token).ConfigureAwait(false);
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
             // Obtain the row lock first. Time-dependent ACK/deferral fences run
             // in the separate UPDATE after any lock wait has actually ended.
@@ -172,11 +173,13 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         lock (_acquisitionGate) _stopping = true;
     }
 
-    private ValueTask<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    private ValueTask<NpgsqlConnection> OpenConnectionAsync(bool acquisition, CancellationToken cancellationToken)
     {
         lock (_acquisitionGate)
         {
-            if (_stopping) throw new InvalidOperationException("The bridge acquisition gate is closed.");
+            if (_stopping || runtimeGate is not null
+                && !(acquisition ? runtimeGate.TryAdmit() : runtimeGate.TryAdmitStorage()))
+                throw new InvalidOperationException("The bridge acquisition gate is closed.");
             return source.OpenConnectionAsync(cancellationToken);
         }
     }

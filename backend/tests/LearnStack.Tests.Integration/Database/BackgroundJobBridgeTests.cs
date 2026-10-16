@@ -19,7 +19,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>Real confined bridge SQL and stock client. These tests do not activate the pending server-generation owner.</summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class BackgroundJobBridgeTests(SchemaFixture schema)
+public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
 {
     private static BackgroundJobRuntimeFixture Fixture => BackgroundJobRuntimeFixture.Shared;
 
