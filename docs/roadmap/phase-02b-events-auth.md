@@ -4647,7 +4647,39 @@ change in ADR-0047; ADR-0058's ownership note remains additive. Prior Accepted b
 are untouched. This correction changes classification/explicit contractual scope,
 not the already stated single-generation behavior or the nineteen probe sources.
 
-New independent focused verification and final closeout remain pending.
+#### External revision focused verification and approval-readiness closeout
+
+Two new independent reviewers inspect `b4a6fec0..35b6985d`: GPT-6 Astra with
+xhigh effort covers governance and normative scope; GPT-6.1 Sol with xhigh effort
+covers corpus/history and evidence mechanics. Both confirm the earlier Major is
+resolved without widening the affected-pool exception. The first reviewer flags
+one Minor in `71221799`: the four-overrun threshold stops new starts, not actual
+retention. Root verifies/fixes it in `35b6985d`; that reviewer preserves its first
+report and appends exact-head verification. Both final focused verdicts approve
+with no unresolved findings in their stated scope.
+
+Root reads both final reports and verifies five Release corpus controls, seven
+ADR parser controls and the first-party history/link sweep: 37 Markdown files,
+2,716 local links, 648 fragments, zero errors. The canonical lifecycle parser
+reproduces 51 Accepted ADRs at `def48a1a`, `b49998d9`, `b4a6fec0` and `1853b48f`,
+all byte-identical in the final tree. ADR-0059 remains Proposed. The final
+classification/wording corrections change only Markdown; the nineteen-control
+sources are unchanged since `1853b48f`, so their existing passing receipts are
+preserved without claiming a new runtime run. Diff/prose-width checks pass.
+
+The external revision is `1853b48f`; first-round/count correction receipt is
+`b4a6fec0`; bounded availability disclosure is `71221799`; retention precision
+is `35b6985d`. The initial clean round-2 verdict and its later Major addendum
+remain explicitly recorded above. This final receipt changes no reviewed policy
+or probe. It is neither maintainer acceptance nor real production qualification.
+
+The revised ADR and Step 4 adaptation are ready for maintainer approval under
+the user's new-ADR gate. Same-pool blocking during generation-control drain,
+including below four overruns after storage recovery, is an explicit decision
+for that approval. Step 4's real worker/PostgreSQL, startup/resource, wrapper
+parity, multi-pool and exit controls remain mandatory before activation; Steps
+5–9 remain pending. Work stays on `development`; no dependent runtime, push,
+PR or current-head CI result is implied by this proposal closeout.
 
 ### Durable outbox dispatch
 
