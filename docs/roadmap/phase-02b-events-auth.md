@@ -5480,8 +5480,8 @@ this closeout.
 
 ### P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)
 
-**Implementation and both full review rounds are complete; second-round
-corrections are locally validated, with focused fix verification pending.**
+**Locally complete after both fresh full review rounds, verified corrections
+and independent focused fix verification.**
 The existing approved package
 owns this step; no new decision or approval is pending. Source implements the
 closed ordinary root participant, acknowledged start publication, immutable job
@@ -5650,8 +5650,50 @@ using `(testId, testName)` identity. These are composite receipts, not another
 complete-suite rerun or current-head CI. All nineteen job obligations remain
 Registered; Step 9 owns final enforcement and packet regression.
 
-The verified corrections receive fresh focused independent verification before
-Step 5 closure. Steps 6–9 remain pending in this receipt.
+The corrections are committed at `6a2ded99`. Normal hooks pass eight-file
+Leakwatch and seven-file C# formatting, with no C# byte changes after validation.
+Two new independent reviewers verify that correction and its immediate
+lifetime/authority and proof/corpus dependencies: GPT-6-astra xhigh and
+GPT-6.1-sol xhigh. Both approve without verified findings. The proof reviewer
+independently recalculates the composite counts, checks each intended mutant
+failure, and compares exact restored source bytes. They inspect recorded local
+receipts, without rerunning the toolchain or claiming current-head CI. This is
+focused correction verification, not a third full review round.
+
+Step 5 is locally complete. Step 6 proceeds under the existing approved package;
+Steps 7–9 and packet-wide regression/PR/CI remain pending.
+
+### P02b-4 Step 6 — tenant capacity reservations (2026-10-16)
+
+**Implementation in progress; review rounds have not started.**
+Step 5 closes at correction `6a2ded99` after both full rounds and independent fix
+verification. Accepted ADR-0047 and the approved nine-step package own this step;
+no new capacity-policy decision or approval is pending.
+
+- App-role admission locks the tenant/group mutex, resolves an optional registered
+  Hard LimitKey and counts every unreleased reservation across organizations and
+  instances. Deferral spends no normal attempt. Existing entitlement provider/key
+  contracts and empty production definitions remain unchanged.
+- Successful business completion releases its exact reservation on the existing
+  business transaction. Failed or skipped work needs a distinct local actual
+  cleanup witness and acknowledged nonexecuting recovery authority before a
+  sequential app-role checkpoint can release occupancy. No executable receipt is
+  reconstructed after lost admission acknowledgement.
+- A forward storage change records truthful transactional cleanup separately from
+  never-started or external-quiescence evidence. The original source owner stays
+  open across sequential phases while every old binding closes permanently.
+  Missing cross-instance cleanup evidence retains occupancy in recoverable parked
+  state, permitting a live origin's eventual positive cleanup; TTL never releases.
+- Control handles each checkpoint as a bounded owned operation, preserving fair
+  service and actual stop/cleanup ownership. The existing transaction owner,
+  tenant-setter inventory and bypass reservation-write prohibition remain intact.
+
+Qualification covers two-instance/two-org caps, no-attempt refusal, unlimited/
+zero/downgrade/fault limits, atomic success/cleanup release, admission and checkpoint
+COMMIT uncertainty, held callbacks/resources, missing-witness parking, exact grants
+and source bounds. Each implementation/correction commit and both fresh review
+rounds are recorded here after they occur. Live external execution remains Step 7;
+final observation/enforcement and full packet regression remain Step 9.
 
 ### Durable outbox dispatch
 
