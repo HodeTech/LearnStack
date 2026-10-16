@@ -5695,6 +5695,29 @@ and source bounds. Each implementation/correction commit and both fresh review
 rounds are recorded here after they occur. Live external execution remains Step 7;
 final observation/enforcement and full packet regression remain Step 9.
 
+### P02b-4 external completed-failure proposal (2026-10-16)
+
+**ADR-0061 is Proposed; maintainer approval is pending.**
+Step 7 preparation identified an unanswered report-policy input: direct completed
+Failed/Cancelled reports carry outcome/quiescence, without classifying the failure
+or granting retry of the same stable logical operation. Existing guards permit
+both retry and finalization; they do not select between them.
+
+[ADR-0061](../decisions/0061-known-external-job-failure-policy.md) proposes explicit
+failure class and same-operation permission, write-once status, and an honest
+terminal code when transient work cannot be repeated. Its source/contract audit
+is against `6a2ded99`. No dependent Step 7 runtime or migration is implemented or
+authorized by this proposal. Step 6 capacity work continues under Accepted
+ADR-0047; the existing nine-step review/commit loop remains unchanged.
+
+Two fresh independent proposal reviewers (GPT-6-astra xhigh and GPT-6.1-sol
+xhigh) approve for maintainer consideration without verified findings. They
+check the actual contract/guard/grant and reason carriers, the exact bounded
+supersession, restart equivalence and discriminating pending proof obligations.
+The corpus reviewer independently verifies the ADR's links/anchors, Proposed
+status and prose width. No runtime test is claimed. Maintainer acceptance still
+precedes dependent Step 7 implementation.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

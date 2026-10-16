@@ -107,6 +107,7 @@ qualification remain pending.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0061 | [Known External Job Failure Policy](0061-known-external-job-failure-policy.md) | Proposed finite failure class, same-operation retry permission and durable status; no dependent runtime authorized | P02b-4 Step 7 before external activation; Step 6 remains independently authorized |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
