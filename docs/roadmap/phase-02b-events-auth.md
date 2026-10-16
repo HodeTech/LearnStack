@@ -4302,7 +4302,7 @@ No production job definition, recurrence or worker is activated by Step 2.
 
 ### P02b-4 Step 3 — submission and app-role admission (2026-10-16)
 
-**Implementation validated locally.** Both required fresh review rounds remain pending.
+**Step 3 complete; both fresh independent review rounds passed.**
 Accepted ADR-0047 and the approved Step 3 plan govern this work; no new decision
 or worker activation is implied by this record.
 
@@ -4393,6 +4393,41 @@ retain poisoning, no-false-receipt, physical cleanup and restoration assertions.
 Unit 2,018 and contract 4 pass again. The combined full backend rerun remains
 in progress; no empty-filter run is counted as evidence. Round 2 has not started.
 No runtime outside the approved Step 3 boundary is added.
+
+
+#### Step 3 review round 2 and final closeout
+
+Three new independent reviewers inspect the complete `483463fa..0ddcb3e7`
+implementation and its `63a7f4ac..0ddcb3e7` correction: GPT-6-astra/xhigh for
+application authority/owner boundaries, GPT-6-astra/xhigh for PostgreSQL/storage,
+and GPT-6.1-sol/xhigh for proof/census/composition/corpus. All approve with zero
+verified Blocker, Major or Minor findings. They inspect actual source and existing
+receipts without shared builds or repository edits; their source reviews do not
+claim independent test execution or a completed full regression.
+
+Root's final CI-split regression at runtime head `0ddcb3e7` passes Unit **2,018**,
+architecture **315**, contract **4**, Docker-free integration **176** and Docker
+integration **1,639** — **4,152 backend cases**, zero failures/skips. The correct
+`Requires=Docker` run includes the forty Step 3 PostgreSQL cases; the focused
+66-case receipt additionally repeats all 26 domain-event production controls.
+Every counted assembly/slice passes the nonempty/zero-skip runner assertion.
+Release build remains zero warnings/errors; formatting, seven ADR parser controls,
+local links/fragments, prior-ADR/history preservation and whitespace pass.
+
+A mistaken `Category` filter mixed HTTP and Docker tests in one integration
+process, exposing startup/Activity assertions; that run was canceled and is not
+passing evidence. An empty filter was also rejected by the runner and is not
+counted. The exact `Requires` slices above replace those commands without
+weakening production code or test assertions. The earlier reflection-signature
+failure remains recorded in round 1; its corrected domain-event test passes.
+
+Both required review rounds and every verified correction are complete. Step 4
+owns stock workers, bridge/repair, component/filter selection, expiration ownership
+and supported-pool qualification. Step 5 owns business completion/retry/terminal
+execution; capacity/external/recurrence and full enforcement retain their approved
+Steps 6–9. No production business definition, recurrence, worker or dashboard is
+activated by Step 3. Work remains on `development`; no push, PR or CI-head success
+is implied by this local step closeout.
 
 ### Durable outbox dispatch
 
