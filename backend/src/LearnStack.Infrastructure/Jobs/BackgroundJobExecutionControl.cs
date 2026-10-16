@@ -171,6 +171,9 @@ internal sealed class BackgroundJobExecutionControl
     /// <summary>Joins publication/deadline ownership; the generation still joins its private callbacks afterwards.</summary>
     internal async Task<bool> JoinAsync(bool operationCleanupConfirmed)
     {
+        // Serialize permanent renewal closure with an already-running renewal
+        // before disposing its timer. Only actual cleanup below publishes joined.
+        lock (_sync) Interlocked.Exchange(ref _renewalClosed, 1);
         if (!operationCleanupConfirmed) { RetainCleanup(); return false; }
         try
         {

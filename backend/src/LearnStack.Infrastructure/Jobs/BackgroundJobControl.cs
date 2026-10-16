@@ -318,16 +318,14 @@ internal sealed class BackgroundJobControl
             var operation = await _store.RequestInvalidEnvelopeAsync(request.Execution.Claim, _stop.Token).ConfigureAwait(false);
             _controlOperation = operation;
             if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
-            if (operation.CommitUncertain) { request.Probe = operation.Probes.SingleOrDefault(); request.Due = Later(_bounds.RecoveryProbeInterval); }
-            else FinishRequest(request, true);
+            if (!RetainFailedRequest(request, operation)) FinishRequest(request, true);
         }
         else if (request.Kind == RequestKind.Business && request.Execution.Identity is { } identity && request.Decision is { } decision)
         {
             var operation = await _store.FinishKnownRollbackAsync(identity, decision, _stop.Token).ConfigureAwait(false);
             _controlOperation = operation;
             if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
-            if (operation.CommitUncertain) { request.Probe = operation.Probes.SingleOrDefault(); request.Due = Later(_bounds.RecoveryProbeInterval); }
-            else
+            if (!RetainFailedRequest(request, operation))
             {
                 if (operation.Value is { Phase: "pending" }) lock (_sync) _retries++;
                 FinishRequest(request, true);
@@ -335,6 +333,16 @@ internal sealed class BackgroundJobControl
         }
         else FinishRequest(request, true);
         _controlOperation = null;
+    }
+
+    private bool RetainFailedRequest(CompletionRequest request, OwnedBackgroundJobControl<BackgroundJobControlChange> operation)
+    {
+        if (!operation.CommitUncertain && !operation.Failed) return false;
+        // Positive resource cleanup permits another bounded control operation;
+        // it does not settle or replace the original business decision.
+        if (operation.CommitUncertain) request.Probe = operation.Probes.SingleOrDefault();
+        request.Due = Later(_bounds.RecoveryProbeInterval);
+        return true;
     }
 
     private Task<bool> QualifyControlAsync<T>(OwnedBackgroundJobControl<T> operation, bool retainPendingProbes = false)

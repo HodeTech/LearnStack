@@ -5480,8 +5480,8 @@ this closeout.
 
 ### P02b-4 Step 5 — transactional owner and terminal audit (2026-10-16)
 
-**Implementation and first-round corrections are locally validated; the second
-fresh full review round is pending.**
+**Implementation and both full review rounds are complete; second-round
+corrections are locally validated, with focused fix verification pending.**
 The existing approved package
 owns this step; no new decision or approval is pending. Source implements the
 closed ordinary root participant, acknowledged start publication, immutable job
@@ -5583,8 +5583,8 @@ already been released. Explicit lock ownership fixes teardown, and the same
 The actual-source control restores the old pending-cleanup snapshot temporarily.
 It builds, and both native auxiliary variants fail specifically because the
 business task completed before its original cleanup. Restoring the exact source
-bytes, rebuilding and rerunning makes both pass. Raw exception logging observed in two existing helpers was not established as
-a new Step 5 disclosure or violated decision; it was not promoted to a finding
+bytes, rebuilding and rerunning makes both pass. Raw exception logging observed
+in two existing helpers was not established as a new Step 5 disclosure or violated decision; it was not promoted to a finding
 or bundled into this correction.
 
 The focused run overlaps 31 prior Docker cases and adds five. Combining current
@@ -5596,6 +5596,62 @@ nonempty/zero-skip runner, seven ADR parser controls and local links/fragments p
 
 The second full fresh review round follows the correction commit. Step 5 and
 Steps 6–9 are not declared complete by this first-round receipt.
+
+#### Step 5 review round 2
+
+Three new independent reviewers inspected the complete `4826b7df..9dbea7bf`
+range: owner/authority/lifetime (GPT-6-astra xhigh), control/SQL/terminal audit
+(GPT-6.1-sol xhigh), and proof/composition/corpus (GPT-6.1-sol xhigh). Three
+verified groups required correction; timer and control findings were independently
+corroborated. No additional Blocker or verified finding remained.
+
+- Reconciliation silently stopped at a pending/faulted job auxiliary, then cleared
+  the rolled-back MUST intents. Removing that precheck lets the actual standalone
+  writer refuse another acquisition inside its existing reporting boundary.
+  Every intent now receives the required bounded Critical, operation-only failure
+  counter and unhealthy audit signal; the original business refusal stands.
+  Native clean/dirty controls assert the absent rolled-back audit row, actual DI
+  logger/meter/health signals and unchanged held resources. A two-intent unit
+  companion proves independent reporting without resolving another source.
+- Timer disposal preceded renewal closure. A late acknowledged renewal could
+  rearm a disposed timer and cancel unrelated batch members through the shared
+  error path. Renewal now closes permanently under the publication lock before
+  disposal. A deterministic real-timer disposal-gap control keeps a second
+  execution live and forbids early identity release.
+- A positively cleaned pre-COMMIT control fault discarded its original permanent
+  business decision. The request now retains that exact decision and retries on
+  the bounded existing cadence; uncertain COMMIT and failed cleanup keep their
+  separate paths. A native worker returns one permanent refusal, hits a real SQL
+  lock timeout, retains its exact identity/request, then terminalizes with one
+  MUST audit and no second business start, including after lease expiry and a
+  duplicate native wakeup.
+
+CI-mode Release builds pass with zero warnings/errors. The complete unit run
+passes 2,218 cases; complete architecture passes 328 in 17 minutes 23 seconds;
+37 focused PostgreSQL cases pass. The control-failure proof now captures progress
+while its actual SQL is blocked, rechecks that wait, then observes a completed
+failed iteration before separately asserting the retained request/identity. After
+this test-only strengthening, a fresh clean build and the same 37-case run pass.
+All passing runs report zero skips.
+
+Three actual-source mutations compile and fail their intended assertions:
+silent audit refusal fails one unit and both native health controls; late renewal
+closure fails at the disposed real timer; discarded control decisions fail the
+retained-request assertion with zero pending outcomes. Each exact source is
+restored in a finally, rebuilt and its same regression cases pass. No mutation
+remains in the tree. Formatting, seven ADR parser controls, local links/fragments
+and the nonempty/zero-skip runner pass.
+
+
+The focused run adds one Docker case to prior corrected receipts. Current
+complete unit/architecture, prior contract/HTTP and corrected Docker receipts
+establish 1,816 distinct passing Docker and 4,542 distinct passing backend cases
+using `(testId, testName)` identity. These are composite receipts, not another
+complete-suite rerun or current-head CI. All nineteen job obligations remain
+Registered; Step 9 owns final enforcement and packet regression.
+
+The verified corrections receive fresh focused independent verification before
+Step 5 closure. Steps 6–9 remain pending in this receipt.
 
 ### Durable outbox dispatch
 

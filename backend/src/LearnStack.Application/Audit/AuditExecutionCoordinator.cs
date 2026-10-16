@@ -184,10 +184,6 @@ public sealed class AuditExecutionCoordinator(
 
         foreach (var intent in capture.Intents)
         {
-            // An auxiliary cleanup fault seals issuance for this job. It must not
-            // turn the next intent into another independent application source.
-            try { JobApplicationSourceOwner.Current?.RequireBusinessReady(); }
-            catch (InvalidOperationException) { break; }
             var durable = intent.OperationClass == OperationClass.Must
                 && state == AuditIntentState.Committed;
 

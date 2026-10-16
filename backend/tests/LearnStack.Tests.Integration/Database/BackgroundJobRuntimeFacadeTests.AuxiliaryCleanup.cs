@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics.Metrics;
 using FluentAssertions;
+using LearnStack.Application.Audit;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Caching;
 using LearnStack.Infrastructure.Jobs;
@@ -15,6 +17,7 @@ using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -39,11 +42,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var waiterReturned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstOrganization = Guid.CreateVersion7();
         var nextOrganization = Guid.CreateVersion7();
+        var auditLogger = new AuxiliaryAuditLogger<PostgresAuditStore>();
+        var reconcileLogger = new AuxiliaryAuditLogger<AuditExecutionCoordinator>();
         var calls = 0;
         var closes = 0;
         CancellationTokenRegistration privateCallback = default;
         NpgsqlConnection? borrowed = null;
         Task? actual = null;
+        JobApplicationAuxiliaryResources? originalResources = null;
         StateChangeEventHandler? cleanup = null;
         var probe = new BackgroundJobFixtureProbe
         {
@@ -67,6 +73,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                         OperationClass.Should, typeof(object)), CancellationToken.None);
                 await EventuallyAsync(() => Task.FromResult(AuxiliaryCleanupConnection(owner)?.State == ConnectionState.Open));
                 var resources = AuxiliaryCleanupResources(owner)!;
+                originalResources = resources;
                 borrowed = AuxiliaryCleanupConnection(owner)!;
                 actual = (Task)typeof(JobApplicationAuxiliaryResources).GetField("_actualTask", PrivateInstance)!.GetValue(resources)!;
                 cleanup = (_, change) =>
@@ -95,9 +102,24 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
+            services.AddSingleton<ILogger<PostgresAuditStore>>(auditLogger);
+            services.AddSingleton<ILogger<AuditExecutionCoordinator>>(reconcileLogger);
         });
         await using var source = Source(database, new(true, 50));
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
+        var auditHealth = host.Services.GetRequiredService<IAuditHealth>();
+        auditHealth.IsHealthy.Should().BeTrue();
+        var auditMeter = host.Services.GetRequiredService<IMeterFactory>().Create(PostgresAuditStore.MeterName);
+        var auditFailures = new ConcurrentQueue<(long Count, KeyValuePair<string, object?>[] Tags)>();
+        using var auditListener = new MeterListener();
+        auditListener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (ReferenceEquals(instrument.Meter, auditMeter)
+                && instrument.Name == PostgresAuditStore.StandaloneWriteFailureCounterName)
+                listener.EnableMeasurementEvents(instrument);
+        };
+        auditListener.SetMeasurementEventCallback<long>((_, count, tags, _) => auditFailures.Enqueue((count, tags.ToArray())));
+        auditListener.Start();
         using var globals = new GlobalFilterSnapshot();
         var runtime = Runtime(host.Services, source, bounds, new(true, 50));
         HangfireGeneration? generation = null;
@@ -128,6 +150,25 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             runtime.Snapshot.Control!.Executions.Should().Be(1);
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, firstOrganization)).Should().Be(0);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+            await AssertAuxiliaryAuditAbsentAsync(database, firstOrganization);
+            auditHealth.IsHealthy.Should().BeFalse("the real MUST standalone acquisition was refused");
+            auditHealth.FailingOperation.Should().Be("tenancy.organization.create");
+            var alert = auditLogger.Entries.Should().ContainSingle().Subject;
+            alert.Level.Should().Be(LogLevel.Critical);
+            alert.EventId.Should().Be(new EventId(3, "LogStandaloneWriteFailed"));
+            AssertAuxiliaryAuditDiagnostic(alert, firstOrganization);
+            var warning = reconcileLogger.Entries.Should().ContainSingle().Subject;
+            warning.Level.Should().Be(LogLevel.Warning, "reconciliation preserves the existing business failure");
+            AssertAuxiliaryAuditDiagnostic(warning, firstOrganization);
+            var counted = auditFailures.Should().ContainSingle().Subject;
+            counted.Count.Should().Be(1);
+            counted.Tags.Should().ContainSingle().Which
+                .Should().Be(new KeyValuePair<string, object?>("operation", "tenancy.organization.create"));
+            AuxiliaryCleanupResources(owner).Should().BeSameAs(originalResources,
+                "failed reconciliation cannot replace the held auxiliary acquisition");
+            AuxiliaryCleanupConnection(owner).Should().BeSameAs(borrowed);
+            typeof(JobApplicationAuxiliaryResources).GetField("_actualTask", PrivateInstance)!
+                .GetValue(originalResources).Should().BeSameAs(actual);
 
             applicationSource.Dispose();
             source.Dispose();
@@ -142,6 +183,9 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             completed.SourceOwner.Should().BeSameAs(owner);
             completed.CleanupFailed.Should().Be(dirty);
             completed.CommitAcknowledged.Should().BeFalse();
+            completed.CommitStarted.Should().BeFalse();
+            completed.DurableOutcomeUncertain.Should().BeFalse();
+            completed.Decision.Disposition.Should().Be(BackgroundJobFailureDisposition.RetainOwnership);
             execution.Gate.IsClosed.Should().BeTrue("joining cleanup grants no new commit authority");
             owner.CleanupConfirmed.Should().Be(!dirty);
             closes.Should().Be(1);
@@ -224,6 +268,45 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                     && runtime.Snapshot.Maintenance.All(component => component.ActualJoined)));
             }
         }
+    }
+
+    private static async Task AssertAuxiliaryAuditAbsentAsync(DisposableSchemaDatabase database, Guid organization)
+    {
+        await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await connection.BeginTransactionAsync();
+        await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, null);
+        await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);
+        await using var read = new NpgsqlCommand("""
+            SELECT count(*) FROM audit_log
+            WHERE operation='tenancy.organization.create' AND entity_id=@subject
+            """, connection, transaction);
+        read.Parameters.AddWithValue("subject", organization.ToString());
+        (await read.ExecuteScalarAsync()).Should().Be(0L,
+            "the rolled-back MUST row cannot be rewritten while the actual auxiliary cleanup is pending");
+    }
+
+    private static void AssertAuxiliaryAuditDiagnostic(AuxiliaryAuditLog entry, Guid organization)
+    {
+        entry.Exception.Should().BeNull("trusted job diagnostics never receive raw exception details");
+        entry.Message.Should().Contain("tenancy.organization.create").And.NotContain(organization.ToString())
+            .And.NotContain(nameof(InvalidOperationException)).And.NotContain("refuses another acquisition")
+            .And.NotContain("Deliberate actual auxiliary disposal failure");
+        entry.Properties.Where(property => property.Key != "{OriginalFormat}").Should().ContainSingle().Which
+            .Should().Be(new KeyValuePair<string, object?>("Operation", "tenancy.organization.create"));
+    }
+
+    private sealed record AuxiliaryAuditLog(LogLevel Level, EventId EventId, string Message,
+        Exception? Exception, KeyValuePair<string, object?>[] Properties);
+
+    private sealed class AuxiliaryAuditLogger<T> : ILogger<T>
+    {
+        internal ConcurrentQueue<AuxiliaryAuditLog> Entries { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Entries.Enqueue(new(logLevel, eventId,
+                formatter(state, exception), exception,
+                ((IEnumerable<KeyValuePair<string, object?>>)state!).ToArray()));
     }
 
     private static JobApplicationAuxiliaryResources? AuxiliaryCleanupResources(JobApplicationSourceOwner owner) =>
