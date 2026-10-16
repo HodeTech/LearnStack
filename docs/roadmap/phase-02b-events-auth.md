@@ -4620,7 +4620,34 @@ all byte-identical at `1853b48f`. The older receipt remains as-of text; this dat
 correction replaces its denominator, not the byte-preservation result. It does
 not claim the original reviewer ran this corrected count. ADR-0059 is Proposed.
 
-Fresh second-round review and final closeout of this revision remain pending.
+#### External revision review round 2 and availability correction
+
+Two new independent reviewers inspect `b49998d9..b4a6fec0`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/governance. Both independently pass all nineteen controls with zero
+warnings/errors and reproduce the canonical 51-ADR count/byte preservation.
+The proof reviewer independently rejects missing receipts, startup failure and
+watchdog expiry, joins the real child and turns the managed-fault mutant red.
+
+Both initially report a clean proposal. Root's final cross-check then identifies
+an additional governance conflict: ADR-0047's unrelated-tenant progress promises
+are broader than ADR-0059's whole-pool drain below four retained overruns. The
+lifecycle reviewer independently confirms it and appends one Major, explicitly
+narrowing its earlier verdict before acceptance. Root verifies the actual clauses;
+their exception cannot be assumed implicit merely because the older contract
+already had a four-overrun threshold.
+
+The correction keeps constructor/restart composition additive, but names a
+bounded availability supersession of ADR-0047's Tenant capacity and independent
+pools / Lifecycle and observation progress clauses. Same-pool unrelated tenants
+may wait during generation-control draining despite a spare slot after storage
+recovery and below four overruns. Healthy other pools, hard bounds, reservations
+and independent orchestration are preserved. Acceptance will disclose this precise
+change in ADR-0047; ADR-0058's ownership note remains additive. Prior Accepted bytes
+are untouched. This correction changes classification/explicit contractual scope,
+not the already stated single-generation behavior or the nineteen probe sources.
+
+New independent focused verification and final closeout remain pending.
 
 ### Durable outbox dispatch
 

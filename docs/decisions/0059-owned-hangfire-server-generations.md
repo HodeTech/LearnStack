@@ -6,8 +6,8 @@ Proposed — maintainer approval pending.
 
 **Date:** 2026-10-16 **Deciders:** @cemil
 
-This proposal adds H1 server-lifecycle and ownership policy not specified by the
-earlier records;
+This proposal adds H1 server-lifecycle/ownership policy and a bounded
+availability qualification of the two ADR-0047 clauses named below;
 it does not accept itself or authorize dependent runtime. Accepted ADR-0047 and
 ADR-0058 remain the current contracts. P02b-4 Step 3 is complete; Step 4's
 lifecycle qualification exposed the issue below before worker activation.
@@ -78,7 +78,10 @@ contains announcement,
 metadata-heartbeat and removal paths and fences Core's outer repeat loop. Pool-local
 drain closes fetch/admission without canceling running work; only the owner may
 replace the generation after actual cleanup. The host's external shutdown
-wait remains finite and shared. Approval and real qualification precede activation.
+wait remains finite and shared. During generation-control drain, this decision
+qualifies ADR-0047's unrelated-tenant progress promises: fresh starts in that pool
+can stay blocked below four retained overruns, even with a spare slot after
+storage recovers. Approval and real qualification precede activation.
 
 ### Public composition and registration
 
@@ -364,7 +367,7 @@ enforces its qualified supported configuration and proves independent progress a
 that boundary. This proposal chooses no guessed numeric floor or nonpooled rule.
 The existing workers-plus-four, bridge-four and separate expiration bounds remain.
 
-### Additive lifecycle policy and prior-contract preservation
+### Additive integration and bounded availability supersession
 
 ADR-0047 says, “Use disjoint transactional/external/control capability queues with
 separate stock Hangfire server pools and worker counts.” Its lifecycle section
@@ -374,18 +377,41 @@ or an automatic-restart policy. This ADR adds the concrete lifecycle integration
 needed to satisfy those obligations; it does not replace an earlier selected
 constructor/restart decision.
 
-| Existing authority | Additive seam | Preserved |
+| Existing authority | New policy / vehicle | Preserved |
 |---|---|---|
 | ADR-0047 stock pools and lifecycle | Public compositor, one-shot storage lifecycle fence, synchronous context capture, explicit local-drain/host-stop distinction and owner-controlled replacement | Stock code/SQL, disjoint queues, actual-work/attempt/capacity ownership and one host wait budget |
+| ADR-0047 affected-tenant progress in the two quoted clauses | Bounded supersession only during generation-control draining, including below four retained overruns | Healthy other pools, ordinary tenant-capacity accounting, hard retention bounds and independent orchestration |
 | ADR-0058 component selection and resource retention | Independent shared fetched-job heartbeat hosting, frozen component instances, closed cancellation relay and qualified final process exit | Existing API-instance expiration owner/cadence, selective suppression and finite enabled I/O |
 
-On acceptance, dated additive Amendments in ADR-0047 and ADR-0058 disclose/link
-this policy while preserving all prior bytes and acceptance metadata. There is
-no previously selected convenience/restart sentence to supersede or correct.
-This is not an ADR-0041 fact correction, configuration replacement or whole-record
-retirement. New lifecycle policy still requires maintainer approval. No role,
-grant, schema, business request, generic owner, context setter or public recovery
-API is added.
+The constructor/restart seam is additive; the whole-pool availability exception
+is a bounded normative change. This ADR supersedes only the affected-pool progress
+reading of two actual ADR-0047 clauses during generation-control draining:
+
+- [Tenant capacity and independent pools](0047-transactional-background-job-runtime.md#tenant-capacity-and-independent-pools):
+  “A lost worker may reduce availability by quarantining capacity; unrelated
+  tenants and transactional pools remain serviceable.”
+- [Lifecycle and observation](0047-transactional-background-job-runtime.md#lifecycle-and-observation):
+  “Retain/observe/renew all admitted work through real cleanup; affected job
+  identities remain blocked while other pools/tenants progress.”
+
+**Qualified rule:** while a pool generation is draining or its old work/cleanup
+remains unresolved, unrelated tenants assigned to that same pool can also be
+blocked until actual cleanup completes, including after storage recovery, with
+an unused slot and below four retained overruns. Other healthy pools retain their
+independence subject to shared dependencies. The existing four-overrun threshold
+still stops ordinary retention in an otherwise serviceable generation; it is not
+the only pool stop trigger. Worker/retention hard bounds, fair independent
+orchestration, reservation ownership and positive quiescence remain unchanged.
+No wider tenant-progress or whole-record replacement is selected.
+
+On acceptance, a dated ADR-0047 Amendment discloses both the additive integration
+and this named bounded availability supersession, preserving its prior Decision
+and acceptance metadata. ADR-0058 receives only an additive ownership Amendment.
+There is no previously selected convenience/restart sentence to supersede or
+correct, and no ADR-0041 fact correction or whole-record retirement. This new
+availability qualification requires maintainer approval rather than being treated
+as an implicit condition of the earlier promise. No role, grant, schema, business
+request, generic owner, context setter or public recovery API is added.
 
 ## Context
 
