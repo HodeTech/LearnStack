@@ -4599,7 +4599,28 @@ Root's isolated whitespace/Release verification passes after integration;
 all nineteen distinct controls pass, along with five Release corpus cases and
 seven ADR parser controls. The first-party history/link sweep is clean. These
 checks do not rerun or relabel the earlier full 4,152-case Step 3 evidence.
-Fresh review rounds and their closeout remain pending.
+
+#### External revision review round 1
+
+Two fresh independent reviewers inspect `b49998d9..1853b48f`: GPT-6 Astra with
+xhigh effort covers lifecycle/authority; GPT-6.1 Sol with xhigh effort covers
+proofs/governance. Both independently pass all nineteen controls with zero
+warnings/errors. Lifecycle reports no finding; proofs reports no Blocker/Major
+and one Minor historical evidence-count error, verified and corrected below.
+The proof reviewer also removes the actual managed exception in an isolated
+mutant: the builder control turns red. Missing receipts, startup failure and
+silent watchdog expiry are rejected; the actual timed-out child is joined.
+Root reads both final reports/logs. These reviews do not certify production gates.
+
+**Evidence-count correction — 2026-10-16.** The earlier proposal round-2 receipt's
+“53 previously Accepted ADRs” is incorrect. Root and the new proof reviewer use
+`scripts/adr-status.py`'s canonical `lifecycle()` parser, not a text occurrence
+count: both `def48a1a` and `b49998d9` contain 51 currently Accepted canonical ADRs,
+all byte-identical at `1853b48f`. The older receipt remains as-of text; this dated
+correction replaces its denominator, not the byte-preservation result. It does
+not claim the original reviewer ran this corrected count. ADR-0059 is Proposed.
+
+Fresh second-round review and final closeout of this revision remain pending.
 
 ### Durable outbox dispatch
 
