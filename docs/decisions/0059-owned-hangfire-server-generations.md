@@ -399,8 +399,9 @@ remains unresolved, unrelated tenants assigned to that same pool can also be
 blocked until actual cleanup completes, including after storage recovery, with
 an unused slot and below four retained overruns. Other healthy pools retain their
 independence subject to shared dependencies. The existing four-overrun threshold
-still stops ordinary retention in an otherwise serviceable generation; it is not
-the only pool stop trigger. Worker/retention hard bounds, fair independent
+still stops new starts at four retained overruns in an otherwise serviceable
+generation; actual retention and cleanup continue. It is not the only pool stop
+trigger. Worker/retention hard bounds, fair independent
 orchestration, reservation ownership and positive quiescence remain unchanged.
 No wider tenant-progress or whole-record replacement is selected.
 
