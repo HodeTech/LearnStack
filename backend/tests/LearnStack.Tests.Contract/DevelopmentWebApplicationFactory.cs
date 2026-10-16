@@ -1,4 +1,5 @@
 using LearnStack.Api.Messaging;
+using LearnStack.Api.Jobs;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -29,14 +30,20 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
     {
         builder.UseEnvironment(Environments.Development);
         // This served-contract proof owns no dispatcher database. Remove only
-        // those two workers; production startup tests retain the mandatory registration.
+        // those three workers; production startup tests retain the mandatory registration.
         builder.ConfigureTestServices(services =>
         {
             foreach (var descriptor in services.Where(descriptor =>
                          descriptor.ServiceType == typeof(IHostedService)
-                         && (descriptor.ImplementationType == typeof(OutboxProcessor)
-                         || descriptor.ImplementationType == typeof(DeliveryProcessor))).ToArray())
+                         && IsDispatcher(descriptor)).ToArray())
                 services.Remove(descriptor);
         });
+    }
+
+    private static bool IsDispatcher(ServiceDescriptor descriptor)
+    {
+        var implementation = descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType;
+        return implementation == typeof(OutboxProcessor) || implementation == typeof(DeliveryProcessor)
+            || implementation == typeof(BackgroundJobHostedService);
     }
 }

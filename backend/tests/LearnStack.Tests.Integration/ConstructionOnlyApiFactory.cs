@@ -1,4 +1,5 @@
 using LearnStack.Api.Messaging;
+using LearnStack.Api.Jobs;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -35,10 +36,16 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
         // test composition, never a production flag or a blanket hosted-service ban.
         foreach (var descriptor in services.Where(descriptor =>
                      descriptor.ServiceType == typeof(IHostedService)
-                     && (descriptor.ImplementationType == typeof(OutboxProcessor)
-                         || descriptor.ImplementationType == typeof(DeliveryProcessor))).ToArray())
+                     && IsDispatcher(descriptor)).ToArray())
         {
             services.Remove(descriptor);
         }
+    }
+
+    private static bool IsDispatcher(ServiceDescriptor descriptor)
+    {
+        var implementation = descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType;
+        return implementation == typeof(OutboxProcessor) || implementation == typeof(DeliveryProcessor)
+            || implementation == typeof(BackgroundJobHostedService);
     }
 }

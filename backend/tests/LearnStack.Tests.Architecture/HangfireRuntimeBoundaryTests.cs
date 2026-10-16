@@ -76,9 +76,10 @@ public sealed partial class OutboxDispatchConventionTests
             "System.Object", "System.EventArgs");
         var beginExit = RequireBoundaryMethod(offenders, gate, "BeginFinalExit", "System.Void", MethodAttributes.Assembly);
 
-        // The process-wide host facade is still uncomposed. The closed pool owner
-        // alone constructs generations; host integration must name its exact gate caller.
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, ".ctor", gateConstructor, []);
+        // The named registration alone creates the process gate; the closed pool
+        // owner alone constructs generations after the facade preallocates owners.
+        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, ".ctor", gateConstructor,
+            [InfrastructureAssembly + ":" + JobRuntimeGate + " " + JobRuntimeRegistration + "::CreateGate(System.IServiceProvider):newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobGeneration, ".ctor", generationConstructor,
             [InfrastructureAssembly + ":System.Threading.Tasks.Task LearnStack.Infrastructure.Jobs.HangfirePoolOwner::SuperviseAsync():newobj"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "ForPool", forPool, [generationConstructor + ":callvirt"]);
@@ -87,7 +88,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "Terminate", fatal, [poolFatal + ":callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "FailFast", sink, [fatal + ":call", fatal + ":call"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "EnsureFinalExitRegistered", registerExit,
-            [generationConstructor + ":callvirt"]);
+            [generationConstructor + ":callvirt", InfrastructureAssembly + ":System.Void " + JobRuntime + "/BootstrapInvocation::Execute():callvirt"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "OnFinalExit", onExit, [gateConstructor + ":ldftn"]);
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "BeginFinalExit", beginExit, [onExit + ":call"]);
 

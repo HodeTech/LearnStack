@@ -24,21 +24,31 @@ internal static class Program
         "host_stop_then_fatal", "final_exit_then_fatal",
     ];
     private static readonly string[] SentinelNames = ["finally.flag", "process-exit.flag"];
+    private static readonly string[] ScratchMountOptions = ["rw", "noexec", "nosuid"];
     private static readonly FrozenDictionary<string, string> ChildEnvironment = CreateEnvironment();
 
     public static async Task<int> Main(string[] args)
     {
         try
         {
-            if (args.Length != 2 || !Scenarios.Contains(args[1], StringComparer.Ordinal))
+            if (args.Length is not (2 or 3) || (!Scenarios.Contains(args[1], StringComparer.Ordinal)
+                && !GenerationPhaseProbe.IsScenario(args[1])))
                 return Refuse("argument_refused");
+            var mutation = args.Length == 3 ? args[2] : "none";
+            if (!GenerationPhaseProbe.ValidMutation(args[1], mutation)) return Refuse("argument_refused");
             if (!QualifiedEnvironment()) return Refuse("managed_preflight_refused");
+            if (GenerationPhaseProbe.IsScenario(args[1]))
+                return await GenerationPhaseProbe.RunAsync(args[0], args[1], mutation).ConfigureAwait(false);
             return args[0] switch
             {
                 "supervise" => await SuperviseAsync(args[1]).ConfigureAwait(false),
                 "child" => RunChild(args[1]),
                 _ => Refuse("argument_refused"),
             };
+        }
+        catch (GenerationPhaseProbe.PhaseRefusal failure)
+        {
+            return Refuse(failure.Code);
         }
         catch (Exception failure) when (failure.GetType() != typeof(OutOfMemoryException)
             && failure.GetType() != typeof(StackOverflowException))
@@ -47,6 +57,10 @@ internal static class Program
             return Refuse("probe_failed");
         }
     }
+
+    // The phase supervisor uses exactly the same cleared child allowlist as the
+    // direct-sink proof. Connection material travels only through private stdin.
+    internal static IReadOnlyDictionary<string, string> ClearedChildEnvironment => ChildEnvironment;
 
     private static async Task<int> SuperviseAsync(string scenario)
     {
@@ -179,7 +193,8 @@ internal static class Program
         return mounts.Any(fields => fields.Length >= 4 && fields[1] == "/"
                 && fields[3].Split(',').Contains("ro", StringComparer.Ordinal))
             && mounts.Any(fields => fields.Length >= 4 && fields[1] == ProbeRoot && fields[2] == "tmpfs"
-                && fields[3].Split(',').Contains("rw", StringComparer.Ordinal));
+                && ScratchMountOptions.All(option => fields[3].Split(',').Contains(option, StringComparer.Ordinal)))
+            && File.GetUnixFileMode(ProbeRoot) == (UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
     private static bool ArtifactsAllowed(string scenario)

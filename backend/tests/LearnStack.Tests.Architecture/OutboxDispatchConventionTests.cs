@@ -70,6 +70,7 @@ public sealed partial class OutboxDispatchConventionTests
         var factory = source.Methods.Single(method => method.Name == Mint);
         var constructor = census.Types[(KernelAssembly, Witness)].Methods.Single(method => method.IsConstructor);
         var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+        AssertDetectorScanCache(census, application, factory);
 
         AssertTerminalMutation(census, "a second minting subtype in another production assembly", () =>
         {
@@ -439,7 +440,10 @@ public sealed partial class OutboxDispatchConventionTests
         _ => false,
     };
 
-    private static IEnumerable<(string Owner, MethodReference Target)> CallSites(ProductionCensus census)
+    private static IEnumerable<(string Owner, MethodReference Target)> CallSites(ProductionCensus census) =>
+        census.ReadCallSites(EnumerateCallSites(census));
+
+    private static IEnumerable<(string Owner, MethodReference Target)> EnumerateCallSites(ProductionCensus census)
     {
         // Attribute mapping is deliberate: a nested type merely named
         // <TryTerminalizeAsync>d__123 must not inherit that owner's authority.
@@ -520,17 +524,44 @@ public sealed partial class OutboxDispatchConventionTests
     private static void AssertMutation(ProductionCensus census, string description, Func<Action> mutate,
         Func<ProductionCensus, SortedSet<string>> detector)
     {
-        detector(census).Should().BeEmpty("Fix: the planted control requires a clean nonempty production baseline");
+        Scan().Should().BeEmpty("Fix: the planted control requires a clean nonempty production baseline");
         var undo = mutate();
         try
         {
-            detector(census).Should().NotBeEmpty("Fix: the same production detector must reject " + description);
+            Scan().Should().NotBeEmpty("Fix: the same production detector must reject " + description);
         }
         finally
         {
             undo();
         }
-        detector(census).Should().BeEmpty("Fix: removing the planted offender must restore a clean production census");
+        Scan().Should().BeEmpty("Fix: removing the planted offender must restore a clean production census");
+
+        SortedSet<string> Scan()
+        {
+            using var scope = census.BeginDetectorScan();
+            return detector(census);
+        }
+    }
+
+    private static void AssertDetectorScanCache(ProductionCensus census, ModuleDefinition module, MethodReference target)
+    {
+        ReferenceEquals(census.Types, census.Types).Should().BeFalse("unscoped reads must rebuild after arbitrary metadata edits");
+        var probeKey = (module.Assembly.Name.Name, "ReviewProbe.DetectorScanProbe");
+        var owner = module.Assembly.Name.Name + ":System.Void " + probeKey.Item2 + "::Run()";
+        AssertMutation(census, "a newly added async subject visible only in the dirty detector scan", () =>
+            AddAsyncCallProbe(module, "DetectorScanProbe", target), current =>
+        {
+            ReferenceEquals(current.Types, current.Types).Should().BeTrue("one detector call reuses its type index");
+            var sites = CallSites(current);
+            ReferenceEquals(sites, CallSites(current)).Should().BeTrue("one detector call reuses its read-only call-site snapshot");
+            var present = current.Types.ContainsKey(probeKey);
+            sites.Any(site => site.Owner == owner && MethodId(site.Target) == MethodId(target)).Should().Be(present,
+                "the type index and attribute-linked async calls must both reflect each baseline, mutation and restoration");
+            var offenders = new SortedSet<string>(StringComparer.Ordinal);
+            if (present) offenders.Add("The detector scan contains its planted async subject.");
+            return offenders;
+        });
+        ReferenceEquals(census.Types, census.Types).Should().BeFalse("the final scan must release its cache");
     }
 
     private static Action ChangeAttributes<T>(Func<T> read, Action<T> write, T replacement)
@@ -589,12 +620,38 @@ public sealed partial class OutboxDispatchConventionTests
 
     private sealed class ProductionCensus : IDisposable
     {
+        private DetectorScan? _scan;
         private ProductionCensus(List<ModuleDefinition> modules) => Modules = modules;
         public List<ModuleDefinition> Modules { get; }
-        // Rebuild after each planted mutation so additions/removals are part of the
-        // same census rather than hidden behind the original type-map snapshot.
+        // Only one synchronous detector evaluation may reuse metadata indexes.
+        // Mutation and undo always run after its disposable scan has cleared them.
         public Dictionary<(string Assembly, string Type), TypeDefinition> Types =>
+            _scan is { } scan ? scan.Types ??= BuildTypes() : BuildTypes();
+
+        public IDisposable BeginDetectorScan()
+        {
+            if (_scan is not null) throw new InvalidOperationException("Detector scans cannot overlap.");
+            return _scan = new DetectorScan(this);
+        }
+
+        public IEnumerable<(string Owner, MethodReference Target)> ReadCallSites(IEnumerable<(string Owner, MethodReference Target)> sites) =>
+            _scan is { } scan ? scan.CallSites ??= Array.AsReadOnly(sites.ToArray()) : sites;
+
+        private Dictionary<(string Assembly, string Type), TypeDefinition> BuildTypes() =>
             Modules.SelectMany(module => module.GetTypes()).ToDictionary(Key);
+
+        private sealed class DetectorScan(ProductionCensus census) : IDisposable
+        {
+            internal Dictionary<(string Assembly, string Type), TypeDefinition>? Types { get; set; }
+            internal IReadOnlyList<(string Owner, MethodReference Target)>? CallSites { get; set; }
+
+            public void Dispose()
+            {
+                if (ReferenceEquals(census._scan, this)) census._scan = null;
+                Types = null;
+                CallSites = null;
+            }
+        }
 
         public static ProductionCensus Read()
         {
@@ -613,6 +670,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         public void Dispose()
         {
+            _scan?.Dispose();
             foreach (var module in Modules) module.Dispose();
         }
     }

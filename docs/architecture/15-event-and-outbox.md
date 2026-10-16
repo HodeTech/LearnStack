@@ -728,8 +728,8 @@ independent subject to shared dependencies. The exact two-clause supersession
 is disclosed in [ADR-0047 Amendment 2](../decisions/0047-transactional-background-job-runtime.md#amendment-2--owned-server-lifecycle-and-bounded-availability-supersession-2026-10-16);
 [ADR-0058 Amendment 2](../decisions/0058-bounded-stock-hangfire-maintenance.md#amendment-2--independent-shared-component-ownership-2026-10-16)
 adds ownership navigation only. The [Step 4 adaptation](../roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
-is authorized, with implementation, real worker/PostgreSQL, surface/lifecycle,
-multi-pool and process-exit qualification still pending before activation.
+is authorized. Implementation is in progress; full production qualification and
+both full Step 4 review rounds remain pending before activation.
 
 **Accepted exceptional boundary — 2026-10-16.**
 Accepted [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
@@ -737,6 +737,17 @@ adds a whole-API failure boundary to H1's ordinary per-pool ownership. Its exact
 trigger, global start gates, durable uncertainty and qualification requirements
 are carried by [Infrastructure Standards](../standards/20-infrastructure-stack.md#background-jobs-and-hangfire).
 Step 4 owns implementation; acceptance provides no activated worker or crash proof.
+
+The current Step 4 API composition uses
+[`BackgroundJobRuntime`](../glossary.md#background-jobs) to own bootstrap, pool
+generations, shared components and the bridge. Its hosted service binds the actual
+singleton outbox/delivery processors before startup. The shared source outlives a
+finite host wait until jobs and both processors positively finish privileged
+source use; a connection-cleanup fault retains its concrete owner and closes that
+SQL lane. Application callback completion is a separate ownership concern.
+[Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
+owns the source-release contract and current physical floor; adding later SQL
+lanes requires requalification.
 
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session
@@ -751,10 +762,10 @@ The [Step 2 closeout](../roadmap/phase-02b-events-auth.md#step-2-final-proof-and
 owns completed schema/bootstrap/source qualification. The
 [Step 3 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-3--submission-and-app-role-admission-2026-10-16)
 owns submission and app-role admission implementation/review status;
-Step 4 owns actual component/filter selection, the shared expiration owner and
-final acquisition-census/supported-pool-boundary progress proofs. Step 9 owns full
-observation/enforcement. Both extended canonical obligations remain Registered;
-no maintenance runtime is claimed by decision acceptance or Step 2 completion.
+the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns facade/source-lifetime implementation and remaining qualification. Step 9
+owns full observation/enforcement. Both extended canonical obligations remain
+Registered; decision acceptance and local slice proofs do not close full Step 4.
 
 ## Service extraction readiness
 

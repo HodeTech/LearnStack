@@ -27,15 +27,14 @@ public sealed partial class OutboxDispatchConventionTests
             BoundaryGuardedSource, "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
             "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", JobRuntimeGate);
         var reader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
-            "System.Threading.Tasks.ValueTask`1<Npgsql.NpgsqlConnection>", MethodAttributes.Private, "System.Boolean", BoundaryCancellation);
+            "System.Threading.Tasks.ValueTask`1<" + JobBridgeStore + "/OwnedConnection>", MethodAttributes.Private, "System.Boolean", BoundaryCancellation);
         var claim = RequireBoundaryMethod(offenders, store, "TryClaimAsync", "System.Threading.Tasks.Task`1<" + JobBridgeClaim + ">",
             MethodAttributes.Assembly, "System.Collections.Generic.IReadOnlyCollection`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>",
             BoundaryCancellation);
         var update = RequireBoundaryMethod(offenders, store, "UpdateAsync", BoundaryBooleanTask, MethodAttributes.Private,
             JobBridgeClaim, "System.String", "System.Nullable`1<" + JobBridgeDeferral + ">", BoundaryCancellation);
         var sites = CallSites(census).ToArray();
-        CheckSet(offenders, "bridge gated acquisition callers", sites.Where(site => SameType(site.Target.DeclaringType, store)
-            && site.Target.Name == "OpenConnectionAsync").Select(site => site.Owner), [claim, update]);
+        CheckCleanupConnectionOwner(offenders, census, store, reader, [claim, update]);
         CheckBridgeCapturedField(offenders, census, store, JobBridgeSourceField, BoundaryGuardedSource,
             [constructor + ":stfld", reader + ":ldfld"]);
         CheckSet(offenders, "bridge captured guarded-source fields", store.Fields
@@ -50,28 +49,30 @@ public sealed partial class OutboxDispatchConventionTests
         var stop = RequireBoundaryMethod(offenders, bridge, "StopAsync", BoundaryTask, MethodAttributes.Public, BoundaryCancellation);
         var observe = RequireBoundaryMethod(offenders, bridge, "ObserveAsync", BoundaryTask, MethodAttributes.Private,
             JobBridge + "/BridgeOperation");
+        var cleanup = RequireBoundaryMethod(offenders, bridge, "get_HasUnconfirmedCleanup", "System.Boolean", MethodAttributes.Assembly);
+        var admit = RequireBoundaryMethod(offenders, bridge, "TryAdmitStart", "System.Boolean", MethodAttributes.Private);
+        var preallocate = RuntimePreallocateId;
         CheckSet(offenders, "privileged bridge-store consumers", OwnedBodies(census)
             .Where(item => item.Owner.DeclaringType.FullName != JobBridgeStore && ReferencesCapability(item.Body, JobBridgeStore))
             .Select(item => MethodId(item.Owner)).Concat(census.Types.Values.SelectMany(type => type.Methods)
                 .Where(method => !method.HasBody && method.DeclaringType.FullName != JobBridgeStore
                     && ReferencesCapability(method, JobBridgeStore)).Select(MethodId)).Distinct(StringComparer.Ordinal),
-            [bridgeConstructor, quantum, stop, observe]);
-        // The independent foundation is deliberately uncomposed. A later host
-        // registration must name its exact owner rather than widening this census.
+            new[] { bridgeConstructor, quantum, stop, observe, cleanup, admit, preallocate }
+                .Concat(CleanupOwnerConsumerIds(census, JobBridgeStore)));
         CheckSet(offenders, "privileged bridge-store construction callers", sites.Where(site => SameType(site.Target.DeclaringType, store)
-            && site.Target.Name == ".ctor").Select(site => site.Owner), []);
+            && site.Target.Name == ".ctor").Select(site => site.Owner), [preallocate]);
         var stateMachines = OwnedBodies(census).Where(item => item.Body.Name == "MoveNext" && item.Body != item.Owner
-                && (MethodId(item.Owner) == claim || MethodId(item.Owner) == update))
+                && (MethodId(item.Owner) == claim || MethodId(item.Owner) == update || MethodId(item.Owner) == reader))
             .Select(item => Key(item.Body.DeclaringType)).ToHashSet();
         var holders = census.Types.Values.SelectMany(type => type.Fields)
             .Where(field => ContainsBridgeCapability(field.FieldType, JobBridgeStore)
                 && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"
                     && field.FieldType.FullName == JobBridgeStore)).ToArray();
         CheckSet(offenders, "privileged bridge-store holders", holders.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
-            [TypeId(bridge) + ":<store>P"]);
+            [TypeId(bridge) + ":<store>P", InfrastructureAssembly + ":" + JobBridgeStore + "/OwnedConnection:<owner>P"]);
         CheckBridgeCapturedField(offenders, census, bridge, "<store>P", JobBridgeStore,
-            [bridgeConstructor + ":stfld", quantum + ":ldfld", quantum + ":ldfld", stop + ":ldfld",
-             observe + ":ldfld", observe + ":ldfld"]);
+            [bridgeConstructor + ":stfld", cleanup + ":ldfld", quantum + ":ldfld", quantum + ":ldfld", quantum + ":ldfld", stop + ":ldfld",
+             observe + ":ldfld", observe + ":ldfld", observe + ":ldfld", admit + ":ldfld"]);
         return reader;
     }
 

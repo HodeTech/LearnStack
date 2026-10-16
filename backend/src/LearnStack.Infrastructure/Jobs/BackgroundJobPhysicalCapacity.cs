@@ -1,0 +1,31 @@
+namespace LearnStack.Infrastructure.Jobs;
+
+/// <summary>Sanitized settings captured from the same connection string as the shared dispatcher source.</summary>
+public sealed record BackgroundJobPhysicalPoolSettings(bool Pooling, int MaxPoolSize);
+
+/// <summary>The conservative current Step 4 acquisition manifest; later SQL owners require requalification.</summary>
+public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int ControlPools,
+    int InvocationOwners, int RequiredConnections)
+{
+    public static BackgroundJobPhysicalCapacity Calculate(BackgroundJobInfrastructureRegistry topology)
+    {
+        ArgumentNullException.ThrowIfNull(topology);
+        var pools = topology.Pools.Count;
+        var workers = topology.Pools.Values.Sum(pool => pool.Workers);
+        var controls = topology.Pools.Values.Count(pool => pool.Kind == BackgroundJobWorkerPoolKind.Control);
+        var invocations = topology.Pools.Values.Sum(pool => BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers));
+        // Stock W + four per-pool controls/lifecycle + two schedulers per
+        // Control pool + shared/bridge/messaging eleven + retained routing U.
+        return new(pools, workers, controls, invocations,
+            checked(workers + 4 * pools + 2 * controls + 11 + invocations));
+    }
+
+    public void Validate(BackgroundJobPhysicalPoolSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.MaxPoolSize < 1 || settings.Pooling && settings.MaxPoolSize < RequiredConnections)
+            throw new ArgumentException("The background job source does not meet the supported physical capacity.", nameof(settings));
+        // Nonpooling still has the same owner bound. MaxPoolSize is not its
+        // physical checkout cap, so this predicate creates no nonpooling ban.
+    }
+}

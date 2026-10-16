@@ -9,7 +9,7 @@ internal enum HangfirePoolOwnerState
 }
 
 internal sealed record HangfirePoolOwnerSnapshot(string Pool, HangfirePoolOwnerState State,
-    HangfireGenerationSnapshot? Generation, long Generations);
+    HangfireGenerationSnapshot? Generation, HangfireGenerationWorkSnapshot? Work, long Generations);
 
 /// <summary>One closed replacement owner retains the actual generation and all its cleanup.</summary>
 internal sealed class HangfirePoolOwner
@@ -70,7 +70,7 @@ internal sealed class HangfirePoolOwner
                     else if (_generation?.Ready is { IsCompletedSuccessfully: true } ready && ready.Result)
                         state = HangfirePoolOwnerState.Running;
                 }
-                return new(_pool.Name, state, generation, _generations);
+                return new(_pool.Name, state, generation, _generation?.WorkSnapshot, _generations);
             }
         }
     }

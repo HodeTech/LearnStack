@@ -406,6 +406,9 @@ public sealed partial class PersistenceConventionTests
     /// </summary>
     private static readonly Dictionary<string, string> ParallelSites = new(StringComparer.Ordinal)
     {
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobRuntime.cs"] =
+            "The process facade retains bootstrap, independent pool/shared/bridge owners and the fixed messaging/source lifetime; "
+            + "all SQL is privileged or privately scoped, with no ambient unit or module DbContext (ADR-0047/0059/0060).",
         ["LearnStack.Infrastructure/Jobs/HangfireGeneration.cs"] =
             "One process-owned Core generation observes its startup, stop and actual joins independently; "
             + "stock operations use confined provider connections, never a scoped ambient unit (ADR-0059/0060).",

@@ -8,9 +8,17 @@ refuse() {
     exit 78
 }
 
-[ "$#" -eq 1 ] || refuse argument_refused
+[ "$#" -eq 1 ] || [ "$#" -eq 2 ] || refuse argument_refused
+if [ "$#" -eq 2 ]; then
+    case "$1:$2" in
+        gen_post_builder:sink|gen_constructor_before:constructor|gen_post_builder:capture_dispose|gen_dispose_second_announce:second_announce|gen_dispose_outer_complete:outer_completion) ;;
+        *) refuse argument_refused ;;
+    esac
+fi
 case "$1" in
     benign|constructor|startup_unwind|lifecycle_unwind|host_stop_then_fatal|final_exit_then_fatal) ;;
+    gen_constructor_before|gen_constructor_after|gen_required_before_capture|gen_supplied_after_capture|gen_post_builder|gen_notify_succeeded|gen_wait_entry|gen_dispose_second_announce|gen_dispose_outer_complete|gen_announce_log|gen_host_stop|gen_final_exit|gen_process_exit) ;;
+    gen_stall_constructor|gen_stall_required|gen_stall_supplied|gen_stall_postbuilder) ;;
     *) refuse argument_refused ;;
 esac
 
@@ -49,4 +57,4 @@ exec /usr/bin/env -i \
     DOTNET_CreateDumpDiagnostics=0 COMPlus_CreateDumpDiagnostics=0 \
     DOTNET_CreateDumpVerboseDiagnostics=0 COMPlus_CreateDumpVerboseDiagnostics=0 \
     DOTNET_EnableDiagnostics=0 COMPlus_EnableDiagnostics=0 \
-    /usr/share/dotnet/dotnet /opt/probe/LearnStack.Tests.JobLifecycleProbe.dll supervise "$1"
+    /usr/share/dotnet/dotnet /opt/probe/LearnStack.Tests.JobLifecycleProbe.dll supervise "$@"

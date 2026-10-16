@@ -54,7 +54,8 @@ public sealed partial class OutboxDispatchConventionTests
         var types = census.Types;
         foreach (var subject in new[] { (DeliveryApplication, JobAdmission), (InfrastructureAssembly, PrivilegedSource),
                      (DeliveryApplication, JobTenantBehavior), (DeliveryApplication, JobTransactionBehavior),
-                     (InfrastructureAssembly, JobBridge), (InfrastructureAssembly, JobBridgeStore) })
+                     (InfrastructureAssembly, JobBridge), (InfrastructureAssembly, JobBridgeStore),
+                     (InfrastructureAssembly, Store), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, JobRuntime) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing job authority subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var admission = types[(DeliveryApplication, JobAdmission)];
@@ -78,10 +79,13 @@ public sealed partial class OutboxDispatchConventionTests
             [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => site.Owner),
             [Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnection"), Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnectionAsync"),
+             Owner(InfrastructureAssembly, Store, "OpenConnectionAsync"), Owner(InfrastructureAssembly, DeliveryStore, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, BoundaryPlatform, "EnterAsync"), Owner(InfrastructureAssembly, BoundaryTransport, "PublishAsync"),
              Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteAsync"), Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteControlledAsync"),
              Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync"), Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimOwnedAsync"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"),
+             Owner(InfrastructureAssembly, JobRuntime, "BindMessagingLifetime"), Owner(InfrastructureAssembly, JobRuntime, "StartAsync"),
+             Owner(InfrastructureAssembly, JobRuntime, "RequestStop"), Owner(InfrastructureAssembly, JobRuntime, "StopAsync"),
              RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridge)], "RunQuantumAsync", BoundaryBooleanTask,
                  MethodAttributes.Public, BoundaryCancellation),
              RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridge)], "StopAsync", BoundaryTask,

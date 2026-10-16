@@ -1,6 +1,7 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Api.Messaging;
+using LearnStack.Api.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
@@ -42,10 +43,11 @@ public static class OutboxCompositionExtensions
             provider.GetRequiredService<IGuidFactory>(),
             provider.GetRequiredService<IClock>(),
             provider.GetRequiredService<IServiceScopeFactory>()));
-        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IHostedService)
-                && descriptor.ImplementationType == typeof(OutboxProcessor)))
+        services.TryAddSingleton<OutboxProcessor>();
+        services.AddHostedService(ResolveOutboxHostedService);
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(OutboxHealthCheck)))
         {
-            services.AddHostedService<OutboxProcessor>();
+            services.AddSingleton<OutboxHealthCheck>();
             services.AddHealthChecks().AddCheck<OutboxHealthCheck>(OutboxHealthCheck.Name);
         }
         services.TryAddSingleton(new DeliveryDispatchOptions());
@@ -58,17 +60,33 @@ public static class OutboxCompositionExtensions
             provider.GetRequiredService<IGuidFactory>(),
             provider.GetRequiredService<IClock>(),
             provider.GetRequiredService<IServiceScopeFactory>()));
-        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IHostedService)
-                && descriptor.ImplementationType == typeof(DeliveryProcessor)))
+        services.TryAddSingleton<DeliveryProcessor>();
+        services.AddHostedService(ResolveDeliveryHostedService);
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(DeliveryHealthCheck)))
         {
-            services.AddHostedService<DeliveryProcessor>();
+            services.AddSingleton<DeliveryHealthCheck>();
             services.AddHealthChecks().AddCheck<DeliveryHealthCheck>(DeliveryHealthCheck.Name);
         }
-        services.TryAddSingleton(provider => new PostgresBackgroundJobRoutingStore(
-            provider.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key),
-            provider.GetRequiredService<BackgroundJobDefinitionRegistry>(),
-            provider.GetRequiredService<BackgroundJobRuntimeOptions>(),
-            provider.GetRequiredService<IGuidFactory>()));
+        // Capture only nonsecret capacity settings from the same immutable input
+        // as the existing lazy source; jobs never create a second source/pool.
+        var parsed = new NpgsqlConnectionStringBuilder(connectionString);
+        services.AddLearnStackBackgroundJobRuntime(new(parsed.Pooling, parsed.MaxPoolSize));
+        services.TryAddSingleton<BackgroundJobHostedService>();
+        services.AddHostedService(ResolveJobHostedService);
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(BackgroundJobHealthCheck)))
+        {
+            services.AddSingleton<BackgroundJobHealthCheck>();
+            services.AddHealthChecks().AddCheck<BackgroundJobHealthCheck>(BackgroundJobHealthCheck.Name);
+        }
         return services;
     }
+
+    private static OutboxProcessor ResolveOutboxHostedService(IServiceProvider services) =>
+        services.GetRequiredService<OutboxProcessor>();
+
+    private static DeliveryProcessor ResolveDeliveryHostedService(IServiceProvider services) =>
+        services.GetRequiredService<DeliveryProcessor>();
+
+    private static BackgroundJobHostedService ResolveJobHostedService(IServiceProvider services) =>
+        services.GetRequiredService<BackgroundJobHostedService>();
 }

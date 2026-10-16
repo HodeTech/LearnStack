@@ -43,7 +43,7 @@ internal enum BackgroundJobBridgeDeferral { DeploymentMismatch, CreationFailed }
 
 /// <summary>One confined SQL lane; no business payload, attempt, generation or terminal mutation.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "The process-owned semaphore never creates a wait handle and remains live with retained operations.")]
+    Justification = "The SQL lane and concrete connection owner remain live through actual cleanup; caller disposal could invalidate retained work.")]
 public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source,
     BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids,
     BackgroundJobRuntimeGate? runtimeGate = null)
@@ -51,6 +51,14 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
     private readonly SemaphoreSlim _sqlLane = new(1, 1);
     private readonly object _acquisitionGate = new();
     private bool _stopping;
+    private bool _cleanupUnconfirmed;
+    private OwnedConnection? _connection;
+
+    /// <summary>Whether actual connection disposal failed; reading opens nothing.</summary>
+    public bool HasUnconfirmedCleanup
+    {
+        get { lock (_acquisitionGate) return _cleanupUnconfirmed; }
+    }
 
     internal async Task<BackgroundJobBridgeClaim?> TryClaimAsync(IReadOnlyCollection<BackgroundJobId> retained,
         CancellationToken cancellationToken = default)
@@ -65,7 +73,8 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         await _sqlLane.WaitAsync(deadline.Token).ConfigureAwait(false);
         try
         {
-            await using var connection = await OpenConnectionAsync(acquisition: true, deadline.Token).ConfigureAwait(false);
+            await using var ownedConnection = await OpenConnectionAsync(acquisition: true, deadline.Token).ConfigureAwait(false);
+            var connection = ownedConnection.Connection;
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
             await using var command = new NpgsqlCommand("""
                 WITH candidate AS (
@@ -124,7 +133,8 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         await _sqlLane.WaitAsync(deadline.Token).ConfigureAwait(false);
         try
         {
-            await using var connection = await OpenConnectionAsync(acquisition: false, deadline.Token).ConfigureAwait(false);
+            await using var ownedConnection = await OpenConnectionAsync(acquisition: false, deadline.Token).ConfigureAwait(false);
+            var connection = ownedConnection.Connection;
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
             // Obtain the row lock first. Time-dependent ACK/deferral fences run
             // in the separate UPDATE after any lock wait has actually ended.
@@ -173,14 +183,96 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
         lock (_acquisitionGate) _stopping = true;
     }
 
-    private ValueTask<NpgsqlConnection> OpenConnectionAsync(bool acquisition, CancellationToken cancellationToken)
+    private async ValueTask<OwnedConnection> OpenConnectionAsync(bool acquisition, CancellationToken cancellationToken)
     {
+        OwnedConnection owned;
+        ValueTask<NpgsqlConnection> opening;
         lock (_acquisitionGate)
         {
+            if (_cleanupUnconfirmed)
+                throw new InvalidOperationException("The bridge connection cleanup remains unconfirmed.");
             if (_stopping || runtimeGate is not null
                 && !(acquisition ? runtimeGate.TryAdmit() : runtimeGate.TryAdmitStorage()))
                 throw new InvalidOperationException("The bridge acquisition gate is closed.");
-            return source.OpenConnectionAsync(cancellationToken);
+            if (_connection is not null)
+                throw new InvalidOperationException("The bridge SQL ownership bound was exceeded.");
+            owned = new OwnedConnection(this);
+            _connection = owned;
+            try
+            {
+                opening = source.OpenConnectionAsync(cancellationToken);
+            }
+            catch
+            {
+                _connection = null;
+                throw;
+            }
+        }
+
+        try
+        {
+            owned.Attach(await opening.ConfigureAwait(false));
+            return owned;
+        }
+        catch
+        {
+            // Npgsql owns failed-open unwind before returning a caller connection.
+            ReleaseConnection(owned);
+            throw;
+        }
+    }
+
+    private void ReleaseConnection(OwnedConnection owned)
+    {
+        lock (_acquisitionGate)
+        {
+            if (ReferenceEquals(_connection, owned)) _connection = null;
+        }
+    }
+
+    private void RetainConnection(OwnedConnection owned)
+    {
+        lock (_acquisitionGate)
+        {
+            _cleanupUnconfirmed = true;
+            // Retain the original connection and its actual failed disposal task.
+            _connection = owned;
+        }
+    }
+
+    private sealed class OwnedConnection(PostgresBackgroundJobBridgeStore owner) : IAsyncDisposable
+    {
+        private readonly object _disposeGate = new();
+        private NpgsqlConnection? _connection;
+        private Task? _cleanup;
+        private Exception? _cleanupFailure;
+
+        internal NpgsqlConnection Connection => _connection
+            ?? throw new InvalidOperationException("The bridge connection has not been acquired.");
+
+        internal void Attach(NpgsqlConnection connection) => _connection = connection;
+
+        public ValueTask DisposeAsync()
+        {
+            lock (_disposeGate) return new(_cleanup ??= DisposeCoreAsync());
+        }
+
+        private async Task DisposeCoreAsync()
+        {
+            try
+            {
+                await Connection.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                _cleanupFailure = exception;
+                owner.RetainConnection(this);
+                if (exception.GetType() == typeof(OutOfMemoryException)
+                    || exception.GetType() == typeof(StackOverflowException)) throw;
+                throw new InvalidOperationException("The bridge connection cleanup remains unconfirmed.");
+            }
+
+            owner.ReleaseConnection(this);
         }
     }
 }

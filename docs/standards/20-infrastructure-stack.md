@@ -711,7 +711,7 @@ causal-envelope or payload read to the bypass scheduler. See
 Accepted [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 owns H1: stock Hangfire transports opaque wakeups; LearnStack records own business
 intent, attempts, tenant/organization authority and completion. The
-[P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
+[P02b-4 delivery record](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns current implementation/qualification status; worker activation is pending.
 
 **Accepted lifecycle addition — 2026-10-16.**
@@ -745,6 +745,15 @@ attempt, external uncertainty or reservation. Real fatal-child, callback/dump an
 worker/PostgreSQL qualification remains mandatory before activation. Phase 11 owns
 production supervision and crash diagnostics; acceptance claims no delivered runtime.
 
+- Step 4's API composition registers one `BackgroundJobHostedService` over
+  [`BackgroundJobRuntime`](../glossary.md#background-jobs), with singleton hosted
+  aliases for the actual `OutboxProcessor` and `DeliveryProcessor`. Bind their
+  positive source-use witnesses before startup; duplicate processors or an absent
+  binding cannot stand in for completed messaging work. The facade owns bootstrap,
+  pools, shared components and bridge under one finite external shutdown budget;
+  actual joins continue after caller waiting ends. Its health check reads memory
+  and remains unmapped. Implementation is in progress; both full Step 4 review
+  rounds remain pending.
 - Modules submit typed registered jobs on their announced business transaction.
   Transactional and external prepare/execute/finalize profiles retain distinct
   owners; vendor success is not business completion. Events keep their independent
@@ -771,11 +780,12 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   and bridge-four. Host stop uses one shared shutdown budget. Retained maintenance
   makes unmapped `jobs` health unhealthy with a fixed separate maintenance dimension
   and bounded progress/outcome code; Phase 11 owns readiness routing/alerts.
-- Database Standards owns the reset-safe five-second idle-session cleanup setting
-  and existing source deadlines. Per-statement/lock bounds do not bound a whole
-  pass. Step 4 enumerates all simultaneous physical-acquisition lanes, enforces the
-  qualified supported configuration/floor and proves independent pool progress
-  under contention. No fixed minimum-two or nonpooled prohibition is inferred.
+- Database Standards owns the reset-safe five-second idle-session cleanup setting,
+  source deadlines and [shared-source lifetime and current Step 4 capacity floor](05-database.md#shared-dispatcher-source-lifetime-and-capacity).
+  `MessagingPrivilegedLifetime` and the concrete connection-cleanup seals preserve
+  that source through actual privileged work. Per-statement/lock bounds do not
+  bound a whole pass; later acquisition lanes require requalification. Independent
+  pool progress under contention remains a real qualification obligation.
 - Vendor counter totals are approximate: expiration compaction can lose subtotals
   or discard nonpositive sums, and duplicate wakeups defeat a per-business-job row
   ratio. New historical timelines are unavailable; old history expires. Fewer live

@@ -121,12 +121,12 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**226 test methods run in
+**228 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–2.
+P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–4.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.
@@ -1830,6 +1830,10 @@ diagnostic above row security, not the boundary, as its own note says.
   Named worker/store source readers require unique literal method signatures,
   visibility and staticness; a same-name overload grants no authority. Real
   role/grant probes include valid and elevated/transitive negative controls.
+  The closed job facade binds the two actual messaging-owner tasks before startup;
+  only positive source-use completion permits shared-pool disposal. Exact cleanup
+  owners, immutable capacity input and memory-only health observations retain
+  their caller/field boundaries and planted escape controls.
 - **Source:** [05-database.md § GRANT matrix](05-database.md#grant-matrix);
   [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 - **Type:** architecture/DI census and real PostgreSQL role probes.
@@ -1852,8 +1856,13 @@ diagnostic above row security, not the boundary, as its own note says.
 
 - **Accepted extension:** ADR-0047 preserves this canonical name while adding
   enumerated H1 credential consumers and the minimal lifecycle reader. P02b-4
-  extends the exact census with each real consumer; its new role/table grants and
-  worker proofs remain pending. Existing dispatcher enforcement stays Implemented.
+  Step 2 implements role/table grants; Step 4 adds the closed facade, source pin
+  and concrete cleanup-owner censuses in
+  [BackgroundJobRuntimeCompositionBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)
+  and [PrivilegedDispatchCleanupBoundaryTests](../../backend/tests/LearnStack.Tests.Architecture/PrivilegedDispatchCleanupBoundaryTests.cs).
+  The [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+  owns current qualification/review status. Existing dispatcher enforcement stays
+  Implemented; full Step 4 review gates remain open.
 
 #### `CoreInfrastructure_DoesNotDependOn_AnyModule`
 

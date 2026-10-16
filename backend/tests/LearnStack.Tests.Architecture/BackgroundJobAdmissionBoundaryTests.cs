@@ -318,7 +318,8 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHangfireCapabilitySites(offenders, ownedBodies, JobInvocationContract, "BindGeneration", bindGeneration,
             [HangfireGenerationConstructorId + ":call"]);
         var expected = new[] { MethodId(composition), create, activatorConstructor, bind, begin, invocationConstructor, run }
-            .Concat(factory is null ? [] : new[] { MethodId(factory) });
+            .Concat(factory is null ? [] : new[] { MethodId(factory) })
+            .Concat([RuntimeConstructorId, RuntimeFactoryId, RuntimePreallocateId]);
         CheckSet(offenders, "privileged job-routing store consumers", ownedBodies
             .Where(item => item.Owner.DeclaringType.FullName != JobRoutingStore && ReferencesCapability(item.Body, JobRoutingStore))
             .Select(item => MethodId(item.Owner)).Concat(types.Values.SelectMany(type => type.Methods)
@@ -329,7 +330,7 @@ public sealed partial class OutboxDispatchConventionTests
         var fields = types.Values.SelectMany(type => type.Fields).Where(field => field.FieldType.FullName == JobRoutingStore
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"));
         CheckSet(offenders, "privileged job-routing store holders", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
-            [TypeId(activator) + ":<routing>P", TypeId(invocation) + ":<routing>P"]);
+            [TypeId(activator) + ":<routing>P", TypeId(invocation) + ":<routing>P", InfrastructureAssembly + ":" + JobRuntime + ":_routing"]);
         if (fields.Any(field => !field.IsPrivate || field.IsStatic)) offenders.Add("Routing capability holders must remain private instance fields");
         foreach (var (holder, accesses) in new[]
                  {

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using FluentAssertions;
+using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
@@ -820,7 +821,8 @@ public sealed class OutboxProcessorTests(SchemaFixture schema)
             {
                 // This fixture proves producer acceptance independently of business delivery.
                 foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
-                             && descriptor.ImplementationType == typeof(DeliveryProcessor)).ToArray())
+                             && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
+                             && (implementation == typeof(DeliveryProcessor) || implementation == typeof(BackgroundJobHostedService))).ToArray())
                     services.Remove(descriptor);
                 services.RemoveAll<OutboxDispatchOptions>();
                 services.AddSingleton(bounds ?? Bounds);

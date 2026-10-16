@@ -5182,6 +5182,147 @@ fails during isolated PostgreSQL setup, before arming any fault; its receipt
 predicate passes. This is setup feedback, not fatal-policy qualification. Neither
 this slice nor its tests activate workers or close full Step 4's review gates.
 
+##### Pool-cleanup slice review round 1 (2026-10-16)
+
+Two fresh independent reviewers inspect `28433f29..d9fda174`: GPT-6 Astra with
+xhigh effort covers runtime authority/lifecycle; GPT-6.1 Sol with xhigh effort
+covers evidence/corpus. Both approve the exact slice with no confirmed
+Blocker/Major/Minor. Their source reviews do not rerun the toolchain or close the
+remaining full Step 4 gates.
+
+Both reviewers identify the pre-existing ACK/deferral cleanup-fault qualification
+boundary as remaining full Step 4 work: a returned store exception alone does not
+prove positive connection cleanup. The ongoing source-lifetime integration owns
+that correction and its decisive controls. Their report artifact writes succeed;
+final readback is initially blocked while an unrelated local process burst
+prevents new shell processes. The subsequent continuation receives both complete
+reports and verifies their artifacts. No unavailable check is counted as passing.
+
+The implementation commit's normal hook initially conflicts only on formatting
+of two newly added tests while restoring its own WIP stash. Root compares both
+versions, verifies equal nonwhitespace content, keeps the formatter output and
+verifies all three tracked/five untracked pending proof files byte-for-byte.
+The second normal hook succeeds; only the verified recovered hook backup is
+removed, preserving the three pre-existing stashes.
+
+##### Pool-cleanup slice review round 2 (2026-10-16)
+
+Two new independent reviewers inspect the same exact committed
+`28433f29..d9fda174` range: GPT-6 Astra/xhigh covers runtime and
+GPT-6.1 Sol/xhigh covers tests, structural enforcement and corpus. Both approve
+with no confirmed Blocker/Major/Minor or required correction. The evidence
+reviewer independently reads the supplied build log and TRX records, confirming
+the recorded 2,109 Unit, 74 focused PostgreSQL and 319 Architecture cases with
+zero skips; this is receipt inspection, not another execution.
+
+Both review rounds are complete for this slice. They do not close full Step 4,
+review the subsequent working tree or establish worker activation. The baseline
+bridge ACK/deferral cleanup ambiguity remains assigned to source-lifetime
+integration rather than relabeled as a new slice regression.
+
+##### Source-lifetime and facade continuation (2026-10-16)
+
+An unrelated local test experiment exhausts the workstation's process limit and
+blocks shell/test startup. With explicit maintainer authorization, only that
+experiment's matching process path is terminated. The next process inventory
+contains 659 processes and no matching experiment process; commands resume.
+This environment repair is not product or CI evidence.
+
+The working implementation adds concrete connection-cleanup seals to the three
+privileged dispatch/bridge stores, a one-shot shared-source lifetime pin,
+positive messaging startup/actual-loop witnesses and the API runtime facade.
+The corrected source builds with zero warnings/errors; its then-current Unit
+assembly passes 2,161 cases with zero skips. Synthetic driver-state and cleanup
+controls prove retained ownership, not production failure incidence.
+
+The isolated Core-phase fixture progresses through PostgreSQL preparation and
+container qualification but still refuses its sanitized-output prerequisite.
+Those failed runs arm no accepted fatal-policy proof and are not counted as
+passing qualification. Full Core phase/mutation/native-exit evidence, composed
+source lifetime, supported capacity and full Step 4 reviews remain in progress.
+
+##### Core-phase and direct-facade qualification (2026-10-16)
+
+The corrected isolated fixture passes 23 cases: seventeen unchanged-vendor Core
+phase/native-exit scenarios, five actual child-only IL mutations and one separately
+labelled receipt-predicate control. The mutations remove the production sink or
+one exact constructor/capture-disposal/second-announcement/outer-completion
+observer. The same normal predicate rejects each modified child's actual result;
+a later fallback fatal call cannot conceal an observer that already returned.
+These are synthetic fault placements in real pinned Core, not genuine native
+thread/resource-exhaustion reproductions.
+
+The fixture retains strict empty-stderr, native/supervisor exit, artifact, dump,
+runtime and original-vendor-binary checks. Its earlier output refusal is optional
+GSS library discovery in the minimal Linux image; the password-only fixture now
+explicitly disables GSS encryption. Production connection settings are unchanged.
+PostgreSQL preparation has one ephemeral loopback binding, preserved and checked
+after bridge detachment; the fatal child has only the inspected internal network.
+No claim that the PostgreSQL setup port is unpublished is made.
+
+Six real-PostgreSQL facade cases pass. Actual default and maximum manifests use
+the same guarded pooled settings and live stock worker/queue metadata: 45 and
+151 connections respectively. A native framework invocation's held DI cleanup
+keeps source disposal pending beyond the caller's stop deadline; releasing actual
+cleanup permits Core removal, positive runtime completion and source closure.
+Another case holds stock expiration's actual checkout with a competing database
+lock while independent transactional admission succeeds at the supported default
+floor. These cases do not assert simultaneous saturation of all reserved lanes.
+Their two completed messaging tasks are explicit no-issued-work facts; the real
+three-owner API composition requires its separate qualification.
+
+The current Release solution build passes with zero warnings/errors and all
+2,165 Unit cases pass, zero failures/skips. Full Architecture validation and the
+composed messaging-source proof remain in progress. These receipts overlap earlier
+focused runs and are not summed into a packet total. Full Step 4 implementation,
+fresh full-step review rounds and later Steps 5–9 remain open.
+
+Two additional composed PostgreSQL cases now pass with the actual API-hosted
+jobs, outbox and delivery singletons and their exact bound completion tasks.
+Each real terminal transaction and one matching MUST SecurityEvent audit commit
+before a test-owned async disposable holds that terminal audit scope's cleanup.
+The actual connection remains checked out and actual worker completion remains
+pending through finite stop waiting and container disposal. Guarded acquisition
+still succeeds; releasing the synthetic cleanup hold lets all three actual owners
+join and the same source observer close the pool. Independent app-role reads
+confirm unchanged terminal/audit durability, then no vendor server or tagged
+backend remains. The synthetic disposable is not a driver-cleanup-fault claim.
+
+The first composed fixture run fails genuine DI validation because its custom host
+omits tenancy edge registration. The corrected fixture uses the real edge and
+literal development configuration; validation stays enabled. A discarded network
+hold design is replaced before acceptance because bounded driver cancellation
+would make its pending checkpoints depend on a narrow scheduling window.
+
+The full Architecture run exposes a detached Cecil target in a planted
+missing-subject control; local guards now record the missing declaration/scope
+instead of throwing. The already-failed unoptimized rerun is canceled and excluded
+from qualification. A per-detector scan reuses type/call-site indexes only within
+one synchronous evaluation; mutation and undo occur between disposed scans.
+The existing companion verifies fresh async-subject addition/removal and cache
+release. Its performance and the corrected full suite still await execution.
+
+##### Complete Step 4 implementation validation (2026-10-16)
+
+The current implementation passes a fresh CI-mode Release solution build with
+zero warnings/errors and all **4,403 backend cases**: 2,165 Unit, 321 Architecture,
+4 Contract and 1,913 Integration (176 HTTP and 1,737 Docker/PostgreSQL cases).
+The runner guard confirms every assembly executes and no case is skipped. The
+Docker run takes 9 minutes 55 seconds; Architecture takes 13 minutes 23 seconds.
+The latter confirms the corrected detectors and mutation-scope cache pass, not
+a measured speedup against the canceled failed run.
+
+The complete Integration run includes the Core-phase/mutation, direct-facade and
+three-owner lifetime cases described above. Their focused receipts overlap this
+run and are not added to the total. Seven ADR parser controls, 1,603 local links,
+466 fragments, added prose wrapping and whitespace checks pass. No frontend/demo
+rerun or current-head CI is claimed; full packet regression remains Step 9.
+
+This implementation is ready for the two fresh full Step 4 review rounds over
+the changes after Step 3 closeout `def48a1a`. The earlier slice reviews remain
+scoped receipts. Step 4 is not closed until both full rounds and their verified
+corrections complete; Steps 5–9 remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

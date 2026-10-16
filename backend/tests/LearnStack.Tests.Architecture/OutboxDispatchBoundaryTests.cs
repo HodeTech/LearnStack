@@ -480,12 +480,14 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var subject in new[] { (BoundaryApi, BoundaryComposition), (BoundaryApi, BoundaryPersistence),
                      (BoundaryApi, BoundaryWorker), (BoundaryApi, DeliveryWorker), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, BoundaryPlatform),
-                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store), (InfrastructureAssembly, JobRoutingStore) })
+                     (InfrastructureAssembly, BoundarySource), (InfrastructureAssembly, Store), (InfrastructureAssembly, JobRoutingStore),
+                     (InfrastructureAssembly, JobRuntimeRegistration), (InfrastructureAssembly, JobRuntime) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing credential subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
 
         var outboxRoot = types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
         var platformRoot = types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "AddLearnStackPersistence");
+        var runtimeRoot = types[(InfrastructureAssembly, JobRuntimeRegistration)].Methods.Single(method => method.Name == "AddLearnStackBackgroundJobRuntime");
         var roots = new[] { (Root: outboxRoot, Key: OutboxDispatcherDataSource.Key),
             (Root: platformRoot, Key: PlatformAdminScope.PlatformDataSourceKey) };
         var expectedResolvers = new List<string>();
@@ -557,9 +559,22 @@ public sealed partial class OutboxDispatchConventionTests
         else
         {
             expectedResolvers.Add(MethodId(routingFactory));
-            if (!DelegateTargets(outboxRoot).Any(target => MethodId(target) == MethodId(routingFactory)))
-                offenders.Add("Job-routing store factory must be registered by the outbox root");
+            if (!DelegateTargets(runtimeRoot).Any(target => MethodId(target) == MethodId(routingFactory)))
+                offenders.Add("Job-routing store factory must be registered by the closed runtime registration");
             CheckLiteralKeyResolver(offenders, routingFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
+        }
+        var runtimeDescriptor = services.Single(descriptor => !descriptor.IsKeyedService
+            && descriptor.ServiceType == typeof(BackgroundJobRuntime));
+        var runtimeFactory = runtimeDescriptor.ImplementationFactory is { } createRuntime
+            ? FindRuntimeMethod(census, createRuntime.Method) : null;
+        if (runtimeFactory is null || runtimeDescriptor.Lifetime != ServiceLifetime.Singleton)
+            offenders.Add("Missing actual singleton job-runtime factory");
+        else
+        {
+            expectedResolvers.Add(MethodId(runtimeFactory));
+            if (!DelegateTargets(runtimeRoot).Any(target => MethodId(target) == MethodId(runtimeFactory)))
+                offenders.Add("Job-runtime factory must be registered by the closed runtime registration");
+            CheckLiteralKeyResolver(offenders, runtimeFactory, BoundaryGuardedSource, OutboxDispatcherDataSource.Key);
         }
         CheckSet(offenders, "keyed resolver callers", sites.Where(site => IsKeyedResolution(site.Target)).Select(site => site.Owner), expectedResolvers);
         CheckSet(offenders, "keyed registration callers", sites.Where(site => IsKeyedRegistration(site.Target)).Select(site => site.Owner), expectedFactories);
@@ -622,7 +637,7 @@ public sealed partial class OutboxDispatchConventionTests
             BoundaryGuardedSource, "LearnStack.Infrastructure.Messaging.OutboxEventRegistry",
             "LearnStack.Infrastructure.Messaging.OutboxDispatchOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
             "LearnStack.SharedKernel.Time.IClock", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory");
-        CheckSourceFieldAccess(offenders, census, store, storeConstructor,
+        string[] storeAcquisitions =
         [
             RequireBoundaryMethod(offenders, store, "AcquireAsync", "System.Threading.Tasks.Task`1<" + BoundaryClaim + ">", MethodAttributes.Private,
                 "LearnStack.Infrastructure.Messaging.OutboxClaimKind", "System.String", BoundaryStrings, BoundaryCancellation),
@@ -633,11 +648,16 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, store, "IsDurablyTerminalAsync", BoundaryBooleanTask, MethodAttributes.Private, "System.Guid"),
             RequireBoundaryMethod(offenders, store, "ReadSnapshotAsync", "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Messaging.OutboxQueueSnapshot>",
                 MethodAttributes.Public, BoundaryStrings, BoundaryCancellation),
-        ]);
+        ];
+        var storeReader = RequireBoundaryMethod(offenders, store, "OpenConnectionAsync",
+            "System.Threading.Tasks.ValueTask`1<" + Store + "/OwnedConnection>", MethodAttributes.Private, BoundaryCancellation);
+        CheckSourceFieldAccess(offenders, census, store, storeConstructor, [storeReader]);
+        CheckCleanupConnectionOwner(offenders, census, store, storeReader, storeAcquisitions);
         if (storeFactory is not null) CheckStoreConsumers(offenders, census, outboxRoot, storeFactory);
         CheckDeliveryCredentials(offenders, census, outboxRoot, deliveryFactory);
-        CheckJobRoutingCredentials(offenders, census, outboxRoot, routingFactory);
+        CheckJobRoutingCredentials(offenders, census, runtimeRoot, routingFactory);
         CheckPrivilegedAcquisitions(offenders, census);
+        offenders.UnionWith(RuntimeLifetimeOffenders(census));
         return offenders;
     }
 
@@ -663,7 +683,8 @@ public sealed partial class OutboxDispatchConventionTests
             RequireBoundaryMethod(offenders, worker, "RefreshAsync", BoundaryTask, MethodAttributes.Private, "System.Boolean", BoundaryCancellation),
         };
         CheckSet(offenders, "privileged store consumers", owners,
-            workerMethods.Concat([MethodId(composition), MethodId(factory)]));
+            workerMethods.Concat([MethodId(composition), MethodId(factory)]).Concat(CleanupOwnerConsumerIds(census, Store))
+                .Concat(MessagingStoreConsumerIds(Store)));
         // Only an attribute-linked Store state machine may carry its own captured
         // instance. A similarly named nested type gains no authority from its name.
         var stateMachines = OwnedBodies(census).Where(item => item.Body.Name == "MoveNext" && item.Body != item.Owner
@@ -675,9 +696,11 @@ public sealed partial class OutboxDispatchConventionTests
             && !(stateMachines.Contains(Key(field.DeclaringType)) && field.Name == "<>4__this"
                 && field.FieldType.FullName == Store)).ToArray();
         CheckSet(offenders, "privileged store fields", fields.Select(field => TypeId(field.DeclaringType) + ":" + field.Name),
-            [TypeId(worker) + ":_store"]);
+            [TypeId(worker) + ":_store", InfrastructureAssembly + ":" + Store + "/OwnedConnection:<owner>P",
+             BoundaryApi + ":" + MessagingLifetime + ":_outboxStore"]);
         foreach (var field in fields)
-            if (!field.IsPrivate || !field.IsInitOnly) offenders.Add(field.FullName + ": store capability must remain private and readonly");
+            if (!field.IsPrivate || !field.IsInitOnly && !(field.DeclaringType.FullName == Store + "/OwnedConnection" && field.Name == "<owner>P"))
+                offenders.Add(field.FullName + ": store capability must remain private and readonly or the exact construction-only cleanup capture");
     }
 
     private static bool ReferencesStore(MethodDefinition method)

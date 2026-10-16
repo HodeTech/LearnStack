@@ -34,6 +34,9 @@ Ordinary-job acquisition guards derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
 Vendor-maintenance configuration and source deadlines derive from
 [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
+Actual runtime/source ownership additionally derives from
+[ADR-0059](../decisions/0059-owned-hangfire-server-generations.md), qualified by
+[ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -3573,11 +3576,42 @@ Version/guard/ACL failure refuses the explicit storage bootstrap before worker
 construction. Contract-only registration remains lazy and activates no worker.
 The [Step 2 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-2--storage-and-guarded-vendor-bootstrap-2026-10-16)
 owns delivery status: Step 2 implements idle-session settings and source/reset
-qualification. Step 4 owns component/filter selection, the shared
-expiration owner and the final physical-acquisition census, enforced supported
-pool configuration/floor and independent progress proofs. No minimum-two or
-nonpooled prohibition is assumed. Step 9 owns full observation/enforcement.
+qualification. The [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+owns current runtime/source qualification; implementation is in progress and both
+full Step 4 review rounds remain pending. Step 9 owns full observation/enforcement.
 
+#### Shared dispatcher source lifetime and capacity
+
+The shared `PrivilegedDataSource` treats container disposal as a request. Actual
+source disposal waits for positive completion of `BackgroundJobRuntime` and both
+actual messaging processors' startup/main-loop source use. A finite `StopAsync`
+return, timeout, fault or cancellation supplies no positive completion witness.
+Already-owned completion/removal SQL retains access during ordinary host stop.
+Failed actual source disposal remains recorded; repeated disposal cannot turn the
+driver's later no-op into cleanup evidence.
+
+The dispatch and bridge stores retain concrete connections and disposal tasks on
+connection-cleanup failure and seal later acquisitions. Each messaging store has
+two fixed ownership slots for terminal-COMMIT reconciliation; the bridge has one
+serialized SQL slot. These witnesses concern physical-source release, not all
+application callbacks or private driver tasks. Failed opens rely on the pinned
+driver's qualified ordinary unwind; an arbitrary driver-cleanup fault is not a
+release guarantee.
+
+`BackgroundJobPhysicalCapacity` calculates the current Step 4 floor as
+`W + 4P + 2C + 11 + U = 2W + 8P + 2C + 11`, where `W` is total workers, `P` is
+pools, `C` is control pools and `U = W + 4P` is retained invocation/routing owners.
+The fixed eleven covers two shared components, four bridge calls, one bridge SQL
+lane and two depth-two messaging lanes. The default topology requires **45**;
+the maximum valid topology requires **151**. Pooled startup refuses a lower
+`MaxPoolSize` before bootstrap, using settings captured from the same immutable
+configuration as the source. Nonpooling remains allowed with the same owner
+bounds; its positive `MaxPoolSize` setting is not a physical-checkout cap.
+
+This is the current Step 4 acquisition inventory, not a deployment-wide
+PostgreSQL capacity guarantee. Independent progress at the supported boundary
+still requires real qualification. Later SQL lanes require a new census and
+requalification; Phase 11 owns measured production capacity and PgBouncer.
 
 ## Backups
 

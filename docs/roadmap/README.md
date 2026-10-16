@@ -138,6 +138,9 @@ records the reviewed ADR-0060 revision. Its
 [acceptance](phase-02b-events-auth.md#adr-0060-acceptance-and-step-4-continuation-2026-10-16)
 authorizes the conservative fatal boundary and dependent implementation on
 2026-10-16. Real lifecycle qualification still precedes worker activation.
+The [source-lifetime continuation](phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
+records the implemented pool/facade ownership and current local qualification;
+full Step 4 review gates remain open.
   Background jobs, API authentication,
   realm reconciliation, BFF sessions
   and phase-exit enforcement remain P02b-4–8.

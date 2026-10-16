@@ -56,8 +56,8 @@ public sealed partial class OutboxDispatchConventionTests
         {
             (BoundaryApi, BoundaryWorker, new[] { "StartAsync" }),
             (BoundaryApi, DeliveryWorker, new[] { "StartAsync" }),
-            (InfrastructureAssembly, Store, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" }),
-            (InfrastructureAssembly, DeliveryStore, new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync", "ReplayAsync" }),
+            (InfrastructureAssembly, Store, new[] { "OpenConnectionAsync" }),
+            (InfrastructureAssembly, DeliveryStore, new[] { "OpenConnectionAsync" }),
             (InfrastructureAssembly, JobRoutingStore, new[] { "TryClaimOwnedAsync" }),
             (InfrastructureAssembly, BoundaryPlatform, new[] { "EnterAsync" }),
             (InfrastructureAssembly, VendorFactory, new[] { "GetOrCreateConnection" }),

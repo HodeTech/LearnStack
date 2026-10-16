@@ -23,6 +23,8 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
     private long _deferred;
     private long? _lastProgress;
 
+    internal bool HasUnconfirmedCleanup => store.HasUnconfirmedCleanup;
+
     public BackgroundJobBridgeSnapshot Snapshot
     {
         get
@@ -47,7 +49,7 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             lock (_gate)
             {
                 _operations.RemoveAll(operation => operation.Completion.IsCompleted);
-                if (_stopping || runtimeGate is { IsOpen: false }
+                if (_stopping || store.HasUnconfirmedCleanup || runtimeGate is { IsOpen: false }
                     || _operations.Count >= BackgroundJobRuntimeOptions.MaxOutstandingBridgeCalls) return false;
                 retained = _operations.Select(operation => operation.Claim.JobId).ToArray();
             }
@@ -124,11 +126,11 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             }
             catch (Exception exception) when (Catchable(exception))
             {
-                // The actual ACK/deferral operation returned; its uncertain hint
-                // leaves a durable same-generation repair obligation.
+                // A confirmed physical return permits durable same-generation
+                // repair. Failed connection cleanup retains this concrete owner.
                 lock (_gate) _failed++;
             }
-            operation.Complete();
+            if (!store.HasUnconfirmedCleanup) operation.Complete();
         }
         catch (Exception exception) when (Catchable(exception))
         {
@@ -144,7 +146,7 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
     private bool TryAdmitStart()
     {
         lock (_gate)
-            return !_stopping && (runtimeGate is null || runtimeGate.TryAdmit());
+            return !_stopping && !store.HasUnconfirmedCleanup && (runtimeGate is null || runtimeGate.TryAdmit());
     }
 
     private sealed class BridgeOperation
