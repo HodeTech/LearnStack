@@ -7371,6 +7371,34 @@ issue and claims neither test execution nor full Step 8 review credit.
 Remaining admission/fault controls and native integration still precede both
 full Step 8 review rounds and Step 9. Nineteen obligations remain Registered.
 
+#### Recipient admission fault qualification
+
+History commit `f08f8bf1` preserves the preceding source qualification. Eleven
+additional PostgreSQL cases exercise corrupted actual claim facts, context
+replacement during identity creation, lease expiry after an observed row-lock
+wait, and stop after the actual receipt UPDATE but before commit admission.
+The tests check actual identity creation, SQL effects and rollback together;
+no production seam or business definition is added.
+
+Narrow independent inspection identifies that the first context-callback test
+cannot distinguish refusal before INSERT from rollback afterward. The corrected
+paired test observes an actual server-side INSERT notice. Removing only the
+post-identity context guard makes the corrupt case fail that exact assertion
+while its healthy counterpart passes. The original production bytes and mode
+are restored and verified against HEAD before rebuilding. This deliberately
+failing mutation remains a separate receipt, not a production failure.
+Independent correction inspection verifies the same assertion's failure, exact
+source restoration and passing paired cases; no further issue is identified.
+
+The restored 290-source Release build has zero warnings/errors; all 55 cases in
+the recurrence PostgreSQL class pass with zero failures/skips. Formatter
+verification reports no changes. The source/mode/artifact receipt closes at
+`022523338fa6f8ee3c3384f2b5ce878bb31b099035e16d07df338e65f995b8d0`.
+Only Integration test sources change after the preceding committed production
+qualification; Unit and Architecture suites are not repeated or claimed here.
+Native runtime, fairness and capacity integration remain pending before both
+full Step 8 review rounds. This focused qualification does not close Step 8.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

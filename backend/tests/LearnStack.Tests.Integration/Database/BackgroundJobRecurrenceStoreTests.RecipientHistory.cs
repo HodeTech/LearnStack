@@ -217,7 +217,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     {
         private int _count;
         internal int Count => Volatile.Read(ref _count);
-        public Guid NewUuidV7() { Interlocked.Increment(ref _count); return Guid.CreateVersion7(); }
+        internal Action? BeforeMint { get; set; }
+        public Guid NewUuidV7() { Interlocked.Increment(ref _count); BeforeMint?.Invoke(); return Guid.CreateVersion7(); }
         public Guid NewUuidV4() => Guid.NewGuid();
     }
 
