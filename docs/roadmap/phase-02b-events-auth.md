@@ -7275,6 +7275,66 @@ Independent correction verification checks the source and hashed artifacts and
 closes both findings without a new verified issue. This remains bounded
 preflight/correction evidence, not either full Step 8 review round.
 
+#### App-role recipient submission continuation
+
+Acquisition commit `2059a7ee` preserves the preceding evidence. The closed
+recipient executor now installs the actual tenant/organization route without an
+invented child or parent identity and sends one exact framework request through
+the existing coordinator. Its participant binds the original source owner,
+physical transaction and positive tenant announcement. The app-role owner locks
+the recipient, evaluates a fresh database clock and rechecks current lifecycle
+eligibility before creating one fixed occurrence-input child.
+
+The common scheduler INSERT preserves ordinary producer checks and records
+produced work only after successful SQL; failure marks the existing owner
+rollback-only and rethrows. After owner drain and MUST audit, the participant
+checks the full immutable route, original token and live lease and writes the
+reciprocal receipt. A conservative monotonic budget covers SQL and cleanup until
+the final commit gate. Only the existing coordinator records commit ACK. The
+executor retains its source, scope and cancellation ownership through actual
+cleanup; it constructs neither the target request nor its handler.
+
+Real PostgreSQL cases cover tenant and organization success, lifecycle refusal,
+single-use replay, a closed gate and independent child-INSERT/receipt-UPDATE
+failures. Both writes commit together or neither remains. Construction controls
+exercise the actual registered target and handler separately and prove the same
+no-construction assertion rejects each. Exact production censuses enroll the new
+framework/context/source/owner path and retain the original admission restrictions.
+
+The 287-source qualification passes a zero-warning/error Release build, 75
+PostgreSQL cases, all 2,403 Unit cases and twelve focused Architecture cases, with
+zero failures/skips. Its source/mode/artifact receipt closes at
+`464b9554dac3d4b0060b8ca7021a16127741abd8b8d8518948dadf2da3fe18f2`.
+Narrow proof review identifies five planted field/constructor mutations that the
+first detector incorrectly accepts. All five fail against that original detector;
+the corrected detector checks full writer identity, opcode and exact private
+constructor/flag shape, and the same controls pass in the qualification above.
+Earlier build, SQL and detector failures remain separate receipts.
+
+Final guard additions pin the recipient executor's exact internal signature and
+currently empty production caller set. The shared INSERT proof binds its actual
+SQL invocation and await acknowledgement to the same rollback-only/rethrow catch;
+produced work must be invoked after acknowledgement and outside failure handlers.
+Ten targeted controls move, remove, delegate or detach these actual instructions.
+The earlier detector's incorrect compiled-signature assumptions remain a failed
+qualification, not a runtime finding. Independent correction inspection verifies
+both catch binding and invocation sensitivity without claiming test execution.
+
+Only that Architecture test file changes after the preceding 287-source receipt.
+Its final Release build has zero warnings/errors; all seventeen recipient
+Architecture cases and two real auxiliary-cleanup regressions pass with zero
+failures/skips. Full formatter verification reports no changes. This source/mode/
+artifact receipt closes at
+`65ba343bf9da98134a09e0e6297364d38daf752d57ef0aab2a03d3c2e6b3bd7a`.
+These are local, source-specific receipts, not current-head full backend or CI
+qualification.
+
+This continuation is not complete Step 8 delivery or a full review round.
+Historical acknowledgement-loss confirmation, confined skip/defer, additional
+fault controls and native runtime/fairness/capacity integration remain pending.
+No production recurrence or business definition is added. All nineteen
+obligations remain Registered; both fresh full Step 8 reviews precede Step 9.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

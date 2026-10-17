@@ -32,11 +32,12 @@ public sealed class TransactionExecutionCoordinator(
         where TRequest : notnull where TResponse : IResultBase =>
         ExecuteCoreAsync(request as IProvisionsTenant, mode, typeof(TRequest).Name, next,
             typeof(TRequest), request as AdmitBackgroundJobAttemptCommand,
-            request as RecordBackgroundJobCapacityCleanupCommand, BackgroundJobExternalCheckpointOwner.For(request), cancellationToken);
+            request as RecordBackgroundJobCapacityCleanupCommand, BackgroundJobExternalCheckpointOwner.For(request),
+            request as SubmitBackgroundJobRecipientCommand, cancellationToken);
 
     public Task<TResponse> ExecuteAsync<TResponse>(IProvisionsTenant? provisioning, TransactionMode mode,
         string operationName, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
-        where TResponse : IResultBase => ExecuteCoreAsync(provisioning, mode, operationName, next, null, null, null, null, cancellationToken);
+        where TResponse : IResultBase => ExecuteCoreAsync(provisioning, mode, operationName, next, null, null, null, null, null, cancellationToken);
 
     private async Task<TResponse> ExecuteCoreAsync<TResponse>(
         IProvisionsTenant? provisioning,
@@ -45,6 +46,7 @@ public sealed class TransactionExecutionCoordinator(
         Func<Task<TResponse>> next, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
         RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         BackgroundJobExternalCheckpointOwner? externalCheckpoint,
+        SubmitBackgroundJobRecipientCommand? recipient,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -78,7 +80,7 @@ public sealed class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, cancellationToken);
+            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, recipient, cancellationToken);
     }
 
     /// <summary>
@@ -114,7 +116,7 @@ public sealed class TransactionExecutionCoordinator(
         completion.RequireUnit(unitOfWork);
         var frame = owner.Consume(unitOfWork, tenantContext);
         return ExecuteFrameAsync(frame, null, "delivery", next, owner, completion,
-            incomingEventId, operationType, null, null, null, null, cancellationToken);
+            incomingEventId, operationType, null, null, null, null, null, cancellationToken);
     }
 
     private async Task<TResponse> ExecuteFrameAsync<TResponse>(
@@ -128,6 +130,7 @@ public sealed class TransactionExecutionCoordinator(
         BackgroundJobCompletionParticipant? jobCompletion,
         RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         BackgroundJobExternalCheckpointOwner? externalCheckpoint,
+        SubmitBackgroundJobRecipientCommand? recipient,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -164,11 +167,13 @@ public sealed class TransactionExecutionCoordinator(
             admission?.BindOwner(unitOfWork, scope.IsOwner);
             capacityCleanup?.BindOwner(unitOfWork, scope.IsOwner);
             externalCheckpoint?.BindOwner(unitOfWork, scope.IsOwner);
+            recipient?.Completion.BindOwner(unitOfWork, scope.IsOwner);
             if (jobCompletion is not null)
                 await BackgroundJobExecutionAdmission.BindOwnerAsync(jobCompletion, unitOfWork, scope.IsOwner,
                     cancellationToken).ConfigureAwait(false);
             using var invocation = producer.BeginInvocation(scope.IsOwner, causalActor,
-                incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId, operationType,
+                incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId,
+                BackgroundJobExecutionAdmission.ProducerOperationType(operationType),
                 BackgroundJobExecutionAdmission.ParentJobId);
             var response = await next();
             if (response.IsFailure)
@@ -181,6 +186,7 @@ public sealed class TransactionExecutionCoordinator(
                 jobCompletion?.Gate.RecordRolledBack();
                 capacityCleanup?.RecordRolledBack();
                 externalCheckpoint?.RecordRolledBack();
+                recipient?.Completion.RecordRolledBack();
                 if (scope.IsOwner) capture.MarkRolledBack();
                 return response;
             }
@@ -199,6 +205,13 @@ public sealed class TransactionExecutionCoordinator(
                 await collector.DrainAsync(invocation, cancellationToken);
                 if (invocation.HasProducedWork) _ = producer.RequireAnnouncement();
                 await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
+            }
+
+            if (recipient is not null)
+            {
+                if (!scope.IsOwner || completion is not null || preparedOwner is not null || jobCompletion is not null)
+                    throw new InvalidOperationException("Recipient submission belongs only to its fresh framework owner.");
+                await recipient.Completion.FenceOwnerAsync(unitOfWork, response, cancellationToken).ConfigureAwait(false);
             }
 
             if (completion is not null)
@@ -226,6 +239,7 @@ public sealed class TransactionExecutionCoordinator(
             admission?.MarkCommitting(unitOfWork);
             capacityCleanup?.MarkCommitting(unitOfWork);
             externalCheckpoint?.MarkCommitting(unitOfWork, response);
+            recipient?.Completion.MarkCommitting(unitOfWork);
             committing = true;
             try
             {
@@ -256,6 +270,7 @@ public sealed class TransactionExecutionCoordinator(
                 admission?.RecordCommitted(unitOfWork);
                 capacityCleanup?.RecordCommitted(unitOfWork);
                 externalCheckpoint?.RecordCommitted(unitOfWork);
+                recipient?.Completion.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
             }
@@ -274,6 +289,7 @@ public sealed class TransactionExecutionCoordinator(
                 jobCompletion?.Gate.RecordRolledBack();
                 capacityCleanup?.RecordRolledBack();
                 externalCheckpoint?.RecordRolledBack();
+                recipient?.Completion.RecordRolledBack();
             }
             catch (Exception rollbackFailure)
             {

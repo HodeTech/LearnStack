@@ -73,15 +73,18 @@ public sealed partial class OutboxDispatchConventionTests
         // Original admission owns its source across sequential executor scopes.
         // Fresh recovery and terminal cleanup own distinct sources before their first app read.
         Exact(owner, "Create", [(JobExecutorType, "ExecutePublishedAsync"),
+            (JobExecutorType, "ExecuteRecipientAsync"),
             (AppJobRecovery, "ExecuteExternalRecoveryAsync"), (AppJobTerminalNoStart, ".ctor")]);
         Exact(owner, ".ctor", [(AppJobOwner, "Create")]);
         Exact(owner, "Enter", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
             (JobExecutorType, "ExecuteCapacityCleanupAsync"), (JobExecutorType, "ReadExternalStateCoreAsync"),
             (JobExecutorType, "WriteExternalCheckpointAsync"), (AppJobRecovery, "ExecuteExternalRecoveryAsync"),
+            (JobExecutorType, "ExecuteRecipientAsync"),
             (AppJobTerminalNoStart, "ExecuteApplicationAsync")]);
         Exact(owner, "JoinAuxiliaryCleanupAsync", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
             (JobExecutorType, "ExecuteCapacityCleanupAsync"), (JobExecutorType, "ReadExternalStateCoreAsync"),
-            (JobExecutorType, "WriteExternalCheckpointAsync"), (AppJobTerminalNoStart, "ObserveActualAsync")]);
+            (JobExecutorType, "WriteExternalCheckpointAsync"), (AppJobTerminalNoStart, "ObserveActualAsync"),
+            (JobExecutorType, "ExecuteRecipientAsync")]);
         Exact(owner, "BindExternalRecovery", [(AppJobRecoveryReceipt, "Bind")]);
         // This marker only denies app entry during provider construction/calls.
         Exact(owner, "EnterExternal", [(JobAdmission, "EnterExternal")]);
@@ -214,6 +217,7 @@ public sealed partial class OutboxDispatchConventionTests
             (JobExecutorType, "ExecuteCapacityCleanupAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
             (JobExecutorType, "ReadExternalStateCoreAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
             (JobExecutorType, "WriteExternalCheckpointAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
+            (JobExecutorType, "ExecuteRecipientAsync", ["Create", "Enter", "JoinAuxiliaryCleanupAsync"]),
             (AppJobRecovery, "ExecuteExternalRecoveryAsync", ["Create", "Enter"]),
             (AppJobTerminalNoStart, ".ctor", ["Create"]),
             (AppJobTerminalNoStart, "ExecuteApplicationAsync", ["Enter"]),

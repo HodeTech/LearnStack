@@ -205,6 +205,7 @@ public sealed class TenantContextConstructionTests
                 "LearnStack.Infrastructure/Jobs/JobExecutor.ExternalRead.cs",
                 "LearnStack.Infrastructure/Jobs/JobExecutor.ExternalCheckpoints.cs",
                 "LearnStack.Infrastructure/Jobs/JobExecutor.External.cs",
+                "LearnStack.Infrastructure/Jobs/JobExecutor.Recipients.cs",
             ],
             "three of the four logical writers have landed — HTTP, jobs and the integration-event "
             + "acceptance/execution scopes; all JobExecutor partials belong to one logical writer. "

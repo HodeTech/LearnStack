@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.SharedKernel.Jobs;
 
@@ -15,16 +16,50 @@ internal sealed class BackgroundJobRecurrenceFixture
         var contracts = BackgroundJobRuntimeFixture.Compile(Prefix + ".Application.Contracts",
             "namespace LearnStack.Modules.JobsRecurrenceFixture.Application.Contracts; public sealed class AssemblyMarker { }");
         var application = BackgroundJobRuntimeFixture.Compile(Prefix + ".Application", """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
             using LearnStack.SharedKernel.Jobs;
             using LearnStack.SharedKernel.Results;
+            using LearnStack.Tests.Integration.Database;
             using MediatR;
             namespace LearnStack.Modules.JobsRecurrenceFixture.Application;
             public sealed class Declarations { }
             public interface InterfaceDeclarations { }
             public readonly struct StructDeclarations { }
             public sealed class GenericDeclarations<T> { }
-            public sealed record TenantRoot(BackgroundJobOccurrenceParameters Parameters) : IRequest<Result<None>>;
-            public sealed record OrganizationRoot(BackgroundJobOccurrenceParameters Parameters) : IRequest<Result<None>>;
+            public sealed record TenantRoot : IRequest<Result<None>>
+            {
+                public static int Constructions;
+                public BackgroundJobOccurrenceParameters Parameters { get; }
+                public TenantRoot(BackgroundJobOccurrenceParameters parameters)
+                { Parameters = parameters; Interlocked.Increment(ref Constructions); }
+            }
+            public sealed record OrganizationRoot : IRequest<Result<None>>
+            {
+                public static int Constructions;
+                public BackgroundJobOccurrenceParameters Parameters { get; }
+                public OrganizationRoot(BackgroundJobOccurrenceParameters parameters)
+                { Parameters = parameters; Interlocked.Increment(ref Constructions); }
+            }
+            public sealed class TenantRootHandler : IRequestHandler<TenantRoot, Result<None>>
+            {
+                private readonly IBackgroundJobFixtureProbe _probe;
+                private readonly IServiceProvider _services;
+                public TenantRootHandler(IBackgroundJobFixtureProbe probe, IServiceProvider services)
+                { _probe = probe; _services = services; probe.Constructed("recurrence:tenant"); }
+                public Task<Result<None>> Handle(TenantRoot request, CancellationToken token) =>
+                    _probe.ExecuteAsync("recurrence:tenant", _services, token);
+            }
+            public sealed class OrganizationRootHandler : IRequestHandler<OrganizationRoot, Result<None>>
+            {
+                private readonly IBackgroundJobFixtureProbe _probe;
+                private readonly IServiceProvider _services;
+                public OrganizationRootHandler(IBackgroundJobFixtureProbe probe, IServiceProvider services)
+                { _probe = probe; _services = services; probe.Constructed("recurrence:organization"); }
+                public Task<Result<None>> Handle(OrganizationRoot request, CancellationToken token) =>
+                    _probe.ExecuteAsync("recurrence:organization", _services, token);
+            }
             """);
         var infrastructure = BackgroundJobRuntimeFixture.Compile(Prefix + ".Infrastructure",
             "namespace LearnStack.Modules.JobsRecurrenceFixture.Infrastructure; public sealed class AssemblyMarker { }");
@@ -32,6 +67,8 @@ internal sealed class BackgroundJobRecurrenceFixture
     }
 
     internal BackgroundJobModuleRegistration Module { get; }
+    internal int RootConstructions => (int)Root(BackgroundJobScope.TenantWide).GetField("Constructions")!.GetValue(null)!
+        + (int)Root(BackgroundJobScope.Organization).GetField("Constructions")!.GetValue(null)!;
     private Type Declaration => Module.Application.GetType(Prefix + ".Application.Declarations", true)!;
     private Type Root(BackgroundJobScope scope) => Module.Application.GetType(Prefix + ".Application."
         + (scope == BackgroundJobScope.TenantWide ? "TenantRoot" : "OrganizationRoot"), true)!;
@@ -51,7 +88,8 @@ internal sealed class BackgroundJobRecurrenceFixture
         }).ToArray();
         return BackgroundJobDefinitionRegistry.Create(definitions,
             definitions.Select(definition => new BackgroundJobRequestDescriptor(definition.Profile.RootRequestType,
-                BackgroundJobRequestClassification.Ordinary, definition.Scope)).DistinctBy(request => request.RequestType), [Module]);
+                BackgroundJobRequestClassification.Ordinary, definition.Scope)).DistinctBy(request => request.RequestType)
+                .Concat(BackgroundJobFrameworkRequests.All), [Module]);
     }
 
     internal BackgroundJobRecurrenceDescriptor Manifest(DateTimeOffset activation, DateTimeOffset anchor,

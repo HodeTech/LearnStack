@@ -1,4 +1,5 @@
 using LearnStack.Application.Messaging;
+using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
@@ -17,10 +18,10 @@ public sealed class PostgresBackgroundJobScheduler(
         """
         INSERT INTO background_jobs (
             id, tenant_id, organization_id, definition_key, profile, queue, capacity_group,
-            parameters, original_due_at, traceparent, causal_actor_user_id, causation_event_id, parent_job_id)
+            parameters, original_due_at, traceparent, causal_actor_user_id, causation_event_id, parent_job_id, recipient_id)
         VALUES (
             @id, @tenant_id, @organization_id, @definition_key, @profile, @queue, @capacity_group,
-            @parameters, @original_due_at, @traceparent, @causal_actor_user_id, @causation_event_id, @parent_job_id)
+            @parameters, @original_due_at, @traceparent, @causal_actor_user_id, @causation_event_id, @parent_job_id, @recipient_id)
         """;
 
     /// <inheritdoc />
@@ -34,6 +35,38 @@ public sealed class PostgresBackgroundJobScheduler(
         BackgroundJobKey<TParameters> definition, TParameters parameters, DateTimeOffset dueAt,
         CancellationToken cancellationToken = default) where TParameters : IBackgroundJobParameters =>
         SubmitAsync(definition, parameters, dueAt, cancellationToken);
+
+    /// <summary>The sole occurrence-input path derives every routing fact from its bound command.</summary>
+    internal async Task<BackgroundJobId> SubmitRecipientAsync(SubmitBackgroundJobRecipientCommand request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Completion.RequireOwner(unitOfWork);
+        cancellationToken.ThrowIfCancellationRequested();
+        var claim = request.Claim;
+        var origin = producer.CaptureJobOrigin(unitOfWork);
+        options.Validate();
+        if (!registry.TryGet(claim.DefinitionKey, out var definition)
+            || definition.Readiness != BackgroundJobDefinitionReadiness.Active
+            || definition.ParameterType != typeof(BackgroundJobOccurrenceParameters)
+            || origin.OperationType != claim.DeclarationType
+            || origin.OperationType.Assembly != definition.ProfileRegistration.RootRequestType.Assembly
+            || origin.Announcement.TenantId != claim.TenantId || origin.Announcement.OrganizationId != claim.OrganizationId
+            || (definition.Scope == BackgroundJobScope.TenantWide ? claim.OrganizationId is not null : claim.OrganizationId is null)
+            || origin.CausalActor is not null || origin.ParentJobId is not null || origin.IncomingEventId is not null)
+            throw new InvalidOperationException("Recipient submission must retain its registered module and exact stored route.");
+        var json = BackgroundJobPayloadContract.Serialize(new BackgroundJobOccurrenceParameters(claim.OccurrenceId),
+            typeof(BackgroundJobOccurrenceParameters), BackgroundJobPayloadKind.Parameters);
+        producer.RequireJobOrigin(origin, unitOfWork);
+        request.Completion.RequireOwner(unitOfWork);
+        var rawId = ids.NewUuidV7();
+        if (rawId == Guid.Empty || rawId.Version != 7) throw new InvalidOperationException("The job identity factory must return a UUIDv7.");
+        request.Completion.RequireOwner(unitOfWork);
+        var id = BackgroundJobId.From(rawId);
+        await InsertAsync(definition, id, json, claim.DueAt, origin, claim.RecipientId, cancellationToken).ConfigureAwait(false);
+        request.Completion.RecordChild(unitOfWork, id, existing: false);
+        return id;
+    }
 
     private async Task<BackgroundJobId> SubmitAsync<TParameters>(
         BackgroundJobKey<TParameters> key, TParameters parameters, DateTimeOffset? dueAt,
@@ -75,6 +108,15 @@ public sealed class PostgresBackgroundJobScheduler(
             throw new InvalidOperationException("The job identity factory must return a UUIDv7.");
         var id = BackgroundJobId.From(rawId);
 
+        return await InsertAsync(definition, id, json, due, origin, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<BackgroundJobId> InsertAsync(BackgroundJobDefinitionDescriptor definition, BackgroundJobId id,
+        string json, DateTimeOffset due, ProducerExecution.JobOrigin origin, BackgroundJobRecipientId? recipient,
+        CancellationToken cancellationToken)
+    {
+        var announcement = origin.Announcement;
+
         if (unitOfWork.Transaction is not NpgsqlTransaction transaction
             || unitOfWork.Connection is not NpgsqlConnection connection
             || !ReferenceEquals(transaction.Connection, connection))
@@ -97,6 +139,7 @@ public sealed class PostgresBackgroundJobScheduler(
         command.Parameters.AddWithValue("causal_actor_user_id", NpgsqlDbType.Uuid, (object?)origin.CausalActor?.Value ?? DBNull.Value);
         command.Parameters.AddWithValue("causation_event_id", NpgsqlDbType.Uuid, (object?)origin.IncomingEventId ?? DBNull.Value);
         command.Parameters.AddWithValue("parent_job_id", NpgsqlDbType.Uuid, (object?)origin.ParentJobId?.Value ?? DBNull.Value);
+        command.Parameters.AddWithValue("recipient_id", NpgsqlDbType.Uuid, (object?)recipient?.Value ?? DBNull.Value);
 
         producer.RequireJobOrigin(origin, unitOfWork);
         if (!ReferenceEquals(unitOfWork.Transaction, transaction))

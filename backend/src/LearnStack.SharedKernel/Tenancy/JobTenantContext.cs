@@ -7,7 +7,7 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// <summary>Validated asynchronous attribution. Execution authority still requires the consumed start receipt.</summary>
 public sealed class JobTenantContext : ITenantContext
 {
-    private JobTenantContext(TenantId tenantId, OrganizationId? organizationId, BackgroundJobId jobId,
+    private JobTenantContext(TenantId tenantId, OrganizationId? organizationId, BackgroundJobId? jobId,
         BackgroundJobId? parentJobId, Guid? incomingEventId, UserId? causalActorUserId,
         string? traceparent, string moduleName)
     {
@@ -29,9 +29,24 @@ public sealed class JobTenantContext : ITenantContext
     public UserId? CausalActorUserId { get; }
     public string? CorrelationId { get; }
     public string? ModuleName { get; }
-    public BackgroundJobId JobId { get; }
+    public BackgroundJobId? JobId { get; }
     public BackgroundJobId? ParentJobId { get; }
     public Guid? IncomingEventId { get; }
+
+    /// <summary>Only JobExecutor installs a claimed recipient route; no child identity exists yet.</summary>
+    public static JobTenantContext ForRecipient(TenantId tenantId, OrganizationId? organizationId,
+        string traceparent, string moduleName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty || tenantId == Identifiers.TenantId.PlatformSentinel
+            || organizationId is { } organization && (!organization.IsInitialized() || organization.Value == Guid.Empty)
+            || !ActivityContext.TryParse(traceparent, null, out var trace)
+            || traceparent != $"00-{trace.TraceId}-{trace.SpanId}-{(byte)trace.TraceFlags:x2}"
+            || moduleName[0] is not (>= 'a' and <= 'z')
+            || moduleName.Any(character => character is not (>= 'a' and <= 'z') and not (>= '0' and <= '9')))
+            throw new ArgumentException("Recipient attribution requires its valid route, trace and owning module.");
+        return new(tenantId, organizationId, null, null, null, null, traceparent, moduleName);
+    }
 
     /// <summary>
     /// Trusted recovery scope before the app-role envelope read. No stored

@@ -35,7 +35,7 @@ public sealed class BackgroundJobDefinitionRegistry : IBackgroundJobDefinitionCa
     public IReadOnlyList<string> RetiredKeys { get; }
     public BackgroundJobInfrastructureRegistry Infrastructure { get; }
 
-    /// <summary>P4 intentionally has no production business definitions; only the two exact framework requests.</summary>
+    /// <summary>P4 intentionally has no production business definitions; only the closed framework request set.</summary>
     public static BackgroundJobDefinitionRegistry CreateEmpty() => Create([], BackgroundJobFrameworkRequests.All, []);
 
     public static BackgroundJobDefinitionRegistry Create(

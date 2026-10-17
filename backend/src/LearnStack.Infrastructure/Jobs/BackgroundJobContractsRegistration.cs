@@ -23,8 +23,10 @@ public static class BackgroundJobContractsRegistration
         services.TryAddSingleton<BackgroundJobExecutionAdmission>();
         services.TryAddSingleton<BackgroundJobRuntimeOptions>();
         services.TryAddSingleton<JobExecutor>();
-        services.TryAddScoped<IBackgroundJobScheduler, PostgresBackgroundJobScheduler>();
+        services.TryAddScoped<PostgresBackgroundJobScheduler>();
+        services.TryAddScoped<IBackgroundJobScheduler>(provider => provider.GetRequiredService<PostgresBackgroundJobScheduler>());
         services.TryAddScoped<BackgroundJobCompletionParticipant, PostgresBackgroundJobCompletion>();
+        services.TryAddScoped<BackgroundJobRecipientCompletionParticipant, PostgresBackgroundJobRecipientCompletion>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuditCatalogSource, BackgroundJobAuditCatalogSource>());
         services.TryAddTransient<IRequestHandler<ReadBackgroundJobEnvelopeQuery, Result<BackgroundJobEnvelope>>, ReadBackgroundJobEnvelopeQueryHandler>();
         services.TryAddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, AdmitBackgroundJobAttemptCommandHandler>();
@@ -32,6 +34,7 @@ public static class BackgroundJobContractsRegistration
         services.TryAddTransient<IRequestHandler<ReadBackgroundJobExternalStateQuery, Result<BackgroundJobExternalSnapshot>>, ReadBackgroundJobExternalStateQueryHandler>();
         services.TryAddTransient<IRequestHandler<RecordBackgroundJobArmCommand, Result<None>>, RecordBackgroundJobArmCommandHandler>();
         services.TryAddTransient<IRequestHandler<RecordBackgroundJobOutcomeCommand, Result<None>>, RecordBackgroundJobOutcomeCommandHandler>();
+        services.TryAddTransient<IRequestHandler<SubmitBackgroundJobRecipientCommand, Result<BackgroundJobId>>, SubmitBackgroundJobRecipientCommandHandler>();
         return services;
     }
 }

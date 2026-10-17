@@ -305,7 +305,7 @@ public sealed partial class OutboxDispatchConventionTests
                      (InfrastructureAssembly, JobPostgresParticipant, new[] { "CaptureCommitBudgetAsync", "BindFinalizationRead", "PreflightFinalizeAsync", "ReadFinalizationAsync", "FenceFinalizeAsync" }),
                      (DeliveryApplication, JobPublication, new[] { ".ctor", "Bind", "Publish", "SettleNoReceipt" }),
                      (DeliveryApplication, JobAdmission, new[] { "RequireOwnerEntry", "BindOwnerAsync", "FenceOwnerAsync", "TryBeginOwnerCommit", "RequireRootParticipant" }),
-                     (KernelAssembly, JobTrustedContext, new[] { ".ctor", "FromValidatedJob", "ForRecoveryRead" }),
+                     (KernelAssembly, JobTrustedContext, new[] { ".ctor", "FromValidatedJob", "ForRecoveryRead", "ForRecipient" }),
                      (DeliveryApplication, JobStartRequest, new[] { "BindPublication" }),
                      (InfrastructureAssembly, JobExecutorType, new[] { "ExecuteBusinessAsync", "ExecutePublishedAsync", "get_ScopeFactory" }),
                  })
@@ -412,11 +412,12 @@ public sealed partial class OutboxDispatchConventionTests
             [(DeliveryApplication, JobStartRequest, "MarkCommitting"), (DeliveryApplication, CapacityCommand, "MarkCommitting")]);
         Cap(DeliveryApplication, JobCommitGate, "RecordCommitted", "System.Void", [],
             [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), (DeliveryApplication, JobStartRequest, "RecordCommitted"),
-             (DeliveryApplication, CapacityCommand, "RecordCommitted"), (DeliveryApplication, JobCheckpointOwner, "RecordCommitted")]);
+             (DeliveryApplication, CapacityCommand, "RecordCommitted"), (DeliveryApplication, JobCheckpointOwner, "RecordCommitted"),
+             (DeliveryApplication, JobRecipientParticipant, "RecordCommitted")]);
         Cap(DeliveryApplication, JobCommitGate, "RecordRolledBack", "System.Void", [],
             [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), (DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
              (DeliveryApplication, JobStartRequest, "RecordRolledBack"), (DeliveryApplication, CapacityCommand, "RecordRolledBack"),
-             (DeliveryApplication, JobCheckpointOwner, "RecordRolledBack")]);
+             (DeliveryApplication, JobCheckpointOwner, "RecordRolledBack"), (DeliveryApplication, JobRecipientParticipant, "RecordRolledBack")]);
         Cap(DeliveryApplication, JobParticipant, "BeginCommitBudgetRead", "System.Void", [],
             [(InfrastructureAssembly, JobPostgresParticipant, "CaptureCommitBudgetAsync")]);
         Cap(DeliveryApplication, JobParticipant, "RecordCommitBudget", "System.Void", ["System.Data.Common.DbDataReader"],
@@ -442,7 +443,8 @@ public sealed partial class OutboxDispatchConventionTests
         Cap(InfrastructureAssembly, JobPostgresParticipant, "FenceFinalizeAsync", BoundaryTask,
             ["LearnStack.SharedKernel.Results.IResultBase", BoundaryCancellation], [(InfrastructureAssembly, JobPostgresParticipant, "FenceAsync")]);
         Cap(DeliveryApplication, JobCommitGate, "TryBeginCheckpointCommit", "System.Boolean", ["System.Int64", "System.TimeSpan"],
-            [(DeliveryApplication, JobParticipant, "TryBeginCommit"), (DeliveryApplication, JobCheckpointOwner, "MarkCommitting")]);
+            [(DeliveryApplication, JobParticipant, "TryBeginCommit"), (DeliveryApplication, JobCheckpointOwner, "MarkCommitting"),
+             (DeliveryApplication, JobRecipientParticipant, "MarkCommitting")]);
         Cap(DeliveryApplication, JobRunGate, "TryBeginCheckpointCommit", "System.Boolean", [JobCommitGate, "System.Int64", "System.TimeSpan"],
             [(DeliveryApplication, JobCommitGate, "TryBeginCheckpointCommit")]);
         Cap(DeliveryApplication, JobRunGate, "TryBeginCommit", "System.Boolean", [JobCommitGate],
@@ -461,6 +463,10 @@ public sealed partial class OutboxDispatchConventionTests
             [(DeliveryApplication, JobCommitGate, "TrySealUnusedExecution"),
              (InfrastructureAssembly, JobExecutorType, "CloseBusinessGate"),
              (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobControl", "FinishBusinessAsync"),
+             (InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
+             (InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
+             (InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
+             (InfrastructureAssembly, JobExecutorType, "StopRecipient"),
              (InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
         Cap(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.JobBusinessExecutionResult>",
@@ -479,9 +485,13 @@ public sealed partial class OutboxDispatchConventionTests
             [(InfrastructureAssembly, JobExecutorType, "CreateContext")]);
         Cap(KernelAssembly, JobTrustedContext, ".ctor", "System.Void",
             ["LearnStack.SharedKernel.Identifiers.TenantId", "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>",
-             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>",
+             "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>", "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>",
              "System.Nullable`1<System.Guid>", "System.Nullable`1<LearnStack.SharedKernel.Identifiers.UserId>", "System.String", "System.String"],
-            [(KernelAssembly, JobTrustedContext, "FromValidatedJob"), (KernelAssembly, JobTrustedContext, "ForRecoveryRead")]);
+            [(KernelAssembly, JobTrustedContext, "FromValidatedJob"), (KernelAssembly, JobTrustedContext, "ForRecoveryRead"),
+             (KernelAssembly, JobTrustedContext, "ForRecipient")]);
+        Cap(KernelAssembly, JobTrustedContext, "ForRecipient", JobTrustedContext,
+            ["LearnStack.SharedKernel.Identifiers.TenantId", "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>",
+             "System.String", "System.String"], [(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync")]);
         Cap(KernelAssembly, JobTrustedContext, "ForRecoveryRead", JobTrustedContext,
             ["LearnStack.SharedKernel.Identifiers.TenantId", "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>",
              "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.String"],

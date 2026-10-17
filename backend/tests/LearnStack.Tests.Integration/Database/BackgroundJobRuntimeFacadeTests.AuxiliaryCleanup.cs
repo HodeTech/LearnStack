@@ -64,7 +64,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 var first = Interlocked.Increment(ref calls) == 1;
                 var accessor = services.GetRequiredService<ITenantContextAccessor>();
                 var context = accessor.Current.Should().BeOfType<JobTenantContext>().Subject;
-                if (first) firstJob.TrySetResult(context.JobId);
+                context.JobId.Should().NotBeNull("business execution always carries its admitted job identity");
+                if (first) firstJob.TrySetResult(context.JobId!.Value);
                 var originalJob = context.JobId == await firstJob.Task;
                 if (!originalJob) context.JobId.Should().Be(await followOnJob.Task);
                 var organization = originalJob ? firstOrganization : nextOrganization;

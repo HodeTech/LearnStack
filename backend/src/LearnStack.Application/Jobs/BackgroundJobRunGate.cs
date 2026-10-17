@@ -13,6 +13,7 @@ public enum BackgroundJobCheckpointKind
     NoStart,
     Finalize,
     TransactionalCleanup,
+    RecipientSubmission,
 }
 
 /// <summary>

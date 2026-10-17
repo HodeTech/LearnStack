@@ -203,6 +203,7 @@ public static class BackgroundJobFrameworkRequests
         new BackgroundJobRequestDescriptor(typeof(ReadBackgroundJobExternalStateQuery), BackgroundJobRequestClassification.FrameworkReadOnly, null),
         new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobArmCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
         new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobOutcomeCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
+        new BackgroundJobRequestDescriptor(typeof(SubmitBackgroundJobRecipientCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
     });
 }
 
@@ -218,5 +219,6 @@ public sealed class BackgroundJobAuditCatalogSource : IAuditCatalogSource
         builder.Off<ReadBackgroundJobExternalStateQuery>();
         builder.Off<RecordBackgroundJobArmCommand>();
         builder.Off<RecordBackgroundJobOutcomeCommand>();
+        builder.Off<SubmitBackgroundJobRecipientCommand>();
     }
 }

@@ -20,6 +20,45 @@ namespace LearnStack.Tests.Unit.Application.Jobs;
 
 public sealed class BackgroundJobFrameworkAdmissionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Recipient_attribution_has_no_invented_child_or_ancestry_and_grants_no_framework_authority(bool organization)
+    {
+        var tenant = TenantId.From(Guid.NewGuid());
+        var org = organization ? OrganizationId.From(Guid.NewGuid()) : (OrganizationId?)null;
+        var context = JobTenantContext.ForRecipient(tenant, org, BackgroundJobRuntimeFixtureTrace, "tenancy");
+        context.TenantId.Should().Be(tenant);
+        context.OrganizationId.Should().Be(org);
+        context.UserId.Should().Be(UserId.SystemActor);
+        context.Origin.Should().Be(TenantContextOrigin.Ambient);
+        ((ITenantContext)context).HostScope.Should().BeNull();
+        context.JobId.Should().BeNull();
+        context.ParentJobId.Should().BeNull();
+        context.IncomingEventId.Should().BeNull();
+        context.CausalActorUserId.Should().BeNull();
+        BackgroundJobExecutionAdmission.PermitsRequest(typeof(SubmitBackgroundJobRecipientCommand), context).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("sentinel")]
+    [InlineData("organization")]
+    [InlineData("trace")]
+    [InlineData("module")]
+    public void Recipient_attribution_refuses_invalid_routes_and_diagnostics(string invalid)
+    {
+        var tenant = invalid == "tenant" ? TenantId.From(Guid.Empty)
+            : invalid == "sentinel" ? TenantId.PlatformSentinel : TenantId.From(Guid.NewGuid());
+        var org = invalid == "organization" ? OrganizationId.From(Guid.Empty) : (OrganizationId?)null;
+        var create = () => JobTenantContext.ForRecipient(tenant, org,
+            invalid == "trace" ? "untrusted-provider-text" : BackgroundJobRuntimeFixtureTrace,
+            invalid == "module" ? "Tenancy.Provider" : "tenancy");
+        create.Should().Throw<ArgumentException>();
+    }
+
+    private const string BackgroundJobRuntimeFixtureTrace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+
     [Fact]
     public async Task Exact_framework_query_is_refused_without_a_claim_before_its_handler()
     {
