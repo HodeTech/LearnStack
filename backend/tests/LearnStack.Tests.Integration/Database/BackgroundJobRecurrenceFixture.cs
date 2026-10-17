@@ -20,6 +20,9 @@ internal sealed class BackgroundJobRecurrenceFixture
             using MediatR;
             namespace LearnStack.Modules.JobsRecurrenceFixture.Application;
             public sealed class Declarations { }
+            public interface InterfaceDeclarations { }
+            public readonly struct StructDeclarations { }
+            public sealed class GenericDeclarations<T> { }
             public sealed record TenantRoot(BackgroundJobOccurrenceParameters Parameters) : IRequest<Result<None>>;
             public sealed record OrganizationRoot(BackgroundJobOccurrenceParameters Parameters) : IRequest<Result<None>>;
             """);
@@ -54,9 +57,9 @@ internal sealed class BackgroundJobRecurrenceFixture
     internal BackgroundJobRecurrenceDescriptor Manifest(DateTimeOffset activation, DateTimeOffset anchor,
         long revision = 1, string key = "jobsrecurrencefixture.scan", string target = "jobsrecurrencefixture.run.v1",
         BackgroundJobRecipientPolicy policy = BackgroundJobRecipientPolicy.ServingTenants,
-        TimeSpan? jitter = null, TimeSpan? period = null)
+        TimeSpan? jitter = null, TimeSpan? period = null, Type? declarationType = null)
     {
-        var registration = new BackgroundJobRecurrenceRegistration(key, Declaration, revision, activation,
+        var registration = new BackgroundJobRecurrenceRegistration(key, declarationType ?? Declaration, revision, activation,
             new(target), BackgroundJobRecurrenceSchedule.Interval, anchor, period ?? TimeSpan.FromDays(1),
             jitter ?? TimeSpan.Zero, policy);
         var registry = BackgroundJobRecurrenceRegistry.Create([registration], Definitions(), [Module]);

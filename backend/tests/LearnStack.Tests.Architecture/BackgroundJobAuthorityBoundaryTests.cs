@@ -106,6 +106,7 @@ public sealed partial class OutboxDispatchConventionTests
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RegisterRecurrenceAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "MaterializeRecurrenceAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "MaterializeRecipientPageAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "TryClaimRecipientAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RunRecoveryQuantumAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "DeferCapacityAsync"),

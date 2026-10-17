@@ -10,6 +10,73 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed partial class BackgroundJobRecurrenceStoreTests
 {
     [Fact]
+    public async Task Recipient_claim_uses_its_pending_index_without_sorting_a_zero_jitter_backlog()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
+            await SeedLifecycleTenantAsync(app, SchemaFixture.TenantA, SchemaFixture.OrgA1, "Active", false, true);
+        var today = await TodayAsync(database);
+        var manifest = Fixture.Manifest(today.AddDays(-10), today.AddDays(-10), period: TimeSpan.FromMinutes(1));
+        await using var source = Source(database);
+        await AssertRegistrationAsync(Store(source), manifest, BackgroundJobRecurrenceRegistrationResult.Registered);
+        await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        await using (var transaction = await dispatcher.BeginTransactionAsync())
+        {
+            await SchemaQueries.ExecuteAsync(dispatcher, transaction, """
+                INSERT INTO background_job_occurrences (id,recurrence_key,revision,manifest_hash,target_definition_key,
+                    recipient_policy,scheduled_at,jitter_microseconds,skipped_slots)
+                SELECT uuidv7(),@key,1,@hash,@target,'serving_tenants',@anchor+n*interval '1 minute',0,0
+                FROM generate_series(1,3000) n;
+                UPDATE background_job_occurrences SET ownership_token=uuidv7(),ownership_until=clock_timestamp()+interval '9 minutes';
+                UPDATE background_job_occurrences SET bounds_frozen_at=clock_timestamp(),upper_tenant_id=@tenant;
+                INSERT INTO background_job_recipients (id,occurrence_id,tenant_id,organization_id,recurrence_key,revision,
+                    manifest_hash,target_definition_key,recipient_policy,scheduled_at,due_at)
+                SELECT uuidv7(),id,@tenant,NULL,recurrence_key,revision,manifest_hash,target_definition_key,
+                    recipient_policy,scheduled_at,scheduled_at FROM background_job_occurrences;
+                UPDATE background_job_recipients SET available_after=@available;
+                """, ("key", manifest.Facts.Key), ("hash", manifest.ManifestHash), ("target", manifest.Facts.Target),
+                ("anchor", manifest.Facts.Anchor), ("tenant", SchemaFixture.TenantA), ("available", today));
+            await transaction.CommitAsync();
+        }
+        await using (var migration = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            await SchemaQueries.ExecuteAsync(migration, null, "ANALYZE background_job_recipients; ANALYZE background_job_recurrences");
+        (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_job_recipients")).Should().Be(3000);
+        var actualSql = (string)typeof(PostgresBackgroundJobControlStore)
+            .GetField("RecipientClaimSelectionSql", BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+        using var clean = await ExplainRecipientAsync(actualSql);
+        AssertBoundedRecipientPlan(clean);
+        var obsolete = actualSql.Replace("ORDER BY r.available_after,r.id", "ORDER BY r.available_after,r.scheduled_at,r.id", StringComparison.Ordinal);
+        obsolete.Should().NotBe(actualSql, "the dirty control must change the actual production query");
+        using var dirty = await ExplainRecipientAsync(obsolete);
+        var sameBudget = () => AssertBoundedRecipientPlan(dirty);
+        sameBudget.Should().Throw<Xunit.Sdk.XunitException>("the old ordering must fail the same bounded-plan assertion");
+        var dirtyRows = LifecyclePlanNodes(dirty.RootElement[0].GetProperty("Plan"))
+            .Where(node => node.TryGetProperty("Relation Name", out var relation) && relation.GetString() == "background_job_recipients")
+            .Sum(node => node.GetProperty("Actual Rows").GetDouble() * node.GetProperty("Actual Loops").GetDouble());
+        dirtyRows.Should().BeGreaterThanOrEqualTo(3000, "the obsolete ordering consumes the equal-availability backlog before LIMIT");
+
+        async Task<JsonDocument> ExplainRecipientAsync(string sql)
+        {
+            await using var command = new NpgsqlCommand("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql, (NpgsqlConnection)dispatcher)
+            { CommandTimeout = 5 };
+            return JsonDocument.Parse((string)(await command.ExecuteScalarAsync())!);
+        }
+    }
+
+    private static void AssertBoundedRecipientPlan(JsonDocument plan)
+    {
+        var nodes = LifecyclePlanNodes(plan.RootElement[0].GetProperty("Plan")).ToArray();
+        nodes.Where(node => node.TryGetProperty("Index Name", out var index)
+            && index.GetString() == "ix_background_job_recipients_pending").Should().ContainSingle();
+        nodes.Select(node => node.GetProperty("Node Type").GetString()).Should()
+            .NotContain(kind => kind!.Contains("Sort", StringComparison.Ordinal));
+        nodes.Where(node => node.TryGetProperty("Relation Name", out var relation) && relation.GetString() == "background_job_recipients")
+            .Sum(node => node.GetProperty("Actual Rows").GetDouble() * node.GetProperty("Actual Loops").GetDouble())
+            .Should().BeLessThanOrEqualTo(8, "the production LIMIT 1 must not consume the same-availability backlog");
+        nodes[0].GetProperty("Actual Rows").GetDouble().Should().Be(1);
+    }
+
+    [Fact]
     public async Task Actual_lifecycle_page_seeks_past_a_large_ineligible_prefix_without_rescanning_it()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);

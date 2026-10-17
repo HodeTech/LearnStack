@@ -7233,6 +7233,48 @@ separate receipts. These checks do not claim full packet regression or CI succes
 Restricted child admission and owned runtime/tick integration remain within this
 same Step 8, before its implementation/review closeout.
 
+#### Recipient acquisition continuation
+
+Foundation commit `69c3998a` preserves the preceding qualification and bounded
+preflight correction. Normal hooks leave all 275 validated source hashes/modes
+unchanged. Restricted recipient acquisition is the next unit, not a new step.
+
+The actual locked recipient now yields an opaque single-use claim containing its
+stored occurrence, route, manifest, target and fresh acquisition. The compatible
+registered manifest supplies its declaration Type; no stored CLR name is resolved.
+Publication requires positive claim COMMIT acknowledgement, actual cleanup and a
+conservative remaining lease interval. Pending, unknown and same-revision
+conflicting binaries defer without publishing authority. Two independent sources
+cannot issue one live route twice; a competing application row lock is skipped.
+Acquisition itself creates no child or business execution.
+
+The 278-source qualification passes a zero-warning/error Release build, 41
+PostgreSQL cases, all 2,396 Unit cases and the positive authority case, with zero
+failures/skips. Its source/mode/artifact receipt closes at
+`cd7961e2b5873fa94b326caedacf265decffaf81cb7552591718fbe927c3eb52`.
+An earlier test assertion compilation error remains its own failed-build receipt;
+no tests are credited to it. App-role child submission, its completion gate and
+acknowledgement-loss behavior remain pending in this same Step 8. Full Step 8
+reviews and runtime/capacity enforcement remain pending.
+
+The narrow acquisition preflight finds two additional source issues: claim
+ordering includes a column absent from the pending index, and declaration-kind
+validation rejects metadata accepted at registration. The corrected query orders
+by `(available_after, id)`, matching the canonical index. A real 3,000-recipient
+zero-jitter backlog proves the actual query uses that index without sorting and
+examines a bounded quantum. Restoring the obsolete order in the same query makes
+the same detector fail and consumes the backlog before LIMIT. Interface, struct
+and open-generic manifest declarations pass the actual registration-to-claim
+flow without constructing any feature service; owning-assembly validation remains.
+
+After these corrections, the Release build has zero warnings/errors; 45
+PostgreSQL cases, all 2,396 Unit cases and the positive authority case pass with
+zero failures/skips. The 278-source receipt closes at
+`d12a0f5fdaebacf0cfb7e8d93e0df8b65cf32a7e9e107514b39e37add1e8090f`.
+Independent correction verification checks the source and hashed artifacts and
+closes both findings without a new verified issue. This remains bounded
+preflight/correction evidence, not either full Step 8 review round.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
