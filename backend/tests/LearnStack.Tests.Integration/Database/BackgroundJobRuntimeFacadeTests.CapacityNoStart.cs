@@ -94,7 +94,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             CommandTimeout = 0,
             CancellationTimeout = 1000,
         }.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var controlName = "capacity_no_start_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();

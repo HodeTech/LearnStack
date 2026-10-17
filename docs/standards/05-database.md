@@ -3427,6 +3427,12 @@ CREATE INDEX ix_background_job_occurrences_pending ON background_job_occurrences
     WHERE completed_at IS NULL AND quarantined_at IS NULL;
 CREATE INDEX ix_background_job_recipients_pending ON background_job_recipients (available_after, id)
     WHERE accepted_job_id IS NULL AND skipped_at IS NULL AND quarantined_at IS NULL;
+CREATE INDEX ix_background_job_recurrences_quarantined ON background_job_recurrences (recurrence_key, revision)
+    WHERE quarantined_at IS NOT NULL;
+CREATE INDEX ix_background_job_occurrences_quarantined ON background_job_occurrences (id)
+    WHERE quarantined_at IS NOT NULL;
+CREATE INDEX ix_background_job_recipients_quarantined ON background_job_recipients (id)
+    WHERE quarantined_at IS NOT NULL;
 
 ALTER TABLE background_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE background_jobs FORCE ROW LEVEL SECURITY;
@@ -4052,8 +4058,8 @@ application callbacks or private driver tasks. Failed opens rely on the pinned
 driver's qualified ordinary unwind; an arbitrary driver-cleanup fault is not a
 release guarantee.
 
-`BackgroundJobPhysicalCapacity` calculates the current Step 5 floor as
-`W + 4P + 2C + 16 + U = 2W + 8P + 2C + 16`, where `W` is total workers, `P` is
+`BackgroundJobPhysicalCapacity` calculates the current Step 8 floor as
+`W + 4P + 2C + 18 + U = 2W + 8P + 2C + 18`, where `W` is total workers, `P` is
 pools, `C` is control pools and `U = W + 4P` is retained invocation owners.
 Each invocation issues at most one privileged routing, recovery acquisition,
 confirmation or checkpoint-history SQL operation at a time, including actual
@@ -4062,9 +4068,13 @@ it does not add another simultaneous checkout.
 The original eleven covers two shared components, four bridge calls, one bridge
 SQL lane and two depth-two messaging lanes. Step 5 adds one batch-renewal slot,
 one recovery slot plus its fresh-probe slot, and one terminal slot plus its
-fresh-probe slot. Failed cleanup retains the concrete owner and seals that lane;
+fresh-probe slot. Step 8 adds one serialized recurrence SQL lane and one separately
+owned native recurring-manager call. The latter reuses its dedicated provider
+connection for its stock lock and write transaction. A held native call cannot
+consume another recurrence SQL slot. Failed cleanup retains the concrete owner
+and seals that lane;
 probes do not recursively acquire another probe. The default topology requires
-**50**; the maximum valid topology requires **156**. Pooled startup refuses a
+**52**; the maximum valid topology requires **158**. Pooled startup refuses a
 lower `MaxPoolSize` before bootstrap, using settings captured from the same
 immutable configuration as the source. Nonpooling remains allowed with the same
 owner bounds; its positive `MaxPoolSize` is not a physical-checkout cap.
@@ -4077,15 +4087,18 @@ permits one main unit and one independently tracked auxiliary operation. Cache
 waiter expiry cannot replace the actual loader, connection or failed cleanup.
 The four closed auxiliary helpers are audit-config, standalone/best-effort audit,
 tenant flags and killswitch reads; nested ordinary work shares the same main unit.
-The job-only application floor is `2Ub + 2`, where `Ub` sums workers-plus-four for
-both transactional and external pools: **24** by default and **120** at the
+The job-only application floor is `2Ub + 2 + 8`, where `Ub` sums workers-plus-four for
+both transactional and external pools: **32** by default and **128** at the
 maximum business-pool topology. The existing terminal lane owns one sequential
 NoStart application owner with one main and one tracked auxiliary slot per API
-instance. Adding control pools does not add another terminal application owner.
+instance. Step 8 adds four recipient submission owners, each with the same
+main/auxiliary pair. This is a bound on all locally retained recipient owners,
+including live work and unresolved receipt history; it does not add stock worker
+slots. Adding control pools adds neither terminal nor recipient application owners.
 External Prepare, read, Arm, Outcome, recovery checkpoints and fresh Finalize
 use the same sequential main/auxiliary inventory; their phase count is not a
-connection multiplier. The qualified facade fixture for privileged maximum 156
-has eight pools of four workers, six of them control, and requires 34 application
+connection multiplier. The facade fixture for privileged maximum 158
+has eight pools of four workers, six of them control, and requires 42 application
 connections. Other worker distributions can share the same privileged maximum
 with a different application floor; neither maximum substitutes for calculating
 both manifests from the actual topology.

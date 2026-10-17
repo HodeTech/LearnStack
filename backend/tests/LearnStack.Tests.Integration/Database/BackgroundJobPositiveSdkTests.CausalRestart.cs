@@ -56,7 +56,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
             services.AddSingleton(originalProbe);
-        }, applicationPoolSize: 24))
+        }, applicationPoolSize: 32))
         await using (var originalSource = new PrivilegedDataSource(() =>
             OutboxDispatcherDataSource.Build(database.OutboxConnectionString)))
         {
@@ -175,7 +175,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
             services.AddSingleton(mutant);
-        }, applicationPoolSize: 24, reconcileProbe: freshReconcile);
+        }, applicationPoolSize: 32, reconcileProbe: freshReconcile);
         restartedHost.Services.GetService<BackgroundJobPositiveCausalProviderProbe>().Should().BeNull(
             "the replacement provider has no original token, stop flag or causal completion probe");
         await using var restartedSource = new PrivilegedDataSource(() =>

@@ -48,7 +48,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
-        }, applicationPoolSize: 24);
+        }, applicationPoolSize: 32);
         await using var host = lostOutcomeAck ? hostBuilder.WithWebHostBuilder(builder =>
             builder.UseSetting("ConnectionStrings:Default", proxy.ConnectionString)) : hostBuilder;
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
@@ -251,7 +251,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
-        }, applicationPoolSize: 24);
+        }, applicationPoolSize: 32);
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var runtime = NativeSdkRuntime(host.Services, source, bounds);

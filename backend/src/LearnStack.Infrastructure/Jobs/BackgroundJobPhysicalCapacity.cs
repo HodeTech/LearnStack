@@ -7,6 +7,7 @@ public sealed record BackgroundJobPhysicalPoolSettings(bool Pooling, int MaxPool
 public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int ControlPools,
     int InvocationOwners, int RequiredConnections)
 {
+    public int RecurrenceConnections { get; } = 2;
     public static BackgroundJobPhysicalCapacity Calculate(BackgroundJobInfrastructureRegistry topology)
     {
         ArgumentNullException.ThrowIfNull(topology);
@@ -21,7 +22,9 @@ public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int C
         // Step 5 adds one batch renewal slot, two recovery/probe slots and
         // two terminal/probe slots. Cleanup failure seals its exact lane.
         return new(pools, workers, controls, invocations,
-            checked(workers + 4 * pools + 2 * controls + 16 + invocations));
+            // Recurrence has one serialized SQL owner and one native manager
+            // connection, including retained startup/native return and cleanup.
+            checked(workers + 4 * pools + 2 * controls + 18 + invocations));
     }
 
     public void Validate(BackgroundJobPhysicalPoolSettings settings)

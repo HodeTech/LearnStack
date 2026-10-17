@@ -5,6 +5,8 @@ using LearnStack.Api.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
+using LearnStack.SharedKernel.Jobs;
+using LearnStack.Modules.Tenancy.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
@@ -70,6 +72,7 @@ public static class OutboxCompositionExtensions
         // Capture only nonsecret capacity settings from the same immutable input
         // as the existing lazy source; jobs never create a second source/pool.
         var parsed = new NpgsqlConnectionStringBuilder(connectionString);
+        services.TryAddSingleton<BackgroundJobLifecycleProjection>(BackgroundJobLifecycleProjectionDeclaration.Create());
         services.AddLearnStackBackgroundJobRuntime(new(parsed.Pooling, parsed.MaxPoolSize));
         services.TryAddSingleton<BackgroundJobHostedService>();
         services.AddHostedService(ResolveJobHostedService);

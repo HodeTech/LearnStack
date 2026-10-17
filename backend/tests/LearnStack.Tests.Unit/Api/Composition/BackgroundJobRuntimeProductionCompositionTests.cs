@@ -20,7 +20,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
     [Fact]
     public async Task Mandatory_hosted_aliases_bind_the_actual_messaging_instances_and_keep_the_source_lazy()
     {
-        var builder = Builder(50);
+        var builder = Builder(52);
         builder.Services.AddLearnStackPersistence(builder.Configuration);
         builder.Services.AddLearnStackOutboxDispatcher(builder.Configuration);
         await using var services = builder.Services.BuildServiceProvider();
@@ -53,7 +53,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
     [Fact]
     public async Task Captured_capacity_refuses_one_below_the_supported_floor_before_source_construction()
     {
-        var builder = Builder(49);
+        var builder = Builder(51);
         builder.Services.AddLearnStackPersistence(builder.Configuration);
         builder.Configuration["ConnectionStrings:OutboxDispatcher"] = Connection(100);
         await using var services = builder.Services.BuildServiceProvider();
@@ -61,17 +61,17 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
         var resolve = () => services.GetRequiredService<BackgroundJobRuntime>();
         resolve.Should().Throw<ArgumentException>().WithMessage("*supported physical capacity*");
         source.IsValueCreated.Should().BeFalse();
-        services.GetRequiredService<BackgroundJobPhysicalPoolSettings>().MaxPoolSize.Should().Be(49,
+        services.GetRequiredService<BackgroundJobPhysicalPoolSettings>().MaxPoolSize.Should().Be(51,
             "the source and its sanitized settings must use the same immutable registration input");
     }
 
     [Theory]
-    [InlineData(23, false)]
-    [InlineData(24, true)]
+    [InlineData(31, false)]
+    [InlineData(32, true)]
     public async Task Captured_application_capacity_includes_external_work_before_either_source_is_constructed(
         int maximum, bool accepted)
     {
-        var builder = Builder(50);
+        var builder = Builder(52);
         builder.Configuration["ConnectionStrings:Default"] = ApplicationConnection(maximum);
         builder.Services.AddLearnStackPersistence(builder.Configuration);
         builder.Services.AddLearnStackOutboxDispatcher(builder.Configuration);
@@ -89,7 +89,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
         {
             var hosted = services.GetServices<IHostedService>().ToArray();
             var runtime = services.GetRequiredService<BackgroundJobRuntime>();
-            runtime.Snapshot.ApplicationCapacity.Should().Be(new BackgroundJobApplicationCapacity(11, 24));
+            runtime.Snapshot.ApplicationCapacity.Should().Be(new BackgroundJobApplicationCapacity(11, 32));
             foreach (var owner in hosted.OfType<IDisposable>()) owner.Dispose();
             await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         }

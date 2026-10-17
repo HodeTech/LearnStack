@@ -116,7 +116,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddSingleton<ILogger<PostgresAuditStore>>(auditLogger);
             services.AddSingleton<ILogger<AuditExecutionCoordinator>>(reconcileLogger);
         });
-        await using var source = Source(database, new(true, 50));
+        await using var source = Source(database, new(true, 52));
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         var auditHealth = host.Services.GetRequiredService<IAuditHealth>();
         auditHealth.IsHealthy.Should().BeTrue();
@@ -132,7 +132,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         auditListener.SetMeasurementEventCallback<long>((_, count, tags, _) => auditFailures.Enqueue((count, tags.ToArray())));
         auditListener.Start();
         using var globals = new GlobalFilterSnapshot();
-        var runtime = Runtime(host.Services, source, bounds, new(true, 50));
+        var runtime = Runtime(host.Services, source, bounds, new(true, 52));
         HangfireGeneration? generation = null;
         var verified = false;
         var lockReleased = false;

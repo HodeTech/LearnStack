@@ -60,7 +60,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var contract = typeof(IRequestHandler<,>).MakeGenericType(request, typeof(Result<>).MakeGenericType(plan));
             services.RemoveAll(contract);
             services.AddTransient(contract, typeof(NativeNoPlanPermanentPrepare<,>).MakeGenericType(request, plan));
-        }, applicationPoolSize: 24);
+        }, applicationPoolSize: 32);
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var runtime = NativeSdkRuntime(host.Services, source, bounds, time);

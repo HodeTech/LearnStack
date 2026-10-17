@@ -93,17 +93,17 @@ public sealed partial class BackgroundJobPositiveSdkTests
                         && candidate.GenericTypeArguments[0] == request))
                         services.AddTransient(contract, handler);
             }
-        }, applicationPoolSize: 24, reconcileProbe: reconcile);
+        }, applicationPoolSize: 32, reconcileProbe: reconcile);
         var lifetime = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         var privilegedConnection = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
-        { Pooling = true, MaxPoolSize = 50 }.ConnectionString;
+        { Pooling = true, MaxPoolSize = 52 }.ConnectionString;
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(privilegedConnection));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var gate = new BackgroundJobRuntimeGate(registry.Infrastructure);
         var ids = new SystemGuidFactory();
         var runtime = new BackgroundJobRuntime(source, registry, BackgroundJobRecurrenceRegistry.CreateEmpty(),
             host.Services.GetRequiredService<JobExecutor>(), new(source, registry, bounds, ids, gate),
-            gate, bounds, ids, TimeProvider.System, new(true, 50), new HangfireBoundedLogProvider(), lifetime);
+            gate, bounds, ids, TimeProvider.System, new(true, 52), new HangfireBoundedLogProvider(), lifetime);
         // Neither messaging worker starts in the existing construction-only host.
         runtime.BindMessagingLifetime(Task.CompletedTask, Task.CompletedTask);
         var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(resource, prepared, finalized));
@@ -116,10 +116,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             await runtime.StartAsync(startup.Token);
-            lifetime.PoolSettings.Should().Be(new BackgroundJobApplicationPoolSettings(true, 24));
-            runtime.Snapshot.ApplicationCapacity!.RequiredConnections.Should().Be(24);
+            lifetime.PoolSettings.Should().Be(new BackgroundJobApplicationPoolSettings(true, 32));
+            runtime.Snapshot.ApplicationCapacity!.RequiredConnections.Should().Be(32);
             await using (var physical = await source.OpenConnectionAsync(startup.Token))
-                new NpgsqlConnectionStringBuilder(physical.ConnectionString).MaxPoolSize.Should().Be(50);
+                new NpgsqlConnectionStringBuilder(physical.ConnectionString).MaxPoolSize.Should().Be(52);
             // Execute and the provider journal commit are real. The native recovery
             // then enters the SDK's post-call barrier, retaining its actual task.
             await reconcile.Entered.WaitAsync(startup.Token);
@@ -133,10 +133,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
             context.JobId.Should().Be(externalJob);
             (await provider.CountsAsync(context.OperationId)).Should().Be((1L, 1L, 0L));
 
-            // These are 22 explicit physical pressure borrowers on the SAME app
-            // source, not 22 claimed native invocations or maximum-topology proof.
+            // These are 30 explicit physical pressure borrowers on the SAME app
+            // source, not 30 claimed native invocations or maximum-topology proof.
             using var pressureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            for (var index = 0; index < 22; index++)
+            for (var index = 0; index < 30; index++)
             {
                 var connection = await lifetime.Source.Value.OpenConnectionAsync(pressureDeadline.Token);
                 pressure.Add(connection);
@@ -156,7 +156,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             transactionalOwner.ActualAuxiliary.IsCompleted.Should().BeFalse();
             var allBackends = pressure.Select(connection => connection.ProcessID)
                 .Append(transactionalOwner.MainBackend).Append(transactionalOwner.AuxiliaryBackend).ToArray();
-            allBackends.Should().HaveCount(24).And.OnlyHaveUniqueItems(
+            allBackends.Should().HaveCount(32).And.OnlyHaveUniqueItems(
                 "the native root owns the final real main/auxiliary pair in the configured app pool");
             using (var overflowDeadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
             {

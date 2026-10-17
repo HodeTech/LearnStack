@@ -24,6 +24,7 @@ public sealed partial class OutboxDispatchConventionTests
         JobRuntimeGate, "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory",
         "System.TimeProvider", JobPoolSettings, "LearnStack.Infrastructure.Jobs.HangfireBoundedLogProvider",
         "LearnStack.Infrastructure.Persistence.ApplicationDataSourceLifetime",
+        "LearnStack.SharedKernel.Jobs.BackgroundJobLifecycleProjection",
     ];
     private static string RuntimeConstructorId => InfrastructureAssembly + ":System.Void " + JobRuntime
         + "::.ctor(" + string.Join(",", RuntimeConstructorParameters) + ")";

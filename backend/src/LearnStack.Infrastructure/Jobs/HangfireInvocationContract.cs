@@ -295,8 +295,10 @@ public static class HangfireInvocationContract
             if (Volatile.Read(ref _closed) != 0 || Type != typeof(HangfireRecurrenceTick) || job.Args[0] is not string bound || bound != key
                 || job.Args[1] is not long expected || expected != revision
                 || Interlocked.Exchange(ref _entered, 1) != 0) throw Refused();
-            // Refuse rather than claim successful materialization before Step 8.
-            throw new InvalidOperationException("Durable recurrence materialization is not active.");
+            if (jobs is null) throw Refused();
+            if (!runtime.TryAdmit() || owner?.TryAdmitInvocation() == false) return Task.CompletedTask;
+            jobs.SignalRecurrenceTick(key, revision);
+            return Task.CompletedTask;
         }
     }
 }

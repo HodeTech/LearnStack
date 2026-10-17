@@ -24,7 +24,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     public async Task Native_framework_wait_retains_actual_cleanup_and_releases_its_slot_before_host_stop(bool synchronousPrefix)
     {
         await using var database = await DatabaseAsync();
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var applicationName = "facade_cleanup_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
         var cleanup = new FacadeCleanupSignals();
@@ -172,10 +172,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     }
 
     [Fact]
-    public async Task Pooled_boundary_50_keeps_actual_expiration_checkout_after_caller_timeout_while_transactional_admission_progresses()
+    public async Task Pooled_boundary_52_keeps_actual_expiration_checkout_after_caller_timeout_while_transactional_admission_progresses()
     {
         await using var database = await DatabaseAsync();
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var applicationName = "facade_capacity_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, applicationName);
         var probe = new BackgroundJobFixtureProbe();
@@ -202,7 +202,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 .Should().ThrowAsync<OperationCanceledException>();
             await EventuallyAsync(() => Task.FromResult(expiration.Snapshot.State == HangfireSharedComponentState.Retained));
             expiration.Completion.IsCompleted.Should().BeFalse();
-            PoolStatistics(source).Busy.Should().BeInRange(1, 50);
+            PoolStatistics(source).Busy.Should().BeInRange(1, 52);
 
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
             await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, job));
@@ -216,7 +216,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 ActualJoined = false,
             });
             expiration.Completion.IsCompleted.Should().BeFalse();
-            PoolStatistics(source).Busy.Should().BeInRange(1, 50);
+            PoolStatistics(source).Busy.Should().BeInRange(1, 52);
             runtime.Snapshot.RunningPools.Should().Be(3);
             var health = await new BackgroundJobHealthCheck(runtime).CheckHealthAsync(new HealthCheckContext());
             health.Status.Should().Be(HealthStatus.Unhealthy);

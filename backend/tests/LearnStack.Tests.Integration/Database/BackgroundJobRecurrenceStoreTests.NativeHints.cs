@@ -70,11 +70,15 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = Source(database);
         await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
-        var shape = await NativeStorageShapeAsync(owner);
-        var current = await NativeGuardDefinitionAsync(owner);
         await using var context = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
             .UseNpgsql(database.MigrationConnectionString,
                 options => options.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable)).Options);
+        const string correction = "20261017225713_fence_hangfire_recurrence_revision";
+        // Qualify this one-function migration at its own boundary; later
+        // additive control indexes are independently restored afterward.
+        await context.GetService<IMigrator>().MigrateAsync(correction);
+        var shape = await NativeStorageShapeAsync(owner);
+        var current = await NativeGuardDefinitionAsync(owner);
         await context.GetService<IMigrator>().MigrateAsync("20261017184321_add_background_job_retirement_index");
         (await NativeGuardDefinitionAsync(owner)).Should().NotBe(current);
         (await NativeStorageShapeAsync(owner)).Should().Equal(shape);
@@ -83,7 +87,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
 
         // Prove the additive migration upgrades an actual old body on its own.
         // The fresh chain already reads the current embedded Guards resource.
-        await context.GetService<IMigrator>().MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(correction);
         (await NativeGuardDefinitionAsync(owner)).Should().Be(current);
         (await NativeStorageShapeAsync(owner)).Should().Equal(shape);
         _ = NativeStorage(source);
@@ -103,10 +107,11 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             .Replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", StringComparison.Ordinal));
         (await NativeGuardDefinitionAsync(owner)).Should().Be(current);
         _ = NativeStorage(source);
-        await context.GetService<IMigrator>().MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(correction);
         (await NativeGuardDefinitionAsync(owner)).Should().Be(current);
         (await NativeStorageShapeAsync(owner)).Should().Equal(shape);
         context.Database.HasPendingModelChanges().Should().BeFalse();
+        await context.Database.MigrateAsync();
     }
 
     private static Hangfire.PostgreSql.PostgreSqlStorage NativeStorage(PrivilegedDataSource source) =>

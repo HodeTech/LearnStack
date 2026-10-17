@@ -8,6 +8,52 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BackgroundJobRecurrenceStoreTests
 {
+    [Fact]
+    public async Task An_expired_database_lease_does_not_reissue_a_locally_retained_recipient()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = Source(database);
+        var manifest = await PrepareClaimRouteAsync(database, Store(source), organization: false);
+        var original = await ClaimRecipientAsync(source, manifest);
+        await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
+        await SchemaQueries.ExecuteAsync(dispatcher, null,
+            "UPDATE background_job_recipients SET ownership_until=clock_timestamp()-interval '1 second' WHERE id=@id",
+            ("id", original.RecipientId.Value));
+        var excluded = await Store(source).TryClaimRecipientAsync(Fixture.Recurrences(manifest), [original.RecipientId.Value]);
+        excluded.ThrowIfFailed();
+        excluded.CleanupConfirmed.Should().BeTrue();
+        excluded.Value.Should().BeNull();
+        (await ReadAsync<Guid>(dispatcher, "SELECT ownership_token FROM background_job_recipients"))
+            .Should().Be(original.Token);
+        // The same stored row is otherwise eligible. This positive control must
+        // issue a fresh token rather than relying on a still-live database lease.
+        var released = await Store(source).TryClaimRecipientAsync(Fixture.Recurrences(manifest), []);
+        released.ThrowIfFailed();
+        released.Value!.RecipientId.Should().Be(original.RecipientId);
+        released.Value.Token.Should().NotBe(original.Token);
+    }
+
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("duplicate")]
+    [InlineData("oversized")]
+    public async Task Recipient_exclusions_reject_invalid_or_unbounded_sets_before_source_resolution(string invalid)
+    {
+        await using var source = new LearnStack.Infrastructure.Persistence.PrivilegedDataSource(
+            () => throw new InvalidOperationException("Invalid exclusions must not resolve a source."));
+        var id = Guid.CreateVersion7();
+        Guid[] retained = invalid switch
+        {
+            "empty" => [Guid.Empty],
+            "duplicate" => [id, id],
+            "oversized" => Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7()).ToArray(),
+            _ => throw new ArgumentOutOfRangeException(nameof(invalid)),
+        };
+        await FluentActions.Awaiting(() => Store(source).TryClaimRecipientAsync(
+            BackgroundJobRecurrenceRegistry.CreateEmpty(), retained)).Should().ThrowAsync<ArgumentException>();
+        source.IsValueCreated.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("InterfaceDeclarations")]
     [InlineData("StructDeclarations")]

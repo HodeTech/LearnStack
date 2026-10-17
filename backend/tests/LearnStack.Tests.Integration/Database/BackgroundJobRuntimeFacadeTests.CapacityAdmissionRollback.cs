@@ -56,7 +56,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddScoped<CapacityNoStartAdmissionDisposal>();
         }, appConnectionString: new NpgsqlConnectionStringBuilder(proxy.ConnectionString)
         { Pooling = true, MaxPoolSize = 100 }.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         await using var source = Source(database, physical);
         await using var peerSource = Source(database, physical);
         using var globals = new GlobalFilterSnapshot();

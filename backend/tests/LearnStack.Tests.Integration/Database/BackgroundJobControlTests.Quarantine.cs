@@ -19,6 +19,7 @@ public sealed partial class BackgroundJobControlTests
         empty.ThrowIfFailed();
         empty.CleanupConfirmed.Should().BeTrue();
         empty.Value!.HasQuarantinedJobs.Should().BeFalse();
+        empty.Value.HasQuarantinedControl.Should().BeFalse();
         empty.CommitAcknowledged.Should().BeFalse();
         empty.KnownRollback.Should().BeFalse("a read-only observation is not evidence about a business rollback");
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
@@ -30,6 +31,7 @@ public sealed partial class BackgroundJobControlTests
         present.ThrowIfFailed();
         present.CleanupConfirmed.Should().BeTrue();
         present.Value!.HasQuarantinedJobs.Should().BeTrue();
+        present.Value.HasQuarantinedControl.Should().BeFalse();
         await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         await FluentActions.Awaiting(() => SchemaQueries.ExecuteAsync(dispatcher, null,
             "SELECT parameters FROM background_jobs")).Should().ThrowAsync<PostgresException>()
@@ -60,6 +62,7 @@ public sealed partial class BackgroundJobControlTests
         var observed = await read;
         observed.ThrowIfFailed();
         observed.Value!.HasQuarantinedJobs.Should().BeFalse();
+        observed.Value.HasQuarantinedControl.Should().BeFalse();
         observed.CleanupConfirmed.Should().BeTrue();
     }
 

@@ -3,6 +3,7 @@ using Hangfire.PostgreSql;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -27,7 +28,7 @@ public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState Stat
         && Control is
         {
             RenewalHealthy: true, RecoveryHealthy: true, TerminalHealthy: true,
-            QuarantineObservationHealthy: true, HasQuarantinedJobs: false
+            QuarantineObservationHealthy: true, HasQuarantinedJobs: false, HasQuarantinedControl: false, Recurrence.IsHealthy: true
         };
 }
 
@@ -75,7 +76,7 @@ public sealed class BackgroundJobRuntime
         BackgroundJobRecurrenceRegistry recurrences, JobExecutor executor, PostgresBackgroundJobRoutingStore routing,
         BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds, IGuidFactory ids, TimeProvider time,
         BackgroundJobPhysicalPoolSettings poolSettings, HangfireBoundedLogProvider diagnostics,
-        ApplicationDataSourceLifetime? applicationSource = null)
+        ApplicationDataSourceLifetime? applicationSource = null, BackgroundJobLifecycleProjection? lifecycleProjection = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(definitions);
@@ -102,7 +103,7 @@ public sealed class BackgroundJobRuntime
         _ids = ids;
         _time = time;
         _diagnostics = diagnostics;
-        _jobs = new(source, definitions, executor, gate, bounds, ids, time);
+        _jobs = new(source, definitions, executor, gate, bounds, ids, time, recurrences, lifecycleProjection);
         // The source pin retains these tasks. Their state must retain the
         // concrete owner even after an observer returns with cleanup unresolved.
         _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
@@ -322,6 +323,7 @@ public sealed class BackgroundJobRuntime
     {
         var inventory = new HangfireComponentInventory(provider);
         var filters = HangfireRuntimeFilters.Create();
+        _jobs.BindRecurrenceClient(new HangfireRecurrenceClient(provider, filters));
         var shared = new HangfireSharedComponents(inventory, _gate, _time, _diagnostics);
         var store = new PostgresBackgroundJobBridgeStore(_source, _definitions, _bounds, _ids, _gate);
         var bridge = new BackgroundJobBridge(store, new HangfireWakeupClient(provider, filters), _bounds, _time, _gate);

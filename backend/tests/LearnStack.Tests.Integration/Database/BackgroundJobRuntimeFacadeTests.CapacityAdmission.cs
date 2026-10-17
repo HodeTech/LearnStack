@@ -39,7 +39,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddSingleton(bounds);
         }, appConnectionString: new NpgsqlConnectionStringBuilder(proxy.ConnectionString)
         { Pooling = true, MaxPoolSize = 100 }.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var controlName = "capacity_commit_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();

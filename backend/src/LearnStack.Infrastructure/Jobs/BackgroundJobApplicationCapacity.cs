@@ -3,6 +3,7 @@ namespace LearnStack.Infrastructure.Jobs;
 /// <summary>The job-only application checkout bound; unrelated HTTP demand needs its own headroom.</summary>
 public sealed record BackgroundJobApplicationCapacity(int InvocationOwners, int RequiredConnections)
 {
+    public int RecipientOwners { get; } = BackgroundJobRecurrenceControl.ApplicationOwnerLimit;
     public static BackgroundJobApplicationCapacity Calculate(BackgroundJobInfrastructureRegistry topology)
     {
         ArgumentNullException.ThrowIfNull(topology);
@@ -13,7 +14,8 @@ public sealed record BackgroundJobApplicationCapacity(int InvocationOwners, int 
         // each use one sequential main unit and one tracked auxiliary operation.
         // A timed-out cache waiter still owns its actual auxiliary cleanup.
         // The one terminal-lane no-start owner adds its own main/auxiliary pair.
-        return new(invocations, checked(2 * invocations + 2));
+        // Four actual recipient owners also retain their main/auxiliary pairs.
+        return new(invocations, checked(2 * invocations + 2 + 2 * BackgroundJobRecurrenceControl.ApplicationOwnerLimit));
     }
 
     public void Validate(BackgroundJobApplicationPoolSettings settings)

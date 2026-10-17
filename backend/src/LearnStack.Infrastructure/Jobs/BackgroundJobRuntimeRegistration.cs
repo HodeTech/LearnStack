@@ -1,6 +1,7 @@
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -45,5 +46,6 @@ public static class BackgroundJobRuntimeRegistration
         services.GetRequiredService<TimeProvider>(),
         services.GetRequiredService<BackgroundJobPhysicalPoolSettings>(),
         services.GetRequiredService<HangfireBoundedLogProvider>(),
-        services.GetRequiredService<ApplicationDataSourceLifetime>());
+        services.GetRequiredService<ApplicationDataSourceLifetime>(),
+        services.GetService<BackgroundJobLifecycleProjection>());
 }

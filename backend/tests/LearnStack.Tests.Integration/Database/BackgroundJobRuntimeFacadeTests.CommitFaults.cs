@@ -49,7 +49,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         }, appConnectionString: appSettings.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var controlName = "native_commit_probe_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();
@@ -154,7 +154,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         }, appConnectionString: appSettings.ConnectionString);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         await using var source = Source(database, physical);
         using var globals = new GlobalFilterSnapshot();
         using var deadline = new CancellationTokenSource(TestWait);

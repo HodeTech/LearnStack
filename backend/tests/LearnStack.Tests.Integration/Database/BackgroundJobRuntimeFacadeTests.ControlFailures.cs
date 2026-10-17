@@ -43,7 +43,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
         });
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var controlName = "native_control_failure_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();

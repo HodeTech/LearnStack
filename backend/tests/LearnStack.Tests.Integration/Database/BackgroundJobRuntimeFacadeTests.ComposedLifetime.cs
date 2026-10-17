@@ -34,7 +34,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var connectionString = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
         {
             Pooling = true,
-            MaxPoolSize = 50,
+            MaxPoolSize = 52,
             ApplicationName = applicationName,
         }.ConnectionString;
         var cleanup = new FacadeCleanupSignals();
@@ -77,7 +77,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy
                 && services.GetRequiredService<OutboxObservation>().IsHealthy
                 && services.GetRequiredService<DeliveryObservation>().IsHealthy));
-            await AssertGuardedPoolAsync(source, new(true, 50));
+            await AssertGuardedPoolAsync(source, new(true, 52));
             (await ServerCountAsync(source)).Should().Be(3);
             outbox.ExecuteTask.Should().NotBeNull();
             delivery.ExecuteTask.Should().NotBeNull();
@@ -136,7 +136,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 await SchemaQueries.AssertApplicationRoleAsync(remaining);
             source.HasUnconfirmedCleanup.Should().BeFalse("pending scope ownership is not a disposal fault");
             PoolStatistics(source).Busy.Should().Be(1);
-            await AssertGuardedPoolAsync(source, new(true, 50));
+            await AssertGuardedPoolAsync(source, new(true, 52));
             PoolStatistics(source).Busy.Should().Be(1);
 
             cleanup.Release.TrySetResult();

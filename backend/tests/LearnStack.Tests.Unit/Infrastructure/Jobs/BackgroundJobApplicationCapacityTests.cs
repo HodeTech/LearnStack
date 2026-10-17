@@ -8,22 +8,23 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 public sealed class BackgroundJobApplicationCapacityTests
 {
     [Fact]
-    public void Default_business_pools_and_terminal_cleanup_require_twenty_four_job_origin_checkouts()
+    public void Default_business_pools_terminal_and_recipient_cleanup_require_thirty_two_job_origin_checkouts()
     {
         var capacity = BackgroundJobApplicationCapacity.Calculate(BackgroundJobInfrastructureRegistry.CreateDefault());
         capacity.InvocationOwners.Should().Be(11);
-        capacity.RequiredConnections.Should().Be(24);
+        capacity.RecipientOwners.Should().Be(4);
+        capacity.RequiredConnections.Should().Be(32);
     }
 
     [Fact]
-    public void Maximum_business_topology_and_terminal_cleanup_require_120_job_origin_checkouts()
+    public void Maximum_business_topology_terminal_and_recipient_cleanup_require_128_job_origin_checkouts()
     {
         var topology = MaximumBusinessTopology();
         topology.Pools.Should().HaveCount(8);
         topology.Pools.Values.Sum(pool => pool.Workers).Should().Be(32);
         var capacity = BackgroundJobApplicationCapacity.Calculate(topology);
         capacity.InvocationOwners.Should().Be(59);
-        capacity.RequiredConnections.Should().Be(120);
+        capacity.RequiredConnections.Should().Be(128);
     }
 
     [Fact]

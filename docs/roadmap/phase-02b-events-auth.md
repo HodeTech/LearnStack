@@ -7434,6 +7434,61 @@ packet-wide CI. Owned runtime/tick integration, fairness, physical capacity and
 their real fault proofs remain within Step 8. All nineteen obligations remain
 Registered; both fresh full reviews still precede Step 9.
 
+#### Runtime connection and stored quarantine qualification
+
+Guard/storage commit `c4a93deb` precedes this runtime unit. The existing facade
+now owns a recurrence child, one independent native manager flight and at most
+four actual recipient application owners. Durable registration, slot, page,
+claim and original-receipt history quanta rotate on one SQL lane. Native ticks
+only coalesce a memory signal; they construct neither recipients nor feature
+work. Exact recipient IDs remain excluded while their original task, cleanup or
+receipt history is retained. Failed cleanup supplies no replacement authority.
+
+The shared observation reads stored recurrence, occurrence and recipient
+quarantine independently of the local registry, including unknown older keys.
+Each table has a reversible partial presence index. Both observation values
+require actual reader/command cleanup and acknowledged ROLLBACK. Failed refreshes
+preserve the preceding value and make the observation unhealthy. API composition
+supplies Tenancy's existing closed lifecycle declaration as metadata.
+
+The named capacity inventory adds two privileged connections and four application
+main/auxiliary pairs; stock worker and retained-invocation bounds do not increase.
+Standards 05 owns the reconciled formulas. Real default/maximum app inventories,
+explicit unrelated headroom and actual default/maximum native facade composition
+exercise their own boundaries; this does not claim simultaneous saturation of
+every runtime lane. Existing owner/caller manifests admit only the new concrete
+recipient and recurrence callers, without widening source-acquisition authority.
+
+The initial runtime build retains three analyzer failures as a separate receipt.
+An intervening Unit run passes 2,401 cases and fails three old capacity premises;
+after their correction, all 2,404 Unit cases pass. The first two native fan-out cases
+reach completed children before their test-created ticks fail the transport's
+ambient-culture guard. The corrected test uses the real native owner's invariant
+culture boundary; that guard remains unchanged. A subsequent 311-source build has
+zero warnings/errors, 2,408 passing Unit cases and 78 passing PostgreSQL cases.
+Three new quarantine refresh cases fail because revoking a column grant cannot
+remove the existing table-level SELECT grant. Their corrected premise first
+proves actual `42501` after revoking the real grant, before awaiting health change.
+
+The final 322-source Release build has zero warnings/errors; all 2,408 Unit cases,
+twelve focused PostgreSQL cases and four focused Architecture cases pass with
+zero failures/skips. The PostgreSQL selection covers each corrected cold-runtime
+quarantine path, expired-lease exclusion, invalid exclusion sets, populated
+recipient query plans, three-index Down/Up, actual facade topologies and actual
+native transactional progress at the new app floor. Earlier passing cases include
+both tenant/organization fan-out paths, three duplicate stock ticks per path,
+reciprocal receipts and each control index's decisive 3,000-row removal control.
+The final selection does not rerun or relabel that earlier broad selection.
+Formatter verification reports no changes. Its source/mode/artifact receipt closes
+at `8722a6b2799ba23d3cc1d8271c56dc9357b649a5b684160df8a4f8beabcc08f8`.
+
+Two narrow source preflights identify the missing isolated quarantine/index proof
+and the exact existing caller enrollments, addressed above. They execute no tests
+and grant neither full Step 8 review round. Complete new-owner/tick capability
+guards and retained-work, fairness and shutdown fault qualification remain before
+both fresh full Step 8 reviews. Nineteen obligations remain Registered; Step 9 is
+pending and no packet-wide regression or CI success is claimed here.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

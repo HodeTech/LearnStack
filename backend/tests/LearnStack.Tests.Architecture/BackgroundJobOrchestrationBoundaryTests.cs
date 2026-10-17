@@ -71,7 +71,8 @@ public sealed partial class OutboxDispatchConventionTests
 
         Constructor(OrchestrationControl, ["LearnStack.Infrastructure.Persistence.PrivilegedDataSource", "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
             "LearnStack.Infrastructure.Jobs.JobExecutor", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeGate",
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "System.TimeProvider"]);
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "System.TimeProvider",
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", "LearnStack.SharedKernel.Jobs.BackgroundJobLifecycleProjection"]);
         Constructor(OrchestrationRenewal, [OrchestrationStore, OrchestrationExecution + "[]", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions",
             "System.TimeProvider", "System.Threading.CancellationToken"]);
 

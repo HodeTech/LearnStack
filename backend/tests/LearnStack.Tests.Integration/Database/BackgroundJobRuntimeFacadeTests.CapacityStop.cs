@@ -35,7 +35,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             },
         };
         await using var host = CapacityStopHost(database, probe, state, bounds);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         var controlName = "capacity_stop_before_" + Guid.NewGuid().ToString("N");
         await using var source = Source(database, physical, controlName);
         using var globals = new GlobalFilterSnapshot();
@@ -139,7 +139,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             },
         };
         await using var host = CapacityStopHost(database, probe, state, bounds);
-        var physical = new BackgroundJobPhysicalPoolSettings(true, 50);
+        var physical = new BackgroundJobPhysicalPoolSettings(true, 52);
         await using var source = Source(database, physical);
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         using var globals = new GlobalFilterSnapshot();

@@ -12,7 +12,9 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     long Renewals, long Retries, long Terminalized, long UnknownOutcomes)
 {
     public bool? HasQuarantinedJobs { get; init; }
+    public bool? HasQuarantinedControl { get; init; }
     public bool QuarantineObservationHealthy { get; init; }
+    public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
 }
 
 /// <summary>Independent finite renewal, recovery and terminal lanes; none invokes module work.</summary>
@@ -26,6 +28,7 @@ internal sealed partial class BackgroundJobControl
     private readonly PostgresBackgroundJobControlStore _store;
     private readonly PostgresBackgroundJobTerminalStore _terminal;
     private readonly JobExecutor _executor;
+    private readonly BackgroundJobRecurrenceControl _recurrence;
     private readonly BackgroundJobRuntimeGate _gate;
     private readonly BackgroundJobRuntimeOptions _bounds;
     private readonly TimeProvider _time;
@@ -51,7 +54,8 @@ internal sealed partial class BackgroundJobControl
 
     internal BackgroundJobControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
         JobExecutor executor, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
-        IGuidFactory ids, TimeProvider time)
+        IGuidFactory ids, TimeProvider time, BackgroundJobRecurrenceRegistry? recurrences = null,
+        BackgroundJobLifecycleProjection? projection = null)
     {
         _store = new(source, definitions, bounds, ids, gate);
         _terminal = new(source, executor.ScopeFactory, bounds, ids, gate);
@@ -59,6 +63,8 @@ internal sealed partial class BackgroundJobControl
         _gate = gate;
         _bounds = bounds;
         _time = time;
+        _recurrence = new(source, definitions, recurrences ?? BackgroundJobRecurrenceRegistry.CreateEmpty(),
+            projection, executor, gate, bounds, ids, time);
         _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
         _stopRelay = RelayStopAsync();
         _completionObservation = ObserveCompletionAsync();
@@ -81,7 +87,9 @@ internal sealed partial class BackgroundJobControl
                     _renewals, _retries, _terminalized, _unknown)
                 {
                     HasQuarantinedJobs = _quarantinePresence,
+                    HasQuarantinedControl = _controlQuarantinePresence,
                     QuarantineObservationHealthy = QuarantineObservationHealthy(),
+                    Recurrence = _recurrence.Snapshot,
                 };
         }
     }
@@ -169,6 +177,7 @@ internal sealed partial class BackgroundJobControl
 
     private void ScheduleLoops(List<Task> loops)
     {
+        _recurrence.Start();
         loops.Add(Task.Run(RunRenewalAsync));
         loops.Add(Task.Run(RunControlAsync));
         loops.Add(Task.Run(RunTerminalAsync));
@@ -181,6 +190,7 @@ internal sealed partial class BackgroundJobControl
             _stopping = true;
             if (!_started) _loopsPublished.TrySetResult([]);
         }
+        _recurrence.RequestStop();
         _stopRequested.TrySetResult();
     }
 
@@ -871,6 +881,7 @@ internal sealed partial class BackgroundJobControl
             var loops = await _loopsPublished.Task.ConfigureAwait(false);
             await Task.WhenAll(loops).ConfigureAwait(false);
             await _stopRelay.ConfigureAwait(false);
+            await _recurrence.Completion.ConfigureAwait(false);
             BackgroundJobTerminalNoStartOperation? terminalNoStart;
             lock (_sync) terminalNoStart = _terminalNoStart;
             if (terminalNoStart is not null

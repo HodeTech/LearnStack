@@ -420,10 +420,11 @@ public sealed partial class OutboxDispatchConventionTests
             [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Cap(InfrastructureAssembly, JobScheduler, "SubmitRecipientAsync", "System.Threading.Tasks.Task`1<" + RecipientChild + ">", [JobRecipientRequest, BoundaryCancellation], MethodAttributes.Assembly,
             [(InfrastructureAssembly, RecipientHandler, "Handle")]);
-        // The native recurrence owner is a later Step 8 unit; no production caller is active yet.
+        // Only the concrete retained application operation enters this seam.
         Cap(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.JobRecipientSubmissionResult>",
-            [RecipientClaim, RecipientProjection, JobCommitGate, BoundaryCancellation], MethodAttributes.Assembly, []);
+            [RecipientClaim, RecipientProjection, JobCommitGate, BoundaryCancellation], MethodAttributes.Assembly,
+            [(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobRecipientOperation", "ExecuteApplicationAsync")]);
         Cap(InfrastructureAssembly, RecipientSubmission, ".ctor", "System.Void",
             ["LearnStack.Infrastructure.Jobs.JobRecipientSubmissionStatus", JobRecipientRequest, "System.Boolean",
              "LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner",
@@ -431,7 +432,8 @@ public sealed partial class OutboxDispatchConventionTests
             [(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync")]);
         Cap(InfrastructureAssembly, RecipientStore, "ResolveRecipientAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.OwnedBackgroundJobControl`1<LearnStack.Infrastructure.Jobs.BackgroundJobRecipientResolution>>",
-            [RecipientSubmission, RecipientProjection, BoundaryCancellation], MethodAttributes.Assembly, []);
+            [RecipientSubmission, RecipientProjection, BoundaryCancellation], MethodAttributes.Assembly,
+            [(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceControl", "ResolveOneAsync")]);
         Cap(InfrastructureAssembly, JobScheduler, "InsertAsync", "System.Threading.Tasks.Task`1<" + RecipientChild + ">",
             ["LearnStack.SharedKernel.Jobs.BackgroundJobDefinitionDescriptor", RecipientChild, "System.String", "System.DateTimeOffset", JobOrigin,
              "System.Nullable`1<" + RecipientId + ">", BoundaryCancellation], MethodAttributes.Private,

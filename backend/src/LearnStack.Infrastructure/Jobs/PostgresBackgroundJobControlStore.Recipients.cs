@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Jobs;
+using NpgsqlTypes;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -15,6 +16,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
         FROM background_job_recipients r JOIN background_job_recurrences m
             ON m.recurrence_key=r.recurrence_key AND m.revision=r.revision
         WHERE r.accepted_job_id IS NULL AND r.skipped_at IS NULL AND r.quarantined_at IS NULL
+            AND r.id<>ALL(@retained)
             AND r.available_after<=statement_timestamp() AND r.due_at<=statement_timestamp()
             AND (r.ownership_token IS NULL OR r.ownership_until<=statement_timestamp())
         ORDER BY r.available_after,r.id LIMIT 1 FOR UPDATE OF r SKIP LOCKED
@@ -22,10 +24,15 @@ internal sealed partial class PostgresBackgroundJobControlStore
 
     /// <summary>Claims one due immutable route, publishing authority only after real ACK and cleanup.</summary>
     internal async Task<OwnedBackgroundJobControl<BackgroundJobRecipientClaim>> TryClaimRecipientAsync(
-        BackgroundJobRecurrenceRegistry recurrences, CancellationToken cancellationToken = default)
+        BackgroundJobRecurrenceRegistry recurrences, IReadOnlyCollection<Guid>? retainedRecipientIds = null,
+        CancellationToken cancellationToken = default)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(recurrences);
+        var retained = retainedRecipientIds?.ToArray() ?? [];
+        if (retained.Length > BackgroundJobRecurrenceControl.ApplicationOwnerLimit || retained.Any(id => id == Guid.Empty)
+            || retained.Distinct().Count() != retained.Length)
+            throw new ArgumentException("Recipient exclusions require the bounded actual owner identities.", nameof(retainedRecipientIds));
         options.Validate();
         var resources = new BackgroundJobControlResources();
         BackgroundJobRecipientClaim? candidate = null;
@@ -35,6 +42,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
             if (await OpenAsync(resources, deadline.Token).ConfigureAwait(false))
             {
                 var command = Command(resources, RecipientClaimSelectionSql);
+                command.Parameters.AddWithValue("retained", NpgsqlDbType.Array | NpgsqlDbType.Uuid, retained);
                 resources.SetReader(await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false));
                 RecipientRoute? route = null;
                 if (await resources.Reader!.ReadAsync(deadline.Token).ConfigureAwait(false)) route = RecipientRoute.Read(resources.Reader);

@@ -3,6 +3,7 @@ namespace LearnStack.Infrastructure.Jobs;
 internal sealed partial class BackgroundJobControl
 {
     private bool? _quarantinePresence;
+    private bool? _controlQuarantinePresence;
     private long? _quarantineObservedAt;
     private long _quarantineReadAfter;
     private bool _quarantineFault = true;
@@ -27,6 +28,7 @@ internal sealed partial class BackgroundJobControl
                 if (!_quarantineFault)
                 {
                     _quarantinePresence = operation.Value!.HasQuarantinedJobs;
+                    _controlQuarantinePresence = operation.Value.HasQuarantinedControl;
                     _quarantineObservedAt = issuedAt;
                 }
                 _quarantineReadAfter = Later(_bounds.SnapshotInterval);
@@ -52,7 +54,7 @@ internal sealed partial class BackgroundJobControl
         // Keep each lane's progress check independent, and allow the preceding
         // read, one fresh control quantum, polling and the next bounded read.
         var maximumAge = _bounds.SnapshotInterval + _bounds.ProgressTimeout + _bounds.SqlTimeout * 2 + _bounds.ControlPoll;
-        return !_cleanupFault && !_quarantineFault && _quarantinePresence.HasValue
+        return !_cleanupFault && !_quarantineFault && _quarantinePresence.HasValue && _controlQuarantinePresence.HasValue
             && _quarantineObservedAt is { } observed
             && _time.GetElapsedTime(observed, _time.GetTimestamp()) <= maximumAge;
     }

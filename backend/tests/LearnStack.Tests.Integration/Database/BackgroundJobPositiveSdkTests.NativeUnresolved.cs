@@ -37,7 +37,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             services.RemoveAll<BackgroundJobRuntimeOptions>();
             services.AddSingleton(bounds);
-        }, applicationPoolSize: 24);
+        }, applicationPoolSize: 32);
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var runtime = NativeSdkRuntime(host.Services, source, bounds);
@@ -89,7 +89,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             {
                 services.RemoveAll<BackgroundJobRuntimeOptions>();
                 services.AddSingleton(bounds);
-            }, applicationPoolSize: 24);
+            }, applicationPoolSize: 32);
             await using var restartedSource = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
             var restarted = NativeSdkRuntime(restartedHost.Services, restartedSource, bounds);
             restarted.Snapshot.Control!.HasQuarantinedJobs.Should().BeNull();

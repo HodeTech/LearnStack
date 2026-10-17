@@ -60,17 +60,43 @@ public sealed class BackgroundJobQuarantineHealthTests
     }
 
     [Theory]
-    [InlineData(null, false, false)]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, true, false)]
-    public void Runtime_health_requires_a_fresh_known_negative_quarantine_sample(bool? present, bool fresh, bool healthy)
+    [InlineData(null, false, true, false)]
+    [InlineData(false, null, true, false)]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, true, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, true, true, false)]
+    public void Runtime_health_requires_a_fresh_known_negative_quarantine_sample(bool? present, bool? controlPresent, bool fresh, bool healthy)
     {
         var control = new BackgroundJobControlHealth(0, 0, true, true, true, false, 0, 0, 0, 0)
-        { HasQuarantinedJobs = present, QuarantineObservationHealthy = fresh };
+        {
+            HasQuarantinedJobs = present,
+            HasQuarantinedControl = controlPresent,
+            QuarantineObservationHealthy = fresh,
+            Recurrence = new(0, 0, 0, false, false, true, true, false, false, true),
+        };
         var snapshot = new BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState.Running,
-            new(3, 4, 1, 16, 50), 3, 0, 0, null, true, true, true, true, false, [], [], control);
+            new(3, 4, 1, 16, 52), 3, 0, 0, null, true, true, true, true, false, [], [], control);
         snapshot.IsHealthy.Should().Be(healthy);
+    }
+
+    [Fact]
+    public async Task A_stale_or_failed_control_quarantine_sample_preserves_its_positive_value()
+    {
+        await using var fixture = new Fixture(new());
+        fixture.Control.Snapshot.HasQuarantinedControl.Should().BeNull();
+        fixture.Observe(false, true);
+        fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
+        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue();
+        Set(fixture.Control, "_quarantineFault", true);
+        fixture.Progress();
+        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
+        fixture.Observe(false, true);
+        fixture.Time.Advance(TimeSpan.FromMinutes(3));
+        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
     }
 
     // These are memory/freshness controls only. Real reads and restart truth are
@@ -87,9 +113,10 @@ public sealed class BackgroundJobQuarantineHealthTests
                 new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds);
             Control = new(_source, definitions, executor, new(definitions.Infrastructure), bounds, new SystemGuidFactory(), Time);
         }
-        internal void Observe(bool value)
+        internal void Observe(bool value, bool controlValue = false)
         {
             Set(Control, "_quarantinePresence", value);
+            Set(Control, "_controlQuarantinePresence", controlValue);
             Set(Control, "_quarantineObservedAt", Time.GetTimestamp());
             Set(Control, "_quarantineFault", false);
             Progress();

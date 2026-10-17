@@ -467,6 +467,7 @@ public sealed partial class OutboxDispatchConventionTests
              (InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
              (InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
              (InfrastructureAssembly, JobExecutorType, "StopRecipient"),
+             (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobRecipientOperation", "RequestStop"),
              (InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
         Cap(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.JobBusinessExecutionResult>",

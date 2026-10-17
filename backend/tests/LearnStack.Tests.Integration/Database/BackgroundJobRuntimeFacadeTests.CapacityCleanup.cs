@@ -103,10 +103,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             services.AddTransient<IPipelineBehavior<RecordBackgroundJobCapacityCleanupCommand, Result<None>>,
                 CapacityCleanupCheckpointObserver>();
         });
-        await using var source = Source(database, new(true, 50));
+        await using var source = Source(database, new(true, 52));
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         using var globals = new GlobalFilterSnapshot();
-        var runtime = Runtime(host.Services, source, bounds, new(true, 50));
+        var runtime = Runtime(host.Services, source, bounds, new(true, 52));
         var lockReleased = false;
         var verified = false;
         try

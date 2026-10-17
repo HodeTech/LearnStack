@@ -154,7 +154,7 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         var topology = maximum ? MaximumTopology() : BackgroundJobInfrastructureRegistry.CreateDefault();
         var capacity = BackgroundJobApplicationCapacity.Calculate(topology);
-        capacity.RequiredConnections.Should().Be(maximum ? 120 : 24);
+        capacity.RequiredConnections.Should().Be(maximum ? 128 : 32);
         var invocationPools = topology.Pools.Values
             .Where(pool => pool.Kind is BackgroundJobWorkerPoolKind.Transactional or BackgroundJobWorkerPoolKind.External)
             .SelectMany(pool => Enumerable.Repeat(pool.Kind, BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers)))
@@ -168,8 +168,12 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
         // One process-wide terminal owner has the same concrete main/auxiliary
         // inventory but is independent of the generation invocation pools.
         var terminalOwner = JobApplicationSourceOwner.Create();
+        // The four recurrence recipients have independent concrete app owners;
+        // none increases the stock native generation's invocation allowance.
+        capacity.RecipientOwners.Should().Be(4);
+        var recipients = Enumerable.Range(0, capacity.RecipientOwners).Select(_ => JobApplicationSourceOwner.Create()).ToArray();
         var applicationOwners = invocationPools.Select(_ => JobApplicationSourceOwner.Create())
-            .Append(terminalOwner).ToArray();
+            .Append(terminalOwner).Concat(recipients).ToArray();
         var remaining = applicationOwners.Length;
         var owners = new ConcurrentBag<JobApplicationSourceOwner>();
         var backends = new ConcurrentBag<int>();
@@ -222,8 +226,9 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
             foreach (var connection in unrelated) await connection.DisposeAsync();
             await Task.WhenAll(workers).WaitAsync(Budget);
         }
-        owners.Should().HaveCount(capacity.InvocationOwners + 1);
+        owners.Should().HaveCount(capacity.InvocationOwners + 1 + capacity.RecipientOwners);
         owners.Should().Contain(terminalOwner);
+        owners.Should().Contain(recipients);
         owners.Should().OnlyContain(owner => owner.CleanupConfirmed);
         await using var afterRelease = await source.OpenConnectionAsync();
         await SchemaQueries.AssertApplicationRoleAsync(afterRelease);
