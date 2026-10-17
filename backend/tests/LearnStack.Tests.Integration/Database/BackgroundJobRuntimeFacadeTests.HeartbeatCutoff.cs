@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using FluentAssertions;
 using Hangfire;
@@ -150,6 +151,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await using var source = Source(database, physical);
             using var globals = new GlobalFilterSnapshot();
             using var deadline = new CancellationTokenSource(HeartbeatQualificationWait);
+            var elapsed = Stopwatch.StartNew();
             var time = new HangfirePoolOwnerTests.ManualTimeProvider();
             var bounds = new BackgroundJobRuntimeOptions { TransactionTimeout = TimeSpan.FromSeconds(2) };
             var runtime = Runtime(host.Services, source, bounds, physical, time);
@@ -168,28 +170,57 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 var affected = original["transactional"];
                 HangfireGeneration.HeartbeatCutoff.Should().Be(TimeSpan.FromMinutes(4));
                 HangfireGeneration.HeartbeatPacing.Should().Be(TimeSpan.FromSeconds(1));
+                // Isolate native lifecycle qualification from bridge ACK row
+                // locks. The separate bridge/repair proofs retain that subject.
+                await EventuallyQualificationAsync(() => Task.FromResult(time.DelayCount(bounds.ControlPoll) == 3), deadline.Token);
+                testOutput.WriteLine($"Outage qualification ready at {elapsed.Elapsed}.");
                 var heldJob = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
                 var heldVendor = CreateQualificationWakeup(provider, transactionalPool, heldJob);
                 await cleanupSignals.Entered.Task.WaitAsync(deadline.Token);
+                testOutput.WriteLine($"Held native read cleanup entered at {elapsed.Elapsed}.");
                 await EventuallyQualificationAsync(() => Task.FromResult(time.HasDelay(bounds.TransactionTimeout)), deadline.Token);
                 // Only the owner observation clock advances. The held disposable
                 // is a synthetic scope-cleanup barrier around actual native work.
                 time.Advance(bounds.TransactionTimeout);
                 await EventuallyQualificationAsync(async () => affected.WorkSnapshot.Retained == 1
                     && await StateAsync(source, heldVendor) == "Succeeded", deadline.Token);
+                testOutput.WriteLine($"Held native wrapper returned at {elapsed.Elapsed}.");
                 affected.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
                 affected.TryAdmitInvocation().Should().BeTrue();
                 cleanupSignals.Joined.Task.IsCompleted.Should().BeFalse();
+                var resumedAt = time.GetTimestamp();
+                await EventuallyQualificationAsync(() => Task.FromResult(time.DelayCount(bounds.ControlPoll) == 3
+                    && runtime.Snapshot.Bridge is { Outstanding: 0, LastProgressTimestamp: { } progress }
+                    && progress == resumedAt), deadline.Token);
                 var beforeOutage = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
                 var beforeVendor = CreateQualificationWakeup(provider, transactionalPool, beforeOutage);
                 await EventuallyQualificationAsync(async () => await StateAsync(source, beforeVendor) == "Succeeded"
                     && await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, beforeOutage) == 1, deadline.Token);
 
+                testOutput.WriteLine($"Healthy pre-outage business completed at {elapsed.Elapsed}.");
                 paused = true;
                 await postgres.PauseOwnedServerAsync(deadline.Token);
+                var pauseCompletedAt = elapsed.Elapsed;
+                testOutput.WriteLine($"Owned database pause completed at {pauseCompletedAt}.");
                 // Core still uses its real thirty-second heartbeat cadence and
                 // the actual guarded provider's finite native SQL/socket bounds.
-                await EventuallyQualificationAsync(() => Task.FromResult(original.Values.All(generation => generation.Snapshot.HeartbeatFault)), deadline.Token);
+                try
+                {
+                    await EventuallyQualificationAsync(() => Task.FromResult(original.Values.All(generation => generation.Snapshot.HeartbeatFault)), deadline.Token);
+                }
+                catch (OperationCanceledException failure) when (deadline.IsCancellationRequested)
+                {
+                    // Observe before unpause/stop changes the original evidence.
+                    // Only finite in-memory facts; no SQL or provider diagnostics.
+                    var pools = string.Join(";", original.Select(pair =>
+                        $"{pair.Key}:generation={pair.Value.Snapshot};work={pair.Value.WorkSnapshot};owner={owners[pair.Key].Snapshot}"));
+                    throw new InvalidOperationException(
+                        $"Native post-pause heartbeat premise failed;elapsed={elapsed.Elapsed};pauseAt={pauseCompletedAt};"
+                        + $"sincePause={elapsed.Elapsed - pauseCompletedAt};logical={time.GetTimestamp()};"
+                        + $"timers={time.ActiveTimers};pacing={time.DelayCount(HangfireGeneration.HeartbeatPacing)};"
+                        + $"runtime={runtime.Snapshot};pools={pools}", failure);
+                }
+                testOutput.WriteLine($"All original native heartbeat faults observed at {elapsed.Elapsed}.");
                 original.Values.Should().OnlyContain(generation => !generation.Snapshot.Draining);
                 time.Advance(TimeSpan.FromMinutes(4));
                 // Shared failure backoff also uses one second, so a global timer

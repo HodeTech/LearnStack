@@ -256,7 +256,8 @@ internal sealed partial class PostgresBackgroundJobControlStore(PrivilegedDataSo
                 var dbNow = new DateTimeOffset(now);
                 var capacity = probe.Boundary is BackgroundJobCommitBoundary.CapacityRecovery or BackgroundJobCommitBoundary.TransactionalCleanup
                     ? await ProbeCapacityAsync(resources, probe, row, dbNow, deadline.Token).ConfigureAwait(false) : null;
-                var disposition = capacity?.Disposition ?? Interpret(probe, row);
+                var disposition = capacity?.Disposition ?? (probe.Boundary == BackgroundJobCommitBoundary.Admission
+                    ? await ProbeAdmissionAsync(resources, probe, row, deadline.Token).ConfigureAwait(false) : Interpret(probe, row));
                 value = new(disposition, probe.JobId, row?.Phase, row?.WakeGeneration ?? 0, row?.NormalAttempts ?? 0,
                     row?.AttemptId, row?.OwnershipToken, row?.OwnershipUntil, row?.Deadline, dbNow)
                 { RecoveryReceipt = capacity?.RecoveryReceipt, CurrentRecoveryAuthority = capacity?.CurrentRecoveryAuthority == true };
@@ -267,6 +268,42 @@ internal sealed partial class PostgresBackgroundJobControlStore(PrivilegedDataSo
         catch (Exception failure) when (BackgroundJobControlResources.Catchable(failure)) { resources.RecordFailure(failure); }
         finally { await resources.CleanupAsync().ConfigureAwait(false); }
         return new(value, resources, Array.Empty<BackgroundJobCommitProbe>());
+    }
+
+    private async Task<BackgroundJobProbeDisposition> ProbeAdmissionAsync(BackgroundJobControlResources resources,
+        BackgroundJobCommitProbe probe, ControlRow? row, CancellationToken token)
+    {
+        if (row is null) return BackgroundJobProbeDisposition.Missing;
+        if (row.TenantId != probe.TenantId || row.OrganizationId != probe.OrganizationId
+            || row.DefinitionKey != probe.DefinitionKey || row.Queue != probe.Queue
+            || row.CapacityGroup != probe.CapacityGroup || row.Profile != "transactional")
+            return BackgroundJobProbeDisposition.ChangedOwner;
+        // The original transaction has finished before this job lock is held.
+        // A peer may have cleared or replaced routing meanwhile; only a fresh
+        // read of immutable history can prove the original admission absent.
+        var command = Command(resources, """
+            SELECT id FROM background_job_attempts
+                WHERE tenant_id=@tenant AND job_id=@id AND stage='normal' AND admission_token=@original
+                    AND organization_id IS NOT DISTINCT FROM @organization
+            """);
+        command.Parameters.AddWithValue("tenant", probe.TenantId);
+        command.Parameters.AddWithValue("id", probe.JobId);
+        command.Parameters.AddWithValue("original", probe.Token);
+        command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)probe.OrganizationId ?? DBNull.Value);
+        resources.SetReader(await command.ExecuteReaderAsync(token).ConfigureAwait(false));
+        var attempt = await resources.Reader!.ReadAsync(token).ConfigureAwait(false) ? resources.Reader.GetGuid(0) : (Guid?)null;
+        var ambiguous = await resources.Reader.ReadAsync(token).ConfigureAwait(false);
+        await FinishAsync(resources).ConfigureAwait(false);
+        if (ambiguous) return BackgroundJobProbeDisposition.Unresolved;
+        if (attempt is null) return BackgroundJobProbeDisposition.RolledBack;
+        if (row.CapacityGroup is not null
+            && (row.AttemptId != attempt || row.WakeGeneration != probe.WakeGeneration || row.Phase is "pending" or "terminal_pending" or "completed"))
+        {
+            var facts = await ReadCapacityFactsAsync(resources, row, attempt.Value, token).ConfigureAwait(false);
+            if (facts is { Released: true, Positive: true } && facts.AdmissionToken == probe.Token)
+                return BackgroundJobProbeDisposition.AdmissionReleased;
+        }
+        return Interpret(probe, row);
     }
 
     private static BackgroundJobProbeDisposition Interpret(BackgroundJobCommitProbe probe, ControlRow? row)

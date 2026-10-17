@@ -408,6 +408,15 @@ internal sealed class BackgroundJobControl
             }
             _controlProbe = null;
             request.Probe = null;
+            if (probe.Boundary == BackgroundJobCommitBoundary.Admission
+                && result.Disposition == BackgroundJobProbeDisposition.ChangedOwner)
+            {
+                // Changed current authority is not absence of the original
+                // admission. Keep its locked historical obligation intact.
+                request.Probe = probe;
+                request.Due = Later(_bounds.RecoveryProbeInterval);
+                return;
+            }
             if (probe.Boundary == BackgroundJobCommitBoundary.TransactionalCleanup)
             {
                 request.CleanupCommitted = result.Disposition == BackgroundJobProbeDisposition.CapacityCleanupCommitted;
@@ -427,7 +436,8 @@ internal sealed class BackgroundJobControl
                 request.Acquisition = null;
             }
             else if (result.Disposition is BackgroundJobProbeDisposition.BusinessCompleted or BackgroundJobProbeDisposition.TerminalCompleted
-                || probe.Boundary == BackgroundJobCommitBoundary.Admission && result.Disposition == BackgroundJobProbeDisposition.RolledBack)
+                || probe.Boundary == BackgroundJobCommitBoundary.Admission && result.Disposition is BackgroundJobProbeDisposition.RolledBack
+                    or BackgroundJobProbeDisposition.AdmissionReleased)
             {
                 FinishRequest(request, true);
                 return;

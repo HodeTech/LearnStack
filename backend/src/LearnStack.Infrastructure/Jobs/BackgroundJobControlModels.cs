@@ -17,7 +17,7 @@ internal static class BackgroundJobControlLimits
 
 internal enum BackgroundJobControlLane { Recovery, Exhaustion, Retirement, CapacityProbe }
 internal enum BackgroundJobCommitBoundary { Admission, Business, Control, TerminalClaim, Terminal, Renewal, CapacityRecovery, TransactionalCleanup }
-internal enum BackgroundJobProbeDisposition { Unresolved, Missing, ChangedOwner, RolledBack, Admitted, ControlCommitted, BusinessCompleted, TerminalCompleted, Renewed, CapacityRecoveryAcquired, CapacityCleanupCommitted }
+internal enum BackgroundJobProbeDisposition { Unresolved, Missing, ChangedOwner, RolledBack, Admitted, AdmissionReleased, ControlCommitted, BusinessCompleted, TerminalCompleted, Renewed, CapacityRecoveryAcquired, CapacityCleanupCommitted }
 
 internal sealed record BackgroundJobRenewal(BackgroundJobExecutionIdentity Identity,
     DateTimeOffset OwnershipUntil, DateTimeOffset DbNow);

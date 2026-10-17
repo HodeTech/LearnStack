@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-16.** P02b-0 through P02b-3 are complete.
+**Current status — 2026-10-17.** P02b-0 through P02b-3 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
 P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
@@ -29,8 +29,10 @@ records ADR-0060's reviewed revision; its
 authorizes dependent fatal/lifecycle implementation. The
 [Step 4 closeout](#full-step-4-round-2-correction-validation-and-closeout-2026-10-16)
 records passing qualification and both full review rounds with verified corrections.
-Step 4 is locally complete; Step 5 is in progress. Steps 6–9 and P02b-5–8 remain
-pending. Production business definitions remain empty.
+Steps 4–6 are locally complete after both full review rounds and verified
+corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns capacity delivery and final local qualification. Steps 7–9 and P02b-5–8
+remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -5665,7 +5667,7 @@ Steps 7–9 and packet-wide regression/PR/CI remain pending.
 
 ### P02b-4 Step 6 — tenant capacity reservations (2026-10-16)
 
-**Implementation and first full review round complete; second round pending.**
+**Locally complete after both full review rounds and verified corrections.**
 Step 5 closes at correction `6a2ded99` after both full rounds and independent fix
 verification. Accepted ADR-0047 and the approved nine-step package own this step;
 no new capacity-policy decision or approval is pending.
@@ -5890,6 +5892,101 @@ The first-round corrections are locally qualified. The second full fresh review
 starts only after their normal local commit. All nineteen job obligations remain
 Registered; the published architecture-method count remains 237. Step 6's second
 full review gate is pending. Steps 7–9 and full packet/PR/CI closeout remain pending.
+
+#### Step 6 full review round 2 and local closeout (2026-10-17)
+
+First-round correction `d387f71f` passed normal hooks with a clean development
+branch. Three new independent reviewers inspect the complete **68-file** Step 6
+scope: GPT-6-astra at xhigh independently covers ownership/lifecycle and storage/
+isolation, and GPT-6-sol at xhigh covers proof/corpus/performance. They inspect
+source and parse actual receipts, without claiming personally executed tests or CI.
+
+Both runtime reviewers independently identify one further Major admission-lifetime
+race. A physical admission COMMIT can fail before reaching PostgreSQL, leaving no
+original attempt or reservation while its local outcome correctly remains uncertain.
+If a peer clears the expired routing token before original scope cleanup finishes,
+the old probe sees changed authority. Discarding that admission descriptor then
+retries recovery acquisition for history that cannot exist, retaining clean work.
+
+The correction makes a fresh exact admission-token history read after acquiring
+the actual job-row lock. Locked absence proves rollback independently of current
+routing. Existing original history remains distinct from a peer's later attempt;
+positive original release requires its exact reservation and corresponding immutable
+evidence. Changed authority alone never settles the request, and its unresolved
+historical descriptor remains retained. The read probe changes no peer state and
+constructs neither executable nor recovery authority. No schema, grant or source
+capacity changes are needed.
+
+The new native control drops the actual second app COMMIT request before the server
+receives it, holds real original scope disposal, and uses an independent real
+recovery store to clear expired routing. It verifies absent original attempts/
+reservations, uncertain admission with no executable receipt, no business constructor,
+and original control/source/native join without host stop. The unchanged production
+source fails at that final-join assertion; the correction passes. Four guarded
+app-role history cases distinguish absent original with/without peer admission,
+committed occupied original, and positively released original before a real second
+peer admission. The positive history setup is explicitly a storage fixture rather
+than a minted runtime cleanup witness. Peer header and occupancy remain unchanged.
+
+Two additional fresh reviewers, GPT-6-astra and GPT-6-sol at xhigh, inspect the
+complete correction and its connected owner/history/proxy controls without further
+verified findings. The targeted set passes ten cases, including actual lock wait,
+lock timeout and both existing native admission-ACK outcomes. Removing historical
+probe dispatch compiles and fails the native join plus three history assertions;
+the occupied-original control still passes. Making existing history falsely mean
+rollback separately fails that occupied-original control. Both source mutants are
+restored byte for byte with their modes, rebuilt, and the same five cases pass.
+Focused receipts and negative mutations overlap the full suite; they are not extra
+passing cases. Formatter normalization changes only test whitespace.
+
+The first full Docker receipt reports 1,858 passed and one failed among 1,859
+cases, with no skips. The common-outage fixture times out after the owned database
+pause while waiting for all three original metadata-heartbeat fault observations.
+It supplies no evidence of a failed pre-outage healthy job or a cause linked to the
+admission-history correction. A separate read-only source diagnosis establishes no
+deterministic production fault. Bounded elapsed-phase and failure-time memory-only
+pool diagnostics are added before teardown; no wait, option or assertion changes.
+The same focused scenario then passes in 38.2 seconds, with pause completed at
+0.55 seconds and all native faults observed at 35.3 seconds. This later pass does
+not establish the earlier failure's cause. Both independent correction reviewers
+inspect the diagnostics and this evidence limit. The original failed receipt is
+retained. The second complete Docker run passes that outage scenario, but the
+new native rollback case fails before the intended COMMIT drop: zero drops, one
+bridge ACK and no retained control execution. No history assertion is reached.
+Source inspection confirms a permitted setup race: bridge ACK takes the job-row
+lock, native routing can skip that lock, and the default 60-second repair grace
+exceeds this fixture's 30-second wait. The receipt does not establish that race
+as its cause. The fixture now mirrors the existing lifetime controls: park empty
+owner polling, issue an explicit stock/native wakeup, then pulse only owner polling
+for the actual original join. It asserts zero initial bridge ACKs and retains the
+real second-COMMIT drop, peer takeover, zero attempts/reservations and source refusal.
+The outage fixture similarly parks polling around its existing explicit wakeups;
+its real heartbeat cadence, 90-second bound and all lifecycle assertions remain.
+Both independent reviewers verify the actual eight-file candidate against its
+manifest without a further confirmed finding. The repeated production removal
+mutant reaches the real COMMIT drop and fails specifically at original final join;
+exact restoration passes. Both complete failed receipts remain recorded; the
+fresh complete Docker receipt below is a separate passing result.
+
+Final full format verification and CI Release build pass with zero compiler
+warnings/errors. The critical native/history/stop/release and lifecycle set passes
+**24/24**.
+The last changes affect only the two integration fixtures; the exact production
+bytes and earlier full Unit/Contract/Docker-free/architecture subjects are unchanged.
+Full Unit passes **2,229**, Contract **4**, Docker-free integration **176**,
+Architecture **330/330**, and Docker integration **1,859/1,859**, with zero failures
+or skips: **4,598 distinct full-suite cases**. Architecture names are unchanged;
+all 1,854 preceding Docker cases remain and exactly five new cases account for
+the increase. Full architecture takes 1315.5 seconds;
+full Docker takes 960.2 seconds. These local measurements
+provide no real GitHub Actions budget pass; current-head CI remains unrun.
+
+Step 6 is locally complete after both full fresh reviews, verified corrections
+and their independent verification. All nineteen background-job obligations stay
+Registered and the published architecture-method count stays 237; Step 9 owns
+complete packet enforcement/regression and real PR CI. Accepted ADR-0061 in
+`82956666` authorizes the next external-stage implementation. Steps 7–9 and full
+packet/PR/CI closeout remain pending; no production business definition is added.
 
 ### P02b-4 external completed-failure proposal (2026-10-16)
 

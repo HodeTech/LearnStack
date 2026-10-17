@@ -134,9 +134,9 @@ review rounds and verified corrections. Step 5 is locally complete after both
 full review rounds and independent correction verification; its
 [record](phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
 owns validation and review receipts. Step 6 capacity implementation is locally
-validated; its [record](phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns passing local qualification, the completed first full review and the pending
-second-round gate. Steps 7–9 remain pending.
+complete; its [record](phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns passing local qualification, both completed full review rounds and verified
+corrections. Steps 7–9 remain pending.
 Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.

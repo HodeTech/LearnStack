@@ -12,13 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>Direct facade and actual API-composition proofs with explicitly labelled fixture cleanup holds.</summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema)
+public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema, ITestOutputHelper testOutput)
 {
     private static readonly TimeSpan TestWait = TimeSpan.FromSeconds(30);
     private static BackgroundJobRuntimeFixture Fixture => BackgroundJobRuntimeFixture.Shared;
