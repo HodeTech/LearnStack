@@ -5665,7 +5665,7 @@ Steps 7–9 and packet-wide regression/PR/CI remain pending.
 
 ### P02b-4 Step 6 — tenant capacity reservations (2026-10-16)
 
-**Implementation locally validated; full review rounds have not started.**
+**Implementation and first full review round complete; second round pending.**
 Step 5 closes at correction `6a2ded99` after both full rounds and independent fix
 verification. Accepted ADR-0047 and the approved nine-step package own this step;
 no new capacity-policy decision or approval is pending.
@@ -5810,11 +5810,86 @@ proof and are not added to that total. The local timing comparisons do not prove
 the complete real CI backend job fits its 20-minute ceiling; Step 9 retains full
 packet regression and real PR CI qualification.
 
-Both full fresh review rounds and their verified corrections remain pending.
-All nineteen job obligations remain Registered; Step 9 owns complete packet
-enforcement/regression. External execution and recurrence remain Steps 7–8.
+At this qualification head, both full fresh review rounds and their verified
+corrections remained pending. All nineteen job obligations remain Registered;
+Step 9 owns complete packet enforcement/regression. External execution and
+recurrence remain Steps 7–8.
 ADR-0061 is separately Accepted in `82956666`; its dependent Step 7 implementation
 starts only after Step 6 closes its two full review rounds.
+
+#### Step 6 full review round 1 (2026-10-17)
+
+Implementation commit `caf51297` passed normal hooks with a clean tree.
+Three fresh independent reviewers inspect its complete 64-file scope and connected
+paths: two GPT-6-astra reviewers at xhigh for ownership/lifecycle and storage/
+isolation, and GPT-6-sol at xhigh for tests/corpus/performance. They inspect source
+and actual receipts; they do not rerun the toolchain or claim CI qualification.
+
+Both runtime reviewers independently confirm one Major local lifetime race. After
+an exact historical cleanup probe releases its row lock, another instance can route
+the released job to a new generation before local recovery reacquisition. A clean
+null acquisition then repeats the permanently obsolete generation, retaining the
+original invocation despite settled history. The corrected null branch reinstalls
+its exact historical cleanup descriptor when a checkpoint is already committed.
+Settlement still needs the locked original evidence plus changed routing; a live
+peer lease remains pending. The production correction is five lines and changes
+neither schema nor grants. A separate permanent-decision durability concern is not
+confirmed as a new regression against existing crash/recovery handling of decisions
+not yet recorded.
+
+Three native takeover cases cover the probe-unlock interleaving, live-other-owner
+retention and a lost recovery-acquisition COMMIT acknowledgement. The test proxy
+holds the actual historical ROLLBACK response only after PostgreSQL unlocks; an
+independent store performs real fenced routing. The live-lease control uses an
+explicit privileged fixture lease and waits for another actual locked probe before
+asserting retention. All preserve one original attempt/checkpoint and immutable
+release history, then join the original source and native slot without host stop.
+Before the final fixture strengthening, the first two cases failed the original
+implementation's final-join assertion after their positive database premises.
+Removing the re-probe correction from the final source compiles and fails all
+three current takeover controls at their missing-probe or final-join assertion.
+Exact source restoration and a fresh build pass the same three cases. This includes
+the recovery-acquisition ACK-loss entrance and preserves live-peer retention.
+
+The proof review also identifies two missing native stop windows. New controls
+stop after a real recovery ACK before checkpoint issuance, and after issuance
+while its actual private cancellation callback is held. The first observes the
+actual control loop past the issuance window while a separate stop callback keeps
+final request release held. The second observes the real app task's known rollback
+separately from the checkpoint's still-pending callback join. Neither source nor
+invocation is falsely released. Removing both issuance guards or the checkpoint's
+actual private callback join compiles and fails the respective intended assertion.
+Both production files are restored byte for byte, rebuilt, and pass those controls.
+
+Initial takeover-harness runs do not supply runtime proof: a thirty-second proxy
+lifetime obscured the primary failure, and a diagnostic run exposed a row-description
+flag reset at each ReadyForQuery before the intended ROLLBACK hold. The corrected
+proxy has a separate finite test lifetime, transaction-scoped observation and primary
+failure preservation. A read-only fixture preflight strengthens the actual second
+probe, exact peer lease fence and host-stop cancellation premises; it supplies no
+full second-round credit.
+
+The new release reason joins the existing real app-role forged-release refusal /
+removed-trigger dirty control. Standards 05's stale pending-qualification wording
+is corrected. Two further invocation-local/name-first Cecil filters preserve every
+production subject, exact signature/opcode, caller multiplicity and planted control;
+no global cache or owner exemption is added.
+
+Fresh format and CI Release build pass with zero compiler warnings/errors. The
+focused native/release set passes nine cases. Full Unit passes 2,229, Contract four,
+Docker-free integration 176, Architecture **330/330**, and Docker integration
+**1,854/1,854**, all with zero failures/skips: **4,593 distinct full-suite cases**.
+The architecture case multiset is unchanged; all 1,848 previous Docker cases remain
+and six new cases account for the difference. Focused and mutation receipts overlap
+these suites and are not added to that total. Full architecture takes
+1318.4 seconds versus 1331.9 at implementation qualification;
+full Docker takes 933.2 seconds. These are local measurements,
+not a real CI budget pass. Current-head CI remains unrun.
+
+The first-round corrections are locally qualified. The second full fresh review
+starts only after their normal local commit. All nineteen job obligations remain
+Registered; the published architecture-method count remains 237. Step 6's second
+full review gate is pending. Steps 7–9 and full packet/PR/CI closeout remain pending.
 
 ### P02b-4 external completed-failure proposal (2026-10-16)
 

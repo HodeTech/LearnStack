@@ -54,6 +54,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [InlineData("completed")]
     [InlineData("never_started")]
     [InlineData("quiescent")]
+    [InlineData("transactional_rollback")]
     public async Task Forged_release_has_no_positive_evidence_and_the_removed_guard_control_exposes_the_attack(string reason)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);

@@ -3684,7 +3684,8 @@ invocation source owner, with old bindings permanently closed. One prebound
 checkpoint slot retains actual work and cancellation cleanup; a failed cleanup
 cannot start another scope. This sequential phase adds no simultaneous main or
 auxiliary checkout to `2Ut`. The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns its pending qualification and review receipts.
+owns passing local qualification, the completed first full review and the pending
+second-round gate.
 
 These are current acquisition inventories under Accepted ADR-0047, not
 deployment-wide PostgreSQL capacity guarantees. Independent progress at each

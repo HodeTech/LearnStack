@@ -490,6 +490,11 @@ internal sealed class BackgroundJobControl
             if (request.Recovery is not null) request.Acquisition = null;
             if (request.Recovery is null)
             {
+                // A peer may settle routing after the last historical probe
+                // unlocked. The original generation can then never be acquired
+                // again; recheck exact committed history instead of spinning.
+                if (request.CleanupCommitted && request.Checkpoint is { } committed)
+                    request.Probe = BackgroundJobCommitProbe.ForCapacityCleanup(committed.Recovery, cleanup.Evidence);
                 request.Due = Later(_bounds.RecoveryProbeInterval);
                 return;
             }

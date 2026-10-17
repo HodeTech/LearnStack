@@ -12,7 +12,7 @@ namespace LearnStack.Tests.Integration.Database;
 internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-    private readonly CancellationTokenSource _stopping = new(TimeSpan.FromSeconds(30));
+    private readonly CancellationTokenSource _stopping;
     private readonly List<Task> _sessions = [];
     private readonly string _targetHost;
     private readonly int _targetPort;
@@ -20,6 +20,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly bool _holdCommitResponse;
     private readonly TaskCompletionSource _commitResponseHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _releaseHeldResponse = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _capacityRollbackHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseCapacityRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _holdCapacityRollback;
+    private int _completedCapacityRollbacks;
+    private int _holdCapacityRecoveryCommit;
+    private readonly TaskCompletionSource _capacityRecoveryCommitHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseCapacityRecoveryCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task _accepting;
     private int _droppedCommitResponses;
     private int _acceptedConnections;
@@ -27,9 +34,10 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private int _completedCommits;
 
     public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false,
-        int commitsToPass = 0, bool holdCommitResponse = false)
+        int commitsToPass = 0, bool holdCommitResponse = false, TimeSpan? lifetime = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(commitsToPass);
+        _stopping = new(lifetime ?? TimeSpan.FromSeconds(30));
         _commitsToPass = commitsToPass;
         _rejectReconciliationConnections = rejectReconciliationConnections;
         _holdCommitResponse = holdCommitResponse;
@@ -57,6 +65,13 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     public int AcceptedConnections => Volatile.Read(ref _acceptedConnections);
     public Task CommitResponseHeld => _commitResponseHeld.Task;
     public void ReleaseHeldResponse() => _releaseHeldResponse.TrySetResult();
+    public Task CapacityRollbackHeld => _capacityRollbackHeld.Task;
+    public int CompletedCapacityRollbacks => Volatile.Read(ref _completedCapacityRollbacks);
+    public void HoldNextCapacityProbeRollbackResponse() => Interlocked.CompareExchange(ref _holdCapacityRollback, 1, 0);
+    public void ReleaseCapacityRollbackResponse() => _releaseCapacityRollback.TrySetResult();
+    public Task CapacityRecoveryCommitHeld => _capacityRecoveryCommitHeld.Task;
+    public void HoldNextCapacityRecoveryCommitResponse() => Interlocked.CompareExchange(ref _holdCapacityRecoveryCommit, 1, 0);
+    public void ReleaseCapacityRecoveryCommitResponse() => _releaseCapacityRecoveryCommit.TrySetResult();
 
     public async ValueTask DisposeAsync()
     {
@@ -141,6 +156,9 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         // itself, then a body. CommandComplete 'C' carries a null-terminated tag.
         // https://www.postgresql.org/docs/18/protocol-message-formats.html
         var header = new byte[5];
+        var capacityFactsRead = false;
+        var capacityRollbackResponse = false;
+        var capacityRecoveryRead = false;
         while (await server.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
         {
             await server.ReadExactlyAsync(header.AsMemory(1, 4), cancellationToken);
@@ -150,6 +168,36 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
             var body = new byte[length - 4];
             await server.ReadExactlyAsync(body, cancellationToken);
+            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("transactional_cleanup_at\0"u8) >= 0
+                && body.AsSpan().IndexOf("release_reason\0"u8) >= 0)
+                capacityFactsRead = true;
+            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("admitted_at\0"u8) >= 0
+                && body.AsSpan().IndexOf("ownership_until\0"u8) >= 0 && body.AsSpan().IndexOf("capacity_group\0"u8) >= 0)
+                capacityRecoveryRead = true;
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
+                && capacityRecoveryRead && Interlocked.CompareExchange(ref _holdCapacityRecoveryCommit, 2, 1) == 1)
+            {
+                _capacityRecoveryCommitHeld.TrySetResult();
+                await _releaseCapacityRecoveryCommit.Task.WaitAsync(cancellationToken);
+                return; // The acquisition committed; its client never receives acknowledgement.
+            }
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("ROLLBACK\0"u8) && capacityFactsRead)
+            {
+                capacityRollbackResponse = true;
+                if (Interlocked.CompareExchange(ref _holdCapacityRollback, 2, 1) == 1)
+                {
+                    // PostgreSQL already released the historical probe's row lock.
+                    // Hold only its response, then forward the original frames intact.
+                    _capacityRollbackHeld.TrySetResult();
+                    await _releaseCapacityRollback.Task.WaitAsync(cancellationToken);
+                }
+            }
+            if (header[0] == (byte)'C' && (body.AsSpan().SequenceEqual("ROLLBACK\0"u8)
+                || body.AsSpan().SequenceEqual("COMMIT\0"u8)))
+            {
+                capacityFactsRead = false;
+                capacityRecoveryRead = false;
+            }
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
                 && Interlocked.Increment(ref _completedCommits) > _commitsToPass
                 && Interlocked.CompareExchange(ref _droppedCommitResponses, 1, 0) == 0)
@@ -167,6 +215,11 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
             await client.WriteAsync(header, cancellationToken);
             await client.WriteAsync(body, cancellationToken);
+            if (header[0] == (byte)'Z' && capacityRollbackResponse)
+            {
+                Interlocked.Increment(ref _completedCapacityRollbacks);
+                capacityRollbackResponse = false;
+            }
         }
     }
 

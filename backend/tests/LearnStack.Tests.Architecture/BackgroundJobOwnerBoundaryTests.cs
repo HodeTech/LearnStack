@@ -251,11 +251,11 @@ public sealed partial class OutboxDispatchConventionTests
             if (methods.Length != 1 || methods[0].ReturnType.FullName != returnType || !ParametersMatch(methods[0], parameters))
                 offenders.Add(typeName + "." + name + " requires its exact closed signature");
             CheckSet(offenders, typeName + "." + name + " authority callers",
-                sites.Where(site => SameType(site.Target.DeclaringType, type) && site.Target.Name == name).Select(site => site.Owner),
+                sites.Where(site => site.Target.Name == name && SameType(site.Target.DeclaringType, type)).Select(site => site.Owner),
                 owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)));
             foreach (var instruction in instructions
                          .Where(instruction => instruction.Operand is MethodReference target
-                             && SameType(target.DeclaringType, type) && target.Name == name))
+                             && target.Name == name && SameType(target.DeclaringType, type)))
                 if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt
                     && !(name == ".ctor" && instruction.OpCode == OpCodes.Newobj))
                     offenders.Add(typeName + "." + name + " cannot escape as a delegate or constructor");

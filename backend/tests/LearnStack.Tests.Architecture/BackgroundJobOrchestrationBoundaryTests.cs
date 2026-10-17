@@ -30,6 +30,7 @@ public sealed partial class OutboxDispatchConventionTests
         }
         if (offenders.Count != 0) return offenders;
         var sites = CallSites(census).ToArray();
+        var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
         var bodies = OwnedBodies(census).ToArray();
         // Rebuild the index inside each detector evaluation so mutations and
         // restoration remain visible without rescanning every instruction per field.
@@ -231,7 +232,7 @@ public sealed partial class OutboxDispatchConventionTests
         {
             if (Method(type, name) is null) return;
             CheckSet(offenders, "finite orchestration caller " + type + "::" + name,
-                sites.Where(site => site.Target.Name == name && TargetsDeclaredType(site.Target, subjects[type])).Select(site => site.Owner), expected);
+                sitesByTargetName[name].Where(site => TargetsDeclaredType(site.Target, subjects[type])).Select(site => site.Owner), expected);
         }
         MethodDefinition? Callback(string type, string ownerName, string targetType, string targetName)
         {
