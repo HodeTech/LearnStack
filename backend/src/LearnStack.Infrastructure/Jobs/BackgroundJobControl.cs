@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -21,6 +20,7 @@ internal sealed class BackgroundJobControl
     private readonly List<CompletionRequest> _requests = [];
     private readonly PostgresBackgroundJobControlStore _store;
     private readonly PostgresBackgroundJobTerminalStore _terminal;
+    private readonly JobExecutor _executor;
     private readonly BackgroundJobRuntimeGate _gate;
     private readonly BackgroundJobRuntimeOptions _bounds;
     private readonly TimeProvider _time;
@@ -44,11 +44,12 @@ internal sealed class BackgroundJobControl
     private long _renewals, _retries, _terminalized, _unknown;
 
     internal BackgroundJobControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
-        IServiceScopeFactory scopes, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
+        JobExecutor executor, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
         IGuidFactory ids, TimeProvider time)
     {
         _store = new(source, definitions, bounds, ids, gate);
-        _terminal = new(source, scopes, bounds, ids, gate);
+        _terminal = new(source, executor.ScopeFactory, bounds, ids, gate);
+        _executor = executor;
         _gate = gate;
         _bounds = bounds;
         _time = time;
@@ -65,7 +66,9 @@ internal sealed class BackgroundJobControl
             lock (_sync)
                 return new(_executions.Count, _requests.Count + PendingCount(_pendingControl) + PendingCount(_pendingTerminal),
                     !_cleanupFault && !_renewalFault && !_executions.Values.Any(item => item.RenewalRefused) && Fresh(_renewalProgress),
-                    !_cleanupFault && !_controlFault && _pendingControl is null && Fresh(_controlProgress),
+                    !_cleanupFault && !_controlFault && _pendingControl is null
+                        && !_requests.Any(item => item.Checkpoint is { TimelyReturn.IsCompletedSuccessfully: true } checkpoint
+                            && !checkpoint.TimelyReturn.Result) && Fresh(_controlProgress),
                     !_cleanupFault && !_terminalFault && _pendingTerminal is null && Fresh(_terminalProgress), Completion.IsCompletedSuccessfully,
                     _renewals, _retries, _terminalized, _unknown);
         }
@@ -133,25 +136,43 @@ internal sealed class BackgroundJobControl
         _stopRequested.TrySetResult();
     }
 
-    internal Task<bool> FinishAdmissionAsync(BackgroundJobExecutionControl execution, JobStartExecutionResult result)
+    internal Task<bool> FinishAdmissionAsync(BackgroundJobExecutionControl execution, JobStartExecutionResult result,
+        BackgroundJobActualCleanup? cleanup = null)
     {
         if (result.CleanupFailed) return Task.FromResult(false);
+        if (cleanup is not null)
+            return Enqueue(new(execution, RequestKind.Admission,
+                result.Outcome == JobStartExecutionOutcome.Indeterminate
+                    ? BackgroundJobCommitProbe.ForAdmission(execution.Claim) with { CapacityGroup = cleanup.Envelope.CapacityGroup } : null,
+                new(BackgroundJobFailureDisposition.Retry, "unexpected_fault", null), _time.GetTimestamp(), cleanup));
+        if (result.ValidatedEnvelope?.CapacityGroup is not null && result.Outcome is JobStartExecutionOutcome.Started or JobStartExecutionOutcome.Indeterminate)
+            return Task.FromResult(false);
         return result.Outcome switch
         {
             JobStartExecutionOutcome.Indeterminate => Enqueue(new(execution, RequestKind.Admission,
                 BackgroundJobCommitProbe.ForAdmission(execution.Claim), null, _time.GetTimestamp())),
             JobStartExecutionOutcome.InvalidEnvelope => Enqueue(new(execution, RequestKind.InvalidEnvelope,
                 null, null, _time.GetTimestamp())),
+            JobStartExecutionOutcome.CapacityDeferred => Enqueue(new(execution, RequestKind.CapacityDeferred,
+                null, null, _time.GetTimestamp())),
             _ => Task.FromResult(true),
         };
     }
 
-    internal Task<bool> FinishBusinessAsync(BackgroundJobExecutionControl execution, JobBusinessExecutionResult result)
+    internal Task<bool> FinishBusinessAsync(BackgroundJobExecutionControl execution, JobBusinessExecutionResult result,
+        BackgroundJobActualCleanup? cleanup = null)
     {
         if (result.CleanupFailed) return Task.FromResult(false);
         if (result.CommitAcknowledged) return Task.FromResult(true);
         if (execution.Identity is not { } identity) return Task.FromResult(false);
         execution.Gate.Close();
+        if (identity.CapacityGroup is not null)
+        {
+            if (cleanup is null) return Task.FromResult(false);
+            return Enqueue(new(execution, RequestKind.Business,
+                result.DurableOutcomeUncertain ? BackgroundJobCommitProbe.ForBusiness(identity) : null,
+                result.Decision, _time.GetTimestamp(), cleanup));
+        }
         if (result.DurableOutcomeUncertain)
             return Enqueue(new(execution, RequestKind.Business, BackgroundJobCommitProbe.ForBusiness(identity),
                 new(BackgroundJobFailureDisposition.Retry, "unexpected_fault", null), _time.GetTimestamp()));
@@ -166,8 +187,17 @@ internal sealed class BackgroundJobControl
     {
         lock (_sync)
         {
-            if (_stopping) return Task.FromResult(true); // Actual work is done; no new control issuance on host stop.
-            if (_requests.Count >= 128) { _cleanupFault = true; return Task.FromResult(false); }
+            if (_stopping)
+            {
+                request.Cleanup?.SourceOwner.CloseIssuance();
+                return Task.FromResult(true); // Actual work is done; no new control issuance on host stop.
+            }
+            if (_requests.Count >= 128)
+            {
+                request.Cleanup?.SourceOwner.CloseIssuance();
+                _cleanupFault = true;
+                return Task.FromResult(false);
+            }
             _requests.Add(request);
             return request.Completion.Task;
         }
@@ -261,7 +291,11 @@ internal sealed class BackgroundJobControl
                 if (request is not null)
                 {
                     await ProcessRequestAsync(request).ConfigureAwait(false);
-                    lock (_sync) if (_controlSealed) return;
+                    lock (_sync)
+                    {
+                        if (_controlSealed) return;
+                        if (_requests.Remove(request)) _requests.Add(request);
+                    }
                 }
                 else
                 {
@@ -274,7 +308,7 @@ internal sealed class BackgroundJobControl
                     else
                     {
                         var selected = (BackgroundJobControlLane)lane;
-                        lane = (lane + 1) % 3;
+                        lane = (lane + 1) % 4;
                         var operation = await _store.RunRecoveryQuantumAsync(selected, RetainedIds(), _stop.Token).ConfigureAwait(false);
                         _controlOperation = operation;
                         if (!await QualifyControlAsync(operation, retainPendingProbes: true).ConfigureAwait(false)) return;
@@ -295,6 +329,11 @@ internal sealed class BackgroundJobControl
 
     private async Task ProcessRequestAsync(CompletionRequest request)
     {
+        if (request.Cleanup is not null)
+        {
+            await ProcessCapacityRequestAsync(request).ConfigureAwait(false);
+            return;
+        }
         if (request.Probe is { } probe)
         {
             _controlProbe = await _store.ProbeCommitAsync(probe, _stop.Token).ConfigureAwait(false);
@@ -313,7 +352,14 @@ internal sealed class BackgroundJobControl
             }
             request.Probe = null; // Actual row lock established the original business rollback.
         }
-        if (request.Kind == RequestKind.InvalidEnvelope)
+        if (request.Kind == RequestKind.CapacityDeferred)
+        {
+            var operation = await _store.DeferCapacityAsync(request.Execution.Claim, _stop.Token).ConfigureAwait(false);
+            _controlOperation = operation;
+            if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
+            if (!RetainFailedRequest(request, operation)) FinishRequest(request, true);
+        }
+        else if (request.Kind == RequestKind.InvalidEnvelope)
         {
             var operation = await _store.RequestInvalidEnvelopeAsync(request.Execution.Claim, _stop.Token).ConfigureAwait(false);
             _controlOperation = operation;
@@ -343,6 +389,143 @@ internal sealed class BackgroundJobControl
         if (operation.CommitUncertain) request.Probe = operation.Probes.SingleOrDefault();
         request.Due = Later(_bounds.RecoveryProbeInterval);
         return true;
+    }
+
+    private async Task ProcessCapacityRequestAsync(CompletionRequest request)
+    {
+        var cleanup = request.Cleanup!;
+        if (request.Probe is { } probe)
+        {
+            _controlProbe = await _store.ProbeCommitAsync(probe, _stop.Token).ConfigureAwait(false);
+            if (!_controlProbe.CleanupConfirmed) { SealControl(); return; }
+            var result = _controlProbe.Value;
+            if (_controlProbe.Failed || result is null
+                || result.Disposition is BackgroundJobProbeDisposition.Unresolved or BackgroundJobProbeDisposition.Missing)
+            {
+                lock (_sync) { _controlFault = true; _unknown++; request.Due = Later(_bounds.RecoveryProbeInterval); }
+                _controlProbe = null;
+                return;
+            }
+            _controlProbe = null;
+            request.Probe = null;
+            if (probe.Boundary == BackgroundJobCommitBoundary.TransactionalCleanup)
+            {
+                request.CleanupCommitted = result.Disposition == BackgroundJobProbeDisposition.CapacityCleanupCommitted;
+                if (request.CleanupCommitted && !result.CurrentRecoveryAuthority
+                    && (result.WakeGeneration != probe.WakeGeneration || result.CurrentAttemptId != probe.AttemptId
+                        || result.Phase is "pending" or "terminal_pending" or "completed"))
+                {
+                    FinishRequest(request, true); // Locked settled history and actual changed routing ownership.
+                    return;
+                }
+                if (!result.CurrentRecoveryAuthority) request.Recovery = null;
+                if (!request.CleanupCommitted) request.Checkpoint = null;
+            }
+            else if (probe.Boundary == BackgroundJobCommitBoundary.CapacityRecovery)
+            {
+                request.Recovery = result.RecoveryReceipt;
+                request.Acquisition = null;
+            }
+            else if (result.Disposition is BackgroundJobProbeDisposition.BusinessCompleted or BackgroundJobProbeDisposition.TerminalCompleted
+                || probe.Boundary == BackgroundJobCommitBoundary.Admission && result.Disposition == BackgroundJobProbeDisposition.RolledBack)
+            {
+                FinishRequest(request, true);
+                return;
+            }
+            else if (probe.Boundary == BackgroundJobCommitBoundary.Control && result.Disposition is BackgroundJobProbeDisposition.ControlCommitted
+                or BackgroundJobProbeDisposition.ChangedOwner)
+            {
+                FinishRequest(request, true);
+                return;
+            }
+        }
+        if (request.Checkpoint is { } checkpoint && !request.CleanupCommitted)
+        {
+            if (!checkpoint.Completion.IsCompleted)
+            {
+                lock (_sync)
+                {
+                    if (checkpoint.TimelyReturn.IsCompletedSuccessfully && !checkpoint.TimelyReturn.Result) _controlFault = true;
+                    request.Due = Later(_bounds.ControlPoll);
+                }
+                return;
+            }
+            var result = await checkpoint.Completion.ConfigureAwait(false);
+            if (result.CleanupFailed) { SealControl(); return; }
+            if (result.CommitAcknowledged) request.CleanupCommitted = true;
+            else if (result.DurableOutcomeUncertain)
+            {
+                request.Probe = BackgroundJobCommitProbe.ForCapacityCleanup(checkpoint.Recovery, cleanup.Evidence);
+                request.Due = Later(_bounds.RecoveryProbeInterval);
+                lock (_sync) { _controlFault = true; _unknown++; }
+                return;
+            }
+            else
+            {
+                // A returned task alone is insufficient for replacement. The
+                // operation result above positively joined its real cleanup.
+                request.Checkpoint = null;
+                request.Probe = BackgroundJobCommitProbe.ForCapacityCleanup(checkpoint.Recovery, cleanup.Evidence);
+                request.Due = Later(_bounds.RecoveryProbeInterval);
+                if (!result.KnownRollback) { SealControl(); return; }
+                return;
+            }
+        }
+        if (request.Recovery is null)
+        {
+            var acquired = await _store.AcquireCapacityRecoveryAsync(cleanup, _stop.Token).ConfigureAwait(false);
+            request.Acquisition = acquired; // Retain the private pre-ACK candidate across uncertainty.
+            _controlOperation = acquired;
+            if (!await QualifyControlAsync(acquired).ConfigureAwait(false)) return;
+            _controlOperation = null;
+            if (acquired.CommitUncertain)
+            {
+                request.Probe = acquired.Probes.SingleOrDefault();
+                request.Due = Later(_bounds.RecoveryProbeInterval);
+                return;
+            }
+            request.Recovery = acquired.Value;
+            // Keep the last cleaned failure in this bounded slot until its
+            // replacement is published or recovery authority is confirmed.
+            if (request.Recovery is not null) request.Acquisition = null;
+            if (request.Recovery is null)
+            {
+                request.Due = Later(_bounds.RecoveryProbeInterval);
+                return;
+            }
+        }
+        cleanup.RequireRecovery(request.Recovery);
+        if (!request.CleanupCommitted)
+        {
+            lock (_sync)
+            {
+                if (_stopping || !_gate.TryAdmit()) return;
+                var operation = new BackgroundJobCapacityCheckpointOperation(_executor, request.Recovery, cleanup, _bounds, _time);
+                request.Execution.HoldCapacityCheckpoint(operation);
+                request.Checkpoint = operation;
+                operation.Start();
+                request.Due = Later(_bounds.ControlPoll);
+            }
+            return;
+        }
+        var decision = request.Decision!;
+        var finished = await _store.FinishCapacityRecoveryAsync(request.Recovery, decision, _stop.Token).ConfigureAwait(false);
+        _controlOperation = finished;
+        if (!await QualifyControlAsync(finished).ConfigureAwait(false)) return;
+        _controlOperation = null;
+        if (RetainFailedRequest(request, finished)) return;
+        if (finished.Value is { } change)
+        {
+            if (change.Phase == "pending") lock (_sync) _retries++;
+            FinishRequest(request, true);
+        }
+        else
+        {
+            // Expired/taken-over recovery authority cannot route. Preserve the
+            // historical checkpoint fact while obtaining fresh exact authority.
+            request.Probe = BackgroundJobCommitProbe.ForCapacityCleanup(request.Recovery, cleanup.Evidence);
+            request.Due = Later(_bounds.RecoveryProbeInterval);
+        }
     }
 
     private Task<bool> QualifyControlAsync<T>(OwnedBackgroundJobControl<T> operation, bool retainPendingProbes = false)
@@ -490,9 +673,20 @@ internal sealed class BackgroundJobControl
         foreach (var execution in executions) execution.CloseExecution();
         // Business work has already returned before its completion request is
         // queued. Host stop leaves its durable lease for fenced future recovery.
-        foreach (var request in requests) request.Completion.TrySetResult(true);
+        foreach (var request in requests) request.Checkpoint?.RequestStop();
         try { _cancellation = _stop.CancelAsync(); await _cancellation.ConfigureAwait(false); }
         catch (Exception failure) when (Catchable(failure)) { RetainCleanup(); }
+        foreach (var request in requests)
+        {
+            var clean = true;
+            if (request.Checkpoint is { } checkpoint)
+            {
+                var result = await checkpoint.Completion.ConfigureAwait(false);
+                clean = !result.CleanupFailed;
+            }
+            if (!clean) RetainCleanup();
+            FinishRequest(request, clean);
+        }
     }
 
     private async Task ObserveCompletionAsync()
@@ -527,6 +721,7 @@ internal sealed class BackgroundJobControl
 
     private void FinishRequest(CompletionRequest request, bool cleanup)
     {
+        request.Cleanup?.SourceOwner.CloseIssuance();
         lock (_sync) _requests.Remove(request);
         request.Completion.TrySetResult(cleanup);
     }
@@ -545,14 +740,20 @@ internal sealed class BackgroundJobControl
     private static bool Catchable(Exception failure) => BackgroundJobControlResources.Catchable(failure);
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private enum RequestKind { Admission, Business, InvalidEnvelope, Renewal }
+    private enum RequestKind { Admission, Business, InvalidEnvelope, Renewal, CapacityDeferred }
     private sealed class CompletionRequest(BackgroundJobExecutionControl execution, RequestKind kind,
-        BackgroundJobCommitProbe? probe, BackgroundJobFailureDecision? decision, long due)
+        BackgroundJobCommitProbe? probe, BackgroundJobFailureDecision? decision, long due,
+        BackgroundJobActualCleanup? cleanup = null)
     {
         internal BackgroundJobExecutionControl Execution { get; } = execution;
         internal RequestKind Kind { get; } = kind;
         internal BackgroundJobCommitProbe? Probe { get; set; } = probe;
         internal BackgroundJobFailureDecision? Decision { get; } = decision;
+        internal BackgroundJobActualCleanup? Cleanup { get; } = cleanup;
+        internal BackgroundJobCapacityRecoveryReceipt? Recovery { get; set; }
+        internal OwnedBackgroundJobControl<BackgroundJobCapacityRecoveryReceipt>? Acquisition { get; set; }
+        internal BackgroundJobCapacityCheckpointOperation? Checkpoint { get; set; }
+        internal bool CleanupCommitted { get; set; }
         internal long Due { get; set; } = due;
         internal TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }

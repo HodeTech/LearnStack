@@ -14,6 +14,7 @@ internal sealed class BackgroundJobExecutionIdentity
         OrganizationId = receipt.Envelope.OrganizationId;
         DefinitionKey = receipt.Envelope.DefinitionKey;
         Queue = receipt.Envelope.Queue;
+        CapacityGroup = receipt.Envelope.CapacityGroup;
         AttemptId = receipt.AttemptId;
         Token = receipt.Claim.Token;
         WakeGeneration = receipt.Claim.WakeGeneration;
@@ -28,6 +29,7 @@ internal sealed class BackgroundJobExecutionIdentity
     internal OrganizationId? OrganizationId { get; }
     internal string DefinitionKey { get; }
     internal string Queue { get; }
+    internal string? CapacityGroup { get; }
     internal BackgroundJobAttemptId AttemptId { get; }
     internal Guid Token { get; }
     internal long WakeGeneration { get; }

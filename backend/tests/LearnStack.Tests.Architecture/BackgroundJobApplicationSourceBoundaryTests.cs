@@ -61,12 +61,16 @@ public sealed partial class OutboxDispatchConventionTests
                 && method.ReturnType.FullName == "System.Threading.Tasks.Task"))
             offenders.Add("Auxiliary cleanup joins accept no token, callback or replacement task");
         var sites = CallSites(census).ToArray();
+        var sourceInstructions = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference).ToArray();
         RecordDetachedTargets(offenders, sites);
 
         Exact(owner, "Create", [(JobExecutorType, "ExecutePublishedAsync")]);
         Exact(owner, ".ctor", [(AppJobOwner, "Create")]);
-        Exact(owner, "Enter", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync")]);
-        Exact(owner, "JoinAuxiliaryCleanupAsync", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync")]);
+        Exact(owner, "Enter", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
+            (JobExecutorType, "ExecuteCapacityCleanupAsync")]);
+        Exact(owner, "JoinAuxiliaryCleanupAsync", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
+            (JobExecutorType, "ExecuteCapacityCleanupAsync")]);
         Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
         Exact(owner, "BeginAuditConfigLoad", [(AppJobAuditConfig, "StartLoadAsync")]);
         Exact(owner, "BeginStandaloneAudit", [(AppJobAuditStore, "WriteOwnTransactionAsync")]);
@@ -124,6 +128,12 @@ public sealed partial class OutboxDispatchConventionTests
                 .Select(site => site.Owner).Order(StringComparer.Ordinal).ToArray();
             if (!observed.SequenceEqual(allowed.Order(StringComparer.Ordinal)))
                 offenders.Add("Unexpected job source caller census: " + subject.FullName + "::" + name);
+            foreach (var instruction in sourceInstructions
+                         .Where(instruction => instruction.Operand is MethodReference target
+                             && TargetsDeclaredType(target, subject) && target.Name == name))
+                if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt
+                    && !(name == ".ctor" && instruction.OpCode == OpCodes.Newobj))
+                    offenders.Add("Job source ownership cannot escape as a delegate: " + subject.FullName + "::" + name);
         }
     }
 
@@ -178,6 +188,18 @@ public sealed partial class OutboxDispatchConventionTests
                 declaringType.Methods.Remove(join);
                 return () => declaringType.Methods.Add(join);
             }, JobApplicationSourceOffenders);
+        }
+        var sequentialSites = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobExecutorType
+                && item.Owner.Name == "ExecuteCapacityCleanupAsync").SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == AppJobOwner
+                && target.Name is "Enter" or "JoinAuxiliaryCleanupAsync").ToArray();
+        sequentialSites.Should().HaveCount(2, "the same owner supplies one sequential binding and one actual auxiliary join");
+        foreach (var site in sequentialSites)
+        {
+            AssertMutation(census, "a deleted same-source sequential checkpoint boundary", () =>
+                ReplaceInstruction(site, OpCodes.Nop, null!), JobApplicationSourceOffenders);
+            AssertMutation(census, "a delegated same-source sequential checkpoint boundary", () =>
+                ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), JobApplicationSourceOffenders);
         }
     }
 

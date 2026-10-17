@@ -1,10 +1,12 @@
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
+using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tests.Unit.Application.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -24,7 +26,9 @@ public sealed class BackgroundJobExecutionControlTests
         var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
         var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
         var time = new DisposalPauseTimeProvider();
-        var owner = new BackgroundJobControl(source, definitions, Substitute.For<IServiceScopeFactory>(),
+        var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
+            new BackgroundJobExecutionAdmission(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new());
+        var owner = new BackgroundJobControl(source, definitions, executor,
             gate, new(), new SystemGuidFactory(), time);
         var generation = new HangfireGenerationWork(new("probe", BackgroundJobWorkerPoolKind.Transactional, 2, ["probe"]), gate);
         var failed = await BeginAsync(owner, generation);

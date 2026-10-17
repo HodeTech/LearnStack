@@ -18,7 +18,9 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
         SELECT id FROM background_jobs
         WHERE phase = 'terminal_pending' AND terminal_reason IS NOT NULL
             AND processed_at IS NULL AND dead_lettered_at IS NULL
-            AND profile = 'transactional' AND capacity_group IS NULL
+            AND profile = 'transactional'
+            AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
+                WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
             AND available_after <= statement_timestamp()
             AND (ownership_token IS NULL OR ownership_until <= statement_timestamp())
             AND NOT (id = ANY(@blocked))
@@ -26,7 +28,10 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
         """;
     private const string ExactClaim = """
         id = @id AND tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
-        AND definition_key = @definition AND queue = @queue AND profile = 'transactional' AND capacity_group IS NULL
+        AND definition_key = @definition AND queue = @queue AND profile = 'transactional'
+        AND capacity_group IS NOT DISTINCT FROM @capacity
+        AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
+            WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
         AND wake_generation = @generation AND current_attempt_id IS NOT DISTINCT FROM @attempt
         AND normal_attempts = @attempts AND ownership_token = @token AND ownership_kind = 'recovery'
         AND phase = 'terminal_pending' AND terminal_reason = @reason AND processed_at IS NULL AND dead_lettered_at IS NULL
@@ -57,11 +62,13 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
                             ownership_until = clock_timestamp() + @lease
                         WHERE id = @id AND phase = 'terminal_pending' AND terminal_reason IS NOT NULL
                             AND processed_at IS NULL AND dead_lettered_at IS NULL
-                            AND profile = 'transactional' AND capacity_group IS NULL
+                            AND profile = 'transactional'
+                            AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
+                                WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
                             AND available_after <= clock_timestamp()
                             AND (ownership_token IS NULL OR ownership_until <= clock_timestamp())
                         RETURNING id, tenant_id, organization_id, definition_key, queue, wake_generation,
-                            current_attempt_id, normal_attempts, terminal_reason, ownership_token, ownership_until, clock_timestamp()
+                            current_attempt_id, normal_attempts, terminal_reason, ownership_token, ownership_until, clock_timestamp(), capacity_group
                         """);
                     command.Parameters.AddWithValue("id", job);
                     command.Parameters.AddWithValue("token", ids.NewUuidV4());
@@ -221,6 +228,7 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)claim.OrganizationId ?? DBNull.Value);
         command.Parameters.AddWithValue("definition", claim.DefinitionKey);
         command.Parameters.AddWithValue("queue", claim.Queue);
+        command.Parameters.AddWithValue("capacity", NpgsqlDbType.Text, (object?)claim.CapacityGroup ?? DBNull.Value);
         command.Parameters.AddWithValue("generation", claim.WakeGeneration);
         command.Parameters.AddWithValue("attempt", NpgsqlDbType.Uuid, (object?)claim.AttemptId ?? DBNull.Value);
         command.Parameters.AddWithValue("attempts", claim.NormalAttempts);

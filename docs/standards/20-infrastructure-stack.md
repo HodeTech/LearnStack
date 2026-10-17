@@ -770,6 +770,15 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   Transactional and external prepare/execute/finalize profiles retain distinct
   owners; vendor success is not business completion. Events keep their independent
   durable subscriber contract.
+- Tenant/group capacity admission counts all unreleased reservations after the
+  shared mutex wait and intersects an optional registered Hard limit with the
+  operational ceiling. Refusal spends no attempt. Successful business completion
+  releases atomically; grouped transactional rollback/no-start release requires
+  positive original cleanup and distinct recovery authority through the exact
+  app-role checkpoint.
+  Missing local cleanup preserves occupied capacity in paced recoverable parking.
+  The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+  owns passing local qualification and pending full review evidence.
 - Definition/queue/recurrence keys come from finite code registries. Only the two
   exact opaque wrappers reach vendor invocation storage. No UI-defined callbacks,
   dashboard or serialized tenant/organization/context authority is admitted.

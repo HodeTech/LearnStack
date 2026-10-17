@@ -31,17 +31,19 @@ public sealed class TransactionExecutionCoordinator(
         TransactionMode mode, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
         where TRequest : notnull where TResponse : IResultBase =>
         ExecuteCoreAsync(request as IProvisionsTenant, mode, typeof(TRequest).Name, next,
-            typeof(TRequest), request as AdmitBackgroundJobAttemptCommand, cancellationToken);
+            typeof(TRequest), request as AdmitBackgroundJobAttemptCommand,
+            request as RecordBackgroundJobCapacityCleanupCommand, cancellationToken);
 
     public Task<TResponse> ExecuteAsync<TResponse>(IProvisionsTenant? provisioning, TransactionMode mode,
         string operationName, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
-        where TResponse : IResultBase => ExecuteCoreAsync(provisioning, mode, operationName, next, null, null, cancellationToken);
+        where TResponse : IResultBase => ExecuteCoreAsync(provisioning, mode, operationName, next, null, null, null, cancellationToken);
 
     private async Task<TResponse> ExecuteCoreAsync<TResponse>(
         IProvisionsTenant? provisioning,
         TransactionMode mode,
         string operationName,
         Func<Task<TResponse>> next, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
+        RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -75,7 +77,7 @@ public sealed class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, operationType, admission, jobCompletion, cancellationToken);
+            null, null, null, operationType, admission, jobCompletion, capacityCleanup, cancellationToken);
     }
 
     /// <summary>
@@ -111,7 +113,7 @@ public sealed class TransactionExecutionCoordinator(
         completion.RequireUnit(unitOfWork);
         var frame = owner.Consume(unitOfWork, tenantContext);
         return ExecuteFrameAsync(frame, null, "delivery", next, owner, completion,
-            incomingEventId, operationType, null, null, cancellationToken);
+            incomingEventId, operationType, null, null, null, cancellationToken);
     }
 
     private async Task<TResponse> ExecuteFrameAsync<TResponse>(
@@ -123,6 +125,7 @@ public sealed class TransactionExecutionCoordinator(
         DeliveryCompletionParticipant? completion,
         Guid? incomingEventId, Type? operationType, AdmitBackgroundJobAttemptCommand? admission,
         BackgroundJobCompletionParticipant? jobCompletion,
+        RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         CancellationToken cancellationToken)
         where TResponse : IResultBase
     {
@@ -157,6 +160,7 @@ public sealed class TransactionExecutionCoordinator(
                     ?? (tenantContext.UserId == UserId.SystemActor ? null : tenantContext.UserId)
                 : null;
             admission?.BindOwner(unitOfWork, scope.IsOwner);
+            capacityCleanup?.BindOwner(unitOfWork, scope.IsOwner);
             if (jobCompletion is not null)
                 await BackgroundJobExecutionAdmission.BindOwnerAsync(jobCompletion, unitOfWork, scope.IsOwner,
                     cancellationToken).ConfigureAwait(false);
@@ -171,6 +175,7 @@ public sealed class TransactionExecutionCoordinator(
                 if (invocation.HasProducedWork) unitOfWork.MarkRollbackOnly();
                 await scope.FailAsync(CancellationToken.None);
                 jobCompletion?.Gate.RecordRolledBack();
+                capacityCleanup?.RecordRolledBack();
                 if (scope.IsOwner) capture.MarkRolledBack();
                 return response;
             }
@@ -214,6 +219,7 @@ public sealed class TransactionExecutionCoordinator(
 
             // No await between the atomic admission above and the owned Complete call.
             admission?.MarkCommitting(unitOfWork);
+            capacityCleanup?.MarkCommitting(unitOfWork);
             committing = true;
             try
             {
@@ -242,6 +248,7 @@ public sealed class TransactionExecutionCoordinator(
             {
                 jobCompletion?.Gate.RecordCommitted();
                 admission?.RecordCommitted(unitOfWork);
+                capacityCleanup?.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
             }
@@ -257,6 +264,7 @@ public sealed class TransactionExecutionCoordinator(
             {
                 await scope.FailAsync(CancellationToken.None);
                 jobCompletion?.Gate.RecordRolledBack();
+                capacityCleanup?.RecordRolledBack();
             }
             catch (Exception rollbackFailure)
             {

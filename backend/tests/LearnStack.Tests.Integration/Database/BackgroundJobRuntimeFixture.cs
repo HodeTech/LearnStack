@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
@@ -60,6 +61,7 @@ internal sealed class BackgroundJobRuntimeFixture
 
     private readonly Assembly _application;
     private readonly Assembly _foreignApplication;
+    private readonly BackgroundJobModuleRegistration[] _modules;
     internal Type ParameterType { get; }
     internal Type OtherParameterType { get; }
     internal BackgroundJobDefinitionRegistry Registry { get; }
@@ -131,6 +133,7 @@ internal sealed class BackgroundJobRuntimeFixture
             typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
             typeof(LearnStack.Modules.Tenancy.Infrastructure.AssemblyMarker).Assembly);
         BackgroundJobModuleRegistration[] modules = [module, foreignModule, tenancyModule];
+        _modules = modules;
 
         var topology = BackgroundJobInfrastructureRegistry.Create(
             BackgroundJobInfrastructureRegistry.CreateDefault().Pools.Values,
@@ -163,6 +166,24 @@ internal sealed class BackgroundJobRuntimeFixture
     internal object Request(string name) => Activator.CreateInstance(name == "Foreign" ? ForeignRequestType : RequestType(name))!;
     internal int RootConstructions => RootRequests.Append("Prepare")
         .Sum(name => (int)RequestType(name).GetField("Constructions")!.GetValue(null)!);
+
+    /// <summary>Explicit capacity-test clone; shared admission canaries retain their original manifest.</summary>
+    internal BackgroundJobDefinitionRegistry CapacityRegistry(int operationalCeiling = 1, LimitKey? planLimit = null)
+    {
+        var external = Registry.Resolve(ExternalKey).Definition!;
+        if (!Registry.Infrastructure.TryGetAdapter(external.ProfileRegistration.ExternalPortType!, out var adapter))
+            throw new InvalidOperationException("The shared external construction canary is missing its adapter.");
+        var topology = BackgroundJobInfrastructureRegistry.Create(Registry.Infrastructure.Pools.Values,
+            [new(CapacityGroup, RequestType("Declarations"), operationalCeiling, planLimit)], [adapter!], _modules);
+        var definitions = Registry.DefinitionKeys.Select(key =>
+        {
+            var definition = Registry.Resolve(key).Definition!;
+            return new BackgroundJobDefinitionRegistration(key, RequestType("Declarations"), definition.ParameterType,
+                definition.Scope, definition.Readiness, definition.Queue, definition.ProfileRegistration,
+                definition.NestedRequestTypes, key == OrganizationKey ? CapacityGroup : definition.CapacityGroup);
+        });
+        return BackgroundJobDefinitionRegistry.Create(definitions, Registry.All, _modules, infrastructure: topology);
+    }
 
     internal WebApplicationFactory<Program> Host(DisposableSchemaDatabase database, BackgroundJobFixtureProbe probe,
         ITenantContext? context = null, Action<IServiceCollection>? configure = null, string? appConnectionString = null) =>

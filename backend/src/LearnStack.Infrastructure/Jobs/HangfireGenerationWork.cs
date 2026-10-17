@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using LearnStack.Application.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -90,10 +91,13 @@ internal sealed class HangfireGenerationWork
 
     [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
         Justification = "Only actual work completion can dispose its private source after cancellation callbacks; caller disposal cannot prove cleanup.")]
-    internal sealed class Invocation(HangfireGenerationWork owner)
+    internal sealed class Invocation(HangfireGenerationWork owner) : BackgroundJobActualCleanup.MintingSource
     {
         private readonly object _sync = new();
         private readonly CancellationTokenSource _private = new();
+        private readonly TaskCompletionSource<Task<BackgroundJobActualCleanup?>> _cleanupPublished =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _cleanupStarted;
         private Task<bool>? _cancellationObservation;
         // These concrete owned tasks retain their completed failure results and
         // unresolved resource owners after a wrapper returns. No delegate runs here.
@@ -159,6 +163,58 @@ internal sealed class HangfireGenerationWork
             {
                 if (_completing || _business is not null) throw new InvalidOperationException("A generation owns one business operation.");
                 _business = task;
+            }
+        }
+
+        internal Task<BackgroundJobActualCleanup?> PrepareCapacityCleanupAsync(BackgroundJobExecutionControl execution)
+        {
+            lock (_sync)
+            {
+                if (!ReferenceEquals(_execution, execution) || _completing)
+                    throw new InvalidOperationException("Capacity cleanup belongs to the actual held execution.");
+                if (_cleanupStarted) return _cleanupPublished.Task.Unwrap();
+                _cleanupStarted = true;
+            }
+            // Publish the owned join before any asynchronous disposal can return.
+            var actual = PrepareCapacityCleanupCoreAsync(execution);
+            _cleanupPublished.TrySetResult(actual);
+            return _cleanupPublished.Task.Unwrap();
+        }
+
+        private async Task<BackgroundJobActualCleanup?> PrepareCapacityCleanupCoreAsync(BackgroundJobExecutionControl execution)
+        {
+            try
+            {
+                JobStartExecutionResult admission;
+                JobBusinessExecutionResult? business;
+                lock (_sync)
+                {
+                    if (_admission is not { IsCompletedSuccessfully: true } actualAdmission
+                        || actualAdmission.Result.CleanupFailed) return null;
+                    admission = actualAdmission.Result;
+                    if (_business is not null && (!_business.IsCompletedSuccessfully || _business.Result.CleanupFailed)) return null;
+                    business = _business?.Result;
+                }
+                var envelope = admission.Receipt?.Envelope ?? admission.ValidatedEnvelope;
+                if (envelope is not { Profile: "transactional", CapacityGroup: not null }
+                    || admission.Outcome is not (JobStartExecutionOutcome.Started or JobStartExecutionOutcome.Indeterminate)
+                    || !admission.SourceOwner.CleanupConfirmed
+                    || business is { CommitAcknowledged: true }
+                    || business is not null && !ReferenceEquals(business.SourceOwner, admission.SourceOwner)) return null;
+                if (business is null && !execution.Gate.TrySealUnusedExecution()) return null;
+                execution.Gate.Close();
+                if (!await execution.JoinBusinessObserversAsync().ConfigureAwait(false)) return null;
+                RequestCancellation();
+                Task<bool>? cancellation;
+                lock (_sync) cancellation = _cancellationObservation;
+                if (cancellation is null || !await cancellation.ConfigureAwait(false)
+                    || !admission.SourceOwner.CleanupConfirmed) return null;
+                return MintCleanup(execution, admission, envelope, business);
+            }
+            catch (Exception failure) when (Catchable(failure))
+            {
+                owner.MarkRetained(this);
+                return null;
             }
         }
 

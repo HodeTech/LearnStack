@@ -762,8 +762,14 @@ The stable lazy application source now has a single disposal owner, sharing the
 job/messaging release witnesses. Job main/auxiliary operation bounds retain
 abandoned loaders and failed cleanup; independent HTTP/delivery headroom is not
 implied. The [Step 5 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
-owns implementation, qualification and review status. Capacity reservations,
-external execution and recurrence remain Steps 6–8.
+owns implementation, qualification and review status. Step 6 adds tenant/group
+capacity admission and atomic reservation release. A failed transactional
+invocation must positively join its original source and private callbacks before
+the exact same-source cleanup checkpoint; distinct recovery authority is required.
+Missing local cleanup parks unresolved occupancy for paced probes. Its
+[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns passing local qualification and pending full reviews. External execution and
+recurrence remain Steps 7–8.
 
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session

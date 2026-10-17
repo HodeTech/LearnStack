@@ -19,6 +19,11 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var context = Platform(database);
+        var head = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        const string Correction = "20261016173813_allow_nonkey_job_count_validation";
+        // Later additive capacity guards replace this function again. Qualify
+        // the one-function correction at its own historical schema boundary.
+        await context.GetService<IMigrator>().MigrateAsync(Correction);
         var current = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
         var changed = current.Single(item => item.StartsWith("function:", StringComparison.Ordinal)
             && item.Contains("FUNCTION public.fn_background_job_attempt_counts()", StringComparison.Ordinal));
@@ -28,8 +33,10 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         previous.Except(current).Should().ContainSingle().Which.Should()
             .Be(changed.Replace("target_job FOR NO KEY UPDATE;", "target_job FOR UPDATE;", StringComparison.Ordinal));
         current.Except(previous).Should().ContainSingle().Which.Should().Be(changed);
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(Correction);
         (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
+        await context.Database.MigrateAsync();
+        AssertCapacityReappliedInventory(await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString), head);
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
@@ -80,4 +87,25 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         new DbContextOptionsBuilder<PlatformDbContext>()
             .UseNpgsql(database.MigrationConnectionString, options =>
                 options.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable)).Options);
+
+    private static void AssertCapacityReappliedInventory(IReadOnlyList<string> actual, IReadOnlyList<string> expected)
+    {
+        // PostgreSQL retains the dropped column's physical attnum. Readding this
+        // one new last column therefore advances only its ordinal_position;
+        // every other column and every security/function/constraint fact is exact.
+        const string Prefix = "column:background_job_attempts:";
+        const string Column = ":transactional_cleanup_at:";
+        var before = expected.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
+            && item.Contains(Column, StringComparison.Ordinal));
+        var after = actual.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
+            && item.Contains(Column, StringComparison.Ordinal));
+        var beforePosition = int.Parse(before[Prefix.Length..before.IndexOf(Column, StringComparison.Ordinal)],
+            System.Globalization.CultureInfo.InvariantCulture);
+        var afterPosition = int.Parse(after[Prefix.Length..after.IndexOf(Column, StringComparison.Ordinal)],
+            System.Globalization.CultureInfo.InvariantCulture);
+        afterPosition.Should().BeGreaterThanOrEqualTo(beforePosition);
+        var normalized = Prefix + beforePosition.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + after[after.IndexOf(Column, StringComparison.Ordinal)..];
+        actual.Select(item => item == after ? normalized : item).Order(StringComparer.Ordinal).Should().Equal(expected);
+    }
 }

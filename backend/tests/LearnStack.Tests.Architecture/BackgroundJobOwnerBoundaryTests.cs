@@ -7,6 +7,13 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed partial class OutboxDispatchConventionTests
 {
+    private static readonly string[] JobCapacityCompletionReleasePredicates =
+    [
+        "released_at=clock_timestamp()", "release_reason='completed'", "tenant_id=@tenant",
+        "capacity_group=@capacity", "job_id=@id", "attempt_id=@attempt", "released_at IS NULL",
+        "RETURNING tenant_id, capacity_group, job_id, attempt_id",
+    ];
+
     private const string JobParticipant = "LearnStack.Application.Jobs.BackgroundJobCompletionParticipant";
     private const string JobPostgresParticipant = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobCompletion";
     private const string JobCommitGate = "LearnStack.Application.Jobs.BackgroundJobCommitGate";
@@ -91,6 +98,16 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var sql in sqlSites)
             AssertMutation(census, "a removed actual preflight or final-fence SQL", () =>
                 ReplaceInstruction(sql, OpCodes.Ldstr, "missing job SQL fence"), JobOwnerOffenders);
+        var releaseSql = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant)
+            .SelectMany(item => item.Body.Body.Instructions).Single(instruction => instruction.OpCode == OpCodes.Ldstr
+                && instruction.Operand is string sql && sql.StartsWith("UPDATE background_job_reservations", StringComparison.Ordinal));
+        AssertMutation(census, "a removed successful grouped reservation release", () =>
+            ReplaceInstruction(releaseSql, OpCodes.Ldstr, "missing reservation release"), JobOwnerOffenders);
+        foreach (var site in sqlSites)
+            foreach (var predicate in new[] { "capacity_group IS NOT DISTINCT FROM @capacity", "r.attempt_id = @attempt", "r.released_at IS NULL" })
+                AssertMutation(census, "a grouped completion fence without " + predicate, () =>
+                    ReplaceInstruction(site, OpCodes.Ldstr, ((string)site.Operand).Replace(predicate, "TRUE", StringComparison.Ordinal)),
+                    JobOwnerOffenders);
     }
 
     private static (string Assembly, string Type)[] JobOwnerSubjects() =>
@@ -105,7 +122,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var (assembly, type, names) in new[]
                  {
                      (DeliveryApplication, JobParticipant, new[] { ".ctor", "Arm", "RequireArmed", "RequireEntry", "BindAndPreflightAsync", "RequireRoot", "FenceOwnerAsync", "RequireCurrent" }),
-                     (DeliveryApplication, JobCommitGate, new[] { ".ctor", "TryStartExecution", "TryBeginCommit", "RecordCommitted", "RecordRolledBack", "Close" }),
+                     (DeliveryApplication, JobCommitGate, new[] { ".ctor", "TryStartExecution", "TrySealUnusedExecution", "TryBeginCommit", "RecordCommitted", "RecordRolledBack", "Close" }),
                      (DeliveryApplication, JobPublication, new[] { ".ctor", "Bind", "Publish", "SettleNoReceipt" }),
                      (DeliveryApplication, JobAdmission, new[] { "RequireOwnerEntry", "BindOwnerAsync", "FenceOwnerAsync" }),
                      (KernelAssembly, JobTrustedContext, new[] { ".ctor", "FromValidatedJob" }),
@@ -164,6 +181,7 @@ public sealed partial class OutboxDispatchConventionTests
              (DeliveryApplication, JobParticipant, "RequireEntry"),
              (InfrastructureAssembly, JobPostgresParticipant, "PreflightAsync"), (InfrastructureAssembly, JobPostgresParticipant, "PreflightAsync"),
              (InfrastructureAssembly, JobPostgresParticipant, "FenceAsync"), (InfrastructureAssembly, JobPostgresParticipant, "FenceAsync"),
+             (InfrastructureAssembly, JobPostgresParticipant, "FenceAsync"), (InfrastructureAssembly, JobPostgresParticipant, "FenceAsync"),
              (InfrastructureAssembly, JobPostgresParticipant, "FenceAsync"), (InfrastructureAssembly, JobPostgresParticipant, "CreateCommand")]);
         Cap(DeliveryApplication, JobAdmission, "RequireOwnerEntry", JobParticipant,
             [LifecycleUnit, "LearnStack.SharedKernel.Persistence.TransactionMode", "System.Type", "LearnStack.SharedKernel.Tenancy.ITenantContext"],
@@ -182,17 +200,21 @@ public sealed partial class OutboxDispatchConventionTests
                 name == "TryStartExecution" ? [(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync")]
                 : name == "RecordRolledBack" ? [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), (DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]
                 : [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
+        Cap(DeliveryApplication, JobCommitGate, "TrySealUnusedExecution", "System.Boolean", [],
+            [(InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
         Cap(DeliveryApplication, JobPublication, "Bind", "System.Void", [JobStartRequest], [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Cap(DeliveryApplication, JobPublication, "Publish", "System.Void", [JobStartRequest, JobStartReceipt], [(DeliveryApplication, JobStartRequest, "RecordCommitted")]);
         Cap(DeliveryApplication, JobPublication, "SettleNoReceipt", "System.Void", [], [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Cap(DeliveryApplication, JobStartRequest, "BindPublication", "System.Void", [JobPublication], [(DeliveryApplication, JobPublication, "Bind")]);
         Cap(DeliveryApplication, JobCommitGate, "Close", "System.Void", [],
-            [(InfrastructureAssembly, JobExecutorType, "CloseBusinessGate"),
+            [(DeliveryApplication, JobCommitGate, "TrySealUnusedExecution"),
+             (InfrastructureAssembly, JobExecutorType, "CloseBusinessGate"),
              (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobExecutionControl", "CloseExecution"),
              (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobExecutionControl", "LeaseElapsed"),
              (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobControl", "FinishBusinessAsync"),
              (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation", "HoldExecution"),
-             (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation", "RequestCancellation")]);
+             (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation", "RequestCancellation"),
+             (InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
         Cap(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.JobBusinessExecutionResult>",
             [JobStartReceipt, JobCommitGate, BoundaryCancellation], [(InfrastructureAssembly, JobBoundInvocation, "RunFrameworkAsync")]);
@@ -201,7 +223,7 @@ public sealed partial class OutboxDispatchConventionTests
             [JobRoutingClaim, JobPublication, "System.Func`1<System.Boolean>", BoundaryCancellation],
             [(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"), (InfrastructureAssembly, JobBoundInvocation, "RunFrameworkAsync")]);
         Cap(InfrastructureAssembly, JobExecutorType, "get_ScopeFactory", "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory", [],
-            [(InfrastructureAssembly, JobRuntime, ".ctor")]);
+            [(InfrastructureAssembly, OrchestrationControl, ".ctor")]);
         Cap(KernelAssembly, JobTrustedContext, "FromValidatedJob", JobTrustedContext,
             ["LearnStack.SharedKernel.Identifiers.TenantId", "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>",
              "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobId>",
@@ -276,12 +298,14 @@ public sealed partial class OutboxDispatchConventionTests
             { offenders.Add("Job completion requires its three distinct production SQL statements"); return; }
             foreach (var statement in preflight.Concat(locked).Concat(update))
                 foreach (var predicate in new[] { "tenant_id = @tenant", "organization_id IS NOT DISTINCT FROM @organization",
-                             "definition_key = @definition", "profile = 'transactional'", "queue = @queue", "capacity_group IS NULL",
+                             "definition_key = @definition", "profile = 'transactional'", "queue = @queue", "capacity_group IS NOT DISTINCT FROM @capacity",
                              "wake_generation = @generation", "current_attempt_id = @attempt", "normal_attempts = @ordinal",
                              "ownership_token = @token", "ownership_kind = 'execution'", "phase = 'executing'", "attempt_deadline = @deadline",
                              "processed_at IS NULL", "dead_lettered_at IS NULL", "terminal_reason IS NULL",
                              "a.id = @attempt", "a.job_id = background_jobs.id", "a.stage = 'normal'", "a.ordinal = @ordinal",
-                             "a.admission_token = @token", "a.admitted_at = @admitted", "a.deadline = @deadline" })
+                             "a.admission_token = @token", "a.admitted_at = @admitted", "a.deadline = @deadline",
+                             "@capacity::text IS NULL OR EXISTS", "r.tenant_id = @tenant", "r.capacity_group = @capacity",
+                             "r.job_id = background_jobs.id", "r.attempt_id = @attempt", "r.released_at IS NULL" })
                     if (!statement.Contains(predicate, StringComparison.Ordinal)) offenders.Add("Missing exact job fence predicate: " + predicate);
             if (preflight[0].Contains("FOR UPDATE", StringComparison.Ordinal)
                 || !locked[0].EndsWith("FOR UPDATE", StringComparison.Ordinal) || locked[0].Contains("clock_timestamp", StringComparison.Ordinal)
@@ -291,6 +315,11 @@ public sealed partial class OutboxDispatchConventionTests
                 if (!statement.Contains("ownership_until > clock_timestamp()", StringComparison.Ordinal)
                     || !statement.Contains("attempt_deadline > clock_timestamp()", StringComparison.Ordinal))
                     offenders.Add("Job preflight and final update require strict fresh database lease/deadline fences");
+            var releases = sql.Where(item => item.Name == "FenceAsync" && item.Text.StartsWith("UPDATE background_job_reservations", StringComparison.Ordinal))
+                .Select(item => item.Text).ToArray();
+            if (releases.Length != 1 || JobCapacityCompletionReleasePredicates
+                .Any(predicate => !releases[0].Contains(predicate, StringComparison.Ordinal)))
+                offenders.Add("Grouped completion releases exactly its existing reservation on the fenced business owner");
         }
     }
 }

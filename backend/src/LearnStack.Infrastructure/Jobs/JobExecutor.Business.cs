@@ -72,8 +72,6 @@ public sealed partial class JobExecutor
         {
             if (scope is { } owned)
                 cleanupFailed |= !await CleanupScopeAsync(owned, unit, null, retained).ConfigureAwait(false);
-            receipt.SourceOwner.CloseIssuance();
-            cleanupFailed |= !await receipt.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
             try { activity?.Dispose(); }
             catch
             {
@@ -102,6 +100,12 @@ public sealed partial class JobExecutor
                 cleanupFailed = true;
                 retained.Add(new(null, null, null, null, null, sourceBinding));
             }
+            // Old inherited bindings close before the auxiliary snapshot. The
+            // same clean owner may serve a strictly sequential capacity checkpoint.
+            if (receipt.Envelope.CapacityGroup is null || gate.CommitAcknowledged || cleanupFailed)
+                receipt.SourceOwner.CloseIssuance();
+            cleanupFailed |= !await receipt.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
+            if (cleanupFailed) receipt.SourceOwner.CloseIssuance();
         }
 
         var uncertain = gate.CommitStarted && !gate.CommitAcknowledged && !gate.KnownRollback;

@@ -245,8 +245,10 @@ owns implementation and review status. Step 4 is locally complete after both ful
 review rounds and verified corrections. Step 5 is locally complete after both
 full review rounds and independent correction verification; its
 [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-5--transactional-owner-and-terminal-audit-2026-10-16)
-owns validation and review receipts. Step 6 capacity reservations are in progress;
-Steps 7–9 remain pending.
+owns validation and review receipts. Step 6 capacity implementation is locally
+validated; its [record](docs/roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns passing local qualification and pending full review gates. Steps 7–9 remain
+pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.
@@ -476,7 +478,8 @@ Then read the phase that is live and the one it stands on:
   ADR-0059 and the Step 4 adaptation are Accepted — 2026-10-16. Step 4 is locally
   complete after both full reviews and verified corrections; Step 5 transactional
   business execution is locally complete after both full reviews and focused fix
-  verification. Step 6 capacity reservations are in progress; Steps 7–9 remain pending.
+  verification. Step 6 capacity implementation is locally validated; both full
+  review rounds remain pending. Steps 7–9 remain pending.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

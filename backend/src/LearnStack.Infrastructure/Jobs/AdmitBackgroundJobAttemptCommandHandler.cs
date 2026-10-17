@@ -1,15 +1,19 @@
 using LearnStack.Application.Jobs;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Time;
+using LearnStack.SharedKernel.Tenancy;
 using MediatR;
+using NpgsqlTypes;
 
 namespace LearnStack.Infrastructure.Jobs;
 
 public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
-    BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids)
+    BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids,
+    IFeatureFlags features, ITenantContextAccessor accessor)
     : IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>
 {
     public async Task<Result<None>> Handle(AdmitBackgroundJobAttemptCommand request, CancellationToken cancellationToken)
@@ -20,22 +24,102 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
         if (unit.Mode != TransactionMode.ReadWrite)
             throw new InvalidOperationException("Attempt admission requires a writable owner.");
         var transaction = unit.Transaction;
+        var connection = unit.Connection;
         var announcement = unit.GetTenantContextAnnouncement(transaction);
+        var context = accessor.Current ?? throw new InvalidOperationException("Admission requires its trusted context.");
+        var sourceOwner = JobApplicationSourceOwner.Current
+            ?? throw new InvalidOperationException("Admission requires its original application-source owner.");
+        void RequireCurrent()
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            BackgroundJobExecutionAdmission.RequireStart(request);
+            BackgroundJobExecutionAdmission.RequireContext(context);
+            sourceOwner.RequireOwnedMainUnit(unit);
+            if (!ReferenceEquals(sourceOwner, JobApplicationSourceOwner.Current) || !ReferenceEquals(context, accessor.Current)
+                || !ReferenceEquals(connection, unit.Connection) || !ReferenceEquals(transaction, unit.Transaction)
+                || !ReferenceEquals(transaction?.Connection, connection) || !unit.HasActiveTransaction || unit.IsRollbackOnly
+                || unit.Mode != TransactionMode.ReadWrite || announcement is not { Generation: > 0 }
+                || announcement != unit.GetTenantContextAnnouncement(transaction)
+                || announcement.TenantId != request.Envelope.TenantId || announcement.OrganizationId != request.Envelope.OrganizationId)
+                throw new InvalidOperationException("Attempt admission lost its exact announced owner.");
+        }
+        RequireCurrent();
         // Lock first. All lease/due time predicates below execute after this wait has ended.
         await using (var locked = BackgroundJobEnvelopeSql.Command(unit,
             "SELECT " + BackgroundJobEnvelopeSql.Projection
                 + " FROM background_jobs WHERE id = @id AND tenant_id = @tenant FOR UPDATE", request.Claim, options))
         await using (var reader = await locked.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            var found = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            RequireCurrent();
+            if (!found
                 || BackgroundJobEnvelopeSql.Read(reader) != request.Envelope
                 || BackgroundJobEnvelopeSql.Definition(request.Envelope, definitions) is null)
                 return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
         }
+        RequireCurrent();
+        if (request.Envelope.CapacityGroup is { } groupKey)
+        {
+            var group = definitions.Infrastructure.CapacityGroups[groupKey];
+            await using (var ensure = BackgroundJobEnvelopeSql.Command(unit, """
+                INSERT INTO background_job_capacity (tenant_id, capacity_group)
+                VALUES (@tenant, @group) ON CONFLICT DO NOTHING
+                """, request.Claim, options))
+            {
+                ensure.Parameters.AddWithValue("group", groupKey);
+                await ensure.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            RequireCurrent();
+            await using (var mutex = BackgroundJobEnvelopeSql.Command(unit, """
+                SELECT TRUE FROM background_job_capacity
+                WHERE tenant_id=@tenant AND capacity_group=@group FOR UPDATE
+                """, request.Claim, options))
+            {
+                mutex.Parameters.AddWithValue("group", groupKey);
+                if (await mutex.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
+                    throw new InvalidOperationException("The declared capacity mutex is unavailable.");
+            }
+            RequireCurrent();
+            long ceiling = group.OperationalCeiling;
+            if (group.PlanLimit is { } limit)
+            {
+                if (!LimitKeys.All.TryGetValue(limit, out var descriptor) || descriptor.Enforcement != LimitEnforcement.Hard)
+                    ceiling = 0;
+                else
+                {
+                    try
+                    {
+                        var projected = await features.GetLimitAsync(limit, cancellationToken).ConfigureAwait(false);
+                        RequireCurrent();
+                        ceiling = projected == LimitKeys.Unlimited ? ceiling : projected > 0 ? Math.Min(projected, ceiling) : 0;
+                    }
+                    catch (Exception failure) when (failure.GetType() != typeof(OutOfMemoryException)
+                        && failure.GetType() != typeof(StackOverflowException) && !cancellationToken.IsCancellationRequested)
+                    {
+                        // A failed projection cannot manufacture unlimited admission.
+                        RequireCurrent();
+                        ceiling = 0;
+                    }
+                }
+            }
+            RequireCurrent();
+            await using var occupied = BackgroundJobEnvelopeSql.Command(unit, """
+                SELECT count(*) FROM background_job_reservations
+                WHERE tenant_id=@tenant AND capacity_group=@group AND released_at IS NULL
+                """, request.Claim, options);
+            occupied.Parameters.AddWithValue("group", groupKey);
+            // Separate statement AFTER the mutex wait: count every unreleased row,
+            // including sibling organizations and unknown/expired old attempts.
+            var count = (long)(await occupied.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+            RequireCurrent();
+            if (ceiling <= 0 || count >= ceiling)
+            {
+                request.RecordCapacityDeferred(unit);
+                return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
+            }
+        }
         var attempt = BackgroundJobAttemptId.From(ids.NewUuidV7());
-        BackgroundJobExecutionAdmission.RequireStart(request);
-        if (!ReferenceEquals(transaction, unit.Transaction) || announcement != unit.GetTenantContextAnnouncement(transaction))
-            throw new InvalidOperationException("Attempt admission lost its announced transaction.");
+        RequireCurrent();
         await using var insert = BackgroundJobEnvelopeSql.Command(unit, """
             INSERT INTO background_job_attempts
                 (id, tenant_id, organization_id, job_id, stage, ordinal, admission_token, deadline)
@@ -44,7 +128,7 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
             FROM background_jobs WHERE id = @id AND tenant_id = @tenant
                 AND wake_generation = @generation AND ownership_token = @token AND ownership_kind = 'routing'
                 AND ownership_until > clock_timestamp() AND available_after <= clock_timestamp()
-                AND profile = 'transactional' AND capacity_group IS NULL AND phase = 'pending' AND normal_attempts < 6
+                AND profile = 'transactional' AND capacity_group IS NOT DISTINCT FROM @group AND phase = 'pending' AND normal_attempts < 6
                 AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL
             RETURNING ordinal, admitted_at, deadline
             """, request.Claim, options);
@@ -52,17 +136,21 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
         insert.Parameters.AddWithValue("generation", request.Claim.WakeGeneration);
         insert.Parameters.AddWithValue("token", request.Claim.Token);
         insert.Parameters.AddWithValue("duration", options.TransactionTimeout);
+        insert.Parameters.AddWithValue("group", NpgsqlDbType.Text, (object?)request.Envelope.CapacityGroup ?? DBNull.Value);
         int ordinal;
         DateTimeOffset admittedAt;
         DateTimeOffset deadline;
         await using (var inserted = await insert.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (!await inserted.ReadAsync(cancellationToken).ConfigureAwait(false))
+            var found = await inserted.ReadAsync(cancellationToken).ConfigureAwait(false);
+            RequireCurrent();
+            if (!found)
                 return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
             ordinal = inserted.GetInt32(0);
             admittedAt = inserted.GetFieldValue<DateTimeOffset>(1);
             deadline = inserted.GetFieldValue<DateTimeOffset>(2);
         }
+        RequireCurrent();
         await using var update = BackgroundJobEnvelopeSql.Command(unit, """
             UPDATE background_jobs SET normal_attempts = normal_attempts + 1, current_attempt_id = @attempt,
                 phase = 'executing', attempt_deadline =
@@ -70,20 +158,45 @@ public sealed class AdmitBackgroundJobAttemptCommandHandler(IUnitOfWork unit,
             WHERE id = @id AND tenant_id = @tenant AND wake_generation = @generation
                 AND ownership_token = @token AND ownership_kind = 'routing' AND ownership_until > clock_timestamp()
                 AND available_after <= clock_timestamp() AND phase = 'pending' AND normal_attempts < 6
+                AND profile = 'transactional' AND capacity_group IS NOT DISTINCT FROM @group
                 AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL
             RETURNING normal_attempts, attempt_deadline, ownership_until
             """, request.Claim, options);
         update.Parameters.AddWithValue("attempt", attempt.Value);
         update.Parameters.AddWithValue("generation", request.Claim.WakeGeneration);
         update.Parameters.AddWithValue("token", request.Claim.Token);
-        await using var updated = await update.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        if (!await updated.ReadAsync(cancellationToken).ConfigureAwait(false)
-            || updated.GetInt32(0) != ordinal || updated.GetFieldValue<DateTimeOffset>(1) != deadline)
+        update.Parameters.AddWithValue("group", NpgsqlDbType.Text, (object?)request.Envelope.CapacityGroup ?? DBNull.Value);
+        DateTimeOffset ownershipUntil;
+        await using (var updated = await update.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
         {
-            unit.MarkRollbackOnly();
-            return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
+            var found = await updated.ReadAsync(cancellationToken).ConfigureAwait(false);
+            RequireCurrent();
+            if (!found || updated.GetInt32(0) != ordinal || updated.GetFieldValue<DateTimeOffset>(1) != deadline)
+            {
+                unit.MarkRollbackOnly();
+                return Result<None>.Fail(BackgroundJobExecutionAdmission.Refused);
+            }
+            ownershipUntil = updated.GetFieldValue<DateTimeOffset>(2);
         }
-        request.RecordAttempt(unit, attempt, ordinal, admittedAt, deadline, updated.GetFieldValue<DateTimeOffset>(2));
+        RequireCurrent();
+        if (request.Envelope.CapacityGroup is { } reservedGroup)
+        {
+            await using var reserve = BackgroundJobEnvelopeSql.Command(unit, """
+                INSERT INTO background_job_reservations (tenant_id, capacity_group, job_id, attempt_id)
+                VALUES (@tenant, @group, @id, @attempt)
+                RETURNING tenant_id, capacity_group, job_id, attempt_id
+                """, request.Claim, options);
+            reserve.Parameters.AddWithValue("group", reservedGroup);
+            reserve.Parameters.AddWithValue("attempt", attempt.Value);
+            await using var row = await reserve.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            var found = await row.ReadAsync(cancellationToken).ConfigureAwait(false);
+            RequireCurrent();
+            if (!found || row.GetGuid(0) != request.Envelope.TenantId.Value || row.GetString(1) != reservedGroup
+                || row.GetGuid(2) != request.Envelope.JobId.Value || row.GetGuid(3) != attempt.Value)
+                throw new InvalidOperationException("The counted admission did not reserve its exact capacity identity.");
+        }
+        RequireCurrent();
+        request.RecordAttempt(unit, attempt, ordinal, admittedAt, deadline, ownershipUntil);
         return Result<None>.Ok(None.Value);
     }
 }

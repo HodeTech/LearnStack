@@ -302,7 +302,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         };
         var gate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var control = new BackgroundJobControl(source, Fixture.Registry,
-            host.Services.GetRequiredService<IServiceScopeFactory>(), gate, bounds, new SystemGuidFactory(), TimeProvider.System);
+            host.Services.GetRequiredService<JobExecutor>(), gate, bounds, new SystemGuidFactory(), TimeProvider.System);
         control.Start();
         try
         {

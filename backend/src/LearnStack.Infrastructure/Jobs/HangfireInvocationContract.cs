@@ -222,9 +222,26 @@ public static class HangfireInvocationContract
                     work!.HoldBusiness(business);
                     cleanupConfirmed = false;
                     var completed = await business.ConfigureAwait(false);
-                    cleanupConfirmed = await jobs!.FinishBusinessAsync(execution, completed).ConfigureAwait(false);
+                    BackgroundJobActualCleanup? actualCleanup = null;
+                    if (!completed.CommitAcknowledged && !completed.CleanupFailed && receipt.Envelope.CapacityGroup is not null)
+                    {
+                        actualCleanup = await work.PrepareCapacityCleanupAsync(execution).ConfigureAwait(false);
+                        if (actualCleanup is null) return;
+                    }
+                    cleanupConfirmed = await jobs!.FinishBusinessAsync(execution, completed, actualCleanup).ConfigureAwait(false);
                 }
-                else cleanupConfirmed = await jobs!.FinishAdmissionAsync(execution, result).ConfigureAwait(false);
+                else
+                {
+                    BackgroundJobActualCleanup? actualCleanup = null;
+                    if (result.Outcome is JobStartExecutionOutcome.Started or JobStartExecutionOutcome.Indeterminate
+                        && (result.Receipt?.Envelope ?? result.ValidatedEnvelope) is { Profile: "transactional", CapacityGroup: not null })
+                    {
+                        cleanupConfirmed = false;
+                        actualCleanup = await work!.PrepareCapacityCleanupAsync(execution).ConfigureAwait(false);
+                        if (actualCleanup is null) return;
+                    }
+                    cleanupConfirmed = await jobs!.FinishAdmissionAsync(execution, result, actualCleanup).ConfigureAwait(false);
+                }
             }
             finally
             {

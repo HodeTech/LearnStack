@@ -30,11 +30,13 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     private DateTimeOffset _deadline;
     private DateTimeOffset _ownershipUntil;
     private BackgroundJobStartPublication? _publication;
+    private JobApplicationSourceOwner? _sourceOwner;
 
     public BackgroundJobRoutingClaim Claim { get; } = claim ?? throw new ArgumentNullException(nameof(claim));
     public BackgroundJobEnvelope Envelope { get; } = envelope ?? throw new ArgumentNullException(nameof(envelope));
     public ConfirmedStartReceipt? Receipt { get; private set; }
     public bool CommitStarted { get; private set; }
+    public bool CapacityDeferred { get; private set; }
 
     internal void BindOwner(IUnitOfWork unit, bool owner)
     {
@@ -42,6 +44,8 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
         if (!owner || _unit is not null || unit.Mode != TransactionMode.ReadWrite)
             throw new InvalidOperationException("Job admission must own a fresh writable transaction.");
         _unit = unit;
+        _sourceOwner = JobApplicationSourceOwner.Current
+            ?? throw new InvalidOperationException("Job admission requires its application-source owner.");
         _transaction = unit.Transaction;
         _announcement = unit.GetTenantContextAnnouncement(unit.Transaction)
             ?? throw new InvalidOperationException("Job admission requires a live announcement.");
@@ -57,7 +61,7 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
         BackgroundJobExecutionAdmission.RequireStart(this);
         if (!ReferenceEquals(_unit, unit) || !ReferenceEquals(_transaction, unit.Transaction)
             || _announcement != unit.GetTenantContextAnnouncement(unit.Transaction)
-            || unit.IsRollbackOnly || _attempt is not null || !attempt.IsInitialized() || attempt.Value.Version != 7
+            || unit.IsRollbackOnly || CapacityDeferred || _attempt is not null || !attempt.IsInitialized() || attempt.Value.Version != 7
             || ordinal is < 1 or > 6 || admittedAt >= deadline || ownershipUntil > deadline
             || ownershipUntil <= admittedAt)
             throw new InvalidOperationException("The attempt does not belong to this admission owner.");
@@ -66,6 +70,21 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
         _admittedAt = admittedAt;
         _deadline = deadline;
         _ownershipUntil = ownershipUntil;
+    }
+
+    /// <summary>Records a grouped refusal before any normal attempt or reservation is issued.</summary>
+    public void RecordCapacityDeferred(IUnitOfWork unit)
+    {
+        BackgroundJobExecutionAdmission.RequireStart(this);
+        if (!ReferenceEquals(_unit, unit) || _transaction is null || !ReferenceEquals(_transaction, unit.Transaction)
+            || !ReferenceEquals(_sourceOwner, JobApplicationSourceOwner.Current) || !unit.HasActiveTransaction
+            || _announcement is not { Generation: > 0 } || _announcement != unit.GetTenantContextAnnouncement(_transaction)
+            || _announcement.TenantId != Claim.TenantId || _announcement.OrganizationId != Claim.OrganizationId
+            || unit.Mode != TransactionMode.ReadWrite || unit.IsRollbackOnly || Envelope.CapacityGroup is null
+            || CapacityDeferred || _attempt is not null || Receipt is not null || CommitStarted)
+            throw new InvalidOperationException("Capacity deferral requires its unissued admission owner.");
+        _sourceOwner!.RequireOwnedMainUnit(unit);
+        CapacityDeferred = true;
     }
 
     internal void BindPublication(BackgroundJobStartPublication publication)
@@ -138,6 +157,7 @@ public static class BackgroundJobFrameworkRequests
     {
         new BackgroundJobRequestDescriptor(typeof(ReadBackgroundJobEnvelopeQuery), BackgroundJobRequestClassification.FrameworkReadOnly, null),
         new BackgroundJobRequestDescriptor(typeof(AdmitBackgroundJobAttemptCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
+        new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobCapacityCleanupCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
     });
 }
 
@@ -149,5 +169,6 @@ public sealed class BackgroundJobAuditCatalogSource : IAuditCatalogSource
         ArgumentNullException.ThrowIfNull(builder);
         builder.Off<ReadBackgroundJobEnvelopeQuery>();
         builder.Off<AdmitBackgroundJobAttemptCommand>();
+        builder.Off<RecordBackgroundJobCapacityCleanupCommand>();
     }
 }

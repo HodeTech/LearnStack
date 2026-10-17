@@ -6,12 +6,14 @@ using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -137,7 +139,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
     [InlineData("external")]
     [InlineData("early")]
     [InlineData("generation")]
-    public async Task Unready_early_stale_and_capacity_bound_callbacks_spend_no_attempt(string reason)
+    public async Task Unready_early_stale_and_capacity_unavailable_callbacks_spend_no_attempt(string reason)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -154,14 +156,28 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             capacityGroup: reason is "capacity" or "external" ? BackgroundJobRuntimeFixture.CapacityGroup : null,
             profile: reason == "external" ? "external" : "transactional");
         var probe = new BackgroundJobFixtureProbe();
-        await using var host = Fixture.Host(database, probe);
+        await using var host = Fixture.Host(database, probe, configure: services =>
+        {
+            if (reason != "capacity") return;
+            services.RemoveAll<BackgroundJobDefinitionRegistry>();
+            services.AddSingleton(Fixture.CapacityRegistry(planLimit: LimitKeys.MaxOrganizations));
+            services.RemoveAll<IEntitlementProvider>();
+            services.AddSingleton<IEntitlementProvider>(new CapacityEntitlementProvider(0));
+        });
         var claim = await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>()
             .TryClaimAsync(job, reason == "generation" ? 2 : 1);
-        claim.Should().BeNull();
+        if (reason == "capacity")
+        {
+            claim.Should().NotBeNull("routing is separate from the app-role capacity decision");
+            (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim!)).Outcome
+                .Should().Be(JobStartExecutionOutcome.CapacityDeferred);
+        }
+        else claim.Should().BeNull();
         var row = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
         row.NormalAttempts.Should().Be(0);
         row.Phase.Should().Be("pending");
-        row.OwnershipToken.Should().BeNull();
+        if (reason == "capacity") row.OwnershipToken.Should().Be(claim!.Token);
+        else row.OwnershipToken.Should().BeNull();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);
         probe.Constructions.Should().BeEmpty();
     }

@@ -30,6 +30,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var cleanup = new FacadeCleanupSignals();
         using var prefixRelease = new ManualResetEventSlim();
         var reads = 0;
+        var heldConstructed = 0;
         var observation = new BackgroundJobAdmissionObservation
         {
             OnRead = (_query, services) =>
@@ -51,31 +52,70 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await using var host = Fixture.Host(database, new BackgroundJobFixtureProbe(), configure: services =>
         {
             observation.Configure(services);
-            services.AddScoped(_ => new FacadeHeldReadCleanup(cleanup));
+            services.AddScoped(_ =>
+            {
+                Interlocked.Increment(ref heldConstructed);
+                return new FacadeHeldReadCleanup(cleanup);
+            });
         });
         using var globals = new GlobalFilterSnapshot();
         var bounds = new BackgroundJobRuntimeOptions { TransactionTimeout = TimeSpan.FromSeconds(2) };
-        var runtime = Runtime(host.Services, source, bounds, physical);
+        var time = new HangfirePoolOwnerTests.ManualTimeProvider();
+        var runtime = Runtime(host.Services, source, bounds, physical, time);
         var disposal = SourceDisposalObserver(source);
         LearnStack.SharedKernel.Jobs.BackgroundJobId job;
         try
         {
-            await runtime.StartAsync();
+            using (var startup = new CancellationTokenSource(TestWait))
+                await runtime.StartAsync(startup.Token);
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
-            job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-            await cleanup.Entered.Task.WaitAsync(TestWait);
+            // Bridge, control and terminal are the three ControlPoll timers.
+            // Observe their empty quanta parked before creating either native
+            // wakeup; advancing the owner clock must not introduce a bridge ACK
+            // race into this framework-cleanup proof.
+            await EventuallyAsync(() => Task.FromResult(time.DelayCount(bounds.ControlPoll) == 3));
             var transactional = ActualGeneration(runtime, "transactional");
+            var provider = ActualProvider(runtime);
+            var transactionalPool = Fixture.Registry.Infrastructure.Pools["transactional"];
+            job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            var heldVendor = CreateQualificationWakeup(provider, transactionalPool, job);
+            try { await cleanup.Entered.Task.WaitAsync(TestWait); }
+            catch (TimeoutException failure)
+            {
+                // Fixed in-memory facts only. Absence now is not evidence that
+                // a clean, already-released invocation never existed.
+                throw new InvalidOperationException(
+                    $"Native cleanup-entry premise failed; synchronousPrefix={synchronousPrefix};"
+                    + $"reads={Volatile.Read(ref reads)};heldConstructed={Volatile.Read(ref heldConstructed)};"
+                    + $"readUnit={observation.ReadUnit is not null};readDisposed={observation.ReadScopeDisposed};"
+                    + $"startUnit={observation.StartUnit is not null};startDisposed={observation.StartScopeDisposed};"
+                    + $"entered={cleanup.Entered.Task.Status};joined={cleanup.Joined.Task.Status};"
+                    + $"wrapperTimer={time.HasDelay(bounds.TransactionTimeout)};pollTimers={time.DelayCount(bounds.ControlPoll)};"
+                    + $"generation={transactional.Snapshot};work={transactional.WorkSnapshot};runtime={runtime.Snapshot}", failure);
+            }
+            // Both the asynchronous disposal and synchronous handler-prefix
+            // cases reach their actual barrier before the wrapper deadline.
+            // The SQL deadlines and caller/final-cleanup waits remain real.
+            await EventuallyAsync(() => Task.FromResult(time.HasDelay(bounds.TransactionTimeout)));
+            time.Advance(bounds.TransactionTimeout);
             await EventuallyAsync(() => Task.FromResult(transactional.WorkSnapshot.Retained == 1));
             transactional.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
             runtime.Snapshot.IsHealthy.Should().BeFalse();
-            await EventuallyAsync(async () => await VendorAsync(source, job) is { } vendor
-                && await StateAsync(source, vendor) == "Succeeded");
+            await EventuallyAsync(async () => await StateAsync(source, heldVendor) == "Succeeded");
             cleanup.Joined.Task.IsCompleted.Should().BeFalse();
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);
 
             // The one native transactional slot is usable while fewer than four
             // prior framework invocations remain retained in this generation.
+            // The clock advance also wakes the three polling loops. Their next
+            // parked quanta and the bridge timestamp show that only the first,
+            // routing-owned row was visible before the second native wakeup.
+            var resumedAt = time.GetTimestamp();
+            await EventuallyAsync(() => Task.FromResult(time.DelayCount(bounds.ControlPoll) == 3
+                && runtime.Snapshot.Bridge is { Outstanding: 0, LastProgressTimestamp: { } progress }
+                && progress == resumedAt));
             var positive = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+            _ = CreateQualificationWakeup(provider, transactionalPool, positive);
             await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, positive));
             transactional.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 1, false));
 

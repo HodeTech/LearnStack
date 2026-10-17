@@ -2003,15 +2003,21 @@ summary/ledger parity and reciprocal recipient/child receipts. Capacity locking 
 UPDATE privilege on the immutable capacity-group column solely because PostgreSQL
 requires an UPDATE privilege for SELECT FOR UPDATE. Release requires the exact
 attempt's announced organization and positive completion/no-start/quiescence.
+Grouped transactional rollback uses write-once `transactional_cleanup_at` evidence
+and its matching `transactional_rollback` release in one application transaction.
+The exact original invocation must join business, source and private cancellation
+cleanup before this checkpoint; lease expiry alone never releases capacity.
+Deferred validation requires released history before retry or terminal eligibility.
+A worker without positive local cleanup parks the job for paced recovery probes.
 
 App checkpoint transitions derive the new wake generation, immediate eligibility
 and handoff repair, clearing prior bridge hints. The app has no arbitrary routing
 UPDATE. Dispatcher grants expose neither DTOs nor causal facts and cannot produce
 successful business completion. Schema guards enforce storage invariants; exact
 caller enrollment, live token predicates and same-transaction terminal MUST audit
-remain runtime obligations of the later P02b-4 steps. The minimal Tenancy lifecycle
-inventory SELECT grants remain absent until Step 8 ships its named reader and
-caller census through a later additive migration.
+are runtime obligations of the typed execution and control owners. The minimal
+Tenancy lifecycle inventory SELECT grants remain absent until Step 8 ships its
+named reader and caller census through a later additive migration.
 
 Eligibility indexes lead with their actual clock/order for the confined global
 scans; tenant and FK indexes remain complete. Clocks are runtime predicates. The
@@ -2171,6 +2177,7 @@ CREATE TABLE background_job_attempts (
     quiescence_kind text NULL,
     quiescent_at timestamptz NULL,
     no_start_at timestamptz NULL,
+    transactional_cleanup_at timestamptz NULL,
     CONSTRAINT ux_background_job_attempts_tenant_job_id UNIQUE (tenant_id, job_id, id),
     CONSTRAINT ux_background_job_attempts_stage_ordinal UNIQUE (job_id, stage, ordinal),
     CONSTRAINT ck_background_job_attempts_tenant CHECK (tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid, '00000000-0000-7000-8000-000000000002'::uuid)),
@@ -2204,6 +2211,11 @@ CONSTRAINT fk_background_job_attempts_organization FOREIGN KEY (tenant_id, organ
             AND quiescent_at IS NOT NULL AND execute_intent_at IS NOT NULL)),
     CONSTRAINT ck_background_job_attempts_no_start CHECK (no_start_at IS NULL OR
         (stage = 'normal' AND execute_intent_at IS NULL AND outcome IS NULL AND quiescent_at IS NULL)),
+    CONSTRAINT ck_background_job_attempts_transactional_cleanup CHECK (
+        transactional_cleanup_at IS NULL OR (stage='normal' AND isfinite(transactional_cleanup_at)
+            AND transactional_cleanup_at>=admitted_at AND plan_fingerprint IS NULL AND operation_id IS NULL
+            AND execute_intent_at IS NULL AND outcome IS NULL AND outcome_kind IS NULL AND outcome_at IS NULL
+            AND quiescence_id IS NULL AND quiescence_kind IS NULL AND quiescent_at IS NULL AND no_start_at IS NULL)),
     CONSTRAINT ck_background_job_attempts_time CHECK (isfinite(admitted_at) AND isfinite(deadline)
         AND deadline > admitted_at AND deadline <= admitted_at + interval '24 hours'
         AND (execute_intent_at IS NULL OR isfinite(execute_intent_at))
@@ -2244,7 +2256,7 @@ CREATE TABLE background_job_reservations (
     CONSTRAINT ck_background_job_reservations_reserved CHECK (isfinite(reserved_at)),
     CONSTRAINT ck_background_job_reservations_release CHECK (
         (released_at IS NULL AND release_reason IS NULL)
-        OR (released_at IS NOT NULL AND release_reason IS NOT NULL AND release_reason IN ('completed', 'never_started', 'quiescent')
+        OR (released_at IS NOT NULL AND release_reason IS NOT NULL AND release_reason IN ('completed', 'never_started', 'quiescent', 'transactional_rollback')
             AND isfinite(released_at) AND released_at >= reserved_at))
 );
 CREATE TABLE background_job_recurrences (
@@ -2654,7 +2666,8 @@ DECLARE job record;
 BEGIN
     SELECT j.organization_id, j.phase, j.profile, j.normal_attempts, j.finalize_attempts,
            j.ownership_token, j.ownership_kind, j.ownership_until, j.current_attempt_id,
-           j.final_outcome_attempt_id, j.plan_fingerprint, j.operation_id
+           j.final_outcome_attempt_id, j.plan_fingerprint, j.operation_id, j.capacity_group,
+           j.attempt_deadline, j.processed_at, j.dead_lettered_at, j.terminal_reason
       INTO job FROM public.background_jobs j
       WHERE j.tenant_id = NEW.tenant_id AND j.id = NEW.job_id FOR KEY SHARE;
     IF NOT FOUND OR job.organization_id IS DISTINCT FROM NEW.organization_id THEN
@@ -2668,7 +2681,8 @@ BEGIN
                OR NEW.final_outcome_attempt_id IS DISTINCT FROM job.final_outcome_attempt_id))
            OR NEW.plan_fingerprint IS NOT NULL OR NEW.operation_id IS NOT NULL
            OR NEW.execute_intent_at IS NOT NULL OR NEW.outcome IS NOT NULL
-           OR NEW.quiescent_at IS NOT NULL OR NEW.no_start_at IS NOT NULL THEN
+           OR NEW.quiescent_at IS NOT NULL OR NEW.no_start_at IS NOT NULL
+           OR NEW.transactional_cleanup_at IS NOT NULL THEN
             RAISE EXCEPTION 'attempt insert requires a fresh routing receipt' USING ERRCODE = '23514';
         END IF;
         NEW.admitted_at := clock_timestamp();
@@ -2689,7 +2703,8 @@ BEGIN
             IS DISTINCT FROM ROW(OLD.outcome, OLD.outcome_kind, OLD.outcome_at))
        OR (OLD.quiescent_at IS NOT NULL AND ROW(NEW.quiescence_id, NEW.quiescence_kind, NEW.quiescent_at)
             IS DISTINCT FROM ROW(OLD.quiescence_id, OLD.quiescence_kind, OLD.quiescent_at))
-       OR (OLD.no_start_at IS NOT NULL AND NEW.no_start_at IS DISTINCT FROM OLD.no_start_at) THEN
+       OR (OLD.no_start_at IS NOT NULL AND NEW.no_start_at IS DISTINCT FROM OLD.no_start_at)
+       OR (OLD.transactional_cleanup_at IS NOT NULL AND NEW.transactional_cleanup_at IS DISTINCT FROM OLD.transactional_cleanup_at) THEN
         RAISE EXCEPTION 'attempt identity and recorded evidence are immutable' USING ERRCODE = '23514';
     END IF;
     IF job.current_attempt_id IS DISTINCT FROM NEW.id OR job.ownership_kind NOT IN ('execution', 'recovery')
@@ -2709,6 +2724,17 @@ BEGIN
        (job.ownership_kind <> 'recovery' OR job.ownership_token = NEW.admission_token) THEN
         RAISE EXCEPTION 'no-start proof requires revoked original authority' USING ERRCODE = '23514';
     END IF;
+    IF NEW.transactional_cleanup_at IS NOT NULL AND OLD.transactional_cleanup_at IS NULL THEN
+        IF job.profile <> 'transactional' OR job.capacity_group IS NULL OR NEW.stage <> 'normal'
+           OR job.phase <> 'reconciling' OR job.ownership_kind <> 'recovery'
+           OR job.ownership_token = NEW.admission_token OR job.normal_attempts <> NEW.ordinal
+           OR job.attempt_deadline IS DISTINCT FROM NEW.deadline
+           OR job.processed_at IS NOT NULL OR job.dead_lettered_at IS NOT NULL OR job.terminal_reason IS NOT NULL
+           OR NOT isfinite(NEW.transactional_cleanup_at) OR NEW.transactional_cleanup_at > clock_timestamp() THEN
+            RAISE EXCEPTION 'transactional cleanup requires exact live revoked recovery authority' USING ERRCODE = '23514';
+        END IF;
+        NEW.transactional_cleanup_at := clock_timestamp();
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -2718,7 +2744,7 @@ DECLARE target_tenant uuid; target_job uuid; job record; normal_count bigint; fi
 BEGIN
     target_tenant := NEW.tenant_id;
     IF TG_TABLE_NAME = 'background_jobs' THEN target_job := NEW.id; ELSE target_job := NEW.job_id; END IF;
-    SELECT j.normal_attempts, j.finalize_attempts, j.current_attempt_id, j.capacity_group INTO job
+    SELECT j.normal_attempts, j.finalize_attempts, j.current_attempt_id, j.capacity_group, j.profile, j.phase, j.processed_at INTO job
       FROM public.background_jobs j WHERE j.tenant_id = target_tenant AND j.id = target_job FOR NO KEY UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'attempt job unavailable' USING ERRCODE = '23514'; END IF;
     SELECT count(*) FILTER (WHERE a.stage = 'normal'), count(*) FILTER (WHERE a.stage = 'finalize')
@@ -2739,6 +2765,29 @@ BEGIN
                 AND r.capacity_group = job.capacity_group)) THEN
         RAISE EXCEPTION 'counted capacity admission requires its durable reservation' USING ERRCODE = '23514';
     END IF;
+    IF job.capacity_group IS NOT NULL AND job.profile = 'transactional' THEN
+        IF EXISTS (SELECT 1 FROM public.background_job_attempts a
+            WHERE a.tenant_id=target_tenant AND a.job_id=target_job AND a.transactional_cleanup_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM public.background_job_reservations r
+                  WHERE r.tenant_id=a.tenant_id AND r.job_id=a.job_id AND r.attempt_id=a.id
+                    AND r.capacity_group=job.capacity_group AND r.released_at IS NOT NULL
+                    AND r.release_reason='transactional_rollback')) THEN
+            RAISE EXCEPTION 'transactional cleanup and reservation release must commit together' USING ERRCODE='23514';
+        END IF;
+        IF EXISTS (SELECT 1 FROM public.background_job_attempts a
+            WHERE a.tenant_id=target_tenant AND a.job_id=target_job AND a.stage='normal'
+              AND (a.id IS DISTINCT FROM job.current_attempt_id OR job.phase IN ('pending','terminal_pending','completed'))
+              AND NOT EXISTS (SELECT 1 FROM public.background_job_reservations r
+                  WHERE r.tenant_id=a.tenant_id AND r.job_id=a.job_id AND r.attempt_id=a.id
+                    AND r.capacity_group=job.capacity_group AND r.released_at IS NOT NULL
+                    AND ((r.release_reason='transactional_rollback' AND a.transactional_cleanup_at IS NOT NULL
+                            AND NOT (job.phase='completed' AND a.id=job.current_attempt_id))
+                        OR (r.release_reason='never_started' AND a.no_start_at IS NOT NULL
+                            AND NOT (job.phase='completed' AND a.id=job.current_attempt_id))
+                        OR (r.release_reason='completed' AND job.processed_at IS NOT NULL AND a.id=job.current_attempt_id)))) THEN
+            RAISE EXCEPTION 'grouped transactional eligibility requires positive released history' USING ERRCODE='23514';
+        END IF;
+    END IF;
     RETURN NULL;
 END;
 $$;
@@ -2755,7 +2804,7 @@ CREATE FUNCTION public.fn_background_job_reservations_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
 DECLARE attempt record;
 BEGIN
-    SELECT a.organization_id, a.stage, a.no_start_at, a.quiescent_at, a.outcome_kind, j.capacity_group,
+    SELECT a.organization_id, a.stage, a.no_start_at, a.quiescent_at, a.outcome_kind, a.transactional_cleanup_at, j.profile, j.capacity_group,
            j.current_attempt_id, j.processed_at INTO attempt
       FROM public.background_job_attempts a JOIN public.background_jobs j
         ON j.tenant_id = a.tenant_id AND j.id = a.job_id
@@ -2784,7 +2833,9 @@ BEGIN
         IF NEW.released_at IS NOT NULL AND OLD.released_at IS NULL AND NOT
            ((NEW.release_reason = 'completed' AND attempt.processed_at IS NOT NULL)
             OR (NEW.release_reason = 'never_started' AND attempt.no_start_at IS NOT NULL)
-            OR (NEW.release_reason = 'quiescent' AND attempt.quiescent_at IS NOT NULL AND attempt.outcome_kind IS NOT NULL)) THEN
+            OR (NEW.release_reason = 'quiescent' AND attempt.quiescent_at IS NOT NULL AND attempt.outcome_kind IS NOT NULL)
+            OR (NEW.release_reason = 'transactional_rollback' AND attempt.profile = 'transactional'
+                AND attempt.transactional_cleanup_at IS NOT NULL)) THEN
             RAISE EXCEPTION 'reservation release requires positive completion or quiescence' USING ERRCODE = '23514';
         END IF;
     END IF;
@@ -3180,7 +3231,8 @@ GRANT UPDATE (phase, normal_attempts, finalize_attempts, current_attempt_id, att
 GRANT INSERT (id, tenant_id, organization_id, job_id, stage, ordinal, admission_token, deadline, final_outcome_attempt_id)
     ON background_job_attempts TO learnstack_app;
 GRANT UPDATE (plan_fingerprint, operation_id, execute_intent_at, outcome, outcome_kind, outcome_at,
-    quiescence_id, quiescence_kind, quiescent_at, no_start_at) ON background_job_attempts TO learnstack_app;
+    quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at)
+    ON background_job_attempts TO learnstack_app;
 GRANT INSERT (tenant_id, capacity_group) ON background_job_capacity TO learnstack_app;
 -- PostgreSQL row locking requires an UPDATE privilege. The column is immutable;
 -- this narrow grant permits SELECT FOR UPDATE, never a mutex identity mutation.
@@ -3201,7 +3253,7 @@ GRANT UPDATE (phase, ownership_token, ownership_kind, ownership_until, available
     business_finalization_incomplete) ON background_jobs TO learnstack_outbox_admin;
 GRANT SELECT (id, tenant_id, organization_id, job_id, stage, ordinal, admission_token, admitted_at,
     deadline, final_outcome_attempt_id, plan_fingerprint, operation_id, execute_intent_at, outcome_kind,
-    outcome_at, quiescence_id, quiescence_kind, quiescent_at, no_start_at)
+    outcome_at, quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at)
     ON background_job_attempts TO learnstack_outbox_admin;
 GRANT SELECT ON background_job_capacity, background_job_reservations,
     background_job_recurrences, background_job_occurrences, background_job_recipients TO learnstack_outbox_admin;
@@ -3625,6 +3677,14 @@ The job-only application floor is `2Ut`, where `Ut` sums workers-plus-four only
 for transactional pools: **10** by default and **108** at its maximum topology.
 Unrelated HTTP/delivery demand requires separately budgeted headroom. This floor
 is not a bound on arbitrary arrivals or total application-source demand.
+
+Step 6 reuses the recovery/probe lane for capacity acquisition and parked probes.
+Its app checkpoint follows positive main/auxiliary/callback cleanup on the same
+invocation source owner, with old bindings permanently closed. One prebound
+checkpoint slot retains actual work and cancellation cleanup; a failed cleanup
+cannot start another scope. This sequential phase adds no simultaneous main or
+auxiliary checkout to `2Ut`. The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+owns its pending qualification and review receipts.
 
 These are current acquisition inventories under Accepted ADR-0047, not
 deployment-wide PostgreSQL capacity guarantees. Independent progress at each

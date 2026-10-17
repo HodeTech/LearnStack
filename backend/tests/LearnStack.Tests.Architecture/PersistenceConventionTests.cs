@@ -571,7 +571,12 @@ public sealed partial class PersistenceConventionTests
     {
         ["LearnStack.Infrastructure/Jobs/BackgroundJobControl.cs"] =
             "The process-owned independent renewal, recovery and terminal lanes retain their own privileged operations; "
-            + "none invokes a handler or uses an ambient unit or module DbContext (ADR-0047/0059).",
+            + "the exact prebound capacity checkpoint uses a fresh sequential scope on the original source owner, "
+            + "never a control-lane ambient unit or module DbContext (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobCapacityCheckpointOperation.cs"] =
+            "One prebound capacity checkpoint retains its actual task, private cancellation callbacks and source owner; "
+            + "the exact executor enters a fresh sequential application scope after positive original cleanup, "
+            + "never concurrently on an existing ambient unit (ADR-0047).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobRenewalOperation.cs"] =
             "One prebound renewal owner retains its actual privileged SQL task and a separate bounded wait; "
             + "both belong to the process lane, never an ambient unit or module DbContext (ADR-0047).",

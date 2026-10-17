@@ -9,9 +9,9 @@ using NpgsqlTypes;
 namespace LearnStack.Infrastructure.Jobs;
 
 /// <summary>Payload-free short transactional control; no operation grants execution authority.</summary>
-internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource source,
+internal sealed partial class PostgresBackgroundJobControlStore(PrivilegedDataSource source,
     BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeOptions options, IGuidFactory ids,
-    BackgroundJobRuntimeGate? runtimeGate = null)
+    BackgroundJobRuntimeGate? runtimeGate = null) : BackgroundJobCapacityRecoveryReceipt.MintingSource
 {
     private const string Incomplete = "processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL";
 
@@ -45,14 +45,14 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
                 command = Command(resources, """
                     WITH renewal_clock AS MATERIALIZED (SELECT clock_timestamp() AS at),
                     input AS (SELECT * FROM unnest(@ids, @tenants, @organizations, @definitions, @queues,
-                        @attempts, @tokens, @generations, @deadlines, @ordinals)
-                        AS x(id, tenant, organization, definition, queue, attempt, token, generation, deadline, ordinal))
+                        @attempts, @tokens, @generations, @deadlines, @ordinals, @groups)
+                        AS x(id, tenant, organization, definition, queue, attempt, token, generation, deadline, ordinal, capacity))
                     UPDATE background_jobs j SET ownership_until = LEAST(renewal_clock.at + @lease, j.attempt_deadline)
                     FROM input x, renewal_clock
                     WHERE j.id = x.id AND j.id = ANY(@locked) AND j.tenant_id = x.tenant
                         AND j.organization_id IS NOT DISTINCT FROM x.organization
                         AND j.definition_key = x.definition AND j.queue = x.queue
-                        AND j.profile = 'transactional' AND j.capacity_group IS NULL
+                        AND j.profile = 'transactional' AND j.capacity_group IS NOT DISTINCT FROM x.capacity
                         AND j.current_attempt_id = x.attempt AND j.ownership_token = x.token
                         AND j.wake_generation = x.generation AND j.normal_attempts = x.ordinal
                         AND j.attempt_deadline = x.deadline AND j.phase = 'executing' AND j.ownership_kind = 'execution'
@@ -70,6 +70,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
                 command.Parameters.AddWithValue("generations", frozen.Select(identity => identity.WakeGeneration).ToArray());
                 command.Parameters.AddWithValue("deadlines", frozen.Select(identity => identity.Deadline).ToArray());
                 command.Parameters.AddWithValue("ordinals", frozen.Select(identity => identity.NormalAttemptOrdinal).ToArray());
+                command.Parameters.AddWithValue("groups", NpgsqlDbType.Array | NpgsqlDbType.Text, frozen.Select(identity => identity.CapacityGroup).ToArray());
                 command.Parameters.AddWithValue("locked", locked.ToArray());
                 command.Parameters.AddWithValue("lease", options.LeaseDuration);
                 var renewals = new List<BackgroundJobRenewal>();
@@ -112,7 +113,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
             if (await OpenAsync(resources, deadline.Token).ConfigureAwait(false))
             {
                 var row = await LockRowAsync(resources, identity.JobId.Value, deadline.Token).ConfigureAwait(false);
-                if (row is not null && row.Matches(identity) && row.Phase == "executing" && row.OwnershipKind == "execution"
+                if (identity.CapacityGroup is null && row is not null && row.Matches(identity) && row.Phase == "executing" && row.OwnershipKind == "execution"
                     && row.Incomplete && row.MatchingAttempt && row.LedgerToken == identity.Token)
                 {
                     var command = Command(resources, """
@@ -182,7 +183,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
             {
                 var active = definitions.DefinitionKeys.Where(key => definitions.TryGet(key, out var definition)
                     && definition.Readiness == BackgroundJobDefinitionReadiness.Active
-                    && definition.Profile == BackgroundJobExecutionProfile.Transactional && definition.CapacityGroup is null).ToArray();
+                    && definition.Profile == BackgroundJobExecutionProfile.Transactional).ToArray();
                 var compatible = active.Concat(definitions.RetiredKeys).ToArray();
                 var command = Command(resources, SelectionSql(lane));
                 command.Parameters.AddWithValue("blocked", retainedJobIds.ToArray());
@@ -200,12 +201,16 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
                     if (row is null || !row.Incomplete) continue;
                     var resolution = definitions.Resolve(row.DefinitionKey);
                     if (resolution is { Disposition: BackgroundJobDefinitionDisposition.Active, Definition: { } definition }
-                        && (definition.Profile != BackgroundJobExecutionProfile.Transactional || definition.CapacityGroup is not null
+                        && (definition.Profile != BackgroundJobExecutionProfile.Transactional || definition.CapacityGroup != row.CapacityGroup
                             || definition.Queue != row.Queue
                             || (definition.Scope == BackgroundJobScope.TenantWide ? row.OrganizationId is not null : row.OrganizationId is null)))
                         continue;
                     BackgroundJobControlChange? changed = null;
-                    if (lane == BackgroundJobControlLane.Recovery && row.Phase == "pending" && row.OwnershipKind == "routing")
+                    if (lane == BackgroundJobControlLane.CapacityProbe && row.Phase == "reconciling" && row.OwnershipToken is null)
+                        changed = await RecoverCapacityRowAsync(resources, row,
+                            resolution.Disposition == BackgroundJobDefinitionDisposition.Retired ? BackgroundJobTerminalReason.RetiredDefinition : null,
+                            "unexpected_fault", deadline.Token).ConfigureAwait(false);
+                    else if (lane == BackgroundJobControlLane.Recovery && row.Phase == "pending" && row.OwnershipKind == "routing")
                         changed = await ClearExpiredRoutingAsync(resources, row, deadline.Token).ConfigureAwait(false);
                     else if (resolution.Disposition is BackgroundJobDefinitionDisposition.Active or BackgroundJobDefinitionDisposition.Retired)
                     {
@@ -249,9 +254,12 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
                 var now = (DateTime)(await command.ExecuteScalarAsync(deadline.Token).ConfigureAwait(false))!;
                 await resources.FinishCommandAsync().ConfigureAwait(false);
                 var dbNow = new DateTimeOffset(now);
-                var disposition = Interpret(probe, row);
+                var capacity = probe.Boundary is BackgroundJobCommitBoundary.CapacityRecovery or BackgroundJobCommitBoundary.TransactionalCleanup
+                    ? await ProbeCapacityAsync(resources, probe, row, dbNow, deadline.Token).ConfigureAwait(false) : null;
+                var disposition = capacity?.Disposition ?? Interpret(probe, row);
                 value = new(disposition, probe.JobId, row?.Phase, row?.WakeGeneration ?? 0, row?.NormalAttempts ?? 0,
-                    row?.AttemptId, row?.OwnershipToken, row?.OwnershipUntil, row?.Deadline, dbNow);
+                    row?.AttemptId, row?.OwnershipToken, row?.OwnershipUntil, row?.Deadline, dbNow)
+                { RecoveryReceipt = capacity?.RecoveryReceipt, CurrentRecoveryAuthority = capacity?.CurrentRecoveryAuthority == true };
                 // A read probe needs no COMMIT and cannot create recursive COMMIT uncertainty.
                 await resources.Transaction!.RollbackAsync(deadline.Token).ConfigureAwait(false);
             }
@@ -265,7 +273,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
     {
         if (row is null) return BackgroundJobProbeDisposition.Missing;
         if (row.TenantId != probe.TenantId || row.OrganizationId != probe.OrganizationId
-            || row.DefinitionKey != probe.DefinitionKey || row.Queue != probe.Queue)
+            || row.DefinitionKey != probe.DefinitionKey || row.Queue != probe.Queue || row.CapacityGroup != probe.CapacityGroup)
             return BackgroundJobProbeDisposition.ChangedOwner;
         if (row.ProcessedAt is not null) return BackgroundJobProbeDisposition.BusinessCompleted;
         if (row.DeadLetteredAt is not null) return BackgroundJobProbeDisposition.TerminalCompleted;
@@ -290,18 +298,20 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
     {
         var selection = lane switch
         {
+            BackgroundJobControlLane.CapacityProbe => "phase = 'reconciling' AND ownership_token IS NULL AND capacity_group IS NOT NULL AND probe_after <= statement_timestamp() AND definition_key = ANY(@compatible) ORDER BY probe_after, created_at, id",
             BackgroundJobControlLane.Recovery => "ownership_token IS NOT NULL AND phase <> 'quarantined' AND ownership_until <= statement_timestamp() AND (ownership_kind = 'routing' OR definition_key = ANY(@compatible)) ORDER BY ownership_until, created_at, id",
             BackgroundJobControlLane.Exhaustion => "ownership_token IS NULL AND phase = 'pending' AND normal_attempts = 6 AND available_after <= statement_timestamp() AND definition_key = ANY(@compatible) ORDER BY available_after, created_at, id",
             BackgroundJobControlLane.Retirement => "ownership_token IS NULL AND phase = 'pending' AND normal_attempts < 6 AND available_after <= statement_timestamp() AND definition_key = ANY(@retired) ORDER BY available_after, created_at, id",
             _ => throw new ArgumentOutOfRangeException(nameof(lane)),
         };
-        return $"SELECT id FROM background_jobs WHERE {Incomplete} AND profile = 'transactional' AND capacity_group IS NULL AND NOT (id = ANY(@blocked)) AND {selection} LIMIT @batch FOR UPDATE SKIP LOCKED";
+        return $"SELECT id FROM background_jobs WHERE {Incomplete} AND profile = 'transactional' AND NOT (id = ANY(@blocked)) AND {selection} LIMIT @batch FOR UPDATE SKIP LOCKED";
     }
 
     private async Task<BackgroundJobControlChange?> RecoverAsync(BackgroundJobControlResources resources,
         ControlRow row, BackgroundJobTerminalReason? reason, string errorCode, CancellationToken token)
     {
         if (!row.MatchingAttempt || row.NormalAttempts is < 1 or > 6) return null;
+        if (row.CapacityGroup is not null) return await RecoverCapacityRowAsync(resources, row, reason, errorCode, token).ConfigureAwait(false);
         var recoveryToken = ids.NewUuidV4();
         var command = Command(resources, """
             UPDATE background_jobs SET phase = 'reconciling', ownership_token = @recovery,
@@ -378,7 +388,8 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
 
     private static BackgroundJobCommitProbe Probe(ControlRow row, BackgroundJobControlChange change) =>
         new(BackgroundJobCommitBoundary.Control, row.JobId, row.TenantId, row.OrganizationId, row.DefinitionKey,
-            row.Queue, row.WakeGeneration, row.AttemptId, row.OwnershipToken ?? Guid.Empty, change.WakeGeneration, change.Phase);
+            row.Queue, row.WakeGeneration, row.AttemptId, row.OwnershipToken ?? Guid.Empty, change.WakeGeneration, change.Phase,
+            CapacityGroup: row.CapacityGroup);
 
     private async Task<bool> OpenAsync(BackgroundJobControlResources resources, CancellationToken token)
     {
@@ -431,7 +442,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
         var command = Command(resources, """
             SELECT j.id, j.tenant_id, j.organization_id, j.definition_key, j.queue, j.phase, j.normal_attempts,
                 j.current_attempt_id, j.ownership_token, j.ownership_kind, j.ownership_until, j.attempt_deadline,
-                j.wake_generation, j.terminal_reason, j.processed_at, j.dead_lettered_at
+                j.wake_generation, j.terminal_reason, j.processed_at, j.dead_lettered_at, j.profile, j.capacity_group, j.original_due_at
             FROM background_jobs j WHERE j.id = @id FOR UPDATE
             """);
         command.Parameters.AddWithValue("id", id);
@@ -443,7 +454,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
             row = new(r.GetGuid(0), r.GetGuid(1), GuidOrNull(r, 2), r.GetString(3), r.GetString(4), r.GetString(5), r.GetInt32(6),
                 GuidOrNull(r, 7), GuidOrNull(r, 8), r.IsDBNull(9) ? null : r.GetString(9), TimeOrNull(r, 10), TimeOrNull(r, 11),
                 r.GetInt64(12), r.IsDBNull(13) ? null : r.GetString(13), TimeOrNull(r, 14), TimeOrNull(r, 15),
-                null, null, null, null);
+                null, null, null, null, r.GetString(16), r.IsDBNull(17) ? null : r.GetString(17), r.GetFieldValue<DateTimeOffset>(18));
         }
         await FinishAsync(resources).ConfigureAwait(false);
         if (row?.AttemptId is not { } attemptId) return row;
@@ -483,7 +494,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
         string Phase, int NormalAttempts, Guid? AttemptId, Guid? OwnershipToken, string? OwnershipKind,
         DateTimeOffset? OwnershipUntil, DateTimeOffset? Deadline, long WakeGeneration, string? TerminalReason,
         DateTimeOffset? ProcessedAt, DateTimeOffset? DeadLetteredAt, Guid? LedgerToken, string? LedgerStage,
-        int? LedgerOrdinal, DateTimeOffset? LedgerDeadline)
+        int? LedgerOrdinal, DateTimeOffset? LedgerDeadline, string Profile, string? CapacityGroup, DateTimeOffset OriginalDueAt)
     {
         internal bool Incomplete => ProcessedAt is null && DeadLetteredAt is null && TerminalReason is null;
         internal bool MatchingAttempt => AttemptId is not null && LedgerToken is not null && LedgerStage == "normal"
@@ -491,7 +502,7 @@ internal sealed class PostgresBackgroundJobControlStore(PrivilegedDataSource sou
         internal bool Matches(BackgroundJobExecutionIdentity identity) => JobId == identity.JobId.Value && TenantId == identity.TenantId.Value
             && OrganizationId == identity.OrganizationId?.Value && DefinitionKey == identity.DefinitionKey && Queue == identity.Queue
             && AttemptId == identity.AttemptId.Value && OwnershipToken == identity.Token && WakeGeneration == identity.WakeGeneration
-            && Deadline == identity.Deadline && NormalAttempts == identity.NormalAttemptOrdinal;
+            && Deadline == identity.Deadline && NormalAttempts == identity.NormalAttemptOrdinal && CapacityGroup == identity.CapacityGroup && Profile == "transactional";
         internal bool Matches(BackgroundJobRoutingClaim claim) => JobId == claim.JobId.Value && TenantId == claim.TenantId.Value
             && OrganizationId == claim.OrganizationId?.Value && DefinitionKey == claim.DefinitionKey && Queue == claim.Queue
             && OwnershipToken == claim.Token && WakeGeneration == claim.WakeGeneration;

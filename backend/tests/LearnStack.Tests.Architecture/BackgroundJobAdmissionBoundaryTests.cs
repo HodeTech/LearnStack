@@ -37,7 +37,8 @@ public sealed partial class OutboxDispatchConventionTests
             {
                 (typeof(ReadBackgroundJobEnvelopeQuery), BackgroundJobRequestClassification.FrameworkReadOnly, (BackgroundJobScope?)null),
                 (typeof(AdmitBackgroundJobAttemptCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
-            }, "Fix: keep the nonempty exact framework pair distinct from the empty business catalogue");
+                (typeof(RecordBackgroundJobCapacityCleanupCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
+            }, "Fix: keep the three exact framework requests distinct from the empty business catalogue");
         var audit = new AuditCatalog([new BackgroundJobAuditCatalogSource()]);
         foreach (var request in registry.All)
         {
@@ -65,6 +66,8 @@ public sealed partial class OutboxDispatchConventionTests
             if (!types.ContainsKey(subject)) offenders.Add("Missing live job admission subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var sites = CallSites(census).ToArray();
+        var authorityInstructions = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference).ToArray();
         var claim = types[(DeliveryApplication, JobRoutingClaim)];
         var source = types[(DeliveryApplication, JobClaimSource)];
         var receipt = types[(DeliveryApplication, JobStartReceipt)];
@@ -81,6 +84,7 @@ public sealed partial class OutboxDispatchConventionTests
         if (!source.IsAbstract || source.IsSealed) offenders.Add("Routing claims require their closed abstract minting seam");
         CheckSet(offenders, "routing claim minting implementations", types.Values.Where(type => Derives(type, source, types)).Select(TypeId),
             [TypeId(types[(InfrastructureAssembly, JobRoutingStore)])]);
+        var revalidation = AdmissionRevalidationMethod(census, offenders);
 
         Capability(DeliveryApplication, JobRoutingClaim, ".ctor", [(DeliveryApplication, JobClaimSource, "MintClaim")]);
         Capability(DeliveryApplication, JobClaimSource, "MintClaim", [(InfrastructureAssembly, JobRoutingStore, "TryClaimOwnedAsync")]);
@@ -92,13 +96,15 @@ public sealed partial class OutboxDispatchConventionTests
         Capability(DeliveryApplication, JobStartRequest, "MarkCommitting", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordCommitted", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordAttempt", [(InfrastructureAssembly, JobStartHandler, "Handle")]);
+        Capability(DeliveryApplication, JobStartRequest, "RecordCapacityDeferred", [(InfrastructureAssembly, JobStartHandler, "Handle")]);
         Capability(DeliveryApplication, JobAdmission, "EnterFramework", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Capability(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Capability(DeliveryApplication, JobAdmission, "RequireRead", [(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope"),
             (InfrastructureAssembly, JobReadHandler, "Handle"), (InfrastructureAssembly, JobReadHandler, "Handle")]);
         Capability(DeliveryApplication, JobAdmission, "RequireStart", [(DeliveryApplication, JobStartRequest, "BindOwner"),
-            (DeliveryApplication, JobStartRequest, "RecordAttempt"), (InfrastructureAssembly, JobStartHandler, "Handle"),
-            (InfrastructureAssembly, JobStartHandler, "Handle")]);
+            (DeliveryApplication, JobStartRequest, "RecordAttempt"), (DeliveryApplication, JobStartRequest, "RecordCapacityDeferred"),
+            (InfrastructureAssembly, JobStartHandler, "Handle")],
+            [revalidation is null ? "missing admission revalidation" : MethodId(revalidation)]);
         Capability(DeliveryApplication, JobAdmission, "AnnouncementContext", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobAdmission, "RequireOperation", [(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
             (DeliveryApplication, JobAdmission, "RequireOwnerEntry")]);
@@ -132,14 +138,21 @@ public sealed partial class OutboxDispatchConventionTests
         CheckExecutorDispatch();
         return offenders;
 
-        void Capability(string assembly, string typeName, string name, (string Assembly, string Type, string Method)[] owners)
+        void Capability(string assembly, string typeName, string name, (string Assembly, string Type, string Method)[] owners,
+            string[]? additionalOwners = null)
         {
             var target = types[(assembly, typeName)];
             if (target.Methods.Count(method => method.Name == name) != 1)
                 offenders.Add(typeName + "." + name + ": capability requires one exact declaration");
             CheckSet(offenders, "job capability " + typeName + "." + name,
                 sites.Where(site => SameType(site.Target.DeclaringType, target) && site.Target.Name == name).Select(site => site.Owner),
-                owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)));
+                owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)).Concat(additionalOwners ?? []));
+            foreach (var instruction in authorityInstructions
+                         .Where(instruction => instruction.Operand is MethodReference method
+                             && SameType(method.DeclaringType, target) && method.Name == name))
+                if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt
+                    && !(name == ".ctor" && instruction.OpCode == OpCodes.Newobj))
+                    offenders.Add(typeName + "." + name + ": authority cannot escape as a delegate");
         }
 
         void CheckDeliveryOperationType()
@@ -178,14 +191,14 @@ public sealed partial class OutboxDispatchConventionTests
             CheckSet(offenders, "framework request metadata types", types[(DeliveryApplication, framework)].Methods.SelectMany(method => method.HasBody
                     ? method.Body.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldtoken && instruction.Operand is TypeReference)
                         .Select(instruction => ((TypeReference)instruction.Operand).FullName) : []),
-                [JobReadRequest, JobStartRequest]);
+                [JobReadRequest, JobStartRequest, CapacityCommand]);
             CheckSet(offenders, "explicit Audit Off framework requests", types[(DeliveryApplication, audit)].Methods.SelectMany(MethodOperands)
                     .OfType<GenericInstanceMethod>().Where(method => method.Name == "Off")
-                    .SelectMany(method => method.GenericArguments).Select(type => type.FullName), [JobReadRequest, JobStartRequest]);
+                    .SelectMany(method => method.GenericArguments).Select(type => type.FullName), [JobReadRequest, JobStartRequest, CapacityCommand]);
             var admission = types[(DeliveryApplication, JobAdmission)];
             foreach (var (name, expected) in new[]
                      {
-                         ("IsFramework", new[] { JobReadRequest, JobStartRequest }),
+                         ("IsFramework", new[] { JobReadRequest, JobStartRequest, CapacityCommand }),
                          ("ModeFor", new[] { "LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute", JobReadRequest }),
                          ("PermitsUnresolvedRead", new[] { JobReadRequest }),
                          ("AnnouncementContext", new[] { JobReadRequest }),
@@ -221,6 +234,7 @@ public sealed partial class OutboxDispatchConventionTests
             var executor = types[(InfrastructureAssembly, JobExecutorType)];
             var owner = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync");
             var business = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync");
+            var checkpoint = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync");
             var owners = executor.Methods.Select(MethodId).ToHashSet(StringComparer.Ordinal);
             var calls = sites.Where(site => owners.Contains(site.Owner)).ToArray();
             var services = calls.Where(site => site.Target.Name is "GetRequiredService" or "GetService" or "GetServices")
@@ -229,13 +243,15 @@ public sealed partial class OutboxDispatchConventionTests
                 [owner + ":MediatR.ISender", owner + ":MediatR.ISender", owner + ":" + LifecycleUnit, owner + ":" + LifecycleUnit,
                  business + ":MediatR.ISender", business + ":" + LifecycleUnit,
                  business + ":LearnStack.Application.Jobs.BackgroundJobCompletionParticipant",
-                 business + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry"]);
+                 business + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
+                 checkpoint + ":MediatR.ISender", checkpoint + ":" + LifecycleUnit]);
             var sends = calls.Where(site => site.Target.Name == "Send" && site.Target.DeclaringType.FullName == "MediatR.ISender")
                 .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-request"));
             CheckSet(offenders, "framework executor exact request dispatch", sends,
                 [owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.Application.Jobs.BackgroundJobEnvelope>",
                  owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
-                 business + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
+                 business + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
+                 checkpoint + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
             foreach (var request in new[] { JobReadRequest, JobStartRequest })
                 CheckSet(offenders, "framework request construction " + request,
                     sites.Where(site => site.Target.Name == ".ctor" && site.Target.DeclaringType.FullName == request
@@ -247,6 +263,38 @@ public sealed partial class OutboxDispatchConventionTests
                         or "System.Reflection.ConstructorInfo" || target.DeclaringType.FullName == "System.Type" && target.Name is "GetType" or "GetConstructor")
                     offenders.Add("Framework admission cannot dynamically construct or invoke a business request: " + target.FullName);
         }
+    }
+
+    private static MethodDefinition? AdmissionRevalidationMethod(ProductionCensus census, SortedSet<string> offenders)
+    {
+        var handler = census.Types[(InfrastructureAssembly, JobStartHandler)];
+        var handle = handler.Methods.Where(method => method.Name == "Handle").ToArray();
+        if (handle.Length != 1) { offenders.Add("Admission requires its exact handler declaration"); return null; }
+        var bodies = OwnedBodies(census).ToArray();
+        var targets = bodies.Where(item => item.Owner == handle[0]).SelectMany(item => MethodOperands(item.Body))
+            .Where(target => target.Name.StartsWith("<Handle>g__RequireCurrent|", StringComparison.Ordinal))
+            .DistinctBy(MethodId).ToArray();
+        if (targets.Length != 1 || !census.Types.TryGetValue(Key(targets[0].DeclaringType), out var declaring))
+        { offenders.Add("Admission requires its one actual local owner revalidation target"); return null; }
+        var methods = declaring.Methods.Where(method => method.Name == targets[0].Name).ToArray();
+        if (methods.Length != 1 || methods[0].HasGenericParameters || methods[0].ReturnType.FullName != "System.Void"
+            || !(methods[0].IsPrivate || declaring.IsNestedPrivate)
+            || !(declaring == handler || declaring.DeclaringType == handler))
+        { offenders.Add("Admission's local revalidation cannot become another public or generic owner"); return null; }
+        var method = methods[0];
+        var sites = CallSites(census).Where(site => site.Target.Name == method.Name && MethodId(site.Target) == MethodId(method)).ToArray();
+        CheckSet(offenders, "actual admission owner revalidation sites", sites.Select(site => site.Owner),
+            Enumerable.Repeat(MethodId(handle[0]), 16));
+        foreach (var instruction in bodies.SelectMany(item => item.Body.Body.Instructions)
+                     .Where(instruction => instruction.Operand is MethodReference target
+                         && target.Name == method.Name && MethodId(target) == MethodId(method)))
+            if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
+                offenders.Add("Admission revalidation cannot escape as a delegate");
+        foreach (var (type, name) in new[] { (JobAdmission, "RequireStart"), (JobAdmission, "RequireContext"),
+                     (AppJobOwner, "RequireOwnedMainUnit") })
+            if (MethodOperands(method).Count(target => target.DeclaringType.FullName == type && target.Name == name) != 1)
+                offenders.Add("Admission's actual local revalidation lost " + type + "." + name);
+        return method;
     }
 
     private static string JobOwner(SortedSet<string> offenders, Dictionary<(string Assembly, string Type), TypeDefinition> types,
@@ -435,9 +483,11 @@ public sealed partial class OutboxDispatchConventionTests
             (JobAdmission, "AnnouncementContext"),
             (JobAdmission, "RequireOperation"),
             (JobClaimSource, "MintClaim"), (JobStartReceipt, "FromAcknowledged"), (JobStartReceipt, "Consume"),
-            (JobStartRequest, "BindOwner"), (JobStartRequest, "MarkCommitting"), (JobStartRequest, "RecordAttempt"), (JobStartRequest, "RecordCommitted"),
+            (JobStartRequest, "BindOwner"), (JobStartRequest, "MarkCommitting"), (JobStartRequest, "RecordAttempt"),
+            (JobStartRequest, "RecordCapacityDeferred"), (JobStartRequest, "RecordCommitted"),
             (DeliveryProducer, "CaptureJobOrigin"), (DeliveryProducer, "RequireJobOrigin"), (DeliveryCoordinator, "ExecuteRequestAsync"),
-        }.Select(subject => types[(DeliveryApplication, subject.Item1)].Methods.Single(method => method.Name == subject.Item2)).ToArray();
+        }.Select(subject => types[(DeliveryApplication, subject.Item1)].Methods.Single(method => method.Name == subject.Item2))
+            .Append(AdmissionRevalidationMethod(census, new SortedSet<string>(StringComparer.Ordinal))!).ToArray();
         capabilities.Should().NotBeEmpty("the dirty controls must start from live production authority");
         foreach (var capability in capabilities)
         {

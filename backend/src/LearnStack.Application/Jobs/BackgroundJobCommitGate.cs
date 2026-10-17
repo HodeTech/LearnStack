@@ -19,6 +19,14 @@ public sealed class BackgroundJobCommitGate
     /// <summary>A receipt and gate can enter the business executor only once.</summary>
     public bool TryStartExecution() => Interlocked.CompareExchange(ref _started, 1, 0) == 0;
 
+    /// <summary>Revokes the unused entry atomically; a closed commit gate alone cannot prove no start.</summary>
+    public bool TrySealUnusedExecution()
+    {
+        var unused = Interlocked.CompareExchange(ref _started, -1, 0) == 0;
+        Close();
+        return unused;
+    }
+
     /// <summary>Closes memory permission only; cancellation never operates on a UoW.</summary>
     public void Close() => Interlocked.CompareExchange(ref _state, Closed, Open);
 

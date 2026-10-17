@@ -98,7 +98,7 @@ public sealed class BackgroundJobRuntime
         _ids = ids;
         _time = time;
         _diagnostics = diagnostics;
-        _jobs = new(source, definitions, executor.ScopeFactory, gate, bounds, ids, time);
+        _jobs = new(source, definitions, executor, gate, bounds, ids, time);
         // The source pin retains these tasks. Their state must retain the
         // concrete owner even after an observer returns with cleanup unresolved.
         _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);

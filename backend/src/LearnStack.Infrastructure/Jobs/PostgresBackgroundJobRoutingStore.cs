@@ -5,6 +5,7 @@ using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Time;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -34,7 +35,7 @@ public sealed class PostgresBackgroundJobRoutingStore(
             throw new ArgumentException("A job wakeup requires its opaque identity and positive generation.");
         var active = definitions.DefinitionKeys.Where(key => definitions.TryGet(key, out var definition)
             && definition.Readiness == BackgroundJobDefinitionReadiness.Active
-            && definition.Profile == BackgroundJobExecutionProfile.Transactional && definition.CapacityGroup is null).ToArray();
+            && definition.Profile == BackgroundJobExecutionProfile.Transactional).ToArray();
         if (active.Length == 0) return new(null, null, null);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(options.SqlTimeout);
@@ -58,7 +59,10 @@ public sealed class PostgresBackgroundJobRoutingStore(
                 WITH candidate AS (
                     SELECT id FROM background_jobs
                     WHERE id = @id AND wake_generation = @generation AND definition_key = ANY(@active)
-                        AND profile = 'transactional' AND capacity_group IS NULL AND phase = 'pending'
+                        AND profile = 'transactional' AND phase = 'pending'
+                        AND EXISTS (SELECT 1 FROM unnest(@active, @groups, @queues) x(definition, capacity, queue_name)
+                            WHERE x.definition=definition_key AND x.capacity IS NOT DISTINCT FROM capacity_group
+                                AND x.queue_name=queue)
                         AND normal_attempts < 6 AND processed_at IS NULL AND dead_lettered_at IS NULL
                         AND terminal_reason IS NULL AND available_after <= clock_timestamp()
                         AND (ownership_token IS NULL OR (ownership_kind = 'routing' AND ownership_until <= clock_timestamp()))
@@ -73,6 +77,10 @@ public sealed class PostgresBackgroundJobRoutingStore(
             command.Parameters.AddWithValue("id", jobId.Value);
             command.Parameters.AddWithValue("generation", wakeGeneration);
             command.Parameters.AddWithValue("active", active);
+            command.Parameters.AddWithValue("groups", NpgsqlDbType.Array | NpgsqlDbType.Text, active.Select(key =>
+                definitions.TryGet(key, out var definition) ? definition.CapacityGroup : null).ToArray());
+            command.Parameters.AddWithValue("queues", active.Select(key =>
+                definitions.TryGet(key, out var definition) ? definition.Queue : "").ToArray());
             command.Parameters.AddWithValue("token", ids.NewUuidV4());
             command.Parameters.AddWithValue("lease", options.LeaseDuration);
             reader = await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false);

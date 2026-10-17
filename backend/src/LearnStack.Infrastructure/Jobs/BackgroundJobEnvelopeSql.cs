@@ -46,8 +46,9 @@ internal static class BackgroundJobEnvelopeSql
     {
         if (!definitions.TryGet(envelope.DefinitionKey, out var definition)
             || definition.Readiness != BackgroundJobDefinitionReadiness.Active
-            || definition.Profile != BackgroundJobExecutionProfile.Transactional || definition.CapacityGroup is not null
-            || envelope.Profile != "transactional" || envelope.CapacityGroup is not null
+            || definition.Profile != BackgroundJobExecutionProfile.Transactional
+            || envelope.Profile != "transactional" || definition.CapacityGroup != envelope.CapacityGroup
+            || definition.CapacityGroup is { } group && !definitions.Infrastructure.CapacityGroups.ContainsKey(group)
             || definition.Queue != envelope.Queue
             || (definition.Scope == BackgroundJobScope.TenantWide) != (envelope.OrganizationId is null)
             || !ActivityContext.TryParse(envelope.Traceparent, null, out var trace)

@@ -18,7 +18,7 @@ public sealed partial class BackgroundJobControlTests
         var gate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var generation = new HangfireGenerationWork(Fixture.Registry.Infrastructure.Pools["transactional"], gate);
         var controller = new BackgroundJobControl(healthy, Fixture.Registry,
-            host.Services.GetRequiredService<IServiceScopeFactory>(), gate, bounds, new SystemGuidFactory(), TimeProvider.System);
+            host.Services.GetRequiredService<JobExecutor>(), gate, bounds, new SystemGuidFactory(), TimeProvider.System);
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         var work = generation.TryBegin()!;

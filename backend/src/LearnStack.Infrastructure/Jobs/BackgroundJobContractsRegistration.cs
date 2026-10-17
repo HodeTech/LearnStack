@@ -28,6 +28,7 @@ public static class BackgroundJobContractsRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuditCatalogSource, BackgroundJobAuditCatalogSource>());
         services.TryAddTransient<IRequestHandler<ReadBackgroundJobEnvelopeQuery, Result<BackgroundJobEnvelope>>, ReadBackgroundJobEnvelopeQueryHandler>();
         services.TryAddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, AdmitBackgroundJobAttemptCommandHandler>();
+        services.TryAddTransient<IRequestHandler<RecordBackgroundJobCapacityCleanupCommand, Result<None>>, RecordBackgroundJobCapacityCleanupCommandHandler>();
         return services;
     }
 }

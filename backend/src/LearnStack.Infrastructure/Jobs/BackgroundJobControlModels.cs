@@ -15,9 +15,9 @@ internal static class BackgroundJobControlLimits
     internal const int MaximumRetainedIds = 64 + 128 + MaximumProbeBatch + 1;
 }
 
-internal enum BackgroundJobControlLane { Recovery, Exhaustion, Retirement }
-internal enum BackgroundJobCommitBoundary { Admission, Business, Control, TerminalClaim, Terminal, Renewal }
-internal enum BackgroundJobProbeDisposition { Unresolved, Missing, ChangedOwner, RolledBack, Admitted, ControlCommitted, BusinessCompleted, TerminalCompleted, Renewed }
+internal enum BackgroundJobControlLane { Recovery, Exhaustion, Retirement, CapacityProbe }
+internal enum BackgroundJobCommitBoundary { Admission, Business, Control, TerminalClaim, Terminal, Renewal, CapacityRecovery, TransactionalCleanup }
+internal enum BackgroundJobProbeDisposition { Unresolved, Missing, ChangedOwner, RolledBack, Admitted, ControlCommitted, BusinessCompleted, TerminalCompleted, Renewed, CapacityRecoveryAcquired, CapacityCleanupCommitted }
 
 internal sealed record BackgroundJobRenewal(BackgroundJobExecutionIdentity Identity,
     DateTimeOffset OwnershipUntil, DateTimeOffset DbNow);
@@ -26,7 +26,10 @@ internal sealed record BackgroundJobControlChange(Guid JobId, long WakeGeneratio
 /// <summary>Only immutable routing/control facts; no payload or executable receipt.</summary>
 internal sealed record BackgroundJobCommitProbe(BackgroundJobCommitBoundary Boundary, Guid JobId, Guid TenantId,
     Guid? OrganizationId, string DefinitionKey, string Queue, long WakeGeneration, Guid? AttemptId, Guid Token,
-    long? ExpectedGeneration = null, string? ExpectedPhase = null, DateTimeOffset? ExpectedUntil = null)
+    long? ExpectedGeneration = null, string? ExpectedPhase = null, DateTimeOffset? ExpectedUntil = null,
+    string? CapacityGroup = null, Guid? RecoveryToken = null, int? Ordinal = null,
+    DateTimeOffset? Deadline = null, DateTimeOffset? AdmittedAt = null,
+    BackgroundJobCapacityCleanupEvidence? CleanupEvidence = null)
 {
     internal static BackgroundJobCommitProbe ForAdmission(BackgroundJobRoutingClaim claim) =>
         new(BackgroundJobCommitBoundary.Admission, claim.JobId.Value, claim.TenantId.Value, claim.OrganizationId?.Value,
@@ -34,19 +37,32 @@ internal sealed record BackgroundJobCommitProbe(BackgroundJobCommitBoundary Boun
 
     internal static BackgroundJobCommitProbe ForBusiness(BackgroundJobExecutionIdentity identity) =>
         new(BackgroundJobCommitBoundary.Business, identity.JobId.Value, identity.TenantId.Value, identity.OrganizationId?.Value,
-            identity.DefinitionKey, identity.Queue, identity.WakeGeneration, identity.AttemptId.Value, identity.Token);
+            identity.DefinitionKey, identity.Queue, identity.WakeGeneration, identity.AttemptId.Value, identity.Token,
+            CapacityGroup: identity.CapacityGroup);
+
+    internal static BackgroundJobCommitProbe ForCapacityCleanup(BackgroundJobCapacityRecoveryReceipt receipt,
+        BackgroundJobCapacityCleanupEvidence evidence) => new(BackgroundJobCommitBoundary.TransactionalCleanup,
+            receipt.JobId.Value, receipt.TenantId.Value, receipt.OrganizationId?.Value, receipt.DefinitionKey,
+            receipt.Queue, receipt.WakeGeneration, receipt.AttemptId.Value, receipt.AdmissionToken,
+            CapacityGroup: receipt.CapacityGroup, RecoveryToken: receipt.RecoveryToken,
+            Ordinal: receipt.NormalAttemptOrdinal, Deadline: receipt.Deadline, AdmittedAt: receipt.AdmittedAt,
+            CleanupEvidence: evidence);
 }
 
 internal sealed record BackgroundJobProbeResult(BackgroundJobProbeDisposition Disposition, Guid JobId,
     string? Phase, long WakeGeneration, int NormalAttempts, Guid? CurrentAttemptId, Guid? OwnershipToken,
-    DateTimeOffset? OwnershipUntil, DateTimeOffset? Deadline, DateTimeOffset DbNow);
+    DateTimeOffset? OwnershipUntil, DateTimeOffset? Deadline, DateTimeOffset DbNow)
+{
+    internal BackgroundJobCapacityRecoveryReceipt? RecoveryReceipt { get; init; }
+    internal bool CurrentRecoveryAuthority { get; init; }
+}
 
 /// <summary>A claim is published only after the terminal acquisition COMMIT is acknowledged.</summary>
 internal sealed class BackgroundJobTerminalClaim
 {
     private BackgroundJobTerminalClaim(NpgsqlDataReader row)
     {
-        if (row.FieldCount != 12) throw new InvalidOperationException("Terminal acquisition requires its exact returned projection.");
+        if (row.FieldCount != 13) throw new InvalidOperationException("Terminal acquisition requires its exact returned projection.");
         JobId = row.GetGuid(0);
         TenantId = row.GetGuid(1);
         OrganizationId = row.IsDBNull(2) ? null : row.GetGuid(2);
@@ -59,6 +75,7 @@ internal sealed class BackgroundJobTerminalClaim
         Token = row.GetGuid(9);
         OwnershipUntil = row.GetFieldValue<DateTimeOffset>(10);
         DbNow = row.GetFieldValue<DateTimeOffset>(11);
+        CapacityGroup = row.IsDBNull(12) ? null : row.GetString(12);
         if (JobId.Version != 7 || TenantId == Guid.Empty || TenantId == LearnStack.SharedKernel.Identifiers.TenantId.PlatformSentinel.Value
             || OrganizationId == Guid.Empty || Token == Guid.Empty || WakeGeneration < 1
             || NormalAttempts is < 0 or > 6 || ((NormalAttempts == 0) != (AttemptId is null))
@@ -80,17 +97,20 @@ internal sealed class BackgroundJobTerminalClaim
     internal Guid Token { get; }
     internal DateTimeOffset OwnershipUntil { get; }
     internal DateTimeOffset DbNow { get; }
+    internal string? CapacityGroup { get; }
     internal static BackgroundJobTerminalClaim FromReturnedRow(NpgsqlDataReader row) => new(row);
     internal BackgroundJobCommitProbe Probe(BackgroundJobCommitBoundary boundary) =>
-        new(boundary, JobId, TenantId, OrganizationId, DefinitionKey, Queue, WakeGeneration, AttemptId, Token);
+        new(boundary, JobId, TenantId, OrganizationId, DefinitionKey, Queue, WakeGeneration, AttemptId, Token,
+            CapacityGroup: CapacityGroup);
 }
 
 /// <summary>A completed operation keeps actual failed cleanup owners and COMMIT uncertainty distinct.</summary>
 internal sealed class OwnedBackgroundJobControl<T>(T? value, BackgroundJobControlResources resources,
-    IReadOnlyList<BackgroundJobCommitProbe> probes)
+    IReadOnlyList<BackgroundJobCommitProbe> probes, object? retainedAuthority = null)
 {
     // Retain the concrete owner even if only one of its disposal operations failed.
     private readonly BackgroundJobControlResources _resources = resources;
+    private readonly object? _retainedAuthority = retainedAuthority;
     internal T? Value { get; } = value;
     internal bool CommitAcknowledged => _resources.CommitAcknowledged;
     internal bool CommitUncertain => _resources.CommitAttempted && !_resources.CommitAcknowledged;
@@ -98,7 +118,11 @@ internal sealed class OwnedBackgroundJobControl<T>(T? value, BackgroundJobContro
     internal bool Failed => _resources.Failure is not null;
     internal bool KnownRollback => !_resources.IsProbe && !_resources.CommitAttempted && _resources.CleanupConfirmed;
     internal IReadOnlyList<BackgroundJobCommitProbe> Probes { get; } = probes;
-    internal void ThrowIfFailed() => _resources.Failure?.Throw();
+    internal void ThrowIfFailed()
+    {
+        GC.KeepAlive(_retainedAuthority);
+        _resources.Failure?.Throw();
+    }
 }
 
 /// <summary>One actual operation's fixed resource owners; cleanup faults never discard the owner.</summary>

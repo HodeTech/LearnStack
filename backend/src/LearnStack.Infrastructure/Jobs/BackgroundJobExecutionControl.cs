@@ -15,12 +15,15 @@ internal sealed class BackgroundJobExecutionControl
     private readonly long _issuedAt;
     private readonly CancellationTokenSource _deadlineStop = new();
     private readonly Task _publicationObservation;
+    private readonly TaskCompletionSource<Task<bool>> _observersPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _observersStarted;
     private Task? _deadlineObservation;
     private Task? _deadlineCancellation;
     private ITimer? _leaseTimer;
     private long _leaseExpiry;
     private Task<JobStartExecutionResult>? _admission;
     private Task<JobBusinessExecutionResult>? _business;
+    private BackgroundJobCapacityCheckpointOperation? _capacityCheckpoint;
     private BackgroundJobExecutionIdentity? _identity;
     private bool _joined, _cleanupFault;
     private int _released;
@@ -115,6 +118,19 @@ internal sealed class BackgroundJobExecutionControl
         }
     }
 
+    internal void HoldCapacityCheckpoint(BackgroundJobCapacityCheckpointOperation operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        lock (_sync)
+        {
+            if (_joined || _cleanupFault || !ReferenceEquals(operation.Cleanup.Execution, this)
+                || _capacityCheckpoint is { } previous && (!previous.Completion.IsCompletedSuccessfully
+                    || previous.Completion.Result.CleanupFailed))
+                throw new InvalidOperationException("Capacity cleanup retains one actual checkpoint until positive cleanup.");
+            _capacityCheckpoint = operation;
+        }
+    }
+
     // Fixed-memory closure is separate from the owned asynchronous cancellation
     // relay. A generation-local drain never calls this for already admitted work.
     internal void CloseExecution()
@@ -174,6 +190,7 @@ internal sealed class BackgroundJobExecutionControl
         // Serialize permanent renewal closure with an already-running renewal
         // before disposing its timer. Only actual cleanup below publishes joined.
         lock (_sync) Interlocked.Exchange(ref _renewalClosed, 1);
+        if (_admission is { IsCompletedSuccessfully: true }) _admission.Result.SourceOwner.CloseIssuance();
         if (!operationCleanupConfirmed) { RetainCleanup(); return false; }
         try
         {
@@ -183,18 +200,49 @@ internal sealed class BackgroundJobExecutionControl
                 RetainCleanup();
                 return false;
             }
-            await _publicationObservation.ConfigureAwait(false);
-            _deadlineCancellation = _deadlineStop.CancelAsync();
-            await _deadlineCancellation.ConfigureAwait(false);
-            if (_deadlineObservation is not null) await _deadlineObservation.ConfigureAwait(false);
-            if (_leaseTimer is not null) await _leaseTimer.DisposeAsync().ConfigureAwait(false);
-            _deadlineStop.Dispose();
+            if (_capacityCheckpoint is { } checkpoint && (await checkpoint.Completion.ConfigureAwait(false)).CleanupFailed)
+            { RetainCleanup(); return false; }
+            if (!await JoinBusinessObserversAsync().ConfigureAwait(false) || !_admission.Result.SourceOwner.CleanupConfirmed)
+            { RetainCleanup(); return false; }
             lock (_sync)
             {
                 if (_cleanupFault) return false;
                 _joined = true;
                 return true;
             }
+        }
+        catch (Exception failure) when (Catchable(failure))
+        {
+            RetainCleanup();
+            return false;
+        }
+    }
+
+    internal Task<bool> JoinBusinessObserversAsync()
+    {
+        lock (_sync)
+        {
+            // Shares RecordRenewal's lock: a late batch cannot rearm a disposed timer.
+            Interlocked.Exchange(ref _renewalClosed, 1);
+            if (_observersStarted) return _observersPublished.Task.Unwrap();
+            _observersStarted = true;
+        }
+        var actual = JoinBusinessObserversCoreAsync();
+        _observersPublished.TrySetResult(actual);
+        return _observersPublished.Task.Unwrap();
+    }
+
+    private async Task<bool> JoinBusinessObserversCoreAsync()
+    {
+        try
+        {
+            await _publicationObservation.ConfigureAwait(false);
+            _deadlineCancellation = _deadlineStop.CancelAsync();
+            await _deadlineCancellation.ConfigureAwait(false);
+            if (_deadlineObservation is not null) await _deadlineObservation.ConfigureAwait(false);
+            if (_leaseTimer is not null) await _leaseTimer.DisposeAsync().ConfigureAwait(false);
+            _deadlineStop.Dispose();
+            lock (_sync) return !_cleanupFault;
         }
         catch (Exception failure) when (Catchable(failure))
         {

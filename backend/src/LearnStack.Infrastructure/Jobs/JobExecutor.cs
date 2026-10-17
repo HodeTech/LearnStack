@@ -17,12 +17,14 @@ public enum JobStartExecutionOutcome
     Canceled,
     Failed,
     Indeterminate,
+    CapacityDeferred,
 }
 
 public sealed record JobStartExecutionResult(JobStartExecutionOutcome Outcome,
     ConfirmedStartReceipt? Receipt, bool CleanupFailed, JobApplicationSourceOwner SourceOwner)
 {
     internal IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup { get; init; } = [];
+    internal BackgroundJobEnvelope? ValidatedEnvelope { get; init; }
 }
 
 /// <summary>A faulted cleanup keeps its concrete resources; a completed async task alone does not.</summary>
@@ -62,6 +64,7 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
         IDisposable? authority = null;
         Activity? activity = null;
         AdmitBackgroundJobAttemptCommand? command = null;
+        BackgroundJobEnvelope? validatedEnvelope = null;
         IUnitOfWork? unit = null;
         CancellationTokenSource? sqlDeadline = null;
         var outcome = JobStartExecutionOutcome.Failed;
@@ -97,6 +100,7 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 if (accessor.Current is not null)
                     throw new InvalidOperationException("Envelope validation cannot install tenant authority.");
                 BackgroundJobExecutionAdmission.InstallValidatedEnvelope(claim, read.Value);
+                validatedEnvelope = read.Value;
                 accessor.Current = CreateContext(read.Value);
                 _ = ActivityContext.TryParse(read.Value.Traceparent, null, isRemote: true, out var parent);
                 activity = new Activity("job.admission").SetIdFormat(ActivityIdFormat.W3C)
@@ -112,7 +116,8 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 var started = await scope.Value.ServiceProvider.GetRequiredService<ISender>()
                     .Send(command, sqlDeadline.Token).ConfigureAwait(false);
                 outcome = started.IsSuccess && command.Receipt is not null
-                    ? JobStartExecutionOutcome.Started : JobStartExecutionOutcome.LostClaim;
+                    ? JobStartExecutionOutcome.Started : command.CapacityDeferred
+                        ? JobStartExecutionOutcome.CapacityDeferred : JobStartExecutionOutcome.LostClaim;
             }
         }
         catch (Exception exception)
@@ -196,12 +201,16 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 retainedCleanup.Add(new(null, null, null, null, null, sourceBinding));
             }
             cleanupFailed |= !await sourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
-            if (command?.Receipt is null || cleanupFailed) sourceOwner.CloseIssuance();
+            if (cleanupFailed || command?.Receipt is null
+                && !(outcome == JobStartExecutionOutcome.Indeterminate
+                    && validatedEnvelope is { Profile: "transactional", CapacityGroup: not null }))
+                sourceOwner.CloseIssuance();
             publication.SettleNoReceipt();
         }
         return new(outcome, command?.Receipt, cleanupFailed, sourceOwner)
         {
             RetainedCleanup = retainedCleanup.AsReadOnly(),
+            ValidatedEnvelope = validatedEnvelope,
         };
     }
 

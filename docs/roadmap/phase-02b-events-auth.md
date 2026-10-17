@@ -5665,7 +5665,7 @@ Steps 7–9 and packet-wide regression/PR/CI remain pending.
 
 ### P02b-4 Step 6 — tenant capacity reservations (2026-10-16)
 
-**Implementation in progress; review rounds have not started.**
+**Implementation locally validated; full review rounds have not started.**
 Step 5 closes at correction `6a2ded99` after both full rounds and independent fix
 verification. Accepted ADR-0047 and the approved nine-step package own this step;
 no new capacity-policy decision or approval is pending.
@@ -5694,6 +5694,127 @@ COMMIT uncertainty, held callbacks/resources, missing-witness parking, exact gra
 and source bounds. Each implementation/correction commit and both fresh review
 rounds are recorded here after they occur. Live external execution remains Step 7;
 final observation/enforcement and full packet regression remain Step 9.
+
+#### Step 6 implementation and qualification (2026-10-17)
+
+The app-role start owner locks the job, then the tenant/group mutex. A separate
+post-wait statement counts every unreleased reservation across organizations and
+instances. The registered Hard projection intersects the operational ceiling;
+missing/unlimited, zero, positive, oversized and invalid/faulted answers retain
+the accepted bounded semantics. Capacity refusal spends no attempt. No production
+job definition, entitlement key or provider is introduced.
+
+Business success releases its exact reservation on the existing business/MUST/
+outbox/child-job completion transaction. Other grouped transactional outcomes
+must join the actual admission/business, auxiliary resources, observers and
+original private cancellation callbacks before minting a local cleanup witness.
+Genuine no-start requires an atomic unused-entry seal, including receipt-less
+admission uncertainty. This witness grants neither execution nor database truth.
+
+The confined recovery owner publishes a separate nonexecuting capability only
+from acknowledged acquisition or an exact locked proof. The same original
+application-source owner then enters one fresh sequential checkpoint. Its old
+bindings remain permanently closed. Evidence and release commit together;
+unknown checkpoint COMMIT probes read the descriptor's historical attempt after
+the header lock, separately from current routing authority. Missing local cleanup
+parks occupied work with a paced probe; neither TTL nor a replacement owner
+manufactures cleanup. Stop retains and joins every issued checkpoint/callback.
+Host stop admits no fresh cleanup checkpoint; a clean local stop cannot substitute
+for cleanup evidence that never committed, so restart still retains that occupancy.
+
+Forward migration `20261016210528_add_transactional_job_capacity_cleanup` adds
+write-once transactional cleanup evidence, its exact release reason and three
+existing guard replacements. The predecessor's non-key count lock remains.
+Only the app UPDATE and dispatcher status-SELECT column budgets expand; bypass
+reservation writes remain refused. Down refuses recorded new history rather
+than erasing or relabeling it. Canonical fresh DDL comparison remains exact;
+Down/reapply accounts only for PostgreSQL's advanced physical position of that
+single dropped/readded column, preserving every other inventory fact.
+
+Exact owner, framework-request, minting, command, task/callback, source and final
+SQL-fence censuses gain closed enrolled paths and planted dirty/clean controls.
+The existing transaction owner and ADR-0040's eight logical GUC setters remain;
+the new executor partial belongs to the same ADR-0036 context writer. Its exact
+accessor-writing file is enrolled explicitly; no new logical writer is added.
+Sequential cleanup adds no simultaneous main/auxiliary checkout to the current
+acquisition inventory.
+
+Initial qualification exposed two missing SQL separators in the new checkpoint
+builder; actual native tests now fail directly through a sanitized observer fault
+signal instead of hiding the handler failure behind a timeout. Both separators
+are fixed and the same four real native cleanup/acknowledgement-loss cases pass.
+It also corrected the no-plan fixture's empty-provider assertion and the precise
+physical-column comparison above. Initial failing receipts are retained.
+
+#### Step 6 validation receipts (2026-10-17)
+
+Local CI Release build completes with zero warnings/errors. The full Unit suite
+passes 2,229 cases, Contract passes four, and integration without Docker passes
+176, with zero failures/skips. These are separate local suites, not current-head
+PR CI or full packet closeout evidence.
+
+Focused PostgreSQL qualification passes all 192 cases after the SQL separator and
+fixture corrections above. Eight additional native facade cases pass together,
+including admission and capacity-checkpoint acknowledgement loss, private callback
+retention and receipt-less genuine no-start. A first tight-budget no-start run
+reached a disposal-barrier timeout once; that cause was not reproduced. The same
+two cases and two repeated mixed eight-case runs then passed. The new no-start
+fixture now uses the accepted five-second SQL budget and a ten-second transaction
+budget, retaining every barrier and bounded failure diagnostic. This removes an
+unnecessary cold-source/role-initializer/read constraint; it does not establish the
+cause of that initial timeout.
+
+Three actual production-source mutations compile and fail their intended
+behavioral controls: counting before the real tenant/group mutex wait (two cases),
+leaving sealed unused execution permission open (one), and omitting the actual
+private cancellation-callback join (three). The initial callback observation let
+one mutant pass; the held-callback observation was strengthened, and all three now
+fail against that mutant. Every source file is restored byte for byte, freshly
+rebuilt, and the same respective controls pass. No mutation remains in production.
+
+The first full architecture run reports 330 cases, 327 passed and three failed.
+Two failures identify stale exact admission/privileged-owner caller inventories;
+the other exposes a detached-Cecil-method null dereference after the detector
+already records the forbidden target. The corrected guard enumerates the actual
+new owners and reuses the existing exact local-revalidation proof. The capacity
+detector returns its known detached-target offenders before unsafe identity
+inspection. No target filter, namespace exemption or weakened production boundary
+is added. Both corrected clean guards and their complete planted-control tests
+pass together: four cases, zero failures/skips.
+
+The corrected full architecture baseline passes all 330 cases in 1,695.7 seconds.
+The first full Docker run reports 1,848 cases: 1,847 passed and one native framework
+lifetime row timed out before reaching its real cleanup barrier. Both original
+rows subsequently pass with bounded diagnostic observations; that does not
+establish the cause of the earlier timeout. The corrected lifetime fixture keeps
+actual pinned native workers, physical SQL deadlines, held cleanup and source/
+slot/stop assertions. It parks the three polling loops, issues exact native wakeups,
+and advances only the owner observation clock after the actual barrier. This
+intentionally removes incidental bridge ACK/cold-start timing from that lifetime
+proof; separate real bridge/repair controls remain and pass with the common
+PostgreSQL-outage proof: 21 cases. Both corrected lifetime rows also pass.
+
+Two invocation-local/name-first detector filters preserve complete subjects,
+identity/signature/opcode checks, caller multiplicity and every clean/dirty/restored
+mutation. The same four complete guards pass in 311.2 seconds versus 515.3 before
+these filters. Capacity dirty control falls from 251.6 to 113.2 seconds; authority
+from 261.9 to 196.3. A source/equivalence preflight finds no actionable issue; it
+supplies no full Step 6 review credit.
+
+The final full architecture run passes **330/330** in 1331.9 seconds, and the
+fresh full Docker integration run passes **1,848/1,848** in 889.3 seconds,
+with zero failures/skips and identical case-name multisets to their baselines.
+Together with Unit, Contract and Docker-free integration, these distinct local
+suites pass **4,587** cases. Focused/negative/restoration receipts are overlapping
+proof and are not added to that total. The local timing comparisons do not prove
+the complete real CI backend job fits its 20-minute ceiling; Step 9 retains full
+packet regression and real PR CI qualification.
+
+Both full fresh review rounds and their verified corrections remain pending.
+All nineteen job obligations remain Registered; Step 9 owns complete packet
+enforcement/regression. External execution and recurrence remain Steps 7–8.
+ADR-0061 is separately Accepted in `82956666`; its dependent Step 7 implementation
+starts only after Step 6 closes its two full review rounds.
 
 ### P02b-4 external completed-failure proposal (2026-10-16)
 

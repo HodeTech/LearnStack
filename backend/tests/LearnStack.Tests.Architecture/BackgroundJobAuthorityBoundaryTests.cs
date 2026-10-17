@@ -52,7 +52,7 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var types = census.Types;
-        foreach (var subject in new[] { (DeliveryApplication, JobAdmission), (InfrastructureAssembly, PrivilegedSource),
+        foreach (var subject in new[] { (DeliveryApplication, JobAdmission), (InfrastructureAssembly, JobStartHandler), (InfrastructureAssembly, PrivilegedSource),
                      (DeliveryApplication, JobTenantBehavior), (DeliveryApplication, JobTransactionBehavior),
                      (InfrastructureAssembly, JobBridge), (InfrastructureAssembly, JobBridgeStore),
                      (InfrastructureAssembly, Store), (InfrastructureAssembly, DeliveryStore), (InfrastructureAssembly, JobRuntime) })
@@ -75,10 +75,13 @@ public sealed partial class OutboxDispatchConventionTests
             [Owner(DeliveryApplication, JobTenantBehavior, "Handle")]);
         CheckSet(offenders, "closed framework transaction mode", sites.Where(site => site.Target.Name == "ModeFor").Select(site => site.Owner),
             [Owner(DeliveryApplication, JobTransactionBehavior, "Handle")]);
+        var revalidation = AdmissionRevalidationMethod(census, offenders);
         CheckSet(offenders, "job context owner gates", sites.Where(site => site.Target.Name == "RequireContext").Select(site => site.Owner),
             [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
-             Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
-             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync")]);
+             Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"), Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
+             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"),
+             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync"),
+             revalidation is null ? "missing exact admission revalidation" : MethodId(revalidation)]);
         CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => site.Owner),
             [Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnection"), Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, Store, "OpenConnectionAsync"), Owner(InfrastructureAssembly, DeliveryStore, "OpenConnectionAsync"),
@@ -86,12 +89,16 @@ public sealed partial class OutboxDispatchConventionTests
              Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteAsync"), Owner(InfrastructureAssembly, DeliveryExecutorType, "ExecuteControlledAsync"),
              Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimAsync"), Owner(InfrastructureAssembly, JobRoutingStore, "TryClaimOwnedAsync"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"),
+             Owner(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobControl", "TryBegin"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RenewBatchAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "FinishKnownRollbackAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RequestInvalidEnvelopeAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "RunRecoveryQuantumAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "DeferCapacityAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "AcquireCapacityRecoveryAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "FinishCapacityRecoveryAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryClaimTerminalAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryTerminalizeAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "BackoffKnownAuditRollbackAsync"),
