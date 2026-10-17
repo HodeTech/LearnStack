@@ -46,6 +46,8 @@ internal sealed class BackgroundJobProviderJournalDatabase : IAsyncDisposable
                     deadline timestamptz NOT NULL,state text NOT NULL CHECK(state IN ('succeeded','failed','cancelled','running','unknown')),
                     policy text NULL CHECK(policy IN ('permanent','transient_repeatable','transient_not_repeatable')),
                     start_fence_closed boolean NOT NULL,evidence_id uuid NULL,reply_fault_spent boolean NOT NULL,
+                    completion_origin text NULL CHECK(completion_origin IN ('runtime_token','independent_failure')),
+                    runtime_token_observed boolean NOT NULL DEFAULT false,
                     PRIMARY KEY(operation_id,attempt_id),
                     CHECK((state IN ('succeeded','failed','cancelled'))=start_fence_closed),
                     CHECK(start_fence_closed=(evidence_id IS NOT NULL)),
@@ -68,7 +70,8 @@ internal sealed class BackgroundJobProviderJournalDatabase : IAsyncDisposable
     internal async Task SetModeAsync(Guid resource, string mode)
     {
         if (mode is not ("succeeded" or "permanent" or "repeatable" or "not_repeatable"
-            or "cancelled_repeatable" or "cancelled_not_repeatable" or "running" or "unknown" or "lost_reply"))
+            or "cancelled_repeatable" or "cancelled_not_repeatable" or "running" or "unknown" or "lost_reply"
+            or "cancel_on_runtime_stop" or "independent_failure_before_stop"))
             throw new ArgumentException("Unknown provider fixture mode.", nameof(mode));
         await using var connection = new NpgsqlConnection(Settings.ConnectionString);
         await connection.OpenAsync();
@@ -106,6 +109,25 @@ internal sealed class BackgroundJobProviderJournalDatabase : IAsyncDisposable
         return (long)(await command.ExecuteScalarAsync())!;
     }
 
+    internal async Task<BackgroundJobProviderCausalFacts> CausalFactsAsync(BackgroundJobExternalContext context)
+    {
+        await using var connection = new NpgsqlConnection(Settings.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            SELECT a.state,a.policy,a.start_fence_closed,a.evidence_id,a.completion_origin,
+                a.runtime_token_observed,a.deadline,
+                (SELECT count(*) FROM provider_effects WHERE operation_id=a.operation_id)
+            FROM provider_attempts a WHERE a.operation_id=@operation AND a.attempt_id=@attempt
+            """, connection) { CommandTimeout = 5 };
+        command.Parameters.AddWithValue("operation", context.OperationId);
+        command.Parameters.AddWithValue("attempt", context.AttemptId.Value);
+        await using var row = await command.ExecuteReaderAsync();
+        if (!await row.ReadAsync()) throw new InvalidOperationException("The actual provider attempt is missing.");
+        return new(row.GetString(0), row.IsDBNull(1) ? null : row.GetString(1), row.GetBoolean(2),
+            row.IsDBNull(3) ? null : row.GetGuid(3), row.IsDBNull(4) ? null : row.GetString(4),
+            row.GetBoolean(5), row.GetFieldValue<DateTimeOffset>(6), row.GetInt64(7));
+    }
+
     public async ValueTask DisposeAsync()
     {
         try
@@ -130,7 +152,8 @@ public sealed record BackgroundJobProviderReport(BackgroundJobExternalState Stat
 /// Independent provider SDK used by the genuine test adapter. Each call owns its
 /// provider transaction and durable attempt fence, never a business UoW or sender.
 /// </summary>
-public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSettings settings, BackgroundJobPositiveReconcileProbe probe)
+public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSettings settings,
+    BackgroundJobPositiveReconcileProbe probe, BackgroundJobPositiveCausalProviderProbe? causal = null)
 {
     public Task<BackgroundJobProviderReport> ExecuteAsync(BackgroundJobExternalContext context,
         Guid resource, Guid finalized, CancellationToken token) => CallAsync(context, resource, finalized, false, token);
@@ -145,6 +168,17 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
 
     private async Task<BackgroundJobProviderReport> CallAsync(BackgroundJobExternalContext context,
         Guid resource, Guid finalized, bool reconcile, CancellationToken token)
+    {
+        // The inner task has left all actual provider transaction/connection
+        // cleanup before accepted work begins waiting for its causal completion.
+        var accepted = await CallProviderTransactionAsync(context, resource, finalized, reconcile, token);
+        return accepted.CausalMode is { } mode
+            ? await CompleteCausalAttemptAsync(context, resource, finalized, mode, token)
+            : accepted.Report;
+    }
+
+    private async Task<(BackgroundJobProviderReport Report, string? CausalMode)> CallProviderTransactionAsync(
+        BackgroundJobExternalContext context, Guid resource, Guid finalized, bool reconcile, CancellationToken token)
     {
         if (!JobApplicationSourceOwner.IsExternal || JobApplicationSourceOwner.Current is not null)
             throw new InvalidOperationException("Provider calls require external denial, without an application owner.");
@@ -179,7 +213,7 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
         if (!exists)
         {
             await transaction.CommitAsync(token);
-            return new(BackgroundJobExternalState.Unknown, null, null, null);
+            return (new(BackgroundJobExternalState.Unknown, null, null, null), null);
         }
         if (reconcile)
         {
@@ -195,7 +229,7 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
         if (retained is not null || reconcile)
         {
             await transaction.CommitAsync(token);
-            return retained ?? new(BackgroundJobExternalState.Unknown, null, null, null);
+            return (retained ?? new(BackgroundJobExternalState.Unknown, null, null, null), null);
         }
         // Reconciliation never creates acceptance or infers NeverStarted from
         // absence. A duplicate closed attempt returns above without another effect.
@@ -206,7 +240,7 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
         {
             "permanent" or "repeatable" or "not_repeatable" => "failed",
             "cancelled_repeatable" or "cancelled_not_repeatable" => "cancelled",
-            "running" => "running",
+            "running" or "cancel_on_runtime_stop" or "independent_failure_before_stop" => "running",
             "unknown" => "unknown",
             _ => "succeeded",
         };
@@ -232,7 +266,7 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
             if (await accept.ExecuteScalarAsync(token) is not true)
             {
                 await transaction.CommitAsync(token);
-                return new(BackgroundJobExternalState.Unknown, null, null, null);
+                return (new(BackgroundJobExternalState.Unknown, null, null, null), null);
             }
         }
         if (state == "succeeded")
@@ -245,7 +279,7 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
         var result = await ReadAttemptAsync() ?? throw new InvalidOperationException("Provider acceptance is missing.");
         await transaction.CommitAsync(token);
         if (mode == "lost_reply") throw new IOException("Provider fixture lost its reply after durable acceptance.");
-        return result;
+        return (result, mode is "cancel_on_runtime_stop" or "independent_failure_before_stop" ? mode : null);
 
         NpgsqlCommand Command(string sql)
         {
@@ -291,6 +325,111 @@ public sealed class BackgroundJobPositiveProviderClient(BackgroundJobProviderSet
             return new(kind, failurePolicy, closed ? resource : null, closed ? row.GetGuid(4) : null);
         }
     }
+
+    private async Task<BackgroundJobProviderReport> CompleteCausalAttemptAsync(BackgroundJobExternalContext context,
+        Guid resource, Guid finalized, string mode, CancellationToken token)
+    {
+        var operation = causal ?? throw new InvalidOperationException("The accepted causal operation has no owner.");
+        // This registration signals the ACTUAL supplied private token. Its
+        // cancellation is merely an input; it supplies no quiescence itself.
+        using var registration = token.Register(static state =>
+            ((BackgroundJobPositiveCausalProviderProbe)state!).ObserveRuntimeToken(), operation);
+        operation.PublishAccepted(context, token.CanBeCanceled);
+        if (mode == "cancel_on_runtime_stop")
+            await operation.RuntimeTokenObserved.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+        else
+            await operation.IndependentFailureReleased.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+        // This fixture's real operation consists of this one awaited work item.
+        // It has now finished and has no worker/child/callback left capable of
+        // an effect. Close the provider's exact attempt fence durably before a
+        // completed report is returned; duplicate Execute returns retained facts.
+        var cancelled = mode == "cancel_on_runtime_stop";
+        if (cancelled && !token.IsCancellationRequested)
+            throw new InvalidOperationException("Cancellation completion requires the observed runtime token.");
+        var completed = await PersistCausalCompletionAsync(context, resource, finalized, cancelled, token.IsCancellationRequested);
+        operation.PublishCompletionStored();
+        // This response barrier owns no live connector/transaction and can no
+        // longer cause an effect. It lets an independent failure finish before
+        // stop while its actual provider method returns only after stop.
+        await operation.ReportReleased.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+        return completed;
+    }
+
+    private async Task<BackgroundJobProviderReport> PersistCausalCompletionAsync(BackgroundJobExternalContext context,
+        Guid resource, Guid finalized, bool cancelled, bool runtimeTokenObserved)
+    {
+        var evidence = Guid.NewGuid();
+        using var completion = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var connection = new NpgsqlConnection(settings.ConnectionString);
+        // The canceled runtime token cannot prevent the provider from recording
+        // its own completed cleanup. This separate finite provider budget is
+        // not permission to issue any runtime application/control checkpoint.
+        await connection.OpenAsync(completion.Token);
+        await using var transaction = await connection.BeginTransactionAsync(completion.Token);
+        await using var complete = new NpgsqlCommand("""
+            UPDATE provider_attempts a SET state=@state,policy=@policy,start_fence_closed=true,evidence_id=@evidence,
+                completion_origin=@origin,runtime_token_observed=@observed
+            FROM provider_operations o WHERE o.operation_id=a.operation_id AND o.operation_id=@operation
+                AND o.job_id=@job AND o.resource_id=@resource AND o.finalized_id=@finalized
+                AND a.attempt_id=@attempt AND a.deadline=@deadline AND a.state='running'
+                AND NOT a.start_fence_closed AND a.evidence_id IS NULL AND a.policy IS NULL
+            RETURNING a.evidence_id
+            """, connection, transaction) { CommandTimeout = 5 };
+        complete.Parameters.AddWithValue("operation", context.OperationId);
+        complete.Parameters.AddWithValue("job", context.JobId.Value);
+        complete.Parameters.AddWithValue("resource", resource);
+        complete.Parameters.AddWithValue("finalized", finalized);
+        complete.Parameters.AddWithValue("attempt", context.AttemptId.Value);
+        complete.Parameters.AddWithValue("deadline", context.Deadline);
+        complete.Parameters.AddWithValue("state", cancelled ? "cancelled" : "failed");
+        complete.Parameters.AddWithValue("policy", cancelled ? "transient_not_repeatable" : "permanent");
+        complete.Parameters.AddWithValue("origin", cancelled ? "runtime_token" : "independent_failure");
+        complete.Parameters.AddWithValue("observed", runtimeTokenObserved);
+        complete.Parameters.AddWithValue("evidence", evidence);
+        if (await complete.ExecuteScalarAsync(completion.Token) is not Guid stored || stored != evidence)
+            throw new InvalidOperationException("The causal completion did not close its exact accepted attempt.");
+        await transaction.CommitAsync(completion.Token);
+        return new(cancelled ? BackgroundJobExternalState.Cancelled : BackgroundJobExternalState.Failed,
+            cancelled ? BackgroundJobExternalFailurePolicy.TransientNotRepeatable : BackgroundJobExternalFailurePolicy.Permanent,
+            resource, evidence);
+    }
+}
+
+internal sealed record BackgroundJobProviderCausalFacts(string State, string? Policy, bool Closed,
+    Guid? Evidence, string? Origin, bool RuntimeTokenObserved, DateTimeOffset Deadline, long Effects);
+
+/// <summary>Original-provider lifecycle input/observation only; never reused by the restarted host.</summary>
+public sealed class BackgroundJobPositiveCausalProviderProbe
+{
+    private readonly TaskCompletionSource<BackgroundJobExternalContext> _accepted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _tokenObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _independentFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _completionStored = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _reportReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task<BackgroundJobExternalContext> Accepted => _accepted.Task;
+    public Task RuntimeTokenObserved => _tokenObserved.Task;
+    public Task IndependentFailureReleased => _independentFailure.Task;
+    public Task CompletionStored => _completionStored.Task;
+    public Task ReportReleased => _reportReleased.Task;
+    public bool RuntimeTokenCanBeCanceled { get; private set; }
+    public void ReleaseIndependentFailure() => _independentFailure.TrySetResult();
+    public void ReleaseReport() => _reportReleased.TrySetResult();
+    internal void PublishCompletionStored() => _completionStored.TrySetResult();
+    internal void ObserveRuntimeToken() => _tokenObserved.TrySetResult();
+    internal void PublishAccepted(BackgroundJobExternalContext context, bool tokenCanBeCanceled)
+    {
+        RuntimeTokenCanBeCanceled = tokenCanBeCanceled;
+        if (!_accepted.TrySetResult(context)) throw new InvalidOperationException("Only one actual causal Execute may be accepted.");
+    }
+}
+
+/// <summary>Explicit adapter-qualification mutant; no runtime behavior is expected to certify external truth.</summary>
+public sealed class BackgroundJobPositiveCausalReportMutation(bool lieOnReconcile = false)
+{
+    private int _applied;
+    public bool LieOnReconcile { get; } = lieOnReconcile;
+    public int Applied => Volatile.Read(ref _applied);
+    public void RecordApplied() => Interlocked.Increment(ref _applied);
 }
 
 /// <summary>Finite test barrier after the real provider transaction; no runtime observation or cleanup capability.</summary>

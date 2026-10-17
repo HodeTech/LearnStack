@@ -137,7 +137,8 @@ owns validation and review receipts. Step 6 capacity implementation is locally
 complete; its [record](phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns passing local qualification, both completed full review rounds and verified
 corrections. Step 7 external stages are committed under Accepted ADR-0061.
-The first full review is complete; verified corrections and the second full review remain open.
+The first full review and verified corrections are complete; the second full
+review remains pending.
 Steps 8–9 remain pending.
 Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API

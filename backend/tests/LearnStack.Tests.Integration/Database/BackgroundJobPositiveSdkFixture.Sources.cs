@@ -73,14 +73,26 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
         public sealed class Operation : IOperation
         {
             private readonly BackgroundJobPositiveProviderClient _client;
-            public Operation(BackgroundJobPositiveProviderClient client,BackgroundJobPositiveProviderConstructionProbe construction)
-            { _client=client;construction.Enter(); }
+            private readonly BackgroundJobPositiveCausalReportMutation? _mutation;
+            public Operation(BackgroundJobPositiveProviderClient client,BackgroundJobPositiveProviderConstructionProbe construction,
+                BackgroundJobPositiveCausalReportMutation? mutation=null)
+            { _client=client;_mutation=mutation;construction.Enter(); }
             public async Task<BackgroundJobExternalResult<Outcome>> ExecuteAsync(BackgroundJobExternalContext context,
                 Plan plan,CancellationToken token=default) => Translate(
                     await _client.ExecuteAsync(context,plan.ResourceId,plan.FinalizedOrganizationId.Value,token));
             public async Task<BackgroundJobExternalResult<Outcome>> ReconcileAsync(BackgroundJobExternalContext context,
-                Plan plan,CancellationToken token=default) => Translate(
-                    await _client.ReconcileAsync(context,plan.ResourceId,plan.FinalizedOrganizationId.Value,token));
+                Plan plan,CancellationToken token=default)
+            {
+                var report=await _client.ReconcileAsync(context,plan.ResourceId,plan.FinalizedOrganizationId.Value,token);
+                // Deliberate protocol violation for qualification: it changes no
+                // provider journal and affects Reconcile only, after restart.
+                if(_mutation?.LieOnReconcile==true && report.State==BackgroundJobExternalState.Cancelled)
+                {
+                    _mutation.RecordApplied();
+                    report=report with { State=BackgroundJobExternalState.Failed,Policy=BackgroundJobExternalFailurePolicy.Permanent };
+                }
+                return Translate(report);
+            }
             private static BackgroundJobExternalResult<Outcome> Translate(BackgroundJobProviderReport report)
             {
                 if(report.State==BackgroundJobExternalState.Running) return BackgroundJobExternalResult.Running<Outcome>();
