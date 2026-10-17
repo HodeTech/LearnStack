@@ -756,11 +756,15 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   actual joins continue after caller waiting ends. Its health check reads memory
   and remains unmapped. Step 4's full reviews and verified qualification corrections
   are complete in its owning delivery record.
-- The current short routing/admission invocation reuses `TransactionTimeout`
-  (default 30 seconds, maximum five minutes) as its whole external wrapper wait;
-  individual SQL deadlines remain narrower. Expiry records retained ownership and
-  closes late admission before the native wrapper returns. Actual work, private
-  cancellation callbacks and cleanup remain owned independently of that wait.
+- Native wrapper waits are armed separately for each stage. `TransactionTimeout`
+  bounds framework admission and transactional/prepare/finalize stages.
+  `SqlTimeout` bounds external-state reads, Arm/Outcome, recovery acquisition,
+  no-start checkpoints and recovery disposition.
+  `ExternalWaitTimeout` bounds Execute; `ProbeTimeout` bounds Reconcile, checkpoint
+  history and recovery confirmation. Expiry closes late admission while actual
+  work, private cancellation callbacks and cleanup remain owned. The
+  [Step 7 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
+  owns the stage-wait qualification.
 - A per-pool server-metadata heartbeat fault makes `jobs` unhealthy during retry,
   before draining. Only confirmed stored heartbeat success clears it. Two fixed
   maintenance health entries separately report expiration and fetched-job renewal
@@ -778,7 +782,8 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   app-role checkpoint.
   Missing local cleanup preserves occupied capacity in paced recoverable parking.
   The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-  owns passing local qualification and pending full review evidence.
+  owns passing local qualification, both completed full review rounds and verified
+  corrections.
 - Definition/queue/recurrence keys come from finite code registries. Only the two
   exact opaque wrappers reach vendor invocation storage. No UI-defined callbacks,
   dashboard or serialized tenant/organization/context authority is admitted.

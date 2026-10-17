@@ -176,10 +176,13 @@ public sealed partial class BackgroundJobPositiveSdkTests
     }
 
     [Theory]
-    [InlineData("retained")]
-    [InlineData("reconcile")]
-    [InlineData("no_start")]
-    public async Task Native_known_recovery_retries_only_after_positive_checkpoint_and_reuses_the_prepared_operation(string mode)
+    [InlineData("retained", "repeatable", null)]
+    [InlineData("reconcile", "repeatable", null)]
+    [InlineData("no_start", "repeatable", null)]
+    [InlineData("reconcile", "cancelled_repeatable", null)]
+    [InlineData("reconcile", "not_repeatable", "external_retry_forbidden")]
+    public async Task Native_known_recovery_preserves_exact_policy_before_retry_or_failure_finalization(
+        string mode, string providerMode, string? terminalReason)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -187,7 +190,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var resource = Guid.CreateVersion7();
         var prepared = OrganizationId.From(Guid.CreateVersion7());
         var finalized = OrganizationId.From(Guid.CreateVersion7());
-        await provider.SetModeAsync(resource, "repeatable");
+        await provider.SetModeAsync(resource, providerMode);
         await using var originalHost = ShortRecoveryOriginalHost(database, provider.Settings);
         var executor = originalHost.Services.GetRequiredService<JobExecutor>();
         ConfirmedStartReceipt normal;
@@ -215,7 +218,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var report = await executor.ExecuteExternalAsync(original.Read, original.Arm, CancellationToken.None);
             report.Status.Should().Be(JobExternalExecutionStatus.Reported);
             report.CleanupFailed.Should().BeFalse();
-            report.Observation!.FailurePolicy.Should().Be(BackgroundJobExternalFailurePolicy.TransientRepeatable);
+            report.Observation!.State.Should().Be(providerMode == "cancelled_repeatable"
+                ? BackgroundJobExternalState.Cancelled : BackgroundJobExternalState.Failed);
+            report.Observation.FailurePolicy.Should().Be(terminalReason is null
+                ? BackgroundJobExternalFailurePolicy.TransientRepeatable : BackgroundJobExternalFailurePolicy.TransientNotRepeatable);
             if (mode == "retained")
             {
                 var recorded = await executor.RecordExternalOutcomeAsync(normal, original.Read,
@@ -223,6 +229,17 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 recorded.CommitAcknowledged.Should().BeTrue();
                 recorded.CleanupFailed.Should().BeFalse();
             }
+        }
+        var qualifyReconcilePolicy = mode == "reconcile" && providerMode != "repeatable";
+        BackgroundJobProviderCausalFacts? originalProvider = null;
+        if (qualifyReconcilePolicy)
+        {
+            originalProvider = await provider.CausalFactsAsync(new(normal.Envelope.JobId, normal.AttemptId, operation, normal.Deadline));
+            originalProvider.State.Should().Be(providerMode == "cancelled_repeatable" ? "cancelled" : "failed");
+            originalProvider.Policy.Should().Be(terminalReason is null ? "transient_repeatable" : "transient_not_repeatable");
+            originalProvider.Closed.Should().BeTrue();
+            originalProvider.Evidence.Should().NotBeNull();
+            originalProvider.Effects.Should().Be(0);
         }
         normal.SourceOwner.CleanupConfirmed.Should().BeTrue();
         normal.Run.Close();
@@ -238,24 +255,68 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var runtime = NativeSdkRuntime(host.Services, source, bounds);
+        var outcomeCommitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseOutcomeCleanup = new ManualResetEventSlim();
+        var observedOutcome = 0;
+        var storedEnvelope = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, normal.Envelope.JobId))!;
+        ActivityContext.TryParse(storedEnvelope.Traceparent, null, out var trace).Should().BeTrue();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = activitySource => qualifyReconcilePolicy && activitySource.Name.Length == 0,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.OperationName != "job.external_checkpoint" || activity.TraceId != trace.TraceId) return;
+                var controller = (BackgroundJobControl)NativeSdkField(runtime, "_jobs");
+                BackgroundJobExecutionControl execution;
+                lock (NativeSdkField(controller, "_sync"))
+                    execution = ((Dictionary<Guid, BackgroundJobExecutionControl>)NativeSdkField(controller, "_executions"))[normal.Envelope.JobId.Value];
+                if (typeof(BackgroundJobExecutionControl).GetField("_externalOutcomeGate", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.GetValue(execution) is not BackgroundJobCommitGate { CommitAcknowledged: true }
+                    || Interlocked.CompareExchange(ref observedOutcome, 1, 0) != 0) return;
+                execution.Identity!.IsRecovery.Should().BeTrue();
+                outcomeCommitted.TrySetResult();
+                if (!releaseOutcomeCleanup.Wait(TimeSpan.FromSeconds(30)))
+                    throw new TimeoutException("The reconciled Outcome cleanup was not released.");
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
         try
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
+            if (qualifyReconcilePolicy)
+            {
+                await outcomeCommitted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                // The actual recovered Outcome COMMIT has landed, while its task
+                // still owns cleanup. No retry/finalizer disposition can issue yet.
+                await AssertRecoveredPolicyBeforeDispositionAsync(database, normal, operation, originalProvider!, terminalReason);
+                (await provider.CausalFactsAsync(new(normal.Envelope.JobId, normal.AttemptId, operation, normal.Deadline)))
+                    .Should().Be(originalProvider, "Reconcile cannot relabel the independent provider's immutable completed facts");
+                (await provider.CountsAsync(operation)).Should().Be((1L, 1L, 0L),
+                    "Reconcile must preserve the completed old attempt before any later Execute or Finalize");
+                releaseOutcomeCleanup.Set();
+            }
             using var completion = new CancellationTokenSource(TimeSpan.FromSeconds(80));
-            while ((await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, normal.Envelope.JobId))!.Phase != "completed"
+            while ((await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, normal.Envelope.JobId))!.Phase
+                    != (terminalReason is null ? "completed" : "terminal_pending")
                 || runtime.Snapshot.Control!.Executions != 0) await Task.Delay(20, completion.Token);
             var row = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, normal.Envelope.JobId))!;
-            row.NormalAttempts.Should().Be(2);
-            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, normal.Envelope.JobId)).Should().Be(3);
-            construction.Calls.Should().Be(mode == "reconcile" ? 2 : 1,
+            row.NormalAttempts.Should().Be(terminalReason is null ? 2 : 1);
+            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, normal.Envelope.JobId))
+                .Should().Be(terminalReason is null ? 3 : 2);
+            construction.Calls.Should().Be(mode == "reconcile" && terminalReason is null ? 2 : 1,
                 "stored facts and positive NoStart need no provider call; only unresolved intent requires Reconcile");
-            (await provider.CountsAsync(operation)).Should().Be((mode == "no_start" ? 1L : 2L, mode == "reconcile" ? 1L : 0L, 1L));
+            (await provider.CountsAsync(operation)).Should().Be((mode == "no_start" || terminalReason is not null ? 1L : 2L,
+                mode == "reconcile" ? 1L : 0L, terminalReason is null ? 1L : 0L));
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, prepared.Value)).Should().Be(1);
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalized.Value)).Should().Be(1);
+            if (terminalReason is not null)
+                await AssertRecoveredForbiddenTerminalAsync(database, normal, terminalReason);
         }
         finally
         {
+            releaseOutcomeCleanup.Set();
             runtime.RequestStop();
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(40));
             await runtime.StopAsync(cleanup.Token);
@@ -263,5 +324,89 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.RetainedInvocations.Should().Be(0);
+    }
+
+    private static async Task AssertRecoveredPolicyBeforeDispositionAsync(DisposableSchemaDatabase database,
+        ConfirmedStartReceipt original, Guid operation, BackgroundJobProviderCausalFacts provider, string? terminalReason)
+    {
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+        await EducationSchemaSeed.AnnounceAsync(app, transaction, original.Envelope.TenantId.Value, null);
+        await using var command = new NpgsqlCommand("""
+            SELECT a.outcome_kind,a.failure_policy,a.operation_id,a.plan_fingerprint,j.plan_fingerprint,
+                a.quiescence_id,a.quiescence_kind,a.outcome_at,a.quiescent_at,r.released_at,r.release_reason,
+                j.phase,j.normal_attempts,j.finalize_attempts,j.final_outcome_attempt_id,j.finalization_status,
+                j.finalization_reason,j.terminal_reason,
+                (SELECT count(*) FROM background_job_attempts x WHERE x.job_id=j.id)
+            FROM background_jobs j JOIN background_job_attempts a ON a.tenant_id=j.tenant_id AND a.job_id=j.id
+                AND a.id=@attempt AND a.stage='normal'
+            JOIN background_job_reservations r ON r.tenant_id=a.tenant_id AND r.job_id=a.job_id AND r.attempt_id=a.id
+                AND r.capacity_group=j.capacity_group
+            WHERE j.id=@id AND a.admission_token=@admission AND a.deadline=@deadline
+            """, (NpgsqlConnection)app, (NpgsqlTransaction)transaction) { CommandTimeout = 5 };
+        command.Parameters.AddWithValue("id", original.Envelope.JobId.Value);
+        command.Parameters.AddWithValue("attempt", original.AttemptId.Value);
+        command.Parameters.AddWithValue("admission", original.Claim.Token);
+        command.Parameters.AddWithValue("deadline", original.Deadline);
+        await using var row = await command.ExecuteReaderAsync();
+        (await row.ReadAsync()).Should().BeTrue("the actual original report and exact reservation must remain available");
+        row.GetString(0).Should().Be(provider.State);
+        row.GetString(1).Should().Be(provider.Policy);
+        row.GetGuid(2).Should().Be(operation);
+        row.GetString(3).Should().Be(row.GetString(4));
+        BackgroundJobExternalIdentity.OperationId(original.Envelope.JobId, row.GetString(3)).Should().Be(operation);
+        row.GetGuid(5).Should().Be(provider.Evidence!.Value);
+        row.GetString(6).Should().Be("provider_fenced");
+        row.GetFieldValue<DateTimeOffset>(9).Should().BeOnOrAfter(row.GetFieldValue<DateTimeOffset>(7));
+        row.GetFieldValue<DateTimeOffset>(9).Should().BeOnOrAfter(row.GetFieldValue<DateTimeOffset>(8));
+        row.GetString(10).Should().Be("quiescent");
+        row.GetString(11).Should().Be(terminalReason is null ? "reconciling" : "finalize_pending");
+        row.GetInt32(12).Should().Be(1);
+        row.GetInt32(13).Should().Be(0);
+        if (terminalReason is null)
+        {
+            row.IsDBNull(14).Should().BeTrue("repeatable cancellation must not select a failure finalizer early");
+            row.IsDBNull(15).Should().BeTrue();
+            row.IsDBNull(16).Should().BeTrue();
+        }
+        else
+        {
+            row.GetGuid(14).Should().Be(original.AttemptId.Value);
+            row.GetString(15).Should().Be("failed");
+            row.GetString(16).Should().Be("external_failed");
+        }
+        row.IsDBNull(17).Should().BeTrue("the prepared domain failure finalizer has not run");
+        row.GetInt64(18).Should().Be(1);
+    }
+
+    private static async Task AssertRecoveredForbiddenTerminalAsync(DisposableSchemaDatabase database,
+        ConfirmedStartReceipt original, string terminalReason)
+    {
+        await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+        await EducationSchemaSeed.AnnounceAsync(app, transaction, original.Envelope.TenantId.Value, null);
+        await using var command = new NpgsqlCommand("""
+            SELECT j.terminal_reason,j.business_finalization_incomplete,j.final_outcome_attempt_id,
+                (SELECT count(*) FROM audit_log x WHERE x.operation='platform.job.dead_letter'
+                    AND x.metadata->>'job_id'=@text AND x.metadata->>'reason'=@reason
+                    AND x.metadata->>'external_state'='failed'
+                    AND x.metadata->>'external_failure_policy'='transient_not_repeatable'
+                    AND x.metadata->>'finalization_reason'='external_failed'),
+                (SELECT count(*) FROM audit_log x WHERE x.operation='platform.job.dead_letter'
+                    AND x.metadata->>'job_id'=@text)
+            FROM background_jobs j WHERE j.id=@id
+            """, (NpgsqlConnection)app, (NpgsqlTransaction)transaction) { CommandTimeout = 5 };
+        command.Parameters.AddWithValue("id", original.Envelope.JobId.Value);
+        command.Parameters.AddWithValue("text", original.Envelope.JobId.Value.ToString("D"));
+        command.Parameters.AddWithValue("reason", terminalReason);
+        await using var row = await command.ExecuteReaderAsync();
+        (await row.ReadAsync()).Should().BeTrue();
+        row.GetString(0).Should().Be(terminalReason);
+        row.GetBoolean(1).Should().BeFalse("the actual domain failure finalizer committed");
+        row.GetGuid(2).Should().Be(original.AttemptId.Value);
+        row.GetInt64(3).Should().Be(1);
+        row.GetInt64(4).Should().Be(1);
     }
 }

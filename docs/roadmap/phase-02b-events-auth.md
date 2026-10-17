@@ -32,8 +32,8 @@ records passing qualification and both full review rounds with verified correcti
 Steps 4–6 are locally complete after both full review rounds and verified
 corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns capacity delivery and final local qualification. Step 7 external stages are
-committed under Accepted ADR-0061; the first full review and verified corrections
-are complete. The second full review remains pending. Its
+committed under Accepted ADR-0061; both full review rounds and verified corrections
+are complete. Its
 [record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
 Steps 8–9 and P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
@@ -6080,8 +6080,8 @@ authorized under ADR-0047. Acceptance supplies no new runtime or passing proof.
 
 ### P02b-4 Step 7 — external stages and recovery (2026-10-17)
 
-**Implementation, first full review and verified corrections complete.**
-The second full review remains pending. Step 6
+**Implementation, both full review rounds and verified corrections complete.**
+The round-2 closeout below owns the final local receipts. Step 6
 closes at `0ea50b15` after both full reviews, verified corrections and 4,598 passing
 full-suite cases. Accepted ADR-0047 and ADR-0061 authorize this next step on
 `development`; no further decision or permission is pending.
@@ -6096,7 +6096,7 @@ closure units; focused receipts below do not close the step or its full reviews:
   terminal behavior, preserving the separate six-start finalization budget.
 - [x] Close external/transactional contention, retained cleanup, exact owner/
   source/caller censuses and their planted violations; qualify the complete step.
-- [ ] Commit Step 7 and complete both fresh independent full review rounds,
+- [x] Commit Step 7 and complete both fresh independent full review rounds,
   verified corrections and correction commits before advancing to Step 8.
 
 The foundation separates sticky process/run stop from eight finite stage COMMIT
@@ -7013,10 +7013,10 @@ The remaining Step 7 checkpoints are explicit:
 | Uninvokable retirement/invalid-envelope cleanup and candidate progress | Implemented; twenty-one dedicated cases, actual retirement-index seek and corrected alternate-index assertions pass |
 | Native application-source contention | Genuine contention regression passes with the provider task retained and an unrelated transactional job completing at the application-source floor |
 | Complete exact census and relevant backend regression | Focused implementation qualification and correction checks pass; full packet regression/CI remain Step 9 |
-| Step commit and two fresh full review rounds | Implementation committed as `6e90a52f`; first full review and verified corrections complete, second full review pending |
+| Step commit and two fresh full review rounds | Implementation committed as `6e90a52f`; both full review rounds and verified corrections complete; the round-2 correction and closeout share this commit |
 
-The first full Step 7 review and its verified corrections are complete; the
-second full review remains open. All nineteen packet obligations remain Registered; no
+Both full Step 7 reviews and their verified corrections are complete.
+All nineteen packet obligations remain Registered; no
 production business definition is added. Steps 8–9 and real PR/CI closeout remain pending.
 
 #### Step 7 full review round 1 (2026-10-17)
@@ -7108,6 +7108,59 @@ Capacity and candidate-scan fixes are committed as `ef3cf7b4` and `1ef18e64`.
 This correction closes the three verified first-round findings; the second fresh
 full review remains pending. No complete current-head backend/CI run or packet
 obligation promotion is claimed; Steps 8–9 and the full closure gate remain open.
+
+#### Step 7 full review round 2 (2026-10-17)
+
+Three fresh independent reviewers inspect the complete Step 7 range
+`0ea50b15..d0eb7596`: GPT-6-astra xhigh covers runtime/authority and a second
+GPT-6-astra xhigh covers storage/security/audit; GPT-6.1-sol xhigh covers
+proofs/composition/corpus. Runtime and storage report no actionable findings.
+The proof review identifies one required coverage gap and one minor live-standard
+correction. These are full reviews, distinct from earlier narrow inspections.
+
+The genuine provider recovery tests did not exercise Failed/TransientNotRepeatable
+or Cancelled/TransientRepeatable through Reconcile. The existing recovery theory
+now retains its three cases and adds those two; no Fact/Theory method or catalogue
+count is added. Original Execute returns a completed report without an exception,
+but its application Outcome is deliberately absent. Fresh native recovery reads
+the same independent provider attempt before any later execution.
+
+An actual acknowledged recovered Outcome holds its cleanup before disposition.
+App-role assertions bind state, policy, operation, fingerprint, evidence and atomic
+quiescent release to the original provider journal. Repeatable cancellation has
+no premature failure selection and later spends a distinct normal admission on
+the same operation. Nonrepeatable failure commits its ordinary failure finalizer
+and exact `external_retry_forbidden` MUST audit without another Execute. Both
+new cases and all seven existing retry/recovery/ACK cases pass: nine cases, zero
+failures/skips, with a zero-warning/error Release build.
+
+A temporary Reconcile-only adapter mutation maps the two policies to different
+valid policies while leaving provider storage unchanged. Exactly the two new
+cases fail at the same stored-policy comparison; the three existing recovery
+controls pass. This is an executed adapter-protocol negative control, not runtime
+certification of provider truth. The exact fixture bytes and mode are restored
+and independently verified against the clean 261-source snapshot. The restored
+Release build has zero warnings/errors; its five-case native rerun passes with
+zero failures/skips in 1m33s. The restored-source manifest closes at
+`33ba204ead511e91fa7f0ad7c63394e07e5fa894874b5d0df14e5290f2ea46db`.
+
+The live Infrastructure standard now describes the actual stage-specific wait
+switch and correct completed Step 6 review status. Independent narrow inspection
+finds no remaining issue in the correction or the actual clean/dirty receipts.
+The initial clean source manifest closes at
+`3654d96f7cb27241deeb049fbe05e8476211bff20ba54828778617ff220ec6e6`;
+the separate expected-failure mutant receipt closes at
+`2d6ace0de47a4babd374a605e2e6fd5cc11cd7865f5f19039d63320b8159312b`.
+
+A fresh complete Architecture run on the frozen `d0eb7596` source passes all
+333 cases with zero failures/skips in 30m41s; its 261-source manifest closes at
+`bc2936a69e07c77c23afb684d7f225f9b192199f0f9e7bbd6f825bdd4200c9ad`.
+This includes the earlier seven corrected controls and preserves their original
+failing receipts. It precedes the test-only policy extension; it is not a complete
+current-head backend/CI receipt. Step 9 still owns CI-duration qualification and
+full packet regression. All nineteen obligations remain Registered. The round-2
+correction commit closes Step 7 after both full reviews and verified corrections;
+Step 8 follows under the already Accepted plan. No new maintainer decision is pending.
 
 ### Durable outbox dispatch
 
