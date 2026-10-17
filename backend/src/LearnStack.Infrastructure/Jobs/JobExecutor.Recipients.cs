@@ -11,10 +11,23 @@ namespace LearnStack.Infrastructure.Jobs;
 
 internal enum JobRecipientSubmissionStatus { Accepted, Ineligible, LostClaim, Canceled, Failed, Indeterminate }
 
-internal sealed record JobRecipientSubmissionResult(JobRecipientSubmissionStatus Status,
-    SubmitBackgroundJobRecipientCommand? Command, bool CleanupFailed, JobApplicationSourceOwner SourceOwner,
-    IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup)
+internal sealed class JobRecipientSubmissionResult
 {
+    internal JobRecipientSubmissionResult(JobRecipientSubmissionStatus status, SubmitBackgroundJobRecipientCommand? command,
+        bool cleanupFailed, JobApplicationSourceOwner sourceOwner, IReadOnlyList<JobStartCleanupOwnership> retainedCleanup)
+    {
+        Status = status;
+        Command = command;
+        CleanupFailed = cleanupFailed;
+        SourceOwner = sourceOwner;
+        RetainedCleanup = retainedCleanup;
+    }
+
+    internal JobRecipientSubmissionStatus Status { get; }
+    internal SubmitBackgroundJobRecipientCommand? Command { get; }
+    internal bool CleanupFailed { get; }
+    internal JobApplicationSourceOwner SourceOwner { get; }
+    internal IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup { get; }
     internal Exception? Failure { get; init; }
 }
 

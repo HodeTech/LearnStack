@@ -208,7 +208,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_jobs")).Should().Be(0);
     }
 
-    private static WebApplicationFactory<Program> RecipientHost(DisposableSchemaDatabase database, BackgroundJobFixtureProbe probe) =>
+    private static WebApplicationFactory<Program> RecipientHost(DisposableSchemaDatabase database, BackgroundJobFixtureProbe probe,
+        string? appConnectionString = null, Action<IServiceCollection>? configure = null) =>
         BackgroundJobRuntimeFixture.Shared.Host(database, probe, configure: services =>
         {
             services.RemoveAll<BackgroundJobDefinitionRegistry>();
@@ -217,7 +218,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 foreach (var contract in type.GetInterfaces().Where(candidate => candidate.IsGenericType
                              && candidate.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)))
                     services.AddTransient(contract, type);
-        });
+            configure?.Invoke(services);
+        }, appConnectionString: appConnectionString);
 
     private static void AssertRecipientTargetUnconstructed(int baseline, BackgroundJobFixtureProbe probe)
     {

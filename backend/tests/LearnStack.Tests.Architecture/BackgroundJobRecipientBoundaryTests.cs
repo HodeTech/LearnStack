@@ -18,6 +18,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string RecipientId = "LearnStack.SharedKernel.Jobs.BackgroundJobRecipientId";
     private const string RecipientChild = "LearnStack.SharedKernel.Jobs.BackgroundJobId";
     private const string RecipientRow = "System.Data.Common.DbDataReader";
+    private const string RecipientSubmission = "LearnStack.Infrastructure.Jobs.JobRecipientSubmissionResult";
     private const string RecipientInsertAwaiter = "System.Runtime.CompilerServices.ConfiguredTaskAwaitable`1/ConfiguredTaskAwaiter<System.Int32>";
     private static readonly string[] RecipientRoutePredicates =
     [
@@ -152,6 +153,38 @@ public sealed partial class OutboxDispatchConventionTests
         }, RecipientOffenders);
     }
 
+    /// <summary>ADR-0047: history needs original cleanup, a real row lock and the exact acquisition fence.</summary>
+    [Theory]
+    [InlineData("cleanup")]
+    [InlineData("lock")]
+    [InlineData("token")]
+    [InlineData("route")]
+    public void Background_job_recipient_history_controls_reject_detached_cleanup_and_unfenced_status(string mutation)
+    {
+        using var census = ProductionCensus.Read();
+        var methods = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == RecipientStore
+            && item.Owner.Name is "ResolveRecipientAsync" or "ResolveLockedRecipientAsync").ToArray();
+        AssertMutation(census, mutation, () =>
+        {
+            if (mutation == "cleanup")
+            {
+                var getter = methods.SelectMany(item => item.Body.Body.Instructions).Single(instruction =>
+                    instruction.Operand is MethodReference target && target.DeclaringType.FullName == RecipientSubmission
+                    && target.Name == "get_CleanupFailed");
+                return ReplaceInstruction(getter, OpCodes.Nop, null!);
+            }
+            var sql = methods.SelectMany(item => item.Body.Body.Instructions).Single(instruction =>
+                instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string value && (mutation switch
+                {
+                    "lock" => value.EndsWith("FOR UPDATE SKIP LOCKED", StringComparison.Ordinal),
+                    "token" => value.StartsWith("id=@recipient", StringComparison.Ordinal) && value.Contains("ownership_token=@token", StringComparison.Ordinal),
+                    _ => value.StartsWith("SELECT accepted_job_id,skipped_at", StringComparison.Ordinal),
+                }));
+            var removed = mutation switch { "lock" => "FOR UPDATE SKIP LOCKED", "token" => "ownership_token=@token", _ => "manifest_hash=@hash" };
+            return ReplaceInstruction(sql, OpCodes.Ldstr, ((string)sql.Operand).Replace(removed, "TRUE", StringComparison.Ordinal));
+        }, RecipientOffenders);
+    }
+
     /// <summary>ADR-0047: the production detector rejects added, removed, delegated and overloaded authority.</summary>
     [Fact]
     public void Background_job_recipient_census_detects_extra_authority_and_missing_real_fences()
@@ -247,7 +280,7 @@ public sealed partial class OutboxDispatchConventionTests
         (DeliveryApplication, JobAdmission), (DeliveryApplication, DeliveryCoordinator),
         (InfrastructureAssembly, RecipientMinter), (InfrastructureAssembly, RecipientPostgres),
         (InfrastructureAssembly, RecipientHandler), (InfrastructureAssembly, JobScheduler),
-        (InfrastructureAssembly, JobExecutorType), (KernelAssembly, RecipientOccurrence),
+        (InfrastructureAssembly, JobExecutorType), (InfrastructureAssembly, RecipientSubmission), (KernelAssembly, RecipientOccurrence),
     ];
 
     private static IEnumerable<MethodDefinition> RecipientCapabilityMethods(ProductionCensus census)
@@ -264,6 +297,8 @@ public sealed partial class OutboxDispatchConventionTests
                      (DeliveryApplication, JobAdmission, new[] { "EnterRecipient", "RequireRecipient", "ProducerOperationType" }),
                      (InfrastructureAssembly, JobScheduler, new[] { "SubmitRecipientAsync", "InsertAsync" }),
                      (InfrastructureAssembly, JobExecutorType, new[] { "ExecuteRecipientAsync" }),
+                     (InfrastructureAssembly, RecipientSubmission, new[] { ".ctor" }),
+                     (InfrastructureAssembly, RecipientStore, new[] { "ResolveRecipientAsync" }),
                      (InfrastructureAssembly, RecipientPostgres, new[] { "ReadAndLockAsync", "FenceReceiptAsync" }),
                      (KernelAssembly, RecipientOccurrence, new[] { ".ctor" }),
                  })
@@ -295,6 +330,9 @@ public sealed partial class OutboxDispatchConventionTests
         var claim = types[(DeliveryApplication, RecipientClaim)];
         var participant = types[(DeliveryApplication, JobRecipientParticipant)];
         var provider = types[(InfrastructureAssembly, RecipientPostgres)];
+        var submitted = types[(InfrastructureAssembly, RecipientSubmission)];
+        if (!submitted.IsSealed || submitted.Properties.Where(property => property.Name != "Failure").Any(property => property.SetMethod is not null))
+            offenders.Add("Original recipient cleanup evidence remains one immutable executor result, without record cloning");
         if (!claim.IsSealed || claim.Methods.Any(method => method.IsConstructor && !method.IsStatic && !method.IsPrivate)
             || claim.Properties.Any(property => property.SetMethod is not null)
             || claim.Fields.Any(field => !field.IsStatic && !field.IsInitOnly && field.Name != "_entered"))
@@ -386,6 +424,14 @@ public sealed partial class OutboxDispatchConventionTests
         Cap(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync",
             "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.JobRecipientSubmissionResult>",
             [RecipientClaim, RecipientProjection, JobCommitGate, BoundaryCancellation], MethodAttributes.Assembly, []);
+        Cap(InfrastructureAssembly, RecipientSubmission, ".ctor", "System.Void",
+            ["LearnStack.Infrastructure.Jobs.JobRecipientSubmissionStatus", JobRecipientRequest, "System.Boolean",
+             "LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner",
+             "System.Collections.Generic.IReadOnlyList`1<LearnStack.Infrastructure.Jobs.JobStartCleanupOwnership>"], MethodAttributes.Assembly,
+            [(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync")]);
+        Cap(InfrastructureAssembly, RecipientStore, "ResolveRecipientAsync",
+            "System.Threading.Tasks.Task`1<LearnStack.Infrastructure.Jobs.OwnedBackgroundJobControl`1<LearnStack.Infrastructure.Jobs.BackgroundJobRecipientResolution>>",
+            [RecipientSubmission, RecipientProjection, BoundaryCancellation], MethodAttributes.Assembly, []);
         Cap(InfrastructureAssembly, JobScheduler, "InsertAsync", "System.Threading.Tasks.Task`1<" + RecipientChild + ">",
             ["LearnStack.SharedKernel.Jobs.BackgroundJobDefinitionDescriptor", RecipientChild, "System.String", "System.DateTimeOffset", JobOrigin,
              "System.Nullable`1<" + RecipientId + ">", BoundaryCancellation], MethodAttributes.Private,
@@ -500,6 +546,29 @@ public sealed partial class OutboxDispatchConventionTests
             && target.DeclaringType.FullName == JobRecipientParticipant && target.Name == "RecordCommitBudget");
         if (beginBudget < 0 || queryBudget <= beginBudget || recordBudget <= queryBudget)
             offenders.Add("Recipient lease budget starts before its wire read and retains the returned interval through cleanup");
+        var history = bodies.Single(item => item.Owner.DeclaringType.FullName == RecipientStore
+            && item.Owner.Name == "ResolveRecipientAsync" && item.Body.Name == "MoveNext").Body.Body.Instructions.ToArray();
+        var openHistory = Array.FindIndex(history, instruction => instruction.Operand is MethodReference target
+            && target.DeclaringType.FullName == RecipientStore && target.Name == "OpenAsync");
+        foreach (var (type, name) in new[]
+                 {
+                     (RecipientSubmission, "get_Command"), (RecipientSubmission, "get_CleanupFailed"),
+                     (RecipientSubmission, "get_RetainedCleanup"), (RecipientSubmission, "get_SourceOwner"),
+                     ("LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner", "get_CleanupConfirmed"),
+                 })
+            if (openHistory < 0 || !history.Take(openHistory).Any(instruction => Invoked(instruction)
+                    && instruction.Operand is MethodReference target && target.DeclaringType.FullName == type && target.Name == name))
+                offenders.Add("Recipient history checks original cleanup before another physical source: " + name);
+        var historySql = bodies.Where(item => item.Owner.DeclaringType.FullName == RecipientStore
+                && item.Owner.Name is "ResolveRecipientAsync" or "ResolveLockedRecipientAsync")
+            .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.OpCode == OpCodes.Ldstr)
+            .Select(instruction => (string)instruction.Operand).ToArray();
+        if (historySql.Count(statement => statement == "SELECT id FROM background_job_recipients WHERE id=@recipient AND tenant_id=@tenant FOR UPDATE SKIP LOCKED") != 1
+            || historySql.Count(statement => statement.StartsWith("id=@recipient", StringComparison.Ordinal)
+                && statement.EndsWith(" AND ownership_token=@token AND ownership_until>clock_timestamp() AND accepted_job_id IS NULL AND skipped_at IS NULL AND quarantined_at IS NULL", StringComparison.Ordinal)) != 1)
+            offenders.Add("Recipient durable history retains its actual locked-row and original live-token fence");
+        if (historySql.Count(statement => RecipientRoutePredicates.All(predicate => statement.Contains(predicate, StringComparison.Ordinal))) != 2)
+            offenders.Add("Recipient history binds every immutable route fact to its locked read and transition");
         return offenders;
 
         int Find(string type, string method) => Array.FindIndex(complete, instruction => instruction.Operand is MethodReference target

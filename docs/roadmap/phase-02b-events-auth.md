@@ -7329,11 +7329,47 @@ artifact receipt closes at
 These are local, source-specific receipts, not current-head full backend or CI
 qualification.
 
-This continuation is not complete Step 8 delivery or a full review round.
-Historical acknowledgement-loss confirmation, confined skip/defer, additional
-fault controls and native runtime/fairness/capacity integration remain pending.
+At this continuation's commit, historical acknowledgement-loss confirmation and
+confined skip/defer remain pending; the following record owns their delivery.
+Additional fault controls and native runtime/fairness/capacity integration remain
+pending. This is not complete Step 8 delivery or a full review round.
 No production recurrence or business definition is added. All nineteen
 obligations remain Registered; both fresh full Step 8 reviews precede Step 9.
+
+#### Recipient history and confined disposition
+
+App-role submission commit `a99e6a8a` leaves all validated source hashes/modes
+unchanged after normal hooks. A new confined operation now requires the original
+executor's positive cleanup before opening another physical source. Its original
+result has immutable authority fields and a constructor restricted to that
+executor. A locked-row observation checks the full stored route and reciprocal
+child before the old token: the accepted child wins even after token clearing or
+a later acquisition, without creating another identity or inventing the original
+COMMIT acknowledgement. A skipped lock is unavailable, never proof of absence.
+
+Without a final receipt, only the original DB-live token permits disposition.
+Current lifecycle is rechecked; a deleted/ineligible route is skipped, while a
+restored or otherwise eligible route receives bounded deferral. The final UPDATE
+repeats the complete route/token/time fence. No app grant or business attempt is
+added; this status operation publishes only after its own ACK and cleanup.
+
+Nine new PostgreSQL cases use real server-COMMIT response loss and unforwarded
+COMMIT requests, counted identity creation, actual row locks, actual replacement
+acquisition, lifecycle restoration and a throwing scoped cleanup dependency.
+They distinguish a stored child observation from the original ACK. The initial
+qualification retains one fixture failure at the forbidden live-token rewrite
+and the detector's compiled-string mismatch; neither is a runtime finding.
+The fixture now expires the lease and reacquires through the actual store.
+
+The final 289-source Release build has zero warnings/errors; 44 PostgreSQL cases
+and 22 focused Architecture cases pass with zero failures/skips. All 2,403 Unit
+cases pass before the two test-only corrections. Formatter verification reports
+no changes. The final source/mode/artifact receipt closes at
+`cbcc6cff06e17f089c4923e0819703e118454e8d68eed103288e896731e979d8`.
+Narrow independent source inspection finds no unresolved runtime/test-evidence
+issue and claims neither test execution nor full Step 8 review credit.
+Remaining admission/fault controls and native integration still precede both
+full Step 8 review rounds and Step 9. Nineteen obligations remain Registered.
 
 ### Durable outbox dispatch
 
