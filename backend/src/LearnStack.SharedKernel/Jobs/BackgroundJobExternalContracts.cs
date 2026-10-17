@@ -8,6 +8,7 @@ public interface IBackgroundJobOutcome { }
 
 /// <summary>Immutable external-operation identity; none of these values authorizes a database write.</summary>
 /// <param name="OperationId">Stable logical-operation identity, preserved across attempts.</param>
+/// <param name="Deadline">Immutable original deadline, including during a fresh, live recovery probe.</param>
 public sealed record BackgroundJobExternalContext(
     BackgroundJobId JobId, BackgroundJobAttemptId AttemptId, Guid OperationId, DateTimeOffset Deadline);
 
@@ -19,6 +20,14 @@ public enum BackgroundJobExternalState
     Cancelled,
     NeverStarted,
     Unknown,
+}
+
+/// <summary>Explicit policy for one completed attempt of the same logical operation.</summary>
+public enum BackgroundJobExternalFailurePolicy
+{
+    Permanent = 1,
+    TransientRepeatable = 2,
+    TransientNotRepeatable = 3,
 }
 
 public enum BackgroundJobQuiescenceKind
@@ -52,37 +61,61 @@ public sealed class BackgroundJobQuiescenceEvidence
 public sealed class BackgroundJobExternalResult<TOutcome> where TOutcome : IBackgroundJobOutcome
 {
     internal BackgroundJobExternalResult(BackgroundJobExternalState state, TOutcome? outcome,
-        BackgroundJobQuiescenceEvidence? quiescence)
+        BackgroundJobQuiescenceEvidence? quiescence, BackgroundJobExternalFailurePolicy? failurePolicy)
     {
+        if (!Enum.IsDefined(state)
+            || (state is BackgroundJobExternalState.Succeeded or BackgroundJobExternalState.Failed or BackgroundJobExternalState.Cancelled
+                ? outcome is null || quiescence is null
+                : outcome is not null || quiescence is not null)
+            || (state is BackgroundJobExternalState.Failed or BackgroundJobExternalState.Cancelled
+                ? failurePolicy is not { } policy || !Enum.IsDefined(policy)
+                    || state == BackgroundJobExternalState.Cancelled && policy == BackgroundJobExternalFailurePolicy.Permanent
+                : failurePolicy is not null))
+            throw new ArgumentException("The external report requires an explicit valid state, outcome, evidence and policy shape.");
         State = state;
         Outcome = outcome;
         Quiescence = quiescence;
+        FailurePolicy = failurePolicy;
     }
 
     public BackgroundJobExternalState State { get; }
     public TOutcome? Outcome { get; }
     public BackgroundJobQuiescenceEvidence? Quiescence { get; }
+    public BackgroundJobExternalFailurePolicy? FailurePolicy { get; }
 }
 
 /// <summary>Creates only the closed external report shapes.</summary>
 public static class BackgroundJobExternalResult
 {
     public static BackgroundJobExternalResult<TOutcome> Running<TOutcome>() where TOutcome : IBackgroundJobOutcome =>
-        new(BackgroundJobExternalState.Running, default, null);
+        new(BackgroundJobExternalState.Running, default, null, null);
     public static BackgroundJobExternalResult<TOutcome> Unknown<TOutcome>() where TOutcome : IBackgroundJobOutcome =>
-        new(BackgroundJobExternalState.Unknown, default, null);
+        new(BackgroundJobExternalState.Unknown, default, null, null);
     public static BackgroundJobExternalResult<TOutcome> NeverStarted<TOutcome>() where TOutcome : IBackgroundJobOutcome =>
-        new(BackgroundJobExternalState.NeverStarted, default, null);
+        new(BackgroundJobExternalState.NeverStarted, default, null, null);
 
-    public static BackgroundJobExternalResult<TOutcome> Completed<TOutcome>(BackgroundJobExternalState state,
+    public static BackgroundJobExternalResult<TOutcome> Succeeded<TOutcome>(
         TOutcome outcome, BackgroundJobQuiescenceEvidence quiescence)
+        where TOutcome : IBackgroundJobOutcome =>
+        Create(BackgroundJobExternalState.Succeeded, outcome, quiescence, null);
+
+    public static BackgroundJobExternalResult<TOutcome> Failed<TOutcome>(
+        TOutcome outcome, BackgroundJobQuiescenceEvidence quiescence, BackgroundJobExternalFailurePolicy failurePolicy)
+        where TOutcome : IBackgroundJobOutcome =>
+        Create(BackgroundJobExternalState.Failed, outcome, quiescence, failurePolicy);
+
+    public static BackgroundJobExternalResult<TOutcome> Cancelled<TOutcome>(
+        TOutcome outcome, BackgroundJobQuiescenceEvidence quiescence, BackgroundJobExternalFailurePolicy failurePolicy)
+        where TOutcome : IBackgroundJobOutcome =>
+        Create(BackgroundJobExternalState.Cancelled, outcome, quiescence, failurePolicy);
+
+    private static BackgroundJobExternalResult<TOutcome> Create<TOutcome>(BackgroundJobExternalState state,
+        TOutcome outcome, BackgroundJobQuiescenceEvidence quiescence, BackgroundJobExternalFailurePolicy? failurePolicy)
         where TOutcome : IBackgroundJobOutcome
     {
         ArgumentNullException.ThrowIfNull(outcome);
         ArgumentNullException.ThrowIfNull(quiescence);
-        if (state is not (BackgroundJobExternalState.Succeeded or BackgroundJobExternalState.Failed or BackgroundJobExternalState.Cancelled))
-            throw new ArgumentException("A known external outcome must be succeeded, failed or cancelled.", nameof(state));
-        return new(state, outcome, quiescence);
+        return new(state, outcome, quiescence, failurePolicy);
     }
 }
 
@@ -97,6 +130,12 @@ public interface IBackgroundJobExternalOperation<TPlan, TOutcome>
     Task<BackgroundJobExternalResult<TOutcome>> ExecuteAsync(
         BackgroundJobExternalContext context, TPlan plan, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Query the same logical operation and request provider/supervisor cancellation
+    /// when its immutable Deadline is due. An expired original deadline does not
+    /// pre-cancel this fresh probe token. Running/Unknown supplies no quiescence;
+    /// only positive provider/supervisor evidence permits a completed report.
+    /// </summary>
     Task<BackgroundJobExternalResult<TOutcome>> ReconcileAsync(
         BackgroundJobExternalContext context, TPlan plan, CancellationToken cancellationToken = default);
 }

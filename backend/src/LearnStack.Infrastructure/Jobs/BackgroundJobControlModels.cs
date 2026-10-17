@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -10,17 +11,23 @@ internal static class BackgroundJobControlLimits
 {
     internal const int MaximumProbeBatch = 100;
     // Existing 64 execution and 128 completion-request bounds, plus one
-    // background control batch and one terminal boundary's immutable cursor.
+    // background control batch, one terminal boundary's immutable cursor and
+    // one sequential terminal app owner's original acquisition/history.
     // These are identity exclusions, not additional physical source slots.
-    internal const int MaximumRetainedIds = 64 + 128 + MaximumProbeBatch + 1;
+    internal const int MaximumRetainedIds = 64 + 128 + MaximumProbeBatch + 2;
 }
 
-internal enum BackgroundJobControlLane { Recovery, Exhaustion, Retirement, CapacityProbe }
-internal enum BackgroundJobCommitBoundary { Admission, Business, Control, TerminalClaim, Terminal, Renewal, CapacityRecovery, TransactionalCleanup }
+internal enum BackgroundJobControlLane { Recovery, Exhaustion, Retirement, CapacityProbe, ExternalRecovery, ExternalUnarmed, ExternalFinalize }
+internal enum BackgroundJobCommitBoundary { Admission, Business, Control, TerminalClaim, Terminal, Renewal, CapacityRecovery, TransactionalCleanup, ExternalRecovery, ExternalKnownRetry, ExternalUnresolved, ExternalNoPlanTerminalRequest, ExternalFinalizeDisposition, ExternalUninvokableTerminalRequest }
+internal enum BackgroundJobExternalRetryMode { OriginalCompleted, RecoveryKnown }
+internal enum BackgroundJobExternalUnresolvedDisposition { Running, Unknown, ProbeFault, ProbeTimeout, ReconcileRequired }
 internal enum BackgroundJobProbeDisposition { Unresolved, Missing, ChangedOwner, RolledBack, Admitted, AdmissionReleased, ControlCommitted, BusinessCompleted, TerminalCompleted, Renewed, CapacityRecoveryAcquired, CapacityCleanupCommitted }
 
 internal sealed record BackgroundJobRenewal(BackgroundJobExecutionIdentity Identity,
-    DateTimeOffset OwnershipUntil, DateTimeOffset DbNow);
+    DateTimeOffset OwnershipUntil, DateTimeOffset DbNow)
+{
+    internal BackgroundJobExternalRecoveryRenewal? RecoveryLease { get; init; }
+}
 internal sealed record BackgroundJobControlChange(Guid JobId, long WakeGeneration, string Phase, string? TerminalReason);
 
 /// <summary>Only immutable routing/control facts; no payload or executable receipt.</summary>
@@ -29,16 +36,45 @@ internal sealed record BackgroundJobCommitProbe(BackgroundJobCommitBoundary Boun
     long? ExpectedGeneration = null, string? ExpectedPhase = null, DateTimeOffset? ExpectedUntil = null,
     string? CapacityGroup = null, Guid? RecoveryToken = null, int? Ordinal = null,
     DateTimeOffset? Deadline = null, DateTimeOffset? AdmittedAt = null,
-    BackgroundJobCapacityCleanupEvidence? CleanupEvidence = null)
+    BackgroundJobCapacityCleanupEvidence? CleanupEvidence = null, DateTimeOffset? OriginalDueAt = null,
+    string? Profile = null, BackgroundJobLedgerStage? LedgerStage = null, int? FinalizeOrdinal = null,
+    Guid? SelectedNormalAttemptId = null, bool IsRecovery = false, Guid? OriginalAdmissionToken = null,
+    DateTimeOffset? ExpectedAvailableAfter = null, DateTimeOffset? ExpectedProbeAfter = null,
+    int? PreviousUnsuccessfulProbes = null, int? ExpectedUnsuccessfulProbes = null, string? ExpectedQuarantineReason = null,
+    string? ExpectedTerminalReason = null)
 {
+    // Immutable metadata captured under the original status transaction job lock.
+    internal BackgroundJobFinalizeControlHistory? FinalizationHistory { get; init; }
+    internal BackgroundJobUninvokableRequestHistory? UninvokableHistory { get; init; }
+    internal BackgroundJobTerminalClaim? TerminalClaim { get; init; }
+
     internal static BackgroundJobCommitProbe ForAdmission(BackgroundJobRoutingClaim claim) =>
         new(BackgroundJobCommitBoundary.Admission, claim.JobId.Value, claim.TenantId.Value, claim.OrganizationId?.Value,
             claim.DefinitionKey, claim.Queue, claim.WakeGeneration, null, claim.Token);
 
-    internal static BackgroundJobCommitProbe ForBusiness(BackgroundJobExecutionIdentity identity) =>
-        new(BackgroundJobCommitBoundary.Business, identity.JobId.Value, identity.TenantId.Value, identity.OrganizationId?.Value,
+    internal static BackgroundJobCommitProbe ForBusiness(BackgroundJobExecutionIdentity identity)
+    {
+        if (identity.Profile != "transactional" || identity.LedgerStage != BackgroundJobLedgerStage.Normal)
+            throw new InvalidOperationException("External history requires its exact checkpoint origin.");
+        return new(BackgroundJobCommitBoundary.Business, identity.JobId.Value, identity.TenantId.Value, identity.OrganizationId?.Value,
             identity.DefinitionKey, identity.Queue, identity.WakeGeneration, identity.AttemptId.Value, identity.Token,
             CapacityGroup: identity.CapacityGroup);
+    }
+
+    internal static BackgroundJobCommitProbe ForRenewal(BackgroundJobExecutionIdentity identity, DateTimeOffset? expectedUntil) =>
+        new(BackgroundJobCommitBoundary.Renewal, identity.JobId.Value, identity.TenantId.Value, identity.OrganizationId?.Value,
+            identity.DefinitionKey, identity.Queue, identity.WakeGeneration, identity.AttemptId.Value, identity.Token,
+            ExpectedUntil: expectedUntil, CapacityGroup: identity.CapacityGroup, Ordinal: identity.NormalAttemptOrdinal,
+            Deadline: identity.Deadline, AdmittedAt: identity.AdmittedAt, OriginalDueAt: identity.OriginalDueAt,
+            Profile: identity.Profile, LedgerStage: identity.LedgerStage, FinalizeOrdinal: identity.FinalizeAttemptOrdinal,
+            SelectedNormalAttemptId: identity.SelectedNormalAttemptId?.Value,
+            IsRecovery: identity.IsRecovery, OriginalAdmissionToken: identity.AdmissionToken);
+
+    internal static BackgroundJobCommitProbe ForExternalKnownRetry(BackgroundJobExecutionIdentity identity) =>
+        ForRenewal(identity, null) with { Boundary = BackgroundJobCommitBoundary.ExternalKnownRetry };
+
+    internal static BackgroundJobCommitProbe ForExternalUnresolved(BackgroundJobExecutionIdentity identity) =>
+        ForRenewal(identity, null) with { Boundary = BackgroundJobCommitBoundary.ExternalUnresolved };
 
     internal static BackgroundJobCommitProbe ForCapacityCleanup(BackgroundJobCapacityRecoveryReceipt receipt,
         BackgroundJobCapacityCleanupEvidence evidence) => new(BackgroundJobCommitBoundary.TransactionalCleanup,
@@ -62,7 +98,7 @@ internal sealed class BackgroundJobTerminalClaim
 {
     private BackgroundJobTerminalClaim(NpgsqlDataReader row)
     {
-        if (row.FieldCount != 13) throw new InvalidOperationException("Terminal acquisition requires its exact returned projection.");
+        if (row.FieldCount is not (14 or 24)) throw new InvalidOperationException("Terminal acquisition requires its exact returned projection.");
         JobId = row.GetGuid(0);
         TenantId = row.GetGuid(1);
         OrganizationId = row.IsDBNull(2) ? null : row.GetGuid(2);
@@ -76,11 +112,16 @@ internal sealed class BackgroundJobTerminalClaim
         OwnershipUntil = row.GetFieldValue<DateTimeOffset>(10);
         DbNow = row.GetFieldValue<DateTimeOffset>(11);
         CapacityGroup = row.IsDBNull(12) ? null : row.GetString(12);
+        Profile = row.GetString(13);
+        if (row.FieldCount == 24) Prepared = BackgroundJobTerminalPreparedFacts.FromReturnedRow(row, NormalAttempts, AttemptId, Reason, DbNow);
         if (JobId.Version != 7 || TenantId == Guid.Empty || TenantId == LearnStack.SharedKernel.Identifiers.TenantId.PlatformSentinel.Value
             || OrganizationId == Guid.Empty || Token == Guid.Empty || WakeGeneration < 1
+            || AttemptId is { Version: not 7 } || OwnershipUntil <= DbNow || OwnershipUntil - DbNow > TimeSpan.FromMinutes(10)
             || NormalAttempts is < 0 or > 6 || ((NormalAttempts == 0) != (AttemptId is null))
-            || Reason is not ("retired_definition" or "invalid_envelope" or "permanent_failure" or "retry_exhausted")
+            || (Prepared is null ? Reason is not ("retired_definition" or "invalid_envelope" or "permanent_failure" or "retry_exhausted")
+                : Profile != "external" || CapacityGroup is null)
             || (Reason == "retry_exhausted" && NormalAttempts != 6) || (Reason == "permanent_failure" && NormalAttempts == 0)
+            || Profile is not ("transactional" or "external")
             || !BackgroundJobNames.Definition(DefinitionKey) || !BackgroundJobNames.QueueOrPool(Queue))
             throw new InvalidOperationException("Terminal acquisition returned invalid control facts.");
     }
@@ -98,10 +139,26 @@ internal sealed class BackgroundJobTerminalClaim
     internal DateTimeOffset OwnershipUntil { get; }
     internal DateTimeOffset DbNow { get; }
     internal string? CapacityGroup { get; }
+    internal string Profile { get; }
+    internal BackgroundJobTerminalPreparedFacts? Prepared { get; }
     internal static BackgroundJobTerminalClaim FromReturnedRow(NpgsqlDataReader row) => new(row);
     internal BackgroundJobCommitProbe Probe(BackgroundJobCommitBoundary boundary) =>
         new(boundary, JobId, TenantId, OrganizationId, DefinitionKey, Queue, WakeGeneration, AttemptId, Token,
-            CapacityGroup: CapacityGroup);
+            ExpectedUntil: OwnershipUntil, CapacityGroup: CapacityGroup, Profile: Profile, Ordinal: NormalAttempts,
+            FinalizeOrdinal: Prepared?.FinalizeAttempts, SelectedNormalAttemptId: Prepared?.SelectedNormalAttemptId,
+            IsRecovery: true, ExpectedTerminalReason: Reason)
+        { TerminalClaim = Profile == "external" ? this : null };
+
+    internal bool MatchesProbe(BackgroundJobCommitProbe probe) => ReferenceEquals(probe.TerminalClaim, this)
+        && probe.JobId == JobId && probe.TenantId == TenantId && probe.OrganizationId == OrganizationId
+        && probe.DefinitionKey == DefinitionKey && probe.Queue == Queue && probe.WakeGeneration == WakeGeneration
+        && probe.AttemptId == AttemptId && probe.Token == Token && probe.CapacityGroup == CapacityGroup
+        && probe.Profile == Profile && probe.Ordinal == NormalAttempts && probe.ExpectedTerminalReason == Reason
+        && probe.ExpectedUntil == OwnershipUntil && probe.IsRecovery
+        && probe.FinalizeOrdinal == Prepared?.FinalizeAttempts && probe.SelectedNormalAttemptId == Prepared?.SelectedNormalAttemptId
+        && (probe.Boundary is BackgroundJobCommitBoundary.TerminalClaim or BackgroundJobCommitBoundary.Terminal
+            || probe.Boundary == BackgroundJobCommitBoundary.Control
+                && probe.ExpectedGeneration == WakeGeneration && probe.ExpectedPhase == "terminal_pending");
 }
 
 /// <summary>A completed operation keeps actual failed cleanup owners and COMMIT uncertainty distinct.</summary>
@@ -125,6 +182,48 @@ internal sealed class OwnedBackgroundJobControl<T>(T? value, BackgroundJobContro
     }
 }
 
+/// <summary>
+/// The original physical acquisition owns one recovery receipt, including when
+/// a later locked probe resolves its lost ACK. Reprobing cannot remint entry.
+/// </summary>
+internal sealed class OwnedBackgroundJobExternalRecovery(OwnedBackgroundJobControl<BackgroundJobExternalRecoveryReceipt> operation,
+    BackgroundJobRunGate.RuntimeStop runtime)
+{
+    internal BackgroundJobRunGate.RuntimeStop Runtime { get; } = runtime;
+    private BackgroundJobExternalRecoveryReceipt? _receipt = operation.Value;
+    internal BackgroundJobExternalRecoveryReceipt? Value => Volatile.Read(ref _receipt);
+    internal bool CommitAcknowledged => operation.CommitAcknowledged;
+    internal bool CommitUncertain => operation.CommitUncertain;
+    internal bool CleanupConfirmed => operation.CleanupConfirmed;
+    internal bool Failed => operation.Failed;
+    internal IReadOnlyList<BackgroundJobCommitProbe> Probes => operation.Probes;
+    internal void ThrowIfFailed() => operation.ThrowIfFailed();
+
+    internal void RequireDescriptor(BackgroundJobCommitProbe probe)
+    {
+        if (!Probes.Any(original => ReferenceEquals(original, probe)))
+            throw new ArgumentException("Recovery confirmation requires the original operation's exact descriptor.", nameof(probe));
+    }
+
+    internal BackgroundJobExternalRecoveryReceipt PublishConfirmation(BackgroundJobCommitProbe probe,
+        BackgroundJobExternalRecoveryReceipt confirmed)
+    {
+        RequireDescriptor(probe);
+        if (!CleanupConfirmed) throw new InvalidOperationException("A new probe cannot clean the original acquisition's resources.");
+        if (confirmed.JobId.Value != probe.JobId || confirmed.TenantId.Value != probe.TenantId
+            || confirmed.OrganizationId?.Value != probe.OrganizationId || confirmed.DefinitionKey != probe.DefinitionKey
+            || confirmed.Queue != probe.Queue || confirmed.CapacityGroup != probe.CapacityGroup
+            || confirmed.OriginalDueAt != probe.OriginalDueAt || confirmed.AttemptId.Value != probe.AttemptId
+            || confirmed.NormalAttemptOrdinal != probe.Ordinal || confirmed.AdmittedAt != probe.AdmittedAt
+            || confirmed.Deadline != probe.Deadline || confirmed.AdmissionToken != probe.Token
+            || confirmed.RecoveryToken != probe.RecoveryToken || confirmed.WakeGeneration != probe.WakeGeneration
+            || confirmed.TerminalReason != probe.ExpectedTerminalReason
+            || (confirmed.Purpose == BackgroundJobExternalRecoveryPurpose.TerminalNoStart) != (probe.ExpectedPhase == "terminal_pending"))
+            throw new InvalidOperationException("Recovery confirmation must preserve the exact original acquisition identity.");
+        return Interlocked.CompareExchange(ref _receipt, confirmed, null) ?? confirmed;
+    }
+}
+
 /// <summary>One actual operation's fixed resource owners; cleanup faults never discard the owner.</summary>
 internal sealed class BackgroundJobControlResources
 {
@@ -136,6 +235,7 @@ internal sealed class BackgroundJobControlResources
     internal bool CommitAttempted { get; set; }
     internal bool IsProbe { get; set; }
     internal bool CommitAcknowledged { get; set; }
+    internal bool ProbeRollbackAcknowledged { get; set; }
     internal bool CleanupConfirmed { get; private set; }
     internal ExceptionDispatchInfo? Failure { get; private set; }
     private bool _readerAttempted;

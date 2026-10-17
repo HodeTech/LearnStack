@@ -26,7 +26,7 @@ public sealed partial class BackgroundJobControlTests
         var first = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
             BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
         var claim = (await routing.TryClaimAsync(first, 1))!;
-        var admitted = await executor.ExecuteAsync(claim);
+        var admitted = await executor.ExecuteAsync(claim, BackgroundJobTestRun.Create());
         admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         try
         {
@@ -48,7 +48,7 @@ public sealed partial class BackgroundJobControlTests
             var second = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
             var secondClaim = (await routing.TryClaimAsync(second, 1))!;
-            var refused = await executor.ExecuteAsync(secondClaim);
+            var refused = await executor.ExecuteAsync(secondClaim, BackgroundJobTestRun.Create());
             refused.Outcome.Should().Be(JobStartExecutionOutcome.CapacityDeferred);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, second)).Should().Be(0);
             probe.Constructions.Should().BeEmpty("neither recovery nor capacity refusal constructs business work");

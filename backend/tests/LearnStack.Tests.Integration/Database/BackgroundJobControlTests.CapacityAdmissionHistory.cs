@@ -36,7 +36,7 @@ public sealed partial class BackgroundJobControlTests
         {
             if (originalCommitted)
             {
-                first = await executor.ExecuteAsync(original);
+                first = await executor.ExecuteAsync(original, BackgroundJobTestRun.Create());
                 first.Outcome.Should().Be(JobStartExecutionOutcome.Started);
             }
             await DispatchAsync(database,
@@ -77,7 +77,7 @@ public sealed partial class BackgroundJobControlTests
                 var next = (await routing.TryClaimAsync(job, originalReleased ? 2 : 1))!;
                 next.Should().NotBeNull();
                 next.Token.Should().NotBe(original.Token);
-                peer = await executor.ExecuteAsync(next);
+                peer = await executor.ExecuteAsync(next, BackgroundJobTestRun.Create());
                 peer.Outcome.Should().Be(JobStartExecutionOutcome.Started);
             }
             var before = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;

@@ -14,6 +14,13 @@ public enum BackgroundJobExecutionProfile
     External,
 }
 
+/// <summary>Independent counted budgets; recovery and plan reuse create no extra ledger stage.</summary>
+public enum BackgroundJobLedgerStage
+{
+    Normal,
+    Finalize,
+}
+
 /// <summary>The exact business root admitted by the closed executor entry.</summary>
 public enum BackgroundJobExecutionStage
 {

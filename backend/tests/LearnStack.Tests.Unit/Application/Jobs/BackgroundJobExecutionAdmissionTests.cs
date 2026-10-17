@@ -19,6 +19,53 @@ namespace LearnStack.Tests.Unit.Application.Jobs;
 public sealed class BackgroundJobExecutionAdmissionTests
 {
     [Fact]
+    public async Task External_scope_refuses_sender_and_direct_owner_entry_after_accessor_replacement_and_inherited_cleanup()
+    {
+        var fixture = new Fixture();
+        using var provider = fixture.Services();
+        using var scope = provider.CreateScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task inherited;
+        using (BackgroundJobExecutionAdmission.EnterExternal())
+        {
+            fixture.Context = new JobContext(TenantId.From(Guid.CreateVersion7()));
+            (await sender.Send(new Root(new Nested()))).Error!.Code.Should().Be("forbidden");
+            (await sender.Send(new FrameworkWrite())).Error!.Code.Should().Be("forbidden");
+            var directOwner = () => BackgroundJobExecutionAdmission.RequireContext(fixture.Context);
+            directOwner.Should().Throw<InvalidOperationException>();
+            var bypass = () => BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+            bypass.Should().Throw<InvalidOperationException>();
+            inherited = Task.Run(async () =>
+            {
+                await release.Task;
+                (await sender.Send(new Root(new Nested()))).Error!.Code.Should().Be("forbidden");
+                directOwner.Should().Throw<InvalidOperationException>();
+                bypass.Should().Throw<InvalidOperationException>();
+            });
+        }
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        BackgroundJobExecutionAdmission.RequireContext(fixture.Context);
+        release.SetResult();
+        await inherited.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.Constructed.Should().BeEmpty("neither live nor retained provider work may construct a MediatR handler");
+    }
+
+    [Theory]
+    [InlineData(BackgroundJobExecutionStage.Transactional, BackgroundJobCheckpointKind.Prepare)]
+    [InlineData(BackgroundJobExecutionStage.Prepare, BackgroundJobCheckpointKind.Finalize)]
+    [InlineData(BackgroundJobExecutionStage.Finalize, BackgroundJobCheckpointKind.Transactional)]
+    public void Ordinary_participant_rejects_another_stage_boundary(BackgroundJobExecutionStage stage, BackgroundJobCheckpointKind kind)
+    {
+        var fixture = new Fixture();
+        var unit = Substitute.For<IUnitOfWork>();
+        var participant = new ProbeCompletion(unit, new StaticTenantContextAccessor(fixture.Context));
+        var receipt = JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, null, stage);
+        var arm = () => participant.Arm(receipt, receipt.Run.OpenBoundary(kind));
+        arm.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task Real_sender_constructs_only_admitted_root_nested_and_framework_handlers()
     {
         var fixture = new Fixture();
@@ -45,9 +92,9 @@ public sealed class BackgroundJobExecutionAdmissionTests
         var accessor = new StaticTenantContextAccessor(fixture.Context);
         var unit = Substitute.For<IUnitOfWork>();
         var participant = new ProbeCompletion(unit, accessor);
-        var gate = new BackgroundJobCommitGate();
         var receipt = JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, null,
             BackgroundJobExecutionStage.Transactional);
+        var gate = receipt.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional);
         participant.Arm(receipt, gate);
         if (changed == "accessor_reference") accessor.Current = ((JobContext)fixture.Context) with { };
         if (changed == "closed_gate") gate.Close();
@@ -344,7 +391,8 @@ public sealed class BackgroundJobExecutionAdmissionTests
         {
             var unit = Substitute.For<IUnitOfWork>();
             var participant = new ProbeCompletion(unit, _accessor);
-            participant.Arm(receipt, new BackgroundJobCommitGate());
+            participant.Arm(receipt, receipt.Run.OpenBoundary(Enum.Parse<BackgroundJobCheckpointKind>(
+                (receipt.Stage ?? throw new InvalidOperationException("This fixture requires an ordinary root.")).ToString())));
             return Admission.Enter(receipt, unit, participant);
         }
         public ServiceProvider Services()
@@ -368,7 +416,7 @@ public sealed class BackgroundJobExecutionAdmissionTests
         : BackgroundJobCompletionParticipant(unit, accessor)
     {
         protected override Task PreflightAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        protected override Task FenceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        protected override Task FenceAsync(IResultBase response, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     public sealed class Catalog : IBackgroundJobDefinitionCatalog, IBackgroundJobRequestCatalog

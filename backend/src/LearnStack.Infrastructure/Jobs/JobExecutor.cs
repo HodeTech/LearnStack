@@ -29,7 +29,8 @@ public sealed record JobStartExecutionResult(JobStartExecutionOutcome Outcome,
 
 /// <summary>A faulted cleanup keeps its concrete resources; a completed async task alone does not.</summary>
 internal sealed class JobStartCleanupOwnership(AsyncServiceScope? scope, IUnitOfWork? unit,
-    CancellationTokenSource? deadline, Activity? activity, IDisposable? authority, IDisposable? sourceBinding = null)
+    CancellationTokenSource? deadline, Activity? activity, IDisposable? authority, IDisposable? sourceBinding = null,
+    CancellationTokenRegistration? registration = null)
 {
     internal AsyncServiceScope? Scope { get; } = scope;
     internal IUnitOfWork? Unit { get; } = unit;
@@ -37,6 +38,7 @@ internal sealed class JobStartCleanupOwnership(AsyncServiceScope? scope, IUnitOf
     internal Activity? Activity { get; } = activity;
     internal IDisposable? Authority { get; } = authority;
     internal IDisposable? SourceBinding { get; } = sourceBinding;
+    internal CancellationTokenRegistration? Registration { get; } = registration;
 }
 
 /// <summary>Owns separate framework admission and ordinary business scopes through actual cleanup.</summary>
@@ -45,16 +47,25 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
 {
     internal IServiceScopeFactory ScopeFactory => scopes;
 
-    public Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
-        Func<bool>? startGate = null, CancellationToken cancellationToken = default) =>
-        ExecutePublishedAsync(claim, new BackgroundJobStartPublication(), startGate, cancellationToken);
+    public async Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
+        BackgroundJobRunGate run, Func<bool>? startGate = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var result = await ExecutePublishedAsync(claim, new BackgroundJobStartPublication(),
+            run.OpenBoundary(BackgroundJobCheckpointKind.Admission), startGate, cancellationToken).ConfigureAwait(false);
+        result.Receipt?.BindRun(run);
+        return result;
+    }
 
     internal async Task<JobStartExecutionResult> ExecutePublishedAsync(BackgroundJobRoutingClaim claim,
-        BackgroundJobStartPublication publication, Func<bool>? startGate, CancellationToken cancellationToken)
+        BackgroundJobStartPublication publication, BackgroundJobCommitGate gate,
+        Func<bool>? startGate, CancellationToken cancellationToken)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(publication);
+        if (gate is not { Kind: BackgroundJobCheckpointKind.Admission })
+            throw new ArgumentException("Admission requires its exact prebound stage.", nameof(gate));
         options.Validate();
         var sourceOwner = JobApplicationSourceOwner.Create();
         var sourceBinding = sourceOwner.Enter();
@@ -72,6 +83,8 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
         var retainedCleanup = new List<JobStartCleanupOwnership>();
         try
         {
+            if (!gate.TryIssue())
+                throw new OperationCanceledException("Job admission issuance is closed.", cancellationToken);
             accessor.Current = null;
             authority = admission.EnterFramework(claim, startGate);
             cancellationToken.ThrowIfCancellationRequested();
@@ -104,10 +117,11 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 accessor.Current = CreateContext(read.Value);
                 _ = ActivityContext.TryParse(read.Value.Traceparent, null, isRemote: true, out var parent);
                 activity = new Activity("job.admission").SetIdFormat(ActivityIdFormat.W3C)
-                    .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags).Start();
+                    .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
+                activity.Start();
                 scope = scopes.CreateAsyncScope();
                 unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
-                command = new AdmitBackgroundJobAttemptCommand(claim, read.Value);
+                command = new AdmitBackgroundJobAttemptCommand(claim, read.Value, gate);
                 publication.Bind(command);
                 // Each exact framework transaction has its own bound, including
                 // announcement and COMMIT. Keep its source through actual cleanup.
@@ -132,7 +146,7 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 outcome = command?.CommitStarted == true && unit?.IsRollbackOnly != true
                     ? JobStartExecutionOutcome.Indeterminate
                     : exception is OperationCanceledException
-                        && (cancellationToken.IsCancellationRequested || sqlDeadline?.IsCancellationRequested == true)
+                        && (gate.IsClosed || cancellationToken.IsCancellationRequested || sqlDeadline?.IsCancellationRequested == true)
                         ? JobStartExecutionOutcome.Canceled
                         : exception is ArgumentException && command is null
                             ? JobStartExecutionOutcome.InvalidEnvelope : JobStartExecutionOutcome.Failed;

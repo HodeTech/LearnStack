@@ -90,22 +90,25 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
 
     private static void AssertCapacityReappliedInventory(IReadOnlyList<string> actual, IReadOnlyList<string> expected)
     {
-        // PostgreSQL retains the dropped column's physical attnum. Readding this
-        // one new last column therefore advances only its ordinal_position;
-        // every other column and every security/function/constraint fact is exact.
+        // PostgreSQL retains dropped physical attnums. Reapplying these two
+        // additive migrations advances only their named column positions. Every
+        // other column and every security/function/constraint fact remains exact.
         const string Prefix = "column:background_job_attempts:";
-        const string Column = ":transactional_cleanup_at:";
-        var before = expected.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
-            && item.Contains(Column, StringComparison.Ordinal));
-        var after = actual.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
-            && item.Contains(Column, StringComparison.Ordinal));
-        var beforePosition = int.Parse(before[Prefix.Length..before.IndexOf(Column, StringComparison.Ordinal)],
-            System.Globalization.CultureInfo.InvariantCulture);
-        var afterPosition = int.Parse(after[Prefix.Length..after.IndexOf(Column, StringComparison.Ordinal)],
-            System.Globalization.CultureInfo.InvariantCulture);
-        afterPosition.Should().BeGreaterThanOrEqualTo(beforePosition);
-        var normalized = Prefix + beforePosition.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            + after[after.IndexOf(Column, StringComparison.Ordinal)..];
-        actual.Select(item => item == after ? normalized : item).Order(StringComparer.Ordinal).Should().Equal(expected);
+        var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var column in new[] { ":transactional_cleanup_at:", ":failure_policy:" })
+        {
+            var before = expected.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
+                && item.Contains(column, StringComparison.Ordinal));
+            var after = actual.Single(item => item.StartsWith(Prefix, StringComparison.Ordinal)
+                && item.Contains(column, StringComparison.Ordinal));
+            var beforePosition = int.Parse(before[Prefix.Length..before.IndexOf(column, StringComparison.Ordinal)],
+                System.Globalization.CultureInfo.InvariantCulture);
+            var afterPosition = int.Parse(after[Prefix.Length..after.IndexOf(column, StringComparison.Ordinal)],
+                System.Globalization.CultureInfo.InvariantCulture);
+            afterPosition.Should().BeGreaterThanOrEqualTo(beforePosition);
+            replacements.Add(after, Prefix + beforePosition.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + after[after.IndexOf(column, StringComparison.Ordinal)..]);
+        }
+        actual.Select(item => replacements.GetValueOrDefault(item, item)).Order(StringComparer.Ordinal).Should().Equal(expected);
     }
 }

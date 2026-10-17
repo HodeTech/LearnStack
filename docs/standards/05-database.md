@@ -2024,12 +2024,29 @@ scans; tenant and FK indexes remain complete. Clocks are runtime predicates. The
 canonical SQL below is copied verbatim into the additive Platform migration and
 compared against a separately applied database by schema proofs.
 
+The quarantine-presence index also serves a confined global status scan. One
+bounded observation runs at the snapshot cadence on the existing serial control
+lane. It reads no payload and publishes only after acknowledged read rollback and
+actual resource cleanup. Health reads the cached observation; refresh failure
+preserves its last good value while reporting unhealthy. A fresh process must
+observe durable quarantine again before it can report healthy.
+
 Candidate selection uses a stable database cutoff, such as `statement_timestamp()`
 or a captured database timestamp parameter, so the clock column forms an index
 range bound even for idle and partial pages. A volatile `clock_timestamp()` filter
 can scan every future row despite selecting the ordered index. Authority and
 expiry checks after row locking still use current database time; a selection
 cutoff does not establish a live lease.
+
+An expired external normal owner parks with a finite recovery due time and one
+new wake generation. A separate seek normalizes a legacy unowned row with no
+due time once; an already scheduled row keeps its cycle.
+Neither operation spends admission, fabricates effect evidence or releases a
+reservation. Bridge scheduling uses the recovery due time, including at normal
+attempt six; acquisition requires the current generation and an actually due,
+unowned row. Expired routing in either ordinary profile preserves its generation
+when cleared for bridge repair. Downgrading the recovery-wake migration refuses
+while any tenant retains an incomplete external Reconciling row.
 
 ```sql
 CREATE TABLE background_jobs (
@@ -2129,7 +2146,7 @@ CONSTRAINT fk_background_jobs_organization FOREIGN KEY (tenant_id, organization_
     CONSTRAINT ck_background_jobs_errors CHECK ((last_error IS NULL OR
         (octet_length(last_error) <= 256 AND last_error IN ('deployment_mismatch', 'capacity_unavailable', 'concurrency_conflict', 'rate_limited', 'dependency_unavailable', 'audit_unavailable', 'unexpected_fault', 'permanent_failure', 'lease_lost', 'deadline_exceeded', 'shutdown', 'unknown_outcome', 'invalid_control', 'finalize_refused', 'finalize_exhausted')))
         AND (quarantine_reason IS NULL OR quarantine_reason IN ('unknown_outcome', 'probe_exhausted', 'invalid_control'))
-        AND (terminal_reason IS NULL OR terminal_reason IN ('retired_definition', 'invalid_envelope', 'permanent_failure', 'retry_exhausted', 'finalize_refused', 'finalize_exhausted'))),
+        AND (terminal_reason IS NULL OR terminal_reason IN ('retired_definition', 'invalid_envelope', 'permanent_failure', 'retry_exhausted', 'external_retry_forbidden', 'finalize_refused', 'finalize_exhausted'))),
     CONSTRAINT ck_background_jobs_state CHECK (
         (phase <> 'completed' OR processed_at IS NOT NULL)
         AND (processed_at IS NULL OR (phase = 'completed' AND dead_lettered_at IS NULL AND terminal_reason IS NULL))
@@ -2178,6 +2195,7 @@ CREATE TABLE background_job_attempts (
     quiescent_at timestamptz NULL,
     no_start_at timestamptz NULL,
     transactional_cleanup_at timestamptz NULL,
+    failure_policy text NULL,
     CONSTRAINT ux_background_job_attempts_tenant_job_id UNIQUE (tenant_id, job_id, id),
     CONSTRAINT ux_background_job_attempts_stage_ordinal UNIQUE (job_id, stage, ordinal),
     CONSTRAINT ck_background_job_attempts_tenant CHECK (tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid, '00000000-0000-7000-8000-000000000002'::uuid)),
@@ -2204,6 +2222,13 @@ CONSTRAINT fk_background_job_attempts_organization FOREIGN KEY (tenant_id, organ
             AND outcome_at IS NOT NULL AND execute_intent_at IS NOT NULL
             AND octet_length(outcome) <= 65536 AND outcome IS JSON OBJECT WITH UNIQUE KEYS
             AND quiescent_at IS NOT NULL)),
+    CONSTRAINT ck_background_job_attempts_failure_policy CHECK (((failure_policy IS NULL
+        AND (outcome_kind IS NULL OR outcome_kind='succeeded'))
+        OR (stage='normal' AND outcome IS NOT NULL AND outcome_at IS NOT NULL AND execute_intent_at IS NOT NULL
+            AND quiescent_at IS NOT NULL AND no_start_at IS NULL AND transactional_cleanup_at IS NULL
+            AND failure_policy IS NOT NULL AND ((outcome_kind='failed'
+                AND failure_policy IN ('permanent','transient_repeatable','transient_not_repeatable'))
+                OR (outcome_kind='cancelled' AND failure_policy IN ('transient_repeatable','transient_not_repeatable'))))) IS TRUE),
     CONSTRAINT ck_background_job_attempts_quiescence CHECK (
         (quiescence_id IS NULL AND quiescence_kind IS NULL AND quiescent_at IS NULL)
         OR (stage = 'normal' AND quiescence_id IS NOT NULL AND quiescence_id <> '00000000-0000-0000-0000-000000000000'::uuid
@@ -2453,15 +2478,20 @@ $$;
 CREATE FUNCTION public.fn_background_jobs_transition() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
 DECLARE attempt record; final_attempt record; admission boolean;
+    expected_status text; expected_reason text; expected_terminal text; recovery_cycle boolean := false;
 BEGIN
     SELECT NULL::text AS stage, NULL::timestamptz AS execute_intent_at, NULL::timestamptz AS quiescent_at,
-           NULL::timestamptz AS no_start_at, NULL::text AS outcome_kind, NULL::text AS plan_fingerprint,
-           NULL::uuid AS operation_id INTO attempt;
+           NULL::timestamptz AS no_start_at, NULL::text AS outcome_kind, NULL::text AS failure_policy, NULL::text AS plan_fingerprint,
+           NULL::uuid AS operation_id, NULL::integer AS ordinal, NULL::timestamptz AS deadline,
+           NULL::uuid AS organization_id, NULL::uuid AS admission_token INTO attempt;
     IF OLD.processed_at IS NOT NULL OR OLD.dead_lettered_at IS NOT NULL OR OLD.phase = 'quarantined' THEN
         IF NEW IS DISTINCT FROM OLD THEN
             RAISE EXCEPTION 'completed or quarantined job is frozen' USING ERRCODE = '23514';
         END IF;
         RETURN NEW;
+    END IF;
+    IF OLD.terminal_reason IS NOT NULL AND NEW.terminal_reason IS DISTINCT FROM OLD.terminal_reason THEN
+        RAISE EXCEPTION 'a terminal request retains its original reason' USING ERRCODE='23514';
     END IF;
     IF (OLD.plan IS NOT NULL AND ROW(NEW.plan, NEW.plan_fingerprint, NEW.prepared_at, NEW.operation_id)
             IS DISTINCT FROM ROW(OLD.plan, OLD.plan_fingerprint, OLD.prepared_at, OLD.operation_id))
@@ -2504,11 +2534,39 @@ BEGIN
         RAISE EXCEPTION 'attempt identity changes only with admission' USING ERRCODE = '23514';
     END IF;
     IF NEW.current_attempt_id IS NOT NULL THEN
-        SELECT a.stage, a.execute_intent_at, a.quiescent_at, a.no_start_at, a.outcome_kind,
-               a.plan_fingerprint, a.operation_id INTO attempt
+        SELECT a.stage, a.execute_intent_at, a.quiescent_at, a.no_start_at, a.outcome_kind, a.failure_policy,
+               a.plan_fingerprint, a.operation_id, a.ordinal, a.deadline, a.organization_id, a.admission_token INTO attempt
           FROM public.background_job_attempts a
           WHERE a.tenant_id = NEW.tenant_id AND a.job_id = NEW.id AND a.id = NEW.current_attempt_id;
         IF NOT FOUND THEN RAISE EXCEPTION 'current attempt unavailable' USING ERRCODE = '23514'; END IF;
+    END IF;
+    -- A parked external wake is scheduling only. Clearing an owner must
+    -- independently reject a still-live lease; the non-NULL takeover guard
+    -- below cannot protect a transition whose new token is NULL.
+    IF NOT admission AND NEW.profile='external' AND NEW.phase='reconciling' AND NEW.ownership_token IS NULL THEN
+        IF NEW.finalization_status IS NOT NULL OR NEW.final_outcome_attempt_id IS NOT NULL OR NEW.finalize_attempts<>0
+           OR attempt.stage IS DISTINCT FROM 'normal' OR attempt.ordinal IS DISTINCT FROM NEW.normal_attempts
+           OR attempt.deadline IS DISTINCT FROM NEW.attempt_deadline
+           OR attempt.organization_id IS DISTINCT FROM NEW.organization_id
+           OR NEW.normal_attempts NOT BETWEEN 1 AND 6 OR NEW.capacity_group IS NULL THEN
+            RAISE EXCEPTION 'external recovery wake requires the current normal attempt' USING ERRCODE='23514';
+        END IF;
+        IF OLD.ownership_token IS NOT NULL AND
+           (current_user<>'learnstack_outbox_admin' OR OLD.ownership_until>clock_timestamp()
+            OR NEW.probe_after IS NULL OR isfinite(NEW.probe_after) IS NOT TRUE
+            OR NOT ((OLD.phase IN ('preparing','prepared','executing') AND OLD.ownership_kind='execution'
+                     AND OLD.ownership_token=attempt.admission_token)
+                 OR (OLD.phase='reconciling' AND OLD.ownership_kind='recovery'
+                     AND OLD.ownership_token<>attempt.admission_token))) THEN
+            RAISE EXCEPTION 'external recovery wake cannot discard live or unrelated ownership' USING ERRCODE='23514';
+        END IF;
+        IF OLD.phase='reconciling' AND OLD.ownership_token IS NULL AND OLD.probe_after IS NOT NULL
+           AND NEW.probe_after IS DISTINCT FROM OLD.probe_after THEN
+            RAISE EXCEPTION 'an unowned recovery wake retains its scheduling cycle' USING ERRCODE='23514';
+        END IF;
+        recovery_cycle := current_user='learnstack_outbox_admin' AND NEW.probe_after IS NOT NULL
+            AND isfinite(NEW.probe_after) AND (OLD.ownership_token IS NOT NULL
+                OR (OLD.phase='reconciling' AND OLD.probe_after IS NULL));
     END IF;
     IF current_user = 'learnstack_outbox_admin' AND
        (NEW.processed_at IS DISTINCT FROM OLD.processed_at OR NEW.phase = 'completed'
@@ -2550,18 +2608,49 @@ BEGIN
         OR attempt.operation_id IS DISTINCT FROM NEW.operation_id) THEN
         RAISE EXCEPTION 'external execute requires durable matching intent' USING ERRCODE = '23514';
     END IF;
+    IF NEW.phase IN ('pending', 'finalize_pending', 'terminal_pending') AND OLD.phase <> NEW.phase AND NEW.profile = 'external'
+       AND EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
+           AND a.job_id = NEW.id AND a.execute_intent_at IS NOT NULL
+           AND (a.quiescent_at IS NULL OR a.outcome_kind IS NULL)) THEN
+        RAISE EXCEPTION 'unresolved external effects cannot retry or terminalize' USING ERRCODE = '23514';
+    END IF;
     IF NEW.finalization_status IS NOT NULL AND OLD.finalization_status IS NULL THEN
-        SELECT a.stage, a.outcome_kind, a.quiescent_at, a.no_start_at INTO final_attempt
+        SELECT a.stage, a.ordinal, a.organization_id, a.outcome_kind, a.failure_policy,
+               a.quiescent_at, a.no_start_at, a.plan_fingerprint, a.operation_id INTO final_attempt
           FROM public.background_job_attempts a
           WHERE a.tenant_id = NEW.tenant_id AND a.job_id = NEW.id AND a.id = NEW.final_outcome_attempt_id;
         IF NOT FOUND OR NEW.final_outcome_attempt_id IS DISTINCT FROM NEW.current_attempt_id
-           OR final_attempt.stage <> 'normal'
+           OR final_attempt.stage <> 'normal' OR final_attempt.ordinal<>NEW.normal_attempts
+           OR final_attempt.organization_id IS DISTINCT FROM NEW.organization_id
+           OR final_attempt.plan_fingerprint IS DISTINCT FROM NEW.plan_fingerprint
+           OR final_attempt.operation_id IS DISTINCT FROM NEW.operation_id
            OR (final_attempt.quiescent_at IS NULL AND final_attempt.no_start_at IS NULL)
            OR (NEW.finalization_status = 'succeeded' AND final_attempt.outcome_kind IS DISTINCT FROM 'succeeded')
            OR (NEW.finalization_reason = 'external_failed' AND final_attempt.outcome_kind IS DISTINCT FROM 'failed')
            OR (NEW.finalization_reason = 'external_cancelled' AND final_attempt.outcome_kind IS DISTINCT FROM 'cancelled')
            OR NEW.phase <> 'finalize_pending' THEN
             RAISE EXCEPTION 'finalization requires positive selected-attempt evidence' USING ERRCODE = '23514';
+        END IF;
+        IF final_attempt.outcome_kind='succeeded' THEN
+            expected_status:='succeeded'; expected_reason:='none';
+        ELSIF final_attempt.outcome_kind='failed' AND final_attempt.failure_policy='permanent' THEN
+            expected_status:='failed'; expected_reason:='external_failed';
+        ELSIF final_attempt.outcome_kind IN ('failed','cancelled') AND final_attempt.failure_policy='transient_not_repeatable' THEN
+            expected_status:='failed';
+            expected_reason:=CASE WHEN final_attempt.outcome_kind='failed' THEN 'external_failed' ELSE 'external_cancelled' END;
+        ELSIF final_attempt.outcome_kind IN ('failed','cancelled') AND final_attempt.failure_policy='transient_repeatable'
+              AND NEW.normal_attempts=6 THEN
+            expected_status:='failed'; expected_reason:='normal_attempts_exhausted';
+        ELSIF final_attempt.outcome_kind IS NULL AND final_attempt.no_start_at IS NOT NULL
+              AND NEW.finalization_status='failed' AND
+              (NEW.finalization_reason='permanent_failure' OR (NEW.finalization_reason='normal_attempts_exhausted'
+                  AND NEW.normal_attempts=6)) THEN
+            expected_status:='failed'; expected_reason:=NEW.finalization_reason;
+        ELSE
+            RAISE EXCEPTION 'finalization does not match deterministic attempt policy' USING ERRCODE='23514';
+        END IF;
+        IF ROW(NEW.finalization_status,NEW.finalization_reason) IS DISTINCT FROM ROW(expected_status,expected_reason) THEN
+            RAISE EXCEPTION 'finalization status and reason contradict attempt policy' USING ERRCODE='23514';
         END IF;
     END IF;
     IF NEW.profile = 'external'
@@ -2576,25 +2665,245 @@ BEGIN
        AND EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
            AND a.job_id = NEW.id AND a.stage = 'normal'
            AND (NOT admission OR a.id IS DISTINCT FROM NEW.current_attempt_id)
-           AND a.no_start_at IS NULL AND (a.quiescent_at IS NULL OR a.outcome_kind IS NULL)) THEN
+           AND a.no_start_at IS NULL AND (a.quiescent_at IS NULL OR a.outcome_kind NOT IN ('failed','cancelled')
+               OR a.failure_policy IS DISTINCT FROM 'transient_repeatable')) THEN
         RAISE EXCEPTION 'external retry requires positive prior-attempt evidence' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.phase IN ('pending', 'finalize_pending', 'terminal_pending') AND OLD.phase <> NEW.phase AND NEW.profile = 'external'
-       AND EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id = NEW.tenant_id
-           AND a.job_id = NEW.id AND a.execute_intent_at IS NOT NULL
-           AND (a.quiescent_at IS NULL OR a.outcome_kind IS NULL)) THEN
-        RAISE EXCEPTION 'unresolved external effects cannot retry or terminalize' USING ERRCODE = '23514';
     END IF;
     IF NEW.phase = 'completed' AND (NEW.processed_at IS NULL
        OR (NEW.profile = 'external' AND (OLD.phase <> 'finalizing' OR NEW.finalization_status <> 'succeeded'))) THEN
         RAISE EXCEPTION 'successful completion requires its business stage' USING ERRCODE = '23514';
     END IF;
+    IF NEW.profile='external' AND NEW.phase='terminal_pending' THEN
+        IF NEW.finalization_status IS NOT NULL THEN
+            SELECT a.stage,a.ordinal,a.organization_id,a.outcome_kind,a.failure_policy,a.quiescent_at,a.no_start_at,
+                   a.plan_fingerprint,a.operation_id INTO final_attempt
+              FROM public.background_job_attempts a
+              WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id AND a.id=NEW.final_outcome_attempt_id;
+            IF NOT FOUND OR final_attempt.stage<>'normal' OR final_attempt.ordinal<>NEW.normal_attempts
+               OR final_attempt.organization_id IS DISTINCT FROM NEW.organization_id
+               OR final_attempt.plan_fingerprint IS DISTINCT FROM NEW.plan_fingerprint
+               OR final_attempt.operation_id IS DISTINCT FROM NEW.operation_id THEN
+                RAISE EXCEPTION 'terminal policy requires the exact selected normal attempt' USING ERRCODE='23514';
+            END IF;
+            expected_terminal:=NULL;
+            IF final_attempt.outcome_kind='failed' AND final_attempt.failure_policy='permanent'
+               AND NEW.finalization_status='failed' AND NEW.finalization_reason='external_failed' THEN
+                expected_terminal:='permanent_failure';
+            ELSIF final_attempt.outcome_kind IN ('failed','cancelled')
+                  AND final_attempt.failure_policy='transient_not_repeatable' AND NEW.finalization_status='failed'
+                  AND NEW.finalization_reason=(CASE WHEN final_attempt.outcome_kind='failed'
+                      THEN 'external_failed' ELSE 'external_cancelled' END) THEN
+                expected_terminal:='external_retry_forbidden';
+            ELSIF final_attempt.outcome_kind IN ('failed','cancelled') AND final_attempt.failure_policy='transient_repeatable'
+                  AND NEW.normal_attempts=6 AND NEW.finalization_status='failed'
+                  AND NEW.finalization_reason='normal_attempts_exhausted' THEN
+                expected_terminal:='retry_exhausted';
+            ELSIF final_attempt.outcome_kind IS NULL AND final_attempt.no_start_at IS NOT NULL
+                  AND NEW.finalization_status='failed' THEN
+                IF NEW.finalization_reason='permanent_failure' THEN expected_terminal:='permanent_failure';
+                ELSIF NEW.finalization_reason='normal_attempts_exhausted' AND NEW.normal_attempts=6 THEN
+                    expected_terminal:='retry_exhausted';
+                END IF;
+            ELSIF final_attempt.outcome_kind='succeeded' AND NEW.finalization_status='succeeded'
+                  AND NEW.finalization_reason='none' THEN
+                expected_terminal:=NULL;
+            ELSE
+                RAISE EXCEPTION 'terminal selected facts contradict deterministic policy' USING ERRCODE='23514';
+            END IF;
+            IF NEW.terminal_reason IN ('finalize_refused','finalize_exhausted') THEN
+                IF current_user<>'learnstack_outbox_admin' OR NEW.finalize_attempts<1
+                   OR (NEW.terminal_reason='finalize_exhausted' AND NEW.finalize_attempts<>6)
+                   OR attempt.stage IS DISTINCT FROM 'finalize' THEN
+                    RAISE EXCEPTION 'finalizer terminal route requires its separate counted finalization budget' USING ERRCODE='23514';
+                END IF;
+            ELSIF NEW.terminal_reason IN ('retired_definition','invalid_envelope') THEN
+                IF current_user<>'learnstack_outbox_admin' THEN
+                    RAISE EXCEPTION 'uninvokable terminal route belongs only to control' USING ERRCODE='23514';
+                END IF;
+            ELSE
+                IF expected_terminal IS NULL OR NEW.terminal_reason IS DISTINCT FROM expected_terminal
+                   OR current_user<>'learnstack_app' OR OLD.phase<>'finalizing' OR NEW.dead_lettered_at IS NULL
+                   OR NEW.business_finalization_incomplete OR OLD.ownership_kind IS DISTINCT FROM 'execution'
+                   OR OLD.ownership_until<=clock_timestamp() OR OLD.attempt_deadline<=clock_timestamp()
+                   OR NOT EXISTS (SELECT 1 FROM public.background_job_attempts a
+                       WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id AND a.id=NEW.current_attempt_id
+                         AND a.organization_id IS NOT DISTINCT FROM NEW.organization_id AND a.stage='finalize'
+                         AND a.ordinal=NEW.finalize_attempts AND a.admission_token=OLD.ownership_token
+                         AND a.final_outcome_attempt_id=NEW.final_outcome_attempt_id AND a.deadline=OLD.attempt_deadline) THEN
+                    RAISE EXCEPTION 'ordinary terminal policy requires live app failure finalization' USING ERRCODE='23514';
+                END IF;
+            END IF;
+        ELSIF NEW.plan IS NOT NULL THEN
+            IF current_user<>'learnstack_outbox_admin' OR NEW.terminal_reason NOT IN ('retired_definition','invalid_envelope') THEN
+                RAISE EXCEPTION 'prepared work cannot bypass its domain finalizer' USING ERRCODE='23514';
+            END IF;
+        ELSIF NEW.terminal_reason='external_retry_forbidden' OR NEW.terminal_reason IN ('finalize_refused','finalize_exhausted') THEN
+            RAISE EXCEPTION 'terminal policy is missing its selected outcome' USING ERRCODE='23514';
+        END IF;
+    END IF;
     IF NEW.dead_lettered_at IS NOT NULL AND OLD.dead_lettered_at IS NULL THEN
+        -- The request may precede NoStart. Only its first durable completion
+        -- requires complete positive no-effect and released-capacity history.
+        IF NEW.profile='external' AND NEW.plan IS NULL THEN
+            IF (current_user='learnstack_outbox_admin' AND OLD.phase='terminal_pending'
+                AND NEW.phase='terminal_pending' AND OLD.terminal_reason IS NOT NULL
+                AND OLD.ownership_kind='recovery' AND OLD.ownership_token IS NOT NULL
+                AND OLD.ownership_until>clock_timestamp()
+                AND NEW.ownership_token=OLD.ownership_token AND NEW.ownership_kind='recovery'
+                AND NEW.processed_at IS NULL AND NEW.plan_fingerprint IS NULL
+                AND NEW.prepared_at IS NULL AND NEW.operation_id IS NULL
+                AND NEW.finalization_status IS NULL AND NEW.finalization_reason IS NULL
+                AND NEW.final_outcome_attempt_id IS NULL AND NEW.finalize_attempts=0
+                AND NOT NEW.business_finalization_incomplete) IS NOT TRUE THEN
+                RAISE EXCEPTION 'no-plan terminal completion requires its exact live control owner' USING ERRCODE='23514';
+            END IF;
+            IF NEW.normal_attempts=0 THEN
+                IF NEW.terminal_reason NOT IN ('retired_definition','invalid_envelope')
+                   OR NEW.current_attempt_id IS NOT NULL OR NEW.attempt_deadline IS NOT NULL
+                   OR EXISTS (SELECT 1 FROM public.background_job_attempts a
+                       WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id)
+                   OR EXISTS (SELECT 1 FROM public.background_job_reservations r
+                       WHERE r.tenant_id=NEW.tenant_id AND r.job_id=NEW.id) THEN
+                    RAISE EXCEPTION 'unadmitted terminal completion cannot invent attempt history' USING ERRCODE='23514';
+                END IF;
+            ELSE
+                IF (NEW.normal_attempts BETWEEN 1 AND 6 AND NEW.capacity_group IS NOT NULL
+                    AND (NEW.terminal_reason IN ('permanent_failure','retired_definition','invalid_envelope')
+                        OR NEW.terminal_reason='retry_exhausted' AND NEW.normal_attempts=6)
+                    AND NEW.current_attempt_id IS NOT NULL AND NEW.attempt_deadline IS NOT NULL) IS NOT TRUE
+                   OR (SELECT count(*) FROM public.background_job_attempts a
+                       WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id)<>NEW.normal_attempts
+                   OR (SELECT count(*) FROM public.background_job_reservations r
+                       WHERE r.tenant_id=NEW.tenant_id AND r.job_id=NEW.id)<>NEW.normal_attempts
+                   OR EXISTS (SELECT 1 FROM public.background_job_attempts a
+                       LEFT JOIN public.background_job_reservations r ON r.tenant_id=a.tenant_id
+                           AND r.job_id=a.job_id AND r.attempt_id=a.id AND r.capacity_group=NEW.capacity_group
+                       WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id AND (
+                           a.organization_id IS DISTINCT FROM NEW.organization_id OR a.stage<>'normal'
+                           OR a.ordinal NOT BETWEEN 1 AND NEW.normal_attempts
+                           OR a.final_outcome_attempt_id IS NOT NULL OR a.plan_fingerprint IS NOT NULL
+                           OR a.operation_id IS NOT NULL OR a.execute_intent_at IS NOT NULL
+                           OR a.outcome_kind IS NOT NULL OR a.outcome_at IS NOT NULL
+                           OR a.failure_policy IS NOT NULL OR a.quiescence_id IS NOT NULL
+                           OR a.quiescence_kind IS NOT NULL OR a.quiescent_at IS NOT NULL
+                           OR a.transactional_cleanup_at IS NOT NULL
+                           OR a.no_start_at IS NULL OR isfinite(a.no_start_at) IS NOT TRUE
+                           OR a.no_start_at<a.admitted_at OR a.no_start_at>clock_timestamp()
+                           OR a.ordinal=NEW.normal_attempts AND (a.id<>NEW.current_attempt_id
+                               OR a.deadline IS DISTINCT FROM NEW.attempt_deadline)
+                           OR r.attempt_id IS NULL OR r.released_at IS NULL OR isfinite(r.released_at) IS NOT TRUE
+                           OR r.released_at<a.no_start_at OR r.released_at>clock_timestamp()
+                           OR r.release_reason IS DISTINCT FROM 'never_started')) THEN
+                    RAISE EXCEPTION 'no-plan terminal completion requires complete positive no-start history' USING ERRCODE='23514';
+                END IF;
+            END IF;
+        END IF;
         IF current_user = 'learnstack_app' AND
             (OLD.phase <> 'finalizing' OR NEW.finalization_status IS DISTINCT FROM 'failed' OR NEW.plan IS NULL) THEN
             RAISE EXCEPTION 'app terminal completion requires failure finalization' USING ERRCODE = '23514';
         END IF;
         IF current_user = 'learnstack_outbox_admin' AND NEW.plan IS NOT NULL THEN
+            IF (OLD.phase='terminal_pending' AND NEW.phase='terminal_pending'
+                AND OLD.terminal_reason IS NOT NULL AND NEW.terminal_reason=OLD.terminal_reason
+                AND OLD.ownership_kind='recovery' AND OLD.ownership_token IS NOT NULL
+                AND OLD.ownership_until>clock_timestamp()
+                AND NEW.ownership_token=OLD.ownership_token AND NEW.ownership_kind='recovery'
+                AND NOT OLD.business_finalization_incomplete AND NOT NEW.business_finalization_incomplete
+                AND isfinite(NEW.dead_lettered_at) AND NEW.dead_lettered_at>=NEW.prepared_at
+                AND NEW.dead_lettered_at<=clock_timestamp()
+                AND NOT EXISTS (SELECT 1 FROM public.background_job_attempts a WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id
+                    AND a.admitted_at>NEW.dead_lettered_at)
+                AND NOT EXISTS (SELECT 1 FROM public.background_job_reservations r WHERE r.tenant_id=NEW.tenant_id AND r.job_id=NEW.id
+                    AND r.released_at>NEW.dead_lettered_at)
+                AND (
+                    NEW.profile='external' AND NEW.phase='terminal_pending' AND NEW.processed_at IS NULL
+                    AND NEW.capacity_group IS NOT NULL AND NEW.normal_attempts BETWEEN 1 AND 6 AND NEW.finalize_attempts BETWEEN 0 AND 6
+                    AND NEW.plan_fingerprint IS NOT NULL AND NEW.plan_fingerprint COLLATE "C" ~ '^[0-9a-f]{64}$'
+                    AND NEW.operation_id IS NOT NULL AND NEW.operation_id<>'00000000-0000-0000-0000-000000000000'::uuid
+                    AND NEW.prepared_at IS NOT NULL AND isfinite(NEW.prepared_at) AND NEW.prepared_at<=clock_timestamp()
+                    AND NEW.current_attempt_id IS NOT NULL AND NEW.attempt_deadline IS NOT NULL
+                    AND (NEW.terminal_reason IN ('retired_definition','invalid_envelope')
+                        OR NEW.terminal_reason='finalize_refused' AND NEW.finalize_attempts BETWEEN 1 AND 6
+                        OR NEW.terminal_reason='finalize_exhausted' AND NEW.finalize_attempts=6)
+                    AND (SELECT count(*) FROM public.background_job_attempts a WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id)=NEW.normal_attempts+NEW.finalize_attempts
+                    AND (SELECT count(*) FROM public.background_job_attempts a WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id AND a.stage='normal')=NEW.normal_attempts
+                    AND (SELECT count(*) FROM public.background_job_reservations r WHERE r.tenant_id=NEW.tenant_id AND r.job_id=NEW.id)=NEW.normal_attempts
+                    AND NOT EXISTS (SELECT 1 FROM public.background_job_reservations r
+                        WHERE r.tenant_id=NEW.tenant_id AND r.job_id=NEW.id AND r.released_at IS NULL)
+                    AND NOT EXISTS (SELECT 1 FROM public.background_job_attempts a LEFT JOIN public.background_job_reservations r
+                        ON r.tenant_id=a.tenant_id AND r.job_id=a.job_id AND r.attempt_id=a.id AND r.capacity_group=NEW.capacity_group
+                        WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.id AND (
+                            a.organization_id IS DISTINCT FROM NEW.organization_id
+                            OR a.admission_token='00000000-0000-0000-0000-000000000000'::uuid
+                            OR isfinite(a.admitted_at) IS NOT TRUE OR a.admitted_at>clock_timestamp()
+                            OR isfinite(a.deadline) IS NOT TRUE OR a.deadline<=a.admitted_at OR a.deadline>a.admitted_at+interval '24 hours'
+                            OR a.transactional_cleanup_at IS NOT NULL
+                            OR (a.stage='normal' AND (
+                                a.ordinal NOT BETWEEN 1 AND NEW.normal_attempts OR a.final_outcome_attempt_id IS NOT NULL
+                                OR ((a.plan_fingerprint IS NULL AND a.operation_id IS NULL)
+                                    OR (a.plan_fingerprint=NEW.plan_fingerprint AND a.operation_id=NEW.operation_id)) IS NOT TRUE
+                                OR (a.ordinal<NEW.normal_attempts AND a.no_start_at IS NULL
+                                    AND (a.outcome_kind IN ('failed','cancelled') AND a.failure_policy='transient_repeatable') IS NOT TRUE)
+                                OR ((a.no_start_at IS NOT NULL AND isfinite(a.no_start_at) AND a.no_start_at>=a.admitted_at
+                                        AND a.no_start_at<=clock_timestamp() AND a.execute_intent_at IS NULL
+                                        AND a.outcome_kind IS NULL AND a.outcome_at IS NULL AND a.failure_policy IS NULL
+                                        AND a.quiescence_id IS NULL AND a.quiescence_kind IS NULL AND a.quiescent_at IS NULL
+                                        AND r.attempt_id IS NOT NULL AND r.released_at IS NOT NULL AND isfinite(r.released_at)
+                                        AND r.released_at>=a.no_start_at AND r.released_at<=clock_timestamp() AND r.release_reason='never_started')
+                                    OR (a.no_start_at IS NULL AND a.plan_fingerprint=NEW.plan_fingerprint AND a.operation_id=NEW.operation_id
+                                        AND a.execute_intent_at IS NOT NULL AND isfinite(a.execute_intent_at)
+                                        AND a.execute_intent_at>=a.admitted_at AND a.execute_intent_at<=a.deadline
+                                        AND a.outcome_at IS NOT NULL AND isfinite(a.outcome_at)
+                                        AND a.outcome_at>=a.execute_intent_at AND a.outcome_at<=clock_timestamp()
+                                        AND ((a.outcome_kind='succeeded' AND a.failure_policy IS NULL)
+                                            OR (a.outcome_kind='failed' AND a.failure_policy='permanent')
+                                            OR (a.outcome_kind IN ('failed','cancelled') AND a.failure_policy IN ('transient_repeatable','transient_not_repeatable')))
+                                        AND a.quiescence_id IS NOT NULL AND a.quiescence_id<>'00000000-0000-0000-0000-000000000000'::uuid
+                                        AND a.quiescence_kind IN ('provider_fenced','execution_terminated')
+                                        AND a.quiescent_at IS NOT NULL AND isfinite(a.quiescent_at)
+                                        AND a.quiescent_at>=a.execute_intent_at AND a.quiescent_at<=clock_timestamp()
+                                        AND r.attempt_id IS NOT NULL AND r.released_at IS NOT NULL AND isfinite(r.released_at)
+                                        AND r.released_at>=a.quiescent_at AND r.released_at>=a.outcome_at
+                                        AND r.released_at<=clock_timestamp() AND r.release_reason='quiescent')) IS NOT TRUE))
+                            OR (a.stage='finalize' AND (
+                                a.ordinal NOT BETWEEN 1 AND NEW.finalize_attempts OR NEW.final_outcome_attempt_id IS NULL
+                                OR a.final_outcome_attempt_id IS DISTINCT FROM NEW.final_outcome_attempt_id
+                                OR a.plan_fingerprint IS NOT NULL OR a.operation_id IS NOT NULL OR a.execute_intent_at IS NOT NULL
+                                OR a.outcome_kind IS NOT NULL OR a.outcome_at IS NOT NULL OR a.failure_policy IS NOT NULL
+                                OR a.quiescence_id IS NOT NULL OR a.quiescence_kind IS NOT NULL OR a.quiescent_at IS NOT NULL
+                                OR a.no_start_at IS NOT NULL OR r.attempt_id IS NOT NULL))
+                            OR a.stage NOT IN ('normal','finalize')))
+                    AND EXISTS (SELECT 1 FROM public.background_job_attempts current_attempt
+                        WHERE current_attempt.tenant_id=NEW.tenant_id AND current_attempt.job_id=NEW.id AND current_attempt.id=NEW.current_attempt_id
+                            AND current_attempt.organization_id IS NOT DISTINCT FROM NEW.organization_id
+                            AND current_attempt.deadline=NEW.attempt_deadline
+                            AND ((NEW.finalize_attempts=0 AND current_attempt.stage='normal' AND current_attempt.ordinal=NEW.normal_attempts)
+                                OR (NEW.finalize_attempts>0 AND current_attempt.stage='finalize' AND current_attempt.ordinal=NEW.finalize_attempts
+                                    AND current_attempt.final_outcome_attempt_id=NEW.final_outcome_attempt_id)))
+                    AND ((NEW.final_outcome_attempt_id IS NULL AND NEW.finalization_status IS NULL AND NEW.finalization_reason IS NULL
+                            AND NEW.finalize_attempts=0 AND NEW.terminal_reason IN ('retired_definition','invalid_envelope'))
+                        OR (NEW.final_outcome_attempt_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.background_job_attempts selected
+                            WHERE selected.tenant_id=NEW.tenant_id AND selected.job_id=NEW.id AND selected.id=NEW.final_outcome_attempt_id
+                                AND selected.organization_id IS NOT DISTINCT FROM NEW.organization_id AND selected.stage='normal'
+                                AND selected.ordinal=NEW.normal_attempts AND selected.plan_fingerprint=NEW.plan_fingerprint AND selected.operation_id=NEW.operation_id
+                                AND ((selected.outcome_kind='succeeded' AND selected.failure_policy IS NULL
+                                        AND NEW.finalization_status='succeeded' AND NEW.finalization_reason='none')
+                                    OR (selected.outcome_kind='failed' AND selected.failure_policy='permanent'
+                                        AND NEW.finalization_status='failed' AND NEW.finalization_reason='external_failed')
+                                    OR (selected.outcome_kind IN ('failed','cancelled') AND selected.failure_policy='transient_not_repeatable'
+                                        AND NEW.finalization_status='failed' AND NEW.finalization_reason=CASE selected.outcome_kind
+                                            WHEN 'failed' THEN 'external_failed' ELSE 'external_cancelled' END)
+                                    OR (selected.outcome_kind IN ('failed','cancelled') AND selected.failure_policy='transient_repeatable'
+                                        AND NEW.normal_attempts=6 AND NEW.finalization_status='failed' AND NEW.finalization_reason='normal_attempts_exhausted')
+                                    OR (selected.outcome_kind IS NULL AND selected.no_start_at IS NOT NULL AND NEW.finalization_status='failed'
+                                        AND (NEW.finalization_reason='permanent_failure' OR NEW.finalization_reason='normal_attempts_exhausted' AND NEW.normal_attempts=6))))))
+                )) IS NOT TRUE THEN
+                RAISE EXCEPTION 'prepared terminal completion requires exact live control and positive history' USING ERRCODE='23514';
+            END IF;
+            -- Recheck after the bounded history reads, not only before their work.
+            IF OLD.ownership_until<=clock_timestamp() THEN
+                RAISE EXCEPTION 'prepared terminal completion lost its live control owner' USING ERRCODE='23514';
+            END IF;
             NEW.business_finalization_incomplete := true;
         END IF;
     END IF;
@@ -2603,7 +2912,11 @@ BEGIN
     END IF;
     IF NEW.bridge_token IS NOT NULL THEN
         IF (NEW.bridge_token IS DISTINCT FROM OLD.bridge_token AND
-                (NEW.phase NOT IN ('pending', 'finalize_pending') OR NEW.ownership_token IS NOT NULL))
+                ((NEW.phase NOT IN ('pending', 'finalize_pending') AND NOT (NEW.profile='external'
+                    AND NEW.phase='reconciling' AND NEW.probe_after IS NOT NULL AND isfinite(NEW.probe_after)
+                    AND NEW.normal_attempts BETWEEN 1 AND 6 AND NEW.finalize_attempts=0
+                    AND NEW.finalization_status IS NULL AND NEW.final_outcome_attempt_id IS NULL))
+                OR NEW.ownership_token IS NOT NULL))
            OR NEW.bridge_until > clock_timestamp() + interval '10 minutes'
            OR (NEW.bridge_token = OLD.bridge_token AND NEW.bridge_until > OLD.bridge_until
                AND OLD.bridge_until <= clock_timestamp())
@@ -2616,8 +2929,12 @@ BEGIN
        (OLD.ownership_kind IS DISTINCT FROM 'execution' OR NEW.ownership_token IS DISTINCT FROM OLD.ownership_token) THEN
         RAISE EXCEPTION 'execution authority is minted only by counted admission' USING ERRCODE = '23514';
     END IF;
+    -- The checked app finalization selection below becomes a new
+    -- eligibility cycle and clears all recovery ownership before RETURN.
     IF NOT admission AND NEW.ownership_kind = 'recovery' AND
-       (NEW.phase NOT IN ('reconciling', 'terminal_pending')
+       ((NEW.phase NOT IN ('reconciling', 'terminal_pending')
+         AND NOT (current_user='learnstack_app' AND OLD.phase='reconciling'
+             AND NEW.phase='finalize_pending' AND NEW.finalization_status IS NOT NULL))
         OR (OLD.ownership_kind IS DISTINCT FROM 'recovery' AND NEW.ownership_token IS NOT DISTINCT FROM OLD.ownership_token)) THEN
         RAISE EXCEPTION 'recovery requires a separate non-executing token' USING ERRCODE = '23514';
     END IF;
@@ -2643,7 +2960,7 @@ BEGIN
             RAISE EXCEPTION 'live ownership cannot be replaced' USING ERRCODE = '23514';
         END IF;
     END IF;
-    IF NEW.phase IN ('pending', 'finalize_pending') AND NEW.phase <> OLD.phase THEN
+    IF (NEW.phase IN ('pending', 'finalize_pending') AND NEW.phase <> OLD.phase) OR recovery_cycle THEN
         NEW.wake_generation := OLD.wake_generation + 1;
         IF current_user = 'learnstack_app' THEN NEW.available_after := clock_timestamp(); END IF;
         NEW.handoff_check_at := clock_timestamp();
@@ -2666,7 +2983,7 @@ DECLARE job record;
 BEGIN
     SELECT j.organization_id, j.phase, j.profile, j.normal_attempts, j.finalize_attempts,
            j.ownership_token, j.ownership_kind, j.ownership_until, j.current_attempt_id,
-           j.final_outcome_attempt_id, j.plan_fingerprint, j.operation_id, j.capacity_group,
+           j.final_outcome_attempt_id, j.finalization_status, j.plan_fingerprint, j.operation_id, j.capacity_group,
            j.attempt_deadline, j.processed_at, j.dead_lettered_at, j.terminal_reason
       INTO job FROM public.background_jobs j
       WHERE j.tenant_id = NEW.tenant_id AND j.id = NEW.job_id FOR KEY SHARE;
@@ -2682,8 +2999,17 @@ BEGIN
            OR NEW.plan_fingerprint IS NOT NULL OR NEW.operation_id IS NOT NULL
            OR NEW.execute_intent_at IS NOT NULL OR NEW.outcome IS NOT NULL
            OR NEW.quiescent_at IS NOT NULL OR NEW.no_start_at IS NOT NULL
-           OR NEW.transactional_cleanup_at IS NOT NULL THEN
+           OR NEW.transactional_cleanup_at IS NOT NULL OR NEW.failure_policy IS NOT NULL THEN
             RAISE EXCEPTION 'attempt insert requires a fresh routing receipt' USING ERRCODE = '23514';
+        END IF;
+        IF job.profile='external' AND NEW.stage='normal' AND
+           (job.finalization_status IS NOT NULL OR EXISTS (
+               SELECT 1 FROM public.background_job_attempts a
+               WHERE a.tenant_id=NEW.tenant_id AND a.job_id=NEW.job_id AND a.stage='normal'
+                 AND a.no_start_at IS NULL AND (a.quiescent_at IS NULL
+                     OR a.outcome_kind NOT IN ('failed','cancelled')
+                     OR a.failure_policy IS DISTINCT FROM 'transient_repeatable'))) THEN
+            RAISE EXCEPTION 'external admission requires resolved repeatable history' USING ERRCODE='23514';
         END IF;
         NEW.admitted_at := clock_timestamp();
         IF (job.profile = 'transactional' OR NEW.stage = 'finalize')
@@ -2699,8 +3025,8 @@ BEGIN
        OR (OLD.plan_fingerprint IS NOT NULL AND ROW(NEW.plan_fingerprint, NEW.operation_id)
             IS DISTINCT FROM ROW(OLD.plan_fingerprint, OLD.operation_id))
        OR (OLD.execute_intent_at IS NOT NULL AND NEW.execute_intent_at IS DISTINCT FROM OLD.execute_intent_at)
-       OR (OLD.outcome IS NOT NULL AND ROW(NEW.outcome, NEW.outcome_kind, NEW.outcome_at)
-            IS DISTINCT FROM ROW(OLD.outcome, OLD.outcome_kind, OLD.outcome_at))
+       OR (OLD.outcome IS NOT NULL AND ROW(NEW.outcome, NEW.outcome_kind, NEW.outcome_at, NEW.failure_policy)
+            IS DISTINCT FROM ROW(OLD.outcome, OLD.outcome_kind, OLD.outcome_at, OLD.failure_policy))
        OR (OLD.quiescent_at IS NOT NULL AND ROW(NEW.quiescence_id, NEW.quiescence_kind, NEW.quiescent_at)
             IS DISTINCT FROM ROW(OLD.quiescence_id, OLD.quiescence_kind, OLD.quiescent_at))
        OR (OLD.no_start_at IS NOT NULL AND NEW.no_start_at IS DISTINCT FROM OLD.no_start_at)
@@ -2735,6 +3061,15 @@ BEGIN
         END IF;
         NEW.transactional_cleanup_at := clock_timestamp();
     END IF;
+    IF NEW.outcome IS NOT NULL AND OLD.outcome IS NULL THEN
+        IF (job.profile='external' AND NEW.stage='normal' AND job.phase IN ('executing','reconciling')
+            AND OLD.execute_intent_at IS NOT NULL AND NEW.plan_fingerprint=job.plan_fingerprint
+            AND NEW.operation_id=job.operation_id AND isfinite(NEW.outcome_at) AND isfinite(NEW.quiescent_at)
+            AND NEW.outcome_at>=NEW.execute_intent_at AND NEW.quiescent_at>=NEW.execute_intent_at
+            AND NEW.outcome_at<=clock_timestamp() AND NEW.quiescent_at<=clock_timestamp()) IS NOT TRUE THEN
+            RAISE EXCEPTION 'outcome requires its armed external attempt and bounded evidence times' USING ERRCODE='23514';
+        END IF;
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -2764,6 +3099,17 @@ BEGIN
               WHERE r.tenant_id = a.tenant_id AND r.job_id = a.job_id AND r.attempt_id = a.id
                 AND r.capacity_group = job.capacity_group)) THEN
         RAISE EXCEPTION 'counted capacity admission requires its durable reservation' USING ERRCODE = '23514';
+    END IF;
+    IF job.capacity_group IS NOT NULL AND job.profile='external' AND EXISTS (
+        SELECT 1 FROM public.background_job_attempts a
+        WHERE a.tenant_id=target_tenant AND a.job_id=target_job AND a.stage='normal'
+          AND (a.outcome_kind IS NOT NULL OR a.no_start_at IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM public.background_job_reservations r
+              WHERE r.tenant_id=a.tenant_id AND r.capacity_group=job.capacity_group AND r.job_id=a.job_id
+                AND r.attempt_id=a.id AND r.released_at IS NOT NULL
+                AND ((a.outcome_kind IS NOT NULL AND a.quiescent_at IS NOT NULL AND r.release_reason='quiescent')
+                    OR (a.no_start_at IS NOT NULL AND a.execute_intent_at IS NULL AND r.release_reason='never_started')))) THEN
+        RAISE EXCEPTION 'external evidence and exact reservation release must commit together' USING ERRCODE='23514';
     END IF;
     IF job.capacity_group IS NOT NULL AND job.profile = 'transactional' THEN
         IF EXISTS (SELECT 1 FROM public.background_job_attempts a
@@ -3042,6 +3388,8 @@ CREATE INDEX ix_background_job_occurrences_recurrence ON background_job_occurren
 CREATE INDEX ix_background_jobs_pending ON background_jobs (available_after, created_at, id)
     WHERE phase = 'pending' AND processed_at IS NULL AND dead_lettered_at IS NULL
       AND terminal_reason IS NULL AND normal_attempts < 6 AND ownership_token IS NULL;
+CREATE INDEX ix_background_jobs_retirement ON background_jobs (available_after, created_at, id)
+    WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL;
 CREATE INDEX ix_background_jobs_finalize ON background_jobs (available_after, created_at, id)
     WHERE phase = 'finalize_pending' AND processed_at IS NULL AND dead_lettered_at IS NULL
       AND terminal_reason IS NULL AND finalize_attempts < 6 AND ownership_token IS NULL;
@@ -3055,9 +3403,18 @@ CREATE INDEX ix_background_jobs_exhausted ON background_jobs (available_after, c
 CREATE INDEX ix_background_jobs_terminal ON background_jobs (available_after, created_at, id)
     WHERE phase = 'terminal_pending' AND terminal_reason IS NOT NULL
       AND processed_at IS NULL AND dead_lettered_at IS NULL;
+CREATE INDEX ix_background_jobs_quarantined ON background_jobs (id)
+    WHERE phase = 'quarantined';
 CREATE INDEX ix_background_jobs_bridge ON background_jobs (handoff_check_at, created_at, id)
-    WHERE phase IN ('pending', 'finalize_pending') AND processed_at IS NULL AND dead_lettered_at IS NULL
-      AND terminal_reason IS NULL AND ownership_token IS NULL;
+    WHERE (phase IN ('pending', 'finalize_pending') OR (profile='external' AND phase='reconciling'
+        AND probe_after IS NOT NULL AND normal_attempts BETWEEN 1 AND 6 AND finalize_attempts=0
+        AND finalization_status IS NULL AND final_outcome_attempt_id IS NULL))
+      AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL AND ownership_token IS NULL;
+CREATE INDEX ix_background_jobs_external_unarmed ON background_jobs (created_at, id)
+    WHERE profile='external' AND phase='reconciling' AND ownership_token IS NULL AND probe_after IS NULL
+      AND current_attempt_id IS NOT NULL AND normal_attempts BETWEEN 1 AND 6 AND finalize_attempts=0
+      AND finalization_status IS NULL AND final_outcome_attempt_id IS NULL
+      AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL;
 CREATE INDEX ix_background_jobs_probes ON background_jobs (probe_after, created_at, id)
     WHERE phase = 'reconciling' AND ownership_token IS NULL AND probe_after IS NOT NULL
       AND processed_at IS NULL AND dead_lettered_at IS NULL AND terminal_reason IS NULL;
@@ -3231,7 +3588,7 @@ GRANT UPDATE (phase, normal_attempts, finalize_attempts, current_attempt_id, att
 GRANT INSERT (id, tenant_id, organization_id, job_id, stage, ordinal, admission_token, deadline, final_outcome_attempt_id)
     ON background_job_attempts TO learnstack_app;
 GRANT UPDATE (plan_fingerprint, operation_id, execute_intent_at, outcome, outcome_kind, outcome_at,
-    quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at)
+    quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at, failure_policy)
     ON background_job_attempts TO learnstack_app;
 GRANT INSERT (tenant_id, capacity_group) ON background_job_capacity TO learnstack_app;
 -- PostgreSQL row locking requires an UPDATE privilege. The column is immutable;
@@ -3253,7 +3610,7 @@ GRANT UPDATE (phase, ownership_token, ownership_kind, ownership_until, available
     business_finalization_incomplete) ON background_jobs TO learnstack_outbox_admin;
 GRANT SELECT (id, tenant_id, organization_id, job_id, stage, ordinal, admission_token, admitted_at,
     deadline, final_outcome_attempt_id, plan_fingerprint, operation_id, execute_intent_at, outcome_kind,
-    outcome_at, quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at)
+    outcome_at, quiescence_id, quiescence_kind, quiescent_at, no_start_at, transactional_cleanup_at, failure_policy)
     ON background_job_attempts TO learnstack_outbox_admin;
 GRANT SELECT ON background_job_capacity, background_job_reservations,
     background_job_recurrences, background_job_occurrences, background_job_recipients TO learnstack_outbox_admin;
@@ -3654,7 +4011,11 @@ release guarantee.
 
 `BackgroundJobPhysicalCapacity` calculates the current Step 5 floor as
 `W + 4P + 2C + 16 + U = 2W + 8P + 2C + 16`, where `W` is total workers, `P` is
-pools, `C` is control pools and `U = W + 4P` is retained invocation/routing owners.
+pools, `C` is control pools and `U = W + 4P` is retained invocation owners.
+Each invocation issues at most one privileged routing, recovery acquisition,
+confirmation or checkpoint-history SQL operation at a time, including actual
+cleanup. A clean unavailable history retry follows cleanup in that same slot;
+it does not add another simultaneous checkout.
 The original eleven covers two shared components, four bridge calls, one bridge
 SQL lane and two depth-two messaging lanes. Step 5 adds one batch-renewal slot,
 one recovery slot plus its fresh-probe slot, and one terminal slot plus its
@@ -3673,8 +4034,18 @@ permits one main unit and one independently tracked auxiliary operation. Cache
 waiter expiry cannot replace the actual loader, connection or failed cleanup.
 The four closed auxiliary helpers are audit-config, standalone/best-effort audit,
 tenant flags and killswitch reads; nested ordinary work shares the same main unit.
-The job-only application floor is `2Ut`, where `Ut` sums workers-plus-four only
-for transactional pools: **10** by default and **108** at its maximum topology.
+The job-only application floor is `2Ub + 2`, where `Ub` sums workers-plus-four for
+both transactional and external pools: **24** by default and **120** at the
+maximum business-pool topology. The existing terminal lane owns one sequential
+NoStart application owner with one main and one tracked auxiliary slot per API
+instance. Adding control pools does not add another terminal application owner.
+External Prepare, read, Arm, Outcome, recovery checkpoints and fresh Finalize
+use the same sequential main/auxiliary inventory; their phase count is not a
+connection multiplier. The qualified facade fixture for privileged maximum 156
+has eight pools of four workers, six of them control, and requires 34 application
+connections. Other worker distributions can share the same privileged maximum
+with a different application floor; neither maximum substitutes for calculating
+both manifests from the actual topology.
 Unrelated HTTP/delivery demand requires separately budgeted headroom. This floor
 is not a bound on arbitrary arrivals or total application-source demand.
 
@@ -3683,7 +4054,7 @@ Its app checkpoint follows positive main/auxiliary/callback cleanup on the same
 invocation source owner, with old bindings permanently closed. One prebound
 checkpoint slot retains actual work and cancellation cleanup; a failed cleanup
 cannot start another scope. This sequential phase adds no simultaneous main or
-auxiliary checkout to `2Ut`. The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
+auxiliary checkout. The [Step 6 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns passing local qualification, both completed full review rounds and verified
 corrections.
 

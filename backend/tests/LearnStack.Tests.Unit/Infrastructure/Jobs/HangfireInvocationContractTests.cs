@@ -114,7 +114,7 @@ public sealed class HangfireInvocationContractTests
         var executor = new JobExecutor(scopes, Substitute.For<ITenantContextAccessor>(),
             new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), options);
         var activator = HangfireInvocationContract.CreateActivator(topology.Pools["transactional"], topology,
-            routing, executor, BackgroundJobRecurrenceRegistry.CreateEmpty());
+            routing, executor, BackgroundJobRecurrenceRegistry.CreateEmpty(), new BackgroundJobRuntimeGate(topology));
         var job = new Job(typeof(HangfireJobWakeup), HangfireInvocationContract.JobMethod, [Id, 1L], "transactional");
         var context = new PerformContext(null, Substitute.For<IStorageConnection>(),
             new BackgroundJob("1", job, DateTime.UtcNow), Substitute.For<IJobCancellationToken>());

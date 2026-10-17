@@ -16,6 +16,7 @@ namespace LearnStack.SharedKernel.Jobs;
 public sealed class JobApplicationSourceOwner
 {
     private static readonly AsyncLocal<Binding?> Ambient = new();
+    private static readonly AsyncLocal<object?> External = new();
     private readonly object _sync = new();
     private JobApplicationAuxiliaryResources? _auxiliary;
     private IUnitOfWork? _mainUnit;
@@ -23,18 +24,42 @@ public sealed class JobApplicationSourceOwner
     private DbTransaction? _mainTransaction;
     private bool _closed;
     private bool _cleanupFailed;
+    private bool _used;
+    private bool _externalRecovery;
 
     private JobApplicationSourceOwner() { }
 
-    /// <summary>The executor's sole creation seam, before its framework read starts.</summary>
+    /// <summary>
+    /// Closed creation seam for original execution, fresh recovery and terminal no-start cleanup,
+    /// before the owning flow starts its first application read.
+    /// </summary>
     public static JobApplicationSourceOwner Create() => new();
 
     /// <summary>A stale inherited binding remains visible and refuses new work.</summary>
     public static JobApplicationSourceOwner? Current => Ambient.Value?.Owner;
 
+    /// <summary>Denial remains visible in inherited tasks after their parent's scope restores.</summary>
+    public static bool IsExternal => External.Value is not null;
+
+    public static void RefuseExternalEntry()
+    {
+        if (IsExternal) throw Refused();
+    }
+
+    /// <summary>Denial only; neither an application source nor executable authority is created.</summary>
+    public static IDisposable EnterExternal()
+    {
+        RefuseExternalEntry();
+        Current?.RequireFreshScopeReady();
+        var marker = new object();
+        External.Value = marker;
+        return new ExternalBinding(marker);
+    }
+
     /// <summary>Binds this same owner separately around framework and business work.</summary>
     public IDisposable Enter()
     {
+        RefuseExternalEntry();
         lock (_sync)
         {
             if (_closed || Ambient.Value is not null) throw Refused();
@@ -61,6 +86,7 @@ public sealed class JobApplicationSourceOwner
     /// <summary>Refuses activation, another physical acquisition or commit while cleanup is unresolved.</summary>
     public void RequireBusinessReady()
     {
+        RefuseExternalEntry();
         lock (_sync)
         {
             RequireBinding();
@@ -96,6 +122,7 @@ public sealed class JobApplicationSourceOwner
             RequireBusinessReady();
             if (_mainUnit is not null && !ReferenceEquals(_mainUnit, unit)) throw Refused();
             _mainUnit = unit;
+            _used = true;
         }
     }
 
@@ -146,7 +173,7 @@ public sealed class JobApplicationSourceOwner
     /// <summary>Host/token edge readers cannot acquire another connection from an ordinary job flow.</summary>
     public static void RefuseUnrelatedRead()
     {
-        if (Ambient.Value is not null) throw Refused();
+        if (IsExternal || Ambient.Value is not null) throw Refused();
     }
 
     /// <summary>Stops issuance without treating retained work as completed cleanup.</summary>
@@ -169,13 +196,26 @@ public sealed class JobApplicationSourceOwner
     public JobApplicationAuxiliaryResources BeginTenantFlagsLoad() => BeginAuxiliary();
     public JobApplicationAuxiliaryResources BeginKillswitchLoad() => BeginAuxiliary();
 
+    /// <summary>Marks one genuinely new source before recovery's first physical read.</summary>
+    public void BindExternalRecovery()
+    {
+        lock (_sync)
+        {
+            RequireFreshScopeReady();
+            if (_used || _externalRecovery) throw Refused();
+            _externalRecovery = true;
+        }
+    }
+
     private JobApplicationAuxiliaryResources BeginAuxiliary()
     {
+        RefuseExternalEntry();
         lock (_sync)
         {
             RequireBinding();
             _auxiliary?.TryRelease();
             if (_closed || _cleanupFailed || _auxiliary is not null) throw Refused();
+            _used = true;
             return _auxiliary = new JobApplicationAuxiliaryResources(this);
         }
     }
@@ -219,6 +259,14 @@ public sealed class JobApplicationSourceOwner
         {
             Interlocked.Exchange(ref _closed, 1);
             if (ReferenceEquals(Ambient.Value, this)) Ambient.Value = null;
+        }
+    }
+
+    private sealed class ExternalBinding(object marker) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (ReferenceEquals(External.Value, marker)) External.Value = null;
         }
     }
 }

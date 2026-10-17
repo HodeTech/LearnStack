@@ -40,8 +40,14 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var callback = new FacadeCleanupSignals();
         var published = new TaskCompletionSource<JobApplicationSourceOwner>(TaskCreationOptions.RunContinuationsAsynchronously);
         var waiterReturned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var firstOrganization = Guid.CreateVersion7();
-        var nextOrganization = Guid.CreateVersion7();
+        var firstJob = new TaskCompletionSource<BackgroundJobId>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var followOnJob = new TaskCompletionSource<BackgroundJobId>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var organizationTime = DateTimeOffset.UtcNow;
+        var firstOrganization = Guid.CreateVersion7(organizationTime);
+        var nextOrganization = Guid.CreateVersion7(organizationTime);
+        nextOrganization.Should().NotBe(firstOrganization);
+        nextOrganization.ToString("N")[..12].Should().Be(firstOrganization.ToString("N")[..12],
+            "distinct UUIDv7 fixture ids deliberately share the timestamp prefix");
         var auditLogger = new AuxiliaryAuditLogger<PostgresAuditStore>();
         var reconcileLogger = new AuxiliaryAuditLogger<AuditExecutionCoordinator>();
         var calls = 0;
@@ -56,15 +62,19 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             Body = async (_, services, token) =>
             {
                 var first = Interlocked.Increment(ref calls) == 1;
-                var organization = first ? firstOrganization : nextOrganization;
+                var accessor = services.GetRequiredService<ITenantContextAccessor>();
+                var context = accessor.Current.Should().BeOfType<JobTenantContext>().Subject;
+                if (first) firstJob.TrySetResult(context.JobId);
+                var originalJob = context.JobId == await firstJob.Task;
+                if (!originalJob) context.JobId.Should().Be(await followOnJob.Task);
+                var organization = originalJob ? firstOrganization : nextOrganization;
                 var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
-                    OrganizationId.From(organization), "job-aux-" + organization.ToString("N")[..12], "Job auxiliary"), token);
+                    OrganizationId.From(organization), "job-aux-" + organization.ToString("N"), "Job auxiliary"), token);
                 written.IsSuccess.Should().BeTrue();
                 if (!first) return Result.Ok(None.Value);
 
                 var owner = JobApplicationSourceOwner.Current
                     ?? throw new InvalidOperationException("The native business source owner is missing.");
-                var accessor = services.GetRequiredService<ITenantContextAccessor>();
                 var classifier = new AuditConfigService(new InMemoryCacheService(new SystemClock(),
                     services.GetRequiredService<IMeterFactory>(), TimeSpan.FromSeconds(1)),
                     services.GetRequiredService<Lazy<NpgsqlDataSource>>(), NullLogger<AuditConfigService>.Instance, accessor);
@@ -218,8 +228,46 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                     && runtime.Snapshot.RetainedInvocations == 0));
                 generation.WorkSnapshot.Should().Be(new HangfireGenerationWorkSnapshot(0, 0, false));
                 AuxiliaryCleanupResources(owner).Should().BeNull();
+                // Force the old canceled job's legitimate retry to finish
+                // before submitting the independent follow-on job.
+                await EventuallyAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(
+                    database.AppConnectionString, job)) is { Phase: "completed", NormalAttempts: 2 });
+                (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, firstOrganization))
+                    .Should().Be(1, "every retry retains the original job's fixture resource");
+                (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, nextOrganization))
+                    .Should().Be(0, "the original retry cannot consume the independent job's fixture resource");
                 var healthy = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
-                await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, healthy));
+                followOnJob.TrySetResult(healthy);
+                try { await EventuallyAsync(() => NativeBusinessCompletedAsync(database, source, healthy)); }
+                catch (TimeoutException)
+                {
+                    testOutput.WriteLine("Follow-on timeout: calls={0}; applicationDisposed={1}; privilegedDisposed={2}",
+                        Volatile.Read(ref calls), applicationSource.IsDisposalComplete, source.IsDisposalComplete);
+                    // Report only scheduling/status facts from the isolated
+                    // fixture, preserving the original failure if reading fails.
+                    try
+                    {
+                        using var diagnostic = new CancellationTokenSource(bounds.SqlTimeout);
+                        await using var connection = await source.OpenConnectionAsync(diagnostic.Token);
+                        await using var command = new NpgsqlCommand("""
+                            SELECT j.phase,j.normal_attempts,j.wake_generation,j.ownership_kind,
+                                j.handoff_check_at,clock_timestamp(),h.statename
+                            FROM background_jobs j LEFT JOIN public.job h ON h.id::text=j.vendor_job_id
+                            WHERE j.id=@id
+                            """, connection) { CommandTimeout = 5 };
+                        command.Parameters.AddWithValue("id", healthy.Value);
+                        await using var row = await command.ExecuteReaderAsync(diagnostic.Token);
+                        if (await row.ReadAsync(diagnostic.Token))
+                            testOutput.WriteLine("Follow-on job: phase={0}; attempts={1}; generation={2}; owner={3}; repair={4}; now={5}; native={6}; runtime={7}",
+                                row.GetString(0), row.GetInt32(1), row.GetInt64(2), row.IsDBNull(3) ? null : row.GetString(3),
+                                row.GetFieldValue<DateTimeOffset>(4), row.GetFieldValue<DateTimeOffset>(5),
+                                row.IsDBNull(6) ? null : row.GetString(6), runtime.Snapshot);
+                    }
+                    catch (Exception diagnosticFailure) when (diagnosticFailure.GetType() != typeof(OutOfMemoryException)
+                        && diagnosticFailure.GetType() != typeof(StackOverflowException))
+                    { testOutput.WriteLine("Follow-on status unavailable ({0}).", diagnosticFailure.GetType().Name); }
+                    throw;
+                }
                 (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, nextOrganization)).Should().Be(1);
                 (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, healthy)).Should().Be(1);
                 await runtime.StopAsync().WaitAsync(TestWait);

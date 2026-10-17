@@ -27,7 +27,8 @@ internal sealed class BackgroundJobCapacityCheckpointOperation
     private int _started;
 
     internal BackgroundJobCapacityCheckpointOperation(JobExecutor executor, BackgroundJobCapacityRecoveryReceipt recovery,
-        BackgroundJobActualCleanup cleanup, BackgroundJobRuntimeOptions bounds, TimeProvider time)
+        BackgroundJobActualCleanup cleanup, BackgroundJobRunGate.RuntimeStop processStop,
+        BackgroundJobRuntimeOptions bounds, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(recovery);
@@ -36,6 +37,8 @@ internal sealed class BackgroundJobCapacityCheckpointOperation
         _executor = executor;
         Recovery = recovery;
         Cleanup = cleanup;
+        RunGate = new(processStop);
+        Gate = RunGate.OpenBoundary(BackgroundJobCheckpointKind.TransactionalCleanup);
         _published = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
         _stopRelay = RelayStopAsync();
         Completion = ObserveActualAsync();
@@ -44,6 +47,8 @@ internal sealed class BackgroundJobCapacityCheckpointOperation
 
     internal BackgroundJobCapacityRecoveryReceipt Recovery { get; }
     internal BackgroundJobActualCleanup Cleanup { get; }
+    internal BackgroundJobRunGate RunGate { get; }
+    internal BackgroundJobCommitGate Gate { get; }
     internal Task<JobCapacityCleanupResult> Completion { get; }
     internal Task<bool> TimelyReturn { get; }
 
@@ -66,11 +71,19 @@ internal sealed class BackgroundJobCapacityCheckpointOperation
 
     private void Schedule()
     {
-        _actual = Task.Run(() => _executor.ExecuteCapacityCleanupAsync(Recovery, Cleanup, _private.Token));
+        _actual = Task.Run(ExecuteOwnedAsync);
         _published.TrySetResult(_actual);
     }
 
-    internal void RequestStop() => _stopRequested.TrySetResult();
+    private Task<JobCapacityCleanupResult> ExecuteOwnedAsync() => Gate.TryIssue()
+        ? _executor.ExecuteCapacityCleanupAsync(Recovery, Cleanup, Gate, _private.Token)
+        : Task.FromResult(new JobCapacityCleanupResult(false, false, true, false) { SourceOwner = Cleanup.SourceOwner });
+
+    internal void RequestStop()
+    {
+        RunGate.Close();
+        _stopRequested.TrySetResult();
+    }
 
     private async Task<bool> RelayStopAsync()
     {

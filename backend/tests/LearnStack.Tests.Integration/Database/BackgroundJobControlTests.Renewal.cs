@@ -24,7 +24,7 @@ public sealed partial class BackgroundJobControlTests
         var work = generation.TryBegin()!;
         var execution = controller.TryBegin(claim, work)!;
         work.HoldExecution(execution);
-        var admission = host.Services.GetRequiredService<JobExecutor>().ExecutePublishedAsync(claim, execution.Publication, null, work.Token);
+        var admission = host.Services.GetRequiredService<JobExecutor>().ExecutePublishedAsync(claim, execution.Publication, execution.AdmissionGate, null, work.Token);
         work.HoldAdmission(admission);
         execution.HoldAdmission(admission);
         var started = await admission;

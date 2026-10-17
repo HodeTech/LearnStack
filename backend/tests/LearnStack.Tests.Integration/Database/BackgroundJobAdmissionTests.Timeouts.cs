@@ -45,7 +45,7 @@ public sealed partial class BackgroundJobAdmissionTests
         using var activity = new Activity("held-ack-deadline-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
         using var proofDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var elapsed = Stopwatch.StartNew();
-        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, cancellationToken: proofDeadline.Token);
+        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create(), cancellationToken: proofDeadline.Token);
         try
         {
             // The proxy passed the read-only COMMIT and observed the actual start

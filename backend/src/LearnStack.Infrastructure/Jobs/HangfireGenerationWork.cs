@@ -6,22 +6,28 @@ namespace LearnStack.Infrastructure.Jobs;
 internal sealed record HangfireGenerationWorkSnapshot(int Running, int Retained, bool Closed);
 
 /// <summary>Owns the private cancellation and cleanup of work admitted by exactly one generation.</summary>
-internal sealed class HangfireGenerationWork
+internal sealed partial class HangfireGenerationWork
 {
     private readonly object _sync = new();
     private readonly HashSet<Invocation> _active = [];
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly BackgroundJobRuntimeGate _gate;
+    private readonly BackgroundJobRuntimeOptions _bounds;
+    private readonly TimeProvider _time;
     private readonly int _hardBound;
     private bool _closed;
     private int _retained;
 
-    internal HangfireGenerationWork(BackgroundJobWorkerPoolRegistration pool, BackgroundJobRuntimeGate gate)
+    internal HangfireGenerationWork(BackgroundJobWorkerPoolRegistration pool, BackgroundJobRuntimeGate gate,
+        BackgroundJobRuntimeOptions? bounds = null, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(pool);
         ArgumentNullException.ThrowIfNull(gate);
         _hardBound = BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers);
         _gate = gate;
+        _bounds = bounds ?? new();
+        _bounds.Validate();
+        _time = time ?? TimeProvider.System;
     }
 
     internal Task Completion => _completion.Task;
@@ -65,7 +71,7 @@ internal sealed class HangfireGenerationWork
             CompleteIfEmpty();
         }
         // No module callback runs under the owner lock or on a Core token callback.
-        foreach (var invocation in active) invocation.RequestCancellation();
+        foreach (var invocation in active) invocation.ExpireWait();
     }
 
     private void MarkRetained(Invocation invocation)
@@ -91,7 +97,7 @@ internal sealed class HangfireGenerationWork
 
     [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
         Justification = "Only actual work completion can dispose its private source after cancellation callbacks; caller disposal cannot prove cleanup.")]
-    internal sealed class Invocation(HangfireGenerationWork owner) : BackgroundJobActualCleanup.MintingSource
+    internal sealed partial class Invocation(HangfireGenerationWork owner) : BackgroundJobActualCleanup.MintingSource
     {
         private readonly object _sync = new();
         private readonly CancellationTokenSource _private = new();
@@ -152,7 +158,7 @@ internal sealed class HangfireGenerationWork
             {
                 if (_completing || _execution is not null) throw new InvalidOperationException("A generation owns one business control.");
                 _execution = execution;
-                if (Volatile.Read(ref _admissionClosed) != 0) execution.Gate.Close();
+                if (Volatile.Read(ref _admissionClosed) != 0) execution.RunGate.Close();
             }
         }
 
@@ -224,9 +230,13 @@ internal sealed class HangfireGenerationWork
 
         internal void ExpireWait()
         {
+            lock (_sync) { _stageWaitClosed = true; SignalStageWake(); }
             Interlocked.Exchange(ref _admissionClosed, 1);
             owner.MarkRetained(this);
             RequestCancellation();
+            // Publish only after fixed-state closure, retention and the owned
+            // async cancellation relay have been established.
+            _returnRequested.TrySetResult();
         }
 
         internal void RequestCancellation()
@@ -234,7 +244,7 @@ internal sealed class HangfireGenerationWork
             Interlocked.Exchange(ref _admissionClosed, 1);
             lock (_sync)
             {
-                _execution?.Gate.Close();
+                _execution?.RunGate.Close();
                 if (_completing || _cancellationObservation is not null) return;
                 if (ExecutionContext.IsFlowSuppressed()) StartCancellationObservation();
                 else { using (ExecutionContext.SuppressFlow()) StartCancellationObservation(); }
@@ -247,19 +257,26 @@ internal sealed class HangfireGenerationWork
         internal async Task CompleteAsync(bool cleanupConfirmed)
         {
             Task<bool>? cancellation;
+            Task<bool>? stageWake;
             lock (_sync)
             {
                 if (_completing) throw new InvalidOperationException("A job invocation confirms cleanup once.");
-                if (!cleanupConfirmed)
+                if (!cleanupConfirmed || _stageTimerInitializing || _stageTimerFaulted)
                 {
                     owner.MarkRetained(this);
                     return;
                 }
                 _completing = true;
+                _stageWaitClosed = true;
+                SignalStageWake();
                 cancellation = _cancellationObservation;
+                stageWake = _stageWakeObservation;
             }
             try
             {
+                if (_stageTimer is not null) await _stageTimer.DisposeAsync().ConfigureAwait(false);
+                if (stageWake is { IsCompleted: false }) owner.MarkRetained(this);
+                if (stageWake is not null && !await stageWake.ConfigureAwait(false)) return;
                 if (cancellation is { IsCompleted: false }) owner.MarkRetained(this);
                 if (cancellation is not null && !await cancellation.ConfigureAwait(false)) return;
                 _private.Dispose();

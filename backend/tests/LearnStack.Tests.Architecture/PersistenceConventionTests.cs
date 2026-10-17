@@ -307,9 +307,10 @@ public sealed partial class PersistenceConventionTests
         ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Should().BeSubsetOf(relativeFiles,
             "an exception must name a real scanned source file");
 
-        ParallelOffenders(sourceRoot, files).Should().BeEmpty(
-            "modules and their shared execution code run one operation at a time on the ambient connection "
-            + "(ADR-0040 § Nesting)");
+        var offenders = ParallelOffenders(sourceRoot, files);
+        offenders.Should().BeEmpty(
+            "modules and shared execution code run one operation at a time on the ambient connection (ADR-0040 § Nesting); offenders: {0}",
+            string.Join(Environment.NewLine, offenders));
     }
 
     [Fact]
@@ -357,6 +358,7 @@ public sealed partial class PersistenceConventionTests
                     "the exact private factory owns one independent connection and retains its actual task before returning it");
                 string[] dirty =
                 [
+                    production.Replace("JobApplicationSourceOwner.RefuseExternalEntry();", "", StringComparison.Ordinal),
                     production.Replace("resources.HoldActualTask(actual);", "", StringComparison.Ordinal),
                     production.Replace("resources.HoldActualTask(actual);", "resources.HoldActualTask(Task.CompletedTask);", StringComparison.Ordinal),
                     production.Replace("return actual;", "return Task.CompletedTask;", StringComparison.Ordinal),
@@ -420,7 +422,8 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Infrastructure.Audit.AuditConfigService`0", "StartLoadAsync", "LoadAsync", "dataSource",
             "cancellationToken", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
             """
-            { if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
               var resources = sourceOwner.BeginAuditConfigLoad();
               var actual = LoadAsync(tenantId, resources, cancellationToken);
               resources.HoldActualTask(actual); return actual; }
@@ -429,7 +432,8 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Infrastructure.Audit.PostgresAuditStore`0", "WriteOwnTransactionAsync", "WriteOwnTransactionCoreAsync", "_dataSource",
             "cancellationToken", "AuditEntryDraft entry, LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources? resources, CancellationToken cancellationToken",
             """
-            { var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
               if (owner is null) return WriteOwnTransactionCoreAsync(entry, null, cancellationToken);
               var resources = owner.BeginStandaloneAudit();
               var actual = WriteOwnTransactionCoreAsync(entry, resources, cancellationToken);
@@ -439,7 +443,8 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags`0", "StartTenantFlagsLoadAsync", "LoadTenantFlagsAsync", "dataSource",
             "ct", "TenantId tenantId, JobApplicationAuxiliaryResources? resources, CancellationToken ct",
             """
-            { if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
               var resources = sourceOwner.BeginTenantFlagsLoad();
               var actual = LoadTenantFlagsAsync(tenantId, resources, ct);
               resources.HoldActualTask(actual); return actual; }
@@ -448,7 +453,8 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Modules.Tenancy.Infrastructure.KillswitchOverlay`0", "StartLoadAsync", "LoadAsync", "dataSource",
             "ct", "JobApplicationAuxiliaryResources? resources, CancellationToken ct",
             """
-            { if (sourceOwner is null) return LoadAsync(null, ct);
+            { JobApplicationSourceOwner.RefuseExternalEntry();
+              if (sourceOwner is null) return LoadAsync(null, ct);
               var resources = sourceOwner.BeginKillswitchLoad();
               var actual = LoadAsync(resources, ct);
               resources.HoldActualTask(actual); return actual; }
@@ -577,12 +583,24 @@ public sealed partial class PersistenceConventionTests
             "One prebound capacity checkpoint retains its actual task, private cancellation callbacks and source owner; "
             + "the exact executor enters a fresh sequential application scope after positive original cleanup, "
             + "never concurrently on an existing ambient unit (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobTerminalNoStartOperation.Control.cs"] =
+            "One prebound terminal-cleanup owner retains its actual privileged acquisition and sequential history probes; "
+            + "each store operation owns an independent connection, while application cleanup enters its own sequential source "
+            + "through the enumerated executor, never a control-lane ambient unit (ADR-0047).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobTerminalNoStartOperation.cs"] =
+            "The prebound terminal cleanup owner publishes one actual app task with ExecutionContext flow suppressed; "
+            + "its exact executor opens fresh sequential scopes on that owner and retains every read, write and callback "
+            + "through physical cleanup, never borrowing an ambient connection (ADR-0047).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobRenewalOperation.cs"] =
             "One prebound renewal owner retains its actual privileged SQL task and a separate bounded wait; "
             + "both belong to the process lane, never an ambient unit or module DbContext (ADR-0047).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobExecutionControl.cs"] =
             "One generation-owned identity retains task, lease and cancellation observations through actual cleanup; "
             + "this helper acquires no connection, ambient unit or module DbContext (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/BackgroundJobExecutionControl.External.cs"] =
+            "One already retained external invocation publishes its actual sequential business task to both owners; "
+            + "the executor alone opens a fresh private application scope, while provider execution holds no ambient unit "
+            + "or module DbContext (ADR-0047/0061).",
         ["LearnStack.Infrastructure/Jobs/BackgroundJobRuntime.cs"] =
             "The process facade retains bootstrap, independent pool/shared/bridge owners and the fixed messaging/source lifetime; "
             + "all SQL is privileged or privately scoped, with no ambient unit or module DbContext (ADR-0047/0059/0060).",
@@ -595,6 +613,10 @@ public sealed partial class PersistenceConventionTests
         ["LearnStack.Infrastructure/Jobs/HangfireGenerationWork.cs"] =
             "Generation-owned private cancellation observations retain callbacks through real cleanup; "
             + "the helper acquires no ambient unit, module DbContext or physical connection (ADR-0047/0059).",
+        ["LearnStack.Infrastructure/Jobs/HangfireGenerationWork.StageWake.cs"] =
+            "One invocation retains its single stage-clock observer before issuance with ExecutionContext flow suppressed; "
+            + "the observer only signals fixed state and owns its timer through actual disposal, with no SQL, ambient unit "
+            + "or module callback (ADR-0047/0059).",
         ["LearnStack.Infrastructure/Jobs/HangfireInvocationContract.cs"] =
             "The closed transport wrapper retains actual routing/admission tasks for generation cleanup and awaits them sequentially; "
             + "routing owns its privileged connection and JobExecutor creates fresh private scopes, never a wrapper ambient unit (ADR-0047/0059).",

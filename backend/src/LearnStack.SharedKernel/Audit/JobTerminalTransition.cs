@@ -7,23 +7,25 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Persistence;
 
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>The actual returned facts of one terminal job UPDATE on its live transaction.</summary>
-public sealed class JobTerminalTransition
+public sealed partial class JobTerminalTransition
 {
     private readonly DbConnection _connection;
     private readonly DbTransaction _transaction;
 
     private JobTerminalTransition(DbConnection connection, DbTransaction transaction,
-        DbDataReader returnedRow, string validatedAttemptTraceparent)
+        DbDataReader returnedRow, string validatedAttemptTraceparent, IUnitOfWork? applicationUnit = null)
     {
         EnsureLiveTransaction(connection, transaction);
         if (!ActivityContext.TryParse(validatedAttemptTraceparent, null, out var trace)
             || validatedAttemptTraceparent != string.Concat("00-", trace.TraceId.ToHexString(), "-", trace.SpanId.ToHexString(),
                 "-", ((byte)trace.TraceFlags).ToString("x2", CultureInfo.InvariantCulture))
-            || returnedRow.FieldCount != 11)
+            || (applicationUnit is null ? returnedRow.FieldCount is not (13 or 40) : returnedRow.FieldCount != 37))
             throw new ArgumentException("A terminal job requires its complete returned row and canonical attempt trace.");
 
         _connection = connection;
@@ -44,12 +46,21 @@ public sealed class JobTerminalTransition
             || OrganizationId == Guid.Empty || AcquisitionToken == Guid.Empty || WakeGeneration < 1
             || (AttemptId is { } attempt && attempt.Version != 7)
             || NormalAttempts is < 0 or > 6 || ((NormalAttempts == 0) != (AttemptId is null))
-            || Reason is not ("retired_definition" or "invalid_envelope" or "permanent_failure" or "retry_exhausted")
+            || (applicationUnit is null
+                ? returnedRow.FieldCount == 40
+                    ? Reason is not ("retired_definition" or "invalid_envelope" or "finalize_refused" or "finalize_exhausted")
+                    : Reason is not ("retired_definition" or "invalid_envelope" or "permanent_failure" or "retry_exhausted")
+                : Reason is not ("permanent_failure" or "retry_exhausted" or "external_retry_forbidden"))
             || (Reason == "retry_exhausted" && NormalAttempts != 6) || (Reason == "permanent_failure" && NormalAttempts == 0)
             || !Regex.IsMatch(DefinitionKey, @"\A[a-z][a-z0-9]*\.[a-z][a-z0-9_]*\.v[1-9][0-9]*\z",
                 RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)) || DefinitionKey.Length > 150
             || !Regex.IsMatch(Queue, @"\A[a-z][a-z0-9_]{0,49}\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)))
             throw new ArgumentException("The terminal job UPDATE returned invalid bound facts.");
+        if (applicationUnit is not null) _finalization = ReadAppFinalization(applicationUnit, returnedRow);
+        else if (returnedRow.FieldCount == 40) _prepared = ReadPreparedBypass(returnedRow);
+        else if (returnedRow.GetString(11) is not ("transactional" or "external")
+            || returnedRow.GetBoolean(12) != (returnedRow.GetString(11) == "external"))
+            throw new ArgumentException("The bypass terminal UPDATE did not prove its stored profile and complete eligibility.");
         Metadata = ComposeMetadata();
     }
 
@@ -72,6 +83,7 @@ public sealed class JobTerminalTransition
     {
         ArgumentNullException.ThrowIfNull(entry);
         EnsureLiveTransaction(connection, transaction);
+        RequireAppOwner();
         if (!ReferenceEquals(_connection, connection) || !ReferenceEquals(_transaction, transaction)
             || !entry.Id.IsInitialized() || entry.Id.Value.Version != 7
             || !entry.TenantId.IsInitialized() || entry.TenantId.Value != TenantId
@@ -87,7 +99,7 @@ public sealed class JobTerminalTransition
             throw new ArgumentException("The job terminal audit does not match its live returned transition.", nameof(entry));
     }
 
-#pragma warning disable CA1034 // Private construction with one closed production minting capability.
+#pragma warning disable CA1034 // Private construction with closed returned-row minting capabilities.
     public abstract class MintingSource
 #pragma warning restore CA1034
     {
@@ -97,6 +109,16 @@ public sealed class JobTerminalTransition
         {
             ArgumentNullException.ThrowIfNull(returnedRow);
             return new(connection, transaction, returnedRow, validatedAttemptTraceparent);
+        }
+
+        protected static JobTerminalTransition FromAppFinalizationUpdate(IUnitOfWork unit,
+            DbDataReader returnedRow, string validatedAttemptTraceparent)
+        {
+            ArgumentNullException.ThrowIfNull(unit);
+            ArgumentNullException.ThrowIfNull(returnedRow);
+            return new(unit.Connection, unit.Transaction
+                ?? throw new ArgumentException("Application finalization requires its live transaction."),
+                returnedRow, validatedAttemptTraceparent, unit);
         }
     }
 
@@ -122,6 +144,8 @@ public sealed class JobTerminalTransition
             writer.WriteNumber("normal_attempts", NormalAttempts);
             writer.WriteString("reason", Reason);
             writer.WriteString("acquisition_token", AcquisitionToken);
+            WriteFinalizationMetadata(writer);
+            WritePreparedMetadata(writer);
             writer.WriteEndObject();
         }
         return Encoding.UTF8.GetString(buffer.WrittenSpan);

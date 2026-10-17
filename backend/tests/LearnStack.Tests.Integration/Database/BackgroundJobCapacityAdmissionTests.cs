@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using System.Collections.Concurrent;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
@@ -95,7 +96,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
         var job = await CapacityJobAsync(database);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var stopping = new CancellationTokenSource();
-        var admission = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, cancellationToken: stopping.Token);
+        var admission = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create(), cancellationToken: stopping.Token);
         try
         {
             await entered.Task.WaitAsync(Budget);
@@ -188,7 +189,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, a2, SchemaFixture.OrgA2)).Should().Be(0);
         firstProbe.Constructions.Should().BeEmpty();
         secondProbe.Constructions.Should().BeEmpty();
-        var completed = await first.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(firstStart.Receipt!, new());
+        var completed = await first.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(firstStart.Receipt!, firstStart.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         completed.CommitAcknowledged.Should().BeTrue();
         firstProbe.Constructions.Should().Equal("OrganizationRoot");
         (await OccupiedAsync(database, SchemaFixture.OrgA2)).Should().Be(0);
@@ -207,10 +208,10 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
         provider.Limit = 1;
         (await StartAsync(host.Services, await CapacityJobAsync(database))).Outcome.Should().Be(JobStartExecutionOutcome.CapacityDeferred);
         (await OccupiedAsync(database)).Should().Be(2);
-        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(first.Receipt!, new())).CommitAcknowledged.Should().BeTrue();
+        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(first.Receipt!, first.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))).CommitAcknowledged.Should().BeTrue();
         (await StartAsync(host.Services, await CapacityJobAsync(database))).Outcome.Should().Be(JobStartExecutionOutcome.CapacityDeferred);
         provider.Limit = 0;
-        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(second.Receipt!, new())).CommitAcknowledged.Should().BeTrue();
+        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(second.Receipt!, second.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))).CommitAcknowledged.Should().BeTrue();
         (await StartAsync(host.Services, await CapacityJobAsync(database))).Outcome.Should().Be(JobStartExecutionOutcome.CapacityDeferred);
         (await OccupiedAsync(database)).Should().Be(0);
         provider.Limit = 1;
@@ -271,7 +272,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
         var admitted = await StartAsync(host.Services, other);
         admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         (await OccupiedAsync(database, tenant: SchemaFixture.TenantB)).Should().Be(1);
-        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admitted.Receipt!, new())).CommitAcknowledged.Should().BeTrue();
+        (await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admitted.Receipt!, admitted.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))).CommitAcknowledged.Should().BeTrue();
         (await OccupiedAsync(database, tenant: SchemaFixture.TenantB)).Should().Be(0);
         (await OccupiedAsync(database)).Should().Be(1);
     }
@@ -303,7 +304,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests(SchemaFixture sc
     {
         var claim = await services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1);
         claim.Should().NotBeNull();
-        return await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim!);
+        return await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim!, BackgroundJobTestRun.Create());
     }
 
     private static async Task<long> OccupiedAsync(DisposableSchemaDatabase database, Guid? organization = null,

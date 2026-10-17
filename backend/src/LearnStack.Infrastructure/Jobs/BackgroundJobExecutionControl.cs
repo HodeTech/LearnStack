@@ -1,17 +1,22 @@
 using System.Diagnostics.CodeAnalysis;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Application.Jobs;
+using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
 /// <summary>One generation-owned start/business operation and its immutable renewal authority.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "Only actual operation/callback cleanup may release this generation-owned deadline source.")]
-internal sealed class BackgroundJobExecutionControl
+internal sealed partial class BackgroundJobExecutionControl
 {
     private readonly object _sync = new();
     private readonly BackgroundJobControl _owner;
     private readonly HangfireGenerationWork.Invocation _work;
     private readonly TimeProvider _time;
+    private readonly BackgroundJobRoutingClaim? _claim;
+    private readonly BackgroundJobStartPublication? _publication;
+    private readonly BackgroundJobCommitGate? _admissionGate;
     private readonly long _issuedAt;
     private readonly CancellationTokenSource _deadlineStop = new();
     private readonly Task _publicationObservation;
@@ -20,6 +25,8 @@ internal sealed class BackgroundJobExecutionControl
     private Task? _deadlineObservation;
     private Task? _deadlineCancellation;
     private ITimer? _leaseTimer;
+    private bool _leaseTimerInitializing;
+    private TaskCompletionSource<bool>? _leaseTimerUpdate;
     private long _leaseExpiry;
     private Task<JobStartExecutionResult>? _admission;
     private Task<JobBusinessExecutionResult>? _business;
@@ -28,30 +35,58 @@ internal sealed class BackgroundJobExecutionControl
     private bool _joined, _cleanupFault;
     private int _released;
     private int _renewalClosed;
+    private BackgroundJobCommitGate? _businessGate;
 
     internal BackgroundJobExecutionControl(BackgroundJobControl owner, HangfireGenerationWork.Invocation work,
-        BackgroundJobRoutingClaim claim, TimeProvider time)
+        BackgroundJobRoutingClaim claim, BackgroundJobRunGate.RuntimeStop processStop, TimeProvider time)
     {
         _owner = owner;
         _work = work;
         _time = time;
-        Claim = claim;
+        _claim = claim;
+        JobId = claim.JobId;
         _issuedAt = time.GetTimestamp();
         // Publication and its observer exist before any admission operation or
         // synchronous prefix. A late acknowledgement never reopens this gate.
-        Publication = new();
-        Gate = new();
+        _publication = new();
+        RunGate = new(processStop);
+        _admissionGate = RunGate.OpenBoundary(BackgroundJobCheckpointKind.Admission);
         _publicationObservation = ObservePublicationAsync();
     }
 
-    internal BackgroundJobRoutingClaim Claim { get; }
-    internal BackgroundJobStartPublication Publication { get; }
-    internal BackgroundJobCommitGate Gate { get; }
+    internal BackgroundJobExecutionControl(BackgroundJobControl owner, HangfireGenerationWork.Invocation work,
+        BackgroundJobId job, long generation, string queue, BackgroundJobRunGate.RuntimeStop processStop, TimeProvider time)
+    {
+        _owner = owner;
+        _work = work;
+        _time = time;
+        JobId = job;
+        _recoveryGeneration = generation;
+        _recoveryQueue = queue;
+        _issuedAt = time.GetTimestamp();
+        RunGate = new(processStop);
+        // Recovery is not a counted admission and never opens Admission or
+        // creates a publication observer waiting for a fabricated start receipt.
+        _publicationObservation = Task.CompletedTask;
+    }
+
+    internal BackgroundJobId JobId { get; }
+    internal BackgroundJobRoutingClaim Claim => _claim ?? throw new InvalidOperationException("Recovery has no routing claim.");
+    internal BackgroundJobStartPublication Publication => _publication ?? throw new InvalidOperationException("Recovery has no admission publication.");
+    internal BackgroundJobRunGate RunGate { get; }
+    internal BackgroundJobCommitGate AdmissionGate => _admissionGate ?? throw new InvalidOperationException("Recovery has no admission boundary.");
+    internal BackgroundJobCommitGate Gate => Volatile.Read(ref _businessGate) ?? AdmissionGate;
+    // Prepare commits only its plan. Its physical ACK cannot stop the lease
+    // that still protects Arm, the external call and the later Outcome owner.
+    internal bool LeaseWorkSettled => Volatile.Read(ref _businessGate) is
+    { Kind: BackgroundJobCheckpointKind.Transactional or BackgroundJobCheckpointKind.Finalize, CommitAcknowledged: true }
+        || ExternalLeaseWorkSettled;
     internal BackgroundJobExecutionIdentity? Identity => Volatile.Read(ref _identity);
     internal CancellationToken Token => _work.Token;
     internal bool CleanupFault { get { lock (_sync) return _cleanupFault; } }
-    internal bool RenewalRefused => Identity is not null && !Gate.CommitAcknowledged && Volatile.Read(ref _renewalClosed) != 0;
-    internal bool RenewalPermitted => Identity is not null && !Gate.CommitAcknowledged
+    internal bool RenewalRefused => Identity is not null && !LeaseWorkSettled
+        && (RunGate.IsClosed || Volatile.Read(ref _renewalClosed) != 0);
+    internal bool RenewalPermitted => Identity is not null && !LeaseWorkSettled && !RunGate.IsClosed
         && Volatile.Read(ref _renewalClosed) == 0;
 
     internal void RefuseRenewal()
@@ -64,17 +99,88 @@ internal sealed class BackgroundJobExecutionControl
     {
         if (!ReferenceEquals(renewal.Identity, Identity))
             throw new InvalidOperationException("Renewal must retain the exact acknowledged execution identity.");
-        var remaining = renewal.OwnershipUntil - renewal.DbNow
-            - _time.GetElapsedTime(issuedAt, _time.GetTimestamp());
-        if (remaining <= TimeSpan.Zero) { RefuseRenewal(); return false; }
+        ITimer? timer = null;
+        TaskCompletionSource<bool>? update = null;
+        TimeSpan remaining = default;
+        long desiredExpiry = 0;
         lock (_sync)
         {
-            if (_joined || _cleanupFault || Gate.CommitAcknowledged || Volatile.Read(ref _renewalClosed) != 0) return false;
-            _leaseExpiry = checked(_time.GetTimestamp() + (long)(remaining.TotalSeconds * _time.TimestampFrequency));
-            if (_leaseTimer?.Change(remaining, Timeout.InfiniteTimeSpan) != true)
-                throw new InvalidOperationException("The actual lease observation is no longer owned.");
+            if (_joined || _cleanupFault || RunGate.IsClosed || LeaseWorkSettled || Volatile.Read(ref _renewalClosed) != 0
+                || _leaseTimerUpdate is { Task.IsCompleted: false }) return false;
+            var now = _time.GetTimestamp();
+            remaining = renewal.OwnershipUntil - renewal.DbNow - _time.GetElapsedTime(issuedAt, now);
+            var permitted = remaining > TimeSpan.Zero && now < _leaseExpiry
+                && (Identity is not { IsRecovery: true } || _recoveryBinding is { } binding
+                    && renewal.RecoveryLease is { } evidence && RunGate.TryAcceptExternalRecoveryRenewal(binding, evidence));
+            // Waiting for the Run lock also spends the native wait budget.
+            now = _time.GetTimestamp();
+            remaining = renewal.OwnershipUntil - renewal.DbNow - _time.GetElapsedTime(issuedAt, now);
+            if (permitted && remaining > TimeSpan.Zero && now < _leaseExpiry && _leaseTimer is { } actual)
+            {
+                desiredExpiry = checked(now + (long)(remaining.TotalSeconds * _time.TimestampFrequency));
+                timer = actual;
+                update = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _leaseTimerUpdate = update; // Retained before the synchronous Change prefix.
+            }
+            else
+            {
+                Interlocked.Exchange(ref _renewalClosed, 1);
+                RunGate.Close();
+            }
         }
-        return true;
+        if (update is null) { _work.ExpireWait(); return false; }
+        var applied = false;
+        var clean = false;
+        var stop = false;
+        try
+        {
+            clean = timer!.Change(remaining, Timeout.InfiniteTimeSpan);
+            lock (_sync)
+            {
+                if (!clean)
+                {
+                    _cleanupFault = true;
+                    Interlocked.Exchange(ref _renewalClosed, 1);
+                    RunGate.Close();
+                    stop = true;
+                }
+                else if (!_joined && !_cleanupFault && !RunGate.IsClosed && !LeaseWorkSettled
+                    && Volatile.Read(ref _renewalClosed) == 0)
+                {
+                    var now = _time.GetTimestamp();
+                    if (now < _leaseExpiry && now < desiredExpiry)
+                    {
+                        _leaseExpiry = desiredExpiry;
+                        applied = true;
+                    }
+                    else
+                    {
+                        Interlocked.Exchange(ref _renewalClosed, 1);
+                        RunGate.Close();
+                        stop = true;
+                    }
+                }
+            }
+        }
+        catch (Exception failure) when (Catchable(failure))
+        {
+            lock (_sync)
+            {
+                _cleanupFault = true;
+                Interlocked.Exchange(ref _renewalClosed, 1);
+                RunGate.Close();
+            }
+            stop = true;
+            clean = false;
+        }
+        finally
+        {
+            // Successful return/cleanup is distinct from applying a renewal:
+            // stop or business ACK may have won while Change was in flight.
+            update.TrySetResult(clean);
+        }
+        if (stop) _work.ExpireWait();
+        return applied;
     }
 
     private void LeaseElapsed()
@@ -83,11 +189,11 @@ internal sealed class BackgroundJobExecutionControl
         {
             lock (_sync)
             {
-                if (_joined || Gate.CommitAcknowledged || _time.GetTimestamp() < _leaseExpiry) return;
+                if (_joined || LeaseWorkSettled || _time.GetTimestamp() < _leaseExpiry) return;
                 Interlocked.Exchange(ref _renewalClosed, 1);
-                Gate.Close();
+                RunGate.Close();
             }
-            _work.RequestCancellation();
+            _work.ExpireWait();
         }
         catch (Exception failure) when (Catchable(failure))
         {
@@ -135,8 +241,8 @@ internal sealed class BackgroundJobExecutionControl
     // relay. A generation-local drain never calls this for already admitted work.
     internal void CloseExecution()
     {
-        Gate.Close();
-        _work.RequestCancellation();
+        RunGate.Close();
+        _work.ExpireWait();
     }
 
     private async Task ObservePublicationAsync()
@@ -145,6 +251,15 @@ internal sealed class BackgroundJobExecutionControl
         {
             var receipt = await Publication.Completion.ConfigureAwait(false);
             if (receipt is null) return;
+            receipt.BindRun(RunGate);
+            _businessGate = receipt.Stage switch
+            {
+                BackgroundJobExecutionStage.Transactional => RunGate.TryOpenBoundary(BackgroundJobCheckpointKind.Transactional),
+                BackgroundJobExecutionStage.Prepare => RunGate.TryOpenBoundary(BackgroundJobCheckpointKind.Prepare),
+                BackgroundJobExecutionStage.Finalize => RunGate.TryOpenBoundary(BackgroundJobCheckpointKind.Finalize),
+                null when receipt.Envelope.Profile == "external" && receipt.LedgerStage == BackgroundJobLedgerStage.Normal => null,
+                _ => throw new InvalidOperationException("Job publication returned an invalid execution stage."),
+            };
             var identity = BackgroundJobExecutionIdentity.FromReceipt(receipt);
             // Debit from before framework read/admission issuance. This is
             // conservative when admission cleanup is slow and cannot grant a
@@ -189,20 +304,35 @@ internal sealed class BackgroundJobExecutionControl
     {
         // Serialize permanent renewal closure with an already-running renewal
         // before disposing its timer. Only actual cleanup below publishes joined.
-        lock (_sync) Interlocked.Exchange(ref _renewalClosed, 1);
+        lock (_sync)
+        {
+            Interlocked.Exchange(ref _renewalClosed, 1);
+            if (_leaseTimerInitializing)
+            {
+                _cleanupFault = true;
+                RunGate.Close();
+                return false;
+            }
+        }
         if (_admission is { IsCompletedSuccessfully: true }) _admission.Result.SourceOwner.CloseIssuance();
+        _recoverySource?.CloseIssuance();
         if (!operationCleanupConfirmed) { RetainCleanup(); return false; }
         try
         {
-            if (_admission is not { IsCompletedSuccessfully: true } || _admission.Result.CleanupFailed
-                || _business is not null && (!_business.IsCompletedSuccessfully || _business.Result.CleanupFailed))
+            if ((_claim is not null
+                    ? _admission is not { IsCompletedSuccessfully: true, Result.CleanupFailed: false }
+                    : !RecoveryOperationsCleaned)
+                || _business is not null && (!_business.IsCompletedSuccessfully || _business.Result.CleanupFailed)
+                || !ExternalOperationsCleaned)
             {
                 RetainCleanup();
                 return false;
             }
             if (_capacityCheckpoint is { } checkpoint && (await checkpoint.Completion.ConfigureAwait(false)).CleanupFailed)
             { RetainCleanup(); return false; }
-            if (!await JoinBusinessObserversAsync().ConfigureAwait(false) || !_admission.Result.SourceOwner.CleanupConfirmed)
+            if (!await JoinBusinessObserversAsync().ConfigureAwait(false)
+                || _admission is not null && !_admission.Result.SourceOwner.CleanupConfirmed
+                || _recoverySource is not null && !_recoverySource.CleanupConfirmed)
             { RetainCleanup(); return false; }
             lock (_sync)
             {
@@ -237,6 +367,9 @@ internal sealed class BackgroundJobExecutionControl
         try
         {
             await _publicationObservation.ConfigureAwait(false);
+            Task<bool>? timerUpdate;
+            lock (_sync) timerUpdate = _leaseTimerUpdate?.Task;
+            if (timerUpdate is not null && !await timerUpdate.ConfigureAwait(false)) return false;
             _deadlineCancellation = _deadlineStop.CancelAsync();
             await _deadlineCancellation.ConfigureAwait(false);
             if (_deadlineObservation is not null) await _deadlineObservation.ConfigureAwait(false);

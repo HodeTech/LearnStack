@@ -48,6 +48,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests(SchemaFixture schema
             await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.IsHealthy));
             var snapshot = runtime.Snapshot;
             snapshot.Capacity.Should().Be(new BackgroundJobPhysicalCapacity(pools, workers, controls, invocations, connections));
+            snapshot.ApplicationCapacity.Should().Be(maximum
+                ? new BackgroundJobApplicationCapacity(16, 34) : new BackgroundJobApplicationCapacity(11, 24));
             snapshot.RunningPools.Should().Be(pools);
             snapshot.ExpirationHealthy.Should().BeTrue();
             snapshot.FetchedJobHeartbeatHealthy.Should().BeTrue();

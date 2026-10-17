@@ -312,7 +312,7 @@ public sealed class HangfirePoolOwnerTests(SchemaFixture schema)
         var topology = services.GetRequiredService<BackgroundJobDefinitionRegistry>().Infrastructure;
         var activator = HangfireInvocationContract.CreateActivator(pool, topology,
             services.GetRequiredService<PostgresBackgroundJobRoutingStore>(), services.GetRequiredService<JobExecutor>(),
-            BackgroundJobRecurrenceRegistry.CreateEmpty());
+            BackgroundJobRecurrenceRegistry.CreateEmpty(), gate);
         return new(provider, inventory, filters, activator, pool, gate,
             bounds ?? services.GetRequiredService<BackgroundJobRuntimeOptions>(), time);
     }

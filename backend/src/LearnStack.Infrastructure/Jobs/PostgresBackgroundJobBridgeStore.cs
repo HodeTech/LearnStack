@@ -79,12 +79,18 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
             await using var command = new NpgsqlCommand("""
                 WITH candidate AS (
                     SELECT id FROM background_jobs
-                    WHERE phase IN ('pending','finalize_pending') AND processed_at IS NULL AND dead_lettered_at IS NULL
+                    WHERE (phase IN ('pending','finalize_pending') OR (profile='external' AND phase='reconciling'
+                            AND probe_after IS NOT NULL AND normal_attempts BETWEEN 1 AND 6 AND finalize_attempts=0
+                            AND finalization_status IS NULL AND final_outcome_attempt_id IS NULL))
+                        AND processed_at IS NULL AND dead_lettered_at IS NULL
                         AND terminal_reason IS NULL AND ownership_token IS NULL
                         AND handoff_check_at <= statement_timestamp()
                         AND (bridge_token IS NULL OR bridge_until <= statement_timestamp())
                         AND ((phase = 'pending' AND normal_attempts < 6)
-                            OR (phase = 'finalize_pending' AND finalize_attempts < 6))
+                            OR (phase = 'finalize_pending' AND finalize_attempts < 6)
+                            OR (profile='external' AND phase='reconciling' AND probe_after IS NOT NULL
+                                AND normal_attempts BETWEEN 1 AND 6 AND finalize_attempts=0
+                                AND finalization_status IS NULL AND final_outcome_attempt_id IS NULL))
                         AND NOT (id = ANY(@retained))
                     ORDER BY handoff_check_at, created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
                 )
@@ -92,7 +98,7 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
                     handoff_check_at = clock_timestamp() + @lease
                 WHERE id = (SELECT id FROM candidate)
                 RETURNING id, definition_key, queue, wake_generation, bridge_token, bridge_until,
-                    available_after, clock_timestamp(), profile
+                    CASE WHEN phase='reconciling' THEN probe_after ELSE available_after END, clock_timestamp(), profile
                 """, connection, transaction) { CommandTimeout = TimeoutSeconds };
             command.Parameters.AddWithValue("retained", retained.Select(id => id.Value).ToArray());
             command.Parameters.AddWithValue("token", ids.NewUuidV4());
@@ -151,7 +157,8 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
                 UPDATE background_jobs SET vendor_job_id = coalesce(@vendor, vendor_job_id),
                     bridge_token = NULL, bridge_until = NULL,
                     handoff_check_at = CASE WHEN @vendor IS NULL THEN clock_timestamp() + @grace
-                        ELSE greatest(clock_timestamp(), available_after) + @grace END,
+                        ELSE greatest(clock_timestamp(), CASE WHEN phase='reconciling'
+                            THEN coalesce(probe_after,@due) ELSE available_after END) + @grace END,
                     last_error = CASE WHEN @vendor IS NULL THEN @error
                         WHEN phase IN ('pending','finalize_pending') THEN NULL ELSE last_error END
                 WHERE id = @id AND wake_generation = @generation AND bridge_token = @token
@@ -162,6 +169,7 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
             command.Parameters.AddWithValue("generation", claim.WakeGeneration);
             command.Parameters.AddWithValue("token", claim.Token);
             command.Parameters.AddWithValue("grace", options.HandoffRepairGrace);
+            command.Parameters.AddWithValue("due", claim.AvailableAfter);
             command.Parameters.Add("vendor", NpgsqlTypes.NpgsqlDbType.Text).Value = (object?)vendorId ?? DBNull.Value;
             command.Parameters.Add("error", NpgsqlTypes.NpgsqlDbType.Text).Value = reason switch
             {

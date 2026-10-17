@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using Npgsql;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -27,17 +28,33 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     private readonly TaskCompletionSource _releaseCapacityRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _holdCapacityRollback;
     private int _completedCapacityRollbacks;
+    private readonly TaskCompletionSource _checkpointRollbackHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseCheckpointRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _holdCheckpointRollback;
+    private bool _loseCheckpointRollbackResponse;
+    private readonly TaskCompletionSource _externalRecoveryRollbackHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseExternalRecoveryRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _holdExternalRecoveryRollback;
+    private bool _loseExternalRecoveryRollbackResponse;
     private int _holdCapacityRecoveryCommit;
     private readonly TaskCompletionSource _capacityRecoveryCommitHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _releaseCapacityRecoveryCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _quarantineRollbackHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _releaseQuarantineRollback = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _holdQuarantineRollback, _quarantineReads;
+    private bool _loseQuarantineRollbackResponse;
     private readonly Task _accepting;
     private int _droppedCommitResponses;
     private int _acceptedConnections;
     private readonly int _commitsToPass;
     private int _completedCommits;
+    private readonly Guid? _observedCheckpointJob;
+    private readonly TaskCompletionSource _emptyCheckpointLockRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _observeCheckpointLock, _checkpointLockReads;
 
     public CommitResponseDroppingProxy(string connectionString, bool rejectReconciliationConnections = false,
-        int commitsToPass = 0, bool holdCommitResponse = false, TimeSpan? lifetime = null, bool dropCommitRequest = false)
+        int commitsToPass = 0, bool holdCommitResponse = false, TimeSpan? lifetime = null, bool dropCommitRequest = false,
+        Guid? observedCheckpointJob = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(commitsToPass);
         _stopping = new(lifetime ?? TimeSpan.FromSeconds(30));
@@ -45,6 +62,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         _rejectReconciliationConnections = rejectReconciliationConnections;
         _holdCommitResponse = holdCommitResponse;
         _dropCommitRequest = dropCommitRequest;
+        _observedCheckpointJob = observedCheckpointJob;
         var target = new NpgsqlConnectionStringBuilder(connectionString);
         _targetHost = target.Host ?? throw new ArgumentException("The test proxy requires a PostgreSQL host.", nameof(connectionString));
         _targetPort = target.Port;
@@ -75,9 +93,35 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
     public int CompletedCapacityRollbacks => Volatile.Read(ref _completedCapacityRollbacks);
     public void HoldNextCapacityProbeRollbackResponse() => Interlocked.CompareExchange(ref _holdCapacityRollback, 1, 0);
     public void ReleaseCapacityRollbackResponse() => _releaseCapacityRollback.TrySetResult();
+    public Task CheckpointHistoryRollbackHeld => _checkpointRollbackHeld.Task;
+    public void HoldNextCheckpointHistoryRollbackResponse(bool loseResponse)
+    {
+        _loseCheckpointRollbackResponse = loseResponse;
+        Interlocked.CompareExchange(ref _holdCheckpointRollback, 1, 0);
+    }
+    public void ReleaseCheckpointHistoryRollbackResponse() => _releaseCheckpointRollback.TrySetResult();
+    public Task ExternalRecoveryRollbackHeld => _externalRecoveryRollbackHeld.Task;
+    public void HoldNextExternalRecoveryRollbackResponse(bool loseResponse)
+    {
+        _loseExternalRecoveryRollbackResponse = loseResponse;
+        Interlocked.CompareExchange(ref _holdExternalRecoveryRollback, 1, 0);
+    }
+    public void ReleaseExternalRecoveryRollbackResponse() => _releaseExternalRecoveryRollback.TrySetResult();
     public Task CapacityRecoveryCommitHeld => _capacityRecoveryCommitHeld.Task;
     public void HoldNextCapacityRecoveryCommitResponse() => Interlocked.CompareExchange(ref _holdCapacityRecoveryCommit, 1, 0);
     public void ReleaseCapacityRecoveryCommitResponse() => _releaseCapacityRecoveryCommit.TrySetResult();
+    public Task EmptyCheckpointLockRead => _emptyCheckpointLockRead.Task;
+    public int CheckpointLockReads => Volatile.Read(ref _checkpointLockReads);
+    public void ObserveNextEmptyCheckpointLockRead() => Interlocked.CompareExchange(ref _observeCheckpointLock, 1, 0);
+
+    public int QuarantineReads => Volatile.Read(ref _quarantineReads);
+    public Task QuarantineRollbackHeld => _quarantineRollbackHeld.Task;
+    public void HoldNextQuarantineRollbackResponse(bool loseResponse)
+    {
+        _loseQuarantineRollbackResponse = loseResponse;
+        Interlocked.CompareExchange(ref _holdQuarantineRollback, 1, 0);
+    }
+    public void ReleaseQuarantineRollbackResponse() => _releaseQuarantineRollback.TrySetResult();
 
     public async ValueTask DisposeAsync()
     {
@@ -134,10 +178,11 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             await server.ConnectAsync(_targetHost, _targetPort, stopping.Token);
             await using var clientStream = client.GetStream();
             await using var serverStream = server.GetStream();
-            var toServer = _dropCommitRequest
-                ? ForwardRequestsAsync(clientStream, serverStream, stopping.Token)
+            var checkpointLock = new CheckpointLockSession(_observedCheckpointJob);
+            var toServer = _dropCommitRequest || _observedCheckpointJob is not null
+                ? ForwardRequestsAsync(clientStream, serverStream, checkpointLock, stopping.Token)
                 : clientStream.CopyToAsync(serverStream, stopping.Token);
-            var toClient = ForwardResponsesAsync(serverStream, clientStream, stopping.Token);
+            var toClient = ForwardResponsesAsync(serverStream, clientStream, checkpointLock, stopping.Token);
             var completed = await Task.WhenAny(toServer, toClient);
             try
             {
@@ -158,7 +203,8 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         }
     }
 
-    private async Task ForwardRequestsAsync(NetworkStream client, NetworkStream server, CancellationToken token)
+    private async Task ForwardRequestsAsync(NetworkStream client, NetworkStream server, CheckpointLockSession checkpointLock,
+        CancellationToken token)
     {
         // SSL/GSS negotiation is disabled by this test proxy. Forward the
         // untyped startup packet, then inspect complete typed frontend frames.
@@ -178,7 +224,8 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             if (length is < 4 or > 1_048_576) throw new InvalidDataException("Invalid PostgreSQL request frame.");
             var body = new byte[length - 4];
             await client.ReadExactlyAsync(body, token);
-            if (header[0] == (byte)'Q' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
+            checkpointLock.Request(header[0], body);
+            if (_dropCommitRequest && header[0] == (byte)'Q' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
                 && Interlocked.Increment(ref _issuedCommits) > _commitsToPass
                 && Interlocked.CompareExchange(ref _droppedCommitRequests, 1, 0) == 0)
             {
@@ -192,7 +239,8 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         }
     }
 
-    private async Task ForwardResponsesAsync(NetworkStream server, NetworkStream client, CancellationToken cancellationToken)
+    private async Task ForwardResponsesAsync(NetworkStream server, NetworkStream client, CheckpointLockSession checkpointLock,
+        CancellationToken cancellationToken)
     {
         // Backend frames are a type byte, big-endian length including the length
         // itself, then a body. CommandComplete 'C' carries a null-terminated tag.
@@ -201,6 +249,10 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
         var capacityFactsRead = false;
         var capacityRollbackResponse = false;
         var capacityRecoveryRead = false;
+        var checkpointHistoryRead = false;
+        var externalRecoveryRead = false;
+        var quarantineRead = false;
+        var emptyCheckpointReadCompleted = false;
         while (await server.ReadAsync(header.AsMemory(0, 1), cancellationToken) != 0)
         {
             await server.ReadExactlyAsync(header.AsMemory(1, 4), cancellationToken);
@@ -210,12 +262,58 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
             var body = new byte[length - 4];
             await server.ReadExactlyAsync(body, cancellationToken);
+            if (header[0] == (byte)'C' && (body.AsSpan().SequenceEqual("SELECT 0\0"u8)
+                    || body.AsSpan().SequenceEqual("SELECT 1\0"u8)) && checkpointLock.Complete())
+            {
+                Interlocked.Increment(ref _checkpointLockReads);
+                if (body.AsSpan().SequenceEqual("SELECT 0\0"u8)
+                    && Interlocked.CompareExchange(ref _observeCheckpointLock, 2, 1) == 1)
+                    emptyCheckpointReadCompleted = true;
+            }
+            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("has_quarantined_jobs\0"u8) >= 0)
+            {
+                quarantineRead = true;
+                Interlocked.Increment(ref _quarantineReads);
+            }
             if (header[0] == (byte)'T' && body.AsSpan().IndexOf("transactional_cleanup_at\0"u8) >= 0
                 && body.AsSpan().IndexOf("release_reason\0"u8) >= 0)
                 capacityFactsRead = true;
             if (header[0] == (byte)'T' && body.AsSpan().IndexOf("admitted_at\0"u8) >= 0
                 && body.AsSpan().IndexOf("ownership_until\0"u8) >= 0 && body.AsSpan().IndexOf("capacity_group\0"u8) >= 0)
                 capacityRecoveryRead = true;
+            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("business_finalization_incomplete\0"u8) >= 0
+                && body.AsSpan().IndexOf("execute_intent_at\0"u8) >= 0
+                && body.AsSpan().IndexOf("release_reason\0"u8) >= 0)
+                checkpointHistoryRead = true;
+            if (header[0] == (byte)'T' && BinaryPrimitives.ReadInt16BigEndian(body.AsSpan()) == 20
+                && body.AsSpan().IndexOf("admission_token\0"u8) >= 0
+                && body.AsSpan().IndexOf("ownership_token\0"u8) >= 0
+                && body.AsSpan().IndexOf("original_due_at\0"u8) >= 0
+                && body.AsSpan().IndexOf("stage\0"u8) >= 0)
+                externalRecoveryRead = true;
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("ROLLBACK\0"u8)
+                && quarantineRead && Interlocked.CompareExchange(ref _holdQuarantineRollback, 2, 1) == 1)
+            {
+                _quarantineRollbackHeld.TrySetResult();
+                await _releaseQuarantineRollback.Task.WaitAsync(cancellationToken);
+                if (_loseQuarantineRollbackResponse) return;
+            }
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("ROLLBACK\0"u8)
+                && externalRecoveryRead && Interlocked.CompareExchange(ref _holdExternalRecoveryRollback, 2, 1) == 1)
+            {
+                _externalRecoveryRollbackHeld.TrySetResult();
+                await _releaseExternalRecoveryRollback.Task.WaitAsync(cancellationToken);
+                if (_loseExternalRecoveryRollbackResponse) return;
+            }
+            if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("ROLLBACK\0"u8)
+                && checkpointHistoryRead && Interlocked.CompareExchange(ref _holdCheckpointRollback, 2, 1) == 1)
+            {
+                // Hold precisely the completed historical probe's ROLLBACK,
+                // after PostgreSQL released its lock, before any ACK can publish.
+                _checkpointRollbackHeld.TrySetResult();
+                await _releaseCheckpointRollback.Task.WaitAsync(cancellationToken);
+                if (_loseCheckpointRollbackResponse) return;
+            }
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
                 && capacityRecoveryRead && Interlocked.CompareExchange(ref _holdCapacityRecoveryCommit, 2, 1) == 1)
             {
@@ -239,6 +337,9 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
             {
                 capacityFactsRead = false;
                 capacityRecoveryRead = false;
+                checkpointHistoryRead = false;
+                externalRecoveryRead = false;
+                quarantineRead = false;
             }
             if (header[0] == (byte)'C' && body.AsSpan().SequenceEqual("COMMIT\0"u8)
                 && Interlocked.Increment(ref _completedCommits) > _commitsToPass && !_dropCommitRequest
@@ -257,12 +358,55 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
 
             await client.WriteAsync(header, cancellationToken);
             await client.WriteAsync(body, cancellationToken);
+            if (header[0] == (byte)'Z' && emptyCheckpointReadCompleted)
+            {
+                emptyCheckpointReadCompleted = false;
+                _emptyCheckpointLockRead.TrySetResult();
+            }
             if (header[0] == (byte)'Z' && capacityRollbackResponse)
             {
                 Interlocked.Increment(ref _completedCapacityRollbacks);
                 capacityRollbackResponse = false;
             }
         }
+    }
+
+    // Narrow observer only: match this exact query AND its actual binary UUID
+    // binding. Every frame is forwarded unchanged; unrelated SELECT 0 responses
+    // cannot release the test's real row-lock barrier.
+    private sealed class CheckpointLockSession(Guid? job)
+    {
+        private bool _parsed;
+        private int _bound;
+
+        internal void Request(byte kind, ReadOnlySpan<byte> body)
+        {
+            if (job is null) return;
+            if (kind == (byte)'P')
+            {
+                var nameEnd = body.IndexOf((byte)0);
+                var sql = nameEnd < 0 ? ReadOnlySpan<byte>.Empty : body[(nameEnd + 1)..];
+                var sqlEnd = sql.IndexOf((byte)0);
+                _parsed = sqlEnd >= 0 && Encoding.UTF8.GetString(sql[..sqlEnd])
+                    == "SELECT id FROM background_jobs WHERE id=$1 FOR UPDATE SKIP LOCKED";
+            }
+            if (kind != (byte)'B') return;
+            var first = body.IndexOf((byte)0);
+            if (first < 0) return;
+            var rest = body[(first + 1)..];
+            var second = rest.IndexOf((byte)0);
+            if (second < 0) return;
+            rest = rest[(second + 1)..];
+            // One binary-format UUID parameter, followed by result formats.
+            var match = _parsed && rest.Length >= 26 && BinaryPrimitives.ReadInt16BigEndian(rest) == 1
+                && BinaryPrimitives.ReadInt16BigEndian(rest[2..]) == 1
+                && BinaryPrimitives.ReadInt16BigEndian(rest[4..]) == 1
+                && BinaryPrimitives.ReadInt32BigEndian(rest[6..]) == 16
+                && new Guid(rest.Slice(10, 16), bigEndian: true) == job.Value;
+            Interlocked.Exchange(ref _bound, match ? 1 : 0);
+        }
+
+        internal bool Complete() => Interlocked.Exchange(ref _bound, 0) != 0;
     }
 
     private static async Task ObserveStoppedPumpAsync(Task pump, CancellationToken stopped)

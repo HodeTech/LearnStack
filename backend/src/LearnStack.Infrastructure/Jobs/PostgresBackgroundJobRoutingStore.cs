@@ -35,7 +35,7 @@ public sealed class PostgresBackgroundJobRoutingStore(
             throw new ArgumentException("A job wakeup requires its opaque identity and positive generation.");
         var active = definitions.DefinitionKeys.Where(key => definitions.TryGet(key, out var definition)
             && definition.Readiness == BackgroundJobDefinitionReadiness.Active
-            && definition.Profile == BackgroundJobExecutionProfile.Transactional).ToArray();
+            && definition.Profile is BackgroundJobExecutionProfile.Transactional or BackgroundJobExecutionProfile.External).ToArray();
         if (active.Length == 0) return new(null, null, null);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(options.SqlTimeout);
@@ -59,12 +59,23 @@ public sealed class PostgresBackgroundJobRoutingStore(
                 WITH candidate AS (
                     SELECT id FROM background_jobs
                     WHERE id = @id AND wake_generation = @generation AND definition_key = ANY(@active)
-                        AND profile = 'transactional' AND phase = 'pending'
-                        AND EXISTS (SELECT 1 FROM unnest(@active, @groups, @queues) x(definition, capacity, queue_name)
+                        AND ((profile='transactional' AND phase='pending' AND normal_attempts<6)
+                            OR (profile='external' AND (
+                                (phase='finalize_pending' AND finalize_attempts<6 AND final_outcome_attempt_id IS NOT NULL)
+                                OR (phase='pending' AND normal_attempts<6 AND finalization_status IS NULL
+                                    AND NOT EXISTS (SELECT 1 FROM background_job_attempts a
+                                        WHERE a.tenant_id=background_jobs.tenant_id AND a.job_id=background_jobs.id
+                                            AND a.stage='normal' AND (a.no_start_at IS NULL AND a.outcome_kind IS NULL
+                                                OR a.outcome_kind IS NOT NULL AND (a.quiescent_at IS NULL
+                                                    OR a.outcome_kind NOT IN ('failed','cancelled')
+                                                    OR a.failure_policy IS DISTINCT FROM 'transient_repeatable')))))))
+                        AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
+                            WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
+                        AND EXISTS (SELECT 1 FROM unnest(@active, @groups, @queues, @profiles) x(definition, capacity, queue_name, profile_name)
                             WHERE x.definition=definition_key AND x.capacity IS NOT DISTINCT FROM capacity_group
-                                AND x.queue_name=queue)
-                        AND normal_attempts < 6 AND processed_at IS NULL AND dead_lettered_at IS NULL
-                        AND terminal_reason IS NULL AND available_after <= clock_timestamp()
+                                AND x.queue_name=queue AND x.profile_name=profile)
+                        AND processed_at IS NULL AND dead_lettered_at IS NULL
+                        AND terminal_reason IS NULL AND available_after <= clock_timestamp() AND original_due_at <= clock_timestamp()
                         AND (ownership_token IS NULL OR (ownership_kind = 'routing' AND ownership_until <= clock_timestamp()))
                     FOR UPDATE SKIP LOCKED
                 )
@@ -72,7 +83,7 @@ public sealed class PostgresBackgroundJobRoutingStore(
                     ownership_until = clock_timestamp() + @lease
                 WHERE id = (SELECT id FROM candidate)
                 RETURNING id, tenant_id, organization_id, definition_key, queue, wake_generation,
-                    ownership_token, ownership_until, original_due_at
+                    ownership_token, ownership_until, original_due_at, profile, phase, clock_timestamp()
                 """, connection, transaction) { CommandTimeout = (int)Math.Ceiling(options.SqlTimeout.TotalSeconds) };
             command.Parameters.AddWithValue("id", jobId.Value);
             command.Parameters.AddWithValue("generation", wakeGeneration);
@@ -81,6 +92,9 @@ public sealed class PostgresBackgroundJobRoutingStore(
                 definitions.TryGet(key, out var definition) ? definition.CapacityGroup : null).ToArray());
             command.Parameters.AddWithValue("queues", active.Select(key =>
                 definitions.TryGet(key, out var definition) ? definition.Queue : "").ToArray());
+            command.Parameters.AddWithValue("profiles", active.Select(key =>
+                definitions.TryGet(key, out var definition) && definition.Profile == BackgroundJobExecutionProfile.External
+                    ? "external" : "transactional").ToArray());
             command.Parameters.AddWithValue("token", ids.NewUuidV4());
             command.Parameters.AddWithValue("lease", options.LeaseDuration);
             reader = await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false);

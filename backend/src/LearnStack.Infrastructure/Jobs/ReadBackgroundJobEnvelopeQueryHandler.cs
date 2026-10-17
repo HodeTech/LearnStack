@@ -26,7 +26,7 @@ public sealed class ReadBackgroundJobEnvelopeQueryHandler(IUnitOfWork unit,
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
             envelope = await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? BackgroundJobEnvelopeSql.Read(reader) : null;
         if (envelope is null || !BackgroundJobEnvelopeSql.Matches(envelope, request.Claim)
-            || BackgroundJobEnvelopeSql.Definition(envelope, definitions) is not { } definition)
+            || BackgroundJobEnvelopeSql.RoutedDefinition(envelope, request.Claim, definitions) is not { } definition)
             return Result<BackgroundJobEnvelope>.Fail(BackgroundJobExecutionAdmission.Refused);
         var payload = BackgroundJobPayloadContract.Read(envelope.Parameters, definition.ParameterType, BackgroundJobPayloadKind.Parameters);
         if (BackgroundJobPayloadContract.Serialize(payload, definition.ParameterType, BackgroundJobPayloadKind.Parameters) != envelope.Parameters)

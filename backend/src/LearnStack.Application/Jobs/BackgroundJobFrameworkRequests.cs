@@ -17,8 +17,9 @@ public sealed record BackgroundJobEnvelope(BackgroundJobId JobId, TenantId Tenan
 public sealed record ReadBackgroundJobEnvelopeQuery(BackgroundJobRoutingClaim Claim)
     : IRequest<Result<BackgroundJobEnvelope>>;
 
-/// <summary>The exact short transaction that records one normal admission.</summary>
-public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim claim, BackgroundJobEnvelope envelope)
+/// <summary>The exact short transaction that records one normal or finalization admission.</summary>
+public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim claim, BackgroundJobEnvelope envelope,
+    BackgroundJobCommitGate gate)
     : IRequest<Result<None>>
 {
     private IUnitOfWork? _unit;
@@ -26,6 +27,9 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     private DbTransaction? _transaction;
     private BackgroundJobAttemptId? _attempt;
     private int _ordinal;
+    private int _finalizeOrdinal;
+    private BackgroundJobExecutionStage? _stage;
+    private BackgroundJobAttemptId? _selectedNormalAttempt;
     private DateTimeOffset _admittedAt;
     private DateTimeOffset _deadline;
     private DateTimeOffset _ownershipUntil;
@@ -34,6 +38,8 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
 
     public BackgroundJobRoutingClaim Claim { get; } = claim ?? throw new ArgumentNullException(nameof(claim));
     public BackgroundJobEnvelope Envelope { get; } = envelope ?? throw new ArgumentNullException(nameof(envelope));
+    public BackgroundJobCommitGate Gate { get; } = gate is { Kind: BackgroundJobCheckpointKind.Admission }
+        ? gate : throw new ArgumentException("Admission requires its prebound boundary.", nameof(gate));
     public ConfirmedStartReceipt? Receipt { get; private set; }
     public bool CommitStarted { get; private set; }
     public bool CapacityDeferred { get; private set; }
@@ -41,7 +47,7 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     internal void BindOwner(IUnitOfWork unit, bool owner)
     {
         BackgroundJobExecutionAdmission.RequireStart(this);
-        if (!owner || _unit is not null || unit.Mode != TransactionMode.ReadWrite)
+        if (!owner || _unit is not null || unit.Mode != TransactionMode.ReadWrite || Gate.IsClosed)
             throw new InvalidOperationException("Job admission must own a fresh writable transaction.");
         _unit = unit;
         _sourceOwner = JobApplicationSourceOwner.Current
@@ -55,18 +61,29 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     }
 
     /// <summary>Called only after the app-role INSERT and summary UPDATE both succeeded.</summary>
-    public void RecordAttempt(IUnitOfWork unit, BackgroundJobAttemptId attempt, int ordinal,
+    public void RecordAttempt(IUnitOfWork unit, BackgroundJobAttemptId attempt, int ordinal, int finalizeOrdinal,
+        BackgroundJobExecutionStage? stage, BackgroundJobAttemptId? selectedNormalAttempt,
         DateTimeOffset admittedAt, DateTimeOffset deadline, DateTimeOffset ownershipUntil)
     {
         BackgroundJobExecutionAdmission.RequireStart(this);
         if (!ReferenceEquals(_unit, unit) || !ReferenceEquals(_transaction, unit.Transaction)
             || _announcement != unit.GetTenantContextAnnouncement(unit.Transaction)
             || unit.IsRollbackOnly || CapacityDeferred || _attempt is not null || !attempt.IsInitialized() || attempt.Value.Version != 7
-            || ordinal is < 1 or > 6 || admittedAt >= deadline || ownershipUntil > deadline
-            || ownershipUntil <= admittedAt)
+            || ordinal is < 1 or > 6 || finalizeOrdinal is < 0 or > 6
+            || admittedAt >= deadline || ownershipUntil > deadline || ownershipUntil <= admittedAt
+            || (Claim.Profile == BackgroundJobExecutionProfile.Transactional
+                ? Claim.LedgerStage != BackgroundJobLedgerStage.Normal || stage != BackgroundJobExecutionStage.Transactional
+                    || finalizeOrdinal != 0 || selectedNormalAttempt is not null
+                : Claim.LedgerStage == BackgroundJobLedgerStage.Normal
+                    ? stage is not (null or BackgroundJobExecutionStage.Prepare) || finalizeOrdinal != 0 || selectedNormalAttempt is not null
+                    : stage != BackgroundJobExecutionStage.Finalize || finalizeOrdinal < 1
+                        || selectedNormalAttempt is not { } selected || !selected.IsInitialized() || selected.Value.Version != 7))
             throw new InvalidOperationException("The attempt does not belong to this admission owner.");
         _attempt = attempt;
         _ordinal = ordinal;
+        _finalizeOrdinal = finalizeOrdinal;
+        _stage = stage;
+        _selectedNormalAttempt = selectedNormalAttempt;
         _admittedAt = admittedAt;
         _deadline = deadline;
         _ownershipUntil = ownershipUntil;
@@ -100,6 +117,8 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
             || _attempt is null || unit.IsRollbackOnly
             || _announcement != unit.GetTenantContextAnnouncement(unit.Transaction))
             throw new InvalidOperationException("Only the live recorded admission may commit.");
+        if (!Gate.TryBeginCommit())
+            throw new OperationCanceledException("Job admission COMMIT is closed.");
         CommitStarted = true;
     }
 
@@ -107,17 +126,24 @@ public sealed class AdmitBackgroundJobAttemptCommand(BackgroundJobRoutingClaim c
     {
         if (!ReferenceEquals(_unit, unit) || !CommitStarted || _announcement is null || _attempt is not { } attempt || Receipt is not null)
             throw new InvalidOperationException("An acknowledged admission requires its exact recorded attempt.");
-        Receipt = ConfirmedStartReceipt.FromAcknowledged(this, attempt, _ordinal, _admittedAt, _deadline, _ownershipUntil);
+        Gate.RecordCommitted();
+        Receipt = ConfirmedStartReceipt.FromAcknowledged(this, attempt, _stage, _ordinal, _finalizeOrdinal,
+            _selectedNormalAttempt, _admittedAt, _deadline, _ownershipUntil);
         _publication?.Publish(this, Receipt);
     }
+
+    internal void RecordRolledBack() => Gate.RecordRolledBack();
 }
 
 /// <summary>A single-use business activation token; unknown COMMIT never creates one.</summary>
 public sealed class ConfirmedStartReceipt
 {
     private int _consumed;
+    private BackgroundJobRunGate? _run;
+    private readonly BackgroundJobRunGate _admissionRun;
     private ConfirmedStartReceipt(AdmitBackgroundJobAttemptCommand command, BackgroundJobAttemptId attempt,
-        BackgroundJobExecutionStage stage, int normalAttemptOrdinal, DateTimeOffset admittedAt,
+        BackgroundJobExecutionStage? stage, int normalAttemptOrdinal, int finalizeAttemptOrdinal,
+        BackgroundJobAttemptId? selectedNormalAttemptId, DateTimeOffset admittedAt,
         DateTimeOffset deadline, DateTimeOffset ownershipUntil, JobApplicationSourceOwner sourceOwner)
     {
         Claim = command.Claim;
@@ -125,24 +151,40 @@ public sealed class ConfirmedStartReceipt
         AttemptId = attempt;
         Stage = stage;
         NormalAttemptOrdinal = normalAttemptOrdinal;
+        FinalizeAttemptOrdinal = finalizeAttemptOrdinal;
+        SelectedNormalAttemptId = selectedNormalAttemptId;
         AdmittedAt = admittedAt;
         Deadline = deadline;
         OwnershipUntil = ownershipUntil;
         SourceOwner = sourceOwner;
+        _admissionRun = command.Gate.Run;
     }
     public BackgroundJobRoutingClaim Claim { get; }
     public BackgroundJobEnvelope Envelope { get; }
     public BackgroundJobAttemptId AttemptId { get; }
-    public BackgroundJobExecutionStage Stage { get; }
+    /// <summary>Null for a normal external attempt reusing its acknowledged immutable plan.</summary>
+    public BackgroundJobExecutionStage? Stage { get; }
+    public BackgroundJobLedgerStage LedgerStage => Claim.LedgerStage;
     public int NormalAttemptOrdinal { get; }
+    public int FinalizeAttemptOrdinal { get; }
+    public BackgroundJobAttemptId? SelectedNormalAttemptId { get; }
     public DateTimeOffset AdmittedAt { get; }
     public DateTimeOffset Deadline { get; }
     public DateTimeOffset OwnershipUntil { get; }
     public JobApplicationSourceOwner SourceOwner { get; }
+    public BackgroundJobRunGate Run => Volatile.Read(ref _run)
+        ?? throw new InvalidOperationException("The counted receipt has no original invocation binding.");
+    public void BindRun(BackgroundJobRunGate run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (!ReferenceEquals(run, _admissionRun) || Interlocked.CompareExchange(ref _run, run, null) is not null)
+            throw new InvalidOperationException("A counted receipt binds its exact original run once.");
+    }
     internal static ConfirmedStartReceipt FromAcknowledged(AdmitBackgroundJobAttemptCommand command,
-        BackgroundJobAttemptId attempt, int ordinal, DateTimeOffset admittedAt, DateTimeOffset deadline,
-        DateTimeOffset ownershipUntil) => new(command, attempt, BackgroundJobExecutionStage.Transactional,
-            ordinal, admittedAt, deadline, ownershipUntil, JobApplicationSourceOwner.Current
+        BackgroundJobAttemptId attempt, BackgroundJobExecutionStage? stage, int ordinal, int finalizeOrdinal,
+        BackgroundJobAttemptId? selectedNormalAttemptId, DateTimeOffset admittedAt, DateTimeOffset deadline,
+        DateTimeOffset ownershipUntil) => new(command, attempt, stage, ordinal, finalizeOrdinal,
+            selectedNormalAttemptId, admittedAt, deadline, ownershipUntil, JobApplicationSourceOwner.Current
                 ?? throw new InvalidOperationException("Admission must retain its application-source owner."));
     internal void Consume()
     {
@@ -158,6 +200,9 @@ public static class BackgroundJobFrameworkRequests
         new BackgroundJobRequestDescriptor(typeof(ReadBackgroundJobEnvelopeQuery), BackgroundJobRequestClassification.FrameworkReadOnly, null),
         new BackgroundJobRequestDescriptor(typeof(AdmitBackgroundJobAttemptCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
         new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobCapacityCleanupCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
+        new BackgroundJobRequestDescriptor(typeof(ReadBackgroundJobExternalStateQuery), BackgroundJobRequestClassification.FrameworkReadOnly, null),
+        new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobArmCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
+        new BackgroundJobRequestDescriptor(typeof(RecordBackgroundJobOutcomeCommand), BackgroundJobRequestClassification.FrameworkReadWrite, null),
     });
 }
 
@@ -170,5 +215,8 @@ public sealed class BackgroundJobAuditCatalogSource : IAuditCatalogSource
         builder.Off<ReadBackgroundJobEnvelopeQuery>();
         builder.Off<AdmitBackgroundJobAttemptCommand>();
         builder.Off<RecordBackgroundJobCapacityCleanupCommand>();
+        builder.Off<ReadBackgroundJobExternalStateQuery>();
+        builder.Off<RecordBackgroundJobArmCommand>();
+        builder.Off<RecordBackgroundJobOutcomeCommand>();
     }
 }

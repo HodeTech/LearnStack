@@ -29,6 +29,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
     private readonly BackgroundJobRuntimeGate _gate;
     private readonly BackgroundJobRuntimeGate.PoolBoundary _boundary;
     private readonly BackgroundJobWorkerPoolRegistration _pool;
+    internal bool IsExternalPool => _pool.Kind == BackgroundJobWorkerPoolKind.External;
     private readonly PoolHangfireStorage _storage;
     private readonly IBackgroundProcessDispatcherBuilder[] _builders;
     private readonly BackgroundProcessingServerOptions _options;
@@ -79,7 +80,7 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
         _pool = pool;
         _bounds = bounds;
         _time = timeProvider;
-        _work = new(pool, gate);
+        _work = new(pool, gate, bounds, timeProvider);
         _storage = new PoolHangfireStorage(provider, this, components.Selected);
         _options = CreateOptions(pool);
         var factory = new BackgroundJobFactory(filters);
@@ -111,10 +112,6 @@ internal sealed class HangfireGeneration : PoolHangfireLifecycle
 
     internal Task<bool> Ready => _ready.Task;
     internal Task Completion => _completion.Task;
-    // The current framework invocation is short work; its external wait reuses
-    // the validated transactional bound while each SQL operation keeps its own.
-    internal TimeSpan InvocationWait => _bounds.TransactionTimeout;
-    internal TimeProvider InvocationTime => _time;
     internal HangfireGenerationWorkSnapshot WorkSnapshot => _work.Snapshot;
     internal bool TryAdmitInvocation() => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result && _work.CanStart && _gate.TryAdmit()
         && Interlocked.CompareExchange(ref _draining, 0, 0) == 0;

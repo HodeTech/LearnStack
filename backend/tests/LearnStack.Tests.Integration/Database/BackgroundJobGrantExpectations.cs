@@ -29,7 +29,7 @@ internal static class BackgroundJobGrantExpectations
             ("learnstack_app", "background_job_attempts", "INSERT") =>
                 "id tenant_id organization_id job_id stage ordinal admission_token deadline final_outcome_attempt_id",
             ("learnstack_app", "background_job_attempts", "UPDATE") =>
-                "plan_fingerprint operation_id execute_intent_at outcome outcome_kind outcome_at quiescence_id quiescence_kind quiescent_at no_start_at transactional_cleanup_at",
+                "plan_fingerprint operation_id execute_intent_at outcome outcome_kind outcome_at quiescence_id quiescence_kind quiescent_at no_start_at transactional_cleanup_at failure_policy",
             ("learnstack_app", "background_job_capacity", "INSERT") => "tenant_id capacity_group",
             ("learnstack_app", "background_job_capacity", "UPDATE") => "capacity_group",
             ("learnstack_app", "background_job_reservations", "INSERT") => "tenant_id capacity_group job_id attempt_id",
@@ -40,7 +40,7 @@ internal static class BackgroundJobGrantExpectations
             ("learnstack_outbox_admin", "background_jobs", "UPDATE") =>
                 "phase ownership_token ownership_kind ownership_until available_after wake_generation bridge_token bridge_until vendor_job_id handoff_check_at probe_after unsuccessful_probes last_error quarantine_reason terminal_reason dead_lettered_at business_finalization_incomplete",
             ("learnstack_outbox_admin", "background_job_attempts", "SELECT") =>
-                "id tenant_id organization_id job_id stage ordinal admission_token admitted_at deadline final_outcome_attempt_id plan_fingerprint operation_id execute_intent_at outcome_kind outcome_at quiescence_id quiescence_kind quiescent_at no_start_at transactional_cleanup_at",
+                "id tenant_id organization_id job_id stage ordinal admission_token admitted_at deadline final_outcome_attempt_id plan_fingerprint operation_id execute_intent_at outcome_kind outcome_at quiescence_id quiescence_kind quiescent_at no_start_at transactional_cleanup_at failure_policy",
             ("learnstack_outbox_admin", "background_job_recurrences", "INSERT") =>
                 "recurrence_key revision manifest_hash target_definition_key schedule activates_at anchor_at period_microseconds jitter_microseconds recipient_policy misfire_policy next_scheduled_at",
             ("learnstack_outbox_admin", "background_job_recurrences", "UPDATE") =>

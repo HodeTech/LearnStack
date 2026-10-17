@@ -66,7 +66,7 @@ public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
         var routing = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
         var route = await routing.TryClaimAsync(id, 1);
         route.Should().NotBeNull();
-        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(route!); // Actual route was asserted.
+        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(route!, BackgroundJobTestRun.Create()); // Actual route was asserted.
         admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         (await store.AcknowledgeAsync(claim!, "123")).Should().BeTrue(); // Actual bridge claim was asserted.
         var row = await ReadAsync(database, id);

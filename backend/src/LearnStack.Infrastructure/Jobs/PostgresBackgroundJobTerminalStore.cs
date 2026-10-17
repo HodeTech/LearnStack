@@ -15,26 +15,63 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
     BackgroundJobRuntimeGate? runtimeGate = null) : JobTerminalTransition.MintingSource
 {
     internal const string ClaimSelectionSql = """
-        SELECT id FROM background_jobs
-        WHERE phase = 'terminal_pending' AND terminal_reason IS NOT NULL
-            AND processed_at IS NULL AND dead_lettered_at IS NULL
-            AND profile = 'transactional'
+        SELECT j.id, j.plan_fingerprint IS NOT NULL FROM background_jobs j
+        WHERE j.phase = 'terminal_pending' AND j.terminal_reason IS NOT NULL
+            AND j.processed_at IS NULL AND j.dead_lettered_at IS NULL
+            AND
+        """ + " " + BackgroundJobTerminalEligibility.Profile + " " + """
             AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
-                WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
-            AND available_after <= statement_timestamp()
-            AND (ownership_token IS NULL OR ownership_until <= statement_timestamp())
-            AND NOT (id = ANY(@blocked))
-        ORDER BY available_after, created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+                WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.released_at IS NULL)
+            AND j.available_after <= statement_timestamp()
+            AND (j.ownership_token IS NULL OR j.ownership_until <= statement_timestamp())
+            AND NOT (j.id = ANY(@blocked))
+        ORDER BY j.available_after, j.created_at, j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED
         """;
     private const string ExactClaim = """
-        id = @id AND tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
-        AND definition_key = @definition AND queue = @queue AND profile = 'transactional'
-        AND capacity_group IS NOT DISTINCT FROM @capacity
+        j.id = @id AND j.tenant_id = @tenant AND j.organization_id IS NOT DISTINCT FROM @organization
+        AND j.definition_key = @definition AND j.queue = @queue AND j.profile = @profile
+        AND j.capacity_group IS NOT DISTINCT FROM @capacity
         AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
-            WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
-        AND wake_generation = @generation AND current_attempt_id IS NOT DISTINCT FROM @attempt
-        AND normal_attempts = @attempts AND ownership_token = @token AND ownership_kind = 'recovery'
-        AND phase = 'terminal_pending' AND terminal_reason = @reason AND processed_at IS NULL AND dead_lettered_at IS NULL
+            WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.released_at IS NULL)
+        AND j.wake_generation = @generation AND j.current_attempt_id IS NOT DISTINCT FROM @attempt
+        AND j.normal_attempts = @attempts AND j.ownership_token = @token AND j.ownership_kind = 'recovery'
+        AND j.phase = 'terminal_pending' AND j.terminal_reason = @reason AND j.processed_at IS NULL AND j.dead_lettered_at IS NULL
+        AND
+        """ + " " + BackgroundJobTerminalEligibility.Profile;
+
+    private static string ExactClaimFor(BackgroundJobTerminalClaim claim) => ExactClaim
+        + (claim.Prepared is null ? " AND (j.profile='transactional' OR (" + BackgroundJobTerminalEligibility.NoPlan + "))"
+            : " AND (" + BackgroundJobTerminalPreparedFacts.Fence + ") AND (" + BackgroundJobTerminalEligibility.PreparedBefore + ")");
+
+    // Columns 13..39 of the prepared40 UPDATE RETURNING; every value is actual row metadata.
+    private const string PreparedTerminalTail = """
+        j.finalize_attempts,
+        j.final_outcome_attempt_id,
+        (SELECT a.stage FROM background_job_attempts a WHERE a.tenant_id=j.tenant_id AND a.job_id=j.id AND a.id=j.current_attempt_id),
+        (SELECT a.ordinal FROM background_job_attempts a WHERE a.tenant_id=j.tenant_id AND a.job_id=j.id AND a.id=j.current_attempt_id),
+        (SELECT a.admission_token FROM background_job_attempts a WHERE a.tenant_id=j.tenant_id AND a.job_id=j.id AND a.id=j.current_attempt_id),
+        (SELECT a.deadline FROM background_job_attempts a WHERE a.tenant_id=j.tenant_id AND a.job_id=j.id AND a.id=j.current_attempt_id),
+        j.attempt_deadline,
+        COALESCE(j.final_outcome_attempt_id,j.current_attempt_id),
+        (SELECT n.stage FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        (SELECT n.ordinal FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        (SELECT n.outcome_kind FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        (SELECT n.failure_policy FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        (SELECT n.quiescent_at FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        (SELECT n.no_start_at FROM background_job_attempts n WHERE n.tenant_id=j.tenant_id AND n.job_id=j.id AND n.id=COALESCE(j.final_outcome_attempt_id,j.current_attempt_id) AND n.stage='normal'),
+        j.finalization_status,
+        j.finalization_reason,
+        j.business_finalization_incomplete,
+        j.plan_fingerprint,
+        j.operation_id,
+        j.prepared_at,
+        old.phase,
+        old.ownership_kind,
+        old.ownership_until,
+        current_user,
+        clock_timestamp(),
+        (SELECT a.admitted_at FROM background_job_attempts a WHERE a.tenant_id=j.tenant_id AND a.job_id=j.id AND a.id=j.current_attempt_id),
+        j.capacity_group
         """;
 
     internal async Task<OwnedBackgroundJobControl<BackgroundJobTerminalClaim>> TryClaimTerminalAsync(
@@ -53,23 +90,28 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
             {
                 var command = Command(resources, ClaimSelectionSql);
                 command.Parameters.AddWithValue("blocked", retainedJobIds.ToArray());
-                var id = await command.ExecuteScalarAsync(deadline.Token).ConfigureAwait(false) as Guid?;
-                await resources.FinishCommandAsync().ConfigureAwait(false);
+                resources.SetReader(await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false));
+                var found = await resources.Reader!.ReadAsync(deadline.Token).ConfigureAwait(false);
+                var id = found ? resources.Reader.GetGuid(0) : (Guid?)null;
+                var prepared = found && resources.Reader.GetBoolean(1);
+                await FinishAsync(resources).ConfigureAwait(false);
                 if (id is { } job)
                 {
                     command = Command(resources, """
-                        UPDATE background_jobs SET ownership_token = @token, ownership_kind = 'recovery',
+                        UPDATE background_jobs j SET ownership_token = @token, ownership_kind = 'recovery',
                             ownership_until = clock_timestamp() + @lease
-                        WHERE id = @id AND phase = 'terminal_pending' AND terminal_reason IS NOT NULL
-                            AND processed_at IS NULL AND dead_lettered_at IS NULL
-                            AND profile = 'transactional'
+                        WHERE j.id = @id AND j.phase = 'terminal_pending' AND j.terminal_reason IS NOT NULL
+                            AND j.processed_at IS NULL AND j.dead_lettered_at IS NULL
+                            AND
+                        """ + " " + BackgroundJobTerminalEligibility.Profile + " " + """
                             AND NOT EXISTS (SELECT 1 FROM background_job_reservations r
-                                WHERE r.tenant_id=background_jobs.tenant_id AND r.job_id=background_jobs.id AND r.released_at IS NULL)
-                            AND available_after <= clock_timestamp()
-                            AND (ownership_token IS NULL OR ownership_until <= clock_timestamp())
-                        RETURNING id, tenant_id, organization_id, definition_key, queue, wake_generation,
-                            current_attempt_id, normal_attempts, terminal_reason, ownership_token, ownership_until, clock_timestamp(), capacity_group
-                        """);
+                                WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.released_at IS NULL)
+                            AND j.available_after <= clock_timestamp()
+                            AND (j.ownership_token IS NULL OR j.ownership_until <= clock_timestamp())
+                        RETURNING j.id, j.tenant_id, j.organization_id, j.definition_key, j.queue, j.wake_generation,
+                            j.current_attempt_id, j.normal_attempts, j.terminal_reason, j.ownership_token, j.ownership_until,
+                            clock_timestamp(), j.capacity_group, j.profile
+                        """ + (prepared ? ", " + BackgroundJobTerminalPreparedFacts.Projection : string.Empty));
                     command.Parameters.AddWithValue("id", job);
                     command.Parameters.AddWithValue("token", ids.NewUuidV4());
                     command.Parameters.AddWithValue("lease", options.LeaseDuration);
@@ -85,7 +127,8 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
         }
         catch (Exception failure) when (BackgroundJobControlResources.Catchable(failure)) { resources.RecordFailure(failure); }
         finally { await resources.CleanupAsync().ConfigureAwait(false); }
-        return new(value, resources, probes.AsReadOnly());
+        return new(resources.CommitAcknowledged && resources.CleanupConfirmed && resources.Failure is null ? value : null,
+            resources, probes.AsReadOnly());
     }
 
     internal async Task<OwnedBackgroundJobControl<BackgroundJobControlChange>> TryTerminalizeAsync(
@@ -103,12 +146,13 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
                 && await LockClaimAsync(resources, claim, deadline.Token).ConfigureAwait(false))
             {
                 var command = Command(resources, $"""
-                    UPDATE background_jobs SET dead_lettered_at = clock_timestamp()
-                    WHERE {ExactClaim} AND ownership_until > clock_timestamp()
-                    RETURNING id, tenant_id, organization_id, definition_key, queue, wake_generation,
-                        current_attempt_id, normal_attempts, terminal_reason, dead_lettered_at,
-                        old.ownership_token AS acquisition_token
-                    """);
+                    UPDATE background_jobs j SET dead_lettered_at = clock_timestamp()
+                    WHERE {ExactClaimFor(claim)} AND j.ownership_until > clock_timestamp()
+                    RETURNING j.id, j.tenant_id, j.organization_id, j.definition_key, j.queue, j.wake_generation,
+                        j.current_attempt_id, j.normal_attempts, j.terminal_reason, j.dead_lettered_at,
+                        old.ownership_token AS acquisition_token, j.profile,
+                    """ + (claim.Prepared is null ? "(" + BackgroundJobTerminalEligibility.NoPlan + ")"
+                        : "(" + BackgroundJobTerminalEligibility.PreparedAfter + "), " + PreparedTerminalTail));
                 AddClaim(command, claim);
                 resources.SetReader(await command.ExecuteReaderAsync(deadline.Token).ConfigureAwait(false));
                 JobTerminalTransition? witness = null;
@@ -173,10 +217,10 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
                 // The exact old claim may have expired during known rollback.
                 // Equality refuses a newer lease/owner; expiry never proves rollback.
                 var command = Command(resources, $"""
-                    UPDATE background_jobs SET available_after = clock_timestamp() + @backoff,
+                    UPDATE background_jobs j SET available_after = clock_timestamp() + @backoff,
                         last_error = 'audit_unavailable', ownership_token = NULL, ownership_kind = NULL, ownership_until = NULL
-                    WHERE {ExactClaim} AND ownership_until = @until
-                    RETURNING id, wake_generation, phase, terminal_reason
+                    WHERE {ExactClaimFor(claim)} AND j.ownership_until = @until
+                    RETURNING j.id, j.wake_generation, j.phase, j.terminal_reason
                     """);
                 AddClaim(command, claim);
                 command.Parameters.AddWithValue("until", claim.OwnershipUntil);
@@ -196,7 +240,7 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
     private async Task<bool> LockClaimAsync(BackgroundJobControlResources resources, BackgroundJobTerminalClaim claim, CancellationToken token)
     {
         // No time predicate before a potentially blocking row lock.
-        var command = Command(resources, $"SELECT id FROM background_jobs WHERE {ExactClaim} FOR UPDATE");
+        var command = Command(resources, $"SELECT j.id FROM background_jobs j WHERE {ExactClaimFor(claim)} FOR UPDATE OF j");
         AddClaim(command, claim);
         var matched = await command.ExecuteScalarAsync(token).ConfigureAwait(false) is Guid;
         await resources.FinishCommandAsync().ConfigureAwait(false);
@@ -228,12 +272,14 @@ internal sealed class PostgresBackgroundJobTerminalStore(PrivilegedDataSource so
         command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid, (object?)claim.OrganizationId ?? DBNull.Value);
         command.Parameters.AddWithValue("definition", claim.DefinitionKey);
         command.Parameters.AddWithValue("queue", claim.Queue);
+        command.Parameters.AddWithValue("profile", claim.Profile);
         command.Parameters.AddWithValue("capacity", NpgsqlDbType.Text, (object?)claim.CapacityGroup ?? DBNull.Value);
         command.Parameters.AddWithValue("generation", claim.WakeGeneration);
         command.Parameters.AddWithValue("attempt", NpgsqlDbType.Uuid, (object?)claim.AttemptId ?? DBNull.Value);
         command.Parameters.AddWithValue("attempts", claim.NormalAttempts);
         command.Parameters.AddWithValue("token", claim.Token);
         command.Parameters.AddWithValue("reason", claim.Reason);
+        claim.Prepared?.AddParameters(command);
     }
 
     private CancellationTokenSource Deadline(CancellationToken cancellationToken)

@@ -4,5 +4,5 @@ namespace LearnStack.SharedKernel.Tenancy;
 public static class AsyncExecutionDiagnostics
 {
     public static bool IsTrusted(ITenantContext? context) => context is EventTenantContext or JobTenantContext
-        || Jobs.JobApplicationSourceOwner.Current is not null;
+        || Jobs.JobApplicationSourceOwner.Current is not null || Jobs.JobApplicationSourceOwner.IsExternal;
 }

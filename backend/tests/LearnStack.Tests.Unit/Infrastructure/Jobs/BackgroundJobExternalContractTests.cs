@@ -16,20 +16,24 @@ public sealed class BackgroundJobExternalContractTests
         {
             report.Outcome.Should().BeNull();
             report.Quiescence.Should().BeNull();
+            report.FailurePolicy.Should().BeNull();
         }
         typeof(BackgroundJobExternalResult<Outcome>).GetConstructors().Should().BeEmpty();
     }
 
-    [Theory]
-    [InlineData(BackgroundJobExternalState.Running)]
-    [InlineData(BackgroundJobExternalState.Unknown)]
-    [InlineData(BackgroundJobExternalState.NeverStarted)]
-    [InlineData((BackgroundJobExternalState)99)]
-    public void Unknown_or_running_cannot_be_reported_as_completed(BackgroundJobExternalState state)
+    [Fact]
+    public void Report_factories_expose_no_generic_completed_or_implicit_failure_policy()
     {
-        var action = () => BackgroundJobExternalResult.Completed(state, new Outcome(Sample),
-            new BackgroundJobQuiescenceEvidence(Sample, BackgroundJobQuiescenceKind.ProviderFenced));
-        action.Should().Throw<ArgumentException>();
+        var methods = typeof(BackgroundJobExternalResult).GetMethods(System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly);
+        methods.Select(method => method.Name).Should().BeEquivalentTo(
+            "Running", "Unknown", "NeverStarted", "Succeeded", "Failed", "Cancelled");
+        foreach (var failure in methods.Where(method => method.Name is "Failed" or "Cancelled"))
+        {
+            var policy = failure.GetParameters().Single(parameter => parameter.ParameterType == typeof(BackgroundJobExternalFailurePolicy));
+            policy.IsOptional.Should().BeFalse();
+            policy.HasDefaultValue.Should().BeFalse();
+        }
     }
 
     [Theory]
@@ -40,15 +44,64 @@ public sealed class BackgroundJobExternalContractTests
     {
         var evidence = new BackgroundJobQuiescenceEvidence(Sample, BackgroundJobQuiescenceKind.ExecutionTerminated);
         var outcome = new Outcome(Sample);
-        var report = BackgroundJobExternalResult.Completed(state, outcome, evidence);
+        var report = Complete(state, outcome, evidence);
         report.State.Should().Be(state);
         report.Outcome.Should().BeSameAs(outcome);
         report.Quiescence.Should().BeSameAs(evidence);
-        var missingEvidence = () => BackgroundJobExternalResult.Completed(state, outcome, null!);
+        var missingEvidence = () => Complete(state, outcome, null!);
         missingEvidence.Should().Throw<ArgumentNullException>();
-        var missingOutcome = () => BackgroundJobExternalResult.Completed<Outcome>(state, null!, evidence);
+        var missingOutcome = () => Complete(state, null!, evidence);
         missingOutcome.Should().Throw<ArgumentNullException>();
     }
+
+    [Theory]
+    [InlineData(BackgroundJobExternalState.Failed, BackgroundJobExternalFailurePolicy.Permanent)]
+    [InlineData(BackgroundJobExternalState.Failed, BackgroundJobExternalFailurePolicy.TransientRepeatable)]
+    [InlineData(BackgroundJobExternalState.Failed, BackgroundJobExternalFailurePolicy.TransientNotRepeatable)]
+    [InlineData(BackgroundJobExternalState.Cancelled, BackgroundJobExternalFailurePolicy.TransientRepeatable)]
+    [InlineData(BackgroundJobExternalState.Cancelled, BackgroundJobExternalFailurePolicy.TransientNotRepeatable)]
+    public void Completed_failure_preserves_its_explicit_policy_without_state_conversion(
+        BackgroundJobExternalState state, BackgroundJobExternalFailurePolicy policy)
+    {
+        var outcome = new Outcome(Sample);
+        var evidence = new BackgroundJobQuiescenceEvidence(Sample, BackgroundJobQuiescenceKind.ProviderFenced);
+        var result = state == BackgroundJobExternalState.Failed
+            ? BackgroundJobExternalResult.Failed(outcome, evidence, policy)
+            : BackgroundJobExternalResult.Cancelled(outcome, evidence, policy);
+        result.State.Should().Be(state);
+        result.FailurePolicy.Should().Be(policy);
+        result.Outcome.Should().BeSameAs(outcome);
+        result.Quiescence.Should().BeSameAs(evidence);
+        BackgroundJobExternalResult.Succeeded(outcome, evidence).FailurePolicy.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(BackgroundJobExternalState.Failed, (BackgroundJobExternalFailurePolicy)0)]
+    [InlineData(BackgroundJobExternalState.Failed, (BackgroundJobExternalFailurePolicy)99)]
+    [InlineData(BackgroundJobExternalState.Cancelled, (BackgroundJobExternalFailurePolicy)0)]
+    [InlineData(BackgroundJobExternalState.Cancelled, (BackgroundJobExternalFailurePolicy)99)]
+    [InlineData(BackgroundJobExternalState.Cancelled, BackgroundJobExternalFailurePolicy.Permanent)]
+    public void Omitted_undefined_and_permanent_cancellation_policy_are_refused(
+        BackgroundJobExternalState state, BackgroundJobExternalFailurePolicy policy)
+    {
+        var outcome = new Outcome(Sample);
+        var evidence = new BackgroundJobQuiescenceEvidence(Sample, BackgroundJobQuiescenceKind.ProviderFenced);
+        var report = () => state == BackgroundJobExternalState.Failed
+            ? BackgroundJobExternalResult.Failed(outcome, evidence, policy)
+            : BackgroundJobExternalResult.Cancelled(outcome, evidence, policy);
+        report.Should().Throw<ArgumentException>();
+    }
+
+    private static BackgroundJobExternalResult<Outcome> Complete(BackgroundJobExternalState state,
+        Outcome outcome, BackgroundJobQuiescenceEvidence evidence) => state switch
+        {
+            BackgroundJobExternalState.Succeeded => BackgroundJobExternalResult.Succeeded(outcome, evidence),
+            BackgroundJobExternalState.Failed => BackgroundJobExternalResult.Failed(outcome, evidence,
+                BackgroundJobExternalFailurePolicy.Permanent),
+            BackgroundJobExternalState.Cancelled => BackgroundJobExternalResult.Cancelled(outcome, evidence,
+                BackgroundJobExternalFailurePolicy.TransientNotRepeatable),
+            _ => throw new ArgumentOutOfRangeException(nameof(state)),
+        };
 
     [Fact]
     public void Finalization_can_apply_known_failure_after_prepare_without_fabricating_a_provider_outcome()

@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using LearnStack.Application.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
@@ -18,6 +19,7 @@ public sealed class BackgroundJobRuntimeGate
     private readonly EventHandler _onFinalExit;
     private TerminalState _state = Running;
     private int _exitRegistered;
+    internal BackgroundJobRunGate.RuntimeStop RunStop { get; } = new();
 
     internal BackgroundJobRuntimeGate(BackgroundJobInfrastructureRegistry topology)
     {
@@ -28,12 +30,13 @@ public sealed class BackgroundJobRuntimeGate
     }
 
     internal BackgroundJobProcessState State => Volatile.Read(ref _state).Kind;
-    internal bool IsOpen => ReferenceEquals(Volatile.Read(ref _state), Running);
+    internal bool IsOpen => RunStop.IsOpen && ReferenceEquals(Volatile.Read(ref _state), Running);
     internal Task FinalExitSignal => _finalExit.Task;
 
     // The atomic read is the issuance linearization point. Callers use it at the
     // actual start/acquisition, not before queuing an asynchronous continuation.
-    internal bool TryAdmit() => ReferenceEquals(Interlocked.CompareExchange(ref _state, Running, Running), Running);
+    internal bool TryAdmit() => ReferenceEquals(Interlocked.CompareExchange(ref _state, Running, Running), Running)
+        && RunStop.TryAdmit();
 
     internal bool TryAdmitStorage()
     {
@@ -44,7 +47,11 @@ public sealed class BackgroundJobRuntimeGate
             && ReferenceEquals(Interlocked.CompareExchange(ref _state, observed, observed), observed);
     }
 
-    internal void StopStarts() => Interlocked.CompareExchange(ref _state, Stopping, Running);
+    internal void StopStarts()
+    {
+        RunStop.Close();
+        Interlocked.CompareExchange(ref _state, Stopping, Running);
+    }
 
     // This process-lifetime subscription precedes every actual Core constructor.
     // It has no cancellation callbacks, cleanup, logger or caller-supplied work.
@@ -72,6 +79,7 @@ public sealed class BackgroundJobRuntimeGate
 
     internal void BeginFinalExit()
     {
+        RunStop.Close();
         while (true)
         {
             var observed = Volatile.Read(ref _state);
@@ -92,6 +100,7 @@ public sealed class BackgroundJobRuntimeGate
 
     private void Terminate(TerminalState selected)
     {
+        RunStop.Close();
         while (true)
         {
             var observed = Volatile.Read(ref _state);

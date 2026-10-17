@@ -61,6 +61,7 @@ public sealed class FeatureFlags(
     /// <inheritdoc />
     public async Task<bool> IsEnabledAsync(FeatureKey key, CancellationToken ct = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         var descriptor = Descriptor(key);
         var tenantId = RequireTenant(key.Value);
 
@@ -89,6 +90,7 @@ public sealed class FeatureFlags(
     /// <inheritdoc />
     public async Task<long> GetLimitAsync(LimitKey key, CancellationToken ct = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         if (!LimitKeys.All.TryGetValue(key, out var descriptor))
         {
             throw new ArgumentOutOfRangeException(
@@ -223,6 +225,7 @@ public sealed class FeatureFlags(
     private Task<IReadOnlyDictionary<string, string>> StartTenantFlagsLoadAsync(
         TenantId tenantId, JobApplicationSourceOwner? sourceOwner, CancellationToken ct)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         if (sourceOwner is null) return LoadTenantFlagsAsync(tenantId, null, ct);
         var resources = sourceOwner.BeginTenantFlagsLoad();
         var actual = LoadTenantFlagsAsync(tenantId, resources, ct);

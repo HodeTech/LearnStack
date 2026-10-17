@@ -65,6 +65,7 @@ public sealed class KillswitchOverlay(
     /// <inheritdoc />
     public async Task<bool> IsEnabledAsync(KillswitchKey key, CancellationToken ct = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         // The DEFAULT is what an unreadable overlay answers, and it is read from the
         // registry rather than hard-coded true: a switch the registry does not declare is
         // one nothing should be gating on, and answering true for it would hide that.
@@ -113,6 +114,7 @@ public sealed class KillswitchOverlay(
     /// </remarks>
     private Task<IReadOnlyDictionary<string, bool>> StartLoadAsync(JobApplicationSourceOwner? sourceOwner, CancellationToken ct)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         if (sourceOwner is null) return LoadAsync(null, ct);
         var resources = sourceOwner.BeginKillswitchLoad();
         var actual = LoadAsync(resources, ct);

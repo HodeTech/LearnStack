@@ -54,7 +54,8 @@ internal static class BackgroundJobRuntimeRows
     internal static async Task<BackgroundJobId> InsertAsync(string appConnectionString,
         string definition = BackgroundJobRuntimeFixture.TenantKey, Guid? organization = null,
         Guid? tenant = null, DateTimeOffset? due = null, string? parameters = null, string? capacityGroup = null,
-        string? traceparent = null, Guid? causalActor = null, Guid? incomingEvent = null, string profile = "transactional")
+        string? traceparent = null, Guid? causalActor = null, Guid? incomingEvent = null, string profile = "transactional",
+        Guid? parentJob = null)
     {
         var id = BackgroundJobId.From(Guid.CreateVersion7());
         await using var connection = await PostgresFixture.OpenAsync(appConnectionString);
@@ -62,9 +63,9 @@ internal static class BackgroundJobRuntimeRows
         await EducationSchemaSeed.AnnounceAsync(connection, transaction, tenant ?? SchemaFixture.TenantA, organization);
         await SchemaQueries.ExecuteAsync(connection, transaction, """
             INSERT INTO background_jobs (id, tenant_id, organization_id, definition_key, profile, queue,
-                capacity_group, parameters, original_due_at, traceparent, causal_actor_user_id, causation_event_id)
+                capacity_group, parameters, original_due_at, traceparent, causal_actor_user_id, causation_event_id, parent_job_id)
             VALUES (@id, @tenant, @organization, @definition, @profile, @queue,
-                @capacity, @parameters, @due, @trace, @actor, @incoming)
+                @capacity, @parameters, @due, @trace, @actor, @incoming, @parent)
             """, ("id", id.Value), ("tenant", tenant ?? SchemaFixture.TenantA),
             ("organization", (object?)organization ?? DBNull.Value), ("definition", definition),
             ("capacity", (object?)capacityGroup ?? DBNull.Value),
@@ -72,6 +73,7 @@ internal static class BackgroundJobRuntimeRows
             ("due", due ?? BackgroundJobSchemaSeed.Slot),
             ("trace", traceparent ?? BackgroundJobRuntimeFixture.Traceparent),
             ("actor", (object?)causalActor ?? DBNull.Value), ("incoming", (object?)incomingEvent ?? DBNull.Value),
+            ("parent", (object?)parentJob ?? DBNull.Value),
             ("profile", profile), ("queue", profile == "transactional" ? "transactional" : "external"));
         await transaction.CommitAsync();
         return id;

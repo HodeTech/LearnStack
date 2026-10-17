@@ -32,7 +32,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await SchemaQueries.ExecuteAsync(locker, transaction, """
             UPDATE background_jobs SET ownership_until = clock_timestamp() + interval '200 milliseconds' WHERE id = @id
             """, ("id", job.Value));
-        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         var released = false;
         try
         {
@@ -89,7 +89,7 @@ public sealed partial class BackgroundJobAdmissionTests
         current.Should().NotBeNull();
         current.Token.Should().NotBe(old.Token);
         var executor = host.Services.GetRequiredService<JobExecutor>();
-        var results = await Task.WhenAll(executor.ExecuteAsync(old), executor.ExecuteAsync(current))
+        var results = await Task.WhenAll(executor.ExecuteAsync(old, BackgroundJobTestRun.Create()), executor.ExecuteAsync(current, BackgroundJobTestRun.Create()))
             .WaitAsync(TimeSpan.FromSeconds(10));
         arrivals.Should().Be(2, "both actual app-role start transactions must overlap before either can take the job-row lock");
         results.Count(result => result.Outcome == JobStartExecutionOutcome.Started).Should().Be(1);
@@ -115,7 +115,7 @@ public sealed partial class BackgroundJobAdmissionTests
         var store = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
         var claim = (await store.TryClaimAsync(job, 1))!;
         using var activity = new Activity("uncertain-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim).WaitAsync(TimeSpan.FromSeconds(10));
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create()).WaitAsync(TimeSpan.FromSeconds(10));
         proxy.DroppedCommitResponses.Should().Be(1);
         result.Outcome.Should().Be(JobStartExecutionOutcome.Indeterminate);
         result.Receipt.Should().BeNull("a socket close after server COMMIT is not an acknowledged activation receipt");
@@ -142,7 +142,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await using var host = Fixture.Host(database, probe, original, observation.Configure);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var activity = new Activity("cleanup-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.Receipt.Should().NotBeNull();
         result.CleanupFailed.Should().BeTrue();
@@ -168,7 +168,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await using var host = Fixture.Host(database, probe, original, observation.Configure);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var activity = new Activity("read-cleanup-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.Failed);
         result.Receipt.Should().BeNull();
         result.CleanupFailed.Should().BeTrue();
@@ -208,7 +208,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await using var host = Fixture.Host(database, probe, original);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var activity = new Activity("activity-cleanup-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         callbacks.Should().Be(1, "the fault must arise from the actual admission Activity's Stop callback");
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.Receipt.Should().NotBeNull();

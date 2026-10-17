@@ -12,7 +12,7 @@ public sealed partial class BackgroundJobControlTests
     [Theory]
     [InlineData("recovery", "ix_background_jobs_recovery", "ownership_until")]
     [InlineData("exhaustion", "ix_background_jobs_exhausted", "available_after")]
-    [InlineData("retirement", "ix_background_jobs_pending", "available_after")]
+    [InlineData("retirement", "ix_background_jobs_retirement", "available_after")]
     [InlineData("terminal", "ix_background_jobs_terminal", "available_after")]
     public async Task Actual_control_queries_seek_future_backlog_for_idle_and_partial_quanta_and_detect_volatile_cutoff(
         string lane, string index, string clock)
@@ -117,6 +117,10 @@ public sealed partial class BackgroundJobControlTests
         command.Parameters.AddWithValue("compatible", ControlBacklogKeys);
         command.Parameters.AddWithValue("retired", ControlBacklogKeys);
         command.Parameters.AddWithValue("batch", 100);
+        command.Parameters.AddWithValue("externalDefinitions", Array.Empty<string>());
+        command.Parameters.AddWithValue("externalQueues", Array.Empty<string>());
+        command.Parameters.AddWithValue("externalGroups", Array.Empty<string>());
+        command.Parameters.AddWithValue("externalTenantWide", Array.Empty<bool>());
         return (string)(await command.ExecuteScalarAsync())!;
     }
 

@@ -393,9 +393,12 @@ public sealed class HangfireGenerationWorkTests
             try
             {
                 work.Snapshot.Closed.Should().BeTrue();
-                work.Snapshot.Running.Should().Be(admitted.Length);
+                work.Snapshot.Running.Should().Be(hostStop ? 0 : admitted.Length);
+                work.Snapshot.Retained.Should().Be(hostStop ? admitted.Length : 0);
+                (work.Snapshot.Running + work.Snapshot.Retained).Should().Be(admitted.Length);
                 work.TryBegin().Should().BeNull();
                 admitted.Should().OnlyContain(invocation => invocation.Token.IsCancellationRequested == hostStop);
+                admitted.Should().OnlyContain(invocation => invocation.ReturnRequested.IsCompleted == hostStop);
                 work.Completion.IsCompleted.Should().Be(admitted.Length == 0);
             }
             finally

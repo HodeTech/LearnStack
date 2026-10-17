@@ -171,7 +171,7 @@ public sealed partial class HangfireGenerationTests
         var generation = Generation(host.Services, provider, new(provider), HangfireRuntimeFilters.Create(), pool, gate);
         var activator = HangfireInvocationContract.BindGeneration(HangfireInvocationContract.CreateActivator(pool, topology,
             host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>(), host.Services.GetRequiredService<JobExecutor>(),
-            BackgroundJobRecurrenceRegistry.CreateEmpty()), generation);
+            BackgroundJobRecurrenceRegistry.CreateEmpty(), gate), generation);
         using var contextConnection = provider.GetConnection();
         generation.Start();
         try

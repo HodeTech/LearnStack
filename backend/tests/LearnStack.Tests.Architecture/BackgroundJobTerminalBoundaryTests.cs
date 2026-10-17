@@ -12,15 +12,17 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobTerminalStore = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore";
     private const string JobTerminalWrite = "WriteJobTerminalAsync";
     private const string JobTerminalMint = "FromBypassUpdate";
+    private const string JobAppTerminalMint = "FromAppFinalizationUpdate";
+    private const string JobAppTerminalBridge = "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobCompletion/FinalizationTerminalMint";
     private const string JobTerminalClaimType = "LearnStack.Infrastructure.Jobs.BackgroundJobTerminalClaim";
 
-    /// <summary>Step 5 implements the real bypass path. Step 7 adds the separate app failure-finalization path.</summary>
+    /// <summary>Separate actual-row bypass and ordinary app finalization witnesses share the sixth live-pair audit seam.</summary>
     [Fact]
     public void BackgroundJob_Terminal_Audit_Is_Row_Bound()
     {
         using var census = ProductionCensus.Read();
         JobTerminalOffenders(census).Should().BeEmpty(
-            "Fix: preserve the actual-row witness, its one current bypass mint/caller and the sixth live-pair audit seam; do not fabricate the future app-finalization caller");
+            "Fix: preserve both exact actual-row mint paths and their separate closed owners on the sixth live-pair audit seam");
     }
 
     [Fact]
@@ -31,6 +33,9 @@ public sealed partial class OutboxDispatchConventionTests
         var witness = types[(KernelAssembly, JobTerminalWitness)];
         var source = types[(KernelAssembly, JobTerminalMinting)];
         var factory = source.Methods.Single(method => method.Name == JobTerminalMint);
+        var appFactory = source.Methods.Single(method => method.Name == JobAppTerminalMint);
+        var appBridge = types[(InfrastructureAssembly, JobAppTerminalBridge)];
+        var appMint = appBridge.Methods.Single(method => method.Name == "Mint");
         var constructor = witness.Methods.Single(method => method.IsConstructor && !method.IsStatic);
         var terminal = types[(InfrastructureAssembly, JobTerminalStore)];
         var port = types[(KernelAssembly, AuditPort)];
@@ -38,11 +43,26 @@ public sealed partial class OutboxDispatchConventionTests
         var concreteWrite = types[(AuditAssembly, AuditStore)].Methods.Single(method => method.Name == JobTerminalWrite);
         var app = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
 
-        foreach (var target in new[] { factory, write, concreteWrite })
+        foreach (var target in new[] { factory, appFactory, appMint, write, concreteWrite })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
                 AssertJobTerminalMutation(census, "an extra helper/delegate capability caller using " + opcode.Name,
                     () => AddCallProbe(app, "ExtraJobTerminalCaller", target, opcode));
-        AssertJobTerminalMutation(census, "an attribute-linked async mint helper", () => AddAsyncCallProbe(app, "AsyncJobMint", factory));
+        foreach (var mint in new[] { factory, appFactory, appMint })
+        {
+            var declaring = mint.DeclaringType;
+            AssertJobTerminalMutation(census, "an attribute-linked async mint helper", () => AddAsyncCallProbe(app, "AsyncJobMint", mint));
+            AssertJobTerminalMutation(census, "an added actual-row mint overload", () =>
+            {
+                var overload = AddCall(declaring, mint.Name, mint, OpCodes.Call);
+                return () => declaring.Methods.Remove(overload);
+            });
+            AssertJobTerminalMutation(census, "a missing actual-row mint declaration", () =>
+            {
+                var index = declaring.Methods.IndexOf(mint);
+                declaring.Methods.Remove(mint);
+                return () => declaring.Methods.Insert(index, mint);
+            });
+        }
         AssertJobTerminalMutation(census, "an attribute-linked async writer helper", () => AddAsyncCallProbe(app, "AsyncJobWrite", write));
         AssertJobTerminalMutation(census, "a direct private witness constructor", () => AddCallProbe(app, "DirectJobWitness", constructor, OpCodes.Newobj));
         AssertJobTerminalMutation(census, "a mint helper on the sanctioned terminal store", () =>
@@ -67,8 +87,9 @@ public sealed partial class OutboxDispatchConventionTests
         });
         AssertJobTerminalMutation(census, "a public witness constructor", () => ChangeAttributes(() => constructor.Attributes,
             value => constructor.Attributes = value, (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public));
-        AssertJobTerminalMutation(census, "a public mint factory", () => ChangeAttributes(() => factory.Attributes,
-            value => factory.Attributes = value, (factory.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public));
+        foreach (var mint in new[] { factory, appFactory })
+            AssertJobTerminalMutation(census, "a public mint factory", () => ChangeAttributes(() => mint.Attributes,
+                value => mint.Attributes = value, (mint.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public));
         AssertJobTerminalMutation(census, "an audit write overload", () =>
         {
             var overload = new MethodDefinition(JobTerminalWrite, MethodAttributes.Public | MethodAttributes.Abstract | MethodAttributes.Virtual,
@@ -83,7 +104,8 @@ public sealed partial class OutboxDispatchConventionTests
             parameter.ParameterType = factory.Module.TypeSystem.String;
             return () => parameter.ParameterType = original;
         });
-        foreach (var key in new[] { (KernelAssembly, JobTerminalWitness), (KernelAssembly, JobTerminalMinting), (InfrastructureAssembly, JobTerminalStore) })
+        foreach (var key in new[] { (KernelAssembly, JobTerminalWitness), (KernelAssembly, JobTerminalMinting),
+                     (InfrastructureAssembly, JobTerminalStore), (InfrastructureAssembly, JobAppTerminalBridge) })
         {
             AssertJobTerminalMutation(census, "missing live subject " + key.Item2, () =>
             {
@@ -99,17 +121,19 @@ public sealed partial class OutboxDispatchConventionTests
                 return () => module.Types.Add(type);
             });
         }
-        foreach (var name in new[] { JobTerminalMint, JobTerminalWrite })
+        var actualMintAndAuditSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference target
+                && ((SameType(target.DeclaringType, source) || Derives(target.DeclaringType, source, types)) && target.Name is JobTerminalMint or JobAppTerminalMint
+                    || target.DeclaringType.FullName == JobAppTerminalBridge && target.Name == "Mint"
+                    || target.DeclaringType.FullName == AuditPort && target.Name == JobTerminalWrite)).ToArray();
+        actualMintAndAuditSites.Should().HaveCount(5,
+            "bypass mint/write and app bridge/mint/write are five distinct live sites");
+        foreach (var instruction in actualMintAndAuditSites)
         {
-            AssertJobTerminalMutation(census, "an empty real " + name + " caller census", () =>
-            {
-                var body = census.Types.Values.SelectMany(type => type.Methods).First(method => method.HasBody
-                    && method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference target && target.Name == name));
-                var instruction = body.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && target.Name == name);
-                var index = body.Body.Instructions.IndexOf(instruction);
-                body.Body.Instructions.RemoveAt(index);
-                return () => body.Body.Instructions.Insert(index, instruction);
-            });
+            AssertJobTerminalMutation(census, "a missing actual terminal mint or audit call", () =>
+                ReplaceInstruction(instruction, OpCodes.Nop, null!));
+            AssertJobTerminalMutation(census, "an actual terminal caller escaping as a delegate", () =>
+                ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand));
         }
     }
 
@@ -120,8 +144,13 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "job terminal production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         foreach (var key in new[] { (KernelAssembly, JobTerminalWitness), (KernelAssembly, JobTerminalMinting),
                      (InfrastructureAssembly, JobTerminalStore), (InfrastructureAssembly, JobTerminalClaimType),
+                     (InfrastructureAssembly, JobAppTerminalBridge), (InfrastructureAssembly, JobPostgresParticipant),
                      (KernelAssembly, AuditPort), (AuditAssembly, AuditStore) })
             if (!types.ContainsKey(key)) offenders.Add("Missing live job terminal subject: " + key.Item2);
+        if (offenders.Count != 0) return offenders;
+
+        var sites = CallSites(census).ToArray();
+        RecordDetachedTargets(offenders, sites);
         if (offenders.Count != 0) return offenders;
 
         var witness = types[(KernelAssembly, JobTerminalWitness)];
@@ -131,7 +160,7 @@ public sealed partial class OutboxDispatchConventionTests
         var writer = types[(AuditAssembly, AuditStore)];
         var constructors = witness.Methods.Where(method => method.IsConstructor && !method.IsStatic).ToArray();
         if (!witness.IsSealed || witness.BaseType?.FullName != "System.Object" || constructors.Length != 1
-            || !constructors[0].IsPrivate || !ParametersMatch(constructors[0], MintParameters)
+            || !constructors[0].IsPrivate || !ParametersMatch(constructors[0], [.. MintParameters, LifecycleUnit])
             || witness.Fields.All(field => field.IsStatic) || witness.Fields.Any(field => !field.IsStatic && !field.IsInitOnly)
             || witness.Properties.Count == 0 || witness.Properties.Any(property => property.SetMethod is not null))
             offenders.Add("Job terminal witness must have one private reader/pair/trace constructor and immutable nonempty facts");
@@ -139,14 +168,26 @@ public sealed partial class OutboxDispatchConventionTests
             || source.Methods.Where(method => method.IsConstructor && !method.IsStatic).Any(method => !method.IsFamily))
             offenders.Add("Job terminal minting source requires its closed protected construction shape");
         var factories = source.Methods.Where(method => !method.IsConstructor).ToArray();
-        if (factories.Length != 1 || factories[0].Name != JobTerminalMint || !factories[0].IsFamily || !factories[0].IsStatic
-            || factories[0].ReturnType.FullName != JobTerminalWitness || !ParametersMatch(factories[0], MintParameters))
-            offenders.Add("Job terminal minting requires one protected static actual-reader/pair/trace factory");
+        var bypassFactory = factories.FirstOrDefault(method => method.Name == JobTerminalMint);
+        var appFactory = factories.FirstOrDefault(method => method.Name == JobAppTerminalMint);
+        if (factories.Length != 2 || bypassFactory is null || appFactory is null
+            || factories.Any(method => !method.IsFamily || !method.IsStatic || method.HasGenericParameters
+                || method.ReturnType.FullName != JobTerminalWitness)
+            || bypassFactory is not null && !ParametersMatch(bypassFactory, MintParameters)
+            || appFactory is not null && !ParametersMatch(appFactory, [LifecycleUnit, "System.Data.Common.DbDataReader", "System.String"]))
+            offenders.Add("Job terminal minting requires its exact protected bypass-pair and app-unit actual-row factories");
+        var appBridge = types[(InfrastructureAssembly, JobAppTerminalBridge)];
+        var appMints = appBridge.Methods.Where(method => !method.IsConstructor).ToArray();
+        if (!appBridge.IsNestedPrivate || !appBridge.IsSealed || appMints.Length != 1
+            || appMints[0].Name != "Mint" || !appMints[0].IsAssembly || !appMints[0].IsStatic || appMints[0].HasGenericParameters
+            || appMints[0].ReturnType.FullName != JobTerminalWitness
+            || !ParametersMatch(appMints[0], [JobPostgresParticipant, "System.Data.Common.DbDataReader"]))
+            offenders.Add("Application terminal minting remains one private sealed actual-participant bridge");
         if (witness.Module.Assembly.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute"))
             offenders.Add("SharedKernel friend assemblies reopen the job witness authority");
-        CheckSet(offenders, "current job terminal minting subtypes", types.Values.Where(type => Derives(type, source, types)).Select(TypeId), [TypeId(terminal)]);
+        CheckSet(offenders, "current job terminal minting subtypes", types.Values.Where(type => Derives(type, source, types)).Select(TypeId), [TypeId(terminal), TypeId(appBridge)]);
         CheckSet(offenders, "job witness producing methods", types.Values.SelectMany(type => type.Methods)
-            .Where(method => method.ReturnType.FullName == JobTerminalWitness).Select(MethodId), factories.Select(MethodId));
+            .Where(method => method.ReturnType.FullName == JobTerminalWitness).Select(MethodId), factories.Concat(appMints).Select(MethodId));
         var terminalizers = terminal.Methods.Where(method => method.Name == Terminalize).ToArray();
         if (terminalizers.Length != 1 || !terminal.IsSealed || terminal.IsPublic) offenders.Add("The job bypass terminalizer must remain one internal sealed actual owner");
 
@@ -159,15 +200,28 @@ public sealed partial class OutboxDispatchConventionTests
                     "System.Data.Common.DbConnection", "System.Data.Common.DbTransaction", "System.Threading.CancellationToken"])))
             offenders.Add("The sixth audit write requires its one exact live-pair witness signature on port and real writer");
         CheckSet(offenders, "real audit writers", types.Values.Where(type => !type.IsInterface && !type.IsAbstract && Derives(type, port, types)).Select(TypeId), [TypeId(writer)]);
-        var sites = CallSites(census).ToArray();
+        var finalizers = types[(InfrastructureAssembly, JobPostgresParticipant)].Methods.Where(method => method.Name == "FenceFinalizeAsync").ToArray();
+        if (finalizers.Length != 1) offenders.Add("The ordinary app terminal writer requires its one actual Finalize fence");
+        var instructions = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions).ToArray();
+        foreach (var instruction in instructions.Where(instruction => instruction.Operand is MethodReference target
+                     && ((SameType(target.DeclaringType, source) || Derives(target.DeclaringType, source, types)) && target.Name is JobTerminalMint or JobAppTerminalMint
+                         || SameType(target.DeclaringType, appBridge) && target.Name == "Mint"
+                         || IsJobTerminalWriteName(target) && (SameType(target.DeclaringType, port) || Derives(target.DeclaringType, port, types)))))
+            if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
+                offenders.Add("A terminal mint/write cannot escape as a delegate");
         CheckSet(offenders, "job witness constructor callers", sites.Where(site => site.Target.Name == ".ctor" && SameType(site.Target.DeclaringType, witness))
             .Select(site => site.Owner), factories.Select(MethodId));
         CheckSet(offenders, "job witness actual-row mint callers", sites.Where(site => site.Target.Name == JobTerminalMint
                 && (SameType(site.Target.DeclaringType, source) || Derives(site.Target.DeclaringType, source, types)))
             .Select(site => site.Owner), terminalizers.Select(MethodId));
+        CheckSet(offenders, "app witness actual-row mint callers", sites.Where(site => site.Target.Name == JobAppTerminalMint
+                && (SameType(site.Target.DeclaringType, source) || Derives(site.Target.DeclaringType, source, types)))
+            .Select(site => site.Owner), appMints.Select(MethodId));
+        CheckSet(offenders, "private app terminal bridge callers", sites.Where(site => site.Target.Name == "Mint" && SameType(site.Target.DeclaringType, appBridge))
+            .Select(site => site.Owner), finalizers.Select(MethodId));
         CheckSet(offenders, "sixth audit callers", sites.Where(site => IsJobTerminalWriteName(site.Target)
                 && (SameType(site.Target.DeclaringType, port) || Derives(site.Target.DeclaringType, port, types)))
-            .Select(site => site.Owner), terminalizers.Select(MethodId));
+            .Select(site => site.Owner), terminalizers.Concat(finalizers).Select(MethodId));
 
         var claim = types[(InfrastructureAssembly, JobTerminalClaimType)];
         var claimConstructors = claim.Methods.Where(method => method.IsConstructor && !method.IsStatic).ToArray();

@@ -21,12 +21,14 @@ public sealed class BackgroundJobCapacityCleanupTests
     [Fact]
     public void Never_started_requires_atomic_unused_entry_revocation_even_when_the_commit_gate_is_closed()
     {
-        var merelyClosed = new BackgroundJobCommitGate();
-        merelyClosed.Close();
+        var merelyClosed = new BackgroundJobRunGate(new BackgroundJobRunGate.RuntimeStop())
+            .OpenBoundary(BackgroundJobCheckpointKind.Transactional);
         merelyClosed.TryStartExecution().Should().BeTrue();
+        merelyClosed.Close();
         merelyClosed.TrySealUnusedExecution().Should().BeFalse();
 
-        var unused = new BackgroundJobCommitGate();
+        var unused = new BackgroundJobRunGate(new BackgroundJobRunGate.RuntimeStop())
+            .OpenBoundary(BackgroundJobCheckpointKind.Transactional);
         unused.TrySealUnusedExecution().Should().BeTrue();
         unused.IsClosed.Should().BeTrue();
         unused.TryStartExecution().Should().BeFalse();
@@ -46,8 +48,8 @@ public sealed class BackgroundJobCapacityCleanupTests
         {
             execution.Gate.TryStartExecution().Should().BeTrue();
             var business = Task.FromResult(new JobBusinessExecutionResult(
-                new(BackgroundJobFailureDisposition.Retry, "dependency_unavailable", null), false, false, true, false, false)
-            { SourceOwner = receipt.SourceOwner });
+                new(BackgroundJobFailureDisposition.Retry, "dependency_unavailable", null), false, false, true, false, false,
+                receipt, execution.Gate, executionIssued: true));
             execution.HoldBusiness(business);
             invocation.HoldBusiness(business);
         }
@@ -151,14 +153,11 @@ public sealed class BackgroundJobCapacityCleanupTests
         {
             var original = JobAdmissionFixtureReceipt.Create("tenancy.probe.v1", TenantId.From(Guid.CreateVersion7()),
                 null, BackgroundJobExecutionStage.Transactional);
-            var command = new AdmitBackgroundJobAttemptCommand(original.Claim, original.Envelope with { CapacityGroup = "probe" });
-            var receipt = (ConfirmedStartReceipt)(Activator.CreateInstance(typeof(ConfirmedStartReceipt),
-                BindingFlags.Instance | BindingFlags.NonPublic, null,
-                [command, original.AttemptId, original.Stage, original.NormalAttemptOrdinal, original.AdmittedAt,
-                    original.Deadline, original.OwnershipUntil, original.SourceOwner], null)
-                ?? throw new InvalidOperationException("The grouped receipt fixture is missing."));
             var invocation = _generation.TryBegin() ?? throw new InvalidOperationException("Invocation admission failed.");
-            var execution = Control.TryBegin(receipt.Claim, invocation) ?? throw new InvalidOperationException("Control admission failed.");
+            var execution = Control.TryBegin(original.Claim, invocation) ?? throw new InvalidOperationException("Control admission failed.");
+            var receipt = JobAdmissionFixtureReceipt.Create(original.Envelope.DefinitionKey, original.Envelope.TenantId,
+                original.Envelope.OrganizationId, original.Stage, execution.AdmissionGate, original.Claim,
+                bindRun: false, capacityGroup: "probe", acknowledgeAdmission: !lostAdmissionAcknowledgement);
             invocation.HoldExecution(execution);
             var admitted = lostAdmissionAcknowledgement ? null : receipt;
             var admission = Task.FromResult(new JobStartExecutionResult(lostAdmissionAcknowledgement

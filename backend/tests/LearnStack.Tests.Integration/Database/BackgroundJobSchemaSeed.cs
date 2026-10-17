@@ -138,9 +138,9 @@ internal static class BackgroundJobSchemaSeed
     }
 
     public static async Task AdmitAsync(DbConnection connection, DbTransaction transaction, Guid jobId, Guid attemptId,
-        Guid token, Guid tenant, Guid? organization, string profile = "transactional")
+        Guid token, Guid tenant, Guid? organization, string profile = "transactional", DateTimeOffset? exactDeadline = null)
     {
-        var deadline = Microseconds(DateTimeOffset.UtcNow.AddMinutes(4));
+        var deadline = Microseconds(exactDeadline ?? DateTimeOffset.UtcNow.AddMinutes(4));
         await SchemaQueries.ExecuteAsync(connection, transaction, """
             INSERT INTO background_job_attempts (id, tenant_id, organization_id, job_id, stage, ordinal,
                 admission_token, deadline) VALUES (@attempt, @tenant, @organization, @job, 'normal', 1, @token, @deadline);

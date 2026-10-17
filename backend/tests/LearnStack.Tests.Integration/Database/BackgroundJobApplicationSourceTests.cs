@@ -152,18 +152,29 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
         bool maximum, int headroom)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
-        var capacity = BackgroundJobApplicationCapacity.Calculate(maximum ? MaximumTopology()
-            : BackgroundJobInfrastructureRegistry.CreateDefault());
-        capacity.RequiredConnections.Should().Be(maximum ? 108 : 10);
+        var topology = maximum ? MaximumTopology() : BackgroundJobInfrastructureRegistry.CreateDefault();
+        var capacity = BackgroundJobApplicationCapacity.Calculate(topology);
+        capacity.RequiredConnections.Should().Be(maximum ? 120 : 24);
+        var invocationPools = topology.Pools.Values
+            .Where(pool => pool.Kind is BackgroundJobWorkerPoolKind.Transactional or BackgroundJobWorkerPoolKind.External)
+            .SelectMany(pool => Enumerable.Repeat(pool.Kind, BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers)))
+            .ToArray();
+        invocationPools.Count(kind => kind == BackgroundJobWorkerPoolKind.Transactional).Should().Be(maximum ? 54 : 5);
+        invocationPools.Count(kind => kind == BackgroundJobWorkerPoolKind.External).Should().Be(maximum ? 5 : 6);
+        invocationPools.Should().HaveCount(capacity.InvocationOwners);
         await using var source = ApplicationDataSource.Build(Pooled(database.AppConnectionString, capacity.RequiredConnections + headroom));
         var release = Signal();
         var allBorrowed = Signal();
-        var remaining = capacity.InvocationOwners;
+        // One process-wide terminal owner has the same concrete main/auxiliary
+        // inventory but is independent of the generation invocation pools.
+        var terminalOwner = JobApplicationSourceOwner.Create();
+        var applicationOwners = invocationPools.Select(_ => JobApplicationSourceOwner.Create())
+            .Append(terminalOwner).ToArray();
+        var remaining = applicationOwners.Length;
         var owners = new ConcurrentBag<JobApplicationSourceOwner>();
         var backends = new ConcurrentBag<int>();
-        var workers = Enumerable.Range(0, capacity.InvocationOwners).Select(_ => Task.Run(async () =>
+        var workers = applicationOwners.Select(owner => Task.Run(async () =>
         {
-            var owner = JobApplicationSourceOwner.Create();
             owners.Add(owner);
             using var binding = owner.Enter();
             var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
@@ -211,7 +222,8 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
             foreach (var connection in unrelated) await connection.DisposeAsync();
             await Task.WhenAll(workers).WaitAsync(Budget);
         }
-        owners.Should().HaveCount(capacity.InvocationOwners);
+        owners.Should().HaveCount(capacity.InvocationOwners + 1);
+        owners.Should().Contain(terminalOwner);
         owners.Should().OnlyContain(owner => owner.CleanupConfirmed);
         await using var afterRelease = await source.OpenConnectionAsync();
         await SchemaQueries.AssertApplicationRoleAsync(afterRelease);

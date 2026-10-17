@@ -51,7 +51,7 @@ public sealed partial class BackgroundJobAdmissionTests
         try
         {
             var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-            var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+            var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
             result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
             callbacks.Should().BeGreaterThan(0, "the callback must actually run in the production DTO/factory path");
             probe.Constructions.Should().BeEmpty();

@@ -25,6 +25,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string JobOrigin = DeliveryProducer + "/JobOrigin";
     private const string JobReadHandler = "LearnStack.Infrastructure.Jobs.ReadBackgroundJobEnvelopeQueryHandler";
     private const string JobStartHandler = "LearnStack.Infrastructure.Jobs.AdmitBackgroundJobAttemptCommandHandler";
+    private const string JobExternalReadRequest = "LearnStack.Application.Jobs.ReadBackgroundJobExternalStateQuery";
+    private const string JobArmRequest = "LearnStack.Application.Jobs.RecordBackgroundJobArmCommand";
+    private const string JobOutcomeRequest = "LearnStack.Application.Jobs.RecordBackgroundJobOutcomeCommand";
 
     private static void CheckJobFrameworkMetadata()
     {
@@ -38,7 +41,10 @@ public sealed partial class OutboxDispatchConventionTests
                 (typeof(ReadBackgroundJobEnvelopeQuery), BackgroundJobRequestClassification.FrameworkReadOnly, (BackgroundJobScope?)null),
                 (typeof(AdmitBackgroundJobAttemptCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
                 (typeof(RecordBackgroundJobCapacityCleanupCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
-            }, "Fix: keep the three exact framework requests distinct from the empty business catalogue");
+                (typeof(ReadBackgroundJobExternalStateQuery), BackgroundJobRequestClassification.FrameworkReadOnly, (BackgroundJobScope?)null),
+                (typeof(RecordBackgroundJobArmCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
+                (typeof(RecordBackgroundJobOutcomeCommand), BackgroundJobRequestClassification.FrameworkReadWrite, (BackgroundJobScope?)null),
+            }, "Fix: keep the six exact framework requests distinct from the empty business catalogue");
         var audit = new AuditCatalog([new BackgroundJobAuditCatalogSource()]);
         foreach (var request in registry.All)
         {
@@ -66,8 +72,15 @@ public sealed partial class OutboxDispatchConventionTests
             if (!types.ContainsKey(subject)) offenders.Add("Missing live job admission subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var sites = CallSites(census).ToArray();
-        var authorityInstructions = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference).ToArray();
+        RecordDetachedTargets(offenders, sites);
+        if (offenders.Count != 0) return offenders;
+        var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
+        // A fresh per-evaluation index avoids walking every production body
+        // for each exact capability while retaining all target occurrences.
+        var authorityInstructionsByTargetName = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+            .Where(instruction => instruction.Operand is MethodReference)
+            .Select(instruction => (Instruction: instruction, Target: (MethodReference)instruction.Operand))
+            .ToLookup(site => site.Target.Name, StringComparer.Ordinal);
         var claim = types[(DeliveryApplication, JobRoutingClaim)];
         var source = types[(DeliveryApplication, JobClaimSource)];
         var receipt = types[(DeliveryApplication, JobStartReceipt)];
@@ -75,7 +88,8 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var (type, mutableField) in new[] { (claim, "_entered"), (receipt, "_consumed"), (origin, string.Empty) })
         {
             if (!type.IsSealed || type.Properties.Any(property => property.SetMethod is not null)
-                || type.Fields.Any(field => !field.IsStatic && !field.IsInitOnly && field.Name != mutableField))
+                || type.Fields.Any(field => !field.IsStatic && !field.IsInitOnly && field.Name != mutableField
+                    && !(type == receipt && field.Name == "_run" && field.FieldType.FullName == JobRunGate)))
                 offenders.Add(type.FullName + ": opaque identity must be sealed and immutable except its single-use state");
             var constructors = type.Methods.Where(method => method.IsConstructor && !method.IsStatic).ToArray();
             if (constructors.Length != 1 || (type == origin ? !constructors[0].IsAssembly : !constructors[0].IsPrivate))
@@ -84,6 +98,23 @@ public sealed partial class OutboxDispatchConventionTests
         if (!source.IsAbstract || source.IsSealed) offenders.Add("Routing claims require their closed abstract minting seam");
         CheckSet(offenders, "routing claim minting implementations", types.Values.Where(type => Derives(type, source, types)).Select(TypeId),
             [TypeId(types[(InfrastructureAssembly, JobRoutingStore)])]);
+        var receiptBodies = OwnedBodies(census).ToArray();
+        foreach (var (fieldName, expected) in new[]
+                 {
+                     ("_run", new[] { JobOwner(offenders, types, DeliveryApplication, JobStartReceipt, "BindRun") + ":ldflda",
+                         JobOwner(offenders, types, DeliveryApplication, JobStartReceipt, "get_Run") + ":ldflda" }),
+                     ("_admissionRun", new[] { JobOwner(offenders, types, DeliveryApplication, JobStartReceipt, ".ctor") + ":stfld",
+                         JobOwner(offenders, types, DeliveryApplication, JobStartReceipt, "BindRun") + ":ldfld" }),
+                 })
+        {
+            var fields = receipt.Fields.Where(field => field.Name == fieldName).ToArray();
+            if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic || fields[0].FieldType.FullName != JobRunGate
+                || fields[0].IsInitOnly != (fieldName == "_admissionRun"))
+                offenders.Add("The receipt retains only its original run and one sticky binding: " + fieldName);
+            CheckSet(offenders, "exact receipt run binding field owners " + fieldName, receiptBodies.SelectMany(item => item.Body.Body.Instructions
+                .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, receipt) && field.Name == fieldName)
+                .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)), expected);
+        }
         var revalidation = AdmissionRevalidationMethod(census, offenders);
 
         Capability(DeliveryApplication, JobRoutingClaim, ".ctor", [(DeliveryApplication, JobClaimSource, "MintClaim")]);
@@ -92,10 +123,13 @@ public sealed partial class OutboxDispatchConventionTests
         Capability(DeliveryApplication, JobStartReceipt, ".ctor", [(DeliveryApplication, JobStartReceipt, "FromAcknowledged")]);
         Capability(DeliveryApplication, JobStartReceipt, "FromAcknowledged", [(DeliveryApplication, JobStartRequest, "RecordCommitted")]);
         Capability(DeliveryApplication, JobStartReceipt, "Consume", [(DeliveryApplication, JobAdmission, "Enter")]);
+        Capability(DeliveryApplication, JobStartReceipt, "BindRun", [(InfrastructureAssembly, JobExecutorType, "ExecuteAsync"),
+            (InfrastructureAssembly, OrchestrationExecution, "ObservePublicationAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "BindOwner", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "MarkCommitting", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordCommitted", [(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
-        Capability(DeliveryApplication, JobStartRequest, "RecordAttempt", [(InfrastructureAssembly, JobStartHandler, "Handle")]);
+        Capability(DeliveryApplication, JobStartRequest, "RecordAttempt", [(InfrastructureAssembly, JobStartHandler, "Handle"),
+            (InfrastructureAssembly, JobStartHandler, "Handle")]);
         Capability(DeliveryApplication, JobStartRequest, "RecordCapacityDeferred", [(InfrastructureAssembly, JobStartHandler, "Handle")]);
         Capability(DeliveryApplication, JobAdmission, "EnterFramework", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
         Capability(DeliveryApplication, JobAdmission, "InstallValidatedEnvelope", [(InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync")]);
@@ -136,6 +170,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckFrameworkTokens();
         CheckAcknowledgementOrder();
         CheckExecutorDispatch();
+        offenders.UnionWith(JobExternalActivationOffenders(census));
         return offenders;
 
         void Capability(string assembly, string typeName, string name, (string Assembly, string Type, string Method)[] owners,
@@ -145,13 +180,11 @@ public sealed partial class OutboxDispatchConventionTests
             if (target.Methods.Count(method => method.Name == name) != 1)
                 offenders.Add(typeName + "." + name + ": capability requires one exact declaration");
             CheckSet(offenders, "job capability " + typeName + "." + name,
-                sites.Where(site => SameType(site.Target.DeclaringType, target) && site.Target.Name == name).Select(site => site.Owner),
+                sitesByTargetName[name].Where(site => SameType(site.Target.DeclaringType, target)).Select(site => site.Owner),
                 owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)).Concat(additionalOwners ?? []));
-            foreach (var instruction in authorityInstructions
-                         .Where(instruction => instruction.Operand is MethodReference method
-                             && SameType(method.DeclaringType, target) && method.Name == name))
-                if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt
-                    && !(name == ".ctor" && instruction.OpCode == OpCodes.Newobj))
+            foreach (var site in authorityInstructionsByTargetName[name].Where(site => SameType(site.Target.DeclaringType, target)))
+                if (site.Instruction.OpCode != OpCodes.Call && site.Instruction.OpCode != OpCodes.Callvirt
+                    && !(name == ".ctor" && site.Instruction.OpCode == OpCodes.Newobj))
                     offenders.Add(typeName + "." + name + ": authority cannot escape as a delegate");
         }
 
@@ -191,15 +224,15 @@ public sealed partial class OutboxDispatchConventionTests
             CheckSet(offenders, "framework request metadata types", types[(DeliveryApplication, framework)].Methods.SelectMany(method => method.HasBody
                     ? method.Body.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldtoken && instruction.Operand is TypeReference)
                         .Select(instruction => ((TypeReference)instruction.Operand).FullName) : []),
-                [JobReadRequest, JobStartRequest, CapacityCommand]);
+                [JobReadRequest, JobStartRequest, CapacityCommand, JobExternalReadRequest, JobArmRequest, JobOutcomeRequest]);
             CheckSet(offenders, "explicit Audit Off framework requests", types[(DeliveryApplication, audit)].Methods.SelectMany(MethodOperands)
                     .OfType<GenericInstanceMethod>().Where(method => method.Name == "Off")
-                    .SelectMany(method => method.GenericArguments).Select(type => type.FullName), [JobReadRequest, JobStartRequest, CapacityCommand]);
+                    .SelectMany(method => method.GenericArguments).Select(type => type.FullName), [JobReadRequest, JobStartRequest, CapacityCommand, JobExternalReadRequest, JobArmRequest, JobOutcomeRequest]);
             var admission = types[(DeliveryApplication, JobAdmission)];
             foreach (var (name, expected) in new[]
                      {
-                         ("IsFramework", new[] { JobReadRequest, JobStartRequest, CapacityCommand }),
-                         ("ModeFor", new[] { "LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute", JobReadRequest }),
+                         ("IsFramework", new[] { JobReadRequest, JobStartRequest, CapacityCommand, JobExternalReadRequest, JobArmRequest, JobOutcomeRequest }),
+                         ("ModeFor", new[] { "LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute", JobReadRequest, JobExternalReadRequest }),
                          ("PermitsUnresolvedRead", new[] { JobReadRequest }),
                          ("AnnouncementContext", new[] { JobReadRequest }),
                      })
@@ -235,6 +268,9 @@ public sealed partial class OutboxDispatchConventionTests
             var owner = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecutePublishedAsync");
             var business = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync");
             var checkpoint = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync");
+            var externalRead = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ReadExternalStateCoreAsync");
+            var externalWrite = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "WriteExternalCheckpointAsync");
+            var provider = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "InvokeExternalAsync");
             var owners = executor.Methods.Select(MethodId).ToHashSet(StringComparer.Ordinal);
             var calls = sites.Where(site => owners.Contains(site.Owner)).ToArray();
             var services = calls.Where(site => site.Target.Name is "GetRequiredService" or "GetService" or "GetServices")
@@ -244,21 +280,27 @@ public sealed partial class OutboxDispatchConventionTests
                  business + ":MediatR.ISender", business + ":" + LifecycleUnit,
                  business + ":LearnStack.Application.Jobs.BackgroundJobCompletionParticipant",
                  business + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
-                 checkpoint + ":MediatR.ISender", checkpoint + ":" + LifecycleUnit]);
+                 checkpoint + ":MediatR.ISender", checkpoint + ":" + LifecycleUnit,
+                 externalRead + ":MediatR.ISender", externalRead + ":" + LifecycleUnit,
+                 externalWrite + ":MediatR.ISender", externalWrite + ":" + LifecycleUnit,
+                 provider + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry", provider + ":dynamic-service"]);
             var sends = calls.Where(site => site.Target.Name == "Send" && site.Target.DeclaringType.FullName == "MediatR.ISender")
                 .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-request"));
             CheckSet(offenders, "framework executor exact request dispatch", sends,
                 [owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.Application.Jobs.BackgroundJobEnvelope>",
                  owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
-                 business + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
-                 checkpoint + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
+                 business + ":dynamic-request",
+                 checkpoint + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
+                 externalRead + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.Application.Jobs.BackgroundJobExternalSnapshot>",
+                 externalWrite + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
+                 externalWrite + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>"]);
             foreach (var request in new[] { JobReadRequest, JobStartRequest })
                 CheckSet(offenders, "framework request construction " + request,
                     sites.Where(site => site.Target.Name == ".ctor" && site.Target.DeclaringType.FullName == request
-                        && site.Target.Parameters.Count is 1 or 2 && site.Target.Parameters[0].ParameterType.FullName == JobRoutingClaim)
+                        && site.Target.Parameters.Count is 1 or 3 && site.Target.Parameters[0].ParameterType.FullName == JobRoutingClaim)
                         .Select(site => site.Owner), [owner]);
             foreach (var target in OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor
-                         && item.Owner.Name != "ExecuteBusinessAsync").SelectMany(item => MethodOperands(item.Body)))
+                         && item.Owner.Name is not ("ExecuteBusinessAsync" or "InvokeExternalAsync")).SelectMany(item => MethodOperands(item.Body)))
                 if (target.DeclaringType.FullName is "System.Activator" or "System.Reflection.MethodBase" or "System.Reflection.MethodInfo"
                         or "System.Reflection.ConstructorInfo" || target.DeclaringType.FullName == "System.Type" && target.Name is "GetType" or "GetConstructor")
                     offenders.Add("Framework admission cannot dynamically construct or invoke a business request: " + target.FullName);
@@ -284,7 +326,7 @@ public sealed partial class OutboxDispatchConventionTests
         var method = methods[0];
         var sites = CallSites(census).Where(site => site.Target.Name == method.Name && MethodId(site.Target) == MethodId(method)).ToArray();
         CheckSet(offenders, "actual admission owner revalidation sites", sites.Select(site => site.Owner),
-            Enumerable.Repeat(MethodId(handle[0]), 16));
+            Enumerable.Repeat(MethodId(handle[0]), 19));
         foreach (var instruction in bodies.SelectMany(item => item.Body.Body.Instructions)
                      .Where(instruction => instruction.Operand is MethodReference target
                          && target.Name == method.Name && MethodId(target) == MethodId(method)))
@@ -298,11 +340,12 @@ public sealed partial class OutboxDispatchConventionTests
     }
 
     private static string JobOwner(SortedSet<string> offenders, Dictionary<(string Assembly, string Type), TypeDefinition> types,
-        string assembly, string typeName, string name)
+        string assembly, string typeName, string name, string[]? parameters = null)
     {
         if (!types.TryGetValue((assembly, typeName), out var type))
         { offenders.Add("Missing actual job owner: " + typeName); return "missing:" + typeName; }
-        var methods = type.Methods.Where(method => method.Name == name).ToArray();
+        var methods = type.Methods.Where(method => method.Name == name
+            && (parameters is null || ParametersMatch(method, parameters))).ToArray();
         if (methods.Length == 1) return MethodId(methods[0]);
         offenders.Add("Job owner requires one exact declaration: " + typeName + "." + name);
         return "missing:" + typeName + "." + name;
@@ -344,7 +387,7 @@ public sealed partial class OutboxDispatchConventionTests
         const string control = "LearnStack.Infrastructure.Jobs.BackgroundJobControl";
         string[] createParameters = ["LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration",
             "LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry", JobRoutingStore, JobExecutorType,
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry"];
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", JobRuntimeGate];
         var createPrefix = InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator(";
         var create = createPrefix + string.Join(",", createParameters) + ")";
         var controlledCreate = createPrefix + string.Join(",", createParameters.Append(control)) + ")";
@@ -365,14 +408,14 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("Routing capability holders must retain their closed nested visibility and sealed identity");
         var activatorConstructor = RequireBoundaryMethod(offenders, activator, ".ctor", "System.Void", MethodAttributes.Public,
             "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration", JobRoutingStore, JobExecutorType,
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", control, JobGeneration);
+            "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", JobRuntimeGate, control, JobGeneration);
         var bind = RequireBoundaryMethod(offenders, activator, "Bind", JobClosedActivator, MethodAttributes.Assembly, JobGeneration);
         var bindGeneration = RequireHangfireStaticMethod(offenders, contract, "BindGeneration", "Hangfire.JobActivator",
             MethodAttributes.Assembly, "Hangfire.JobActivator", JobGeneration);
         var begin = RequireBoundaryMethod(offenders, activator, "BeginScope", "Hangfire.JobActivatorScope", MethodAttributes.Public,
             "Hangfire.Server.PerformContext");
         var invocationConstructor = RequireBoundaryMethod(offenders, invocation, ".ctor", "System.Void", MethodAttributes.Public,
-            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobGeneration, control);
+            "Hangfire.Common.Job", JobRoutingStore, JobExecutorType, JobRuntimeGate, JobGeneration, control);
         _ = RequireBoundaryMethod(offenders, invocation, "RunJobAsync", BoundaryTask, MethodAttributes.Assembly,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
         var framework = RequireBoundaryMethod(offenders, invocation, "RunFrameworkAsync", BoundaryTask, MethodAttributes.Private,
@@ -476,13 +519,16 @@ public sealed partial class OutboxDispatchConventionTests
             var method = AddCall(executor, "UnexpectedFrameworkSend", send, OpCodes.Callvirt);
             return () => executor.Methods.Remove(method);
         }, JobStepThreeOffenders);
+        foreach (var field in new[] { "_run", "_admissionRun" })
+            AssertMutation(census, "a receipt forwarding its original or bound run", () =>
+                AddBoundaryFieldGetter(types[(DeliveryApplication, JobStartReceipt)], "ForwardReceiptRun", field), JobStepThreeOffenders);
         var capabilities = new[]
         {
             (JobAdmission, "EnterFramework"), (JobAdmission, "InstallValidatedEnvelope"), (JobRoutingClaim, "EnterOnce"),
             (JobAdmission, "PermitsUnresolvedRead"), (JobAdmission, "RequireRead"), (JobAdmission, "RequireStart"),
             (JobAdmission, "AnnouncementContext"),
             (JobAdmission, "RequireOperation"),
-            (JobClaimSource, "MintClaim"), (JobStartReceipt, "FromAcknowledged"), (JobStartReceipt, "Consume"),
+            (JobClaimSource, "MintClaim"), (JobStartReceipt, "FromAcknowledged"), (JobStartReceipt, "Consume"), (JobStartReceipt, "BindRun"),
             (JobStartRequest, "BindOwner"), (JobStartRequest, "MarkCommitting"), (JobStartRequest, "RecordAttempt"),
             (JobStartRequest, "RecordCapacityDeferred"), (JobStartRequest, "RecordCommitted"),
             (DeliveryProducer, "CaptureJobOrigin"), (DeliveryProducer, "RequireJobOrigin"), (DeliveryCoordinator, "ExecuteRequestAsync"),

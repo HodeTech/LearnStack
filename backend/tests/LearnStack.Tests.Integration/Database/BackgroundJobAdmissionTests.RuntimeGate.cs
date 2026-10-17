@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +30,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await SchemaQueries.ExecuteAsync(locker, transaction,
             "SELECT id FROM background_jobs WHERE id=@id FOR UPDATE", ("id", blocked.Value));
         var executor = host.Services.GetRequiredService<JobExecutor>();
-        var running = executor.ExecuteAsync(claim, startGate: gate.TryAdmit);
+        var running = executor.ExecuteAsync(claim, new BackgroundJobRunGate(gate.RunStop), startGate: gate.TryAdmit);
         var released = false;
         try
         {
@@ -58,7 +59,7 @@ public sealed partial class BackgroundJobAdmissionTests
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, blocked)).Should().Be(0);
         var positiveClaim = (await routing.TryClaimAsync(positive, 1))!;
         var openGate = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
-        var started = await executor.ExecuteAsync(positiveClaim, startGate: openGate.TryAdmit);
+        var started = await executor.ExecuteAsync(positiveClaim, new BackgroundJobRunGate(openGate.RunStop), startGate: openGate.TryAdmit);
         started.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         started.Receipt.Should().NotBeNull("the same actual application admission path remains eligible while open");
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, positive)).Should().Be(1);

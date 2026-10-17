@@ -67,7 +67,7 @@ public sealed partial class HangfireGenerationTests
                 await SchemaQueries.ExecuteAsync(locker, transaction,
                     "LOCK TABLE public.background_jobs IN ACCESS EXCLUSIVE MODE");
             using var contextConnection = provider.GetConnection();
-            var activator = WorkActivator(host.Services, pool, fixture.Registry.Infrastructure, generation);
+            var activator = WorkActivator(host.Services, pool, fixture.Registry.Infrastructure, generation, gate);
             using var scope = activator.BeginScope(ActivationContext(contextConnection, pool, blocked));
             var invocation = (HangfireJobWakeup)scope.Resolve(typeof(HangfireJobWakeup));
             // A test-owned scope invokes the real closed BoundInvocation. It is
@@ -268,7 +268,7 @@ public sealed partial class HangfireGenerationTests
             await EventuallyAsync(() => Task.FromResult(owner.Snapshot.State == HangfirePoolOwnerState.Running));
             generation = WorkOwnerGeneration(owner);
             using var contextConnection = provider.GetConnection();
-            var activator = WorkActivator(host.Services, pool, fixture.Registry.Infrastructure, generation);
+            var activator = WorkActivator(host.Services, pool, fixture.Registry.Infrastructure, generation, gate);
             using var scope = activator.BeginScope(ActivationContext(contextConnection, pool, job));
             var wrapper = (HangfireJobWakeup)scope.Resolve(typeof(HangfireJobWakeup));
             running = wrapper.RunAsync(job, 1);
@@ -420,14 +420,14 @@ public sealed partial class HangfireGenerationTests
         new(provider, inventory, filters, HangfireInvocationContract.CreateActivator(pool,
                 services.GetRequiredService<BackgroundJobDefinitionRegistry>().Infrastructure,
                 services.GetRequiredService<PostgresBackgroundJobRoutingStore>(), services.GetRequiredService<JobExecutor>(),
-                BackgroundJobRecurrenceRegistry.CreateEmpty()), pool, gate,
+                BackgroundJobRecurrenceRegistry.CreateEmpty(), gate), pool, gate,
             services.GetRequiredService<BackgroundJobRuntimeOptions>(), TimeProvider.System);
 
     private static JobActivator WorkActivator(IServiceProvider services, BackgroundJobWorkerPoolRegistration pool,
-        BackgroundJobInfrastructureRegistry topology, HangfireGeneration generation) =>
+        BackgroundJobInfrastructureRegistry topology, HangfireGeneration generation, BackgroundJobRuntimeGate gate) =>
         HangfireInvocationContract.BindGeneration(HangfireInvocationContract.CreateActivator(pool, topology,
             services.GetRequiredService<PostgresBackgroundJobRoutingStore>(), services.GetRequiredService<JobExecutor>(),
-            BackgroundJobRecurrenceRegistry.CreateEmpty()), generation);
+            BackgroundJobRecurrenceRegistry.CreateEmpty(), gate), generation);
 
     private static HangfireGeneration WorkOwnerGeneration(HangfirePoolOwner owner) =>
         typeof(HangfirePoolOwner).GetField("_generation", BindingFlags.Instance | BindingFlags.NonPublic)

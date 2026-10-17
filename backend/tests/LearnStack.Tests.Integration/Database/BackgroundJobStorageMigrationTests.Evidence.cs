@@ -124,6 +124,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
                     WHERE id = @attempt;
                 UPDATE background_jobs SET final_outcome_attempt_id = @attempt, finalization_status = 'succeeded',
                     finalization_reason = 'none', phase = 'finalize_pending' WHERE id = @job;
+                UPDATE background_job_reservations SET released_at=clock_timestamp(), release_reason='quiescent'
+                    WHERE job_id=@job AND attempt_id=@attempt;
                 """, ("job", job.JobId), ("attempt", job.AttemptId), ("quiescence", Guid.NewGuid()));
         await transaction.CommitAsync();
         return job;

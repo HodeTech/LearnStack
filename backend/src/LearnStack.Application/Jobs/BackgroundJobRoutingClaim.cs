@@ -11,7 +11,7 @@ public sealed class BackgroundJobRoutingClaim
 
     private BackgroundJobRoutingClaim(DbDataReader row)
     {
-        if (row.FieldCount != 9) throw new InvalidOperationException("The routing claim requires its exact returned projection.");
+        if (row.FieldCount != 12) throw new InvalidOperationException("The routing claim requires its exact returned projection.");
         JobId = BackgroundJobId.From(row.GetGuid(0));
         TenantId = TenantId.From(row.GetGuid(1));
         OrganizationId = row.IsDBNull(2) ? null : LearnStack.SharedKernel.Identifiers.OrganizationId.From(row.GetGuid(2));
@@ -21,9 +21,22 @@ public sealed class BackgroundJobRoutingClaim
         Token = row.GetGuid(6);
         OwnershipUntil = row.GetFieldValue<DateTimeOffset>(7);
         OriginalDueAt = row.GetFieldValue<DateTimeOffset>(8);
+        Profile = row.GetString(9) switch
+        {
+            "transactional" => BackgroundJobExecutionProfile.Transactional,
+            "external" => BackgroundJobExecutionProfile.External,
+            _ => throw new InvalidOperationException("The routing claim has an unknown profile."),
+        };
+        LedgerStage = row.GetString(10) switch
+        {
+            "pending" => BackgroundJobLedgerStage.Normal,
+            "finalize_pending" when Profile == BackgroundJobExecutionProfile.External => BackgroundJobLedgerStage.Finalize,
+            _ => throw new InvalidOperationException("The routing claim has no counted eligible stage."),
+        };
+        DbNow = row.GetFieldValue<DateTimeOffset>(11);
         if (!JobId.IsInitialized() || JobId.Value.Version != 7 || TenantId.Value == Guid.Empty
             || TenantId == TenantId.PlatformSentinel || OrganizationId?.Value == Guid.Empty
-            || Token == Guid.Empty || WakeGeneration < 1)
+            || Token == Guid.Empty || WakeGeneration < 1 || OwnershipUntil <= DbNow || OriginalDueAt > DbNow)
             throw new InvalidOperationException("The routing claim has invalid identity.");
     }
 
@@ -36,6 +49,9 @@ public sealed class BackgroundJobRoutingClaim
     public Guid Token { get; }
     public DateTimeOffset OwnershipUntil { get; }
     public DateTimeOffset OriginalDueAt { get; }
+    public BackgroundJobExecutionProfile Profile { get; }
+    public BackgroundJobLedgerStage LedgerStage { get; }
+    public DateTimeOffset DbNow { get; }
 
     internal void EnterOnce()
     {

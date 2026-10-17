@@ -119,6 +119,26 @@ public sealed partial class OutboxDispatchConventionTests
             "cleanup mint before actual callback and observer joins");
         AssertEarlyCapacityCall(census, OrchestrationStore, "AcquireCapacityRecoveryAsync", CapacityRecoverySource, "ConfirmCandidate",
             "recovery authority before acquisition COMMIT ACK");
+        AssertEarlyCapacityCall(census, OrchestrationStore, "ProbeCommitAsync", CapacityRecoverySource, "ConfirmCandidate",
+            "historical recovery authority before actual projection, rollback and cleanup");
+        var history = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == OrchestrationStore
+            && item.Owner.Name == "ProbeCommitAsync" && item.Body.Name == "MoveNext").Body.Body;
+        foreach (var (type, name) in new[]
+        {
+            ("database", "RollbackAsync"),
+            ("LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "CleanupAsync"),
+            ("LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_ProbeRollbackAcknowledged"),
+            ("LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_CleanupConfirmed"),
+            ("LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_Failure"),
+        })
+        {
+            var calls = history.Instructions.Where(instruction => instruction.Operand is MethodReference target
+                && (type == "database" ? IntegrationLifecycleCapability(target, census.Types) == "database." + name
+                    : target.DeclaringType.FullName == type && target.Name == name)).ToArray();
+            calls.Should().ContainSingle("each exact physical cleanup/confirmation guard is a live production subject");
+            AssertMutation(census, "a missing actual historical recovery guard " + name, () =>
+                ReplaceInstruction(calls[0], OpCodes.Nop, null!), JobCapacityOffenders);
+        }
 
         var preparation = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == OrchestrationInvocation
             && item.Owner.Name == "PrepareCapacityCleanupCoreAsync" && item.Body.Name == "MoveNext").Body.Body;
@@ -138,6 +158,8 @@ public sealed partial class OutboxDispatchConventionTests
         var callback = CapacityScheduleCallback(census, new(StringComparer.Ordinal))!;
         AssertMutation(census, "another checkpoint scheduler callback caller", () =>
             AddAsyncCallProbe(application, "AlternateCheckpointSchedule", callback), JobCapacityOffenders);
+
+        AssertRecoveryMinterMutations(census);
 
         // Reading an already issued immutable fact creates no new authority.
         var clean = AddProbe(application, "CapacityReadOnlyConsumer");

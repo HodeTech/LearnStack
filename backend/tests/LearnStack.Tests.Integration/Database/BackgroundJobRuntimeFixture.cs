@@ -297,7 +297,7 @@ internal sealed class BackgroundJobRuntimeFixture
         }
     }
 
-    private static (Assembly Assembly, byte[] Image) Compile(string name, string source, params byte[][] dependencies)
+    internal static (Assembly Assembly, byte[] Image) Compile(string name, string source, params byte[][] dependencies)
     {
         var paths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Append(typeof(IBackgroundJobParameters).Assembly.Location).Append(typeof(IRequest<>).Assembly.Location)

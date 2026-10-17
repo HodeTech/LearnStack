@@ -31,7 +31,7 @@ public sealed partial class BackgroundJobSubmissionTests
         var probe = new BackgroundJobFixtureProbe();
         await using var host = Fixture.Host(database, probe, context);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(parent, 1))!;
-        var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         start.Receipt.Should().NotBeNull();
         BackgroundJobId? child = null;
         string? producerTrace = null;
@@ -50,7 +50,7 @@ public sealed partial class BackgroundJobSubmissionTests
             return Result.Ok(None.Value);
         };
         var result = await host.Services.GetRequiredService<JobExecutor>()
-            .ExecuteBusinessAsync(start.Receipt!, new BackgroundJobCommitGate());
+            .ExecuteBusinessAsync(start.Receipt!, start.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitAcknowledged.Should().BeTrue();
         result.CleanupFailed.Should().BeFalse();
         result.SourceOwner.Should().BeSameAs(start.SourceOwner);

@@ -377,7 +377,7 @@ public sealed partial class OutboxDispatchConventionTests
                          (JobInvocationContract, "CreateActivator", new[] { preallocate,
                              InfrastructureAssembly + ":Hangfire.JobActivator " + JobInvocationContract + "::CreateActivator("
                              + "LearnStack.Infrastructure.Jobs.BackgroundJobWorkerPoolRegistration,LearnStack.Infrastructure.Jobs.BackgroundJobInfrastructureRegistry,"
-                             + JobRoutingStore + "," + JobExecutorType + ",LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry)" }),
+                             + JobRoutingStore + "," + JobExecutorType + ",LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry," + JobRuntimeGate + ")" }),
                          ("LearnStack.Infrastructure.Jobs.HangfirePoolOwner", "Start", new[] { run }),
                          ("LearnStack.Infrastructure.Jobs.HangfireSharedComponents", "Start", new[] { run }),
                          (JobBridge, "RunQuantumAsync", new[] { bridgeLoop }),

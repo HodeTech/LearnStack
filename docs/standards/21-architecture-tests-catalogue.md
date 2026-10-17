@@ -123,12 +123,14 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**237 test methods run in
+**240 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
 Packet 8, Packet 9, Packet 10, P02d-1, P02d-2, P02d-3, P02d-4 Steps 1–3, P02b-1,
-P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–6.
+P02b-2 Steps 2–4, P02b-3 Steps 3–6 and P02b-4 Steps 1–6, with three additional
+companion methods in the in-progress P02b-4 Step 7. Its nineteen packet
+obligations remain Registered until Step 9 closes enforcement.
 Methods are not rows:
 a `[Theory]` is one row and many cases,
 and most rows pair a rule with the companion assertion that stops it passing vacuously.

@@ -24,7 +24,11 @@ public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState Stat
     public bool IsHealthy => State == BackgroundJobRuntimeState.Running && BridgeHealthy
         && ExpirationHealthy && FetchedJobHeartbeatHealthy && RunningPools == Capacity.Pools
         && RetainedPools == 0 && RetainedInvocations == 0 && Pools.All(pool => !pool.MetadataHeartbeatFault)
-        && Control is { RenewalHealthy: true, RecoveryHealthy: true, TerminalHealthy: true };
+        && Control is
+        {
+            RenewalHealthy: true, RecoveryHealthy: true, TerminalHealthy: true,
+            QuarantineObservationHealthy: true, HasQuarantinedJobs: false
+        };
 }
 
 /// <summary>API-instance owner; actual joins alone release bootstrap, pools, shared work and bridge.</summary>
@@ -325,7 +329,7 @@ public sealed class BackgroundJobRuntime
         foreach (var pool in _definitions.Infrastructure.Pools.Values.OrderBy(pool => pool.Name, StringComparer.Ordinal))
         {
             var activator = HangfireInvocationContract.CreateActivator(pool, _definitions.Infrastructure,
-                _routing, _executor, _recurrences, _jobs);
+                _routing, _executor, _recurrences, _gate, _jobs);
             var owner = new HangfirePoolOwner(provider, inventory, filters, activator, pool, _gate, _bounds, _time);
             lock (_sync) _pools.Add(owner);
         }

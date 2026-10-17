@@ -39,25 +39,44 @@ internal static class BackgroundJobEnvelopeSql
     internal static bool Matches(BackgroundJobEnvelope envelope, BackgroundJobRoutingClaim claim) =>
         envelope.JobId == claim.JobId && envelope.TenantId == claim.TenantId
         && envelope.OrganizationId == claim.OrganizationId && envelope.DefinitionKey == claim.DefinitionKey
-        && envelope.Queue == claim.Queue && envelope.OriginalDueAt == claim.OriginalDueAt;
+        && envelope.Queue == claim.Queue && envelope.OriginalDueAt == claim.OriginalDueAt
+        && envelope.Profile == (claim.Profile == BackgroundJobExecutionProfile.Transactional ? "transactional" : "external");
 
     internal static BackgroundJobDefinitionDescriptor? Definition(BackgroundJobEnvelope envelope,
-        BackgroundJobDefinitionRegistry definitions)
+        BackgroundJobDefinitionRegistry definitions) => ResolveDefinition(envelope, definitions, BackgroundJobExecutionProfile.Transactional);
+
+    internal static BackgroundJobDefinitionDescriptor? ExternalDefinition(BackgroundJobEnvelope envelope,
+        BackgroundJobDefinitionRegistry definitions) => ResolveDefinition(envelope, definitions, BackgroundJobExecutionProfile.External);
+
+    internal static BackgroundJobDefinitionDescriptor? RoutedDefinition(BackgroundJobEnvelope envelope,
+        BackgroundJobRoutingClaim claim, BackgroundJobDefinitionRegistry definitions) => claim.Profile switch
+        {
+            BackgroundJobExecutionProfile.Transactional when claim.LedgerStage == BackgroundJobLedgerStage.Normal => Definition(envelope, definitions),
+            BackgroundJobExecutionProfile.External when claim.LedgerStage is BackgroundJobLedgerStage.Normal or BackgroundJobLedgerStage.Finalize => ExternalDefinition(envelope, definitions),
+            _ => null,
+        };
+
+    private static BackgroundJobDefinitionDescriptor? ResolveDefinition(BackgroundJobEnvelope envelope,
+        BackgroundJobDefinitionRegistry definitions, BackgroundJobExecutionProfile profile)
     {
         if (!definitions.TryGet(envelope.DefinitionKey, out var definition)
             || definition.Readiness != BackgroundJobDefinitionReadiness.Active
-            || definition.Profile != BackgroundJobExecutionProfile.Transactional
-            || envelope.Profile != "transactional" || definition.CapacityGroup != envelope.CapacityGroup
+            || definition.Profile != profile
+            || envelope.Profile != (profile == BackgroundJobExecutionProfile.Transactional ? "transactional" : "external")
+            || definition.CapacityGroup != envelope.CapacityGroup
             || definition.CapacityGroup is { } group && !definitions.Infrastructure.CapacityGroups.ContainsKey(group)
             || definition.Queue != envelope.Queue
             || (definition.Scope == BackgroundJobScope.TenantWide) != (envelope.OrganizationId is null)
-            || !ActivityContext.TryParse(envelope.Traceparent, null, out var trace)
-            || envelope.Traceparent != $"00-{trace.TraceId}-{trace.SpanId}-{(byte)trace.TraceFlags:x2}"
-            || envelope.CausalActor?.Value == Guid.Empty || envelope.IncomingEventId == Guid.Empty
-            || envelope.ParentJobId == envelope.JobId
-            || envelope.ParentJobId is { } parent && parent.Value.Version != 7
-            || envelope.RecipientId is { } recipient && recipient.Value.Version != 7)
+            || !HasValidCausalContext(envelope))
             return null;
         return definition;
     }
+
+    internal static bool HasValidCausalContext(BackgroundJobEnvelope envelope) =>
+        ActivityContext.TryParse(envelope.Traceparent, null, out var trace)
+        && envelope.Traceparent == $"00-{trace.TraceId}-{trace.SpanId}-{(byte)trace.TraceFlags:x2}"
+        && envelope.CausalActor?.Value != Guid.Empty && envelope.IncomingEventId != Guid.Empty
+        && envelope.ParentJobId != envelope.JobId
+        && (envelope.ParentJobId is not { } parent || parent.Value.Version == 7)
+        && (envelope.RecipientId is not { } recipient || recipient.Value.Version == 7);
 }

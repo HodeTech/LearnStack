@@ -9,7 +9,7 @@ namespace LearnStack.Infrastructure.Jobs;
 public sealed partial class JobExecutor
 {
     internal async Task<JobCapacityCleanupResult> ExecuteCapacityCleanupAsync(BackgroundJobCapacityRecoveryReceipt recovery,
-        BackgroundJobActualCleanup cleanup, CancellationToken cancellationToken)
+        BackgroundJobActualCleanup cleanup, BackgroundJobCommitGate gate, CancellationToken cancellationToken)
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         cleanup.RequireRecovery(recovery);
@@ -35,7 +35,7 @@ public sealed partial class JobExecutor
                 .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags).Start();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
-            command = new(recovery, cleanup.Evidence);
+            command = new(recovery, cleanup.Evidence, gate);
             authority = admission.EnterCapacityCleanup(command, unit);
             if (!ReferenceEquals(accessor.Current, context))
                 throw new InvalidOperationException("Capacity cleanup must retain its exact job context.");

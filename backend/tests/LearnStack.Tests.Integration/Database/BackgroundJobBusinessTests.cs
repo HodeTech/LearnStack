@@ -66,7 +66,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
         var domain = new DomainDispatchProbe();
         BackgroundJobId? child = null;
         IUnitOfWorkScope? leaked = null;
-        var gate = new BackgroundJobCommitGate();
+        BackgroundJobCommitGate gate = null!;
         using var ownedStop = new CancellationTokenSource();
         var observed = false;
         var logs = new BusinessLogs();
@@ -114,6 +114,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
         };
         var executor = host.Services.GetRequiredService<JobExecutor>();
         var admission = await AdmitAsync(host.Services, job);
+        gate = admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional);
         JobBusinessExecutionResult result;
         try { result = await executor.ExecuteBusinessAsync(admission.Receipt!, gate, ownedStop.Token); }
         finally { if (leaked is not null) await leaked.DisposeAsync(); }
@@ -211,7 +212,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
             return Result.Ok(None.Value);
         };
         var admission = await AdmitAsync(host.Services, job);
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitStarted.Should().BeFalse();
         result.CommitAcknowledged.Should().BeFalse();
         result.KnownRollback.Should().BeTrue();
@@ -249,7 +250,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
                         ownership_token=NULL, ownership_kind=NULL, ownership_until=NULL WHERE id=@id
                     """, ("id", job.Value));
         }
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitAcknowledged.Should().BeFalse();
         result.KnownRollback.Should().BeTrue();
         probe.Constructions.Should().BeEmpty("the unlocked preflight precedes MediatR handler construction");
@@ -291,7 +292,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
             return Result.Ok(None.Value);
         };
         var admission = await AdmitAsync(host.Services, job);
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitAcknowledged.Should().BeTrue();
         nested.Should().Be(1);
         probe.Constructions.Should().Equal("TenantRoot", "Nested");
@@ -300,7 +301,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
     private static async Task<JobStartExecutionResult> AdmitAsync(IServiceProvider services, BackgroundJobId job)
     {
         var claim = (await services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-        var result = await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.CleanupFailed.Should().BeFalse();
         result.Receipt!.SourceOwner.Should().BeSameAs(result.SourceOwner);

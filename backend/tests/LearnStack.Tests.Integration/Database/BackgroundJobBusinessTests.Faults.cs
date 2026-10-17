@@ -36,7 +36,7 @@ public sealed partial class BackgroundJobBusinessTests
         });
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         var publication = new BackgroundJobStartPublication();
-        var running = host.Services.GetRequiredService<JobExecutor>().ExecutePublishedAsync(claim, publication, null, CancellationToken.None);
+        var running = host.Services.GetRequiredService<JobExecutor>().ExecutePublishedAsync(claim, publication, BackgroundJobTestRun.Create().OpenBoundary(BackgroundJobCheckpointKind.Admission), null, CancellationToken.None);
         try
         {
             var receipt = await publication.Completion.WaitAsync(TimeSpan.FromSeconds(10));
@@ -97,7 +97,7 @@ public sealed partial class BackgroundJobBusinessTests
         };
         var admission = await AdmitAsync(host.Services, job);
         using var outer = new Activity("business-cleanup-parent").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitAcknowledged.Should().BeTrue();
         result.Decision.Disposition.Should().Be(BackgroundJobFailureDisposition.Succeeded);
         result.CleanupFailed.Should().BeTrue();
@@ -121,7 +121,7 @@ public sealed partial class BackgroundJobBusinessTests
         var probe = new BackgroundJobFixtureProbe();
         await using var host = Fixture.Host(database, probe, appConnectionString: proxy.ConnectionString);
         var admission = await AdmitAsync(host.Services, job);
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new())
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))
             .WaitAsync(TimeSpan.FromSeconds(10));
         proxy.DroppedCommitResponses.Should().Be(1);
         result.CommitStarted.Should().BeTrue();
@@ -149,7 +149,7 @@ public sealed partial class BackgroundJobBusinessTests
         };
         await using var host = Fixture.Host(database, probe);
         var admission = await AdmitAsync(host.Services, job);
-        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var running = host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await using var locker = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         await using var transaction = await locker.BeginTransactionAsync();

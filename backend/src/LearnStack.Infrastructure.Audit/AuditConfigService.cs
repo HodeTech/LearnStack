@@ -95,6 +95,7 @@ public sealed class AuditConfigService(
     public async Task<AuditClassification> ClassifyAsync(
         TenantId? tenantId, AuditCatalogEntry entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
 
         var declared = Declared(entry.OperationClass);
@@ -166,6 +167,7 @@ public sealed class AuditConfigService(
     private Task<IReadOnlyDictionary<string, bool>> StartLoadAsync(
         TenantId tenantId, JobApplicationSourceOwner? sourceOwner, CancellationToken cancellationToken)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         if (sourceOwner is null) return LoadAsync(tenantId, null, cancellationToken);
         var resources = sourceOwner.BeginAuditConfigLoad();
         var actual = LoadAsync(tenantId, resources, cancellationToken);

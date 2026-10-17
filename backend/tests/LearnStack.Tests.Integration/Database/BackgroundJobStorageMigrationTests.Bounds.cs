@@ -64,13 +64,16 @@ public sealed partial class BackgroundJobStorageMigrationTests
     }
 
     [Theory]
-    [InlineData("succeeded", false, false)]
-    [InlineData("failed", false, true)]
-    [InlineData("cancelled", false, true)]
-    [InlineData("failed", true, false)]
-    [InlineData(null, false, false)]
+    [InlineData("succeeded", null, false, false)]
+    [InlineData("failed", "transient_repeatable", false, true)]
+    [InlineData("cancelled", "transient_repeatable", false, true)]
+    [InlineData("failed", "permanent", true, false)]
+    [InlineData("failed", "permanent", false, false)]
+    [InlineData("failed", "transient_not_repeatable", false, false)]
+    [InlineData("cancelled", "transient_not_repeatable", false, false)]
+    [InlineData(null, null, false, false)]
     public async Task External_recovery_retries_only_unselected_failed_or_cancelled_outcomes(
-        string? outcomeKind, bool selectFinalization, bool canRetry)
+        string? outcomeKind, string? failurePolicy, bool selectFinalization, bool canRetry)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         var job = await NewExternalOutcomeAsync(database, recordOutcome: false);
@@ -82,10 +85,17 @@ public sealed partial class BackgroundJobStorageMigrationTests
             await SchemaQueries.ExecuteAsync(app, transaction, """
                 UPDATE background_job_attempts SET outcome = CASE WHEN @outcome_kind::text IS NULL THEN NULL ELSE '{}' END,
                     outcome_kind = @outcome_kind,
+                    failure_policy = @policy,
                     outcome_at = CASE WHEN @outcome_kind::text IS NULL THEN NULL ELSE clock_timestamp() END,
                     quiescence_id = uuidv7(),
                     quiescence_kind = 'provider_fenced', quiescent_at = clock_timestamp() WHERE id = @attempt;
-                """, ("outcome_kind", (object?)outcomeKind ?? DBNull.Value), ("attempt", job.AttemptId));
+                """, ("outcome_kind", (object?)outcomeKind ?? DBNull.Value), ("policy", (object?)failurePolicy ?? DBNull.Value),
+                ("attempt", job.AttemptId));
+            if (outcomeKind is not null)
+                await SchemaQueries.ExecuteAsync(app, transaction, """
+                    UPDATE background_job_reservations SET released_at=clock_timestamp(), release_reason='quiescent'
+                        WHERE job_id=@job AND attempt_id=@attempt;
+                    """, ("job", job.JobId), ("attempt", job.AttemptId));
             if (selectFinalization)
                 await SchemaQueries.ExecuteAsync(app, transaction, """
                     UPDATE background_jobs SET final_outcome_attempt_id = @attempt, finalization_status = 'failed',
@@ -93,25 +103,18 @@ public sealed partial class BackgroundJobStorageMigrationTests
                     """, ("attempt", job.AttemptId), ("job", job.JobId));
             await transaction.CommitAsync();
         }
-        await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
-        await using (var transaction = await app.BeginTransactionAsync())
+        if (outcomeKind is null)
         {
+            await using var app = await PostgresFixture.OpenAsync(database.AppConnectionString);
+            await using var transaction = await app.BeginTransactionAsync();
             await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
             var release = async () => await SchemaQueries.ExecuteAsync(app, transaction, """
                 UPDATE background_job_reservations SET released_at = clock_timestamp(), release_reason = 'quiescent'
                     WHERE job_id = @job AND attempt_id = @attempt;
                 """, ("job", job.JobId), ("attempt", job.AttemptId));
-            if (outcomeKind is null)
-            {
-                var refusal = (await release.Should().ThrowAsync<PostgresException>()).Which;
-                refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
-                refusal.MessageText.Should().Be("reservation release requires positive completion or quiescence");
-            }
-            else
-            {
-                await release();
-                await transaction.CommitAsync();
-            }
+            var refusal = (await release.Should().ThrowAsync<PostgresException>()).Which;
+            refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+            refusal.MessageText.Should().Be("reservation release requires positive completion or quiescence");
         }
         if (selectFinalization)
             await AdmitCountedStageAsync(database, job, Guid.CreateVersion7(), "finalize", 1, job.AttemptId, default);
@@ -154,8 +157,10 @@ public sealed partial class BackgroundJobStorageMigrationTests
             var refusal = (await retry.Should().ThrowAsync<PostgresException>()).Which;
             refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
             refusal.MessageText.Should().Be(outcomeKind is null
-                    ? "external retry requires positive prior-attempt evidence"
-                    : "known final outcome cannot reopen normal execution",
+                    ? "unresolved external effects cannot retry or terminalize"
+                    : outcomeKind == "succeeded" || selectFinalization
+                    ? "known final outcome cannot reopen normal execution"
+                    : "external retry requires positive prior-attempt evidence",
                 "positive quiescence and a live recovery claim must reach the outcome guard");
         }
         (await SchemaQueries.ReadStringsAsync(dispatcher, "SELECT phase FROM background_jobs")).Should()
@@ -210,7 +215,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
     }
 
     private static async Task AdmitCountedStageAsync(DisposableSchemaDatabase database, PendingJob job, Guid attempt,
-        string stage, int ordinal, Guid finalOutcome, Guid operation)
+        string stage, int ordinal, Guid finalOutcome, Guid operation, bool recordOutcome = true)
     {
         var token = ordinal == 1 && stage != "finalize" ? job.Token : Guid.NewGuid();
         if (ordinal != 1 || stage == "finalize")
@@ -245,7 +250,11 @@ public sealed partial class BackgroundJobStorageMigrationTests
                 UPDATE background_job_attempts SET plan_fingerprint = repeat('a',64), operation_id = @operation,
                     execute_intent_at = clock_timestamp() WHERE id = @attempt;
                 UPDATE background_jobs SET phase = 'executing' WHERE id = @job;
+                """, ("tenant", SchemaFixture.TenantA), ("job", job.JobId), ("attempt", attempt), ("operation", operation));
+            if (recordOutcome)
+                await SchemaQueries.ExecuteAsync(app, transaction, """
                 UPDATE background_job_attempts SET outcome = '{}', outcome_kind = @outcome_kind, outcome_at = clock_timestamp(),
+                    failure_policy = CASE WHEN @outcome_kind='succeeded' THEN NULL ELSE 'transient_repeatable' END,
                     quiescence_id = uuidv7(), quiescence_kind = 'provider_fenced', quiescent_at = clock_timestamp() WHERE id = @attempt;
                 UPDATE background_job_reservations SET released_at = clock_timestamp(), release_reason = 'quiescent'
                     WHERE job_id = @job AND attempt_id = @attempt;

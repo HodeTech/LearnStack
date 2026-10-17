@@ -20,6 +20,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AppJobAuditStore = "LearnStack.Infrastructure.Audit.PostgresAuditStore";
     private const string AppJobFlags = "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags";
     private const string AppJobKillswitch = "LearnStack.Modules.Tenancy.Infrastructure.KillswitchOverlay";
+    private const string AppJobRecovery = "LearnStack.Infrastructure.Jobs.BackgroundJobExecutionControl";
+    private const string AppJobTerminalNoStart = "LearnStack.Infrastructure.Jobs.BackgroundJobTerminalNoStartOperation";
+    private const string AppJobRecoveryReceipt = "LearnStack.Application.Jobs.BackgroundJobExternalRecoveryReceipt";
 
     private static SortedSet<string> JobApplicationSourceOffenders(ProductionCensus census)
     {
@@ -27,7 +30,8 @@ public sealed partial class OutboxDispatchConventionTests
         var subjects = new[] { AppJobOwner, AppJobResources, AppJobUnit, AppJobAuditConfig, AppJobAuditStore,
             AppJobFlags, AppJobKillswitch, JobExecutorType,
             "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
-            "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator" };
+            "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
+            AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {
@@ -48,7 +52,8 @@ public sealed partial class OutboxDispatchConventionTests
         var ownerSurface = new[] { "Create", "get_Current", "Enter", "get_CleanupConfirmed", "RequireBusinessReady",
             "RequireFreshScopeReady", "RequireOwnedMainUnit", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction",
             "ReportMainTransactionCleanup", "ReportMainCleanup", "RefuseUnrelatedRead", "CloseIssuance", "JoinAuxiliaryCleanupAsync",
-            "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad", "BeginKillswitchLoad" };
+            "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad", "BeginKillswitchLoad",
+            "get_IsExternal", "RefuseExternalEntry", "EnterExternal", "BindExternalRecovery" };
         var resourceSurface = new[] { "HoldConnection", "HoldTransaction", "HoldCommand", "HoldReader", "HoldActualTask",
             "DisposeReaderAsync", "CleanupAsync" };
         CheckSurface(owner, ownerSurface);
@@ -65,12 +70,21 @@ public sealed partial class OutboxDispatchConventionTests
             .Where(instruction => instruction.Operand is MethodReference).ToArray();
         RecordDetachedTargets(offenders, sites);
 
-        Exact(owner, "Create", [(JobExecutorType, "ExecutePublishedAsync")]);
+        // Original admission owns its source across sequential executor scopes.
+        // Fresh recovery and terminal cleanup own distinct sources before their first app read.
+        Exact(owner, "Create", [(JobExecutorType, "ExecutePublishedAsync"),
+            (AppJobRecovery, "ExecuteExternalRecoveryAsync"), (AppJobTerminalNoStart, ".ctor")]);
         Exact(owner, ".ctor", [(AppJobOwner, "Create")]);
         Exact(owner, "Enter", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
-            (JobExecutorType, "ExecuteCapacityCleanupAsync")]);
+            (JobExecutorType, "ExecuteCapacityCleanupAsync"), (JobExecutorType, "ReadExternalStateCoreAsync"),
+            (JobExecutorType, "WriteExternalCheckpointAsync"), (AppJobRecovery, "ExecuteExternalRecoveryAsync"),
+            (AppJobTerminalNoStart, "ExecuteApplicationAsync")]);
         Exact(owner, "JoinAuxiliaryCleanupAsync", [(JobExecutorType, "ExecutePublishedAsync"), (JobExecutorType, "ExecuteBusinessAsync"),
-            (JobExecutorType, "ExecuteCapacityCleanupAsync")]);
+            (JobExecutorType, "ExecuteCapacityCleanupAsync"), (JobExecutorType, "ReadExternalStateCoreAsync"),
+            (JobExecutorType, "WriteExternalCheckpointAsync"), (AppJobTerminalNoStart, "ObserveActualAsync")]);
+        Exact(owner, "BindExternalRecovery", [(AppJobRecoveryReceipt, "Bind")]);
+        // This marker only denies app entry during provider construction/calls.
+        Exact(owner, "EnterExternal", [(JobAdmission, "EnterExternal")]);
         Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
         Exact(owner, "BeginAuditConfigLoad", [(AppJobAuditConfig, "StartLoadAsync")]);
         Exact(owner, "BeginStandaloneAudit", [(AppJobAuditStore, "WriteOwnTransactionAsync")]);
@@ -120,7 +134,9 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var (typeName, methodName) in expected)
             {
                 var callers = types[typeName].Methods.Where(method => method.Name == methodName
-                    && (typeName != AppJobUnit || methodName != "BeginTransactionAsync" || method.Parameters.Count == 2)).ToArray();
+                    && (typeName != AppJobUnit || methodName != "BeginTransactionAsync"
+                        || method.Parameters.Select(parameter => parameter.ParameterType.FullName).SequenceEqual(
+                            ["LearnStack.SharedKernel.Persistence.TransactionMode", "System.Threading.CancellationToken"]))).ToArray();
                 if (callers.Length != 1) { offenders.Add("Missing or overloaded job source caller: " + typeName + "::" + methodName); continue; }
                 allowed.Add(MethodId(callers[0]));
             }
@@ -147,7 +163,7 @@ public sealed partial class OutboxDispatchConventionTests
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var guardedOwnerMethods = new[] { ".ctor", "Create", "Enter", "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad",
             "BeginKillswitchLoad", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction", "ReportMainTransactionCleanup",
-            "ReportMainCleanup", "RefuseUnrelatedRead", "JoinAuxiliaryCleanupAsync" };
+            "ReportMainCleanup", "RefuseUnrelatedRead", "JoinAuxiliaryCleanupAsync", "BindExternalRecovery", "EnterExternal" };
         foreach (var target in owner.Methods.Where(method => guardedOwnerMethods.Contains(method.Name, StringComparer.Ordinal))
                      .Concat(resources.Methods.Where(method => method.IsPublic || method.IsConstructor
                          || method.Name == "JoinActualTaskAsync")).ToArray())
@@ -189,17 +205,71 @@ public sealed partial class OutboxDispatchConventionTests
                 return () => declaringType.Methods.Add(join);
             }, JobApplicationSourceOffenders);
         }
-        var sequentialSites = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobExecutorType
-                && item.Owner.Name == "ExecuteCapacityCleanupAsync").SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == AppJobOwner
-                && target.Name is "Enter" or "JoinAuxiliaryCleanupAsync").ToArray();
-        sequentialSites.Should().HaveCount(2, "the same owner supplies one sequential binding and one actual auxiliary join");
-        foreach (var site in sequentialSites)
+        // Literal expected boundaries are reviewed independently of the observed IL.
+        // In particular, neither forwarding read overload is an allowed source binder/joiner.
+        var lifecycleCallers = new (string Type, string Method, string[] Seams)[]
         {
-            AssertMutation(census, "a deleted same-source sequential checkpoint boundary", () =>
-                ReplaceInstruction(site, OpCodes.Nop, null!), JobApplicationSourceOffenders);
-            AssertMutation(census, "a delegated same-source sequential checkpoint boundary", () =>
-                ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), JobApplicationSourceOffenders);
+            (JobExecutorType, "ExecutePublishedAsync", ["Create", "Enter", "JoinAuxiliaryCleanupAsync"]),
+            (JobExecutorType, "ExecuteBusinessAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
+            (JobExecutorType, "ExecuteCapacityCleanupAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
+            (JobExecutorType, "ReadExternalStateCoreAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
+            (JobExecutorType, "WriteExternalCheckpointAsync", ["Enter", "JoinAuxiliaryCleanupAsync"]),
+            (AppJobRecovery, "ExecuteExternalRecoveryAsync", ["Create", "Enter"]),
+            (AppJobTerminalNoStart, ".ctor", ["Create"]),
+            (AppJobTerminalNoStart, "ExecuteApplicationAsync", ["Enter"]),
+            (AppJobTerminalNoStart, "ObserveActualAsync", ["JoinAuxiliaryCleanupAsync"]),
+            (AppJobRecoveryReceipt, "Bind", ["BindExternalRecovery"]),
+            (JobAdmission, "EnterExternal", ["EnterExternal"]),
+        };
+        foreach (var (typeName, methodName, expectedSeams) in lifecycleCallers)
+        {
+            var callerType = census.Types.Values.Single(type => type.FullName == typeName);
+            var caller = callerType.Methods.Single(method => method.Name == methodName);
+            var actualSites = OwnedBodies(census).Where(item => MethodId(item.Owner) == MethodId(caller))
+                .SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target
+                    && target.DeclaringType.FullName == AppJobOwner
+                    && target.Name is "Create" or "Enter" or "JoinAuxiliaryCleanupAsync" or "BindExternalRecovery" or "EnterExternal")
+                .ToArray();
+            actualSites.Select(site => ((MethodReference)site.Operand).Name).Should().BeEquivalentTo(expectedSeams,
+                "each approved caller retains its nonempty exact source boundary count");
+            foreach (var site in actualSites)
+            {
+                AssertMutation(census, "a deleted actual source boundary in " + typeName + "::" + methodName, () =>
+                    ReplaceInstruction(site, OpCodes.Nop, null!), JobApplicationSourceOffenders);
+                foreach (var opcode in new[] { OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a delegated actual source boundary in " + typeName + "::" + methodName, () =>
+                        ReplaceInstruction(site, opcode, site.Operand), JobApplicationSourceOffenders);
+            }
+            AssertMutation(census, "an unauthorized overload of a source caller " + typeName + "::" + methodName, () =>
+            {
+                var extra = new MethodDefinition(caller.Name, caller.Attributes, caller.ReturnType);
+                foreach (var parameter in caller.Parameters)
+                    extra.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+                extra.Parameters.Add(new ParameterDefinition(caller.Module.TypeSystem.String));
+                extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, (MethodReference)actualSites[0].Operand));
+                extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                callerType.Methods.Add(extra);
+                return () => callerType.Methods.Remove(extra);
+            }, JobApplicationSourceOffenders);
+        }
+        // The real overloads share a name, but only the core owns the source.
+        var executor = census.Types.Values.Single(type => type.FullName == JobExecutorType);
+        var forwardingReads = executor.Methods.Where(method => method.Name == "ReadExternalStateAsync").ToArray();
+        forwardingReads.Should().HaveCount(2);
+        foreach (var forwardingRead in forwardingReads)
+        {
+            foreach (var seam in new[] { "Create", "Enter", "JoinAuxiliaryCleanupAsync" })
+            {
+                var target = owner.Methods.Single(method => method.Name == seam);
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a source boundary in a forwarding read overload " + MethodId(forwardingRead), () =>
+                    {
+                        var extra = Instruction.Create(opcode, target);
+                        forwardingRead.Body.Instructions.Insert(0, extra);
+                        return () => forwardingRead.Body.Instructions.Remove(extra);
+                    }, JobApplicationSourceOffenders);
+            }
         }
     }
 

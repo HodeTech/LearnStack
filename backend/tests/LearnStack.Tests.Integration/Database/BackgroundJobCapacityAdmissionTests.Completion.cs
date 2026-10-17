@@ -1,3 +1,4 @@
+using LearnStack.Application.Jobs;
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
@@ -55,7 +56,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests
         var job = await CapacityJobAsync(database);
         var admission = await StartAsync(host.Services, job);
         admission.Outcome.Should().Be(JobStartExecutionOutcome.Started);
-        var completed = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, new());
+        var completed = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         var committed = ending == "success";
         completed.CommitAcknowledged.Should().Be(committed);
         completed.KnownRollback.Should().Be(!committed);

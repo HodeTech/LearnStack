@@ -15,7 +15,9 @@ public sealed record BackgroundJobPhysicalCapacity(int Pools, int Workers, int C
         var controls = topology.Pools.Values.Count(pool => pool.Kind == BackgroundJobWorkerPoolKind.Control);
         var invocations = topology.Pools.Values.Sum(pool => BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers));
         // Stock W + four per-pool controls/lifecycle + two schedulers per
-        // Control pool + shared/bridge/messaging eleven + retained routing U.
+        // Control pool + shared/bridge/messaging eleven + retained invocation U.
+        // Each invocation has at most one actual routing, recovery acquisition,
+        // confirmation or checkpoint-history SQL operation, including cleanup.
         // Step 5 adds one batch renewal slot, two recovery/probe slots and
         // two terminal/probe slots. Cleanup failure seals its exact lane.
         return new(pools, workers, controls, invocations,

@@ -1,4 +1,6 @@
 using LearnStack.Application.Jobs;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Npgsql;
@@ -6,9 +8,10 @@ using NpgsqlTypes;
 
 namespace LearnStack.Infrastructure.Jobs;
 
-/// <summary>The single app-role participant for transactional job completion.</summary>
-internal sealed class PostgresBackgroundJobCompletion(IUnitOfWork unit, ITenantContextAccessor accessor,
-    BackgroundJobRuntimeOptions options) : BackgroundJobCompletionParticipant(unit, accessor)
+/// <summary>The single app-role participant for registered transactional and external business stages.</summary>
+internal sealed partial class PostgresBackgroundJobCompletion(IUnitOfWork unit, ITenantContextAccessor accessor,
+    BackgroundJobRuntimeOptions options, BackgroundJobDefinitionRegistry definitions, IAuditStore audit,
+    IGuidFactory ids) : BackgroundJobCompletionParticipant(unit, accessor)
 {
     private const string Identity = """
         id = @id AND tenant_id = @tenant AND organization_id IS NOT DISTINCT FROM @organization
@@ -30,6 +33,17 @@ internal sealed class PostgresBackgroundJobCompletion(IUnitOfWork unit, ITenantC
     protected override async Task PreflightAsync(CancellationToken cancellationToken)
     {
         RequireCurrent();
+        if (Receipt.Stage == SharedKernel.Jobs.BackgroundJobExecutionStage.Prepare)
+        {
+            await PreflightPrepareAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (Receipt.Stage == SharedKernel.Jobs.BackgroundJobExecutionStage.Finalize)
+        {
+            await PreflightFinalizeAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (Receipt.Stage != SharedKernel.Jobs.BackgroundJobExecutionStage.Transactional) throw Refused();
         // No row lock spans the business handler. Its final authority is checked again after locking.
         await using var command = CreateCommand("SELECT " + BackgroundJobEnvelopeSql.Projection
             + " FROM background_jobs WHERE " + Identity + LiveTime);
@@ -40,15 +54,29 @@ internal sealed class PostgresBackgroundJobCompletion(IUnitOfWork unit, ITenantC
         RequireCurrent();
     }
 
-    protected override async Task FenceAsync(CancellationToken cancellationToken)
+    protected override async Task FenceAsync(LearnStack.SharedKernel.Results.IResultBase response,
+        CancellationToken cancellationToken)
     {
         RequireCurrent();
+        if (Receipt.Stage == SharedKernel.Jobs.BackgroundJobExecutionStage.Prepare)
+        {
+            await FencePrepareAsync(response, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (Receipt.Stage == SharedKernel.Jobs.BackgroundJobExecutionStage.Finalize)
+        {
+            await FenceFinalizeAsync(response, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (Receipt.Stage != SharedKernel.Jobs.BackgroundJobExecutionStage.Transactional
+            || response is not SharedKernel.Results.Result<SharedKernel.Results.None>) throw Refused();
         await using (var locked = CreateCommand("SELECT TRUE FROM background_jobs WHERE " + Identity + " FOR UPDATE"))
         {
             if (await locked.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
                 throw Refused();
         }
         RequireCurrent();
+        await CaptureCommitBudgetAsync(cancellationToken).ConfigureAwait(false);
         // The time predicates execute in a separate statement after the actual lock wait.
         await using var update = CreateCommand("UPDATE background_jobs SET phase = 'completed', processed_at = clock_timestamp() WHERE "
             + Identity + LiveTime + " RETURNING TRUE");

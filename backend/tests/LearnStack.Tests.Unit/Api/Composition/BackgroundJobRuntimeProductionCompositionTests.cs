@@ -65,6 +65,42 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
             "the source and its sanitized settings must use the same immutable registration input");
     }
 
+    [Theory]
+    [InlineData(23, false)]
+    [InlineData(24, true)]
+    public async Task Captured_application_capacity_includes_external_work_before_either_source_is_constructed(
+        int maximum, bool accepted)
+    {
+        var builder = Builder(50);
+        builder.Configuration["ConnectionStrings:Default"] = ApplicationConnection(maximum);
+        builder.Services.AddLearnStackPersistence(builder.Configuration);
+        builder.Services.AddLearnStackOutboxDispatcher(builder.Configuration);
+        builder.Configuration["ConnectionStrings:Default"] = ApplicationConnection(100);
+        await using var services = builder.Services.BuildServiceProvider();
+        var privileged = services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
+        var application = services.GetRequiredService<ApplicationDataSourceLifetime>();
+        application.PoolSettings.Should().Be(new BackgroundJobApplicationPoolSettings(true, maximum));
+        if (!accepted)
+        {
+            var resolve = () => services.GetRequiredService<BackgroundJobRuntime>();
+            resolve.Should().Throw<ArgumentException>().WithMessage("*job-only physical capacity*");
+        }
+        else
+        {
+            var hosted = services.GetServices<IHostedService>().ToArray();
+            var runtime = services.GetRequiredService<BackgroundJobRuntime>();
+            runtime.Snapshot.ApplicationCapacity.Should().Be(new BackgroundJobApplicationCapacity(11, 24));
+            foreach (var owner in hosted.OfType<IDisposable>()) owner.Dispose();
+            await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        privileged.IsValueCreated.Should().BeFalse();
+        application.Source.IsValueCreated.Should().BeFalse();
+    }
+
+    private static string ApplicationConnection(int maximum) =>
+        "Host=localhost;Port=1;Database=learnstack;Username=learnstack_app;Maximum Pool Size="
+        + maximum.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     private static WebApplicationBuilder Builder(int maxPoolSize)
     {
         var builder = WebApplication.CreateBuilder([]);

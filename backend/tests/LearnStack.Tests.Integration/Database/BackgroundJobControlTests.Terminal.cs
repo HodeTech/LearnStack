@@ -193,7 +193,7 @@ public sealed partial class BackgroundJobControlTests
         await SchemaQueries.ExecuteAsync(locker, transaction,
             "UPDATE background_jobs SET ownership_until=clock_timestamp()+interval '150 milliseconds' WHERE id=@id", ("id", job.Value));
         var terminalizing = store.TryTerminalizeAsync(claim, BackgroundJobRuntimeFixture.Traceparent);
-        await WaitForDispatcherLockAsync(database.OutboxConnectionString);
+        await WaitForDispatcherLockAsync(database.OutboxConnectionString, ((NpgsqlConnection)locker).ProcessID);
         await SchemaQueries.ExecuteAsync(locker, transaction, "SELECT pg_sleep(0.25)");
         await transaction.CommitAsync();
         var result = await terminalizing.WaitAsync(TimeSpan.FromSeconds(5));
@@ -240,7 +240,7 @@ public sealed partial class BackgroundJobControlTests
         var terminalJob = await RequestInvalidAsync(database, host.Services, source);
         var runningJob = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
         var route = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(runningJob, 1))!;
-        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(route);
+        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(route, BackgroundJobTestRun.Create());
         var identity = BackgroundJobExecutionIdentity.FromReceipt(admitted.Receipt!);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -280,7 +280,7 @@ public sealed partial class BackgroundJobControlTests
             organization is null ? BackgroundJobRuntimeFixture.TenantKey : BackgroundJobRuntimeFixture.OrganizationKey,
             organization, parameters: "{\"ResourceId\":\"12345678-1234-7123-8123-123456789abc\",\"secret\":\"secret-envelope-value\"}");
         var claim = (await services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-        var read = await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var read = await services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         read.Outcome.Should().Be(JobStartExecutionOutcome.InvalidEnvelope);
         var request = await Control(source).RequestInvalidEnvelopeAsync(claim);
         request.ThrowIfFailed();
@@ -318,13 +318,20 @@ public sealed partial class BackgroundJobControlTests
         return result is DateTime date ? new DateTimeOffset(date) : null;
     }
 
-    private static async Task WaitForDispatcherLockAsync(string connectionString)
+    private static async Task WaitForDispatcherLockAsync(string connectionString, int blockingPid)
     {
         await using var connection = await PostgresFixture.OpenAsync(connectionString);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         while (true)
         {
-            await using var command = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND usename='learnstack_outbox_admin' AND wait_event_type='Lock' AND query LIKE '%FOR UPDATE%'", (NpgsqlConnection)connection);
+            // pg_stat_activity may truncate a longer predicate before its
+            // FOR UPDATE suffix. Observe the real blocking session instead.
+            await using var command = new NpgsqlCommand("""
+                SELECT count(*) FROM pg_stat_activity WHERE datname=current_database()
+                    AND usename='learnstack_outbox_admin' AND wait_event_type='Lock'
+                    AND @blocker=ANY(pg_blocking_pids(pid))
+                """, (NpgsqlConnection)connection);
+            command.Parameters.AddWithValue("blocker", blockingPid);
             if ((long)(await command.ExecuteScalarAsync(deadline.Token))! > 0) return;
             await Task.Delay(10, deadline.Token);
         }

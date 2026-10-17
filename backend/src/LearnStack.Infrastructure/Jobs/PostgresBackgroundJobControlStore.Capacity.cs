@@ -93,17 +93,22 @@ internal sealed partial class PostgresBackgroundJobControlStore
                             row.LedgerToken!.Value, CapacityGroup: row.CapacityGroup, RecoveryToken: recovery,
                             Ordinal: row.NormalAttempts, Deadline: row.Deadline));
                         await CommitAsync(resources, deadline.Token).ConfigureAwait(false);
-                        if (candidate is not null)
-                        {
-                            receipt = ConfirmCandidate(candidate);
-                            cleanup.RequireRecovery(receipt);
-                        }
                     }
                 }
             }
         }
         catch (Exception failure) when (BackgroundJobControlResources.Catchable(failure)) { resources.RecordFailure(failure); }
         finally { await resources.CleanupAsync().ConfigureAwait(false); }
+        if (candidate is not null && resources.CommitAcknowledged && resources.CleanupConfirmed && resources.Failure is null)
+        {
+            try
+            {
+                var confirmed = ConfirmCandidate(candidate);
+                cleanup.RequireRecovery(confirmed);
+                receipt = confirmed;
+            }
+            catch (Exception failure) when (BackgroundJobControlResources.Catchable(failure)) { resources.RecordFailure(failure); }
+        }
         return new(receipt, resources, probes.AsReadOnly(), candidate);
     }
 
@@ -226,11 +231,13 @@ internal sealed partial class PostgresBackgroundJobControlStore
         return result;
     }
 
-    private async Task<BackgroundJobProbeResult> ProbeCapacityAsync(BackgroundJobControlResources resources,
+    private sealed record CapacityProbe(BackgroundJobProbeDisposition Disposition, Candidate? Candidate, bool CurrentAuthority);
+
+    private async Task<CapacityProbe> ProbeCapacityAsync(BackgroundJobControlResources resources,
         BackgroundJobCommitProbe probe, ControlRow? row, DateTimeOffset dbNow, CancellationToken token)
     {
         var disposition = BackgroundJobProbeDisposition.Unresolved;
-        BackgroundJobCapacityRecoveryReceipt? receipt = null;
+        Candidate? candidate = null;
         var current = row is not null && row.Profile == "transactional" && row.CapacityGroup == probe.CapacityGroup
             && row.TenantId == probe.TenantId && row.OrganizationId == probe.OrganizationId
             && row.DefinitionKey == probe.DefinitionKey && row.Queue == probe.Queue;
@@ -260,15 +267,13 @@ internal sealed partial class PostgresBackgroundJobControlStore
             {
                 if (authority && row!.LedgerToken == probe.Token)
                 {
-                    var candidate = await ReadRecoveryCandidateAsync(resources, row.JobId, probe.RecoveryToken!.Value, token).ConfigureAwait(false);
-                    if (candidate is not null) { receipt = ConfirmCandidate(candidate); disposition = BackgroundJobProbeDisposition.CapacityRecoveryAcquired; }
+                    candidate = await ReadRecoveryCandidateAsync(resources, row.JobId, probe.RecoveryToken!.Value, token).ConfigureAwait(false);
+                    if (candidate is not null) disposition = BackgroundJobProbeDisposition.CapacityRecoveryAcquired;
                 }
                 else disposition = BackgroundJobProbeDisposition.RolledBack;
             }
         }
-        return new(disposition, probe.JobId, row?.Phase, row?.WakeGeneration ?? 0, row?.NormalAttempts ?? 0,
-            row?.AttemptId, row?.OwnershipToken, row?.OwnershipUntil, row?.Deadline, dbNow)
-        { RecoveryReceipt = receipt, CurrentRecoveryAuthority = authority };
+        return new(disposition, candidate, authority);
     }
 
     private async Task<BackgroundJobControlChange?> RecoverCapacityRowAsync(BackgroundJobControlResources resources,

@@ -10,7 +10,7 @@ namespace LearnStack.Application.Jobs;
 public enum BackgroundJobCapacityCleanupEvidence { TransactionalRollback, NeverStarted }
 
 /// <summary>Acknowledged nonexecuting recovery authority; never an executable business receipt.</summary>
-public sealed class BackgroundJobCapacityRecoveryReceipt
+public sealed partial class BackgroundJobCapacityRecoveryReceipt
 {
     private BackgroundJobCapacityRecoveryReceipt(DbDataReader row)
     {
@@ -60,7 +60,7 @@ public sealed class BackgroundJobCapacityRecoveryReceipt
     public DateTimeOffset DbNow { get; }
 
 #pragma warning disable CA1034 // Only the confined store may publish a captured candidate after ACK or locked proof.
-    public abstract class MintingSource
+    public abstract partial class MintingSource
     {
         protected sealed class Candidate
         {
@@ -83,12 +83,14 @@ public sealed class RecordBackgroundJobCapacityCleanupCommand : IRequest<Result<
     private bool _recorded;
 
     public RecordBackgroundJobCapacityCleanupCommand(BackgroundJobCapacityRecoveryReceipt recovery,
-        BackgroundJobCapacityCleanupEvidence evidence)
+        BackgroundJobCapacityCleanupEvidence evidence, BackgroundJobCommitGate gate)
     {
         ArgumentNullException.ThrowIfNull(recovery);
         if (!Enum.IsDefined(evidence)) throw new ArgumentOutOfRangeException(nameof(evidence));
         Recovery = recovery;
         Evidence = evidence;
+        Gate = gate is { Kind: BackgroundJobCheckpointKind.TransactionalCleanup }
+            ? gate : throw new ArgumentException("Capacity cleanup requires its prebound stage.", nameof(gate));
         SourceOwner = JobApplicationSourceOwner.Current
             ?? throw new InvalidOperationException("Capacity cleanup requires its original application-source owner.");
     }
@@ -96,6 +98,7 @@ public sealed class RecordBackgroundJobCapacityCleanupCommand : IRequest<Result<
     public BackgroundJobCapacityRecoveryReceipt Recovery { get; }
     public BackgroundJobCapacityCleanupEvidence Evidence { get; }
     public JobApplicationSourceOwner SourceOwner { get; }
+    public BackgroundJobCommitGate Gate { get; }
     public bool CommitStarted { get; private set; }
     public bool CommitAcknowledged { get; private set; }
     public bool KnownRollback { get; private set; }
@@ -119,6 +122,7 @@ public sealed class RecordBackgroundJobCapacityCleanupCommand : IRequest<Result<
         if (!ReferenceEquals(SourceOwner, JobApplicationSourceOwner.Current) || !ReferenceEquals(_unit, unit)
             || _transaction is null || !ReferenceEquals(_transaction, unit.Transaction) || !unit.HasActiveTransaction
             || unit.IsRollbackOnly || unit.Mode != TransactionMode.ReadWrite || _announcement is not { Generation: > 0 }
+            || Gate.IsClosed
             || _announcement != unit.GetTenantContextAnnouncement(_transaction)
             || _announcement.TenantId != Recovery.TenantId || _announcement.OrganizationId != Recovery.OrganizationId)
             throw new InvalidOperationException("Capacity cleanup lost its exact announced physical owner.");
@@ -136,6 +140,7 @@ public sealed class RecordBackgroundJobCapacityCleanupCommand : IRequest<Result<
     {
         RequireOwner(unit);
         if (!_recorded || CommitStarted) throw new InvalidOperationException("Capacity cleanup has no recorded checkpoint.");
+        if (!Gate.TryBeginCommit()) throw new OperationCanceledException("Capacity checkpoint COMMIT is closed.");
         CommitStarted = true;
     }
 
@@ -144,7 +149,12 @@ public sealed class RecordBackgroundJobCapacityCleanupCommand : IRequest<Result<
         if (!ReferenceEquals(_unit, unit) || !CommitStarted || CommitAcknowledged)
             throw new InvalidOperationException("Capacity cleanup acknowledgement belongs to its actual owner.");
         CommitAcknowledged = true;
+        Gate.RecordCommitted();
     }
 
-    internal void RecordRolledBack() => KnownRollback = true;
+    internal void RecordRolledBack()
+    {
+        KnownRollback = true;
+        Gate.RecordRolledBack();
+    }
 }

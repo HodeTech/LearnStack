@@ -49,7 +49,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         (await store.TryClaimAsync(job, 1)).Should().BeNull("an active routing lease excludes another callback");
 
         using var activity = new Activity("outer-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.Receipt.Should().NotBeNull();
         result.Receipt!.Claim.Should().BeSameAs(claim);
@@ -123,7 +123,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         });
         (await gate.IsPermittedAsync("positive-control")).Should().BeTrue();
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-        (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim)).Outcome.Should().Be(JobStartExecutionOutcome.Started);
+        (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create())).Outcome.Should().Be(JobStartExecutionOutcome.Started);
         reads.Should().Be(1);
         starts.Should().Be(1);
         observation.ReadScopeDisposed.Should().BeTrue();
@@ -136,7 +136,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
     [InlineData("unknown")]
     [InlineData("pending")]
     [InlineData("capacity")]
-    [InlineData("external")]
+    [InlineData("profile_mismatch")]
     [InlineData("early")]
     [InlineData("generation")]
     public async Task Unready_early_stale_and_capacity_unavailable_callbacks_spend_no_attempt(string reason)
@@ -148,13 +148,15 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             "unknown" => "jobssubmissionfixture.unknown.v1",
             "pending" => BackgroundJobRuntimeFixture.PendingKey,
             "capacity" => BackgroundJobRuntimeFixture.CapacityKey,
-            "external" => BackgroundJobRuntimeFixture.ExternalKey,
+            "profile_mismatch" => BackgroundJobRuntimeFixture.ExternalKey,
             _ => BackgroundJobRuntimeFixture.TenantKey,
         };
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, key,
             due: reason == "early" ? DateTimeOffset.UtcNow.AddHours(1) : null,
-            capacityGroup: reason is "capacity" or "external" ? BackgroundJobRuntimeFixture.CapacityGroup : null,
-            profile: reason == "external" ? "external" : "transactional");
+            capacityGroup: reason is "capacity" or "profile_mismatch" ? BackgroundJobRuntimeFixture.CapacityGroup : null,
+            // Active external admission is now covered by the genuine SDK flow.
+            // A transactional row cannot borrow that definition's registration.
+            profile: "transactional");
         var probe = new BackgroundJobFixtureProbe();
         await using var host = Fixture.Host(database, probe, configure: services =>
         {
@@ -169,7 +171,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         if (reason == "capacity")
         {
             claim.Should().NotBeNull("routing is separate from the app-role capacity decision");
-            (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim!)).Outcome
+            (await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim!, BackgroundJobTestRun.Create())).Outcome
                 .Should().Be(JobStartExecutionOutcome.CapacityDeferred);
         }
         else claim.Should().BeNull();
@@ -206,7 +208,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         await using var host = Fixture.Host(database, probe);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         claim.Should().NotBeNull("the routing lane sees opaque metadata, while the app-role pre-read validates the envelope");
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.InvalidEnvelope);
         result.Receipt.Should().BeNull();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job, organization)).Should().Be(0);
@@ -230,7 +232,7 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         var envelope = new BackgroundJobEnvelope(job, claim.TenantId, null, claim.DefinitionKey,
             "transactional", claim.Queue, null, "{}", claim.OriginalDueAt,
             BackgroundJobRuntimeFixture.Traceparent, null, null, null, null);
-        (await sender.Send(new AdmitBackgroundJobAttemptCommand(claim, envelope))).IsFailure.Should().BeTrue();
+        (await sender.Send(new AdmitBackgroundJobAttemptCommand(claim, envelope, BackgroundJobTestRun.Create().OpenBoundary(BackgroundJobCheckpointKind.Admission)))).IsFailure.Should().BeTrue();
         observation.ReadUnit.Should().BeNull();
         observation.StartUnit.Should().BeNull();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);

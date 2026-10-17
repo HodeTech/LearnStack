@@ -35,7 +35,7 @@ public sealed class BackgroundJobExecutionAdmission(
         var tenantId = receipt.Envelope.TenantId;
         var organizationId = receipt.Envelope.OrganizationId;
         var stage = receipt.Stage;
-        if (CurrentFrame.Value is not null || !ValidTenant(tenantId)
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null || !ValidTenant(tenantId)
             || !ValidOrganization(organizationId)
             || !definitions.TryGet(definitionKey, out var definition)
             || definition.Readiness != BackgroundJobDefinitionReadiness.Active
@@ -69,8 +69,16 @@ public sealed class BackgroundJobExecutionAdmission(
     {
         ArgumentNullException.ThrowIfNull(requestType);
         ArgumentNullException.ThrowIfNull(context);
+        if (JobApplicationSourceOwner.IsExternal) return false;
         var frame = CurrentFrame.Value;
         if (frame is null) return !IsFramework(requestType);
+        if (frame.ExternalCheckpoint is { } external)
+            return IsLive(frame) && CurrentRequest.Value is null && requestType == external.RequestType
+                && !external.Authority.Run.IsClosed && external.Gate?.IsClosed != true
+                && MatchesContext(frame.Admission, context)
+                && ReferenceEquals(external.Authority.SourceOwner, JobApplicationSourceOwner.Current)
+                && frame.Admission.Requests.TryGetValue(requestType, out var externalRequest)
+                && externalRequest.AuditPermits;
         if (frame.CapacityCleanup is { } cleanup)
             return IsLive(frame) && CurrentRequest.Value is null
                 && requestType == typeof(RecordBackgroundJobCapacityCleanupCommand)
@@ -148,9 +156,10 @@ public sealed class BackgroundJobExecutionAdmission(
     public static void RequireContext(ITenantContext context, IProvisionsTenant? provisioning = null)
     {
         ArgumentNullException.ThrowIfNull(context);
+        if (JobApplicationSourceOwner.IsExternal) throw Denied();
         if (CurrentFrame.Value is { } frame
             && (!IsLive(frame) || provisioning is not null
-                || (frame.CapacityCleanup is not null ? !MatchesContext(frame.Admission, context)
+                || (frame.CapacityCleanup is not null || frame.ExternalCheckpoint is not null ? !MatchesContext(frame.Admission, context)
                     : frame.Claim is not null ? !PermitsFrameworkContext(frame, context)
                     : !MatchesContext(frame.Admission, context) || frame.Completion?.PermitsContext(context) != true))) throw Denied();
     }
@@ -158,7 +167,19 @@ public sealed class BackgroundJobExecutionAdmission(
     /// <summary>Refuses privileged or alternate asynchronous entry even after accessor replacement.</summary>
     public static void RefusePrivilegedEntry()
     {
-        if (CurrentFrame.Value is not null) throw Denied();
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null) throw Denied();
+    }
+
+    /// <summary>
+    /// Denial-only scope for provider construction and calls. Inherited tasks stay
+    /// refused even after the original flow restores its ambient state. This
+    /// scope confers no execution, checkpoint, tenant or transaction authority.
+    /// </summary>
+    public static IDisposable EnterExternal()
+    {
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null || CurrentRequest.Value is not null)
+            throw Denied();
+        return JobApplicationSourceOwner.EnterExternal();
     }
 
     /// <summary>Closed framework pre-read mapping, independent of ambient job admission.</summary>
@@ -168,6 +189,7 @@ public sealed class BackgroundJobExecutionAdmission(
         ArgumentNullException.ThrowIfNull(catalog);
         return requestType.IsDefined(typeof(PublicSurfaceAttribute), inherit: false)
             || requestType == typeof(ReadBackgroundJobEnvelopeQuery)
+            || requestType == typeof(ReadBackgroundJobExternalStateQuery)
             ? TransactionMode.ReadOnly : TransactionMode.ReadWrite;
     }
 
@@ -175,7 +197,7 @@ public sealed class BackgroundJobExecutionAdmission(
     public IDisposable EnterFramework(BackgroundJobRoutingClaim claim, Func<bool>? startGate = null)
     {
         ArgumentNullException.ThrowIfNull(claim);
-        if (startGate?.Invoke() == false || CurrentFrame.Value is not null || !ValidTenant(claim.TenantId)
+        if (startGate?.Invoke() == false || JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null || !ValidTenant(claim.TenantId)
             || !ValidOrganization(claim.OrganizationId)) throw Denied();
         var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
         foreach (var required in BackgroundJobFrameworkRequests.All)
@@ -195,7 +217,7 @@ public sealed class BackgroundJobExecutionAdmission(
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(unit);
-        if (CurrentFrame.Value is not null || CurrentRequest.Value is not null
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null || CurrentRequest.Value is not null
             || !ReferenceEquals(command.SourceOwner, JobApplicationSourceOwner.Current)) throw Denied();
         command.SourceOwner.RequireFreshScopeReady();
         var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
@@ -222,6 +244,43 @@ public sealed class BackgroundJobExecutionAdmission(
             || request.RequestType != typeof(RecordBackgroundJobCapacityCleanupCommand)) throw Denied();
     }
 
+    public IDisposable EnterExternalCheckpoint(ReadBackgroundJobExternalStateQuery request, IUnitOfWork unit) =>
+        EnterExternalCheckpoint(request.Owner, unit);
+    public IDisposable EnterExternalCheckpoint(RecordBackgroundJobArmCommand request, IUnitOfWork unit) =>
+        EnterExternalCheckpoint(request.Owner, unit);
+    public IDisposable EnterExternalCheckpoint(RecordBackgroundJobOutcomeCommand request, IUnitOfWork unit) =>
+        EnterExternalCheckpoint(request.Owner, unit);
+
+    private Scope EnterExternalCheckpoint(BackgroundJobExternalCheckpointOwner checkpoint, IUnitOfWork unit)
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not null || CurrentRequest.Value is not null
+            || checkpoint.Authority.Run.IsClosed || checkpoint.Gate?.IsClosed == true
+            || !ReferenceEquals(checkpoint.Authority.SourceOwner, JobApplicationSourceOwner.Current)) throw Denied();
+        checkpoint.Authority.SourceOwner.RequireFreshScopeReady();
+        var metadata = requests.All.ToFrozenDictionary(request => request.RequestType, request => Snapshot(request, audit));
+        if (!metadata.TryGetValue(checkpoint.RequestType, out var request) || !request.AuditPermits
+            || request.Classification != (checkpoint.IsReadOnly ? BackgroundJobRequestClassification.FrameworkReadOnly
+                : BackgroundJobRequestClassification.FrameworkReadWrite)) throw Denied();
+        var envelope = checkpoint.Authority;
+        var admitted = new Admission(envelope.TenantId, envelope.OrganizationId,
+            envelope.OrganizationId is null ? BackgroundJobScope.TenantWide : BackgroundJobScope.Organization,
+            checkpoint.RequestType, Array.Empty<Type>().ToFrozenSet(), metadata);
+        var frame = new Frame(admitted, unit: unit, externalCheckpoint: checkpoint);
+        CurrentFrame.Value = frame;
+        return new Scope(frame);
+    }
+
+    internal static void RequireExternalCheckpoint(BackgroundJobExternalCheckpointOwner checkpoint)
+    {
+        if (JobApplicationSourceOwner.IsExternal || CurrentFrame.Value is not { } frame || !IsLive(frame)
+            || !ReferenceEquals(frame.ExternalCheckpoint, checkpoint) || checkpoint.Authority.Run.IsClosed
+            || checkpoint.Gate?.IsClosed == true
+            || !ReferenceEquals(checkpoint.Authority.SourceOwner, JobApplicationSourceOwner.Current)
+            || CurrentRequest.Value is not { IsOrdinary: false } request
+            || !ReferenceEquals(request.Execution, frame) || request.RequestType != checkpoint.RequestType) throw Denied();
+    }
+
     /// <summary>Only JobExecutor advances its live framework scope after validated app-role reading.</summary>
     public static void InstallValidatedEnvelope(BackgroundJobRoutingClaim claim, BackgroundJobEnvelope envelope)
     {
@@ -229,7 +288,8 @@ public sealed class BackgroundJobExecutionAdmission(
         RequireRead(claim);
         if (CurrentRequest.Value is not null || envelope.JobId != claim.JobId || envelope.TenantId != claim.TenantId
             || envelope.OrganizationId != claim.OrganizationId || envelope.DefinitionKey != claim.DefinitionKey
-            || envelope.Queue != claim.Queue || envelope.OriginalDueAt != claim.OriginalDueAt) throw Denied();
+            || envelope.Queue != claim.Queue || envelope.OriginalDueAt != claim.OriginalDueAt
+            || envelope.Profile != (claim.Profile == BackgroundJobExecutionProfile.Transactional ? "transactional" : "external")) throw Denied();
         CurrentFrame.Value!.Envelope = envelope;
     }
 
@@ -250,10 +310,12 @@ public sealed class BackgroundJobExecutionAdmission(
     /// <summary>A legacy direct owner cannot borrow the currently active framework request.</summary>
     internal static void RequireOperation(Type? operationType)
     {
+        if (JobApplicationSourceOwner.IsExternal) throw Denied();
         if (CurrentFrame.Value is not { } frame) return;
         if (!IsLive(frame) || CurrentRequest.Value is not { } request
             || operationType is null || request.RequestType != operationType) throw Denied();
         if (frame.CapacityCleanup is not null && operationType != typeof(RecordBackgroundJobCapacityCleanupCommand)) throw Denied();
+        if (frame.ExternalCheckpoint is { } checkpoint && operationType != checkpoint.RequestType) throw Denied();
         if (frame.Claim is not null
             && operationType != (frame.Envelope is null ? typeof(ReadBackgroundJobEnvelopeQuery)
                 : typeof(AdmitBackgroundJobAttemptCommand))) throw Denied();
@@ -264,6 +326,15 @@ public sealed class BackgroundJobExecutionAdmission(
         Type? operationType, ITenantContext context)
     {
         RequireOperation(operationType);
+        if (CurrentFrame.Value is { ExternalCheckpoint: { } external } externalFrame)
+        {
+            RequireExternalCheckpoint(external);
+            RequireContext(context);
+            if (!ReferenceEquals(externalFrame.Unit, unit) || unit.HasActiveTransaction
+                || mode != (external.IsReadOnly ? TransactionMode.ReadOnly : TransactionMode.ReadWrite)) throw Denied();
+            external.Authority.SourceOwner.RequireFreshScopeReady();
+            return null;
+        }
         if (CurrentFrame.Value is { CapacityCleanup: { } cleanup } checkpoint)
         {
             RequireCapacityCleanup(cleanup);
@@ -290,11 +361,17 @@ public sealed class BackgroundJobExecutionAdmission(
     }
 
     internal static async Task FenceOwnerAsync(BackgroundJobCompletionParticipant completion, IUnitOfWork unit,
-        CancellationToken cancellationToken)
+        LearnStack.SharedKernel.Results.IResultBase response, CancellationToken cancellationToken)
     {
         var request = RequireRootParticipant(completion, unit);
-        await completion.FenceOwnerAsync(unit, request.RequestType, request, cancellationToken).ConfigureAwait(false);
+        await completion.FenceOwnerAsync(unit, request.RequestType, request, response, cancellationToken).ConfigureAwait(false);
         _ = RequireRootParticipant(completion, unit);
+    }
+
+    internal static bool TryBeginOwnerCommit(BackgroundJobCompletionParticipant completion, IUnitOfWork unit)
+    {
+        var request = RequireRootParticipant(completion, unit);
+        return completion.TryBeginCommit(unit, request.RequestType, request);
     }
 
     private static RequestFrame RequireRootParticipant(BackgroundJobCompletionParticipant completion, IUnitOfWork unit)
@@ -309,6 +386,7 @@ public sealed class BackgroundJobExecutionAdmission(
 
     internal static ITenantContext AnnouncementContext(ITenantContext context, Type? operationType)
     {
+        if (JobApplicationSourceOwner.IsExternal) throw Denied();
         if (CurrentFrame.Value is { Claim: { } claim, Envelope: null } frame)
         {
             if (operationType != typeof(ReadBackgroundJobEnvelopeQuery) || !PermitsFrameworkContext(frame, context)) throw Denied();
@@ -326,7 +404,10 @@ public sealed class BackgroundJobExecutionAdmission(
 
     private static bool IsFramework(Type requestType) => requestType == typeof(ReadBackgroundJobEnvelopeQuery)
         || requestType == typeof(AdmitBackgroundJobAttemptCommand)
-        || requestType == typeof(RecordBackgroundJobCapacityCleanupCommand);
+        || requestType == typeof(RecordBackgroundJobCapacityCleanupCommand)
+        || requestType == typeof(ReadBackgroundJobExternalStateQuery)
+        || requestType == typeof(RecordBackgroundJobArmCommand)
+        || requestType == typeof(RecordBackgroundJobOutcomeCommand);
     private static bool PermitsFrameworkContext(Frame frame, ITenantContext context) =>
         frame.Envelope is null ? !context.IsResolved && CurrentRequest.Value is { IsOrdinary: false }
             : MatchesRoute(frame.Claim!, context) && CurrentRequest.Value is { IsOrdinary: false };
@@ -374,7 +455,8 @@ public sealed class BackgroundJobExecutionAdmission(
     // retaining a closed frame stays refused after its owner's execution flow restores.
     private sealed class Frame(Admission admission, BackgroundJobRoutingClaim? claim = null, ConfirmedStartReceipt? receipt = null,
         Func<bool>? startGate = null, IUnitOfWork? unit = null, BackgroundJobCompletionParticipant? completion = null,
-        RecordBackgroundJobCapacityCleanupCommand? capacityCleanup = null)
+        RecordBackgroundJobCapacityCleanupCommand? capacityCleanup = null,
+        BackgroundJobExternalCheckpointOwner? externalCheckpoint = null)
     {
         private int _closed;
         private int _rootClaimed;
@@ -385,6 +467,7 @@ public sealed class BackgroundJobExecutionAdmission(
         public IUnitOfWork? Unit { get; } = unit;
         public BackgroundJobCompletionParticipant? Completion { get; } = completion;
         public RecordBackgroundJobCapacityCleanupCommand? CapacityCleanup { get; } = capacityCleanup;
+        public BackgroundJobExternalCheckpointOwner? ExternalCheckpoint { get; } = externalCheckpoint;
         public bool RootClaimed => Volatile.Read(ref _rootClaimed) != 0;
         public bool TryClaimRoot() => Interlocked.CompareExchange(ref _rootClaimed, 1, 0) == 0;
         public BackgroundJobEnvelope? Envelope { get; set; }

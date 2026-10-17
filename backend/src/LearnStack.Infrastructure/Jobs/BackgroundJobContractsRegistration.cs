@@ -11,7 +11,7 @@ namespace LearnStack.Infrastructure.Jobs;
 /// <summary>Shared API/Seeder registration of submission and exact framework admission.</summary>
 public static class BackgroundJobContractsRegistration
 {
-    /// <summary>Registers zero business definitions, two framework requests and submission; no vendor or worker activation.</summary>
+    /// <summary>Registers zero business definitions, exact framework requests and submission; no vendor or worker activation.</summary>
     public static IServiceCollection AddLearnStackBackgroundJobContracts(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -29,6 +29,9 @@ public static class BackgroundJobContractsRegistration
         services.TryAddTransient<IRequestHandler<ReadBackgroundJobEnvelopeQuery, Result<BackgroundJobEnvelope>>, ReadBackgroundJobEnvelopeQueryHandler>();
         services.TryAddTransient<IRequestHandler<AdmitBackgroundJobAttemptCommand, Result<None>>, AdmitBackgroundJobAttemptCommandHandler>();
         services.TryAddTransient<IRequestHandler<RecordBackgroundJobCapacityCleanupCommand, Result<None>>, RecordBackgroundJobCapacityCleanupCommandHandler>();
+        services.TryAddTransient<IRequestHandler<ReadBackgroundJobExternalStateQuery, Result<BackgroundJobExternalSnapshot>>, ReadBackgroundJobExternalStateQueryHandler>();
+        services.TryAddTransient<IRequestHandler<RecordBackgroundJobArmCommand, Result<None>>, RecordBackgroundJobArmCommandHandler>();
+        services.TryAddTransient<IRequestHandler<RecordBackgroundJobOutcomeCommand, Result<None>>, RecordBackgroundJobOutcomeCommandHandler>();
         return services;
     }
 }

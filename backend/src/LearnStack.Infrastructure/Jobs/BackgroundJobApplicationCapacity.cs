@@ -7,11 +7,13 @@ public sealed record BackgroundJobApplicationCapacity(int InvocationOwners, int 
     {
         ArgumentNullException.ThrowIfNull(topology);
         var invocations = topology.Pools.Values
-            .Where(pool => pool.Kind == BackgroundJobWorkerPoolKind.Transactional)
+            .Where(pool => pool.Kind is BackgroundJobWorkerPoolKind.Transactional or BackgroundJobWorkerPoolKind.External)
             .Sum(pool => BackgroundJobRuntimeOptions.RetainedHardBound(pool.Workers));
-        // One sequential framework/business unit and one independently tracked
-        // auxiliary operation per invocation, including timed-out cache flights.
-        return new(invocations, checked(2 * invocations));
+        // Transactional work and external prepare/checkpoint/finalize/recovery
+        // each use one sequential main unit and one tracked auxiliary operation.
+        // A timed-out cache waiter still owns its actual auxiliary cleanup.
+        // The one terminal-lane no-start owner adds its own main/auxiliary pair.
+        return new(invocations, checked(2 * invocations + 2));
     }
 
     public void Validate(BackgroundJobApplicationPoolSettings settings)

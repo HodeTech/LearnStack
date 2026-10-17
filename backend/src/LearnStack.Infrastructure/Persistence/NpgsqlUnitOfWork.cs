@@ -91,6 +91,7 @@ public sealed class NpgsqlUnitOfWork(
     {
         get
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
             ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (_connection is null)
@@ -108,7 +109,14 @@ public sealed class NpgsqlUnitOfWork(
         }
     }
 
-    public DbTransaction? Transaction => _transaction;
+    public DbTransaction? Transaction
+    {
+        get
+        {
+            JobApplicationSourceOwner.RefuseExternalEntry();
+            return _transaction;
+        }
+    }
 
     public bool HasActiveTransaction => _transaction is not null;
 
@@ -120,6 +128,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task<IUnitOfWorkScope> BeginTransactionAsync(
         TransactionMode mode, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_rollbackOnly)
@@ -212,6 +221,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task SetTenantContextAsync(
         ITenantContext context, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(context);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -314,6 +324,7 @@ public sealed class NpgsqlUnitOfWork(
     public async Task SetProvisioningTenantContextAsync(
         TenantId tenantId, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_transaction is null)
@@ -412,6 +423,7 @@ public sealed class NpgsqlUnitOfWork(
 
     public Task CommitAsync(CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureFrameOpen();
 
@@ -420,6 +432,7 @@ public sealed class NpgsqlUnitOfWork(
 
     public Task RollbackAsync(CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         // No EnsureFrameOpen. A rollback is the cleanup path: on a unit a faulted
@@ -436,6 +449,7 @@ public sealed class NpgsqlUnitOfWork(
 
     public void MarkRollbackOnly()
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
         _rollbackOnly = true;
     }
@@ -688,6 +702,7 @@ public sealed class NpgsqlUnitOfWork(
 
         public Task CompleteAsync(CancellationToken cancellationToken = default)
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
             if (IsStale())
             {
                 // Not an error: this frame's transaction ended, and whatever
@@ -718,6 +733,12 @@ public sealed class NpgsqlUnitOfWork(
 
         public Task FailAsync(CancellationToken cancellationToken = default)
         {
+            JobApplicationSourceOwner.RefuseExternalEntry();
+            return FailOwnedAsync();
+        }
+
+        private Task FailOwnedAsync()
+        {
             if (IsStale() || AlreadyResolved())
             {
                 return Task.CompletedTask;
@@ -733,18 +754,19 @@ public sealed class NpgsqlUnitOfWork(
                 // exception with one about bookkeeping. CompleteAsync is where the
                 // same condition is loud, because there it would otherwise be
                 // reported as success.
-                unitOfWork.MarkRollbackOnly();
+                unitOfWork._rollbackOnly = true;
                 return unitOfWork.RollbackCoreAsync();
             }
 
-            return unitOfWork.RollbackAsync(cancellationToken);
+            return unitOfWork._depth == 0 || unitOfWork._transaction is null
+                ? Task.CompletedTask : unitOfWork.RollbackFrameAsync();
         }
 
         public async ValueTask DisposeAsync()
         {
-            // Through FailAsync, never frame-blind rollback. A stale frame cannot
-            // roll back or clean resources belonging to a later generation.
-            await FailAsync(CancellationToken.None);
+            // Disposal owns rollback cleanup even under external denial. It
+            // cannot create operational authority or resolve a later generation.
+            await FailOwnedAsync();
             if (IsOwner && !IsStale()) await unitOfWork.DisposeCompletedTransactionAsync();
         }
 

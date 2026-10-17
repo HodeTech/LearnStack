@@ -45,8 +45,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
         {
             var sql = $"SELECT id FROM background_jobs WHERE {query.Predicate} ORDER BY {query.Order} LIMIT 10 FOR UPDATE SKIP LOCKED";
             var clean = await ExplainAsync(dispatcher, sql);
-            Indexes(clean).Should().Contain(query.Index,
-                $"the ordinary planner must seek {query.Index} for its actual ordered locking query");
+            AssertEligibilityIndex(clean, query.Index);
             IndexConditions(clean).Should().Contain(condition =>
                 condition.Contains(query.Order.Split(',')[0] + " <= statement_timestamp()", StringComparison.Ordinal),
                 "using the index for ordering alone does not bound future-row scans");
@@ -55,16 +54,26 @@ public sealed partial class BackgroundJobStorageMigrationTests
             (await SchemaQueries.CountAsync(dispatcher,
                 $"SELECT count(*) FROM background_jobs WHERE {query.Predicate}")).Should().BeGreaterThan(0L,
                 "an empty candidate set cannot prove that the query finds eligible work");
-            var indexDefinition = (await SchemaQueries.ReadStringsAsync(owner,
-                $"SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = '{query.Index}'")).Single();
-            await SchemaQueries.ExecuteAsync(owner, null, $"DROP INDEX {query.Index}");
-            var dirty = await ExplainAsync(dispatcher, sql);
-            Indexes(dirty).Should().NotContain(query.Index);
-            MaximumRowsRemoved(dirty).Should().BeGreaterThanOrEqualTo(1000L,
-                "the same query must expose completed/future filtering after its partial index is removed");
-            await SchemaQueries.ExecuteAsync(owner, null, indexDefinition);
-            Indexes(await ExplainAsync(dispatcher, sql)).Should().Contain(query.Index,
-                "the repaired index must restore the same normal-planner seek");
+            // The broader retirement index is also a valid pending seek. Remove
+            // that exact alternate only in this isolated index-removal control.
+            var removed = query.Index == "ix_background_jobs_pending"
+                ? new[] { query.Index, "ix_background_jobs_retirement" } : [query.Index];
+            var definitions = await SchemaQueries.ReadStringsAsync(owner,
+                $"SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('{string.Join("','", removed)}')");
+            definitions.Should().HaveCount(removed.Length);
+            await SchemaQueries.ExecuteAsync(owner, null, "DROP INDEX " + string.Join(",", removed));
+            try
+            {
+                var dirty = await ExplainAsync(dispatcher, sql);
+                Indexes(dirty).Should().NotContain(removed);
+                MaximumRowsRemoved(dirty).Should().BeGreaterThanOrEqualTo(1000L,
+                    "the same query must expose completed/future filtering after its matching indexes are removed");
+            }
+            finally
+            {
+                foreach (var definition in definitions) await SchemaQueries.ExecuteAsync(owner, null, definition);
+            }
+            AssertEligibilityIndex(await ExplainAsync(dispatcher, sql), query.Index);
         }
     }
 
@@ -94,7 +103,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
                 $"SELECT count(*) FROM background_jobs WHERE {query.Predicate}")).Should().Be(dueCount);
             var sql = $"SELECT id FROM background_jobs WHERE {query.Predicate} ORDER BY {query.Order} LIMIT 10 FOR UPDATE SKIP LOCKED";
             var clean = await ExplainAsync(dispatcher, sql);
-            Indexes(clean).Should().Contain(query.Index);
+            AssertEligibilityIndex(clean, query.Index);
             IndexConditions(clean).Should().Contain(condition =>
                 condition.Contains(clockColumn + " <= statement_timestamp()", StringComparison.Ordinal));
             MaximumRowsRemoved(clean).Should().BeLessThan(100L,
@@ -107,6 +116,11 @@ public sealed partial class BackgroundJobStorageMigrationTests
                 "the same detector must expose the unbounded future scan caused by a volatile candidate cutoff");
         }
     }
+
+    private static void AssertEligibilityIndex(string plan, string expected) =>
+        Indexes(plan).Should().Contain(actual => actual == expected
+            || expected == "ix_background_jobs_pending" && actual == "ix_background_jobs_retirement",
+            "the ordinary planner must seek the exact matching index or the known pending/retirement alternate");
 
     private static async Task SeedFutureEligibilityAsync(DisposableSchemaDatabase database, Eligibility query)
     {

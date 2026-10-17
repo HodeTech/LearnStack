@@ -35,7 +35,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         {
             var claim = (await routing.TryClaimAsync(job, ordinal))!;
             claim.Should().NotBeNull();
-            var started = await executor.ExecuteAsync(claim);
+            var started = await executor.ExecuteAsync(claim, BackgroundJobTestRun.Create());
             started.Outcome.Should().Be(JobStartExecutionOutcome.Started);
             started.Receipt!.NormalAttemptOrdinal.Should().Be(ordinal);
             attempts.Add(started.Receipt.AttemptId.Value);
@@ -89,7 +89,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
             if (priorStart)
             {
                 var first = (await routing.TryClaimAsync(job, generation))!;
-                var admission = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(first);
+                var admission = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(first, BackgroundJobTestRun.Create());
                 priorAttempt = admission.Receipt!.AttemptId.Value;
                 var changed = await control.FinishKnownRollbackAsync(BackgroundJobExecutionIdentity.FromReceipt(admission.Receipt!),
                     new(BackgroundJobFailureDisposition.Retry, "unexpected_fault", null));
@@ -149,7 +149,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         {
             var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
             var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-            var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+            var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
             identities.Add(BackgroundJobExecutionIdentity.FromReceipt(start.Receipt!));
         }
         await DispatchAsync(database, "UPDATE background_jobs SET ownership_until=clock_timestamp()-interval '1 microsecond' WHERE id=@id", ("id", identities[2].JobId.Value));
@@ -177,7 +177,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         await using var source = Source(database.OutboxConnectionString);
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var admitted = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         var identity = BackgroundJobExecutionIdentity.FromReceipt(admitted.Receipt!);
         await using var business = await PostgresFixture.OpenAsync(database.AppConnectionString);
         await using var transaction = await business.BeginTransactionAsync();
@@ -263,7 +263,7 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         await using var host = Fixture.Host(database, new BackgroundJobFixtureProbe());
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
-        var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim);
+        var start = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         await using var proxy = new CommitResponseDroppingProxy(database.OutboxConnectionString, commitsToPass: 0);
         await using var faultySource = Source(proxy.ConnectionString);
         var result = await Control(faultySource).FinishKnownRollbackAsync(BackgroundJobExecutionIdentity.FromReceipt(start.Receipt!),

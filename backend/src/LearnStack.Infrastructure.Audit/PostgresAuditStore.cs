@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Text.Json;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using System.Diagnostics.Metrics;
@@ -135,6 +136,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WritePendingAsync(
         IUnitOfWork unitOfWork, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
         var pending = _capture.Intents
@@ -205,6 +207,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WriteStandaloneAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         EnsureNotPlatformScope(entry);
 
@@ -320,6 +323,7 @@ public sealed class PostgresAuditStore : IAuditStore
     public async Task WriteBestEffortAsync(
         AuditEntryDraft entry, CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         EnsureNotPlatformScope(entry);
 
@@ -360,6 +364,7 @@ public sealed class PostgresAuditStore : IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
@@ -396,6 +401,7 @@ public sealed class PostgresAuditStore : IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
 
@@ -438,6 +444,7 @@ public sealed class PostgresAuditStore : IAuditStore
         DbTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
         const string operation = "platform.job.dead_letter";
@@ -478,6 +485,7 @@ public sealed class PostgresAuditStore : IAuditStore
     /// </remarks>
     private Task WriteOwnTransactionAsync(AuditEntryDraft entry, CancellationToken cancellationToken)
     {
+        JobApplicationSourceOwner.RefuseExternalEntry();
         var owner = LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner.Current;
         if (owner is null) return WriteOwnTransactionCoreAsync(entry, null, cancellationToken);
         var resources = owner.BeginStandaloneAudit();

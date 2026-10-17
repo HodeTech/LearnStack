@@ -31,8 +31,10 @@ authorizes dependent fatal/lifecycle implementation. The
 records passing qualification and both full review rounds with verified corrections.
 Steps 4–6 are locally complete after both full review rounds and verified
 corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns capacity delivery and final local qualification. Steps 7–9 and P02b-5–8
-remain pending. Production business definitions remain empty.
+owns capacity delivery and final local qualification. Step 7 external stages are
+implemented under Accepted ADR-0061; both full review rounds remain pending. Its
+[record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
+Steps 8–9 and P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -6074,6 +6076,946 @@ closes full enforcement/regression. The nine-step sequence and two fresh
 independent implementation review rounds per step continue; the historical draft
 reviews above do not satisfy them. Step 6 capacity work remains independently
 authorized under ADR-0047. Acceptance supplies no new runtime or passing proof.
+
+### P02b-4 Step 7 — external stages and recovery (2026-10-17)
+
+**Implementation and focused qualification complete; both full reviews pending.** Step 6
+closes at `0ea50b15` after both full reviews, verified corrections and 4,598 passing
+full-suite cases. Accepted ADR-0047 and ADR-0061 authorize this next step on
+`development`; no further decision or permission is pending.
+
+**Remaining closure units — 2026-10-17.** The original Step 7 scope remains
+unchanged. Its long-running implementation is now tracked by these explicit
+closure units; focused receipts below do not close the step or its full reviews:
+
+- [x] Finish no-plan terminal cleanup, exact owner handoff and atomic terminal
+  audit, including persistent reason and complete positive history guards.
+- [x] Finish finalizer rollback/retry/refusal/exhaustion and prepared uninvokable
+  terminal behavior, preserving the separate six-start finalization budget.
+- [x] Close external/transactional contention, retained cleanup, exact owner/
+  source/caller censuses and their planted violations; qualify the complete step.
+- [ ] Commit Step 7 and complete both fresh independent full review rounds,
+  verified corrections and correction commits before advancing to Step 8.
+
+The foundation separates sticky process/run stop from eight finite stage COMMIT
+boundaries. Admission is prebound before SQL; physical acknowledgements survive
+stop without reopening later stages. Transactional capacity cleanup retains its
+own fresh boundary on the same process cell and original clean source. The actual
+successful result reaches the existing sole completion participant. Closed report
+factories require the explicit three-state policy; Completed is removed.
+
+An early targeted source review identifies one P1 with two stop-refusal paths that
+faulted owned tasks before their finite cleanup/publication handling. Both paths
+are corrected. Two actual source mutants independently fail the corresponding
+admission or grouped-business regression while its sibling passes. Exact source
+and modes are restored, the CI Release builds have zero compiler warnings/errors,
+and that correction's focused foundation suite passes 61 cases with zero failures/skips.
+The reviewer independently verifies the correction, actual receipts and restoration.
+These checks and that early review supply no full Step 7 review-round credit.
+Two earlier failing fixture receipts remain recorded; the diagnostic identifies
+an incorrect NeverStarted expectation, corrected to the existing positive owned
+transactional-rollback result while separately asserting unused root entry.
+
+The forward failure-policy migration and canonical guards now pass 189 actual
+PostgreSQL storage cases. Two early source-review findings are reproduced and
+corrected: terminal requests cannot set the incomplete-finalization flag before
+the actual terminal transition, and incompatible retained predecessor selection
+or outcome/release history refuses upgrade without inventing missing facts.
+Independent correction inspection verifies those fixes. External denial also
+covers pre-existing UoW frames before their state changes and the four concrete
+owner-null auxiliary loaders; their original failing controls and corrected
+receipts are retained.
+
+The original-execution checkpoint foundation adds exact app-role read, Arm and
+Outcome requests on the existing transaction coordinator. Prepare captures its
+actual successful typed result, writes the immutable canonical plan and stamps
+the original normal attempt in the same transaction. Its clean source remains
+available for the next sequential checkpoint. These paths do not activate the
+external routing engine.
+
+An early checkpoint review identifies a canonical-byte defect: JSONB parameters
+rewrote text-column payloads. Both plan and outcome now use text parameters.
+Actual PostgreSQL execution separately exposes four missing SQL-concatenation
+spaces; the initial six failures and diagnostic `42601` receipt remain recorded.
+After correction, six state/policy cases and two typed byte-boundary cases pass.
+The production Prepare and Outcome writers preserve 65,536-byte canonical JSON;
+a 65,537-byte outcome refuses before mutation and leaves occupancy retained.
+Reintroducing only the plan JSONB binding fails all eight cases, including the
+actual plan byte CHECK. Reintroducing only the outcome binding fails seven while
+the oversized-input refusal still passes. Exact source/mode restoration passes
+all eight again. Independent correction review verifies source, receipts and
+both restoration hashes; this supplies no full Step 7 review-round credit.
+
+At the earlier checkpoint snapshot, the full Unit assembly passes 2,305 cases and the
+focused PostgreSQL selection passes 349, with zero failures or skips. The latter
+includes all 189 storage cases, the eight checkpoint cases and existing physical
+owner/business/audit/helper/source controls. Its receipt validator initially
+expected 342: the expanded class filter also selects seven unchanged source-owner
+siblings. A separate exact-subject and 95-file source/hash audit confirms all
+original subjects plus those seven passing cases; no failed test is reclassified.
+Fixture-supplied admission and Audit Off business roots isolate checkpoint SQL;
+these are not provider execution or domain-MUST-audit proofs.
+
+The original Execute bridge now requires the exact command owner's physical Arm
+acknowledgement, the current Arm boundary, the original clean source and a frozen
+canonical plan. The external denial scope precedes adapter construction; the
+actual task, immutable observation and failed cleanup owners remain retained.
+An early review catches a command borrowing another command's gate acknowledgement;
+the correction and its discriminating regression are verified independently.
+
+Fresh recovery has a distinct eighteen-column status projection and never mints
+a counted start receipt. Its new lease can outlive the original attempt deadline.
+Acquisition/probe publication follows actual COMMIT acknowledgement or explicit
+probe rollback acknowledgement and successful resource cleanup. A specialized
+owner retains the originating operation, exact descriptor and process stop cell;
+all confirmations share one receipt and one source/run binding. Early review
+identifies original-cleanup substitution, duplicate receipt publication and a
+cross-process-cell edge; all three are corrected and independently verified.
+
+The corrected snapshot passes 2,331 full Unit cases and 75 focused PostgreSQL
+cases with zero failures/skips. Four actual source mutants each fail exactly their
+intended regression; baseline and every restored source pass all eight selected
+cases. Exact source hashes/modes and the receipts are independently audited.
+Two further PostgreSQL cases prove actual acquisition COMMIT-response loss with
+repeat confirmation of the same receipt, and refusal after a real token takeover.
+The complete seventeen-case external checkpoint selection passes after those
+additions. These storage/ownership checks do not claim provider execution,
+domain-MUST atomicity or full Step 7 review-round credit.
+
+The three closed app requests now distinguish original admission from fresh
+recovery authority. Original ledger identity remains separate from the current
+recovery token; an expired original deadline does not invalidate a live recovery
+lease. The read represents an absent plan explicitly and obtains causal metadata
+from the actual app-role envelope. Its provisional recovery context invents no
+trace, parent, incoming event or actor. Stored-fact parsing requires the exact
+reservation and complete canonical plan/outcome, policy, quiescence and release
+facts. Existing completed outcomes take precedence over conflicting later reports.
+
+An early app-owner review identifies a reused-plan exhaustion defect: a sixth
+normal admission stopping before Arm lacks the plan stamp required by failure
+selection. Two actual PostgreSQL regressions reproduce the exact `23514`, both
+for first no-start and for independently retained unstamped no-start history.
+The correction copies the validated immutable plan identity in the same locked
+no-start transaction, preserving any existing timestamp and release. Its first
+rerun exposes a second guard ordering issue: validated recovery finalization is
+checked before eligibility-cycle normalization clears its token. The forward
+migration and canonical guard now admit that exact app transition; normalizing
+the new cycle still clears all recovery ownership and advances generation.
+The predecessor Down body remains unchanged. Both failures remain in the receipts.
+Independent inspection approves both corrections without full-round credit.
+
+The corrected snapshot passes all 2,331 Unit cases and 275 PostgreSQL cases:
+189 storage, 26 external checkpoint, 20 capacity-admission and 40 control cases,
+with zero failures/skips and a CI Release build with zero warnings/errors.
+The checkpoint selection includes sixth-admission first/retained no-start,
+recovery success and final-failure selection, token revocation and generation
+advancement, no-plan recovery, armed no-start refusal and durable-outcome
+precedence. These remain app/storage proofs with explicit fixture admission and
+Audit Off roots; provider/native execution and domain-MUST atomicity are pending.
+
+The subsequent short-checkpoint boundary captures a conservative monotonic
+lease window from fresh SQL after the actual job lock and before writes.
+Original work also observes its immutable deadline; recovery uses only its fresh
+lease. After pending audit, the exact owner's COMMIT admission checks the elapsed
+window inside the same run lock as the stage CAS. Expiry closes the run and rolls
+back; it cannot borrow an earlier successful handler check. This adds no generic
+participant, callback or transaction entry.
+
+That boundary snapshot passes 2,333 Unit and all 32 PostgreSQL checkpoint cases.
+Six cases park the actual handler before COMMIT admission without token
+cancellation: Arm, original Outcome and recovery Outcome each have live and
+expired-lease controls. PostgreSQL time establishes expiry; assertions inspect
+actual rollback or committed intent/outcome/selection and capacity release.
+Removing only the elapsed predicate fails exactly the three expiry cases while
+all three live controls pass. Restoring exact source bytes and modes passes all
+six again; both CI Release builds have zero warnings/errors. This remains a
+targeted ownership proof, not external engine activation or full review credit.
+
+Read completion now also binds the exact canonical candidate recorded by its
+actual read-only owner. An unrelated successful result or an unchanged clone
+cannot obtain that owner's acknowledgement. Three actual PostgreSQL controls
+verify the physical read-only transaction and application role, reject missing
+or substituted candidates and accept the real recorded object. This later
+snapshot passes 2,333 Unit and all 35 checkpoint cases, with zero failures/skips
+and a CI Release build with zero warnings/errors. Executor read-handle publication
+and cleanup ownership are qualified in the subsequent snapshot below.
+
+The named executor read driver now publishes an immutable handle only from the
+exact acknowledged app-read candidate and positively completed cleanup. Recovery
+uses provisional null causal metadata during Read; its handle retains only the
+actual app-read envelope for later checkpoints. Actual held and throwing DI scope
+controls cover both original and recovery origins. A physical read acknowledgement
+survives cleanup failure, while the failed scope/unit owner stays retained and no
+handle is published.
+
+An early review reproduces a cancellation gap after registration disposal but
+before Activity cleanup, together with the pre-cancelled-entry edge. Registration
+now remains owned through all actual cleanup; a final token check closes the run
+before publication. Both original red cases fail on the intended open-run state.
+The corrected snapshot passes 2,333 Unit and all 44 PostgreSQL checkpoint cases,
+with zero failures/skips and a CI Release build with zero warnings/errors.
+Subsequent test-only Task.Run hardening first exposes a test-ordering race in
+the pre-cancelled case. Awaiting that actual task before its assertion corrects
+the test; the held-cleanup case still asserts closure before release. Both final
+cases pass after recompilation. Independent review verifies the unchanged
+production hashes, exact subjects and separate receipts, closing the focused
+finding without full Step 7 review-round credit.
+
+The named Arm, original/recovery Outcome and recovery-only NoStart drivers now
+consume that exact read handle, retain their actual sealed request and await
+scope, Activity, binding and cancellation cleanup. Original admission identity
+stays separate from fresh recovery ownership. Only the actual app-read envelope
+supplies later causal attribution; no provider report or bypass projection does.
+
+An early writer review corrects lost Activity ownership when Start throws and
+duplicate issuance borrowing an earlier gate's COMMIT history. Real observer and
+repeated-Arm cases discriminate both fixes: each source mutation fails exactly
+its intended controls, and exact source/mode restoration passes again. All four
+CI Release builds have zero warnings/errors. The first causal fixture run retains
+two pre-driver `23514` failures from a nonexistent parent; a real parent row fixes
+that fixture. Independent review audits 119 restored source hashes/modes, 2,333
+passing Unit cases and all 54 passing checkpoint cases, including ten named-writer
+cases. This is a bounded slice receipt, not external activation.
+
+Six additional cases pass in the complete sixty-case checkpoint rerun. Actual
+TCP COMMIT-response loss leaves Arm/Outcome uncertain while an outside app read
+observes the landed transaction. Stop after the real handler but before COMMIT
+records actual rollback; pre-cancelled entry and cancellation during held Activity
+cleanup close continuation without erasing historical ACK. One further passing
+case distinguishes an unissued duplicate from an earlier command's known rollback
+and then commits through a fresh gate without another counted attempt. Production
+source is unchanged from the 2,333-case Unit snapshot; the sixty-plus-one receipts
+cover 61 distinct checkpoint cases. Seven ADR-parser and five corpus checks pass.
+Provider/native integration and full Step 7 reviews remain pending.
+
+The original Execute bridge now accepts only the trusted read handle and exact
+local Arm result. Fresh Reconcile accepts only its once-bound recovery and read
+handle. Both retain the actual provider/cleanup task and external denial; stored
+outcomes or absent intent skip provider construction without fabricating a report.
+The last typed method-entry CAS remains separate from any earlier validation.
+These helpers remain unwired to native execution and current-lease control.
+
+The next snapshot passes 2,333 Unit and eleven actual PostgreSQL bridge cases.
+An early test review corrects masked ACK-isolation coverage using a real read
+and an explicitly synthetic negative result around a distinct unacknowledged
+command. It also distinguishes the first scope-only receipt from constructor
+proof: that host lacked the fixture's adapter registration. The revised test-only
+binding invokes the exact frozen, unchanged throwing constructor and records its
+actual fixed exception under external denial. All eleven revised cases pass.
+Removing both command-derived ACK checks fails only the borrowed-ACK case while
+six siblings pass; exact source/mode restoration passes all seven again. Both
+CI Release builds have zero warnings/errors. A throwing constructor proves entry
+or refusal, never successful Execute/Reconcile or native lifetime semantics.
+
+The same start-observer ownership defect is then reproduced in the admission and
+Prepare entry paths: both actual cases fail because the started Activity was lost
+before assignment. Assigning the actual object before Start corrects both paths.
+The subsequent CI Release build has zero warnings/errors; 2,333 Unit and 137
+PostgreSQL cases pass with zero failures/skips. That selection comprises all 74
+external-checkpoint cases, 23 admission, 20 business and 20 capacity-admission
+cases. It includes both original red observer cases, the revised bridge controls
+and the existing stop/cleanup/commit regressions. Full Step 7 review and native
+activation obligations remain open.
+
+The history foundation now retains an exact issued Prepare/Arm/Outcome/NoStart/
+Finalize operation, with immutable business-result receipt and gate identity.
+A separate job lock precedes its fresh, status-only 48-column original-attempt
+query. Confirmation publishes only after explicit probe ROLLBACK acknowledgement
+and actual cleanup; it never sets physical COMMIT ACK or rollback. Real lost-ACK
+controls cover Prepare, Arm, Outcome and NoStart with open and stopped runs, plus
+a closed duplicate Prepare that cannot borrow its predecessor's history.
+
+Early review corrects two unqualified Finalize classifier branches and separates
+historical Arm truth from current Execute permission. Both the outer bridge and
+last run CAS now require the exact command, current original owner and a
+conservative monotonic lease/deadline observation. Live, takeover with an open
+old run, elapsed-lease and borrowed-command controls use actual app checkpoints;
+their positive remains constructor-canary evidence, not a successful provider
+method. This snapshot passes 2,333 Unit and 127 PostgreSQL cases: 87 checkpoint,
+20 business and 20 capacity-admission, with zero failures/skips and a CI Release
+build with zero warnings/errors. An earlier Unit run retained one obsolete
+unissued-root rollback assertion; its correction preserves the independent
+positive unused-entry and capacity-cleanup controls. No full review credit or
+Finalize/native qualification follows from these bounded receipts.
+
+Additional history controls distinguish COMMIT-request loss from response loss:
+all four original checkpoint families remain Absent when COMMIT never reaches
+PostgreSQL, without inventing a physical rollback acknowledgement or reopening
+the old root. Two probe cases hold or lose the actual ROLLBACK response; a peer
+acquires the released job lock before client acknowledgement, and confirmation
+publishes only after acknowledgement and cleanup. Two later-admission cases keep
+history bound to the original stamped attempt after current identity changes.
+Replacing that query join with the current attempt fails exactly those two
+controls; all sixteen same-current controls pass. Exact source/mode restoration
+passes all eighteen. Both CI Release builds have zero warnings/errors.
+
+The wider history snapshot passes 2,333 Unit and 179 PostgreSQL cases: 99
+checkpoint, 40 control, 20 business and 20 capacity-admission. An independent
+receipt audit verifies all 130 recorded source hashes/modes, exact subjects and
+artifact hashes. These app/storage proofs do not exercise successful provider
+methods or Finalize; socket-loss cases do not independently inject every disposal
+failure.
+
+The ordinary business completion owner now also carries one conservative
+COMMIT budget from its fresh locked SQL observation. Prepare's final plan-stamp
+cleanup and transactional reservation-release cleanup consume that interval.
+The existing coordinator reaches a synchronous, exact-root wrapper; elapsed
+time is checked inside the same run lock as COMMIT admission. One-way publication
+states prevent concurrent or duplicate recording from replacing the first
+timestamp or interval. No new participant, callback or transaction owner is added.
+
+Four actual PostgreSQL controls pause the final Npgsql command after successful
+SQL/reader cleanup, with no cancellation token or runtime timer closing the run.
+Both expired-lease cases fail against the earlier implementation because it
+acknowledges COMMIT; both live controls pass. The correction passes all four.
+The final publication-state snapshot passes 2,333 Unit and 183 PostgreSQL cases:
+103 checkpoint, 40 control, 20 business and 20 capacity-admission, with zero
+failures/skips and a CI Release build with zero warnings/errors. Transactional
+admission is the production path; Prepare still uses the explicit fixture
+admission. These focused checks supply no full Step 7 review-round credit.
+
+The existing owner-boundary detector now enumerates the exact budget methods,
+callers, private publication fields, fresh SQL observations and protected COMMIT
+ordering. Its actual-subject and planted-control cases both pass. Controls include
+extra callers, deleted capabilities, changed projections, late capture, mutable
+budget reset, missing live identity and a plain-CAS bypass. This finite structural
+check supplements the actual PostgreSQL expiry controls; it does not prove every
+possible value, branch or asynchronous control flow. Full census qualification
+and both full Step 7 review rounds remain pending.
+
+The shared app reader also validates the selected normal attempt, finalization
+status and module reason. Its eleven focused cases cover completed policy rows,
+sixth-attempt repeatable failures, positive no-start history and all partial-null
+selection shapes. Projection-only dirty inputs reject mismatched identity, stamp,
+status or reason without altering guarded durable data. An earlier run retained
+one fixture failure from waiting for the original deadline instead of the lease;
+the corrected helper and expanded matrix pass. The current snapshot passes all
+2,333 Unit and 192 PostgreSQL cases: 112 checkpoint, 40 control, 20 business and
+20 capacity-admission, with zero failures/skips and a CI Release build with zero
+warnings/errors. These are reader/storage proofs, not actual Finalize execution,
+successful provider methods or the domain/terminal two-MUST atomicity proof.
+
+The actual app Finalize path now reads and cleans its selected-input owner before
+ordinary root entry, admits a separate counted finalization attempt and constructs
+the exact registered typed request. Finalize bypasses capacity admission and
+creates no reservation. Its existing business owner rechecks the actual selected
+normal facts after the job lock and retains the same monotonic COMMIT budget.
+Successful domain failure writes terminal state and its MUST row on that pair;
+the private app mint binds the actual returned row, old acquisition token, live
+unit/source/announcement and selected policy. The existing bypass mint remains
+separate. A duplicate consumed root has no new read or COMMIT history.
+
+Four actual PostgreSQL cases cover success and permanent/nonrepeatable completed
+failure. The first run passes success but refuses the three failure cases with
+`42501`: the authored UPDATE unnecessarily names a control-only incomplete flag.
+Removing that assignment and requiring the existing false value preserves the
+column grants; all four pass. Final assertions bind audit identity, generation,
+timestamp, policy and counters to actual stored facts. The corrected snapshot
+passes 2,333 Unit and 196 PostgreSQL cases: 116 checkpoint, 40 control, 20 business
+and 20 capacity-admission, with zero failures/skips and a CI Release build with
+zero warnings/errors. Normal admission, observations and the routing claim remain
+explicit fixture setup; app Finalize admission, receipt, read, root, fence and
+terminal MUST write are production paths. These cases use an Audit Off root and
+do not claim a domain mutation with two MUST rows, native provider execution,
+independent witness-substitution coverage or full Step 7 review-round credit.
+
+The physical-ACK Arm path also retains its original conservative SQL interval.
+An actual PostgreSQL control demonstrates that ACK alone previously allowed
+provider scope construction after that lease expired, without cancellation or
+a native timer; the live control passes. The corrected gate publishes its one
+immutable interval only for an issued open boundary. Both the pre-scope check and
+the final Execute CAS check elapsed time; the latter runs inside the original run
+lock. Premature or late rejected COMMIT calls cannot seed a window for a later
+unbudgeted acknowledgement. Known entry expiry reports EntryRefused, preserving
+the physical ACK and inventing no provider failure or outcome.
+
+The corrected snapshot passes 2,335 Unit and 198 PostgreSQL cases: 118 checkpoint,
+40 control, 20 business and 20 capacity-admission, with zero failures/skips and
+a CI Release build with zero warnings/errors. The unchanged throwing adapter
+canary verifies pre-scope refusal; a real held-constructor/provider-method timing
+proof remains part of the positive SDK work. Lease renewal does not extend this
+retained interval, and repeated history probes do not replace the gate's first
+confirmation. These conservative refusals are distinct from permission to execute.
+
+The separate positive SDK fixture now supplies genuine Contracts, Application and
+Infrastructure assemblies, with actual nested Tenancy commands and their MUST
+audits. Its adapter calls an independent provider database using a separate,
+unprivileged credential. Normal External routing and app admission use the actual
+opaque claim, tenant capacity mutex and counted ledger; Finalize uses its separate
+real admission. The first routing run exposed an ungranted outcome-body read;
+the corrected predicate uses the already granted outcome-kind status instead.
+No dispatcher grant is widened. Production definitions remain empty and the
+construction-only test host runs no native background worker.
+
+Eight focused PostgreSQL cases pass: four actual provider outcomes, two exact
+audit-INSERT faults and live/expired adapter-constructor barriers. A test-owned
+SQL observer records the actual top-level transaction ID, preserving savepoint
+semantics; domain state, successful business MUST, terminal state and terminal
+MUST share the Finalize transaction. Each injected MUST failure rolls that work
+back while prior Prepare/provider facts remain. The existing audit coordinator
+may separately record the failed business attempt; this is never a success row.
+The initial tuple-`xmin` assertion was invalid across EF savepoints and was
+replaced by this observer, without changing production transaction handling.
+
+The held constructor retains its actual task and scope through release and join.
+With the final run-locked Arm-window check removed, the expired case fails and
+the real provider journal records an unexpected Execute and effect; its live
+control passes. Exact source bytes and mode are restored, then all eight cases
+pass again. These cases establish actual provider-method timing and real-store
+atomicity, not native handoff, duplicate-provider acceptance or recovery. The
+2,335-case Unit run and expanded 247-case PostgreSQL regression pass on the
+corrected snapshot, with zero failures/skips and a CI Release build with zero
+warnings/errors. The old External-unavailable admission assertion is replaced by
+an exact profile/definition mismatch refusal; the genuine SDK flow supplies the
+positive External coverage. The broader run retains the existing checkpoint,
+control, business, capacity, admission and submission cases.
+
+The next native-control foundation binds the real External receipt's profile,
+normal/finalize stage, counters and selected outcome to its existing execution
+owner. Prepare acknowledgement no longer ends lease renewal. Its status-only
+renewal probe checks the exact locked job and fresh immutable ledger, before
+generic completion shortcuts. Two actual publication/control cases and seven
+passive metadata substitutions per case cover both preparing and finalizing.
+
+The Prepare case starts the real renewal lane and independently observes SQL
+lease advancement and a successful rearm of the actual System timer. Restoring
+the two old Prepare-ACK guards leaves SQL renewal working but fails that timer
+assertion. Exact source/mode restoration passes all ten SDK cases. The frozen
+150-source snapshot passes 2,335 Unit and fifty focused PostgreSQL cases (forty
+control, ten SDK), with zero failures/skips. An independent receipt audit verifies
+all source hashes/modes, artifact hashes and actual TRX subjects. A retained
+zero-match run after an initial compile failure supplies no test credit. This
+foundation does not yet prove complete native provider handoff or recovery.
+
+The existing native execution owner now retains the optional Prepare, app read,
+Arm, provider and Outcome tasks, with separate exact-family historical probes.
+It skips Prepare when admission supplies the existing-plan stage. A normal return
+closes that original run; unresolved effects retain reservations for fresh recovery.
+An acknowledged Outcome stops renewal even during held cleanup, while actual
+cleanup still gates identity release. Finalize remains a separate admission/root.
+
+Four genuine SDK cases now pass through the real facade, stock bridge and native
+worker pools, independent provider journal and fresh Finalize admission. Success,
+permanent failure and both nonrepeatable failure/cancellation preserve one normal
+and one finalize receipt, one provider Execute, and actual business/terminal MUST
+atomicity. The earlier two-case red run reached Prepare but stayed `prepared`,
+discriminating the missing native continuation from the explicit-driver proofs.
+
+A held real adapter constructor exposes the former global short-wrapper timeout.
+The existing invocation now owns one monotonic stage timer, armed before each
+possible synchronous prefix, and retains every task after wrapper return. Its
+finite mapping uses short-root, SQL, external-run and history-probe bounds. Lease
+loss, deadline and host stop close/retain before signalling wrapper return; normal
+capacity-cleanup cancellation remains separate. Actual timer disposal and private
+cancellation callbacks precede source release. Deterministic controls distinguish
+an old queued callback from the current stage and forbid refreshing elapsed work.
+
+The qualified 158-source snapshot passes 2,339 Unit and one hundred PostgreSQL
+cases: forty control, twenty-three admission, twenty business and seventeen SDK.
+The SDK selection includes all four native results, the long-constructor wait and
+host-stop/lease-loss cases that return the wrapper while actual cleanup stays held.
+The initial Unit run retained one obsolete host-stop `Running` expectation; its
+correction independently counts running plus retained ownership. Removing only
+the actual cancellation join fails the held-callback test while its three siblings
+pass. Exact source/mode restoration passes all 2,339 again. Builds have zero
+warnings/errors; no full Step 7 review or fresh native recovery is claimed.
+
+The receipt addendum includes the changed host-stop Unit fixture omitted from the
+initial 157-path inventory. It preserves the original manifest and distinguishes
+the two subsequent Unit-only corrections from unchanged production/PostgreSQL
+sources; an independent audit verifies the complete 158-path inventory.
+
+Four further genuine native cases hold actual COMMIT responses at Prepare, Arm,
+Outcome and Finalize. Their clean, exact-family historical confirmation permits
+continuation without inventing physical acknowledgement or duplicating provider
+work. The Outcome case also handles a real early wakeup while the original
+invocation remains retained: a pre-routing identity check avoids acquiring a
+routing lease that the same owner must immediately refuse. The initial red run
+fails only that Outcome control; the corrected four-case run passes.
+
+A separate actual Outcome-ACK control holds Activity cleanup after the database
+scope has closed. Its gate is acknowledged while the concrete task and invocation
+remain retained. The live control lane neither rearms the settled lease timer nor
+reports a renewal refusal; actual cleanup still precedes identity release. An
+already issued renewal batch may finish. This does not claim zero SQL after ACK
+or immediate next-stage service: a consumed early vendor hint can wait for repair.
+
+The final 160-source snapshot passes all 2,339 Unit and 261 PostgreSQL cases:
+118 checkpoint, forty control, twenty business, twenty capacity, twenty-three
+admission, eighteen submission and twenty-two genuine SDK cases. There are no
+failures/skips; CI Release builds have zero warnings/errors. The snapshot keeps
+red/green epochs and the test-only repair-grace reduction separate. Fresh native
+recovery, full architecture qualification and both full Step 7 reviews remain
+pending.
+
+Fresh recovery now carries a source-local Stopwatch observation taken before its
+actual locked SQL projection. Binding and the final typed Reconcile entry check
+the same remaining lease under the Run lock; expiry closes that Run permanently.
+Neither binding, cleanup, a held constructor nor a later probe rebases its window.
+The original attempt deadline may already have expired; it is not the new lease.
+
+A genuine SDK live/expired pair first executes against the independent provider,
+omits Outcome and then acquires fresh recovery for that exact old attempt. A held
+real adapter constructor exposes the missing final check: the red expired case
+incorrectly calls Reconcile; the correction prevents that actual method call,
+while the live control reconciles the retained effect. No extra Execute, normal
+attempt or effect is created. This is an explicitly arranged recovery route,
+not native bridge/control recovery qualification.
+
+Three additional real-socket controls hold the exact recovery probe's completed
+ROLLBACK response. A peer can acquire the released row lock before the client ACK,
+but no receipt publishes yet. Live ACK/cleanup permits the first binding; a clean
+response delayed past the observed lease publishes history but refuses binding.
+A lost response publishes nothing; a later clean first probe cannot rewrite its
+failure or physical acquisition ACK. Repeated probes retain the same receipt.
+
+All 2,342 Unit and 145 focused PostgreSQL cases pass with zero failures/skips and
+zero-warning/error Release builds. The PostgreSQL selection contains 121 checkpoint
+and twenty-four SDK cases. An Integration-only test cleanup correction then joins
+the actual probe task using its existing deadline even on failed premises; its
+three affected controls pass again. Earlier source epochs are retained separately.
+The subsequent recovery-renewal foundation preserves the original ledger token
+and expired deadline separately from the fresh recovery token. Its actual SQL
+extends only a still-live exact recovery lease; ordinary execution remains capped
+by its original deadline. Private passive evidence publishes only after physical
+COMMIT acknowledgement and actual cleanup. The Run accepts it under its own lock
+only while both windows remain live, without changing the acquisition receipt or
+resetting provider entry. Observing expiry closes the Run and current checkpoint.
+
+The actual expired-original case first fails against the old execution-only SQL.
+Four genuine SDK controls then pass: a two-tenant mixed renewal batch, lost renewal
+ACK without evidence publication, and timely/late evidence application around a
+held real Reconcile constructor. Timely application permits one Reconcile after
+the old window expires; late application cannot reopen it. These are delayed
+applications of already acknowledged evidence, not held successful network ACKs.
+Fourteen memory identity substitutions and separate binding/process/stop/order
+controls exercise the acceptance boundary without claiming SQL provenance.
+
+The frozen 164-source foundation passes 2,361 Unit and 189 focused PostgreSQL
+cases with zero failures/skips and zero-warning/error Release builds. The latter
+contains 121 checkpoint, forty control and twenty-eight SDK cases, including the
+four renewal controls. A lost ACK's later status probe proves the recovery row's
+renewal without publishing usable evidence; the ordinary mixed row is independently
+checked in the direct-ACK case. Native renewal consumption, actual cleanup-fault
+injection, native recovery handoff and retry/quarantine/finalizer failure routing
+remain pending, as do both full Step 7 review rounds.
+
+The native recovery owner now roots acquisition, exact historical confirmation,
+app read, Reconcile and checkpoint tasks before issuance, without fabricating an
+ordinary admission. Its fresh lease survives the expired original deadline;
+actual renewal evidence feeds the existing Run boundary. Two genuine SDK controls
+exercise direct/lost acquisition ACK and renewal across the first recovery window.
+They arrange parking explicitly and do not qualify automatic scheduling.
+
+NoStart's lost app COMMIT ACK now uses its exact history family. Real timer
+construction/Change controls hold the actual call while host stop closes permission;
+returned handles require actual disposal, while unreturned failed initialization
+retains ownership. Renewal keeps its old expiry visible during Change, and Join
+awaits the actual update before disposal. A clean late return can decline renewal
+without inventing failed cleanup. Held-stop controls do not prove autonomous expiry
+at a shorter deadline during an arbitrarily blocked supplied Change.
+
+The frozen 167-source correction passes 2,362 Unit and 280 PostgreSQL cases:
+121 checkpoint, forty control, twenty business, twenty capacity, twenty-three
+admission, eighteen submission and thirty-eight SDK cases. There are zero
+failures/skips; Release builds have zero warnings/errors. The new Change controls
+first fail at the actual blocked stop/late identity boundaries, then pass after
+correction. Earlier constructor/history and known-fault native epochs remain
+separate. Automatic park/bridge/disposition and both full Step 7 reviews remain
+pending.
+
+The next automatic-recovery slice adds two bounded control selections for expired
+external owners and retained unarmed recovery rows. A single eligibility cycle
+arms a finite probe and advances the wake generation once; stock handoff/repair
+retains that generation, the original normal attempt and its reservation. A
+forward migration and canonical DDL guard live-owner clearing, unarmed/reset
+transitions and unsafe downgrade. Five actual SDK controls plus canonical-schema
+parity pass, including an automatic facade recovery and both pending routing
+stages. This does not qualify every future-due, exhausted, contention or planner
+case.
+
+Its broader frozen 172-source run passes 493 of 494 PostgreSQL cases and exposes
+one native lost-Outcome-ACK history failure: a competing row lock legitimately
+returns a clean unavailable result. The correction retries only that exact clean
+unavailable history read, after actual cleanup, inside the already armed single
+history budget. It never treats unavailability as confirmation or resets the
+original origin. A separate real transaction holds the exact job lock; the socket
+observer ties the actual binary UUID/query to PostgreSQL's zero-row response.
+That causal control first fails at the missing history value and then passes.
+Seven focused history controls and all 2,362 Unit cases pass with zero skips and
+zero-warning/error Release builds. The broader failed run remains a failed
+receipt; these narrower passing controls do not imply a fresh full regression.
+
+The application-source inventory now includes external invocation owners alongside
+transactional owners. Its job-only floor is 22 by default and 118 at the maximum
+business-pool topology; unrelated arrival headroom stays separate. The shared
+privileged inventory remains 50/156 because each invocation's routing, recovery
+acquisition, confirmation and history operations are sequential and cleanup-owned.
+The maxima need separate calculations: the qualified eight-pool/four-worker
+facade fixture has privileged 156 and application 32, without claiming that
+every topology reaching privileged 156 has the same application floor.
+
+The new count/kind and immutable 21/22 startup controls first fail against the
+transactional-only calculation. After correction, 15 actual PostgreSQL cases
+and all 2,365 Unit cases pass with zero skips and zero-warning/error builds.
+Actual main/auxiliary connections fill 22/118 pools, with explicit zero/two
+unrelated headroom controls; four native normal SDK cases and automatic recovery
+use pooled application 22/privileged 50. These controls do not claim held external
+versus transactional native contention or maximum-topology native execution.
+
+Retained completed facts now have a recovery-only app selection mode. Its actual
+trusted read supplies plan/operation identity; no caller supplies a replacement
+report, payload, policy or quiescence fact. The handler re-reads canonical stored
+facts under the job lock and applies their policy. Missing facts and early
+repeatable outcomes are refused by both driver and actual handler; selection
+never rewrites outcome, quiescence, NoStart or reservation-release stamps.
+
+An existing marker alone no longer confirms a selection-only transaction.
+Outcome history requires the exact policy-derived selected normal attempt,
+status, reason and plan stamp; prepared-plan NoStart at six likewise requires its
+exhaustion selection. Actual request-loss controls first expose both false
+confirmations, then pass after correction. Actual response loss confirms the
+selection while keeping physical ACK false, including after a distinct counted
+Finalize admission advances the current header.
+
+The native recovery owner consumes those retained facts through the same held
+app checkpoint task and commit budget. A genuine SDK control first remains
+Reconciling against the old early-return branch, then reaches completion after
+the correction without another provider scope, Reconcile or Execute. Its peer
+with absent Outcome still performs one Reconcile. Thirteen focused PostgreSQL
+cases and all 2,365 Unit cases pass with zero skips; the broader checkpoint/SDK/
+control regression is still pending at this receipt. This delivers selection,
+not early-repeatable retry disposition, probe/quarantine or finalizer-fault policy.
+
+That subsequent run executes 217 PostgreSQL cases: 216 pass and one native
+nonrepeatable case remains FinalizePending at its fixed twenty-second assertion.
+Its saved receipt contains no ownership/handoff snapshot, so its exact cause is
+not retrospectively established. The source permits a successor hint to finish
+while the old acknowledged Outcome still owns actual cleanup; the default
+sixty-second repair grace exceeds that test's former wait.
+
+Two causal controls, for success and nonrepeatable failure, now hold the actual
+Outcome Activity cleanup. They observe the exact new-generation persisted vendor
+hint as Succeeded, cleared bridge/ownership fields and a future database-time
+handoff check while the old task is incomplete and routing is refused. Releasing
+the real cleanup permits same-generation repair and one Finalize, with unchanged
+normal count and independent provider counts. The NativeFlow fixture uses the
+accepted fifteen-second repair minimum and a wait derived from repair grace plus
+Finalize transaction/SQL budgets. Both causal cases and all four native flow
+cases pass together. The complete forty-six-case SDK regression then passes
+with zero skips and zero-warning/error builds. Only the two SDK test files
+changed; production and all other frozen sources remain byte-preserved. Earlier
+132 checkpoint and forty control passes, plus 2,365 Unit passes, stay tied to
+their unchanged-production epoch; this is not a fresh 218-case run. The failed
+217-case receipt stays distinct, and both full Step 7 reviews remain pending.
+
+Known-fact retry now accepts only a closed original-completed or fresh-recovery
+identity. Under the actual job lock, its status-only read validates every normal
+ordinal and positive NoStart/release or repeatable completed-outcome/quiescence
+history. The current original admission token, deadline, scope and generation
+remain distinct from a fresh recovery token. Missing or unresolved facts cannot
+return work to Pending.
+
+For a live original owner, lease shortening, private nonexecuting recovery handoff
+and fixed-backoff Pending selection share one transaction. Only the final returned
+row permits COMMIT; refusal rolls back the intermediate ownership too. A fresh
+recovery owner uses its live lease independently of the expired original deadline.
+Scheduling advances one generation without adding an attempt, rewriting evidence
+or starting provider work. The uncertainty descriptor retains the actual returned
+schedule. Its locked probe distinguishes the exact old rollback shape, committed
+same-cycle routing and a distinct later admission; no generic rollback fallback
+or executable receipt is used.
+
+The native owner retains the actual disposition and optional confirmation tasks
+through cleanup. It issues them only after a clean acknowledged or exactly
+confirmed app checkpoint; retained known recovery facts need no new provider report.
+A focused source review removed an unnecessary recovery-side control call after
+final-selecting outcomes. Twenty-eight real PostgreSQL cases pass after that
+correction, with zero skips and zero-warning/error Release builds. The twenty-one
+store cases cover all five backoffs, real COMMIT request/response loss, subsequent
+routing/admission, unresolved/nonrepeatable refusals, final-UPDATE rollback and
+positive no-plan NoStart after actual original-deadline expiry.
+
+Seven actual SDK/native cases cover Failed/Cancelled original retry with normal
+or lost Outcome ACK, plus recovery from retained facts, Reconcile and absent
+ExecuteIntent. Held actual writer cleanup forbids early disposition issuance;
+lost ACK requires its exact clean history confirmation. The subsequent counted
+attempt preserves the plan/operation, reacquires capacity and performs its own
+Execute before one fresh Finalize. Independent provider counts and domain rows
+distinguish that progress from another Prepare, duplicate effect or invented
+quiescence. The broader current regression then passes all 246 cases: 153
+checkpoint, fifty-three SDK and forty control cases. All 2,365 Unit cases also
+pass on the same frozen source with zero skips and zero-warning/error builds.
+The twenty-eight focused cases are included in that broader result. This is a
+fresh passing run, not a reinterpretation of the earlier failed 217-case receipt;
+neither full Step 7 review round is closed by these tests.
+
+The next bounded status slice validates unresolved ExecuteIntent under the same
+exact normal identity and complete positive prior history. Running preserves the
+unsuccessful-probe count; explicit failed probes increment once. The sixth failure
+or a still-unresolved deadline/grace boundary quarantines without inventing an
+outcome, releasing occupancy or admitting another normal attempt. Private lease
+shortening and paced parking remain atomic behind the existing expiry-only wake
+guard. Actual returned generation, counter, schedule and quarantine reason bind
+the separate lost-COMMIT history probe.
+
+Thirty-five focused PostgreSQL cases pass with zero skips: twenty-two new store
+cases and thirteen existing filter matches. They cover the six-probe boundary,
+Running between failures, retained occupancy, known-fact and stale-owner refusal,
+actual deadline/grace, request/response COMMIT loss, changed ownership and an
+injected final-park rollback. A fault followed by a repeatable outcome preserves
+the count through Pending; only the next real counted admission resets it.
+The initial fixture attempted to move an unowned probe schedule and was correctly
+refused by the existing guard. Its failed receipt remains separate; the corrected
+tests wait for the actual due time and leave that production guard intact.
+Independent source/artifact inspection closes this store slice only. Native
+timeout/report/callback qualification and durable quarantine-health observation
+are still in progress; neither is claimed by these store cases.
+
+The subsequent native regression executes 275 PostgreSQL cases: 273 pass and
+two fail, with zero skips. Both failures record the only Reconcile timer callback
+arriving before its owned monotonic deadline, by 1.288 ms and 1.200 ms. Discarding
+that callback loses the future wake. A preliminary 1 ms tolerance therefore
+does not qualify this path; its failed receipt is preserved separately. All
+2,377 Unit cases passed at that same source, demonstrating the missing combined
+timing coverage rather than disproving the native failures.
+
+The correction restores actual elapsed-time checks and gives an early wake one
+supplementary timer and one task under the existing invocation. That observer
+alone rearms and asynchronously disposes its timer; stage changes and closure
+signal it without calling timer operations under the state lock. Actual observer,
+timer and cancellation cleanup precede private-source release. Twenty-three
+focused Unit cases pass, including repeated early wakes, successor changes,
+held timer construction/change/disposal and refused/faulted timer operations.
+An additional nanosecond-clock control rejects premature expiry caused by
+TimeSpan conversion. The current source then passes all 2,385 Unit cases and
+all 275 PostgreSQL cases: 175 checkpoint, sixty SDK and forty control cases,
+with zero skips and zero-warning/error builds. The actual late-report tests
+assert preserved state and original job/attempt/operation identity. The earlier
+failed receipt remains separate. This adds no database connection, executable
+authority or full Step 7 review credit; it does not qualify the later durable
+health slice or remaining terminal/finalization policies.
+
+Durable quarantine health now uses a forward partial index and one status-only
+read on the existing serial control lane. Acknowledged read rollback and actual
+cleanup precede cache publication. Failed refresh retains the last good value
+with an independent fault; unknown or stale samples cannot report healthy.
+Snapshot cadence remains valid even when it exceeds the separate progress bound.
+Health getters issue no SQL and do not become admission gates.
+
+All 2,391 Unit cases pass, including six new memory/freshness controls. Eleven
+focused PostgreSQL cases also pass with zero skips and zero-warning/error builds:
+six control observations, three schema/canonical/reversal cases and two genuine
+native quarantine flows. The latter waits until quarantine is the only health
+fault; a fresh host, source, gate and runtime start with no cached sample and
+independently observe the retained quarantine. They preserve occupancy and the
+single normal admission without another Execute. The normal planner uses the
+partial index against six thousand future rows; dropping it makes the same
+detector expose the backlog scan. These focused results close no full review round.
+
+The subsequent control/SDK/facade/storage regression executes 332 cases: 328
+pass and four fail, with zero skips. Two historical recovery-migration tests
+incorrectly include a later index migration in their refused-downgrade inventory;
+EF commits each successful migration separately. They are corrected to qualify
+the recovery migration at its own boundary without weakening the full inventory
+comparison. One retained-outcome recovery case remains FinalizePending at a
+thirty-second assertion despite its sixty-second repair setting; its original
+cause is not established by that receipt. A separate facade case passes actual
+cleanup and zero retained-owner assertions, then times out awaiting a follow-on
+job. Controlled recovery-cleanup coverage and follow-on scheduling diagnostics
+are in progress; the four failures are not credited as passing qualification.
+
+The test-only correction run then passes nine PostgreSQL cases with zero skips
+and a zero-warning/error build. It covers both historical migration modes, both
+native recovery modes, both original held-Outcome cases, a new genuine stored
+recovery selection with held real cleanup and same-generation repair, and both
+auxiliary-cleanup modes. Production is unchanged from the preceding 332-case
+epoch. The diagnostic-only facade rerun does not establish the original
+follow-on timeout's cause; a source-reachable test-fixture collision between
+the old job's legitimate retry and the new job is being tested separately.
+
+The controlled old-retry-before-new-job experiment fails with the original
+call-count mapping. Exact job-id mapping alone still fails: the two fixture
+UUIDv7 ids also share the timestamp-only twelve-character slug prefix. Actual
+handler diagnostics show the new job's `business_rule_violation`, independently
+of clean source/owner release. The corrected fixture maps resources by actual
+`JobTenantContext.JobId` and uses the full UUID in each slug. Two distinct ids
+are deliberately generated at the same timestamp; the old retry commits first
+without consuming the independent job's resource, and the new job completes
+in one admission. Both clean and dirty auxiliary-cleanup cases pass with zero
+skips and a zero-warning/error build. These constructed controls explain and
+remove both fixture collision classes, without retrospectively assigning the
+earlier receipt a cause its saved observations did not capture.
+
+The no-plan terminal foundation now persists an exact finite request before
+app NoStart, reservation release or terminal audit. Its fresh locked read checks
+every normal admission and positive prior plan-free NoStart/release; committed
+plans, effects and finalization are excluded. Its dedicated lost-COMMIT probe
+binds the requested reason and immutable admission identity, preserving physical
+ACK separately from history confirmation. Actual permanent Prepare refusal at
+one/six, sixth recovery exhaustion, request/response loss, committed-plan and
+expired-owner controls pass: seven PostgreSQL cases and all 2,391 Unit cases,
+zero skips and zero-warning/error builds. This is the request/history primitive;
+terminal-purpose app cleanup, stronger terminal storage guards, native routing
+and final terminal audit integration remain pending and are not activated here.
+
+The terminal-purpose cleanup foundation adds a fresh, immutable
+`TerminalNoStart` recovery receipt. It grants only app-role NoStart and exact
+reservation release; it cannot enter Prepare, Execute, Reconcile, ordinary
+renewal or finalization. The app reads the actual causal envelope without
+constructing module parameters or requiring an Active definition, then checks
+complete normal history under the row lock. NoStart and `never_started` release
+commit atomically. A purpose/reason-bound history probe preserves the original
+physical ACK separately. All 2,396 Unit cases and thirteen focused PostgreSQL
+cases pass with zero skips and zero-warning/error builds, including first/sixth
+admissions, absent current definitions, acquisition/checkpoint COMMIT request
+and response loss, and a reservation CHECK refusal after the marker UPDATE.
+The initial failed fixture assertions remain separate receipts; the corrected
+Unit descriptor preserves the production probe's strict phase/reason check.
+The broader checkpoint/recovery regression then passes all 196 PostgreSQL cases
+with zero skips, including those thirteen focused cases. This foundation does
+not activate the native terminal lane, terminal audit or stronger terminal
+storage guards.
+
+The forward terminal-history migration freezes a non-NULL request reason and
+requires complete positive no-plan history before the first dead-letter write.
+It preserves the existing app NoStart/release guards, grants and four-role
+boundary. Its initial eighteen-case run passes twelve and fails six: five
+expose an ungranted payload-column read in the new guard, and one exposes a
+dirty-control fixture that removed existing owner-clearing housekeeping. The
+correction uses only permitted outcome metadata and restores the actual prior
+function for dirty controls. The corrected build has zero warnings/errors and
+all 217 PostgreSQL cases pass with zero skips, including canonical DDL parity,
+exact prior-function Down/reapply, first/sixth actual NoStart, malformed prior
+history, immutable reason and unadmitted retirement controls. A bounded reviewer
+verifies both fixes and finds no further defect; this is no full review-round
+credit and does not activate the terminal worker or its audit path.
+
+#### Native terminal and finalizer policy qualification (2026-10-17)
+
+The existing terminal lane now owns actual app NoStart cleanup independently of
+ordinary terminal SQL. Its main/auxiliary application-source pair raises the
+current application-pool floor to 24 and maximum supported floor to 120. Earlier
+22/118 receipts above retain their historical meaning. A speculative empty
+cleanup lookup does not increment pending outcomes. Stop joins the actual task,
+scope and callback; an expired lease never substitutes for cleanup evidence.
+
+The prepared terminal path retains plan, operation and selected outcome metadata.
+Its existing witness has a prepared 40-column returned projection alongside the
+unchanged NoPlan 13-column and app 37-column projections. A private-constructed
+24-column prepared acquisition carries the exact additional metadata. The
+forward migration requires positive complete history before stamping incomplete
+business finalization; its Down restores the exact prior transition function.
+Audit failure rolls back both terminal completion and the incomplete flag.
+
+Actual native tests verify permanent Prepare refusal, sixth NoPlan recovery and
+an already-recorded NoStart, including real cleanup-lease expiry and exactly one
+MUST audit. Native Finalize tests roll back a nested business write, then admit a
+fresh Finalize without rerunning the provider. PostgreSQL transaction identity
+is captured while live: Npgsql can recycle its transaction object, so object
+reference inequality was an invalid initial test premise. The corrected first
+qualification passes sixteen PostgreSQL cases with zero skips.
+
+A later execution deadline could discard an already-classified, positively
+cleaned Permanent Prepare or Finalize result. Both now retain that actual result
+in the existing bounded control queue; status accounting can outlive execution
+permission without reopening app/provider entry. Native timer-disposal barriers
+verify this window, host-stop refusal and actual handler cancellation returning
+RetainOwnership. Unknown status COMMIT permits only exact historical probes
+until rollback is established. Changed ownership ends the old authority without
+claiming its COMMIT succeeded. Retained terminal and finalizer history dispatch
+precedes generic probe interpretation, including copied-boundary refusals.
+
+The expanded PostgreSQL qualification passes 214 of 216 cases; two planted-history
+fixtures incorrectly ask the restored transition guard to accept damaged history
+while expiring scheduling ownership. Correcting only that setup makes both pass.
+The subsequent 42-case run passes 41; its remaining new foreign-owner fixture
+incorrectly moves an already-expired lease forward. The corrected final focused
+run passes fourteen cases with zero skips, including that refusal and a selected
+external failure followed by six real Finalize admissions, all five backoffs and
+one honest terminal MUST. Explicit fixture eligibility avoids waiting over an
+hour; these are not six native delayed wakeups. The production source also has
+2,396 passing Unit cases. All qualifying Release CI builds have zero warnings
+or errors; initial migration/import build mistakes remain separate receipts.
+
+The first complete architecture run passes 304 of 330 cases and fails 26. Exact
+caller/signature/owner guards require alignment with the new external paths;
+their nonempty subjects and planted violations remain required. This is a
+recorded failing self-check, not completed architecture qualification or either
+full review round.
+
+Uninvokable cleanup and request routing are implemented without requiring an
+Active definition or reconstructing module parameters. The candidate selector
+proves positive cleanup history before its bounded page; unresolved earlier
+rows cannot consume that page. Historical request probes retain their original
+identity, compare selected timestamps independently of session time zone and
+reject mixed specialized histories. A forward migration extends only the
+positive NoPlan terminal reasons; prepared finalization guards stay unchanged.
+
+The first foundation builds with zero warnings/errors and passes twenty-eight
+existing PostgreSQL terminal-history cases. The subsequent 257-source checkpoint
+passes all twenty-one dedicated uninvokable/invalid-envelope cases and the real
+native application-source contention case. Its 272-case PostgreSQL run passes
+271 cases and fails one index-name assertion: the normal planner legitimately
+chooses the newly added matching retirement index for a pending query. All four
+actual control-query plan cases, canonical DDL parity and full schema
+rollback/reapplication pass. The assertion correction permits only that known
+pending/retirement pair, retaining the cutoff, scan-bound and removed-index
+controls. Its focused correction run passes all thirty-two PostgreSQL cases,
+including the twenty-one uninvokable cases, all four actual control-query plans,
+the five ordinary eligibility/index-removal cases and canonical/full-rollback
+parity.
+
+At that same source checkpoint, Unit passes 2,396 cases, Contract four and
+Docker-free HTTP integration 176, all without skips. Architecture qualification
+runs all 333 cases in two complementary groups: 326 pass and seven fail. The
+failures expose stale exact-owner expectations, missing recovery-minter census
+coverage, a Cecil mutation-restoration error, a composed table projection and
+the published method count. All 1,074 external orchestration dirty/restoration
+controls pass. The first correction run passes five architecture cases, including
+the exact owner/minter baselines, terminal mutation controls, literal-SQL guard
+and corrected count. Expanded minter mutation qualification then passes; the
+owner mutation test exposes a further missing multiplicity check between the
+two identical external budget projections. Requiring both exact occurrences
+closes that false-pass control without removing either mutation.
+
+The next correction build has zero warnings/errors and Unit again passes all
+2,396 cases. Both orchestration facts pass in 4m53s, including all 1,074 external
+dirty/restoration controls. The authority and owner group passes three cases in
+6m16s, including the corrected budget mutations. Detector-local target-name and
+identity indexes preserve fresh baseline/dirty/restored scans; detached targets
+remain explicit offenders. These durations are receipts, not a controlled speedup
+measurement or evidence that the complete CI backend job fits twenty minutes.
+Step 9 retains that complete-job qualification. The first two helper analyzer
+warnings and all seven original architecture failures are closed by focused
+corrections; the original failed full run remains a separate receipt.
+
+Commit preparation identifies whitespace/encoding-only corrections in fifty
+changed files. They are applied after all running tests stop; final format/build
+and representative post-format checks then pass. The complete solution verifies
+format without changing any of its 1,268 files, and Release builds with zero
+warnings/errors. Post-format Unit passes 2,396 cases, Contract four, architecture
+seven and PostgreSQL thirty-three, including the native application-source
+contention case. The normal nonempty/zero-skip TRX guard verifies all four test
+assemblies. The 258-source SHA-256/mode manifest closes at
+`b9187ae8e90976f7b974171cb1563c5b3a4df57e070809f845f3d040678600be`.
+No complete current-head suite, PR/CI success or full review-round credit is
+claimed. The changed-document audit passes 1,377 relative links and 423 fragments;
+all seven ADR parser controls pass.
+
+The remaining Step 7 checkpoints are explicit:
+
+| Checkpoint | Current state |
+|------------|---------------|
+| External stages, durable policy, reconciliation and native terminal/finalizer paths | Implemented; earlier focused receipts above record their source-specific qualification |
+| Uninvokable retirement/invalid-envelope cleanup and candidate progress | Implemented; twenty-one dedicated cases, actual retirement-index seek and corrected alternate-index assertions pass |
+| Native application-source contention | Genuine contention regression passes with the provider task retained and an unrelated transactional job completing at the application-source floor |
+| Complete exact census and relevant backend regression | Focused implementation qualification and correction checks pass; full packet regression/CI remain Step 9 |
+| Step commit and two fresh full review rounds | Implementation commit prepared; neither full review round has started |
+
+Neither full Step 7 review round has started.
+All nineteen packet obligations remain Registered; no production business definition
+is added. Steps 8–9 and real PR/CI closeout remain pending.
 
 ### Durable outbox dispatch
 

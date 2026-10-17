@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using LearnStack.Application.Jobs;
+using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using MediatR;
@@ -15,7 +16,8 @@ public sealed partial class JobExecutor
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentNullException.ThrowIfNull(gate);
-        if (!gate.TryStartExecution())
+        var entryRefused = !gate.TryStartExecution();
+        if (entryRefused && !gate.IsClosed)
             throw new InvalidOperationException("A job commit gate belongs to exactly one execution.");
 
         var previous = accessor.Current;
@@ -25,14 +27,27 @@ public sealed partial class JobExecutor
         IDisposable? authority = null;
         IDisposable? sourceBinding = null;
         Activity? activity = null;
-        Result<None>? response = null;
+        IResultBase? response = null;
         Exception? failure = null;
         var cleanupFailed = false;
+        JobExternalReadResult? finalizationRead = null;
         var retained = new List<JobStartCleanupOwnership>();
         // The callback changes one memory gate. Runtime owns private cancellation and its actual callbacks.
         using var registration = cancellationToken.Register(CloseBusinessGate, gate);
         try
         {
+            if (entryRefused)
+                throw new OperationCanceledException("Job root issuance is closed.", cancellationToken);
+            if (receipt.Stage == BackgroundJobExecutionStage.Finalize)
+            {
+                // A selected outcome is read by its separate actual app owner,
+                // whose cleanup must finish before this ordinary scope starts.
+                finalizationRead = await ReadExternalStateAsync(receipt, cancellationToken).ConfigureAwait(false);
+                cleanupFailed |= finalizationRead.CleanupFailed;
+                retained.AddRange(finalizationRead.RetainedCleanup);
+                if (finalizationRead.Handle is null || cleanupFailed)
+                    throw new InvalidOperationException("Finalization requires its acknowledged, cleaned app read.");
+            }
             sourceBinding = receipt.SourceOwner.Enter();
             receipt.SourceOwner.RequireFreshScopeReady();
             cancellationToken.ThrowIfCancellationRequested();
@@ -40,33 +55,66 @@ public sealed partial class JobExecutor
             accessor.Current = context;
             _ = ActivityContext.TryParse(receipt.Envelope.Traceparent, null, isRemote: true, out var parent);
             activity = new Activity("job.execution").SetIdFormat(ActivityIdFormat.W3C)
-                .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags).Start();
+                .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
+            activity.Start();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
             var completion = scope.Value.ServiceProvider.GetRequiredService<BackgroundJobCompletionParticipant>();
+            var selected = receipt.Stage == BackgroundJobExecutionStage.Finalize
+                ? (completion as PostgresBackgroundJobCompletion
+                    ?? throw new InvalidOperationException("Finalization requires its closed completion owner."))
+                    .BindFinalizationRead(receipt, finalizationRead!.Handle!)
+                : null;
             completion.Arm(receipt, gate);
             authority = admission.Enter(receipt, unit, completion);
             var definitions = scope.Value.ServiceProvider.GetRequiredService<BackgroundJobDefinitionRegistry>();
-            var definition = BackgroundJobEnvelopeSql.Definition(receipt.Envelope, definitions)
-                ?? throw new InvalidOperationException("The admitted definition is no longer invokable.");
+            var definition = receipt.Stage is BackgroundJobExecutionStage.Prepare or BackgroundJobExecutionStage.Finalize
+                ? BackgroundJobEnvelopeSql.ExternalDefinition(receipt.Envelope, definitions)
+                : BackgroundJobEnvelopeSql.Definition(receipt.Envelope, definitions);
+            if (definition is null || definition.Readiness != BackgroundJobDefinitionReadiness.Active
+                || receipt.Stage == BackgroundJobExecutionStage.Prepare && definition.Profile != BackgroundJobExecutionProfile.External)
+                throw new InvalidOperationException("The admitted definition is no longer invokable.");
             var parameters = BackgroundJobPayloadContract.Read(receipt.Envelope.Parameters, definition.ParameterType,
                 BackgroundJobPayloadKind.Parameters);
             BackgroundJobExecutionAdmission.RequireContext(context);
-            var constructor = definition.ProfileRegistration.RootRequestType.GetConstructor([definition.ParameterType])
-                ?? throw new InvalidOperationException("The registered root constructor is unavailable.");
-            var request = constructor.Invoke([parameters]) as IRequest<Result<None>>
-                ?? throw new InvalidOperationException("The registered root has the wrong result contract.");
+            object request;
+            if (selected is not null)
+            {
+                var profile = definition.ProfileRegistration;
+                var finalizationType = typeof(BackgroundJobFinalization<,>).MakeGenericType(profile.PlanType!, profile.OutcomeType!);
+                var plan = BackgroundJobPayloadContract.Read(selected.PlanJson!, profile.PlanType!, BackgroundJobPayloadKind.Plan);
+                var outcome = selected.OutcomeJson is { } json
+                    ? BackgroundJobPayloadContract.Read(json, profile.OutcomeType!, BackgroundJobPayloadKind.Outcome) : null;
+                var finalization = Activator.CreateInstance(finalizationType,
+                    [plan, outcome, selected.FinalizationStatus!.Value, selected.FinalizationReason!.Value])
+                    ?? throw new InvalidOperationException("The registered finalization data constructor is unavailable.");
+                var constructor = profile.FinalizeRequestType!.GetConstructor([definition.ParameterType, finalizationType])
+                    ?? throw new InvalidOperationException("The registered finalization root constructor is unavailable.");
+                request = constructor.Invoke([parameters, finalization]);
+            }
+            else
+            {
+                var constructor = definition.ProfileRegistration.RootRequestType.GetConstructor([definition.ParameterType])
+                    ?? throw new InvalidOperationException("The registered root constructor is unavailable.");
+                request = constructor.Invoke([parameters]);
+            }
+            if (receipt.Stage is BackgroundJobExecutionStage.Transactional or BackgroundJobExecutionStage.Finalize
+                    && request is not IRequest<Result<None>>
+                || receipt.Stage is not (BackgroundJobExecutionStage.Transactional or BackgroundJobExecutionStage.Prepare
+                    or BackgroundJobExecutionStage.Finalize))
+                throw new InvalidOperationException("The registered root has the wrong stage/result contract.");
             // Both parameter and root constructors run under sticky ordinary authority.
             BackgroundJobExecutionAdmission.RequireContext(context);
             receipt.SourceOwner.RequireBusinessReady();
             cancellationToken.ThrowIfCancellationRequested();
             response = await scope.Value.ServiceProvider.GetRequiredService<ISender>()
-                .Send(request, cancellationToken).ConfigureAwait(false);
+                .Send(request, cancellationToken).ConfigureAwait(false) as IResultBase
+                ?? throw new InvalidOperationException("The registered root returned no Result contract.");
         }
         catch (Exception caught)
         {
             failure = caught;
-            if (gate.CommitAcknowledged) cleanupFailed = true;
+            if (!entryRefused && gate.CommitAcknowledged) cleanupFailed = true;
         }
         finally
         {
@@ -102,21 +150,21 @@ public sealed partial class JobExecutor
             }
             // Old inherited bindings close before the auxiliary snapshot. The
             // same clean owner may serve a strictly sequential capacity checkpoint.
-            if (receipt.Envelope.CapacityGroup is null || gate.CommitAcknowledged || cleanupFailed)
+            if (receipt.Stage == BackgroundJobExecutionStage.Finalize || receipt.Stage != BackgroundJobExecutionStage.Prepare
+                && (receipt.Envelope.CapacityGroup is null || gate.CommitAcknowledged) || cleanupFailed)
                 receipt.SourceOwner.CloseIssuance();
             cleanupFailed |= !await receipt.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
             if (cleanupFailed) receipt.SourceOwner.CloseIssuance();
         }
 
-        var uncertain = gate.CommitStarted && !gate.CommitAcknowledged && !gate.KnownRollback;
-        var knownRollback = gate.KnownRollback || !gate.CommitStarted && !gate.CommitAcknowledged && !cleanupFailed;
-        var decision = BackgroundJobFailurePolicy.Classify(response, failure, gate.CommitAcknowledged, uncertain,
+        var commitStarted = !entryRefused && gate.CommitStarted;
+        var acknowledged = !entryRefused && gate.CommitAcknowledged;
+        var uncertain = commitStarted && !acknowledged && !gate.KnownRollback;
+        var knownRollback = !entryRefused && (gate.KnownRollback || !commitStarted && !acknowledged && !cleanupFailed);
+        var decision = BackgroundJobFailurePolicy.Classify(response, failure, acknowledged, uncertain,
             cancellationToken.IsCancellationRequested || gate.IsClosed);
-        return new(decision, gate.CommitAcknowledged, gate.CommitStarted, knownRollback, uncertain, cleanupFailed)
-        {
-            RetainedCleanup = retained.AsReadOnly(),
-            SourceOwner = receipt.SourceOwner,
-        };
+        return new(decision, acknowledged, commitStarted, knownRollback, uncertain, cleanupFailed,
+            receipt, gate, !entryRefused, retained.AsReadOnly(), finalizationRead);
     }
 
     private static void CloseBusinessGate(object? state) => ((BackgroundJobCommitGate)state!).Close();

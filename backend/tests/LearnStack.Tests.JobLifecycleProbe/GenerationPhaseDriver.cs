@@ -42,7 +42,7 @@ internal static class GenerationPhaseDriver
         var executor = new JobExecutor(services.GetRequiredService<IServiceScopeFactory>(),
             new StaticTenantContextAccessor(null), new BackgroundJobExecutionAdmission(definitions, definitions, new RefusingAuditCatalog()), bounds);
         var activator = HangfireInvocationContract.CreateActivator(pool, topology, routing, executor,
-            BackgroundJobRecurrenceRegistry.CreateEmpty());
+            BackgroundJobRecurrenceRegistry.CreateEmpty(), gate);
         var clock = scenario.StartsWith("gen_stall_", StringComparison.Ordinal) ? new PhaseTimeProvider() : null;
         var state = new PhaseState(scenario, twin, gate, diagnostics, pool.Workers, clock);
         LogProvider.SetCurrentLogProvider(state);

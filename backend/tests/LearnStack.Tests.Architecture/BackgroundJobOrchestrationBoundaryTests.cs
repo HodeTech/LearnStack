@@ -19,35 +19,50 @@ public sealed partial class OutboxDispatchConventionTests
     private static SortedSet<string> JobOrchestrationOffenders(ProductionCensus census)
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
+        var types = census.Types;
         var names = new[] { OrchestrationControl, OrchestrationExecution, OrchestrationRenewal, OrchestrationIdentity,
-            OrchestrationInvocation, OrchestrationBound, OrchestrationStore, JobRuntime, OrchestrationCheckpoint, "LearnStack.Infrastructure.Jobs.JobExecutor" };
+            OrchestrationInvocation, OrchestrationBound, OrchestrationStore, JobRuntime, OrchestrationCheckpoint, OrchestrationExecutor,
+            OrchestrationTerminal, OrchestrationRequest };
         var subjects = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in names)
         {
-            if (!census.Types.TryGetValue((InfrastructureAssembly, name), out var type))
+            if (!types.TryGetValue((InfrastructureAssembly, name), out var type))
                 offenders.Add("Missing finite job orchestration subject: " + name);
             else subjects.Add(name, type);
         }
         if (offenders.Count != 0) return offenders;
+        if (!subjects[OrchestrationRequest].IsNestedPrivate || !subjects[OrchestrationRequest].IsSealed)
+            offenders.Add("The concrete queued result owner remains nested private sealed");
         var sites = CallSites(census).ToArray();
+        RecordDetachedTargets(offenders, sites);
+        if (offenders.Count != 0) return offenders;
         var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
         var bodies = OwnedBodies(census).ToArray();
+        // These indexes live for this one read-only detector evaluation only.
+        // A mutation and its undo each receive a fresh complete metadata scan.
+        var identities = new Dictionary<MethodReference, string>(ReferenceEqualityComparer.Instance);
+        var methodsById = types.Values.SelectMany(type => type.Methods).ToLookup(Identity, StringComparer.Ordinal);
+        var bodiesByOwner = bodies.ToLookup(item => item.Owner, ReferenceEqualityComparer.Instance);
         // Rebuild the index inside each detector evaluation so mutations and
         // restoration remain visible without rescanning every instruction per field.
-        var fieldSites = bodies.SelectMany(item => item.Body.Body.Instructions
-                .Where(instruction => instruction.Operand is FieldReference)
-                .Select(instruction => (Owner: MethodId(item.Owner), Instruction: instruction,
-                    Field: (FieldReference)instruction.Operand)))
+        var fieldSites = bodies.SelectMany(item =>
+            {
+                var owner = Identity(item.Owner);
+                return item.Body.Body.Instructions.Where(instruction => instruction.Operand is FieldReference)
+                    .Select(instruction => (Owner: owner, Instruction: instruction,
+                        Field: (FieldReference)instruction.Operand));
+            })
             .ToLookup(item => item.Field.Name, StringComparer.Ordinal);
-        RecordDetachedTargets(offenders, sites);
-        foreach (var name in names.Take(4).Append(OrchestrationCheckpoint))
+        foreach (var name in names.Take(4).Append(OrchestrationCheckpoint).Append(OrchestrationTerminal))
         {
             var type = subjects[name];
             if (!type.IsNotPublic || !type.IsSealed)
                 offenders.Add("Finite job orchestration owner is internal sealed: " + name);
             var constructors = type.Methods.Where(method => method.Name == ".ctor").ToArray();
-            if (constructors.Length != 1 || (name == OrchestrationIdentity ? !constructors[0].IsPrivate : !constructors[0].IsAssembly))
-                offenders.Add("Finite job orchestration owner has one closed constructor: " + name);
+            var expectedConstructors = name is OrchestrationIdentity or OrchestrationExecution ? 2 : 1;
+            if (constructors.Length != expectedConstructors
+                || constructors.Any(constructor => name == OrchestrationIdentity ? !constructor.IsPrivate : !constructor.IsAssembly))
+                offenders.Add("Finite job orchestration owner has its exact closed constructors: " + name);
             if (type.Methods.Where(method => !method.IsPrivate && !method.IsConstructor).SelectMany(method => method.Parameters)
                 .Any(parameter => parameter.ParameterType.FullName.StartsWith("System.Func", StringComparison.Ordinal)
                     || parameter.ParameterType.FullName.StartsWith("System.Action", StringComparison.Ordinal)))
@@ -57,15 +72,11 @@ public sealed partial class OutboxDispatchConventionTests
         Constructor(OrchestrationControl, ["LearnStack.Infrastructure.Persistence.PrivilegedDataSource", "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry",
             "LearnStack.Infrastructure.Jobs.JobExecutor", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeGate",
             "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "System.TimeProvider"]);
-        Constructor(OrchestrationExecution, [OrchestrationControl, OrchestrationInvocation, "LearnStack.Application.Jobs.BackgroundJobRoutingClaim", "System.TimeProvider"]);
         Constructor(OrchestrationRenewal, [OrchestrationStore, OrchestrationExecution + "[]", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions",
             "System.TimeProvider", "System.Threading.CancellationToken"]);
-        Constructor(OrchestrationIdentity, ["LearnStack.Application.Jobs.ConfirmedStartReceipt"]);
 
         Exact(OrchestrationControl, ".ctor", [(JobRuntime, ".ctor")]);
-        Exact(OrchestrationExecution, ".ctor", [(OrchestrationControl, "TryBegin")]);
         Exact(OrchestrationRenewal, ".ctor", [(OrchestrationControl, "RunRenewalAsync")]);
-        Exact(OrchestrationIdentity, ".ctor", [(OrchestrationIdentity, "FromReceipt")]);
         Exact(OrchestrationIdentity, "FromReceipt", [(OrchestrationExecution, "ObservePublicationAsync")]);
         Exact(OrchestrationControl, "TryBegin", [(OrchestrationBound, "RunFrameworkAsync")]);
         Exact(OrchestrationControl, "Release", [(OrchestrationExecution, "ReleaseAfterPrivateCleanup")]);
@@ -79,30 +90,30 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(OrchestrationControl, "RelayStopAsync", [(OrchestrationControl, ".ctor")]);
         Exact(OrchestrationControl, "ObserveCompletionAsync", [(OrchestrationControl, ".ctor")]);
         Exact(OrchestrationExecution, "HoldAdmission", [(OrchestrationBound, "RunFrameworkAsync")]);
-        Exact(OrchestrationExecution, "HoldBusiness", [(OrchestrationBound, "RunFrameworkAsync")]);
+        Exact(OrchestrationExecution, "HoldBusiness", [(OrchestrationBound, "RunFrameworkAsync"), (OrchestrationExecution, "ExecuteExternalNormalAsync")]);
         Exact(OrchestrationExecution, "WaitForPublicationAsync", [(OrchestrationBound, "RunFrameworkAsync")]);
         Exact(OrchestrationExecution, "JoinAsync", [(OrchestrationBound, "RunFrameworkAsync")]);
         Exact(OrchestrationExecution, "ReleaseAfterPrivateCleanup", [(OrchestrationInvocation, "CompleteAsync")]);
-        Exact(OrchestrationExecution, "ObservePublicationAsync", [(OrchestrationExecution, ".ctor")]);
+        Exact(OrchestrationExecution, "ObservePublicationAsync", [(OrchestrationExecution, ".ctor#normal")]);
         Exact(OrchestrationExecution, "ObserveDeadlineAsync", [(OrchestrationExecution, "ObservePublicationAsync")]);
         Exact(OrchestrationExecution, "RecordRenewal", [(OrchestrationControl, "RunRenewalAsync")]);
-        Exact(OrchestrationExecution, "RefuseRenewal", [(OrchestrationExecution, "RecordRenewal"),
-            (OrchestrationExecution, "ObservePublicationAsync"), (OrchestrationControl, "RunRenewalAsync"),
+        Exact(OrchestrationExecution, "RefuseRenewal", [(OrchestrationExecution, "ObservePublicationAsync"), (OrchestrationControl, "RunRenewalAsync"),
             (OrchestrationControl, "RunRenewalAsync"), (OrchestrationControl, "RunRenewalAsync"), (OrchestrationControl, "RunRenewalAsync")]);
         Exact(OrchestrationExecution, "CloseExecution", [(OrchestrationExecution, "RefuseRenewal"),
             (OrchestrationExecution, "LeaseElapsed"), (OrchestrationExecution, "ObservePublicationAsync"),
             (OrchestrationExecution, "ObservePublicationAsync"), (OrchestrationExecution, "ObserveDeadlineAsync"),
-            (OrchestrationExecution, "ObserveDeadlineAsync"), (OrchestrationControl, "RelayStopAsync")]);
+            (OrchestrationExecution, "ObserveDeadlineAsync"), (OrchestrationExecution, "StartRecoveryLease"), (OrchestrationControl, "RelayStopAsync")]);
         Exact(OrchestrationRenewal, "Start", [(OrchestrationControl, "RunRenewalAsync")]);
         Exact(OrchestrationRenewal, "Schedule", [(OrchestrationRenewal, "Start"), (OrchestrationRenewal, "Start")]);
         Exact(OrchestrationRenewal, "ObserveWaitAsync", [(OrchestrationRenewal, ".ctor")]);
         Exact(OrchestrationExecution, "JoinBusinessObserversAsync", [(OrchestrationExecution, "JoinAsync"),
-            (OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
+            (OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync"), (OrchestrationExecution, "FinishExternalFinalizeAsync"),
+            (OrchestrationExecution, "RequestNoPlanTerminalAfterPrepareAsync")]);
         Exact(OrchestrationExecution, "JoinBusinessObserversCoreAsync", [(OrchestrationExecution, "JoinBusinessObserversAsync")]);
         Exact(OrchestrationExecution, "HoldCapacityCheckpoint", [(OrchestrationControl, "ProcessCapacityRequestAsync")]);
         Constructor(OrchestrationCheckpoint, ["LearnStack.Infrastructure.Jobs.JobExecutor",
             "LearnStack.Application.Jobs.BackgroundJobCapacityRecoveryReceipt", "LearnStack.Infrastructure.Jobs.BackgroundJobActualCleanup",
-            "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider"]);
+            "LearnStack.Application.Jobs.BackgroundJobRunGate/RuntimeStop", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider"]);
         Exact(OrchestrationCheckpoint, ".ctor", [(OrchestrationControl, "ProcessCapacityRequestAsync")]);
         Exact(OrchestrationCheckpoint, "Start", [(OrchestrationControl, "ProcessCapacityRequestAsync")]);
         Exact(OrchestrationCheckpoint, "Schedule", [(OrchestrationCheckpoint, "Start"), (OrchestrationCheckpoint, "Start")]);
@@ -114,52 +125,80 @@ public sealed partial class OutboxDispatchConventionTests
             (OrchestrationControl, "RelayStopAsync")]);
 
         var timerCallback = Callback(OrchestrationExecution, "ObservePublicationAsync", OrchestrationExecution, "LeaseElapsed");
-        if (timerCallback is not null) ExactIds(OrchestrationExecution, "LeaseElapsed", [MethodId(timerCallback)]);
+        var recoveryTimerCallback = Callback(OrchestrationExecution, "StartRecoveryLease", OrchestrationExecution, "LeaseElapsed");
+        if (timerCallback is not null && recoveryTimerCallback is not null)
+            ExactIds(OrchestrationExecution, "LeaseElapsed", [Identity(timerCallback), Identity(recoveryTimerCallback)]);
         var checkpointCallback = Callback(OrchestrationCheckpoint, "Schedule", "LearnStack.Infrastructure.Jobs.JobExecutor", "ExecuteCapacityCleanupAsync");
         var renewalCallback = Callback(OrchestrationRenewal, "Schedule", OrchestrationStore, "RenewBatchAsync");
-        if (renewalCallback is not null) ExactIds(OrchestrationStore, "RenewBatchAsync", [MethodId(renewalCallback)]);
-        var timerSites = sites.Where(site => site.Target.DeclaringType?.FullName == "System.TimeProvider"
-            && site.Target.Name == "CreateTimer" && site.Owner.Contains(OrchestrationExecution, StringComparison.Ordinal)).ToArray();
+        if (renewalCallback is not null) ExactIds(OrchestrationStore, "RenewBatchAsync", [Identity(renewalCallback)]);
+        var timerSites = sitesByTargetName["CreateTimer"].Where(site => site.Target.DeclaringType?.FullName == "System.TimeProvider"
+            && site.Owner.Contains(OrchestrationExecution, StringComparison.Ordinal)).ToArray();
         CheckSet(offenders, "job lease timer construction", timerSites.Select(site => site.Owner),
-            [Id(OrchestrationExecution, "ObservePublicationAsync")]);
+            [Id(OrchestrationExecution, "ObservePublicationAsync"), Id(OrchestrationExecution, "StartRecoveryLease")]);
         var wait = Method(OrchestrationRenewal, "ObserveWaitAsync");
-        if (wait is not null && sites.Count(site => site.Owner == MethodId(wait) && site.Target.Name == "WaitAsync"
+        if (wait is not null && sitesByTargetName["WaitAsync"].Count(site => site.Owner == Identity(wait)
                 && ParametersMatch(site.Target, ["System.TimeSpan", "System.TimeProvider", "System.Threading.CancellationToken"])) != 1)
             offenders.Add("Renewal observation must retain its finite actual completion wait");
         RequireBound("TryBegin", 64);
+        RequireBound("TryBeginRecovery", 64);
         RequireBound("Enqueue", 128);
 
-        Field(OrchestrationControl, "_executions", true, [".ctor", "TryBegin", "Release", "get_Snapshot", "RunRenewalAsync", "RelayStopAsync", "RetainedIds"]);
-        Field(OrchestrationControl, "_requests", true, [".ctor", "get_Snapshot", "Enqueue", "RunControlAsync", "RelayStopAsync", "RetainedIds", "FinishRequest"]);
-        Field(OrchestrationControl, "_stop", true, [".ctor", "RunRenewalAsync", "RunControlAsync", "ProcessRequestAsync", "ProcessCapacityRequestAsync", "RunTerminalAsync", "ProbePendingAsync", "RelayStopAsync", "ObserveCompletionAsync", "PauseAsync"]);
-        Field(OrchestrationControl, "_stopRequested", true, [".ctor", "RequestStop", "RelayStopAsync"]);
-        Field(OrchestrationControl, "_loopsPublished", true, [".ctor", "Start", "RequestStop", "ObserveCompletionAsync"]);
-        Field(OrchestrationControl, "_completion", true, [".ctor", "get_Completion", "ObserveCompletionAsync"]);
+        foreach (var group in ExternalOrchestrationSeams.GroupBy(seam => (seam.Type, Name: seam.Name.Split('#')[0])))
+            if (subjects[group.Key.Type].Methods.Count(method => method.Name == group.Key.Name) != group.Count())
+                offenders.Add("Missing or additional external orchestration overload: " + group.Key);
+        foreach (var seam in ExternalOrchestrationSeams)
+        {
+            var method = Method(seam.Type, seam.Name);
+            if (method is null) continue;
+            if (method.ReturnType.FullName != seam.ReturnType
+                || (seam.Type == OrchestrationRequest && method.IsConstructor ? !method.IsPublic
+                    : seam.Private ? !method.IsPrivate : !method.IsAssembly)
+                || method.IsStatic != (seam.Type == OrchestrationIdentity && !method.IsConstructor || seam.Name == "StopExternalRead"))
+                offenders.Add("Changed external orchestration method shape: " + seam.Type + "::" + seam.Name);
+            if (seam.Callers.Length == 0)
+                offenders.Add("An external orchestration seam requires nonempty exact callers: " + seam.Name);
+            else if (seam.Name.EndsWith("#callback", StringComparison.Ordinal))
+            {
+                var caller = seam.Callers.Single();
+                var callback = Callback(caller.Type, caller.Method, seam.Type, method.Name);
+                if (callback is not null) ExactIds(seam.Type, seam.Name, [Identity(callback)]);
+            }
+            else Exact(seam.Type, seam.Name, seam.Callers);
+        }
+        CheckExternalAsyncRetention(census, offenders, subjects, bodies, fieldSites);
+        CheckTerminalPrivilegedAwaits(census, offenders, subjects[OrchestrationTerminal]);
+
+        Field(OrchestrationControl, "_executions", true, [".ctor", "CanRoute", "RelayStopAsync", "Release", "RetainedIds", "RunRenewalAsync", "TryBegin", "TryBeginExternalStatus", "TryBeginRecovery", "get_Snapshot"]);
+        Field(OrchestrationControl, "_requests", true, [".ctor", "Enqueue", "FinishRequest", "RelayStopAsync", "RetainedIds", "RunControlAsync", "get_Snapshot"]);
+        Field(OrchestrationControl, "_stop", true, [".ctor", "AdvanceTerminalNoStartAsync", "ObserveCompletionAsync", "PauseAsync", "ProbePendingAsync", "ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshQuarantineAsync", "RelayStopAsync", "RunControlAsync", "RunRenewalAsync", "RunTerminalAsync", "TryBeginExternalStatus"]);
+        Field(OrchestrationControl, "_stopRequested", true, [".ctor", "RelayStopAsync", "RequestStop"]);
+        Field(OrchestrationControl, "_loopsPublished", true, [".ctor", "ObserveCompletionAsync", "RequestStop", "Start"]);
+        Field(OrchestrationControl, "_completion", true, [".ctor", "ObserveCompletionAsync", "get_Completion"]);
         Field(OrchestrationControl, "_stopRelay", true, [".ctor", "ObserveCompletionAsync"]);
         Field(OrchestrationControl, "_completionObservation", true, [".ctor"]);
         Field(OrchestrationControl, "_renewalOperation", false, ["RunRenewalAsync"]);
         Field(OrchestrationControl, "_renewalFlight", false, ["RunRenewalAsync"]);
-        Field(OrchestrationControl, "_controlOperation", false, ["RunControlAsync", "ProcessRequestAsync", "ProcessCapacityRequestAsync", "RetainedIds"]);
-        Field(OrchestrationControl, "_terminalOperation", false, ["RunTerminalAsync", "RetainedIds"]);
-        Field(OrchestrationControl, "_controlProbe", false, ["ProcessRequestAsync", "ProcessCapacityRequestAsync", "ProbePendingAsync"]);
+        Field(OrchestrationControl, "_controlOperation", false, ["ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshQuarantineAsync", "RetainedIds", "RunControlAsync"]);
+        Field(OrchestrationControl, "_terminalOperation", false, ["RetainedIds", "RunTerminalAsync"]);
+        Field(OrchestrationControl, "_controlProbe", false, ["ProbePendingAsync", "ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync"]);
         Field(OrchestrationControl, "_terminalProbe", false, ["ProbePendingAsync"]);
-        Field(OrchestrationControl, "_pendingControl", false, ["get_Snapshot", "RunControlAsync", "QualifyControlAsync", "ProbePendingAsync", "RetainedIds"]);
-        Field(OrchestrationControl, "_pendingTerminal", false, ["get_Snapshot", "RunTerminalAsync", "QualifyTerminalAsync", "ProbePendingAsync", "RetainedIds"]);
+        Field(OrchestrationControl, "_pendingControl", false, ["ProbePendingAsync", "QualifyControlAsync", "RetainedIds", "RunControlAsync", "get_Snapshot"]);
+        Field(OrchestrationControl, "_pendingTerminal", false, ["ProbePendingAsync", "QualifyTerminalAsync", "RetainedIds", "RunTerminalAsync", "get_Snapshot"]);
         Field(OrchestrationControl, "_terminalActivity", false, ["RunTerminalAsync"]);
         Field(OrchestrationControl, "_cancellation", false, ["RelayStopAsync"]);
-        Field(OrchestrationExecution, "_owner", true, [".ctor", "ReleaseAfterPrivateCleanup"]);
-        Field(OrchestrationExecution, "_work", true, [".ctor", "get_Token", "LeaseElapsed", "CloseExecution"]);
-        Field(OrchestrationExecution, "_deadlineStop", true, [".ctor", "ObserveDeadlineAsync", "JoinBusinessObserversCoreAsync"]);
-        Field(OrchestrationExecution, "_publicationObservation", true, [".ctor", "WaitForPublicationAsync", "JoinBusinessObserversCoreAsync"]);
-        Field(OrchestrationExecution, "<Publication>k__BackingField", true, [".ctor", "get_Publication"]);
-        Field(OrchestrationExecution, "<Gate>k__BackingField", true, [".ctor", "get_Gate"]);
-        Field(OrchestrationExecution, "<Claim>k__BackingField", true, [".ctor", "get_Claim"]);
-        Field(OrchestrationExecution, "_admission", false, ["HoldAdmission", "JoinAsync"]);
-        Field(OrchestrationExecution, "_business", false, ["HoldBusiness", "JoinAsync"]);
-        Field(OrchestrationExecution, "_identity", false, ["get_Identity", "ObservePublicationAsync"]);
-        Field(OrchestrationExecution, "_deadlineObservation", false, ["ObservePublicationAsync", "JoinBusinessObserversCoreAsync"]);
+        Field(OrchestrationExecution, "_owner", true, [".ctor", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "ReleaseAfterPrivateCleanup", "RequestNoPlanTerminalAfterPrepareAsync"]);
+        Field(OrchestrationExecution, "_work", true, [".ctor", "CloseExecution", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "LeaseElapsed", "RecordRenewal", "RequestNoPlanTerminalAfterPrepareAsync", "RequestNoPlanTerminalAsync", "RetryExternalKnownAsync", "StartRecoveryLease", "get_Token"]);
+        Field(OrchestrationExecution, "_deadlineStop", true, [".ctor", "JoinBusinessObserversCoreAsync", "ObserveDeadlineAsync"]);
+        Field(OrchestrationExecution, "_publicationObservation", true, [".ctor", "JoinBusinessObserversCoreAsync", "WaitForPublicationAsync"]);
+        Field(OrchestrationExecution, "_publication", true, [".ctor#normal", "get_Publication"]);
+        Field(OrchestrationExecution, "_admissionGate", true, [".ctor#normal", "get_AdmissionGate"]);
+        Field(OrchestrationExecution, "_claim", true, [".ctor#normal", "get_Claim", "ExecuteExternalRecoveryAsync", "JoinAsync"]);
+        Field(OrchestrationExecution, "_admission", false, ["ExecuteExternalNormalAsync", "FinishUnresolvedExternalAsync", "HoldAdmission", "JoinAsync", "RequestNoPlanTerminalAfterPrepareAsync"]);
+        Field(OrchestrationExecution, "_business", false, ["FinishExternalFinalizeAsync", "HoldBusiness", "JoinAsync", "RequestNoPlanTerminalAfterPrepareAsync", "get_ExternalLeaseWorkSettled"]);
+        Field(OrchestrationExecution, "_identity", false, ["ObservePublicationAsync", "StartRecoveryLease", "get_Identity"]);
+        Field(OrchestrationExecution, "_deadlineObservation", false, ["JoinBusinessObserversCoreAsync", "ObservePublicationAsync"]);
         Field(OrchestrationExecution, "_deadlineCancellation", false, ["JoinBusinessObserversCoreAsync"]);
-        Field(OrchestrationExecution, "_leaseTimer", false, ["ObservePublicationAsync", "RecordRenewal", "JoinBusinessObserversCoreAsync"]);
+        Field(OrchestrationExecution, "_leaseTimer", false, ["JoinBusinessObserversCoreAsync", "ObservePublicationAsync", "RecordRenewal", "StartRecoveryLease"]);
         Field(OrchestrationExecution, "_observersPublished", true, [".ctor", "JoinBusinessObserversAsync"]);
         Field(OrchestrationExecution, "_capacityCheckpoint", false, ["HoldCapacityCheckpoint", "JoinAsync"]);
         Field(OrchestrationCheckpoint, "_published", true, [".ctor", "Schedule", "ObserveActualAsync"]);
@@ -173,22 +212,22 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationCheckpoint, "<Cleanup>k__BackingField", true, [".ctor", "get_Cleanup"]);
         if (checkpointCallback is not null)
         {
-            FieldIds(OrchestrationCheckpoint, "_executor", true, [Id(OrchestrationCheckpoint, ".ctor"), MethodId(checkpointCallback)]);
+            FieldIds(OrchestrationCheckpoint, "_executor", true, [Id(OrchestrationCheckpoint, ".ctor"), Identity(checkpointCallback)]);
             FieldIds(OrchestrationCheckpoint, "_private", true, [Id(OrchestrationCheckpoint, ".ctor"),
-                Id(OrchestrationCheckpoint, "RelayStopAsync"), Id(OrchestrationCheckpoint, "ObserveActualAsync"), MethodId(checkpointCallback)]);
+                Id(OrchestrationCheckpoint, "RelayStopAsync"), Id(OrchestrationCheckpoint, "ObserveActualAsync"), Identity(checkpointCallback)]);
         }
         Field(OrchestrationInvocation, "_cleanupPublished", true, [".ctor", "PrepareCapacityCleanupAsync"]);
         Field(OrchestrationInvocation, "_cleanupStarted", false, ["PrepareCapacityCleanupAsync"]);
         Field(OrchestrationInvocation, "_private", true, [".ctor", "get_Token", "CompleteAsync", "StartCancellationObservation"]);
         Field(OrchestrationInvocation, "_cancellationObservation", false,
-            ["PrepareCapacityCleanupCoreAsync", "RequestCancellation", "CompleteAsync", "StartCancellationObservation"]);
+            ["PrepareCapacityCleanupCoreAsync", "RequestCancellation", "CompleteAsync", "StartCancellationObservation", "JoinReconcileTimeoutCancellationAsync"]);
         Field(OrchestrationInvocation, "_admission", false, ["HoldAdmission", "PrepareCapacityCleanupCoreAsync", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_business", false, ["HoldBusiness", "PrepareCapacityCleanupCoreAsync", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_execution", false,
-            ["HoldExecution", "PrepareCapacityCleanupAsync", "RequestCancellation", "CompleteAsync"]);
+            ["HoldExecution", "PrepareCapacityCleanupAsync", "RequestCancellation", "CompleteAsync", "JoinReconcileTimeoutCancellationAsync"]);
         Field(OrchestrationInvocation, "_framework", false, ["HoldInvocation", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_routing", false, ["HoldRouting", "CompleteAsync"]);
-        Field(OrchestrationControl, "_executor", true, [".ctor", "ProcessCapacityRequestAsync"]);
+        Field(OrchestrationControl, "_executor", true, [".ctor", "AdvanceTerminalNoStartAsync", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "ProcessCapacityRequestAsync"]);
         Field(OrchestrationRenewal, "_published", true, [".ctor", "Schedule"]);
         Field(OrchestrationRenewal, "_actual", false, ["Schedule"]);
         Field(OrchestrationRenewal, "<Completion>k__BackingField", true, [".ctor", "get_Completion"]);
@@ -196,25 +235,48 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationRenewal, "<IssuedAt>k__BackingField", true, [".ctor", "get_IssuedAt"]);
         if (renewalCallback is not null)
         {
-            FieldIds(OrchestrationRenewal, "_store", true, [Id(OrchestrationRenewal, ".ctor"), MethodId(renewalCallback)]);
-            FieldIds(OrchestrationRenewal, "_identities", true, [Id(OrchestrationRenewal, ".ctor"), MethodId(renewalCallback)]);
+            FieldIds(OrchestrationRenewal, "_store", true, [Id(OrchestrationRenewal, ".ctor"), Identity(renewalCallback)]);
+            FieldIds(OrchestrationRenewal, "_identities", true, [Id(OrchestrationRenewal, ".ctor"), Identity(renewalCallback)]);
             FieldIds(OrchestrationRenewal, "_stop", true,
-                [Id(OrchestrationRenewal, ".ctor"), Id(OrchestrationRenewal, "ObserveWaitAsync"), MethodId(renewalCallback)]);
+                [Id(OrchestrationRenewal, ".ctor"), Id(OrchestrationRenewal, "ObserveWaitAsync"), Identity(renewalCallback)]);
         }
-        foreach (var property in new[] { "JobId", "TenantId", "OrganizationId", "DefinitionKey", "Queue", "CapacityGroup", "AttemptId", "Token",
-                     "WakeGeneration", "Deadline", "AdmittedAt", "OwnershipUntil", "NormalAttemptOrdinal" })
-            Field(OrchestrationIdentity, "<" + property + ">k__BackingField", true, [".ctor", "get_" + property]);
-        if (subjects[OrchestrationIdentity].Fields.Count(field => !field.IsStatic) != 13
+        foreach (var property in OrchestrationIdentityFacts)
+        {
+            string[] constructors = property switch
+            {
+                "Stage" or "FinalizeAttemptOrdinal" or "SelectedNormalAttemptId" => new[] { ".ctor#normal" },
+                "IsRecovery" => [".ctor#recovery"],
+                _ => [".ctor#normal", ".ctor#recovery"],
+            };
+            Field(OrchestrationIdentity, "<" + property + ">k__BackingField", true,
+                constructors.Append("get_" + property).ToArray());
+        }
+        if (subjects[OrchestrationIdentity].Fields.Count != 21
             || subjects[OrchestrationIdentity].Methods.Any(method => method.Name.StartsWith("set_", StringComparison.Ordinal)))
-            offenders.Add("An execution identity contains exactly its thirteen immutable acknowledged facts");
+            offenders.Add("An execution identity contains exactly its twenty-one immutable acknowledged facts");
+        foreach (var field in ExternalOrchestrationFields)
+            Field(field.Type, field.Name, field.ReadOnly, field.Owners);
+        foreach (var (type, fields) in ExternalOrchestrationFieldCensus)
+            CheckSet(offenders, "closed orchestration data fields " + type,
+                subjects[type].Fields.Select(field => field.Name), fields);
+        TaskState(OrchestrationTerminal, "_published");
         TaskState(OrchestrationControl, "_completion");
         TaskState(OrchestrationRenewal, "_published");
         TaskState(OrchestrationCheckpoint, "_published");
         return offenders;
 
+        string Identity(MethodReference method)
+        {
+            if (identities.TryGetValue(method, out var identity)) return identity;
+            identity = MethodId(method);
+            identities.Add(method, identity);
+            return identity;
+        }
         MethodDefinition? Method(string type, string name)
         {
-            var found = subjects[type].Methods.Where(method => method.Name == name).ToArray();
+            var shape = ExternalOrchestrationSeams.SingleOrDefault(seam => seam.Type == type && seam.Name == name);
+            var found = subjects[type].Methods.Where(method => method.Name == name.Split('#')[0]
+                && (shape is null || ParametersMatch(method, shape.Parameters))).ToArray();
             if (found.Length == 1) return found[0];
             offenders.Add("Missing or overloaded orchestration seam: " + type + "::" + name);
             return null;
@@ -225,22 +287,22 @@ public sealed partial class OutboxDispatchConventionTests
             if (constructor is not null && !ParametersMatch(constructor, parameters))
                 offenders.Add("Unexpected concrete orchestration constructor signature: " + type);
         }
-        string Id(string type, string name) => Method(type, name) is { } method ? MethodId(method) : "missing:" + type + "::" + name;
+        string Id(string type, string name) => Method(type, name) is { } method ? Identity(method) : "missing:" + type + "::" + name;
         void Exact(string type, string name, (string Type, string Method)[] expected) =>
             ExactIds(type, name, expected.Select(item => Id(item.Type, item.Method)).ToArray());
         void ExactIds(string type, string name, string[] expected)
         {
-            if (Method(type, name) is null) return;
+            if (Method(type, name) is not { } method) return;
             CheckSet(offenders, "finite orchestration caller " + type + "::" + name,
-                sitesByTargetName[name].Where(site => TargetsDeclaredType(site.Target, subjects[type])).Select(site => site.Owner), expected);
+                sitesByTargetName[method.Name].Where(site => TargetsDeclaredType(site.Target, subjects[type])
+                    && Identity(site.Target) == Identity(method)).Select(site => site.Owner), expected);
         }
         MethodDefinition? Callback(string type, string ownerName, string targetType, string targetName)
         {
             var owner = Method(type, ownerName);
             if (owner is null) return null;
-            var delegates = bodies.Where(item => item.Owner == owner).SelectMany(item => DelegateTargets(item.Body))
-                .Select(reference => census.Types.Values.SelectMany(candidate => candidate.Methods)
-                    .SingleOrDefault(candidate => MethodId(candidate) == MethodId(reference)))
+            var delegates = bodiesByOwner[owner].SelectMany(item => DelegateTargets(item.Body))
+                .Select(reference => methodsById[Identity(reference)].SingleOrDefault())
                 .Where(candidate => candidate is not null && MethodOperands(candidate).Any(target =>
                     TargetsDeclaredType(target, subjects[targetType]) && target.Name == targetName)).Cast<MethodDefinition>().Distinct().ToArray();
             if (delegates.Length != 1) { offenders.Add("Missing or additional actual orchestration callback: " + type + "::" + ownerName); return null; }
@@ -249,10 +311,14 @@ public sealed partial class OutboxDispatchConventionTests
                     || callback.DeclaringType.IsNestedPrivate && callback.DeclaringType.DeclaringType == subjects[type]))
                 offenders.Add("The actual orchestration callback stays private: " + callback.FullName);
             CheckSet(offenders, "actual orchestration callback issuance " + callback.FullName,
-                sites.Where(site => HasAttachedDeclaringType(site.Target) && MethodId(site.Target) == MethodId(callback)).Select(site => site.Owner), [MethodId(owner)]);
+                sitesByTargetName[callback.Name].Where(site => HasAttachedDeclaringType(site.Target)
+                    && Identity(site.Target) == Identity(callback)).Select(site => site.Owner), [Identity(owner)]);
             return callback;
         }
-        void Field(string type, string name, bool readOnly, string[] owners) => FieldIds(type, name, readOnly, owners.Select(owner => Id(type, owner)).ToArray());
+        void Field(string type, string name, bool readOnly, string[] owners) => FieldIds(type, name, readOnly,
+            owners.SelectMany(owner => owner == ".ctor"
+                ? subjects[type].Methods.Where(method => method.IsConstructor && !method.IsStatic).Select(Identity)
+                : new[] { Id(type, owner) }).ToArray());
         void FieldIds(string type, string name, bool readOnly, string[] expected)
         {
             var fields = subjects[type].Fields.Where(field => field.Name == name).ToArray();
@@ -262,20 +328,22 @@ public sealed partial class OutboxDispatchConventionTests
             var access = fieldSites[name].Where(item => TargetsDeclaredType(item.Field, subjects[type])).ToArray();
             CheckSet(offenders, "retained orchestration resource callers " + type + ":" + name,
                 access.Select(item => item.Owner).Distinct(), expected);
-            var requiredWrites = readOnly ? 1 : OrchestrationWrites(type, name);
+            var requiredWrites = readOnly ? subjects[type].Methods.Count(method => method.Name == ".ctor"
+                && expected.Contains(Identity(method), StringComparer.Ordinal)) : OrchestrationWrites(type, name);
             if (access.Count(item => item.Instruction.OpCode == OpCodes.Stfld) != requiredWrites)
                 offenders.Add("Unexpected retained orchestration slot write count: " + type + ":" + name);
             if (type == OrchestrationExecution && name == "_identity")
                 CheckSet(offenders, "immutable identity publication addresses", access.Where(item => item.Instruction.OpCode == OpCodes.Ldflda)
                     .Select(item => item.Owner), [Id(type, "ObservePublicationAsync"), Id(type, "ObservePublicationAsync"),
-                        Id(type, "ObservePublicationAsync"), Id(type, "get_Identity")]);
-            if (readOnly && access.Any(item => item.Instruction.OpCode == OpCodes.Stfld && item.Owner != Id(type, ".ctor")))
+                        Id(type, "ObservePublicationAsync"), Id(type, "StartRecoveryLease"), Id(type, "get_Identity")]);
+            if (readOnly && access.Any(item => item.Instruction.OpCode == OpCodes.Stfld
+                && !subjects[type].Methods.Any(method => method.Name == ".ctor" && Identity(method) == item.Owner)))
                 offenders.Add("An immutable orchestration resource is replaced outside its constructor: " + type + ":" + name);
         }
         void RequireBound(string methodName, int bound)
         {
             var method = Method(OrchestrationControl, methodName);
-            if (method is not null && bodies.Where(item => item.Owner == method).SelectMany(item => item.Body.Body.Instructions)
+            if (method is not null && bodiesByOwner[method].SelectMany(item => item.Body.Body.Instructions)
                     .Count(instruction => OrchestrationConstant(instruction) == bound) != 1)
                 offenders.Add("Finite orchestration bound is missing or enlarged: " + methodName);
         }
@@ -283,7 +351,7 @@ public sealed partial class OutboxDispatchConventionTests
         {
             var constructor = Method(type, ".ctor");
             if (constructor is null) return;
-            var writes = bodies.Where(item => item.Owner == constructor).SelectMany(item => item.Body.Body.Instructions)
+            var writes = bodiesByOwner[constructor].SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.OpCode == OpCodes.Stfld && instruction.Operand is FieldReference field
                     && TargetsDeclaredType(field, subjects[type]) && field.Name == fieldName).ToArray();
             if (writes.Length != 1 || writes[0].Previous?.Operand is not MethodReference create
@@ -293,27 +361,30 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
-    private static int OrchestrationWrites(string type, string name) => type switch
-    {
-        OrchestrationControl => name switch
+    private static int OrchestrationWrites(string type, string name) =>
+        ExternalOrchestrationFields.SingleOrDefault(field => field.Type == type && field.Name == name)?.Writes ?? type switch
         {
-            "_renewalOperation" or "_renewalFlight" => 3,
-            "_controlOperation" => 10,
-            "_controlProbe" => 8,
-            "_terminalOperation" => 4,
-            "_terminalProbe" or "_pendingControl" or "_pendingTerminal" or "_terminalActivity" => 2,
-            "_cancellation" => 1,
+            OrchestrationControl => name switch
+            {
+                "_renewalOperation" or "_renewalFlight" => 3,
+                "_controlOperation" => 20,
+                "_controlProbe" => 12,
+                "_terminalOperation" => 4,
+                "_terminalProbe" or "_pendingControl" or "_pendingTerminal" or "_terminalActivity" => 2,
+                "_cancellation" => 1,
+                _ => -1,
+            },
+            OrchestrationExecution => name switch { "_identity" => 0, "_leaseTimer" => 2, _ => 1 },
+            OrchestrationRenewal => name == "_actual" ? 1 : -1,
+            OrchestrationCheckpoint => name is "_actual" or "_cancellation" ? 1 : -1,
+            OrchestrationInvocation => name == "_cleanupStarted" ? 1 : 2,
             _ => -1,
-        },
-        OrchestrationExecution => name == "_identity" ? 0 : 1,
-        OrchestrationRenewal => name == "_actual" ? 1 : -1,
-        OrchestrationCheckpoint => name is "_actual" or "_cancellation" ? 1 : -1,
-        OrchestrationInvocation => name == "_cleanupStarted" ? 1 : 2,
-        _ => -1,
-    };
+        };
 
     private static string OrchestrationFieldType(string type, string name)
     {
+        if (ExternalOrchestrationFields.SingleOrDefault(field => field.Type == type && field.Name == name) is { } external)
+            return external.FieldType;
         const string task = "System.Threading.Tasks.Task";
         const string source = "System.Threading.CancellationTokenSource";
         const string signal = "System.Threading.Tasks.TaskCompletionSource";
@@ -344,9 +415,9 @@ public sealed partial class OutboxDispatchConventionTests
             "_observersPublished" => signal + "`1<" + task + "`1<System.Boolean>>",
             "_capacityCheckpoint" => OrchestrationCheckpoint,
             "_publicationObservation" or "_deadlineObservation" or "_deadlineCancellation" => task,
-            "<Publication>k__BackingField" => "LearnStack.Application.Jobs.BackgroundJobStartPublication",
-            "<Gate>k__BackingField" => "LearnStack.Application.Jobs.BackgroundJobCommitGate",
-            "<Claim>k__BackingField" => "LearnStack.Application.Jobs.BackgroundJobRoutingClaim",
+            "_publication" => "LearnStack.Application.Jobs.BackgroundJobStartPublication",
+            "_admissionGate" => "LearnStack.Application.Jobs.BackgroundJobCommitGate",
+            "_claim" => "LearnStack.Application.Jobs.BackgroundJobRoutingClaim",
             "_admission" => task + "`1<LearnStack.Infrastructure.Jobs.JobStartExecutionResult>",
             "_business" => task + "`1<LearnStack.Infrastructure.Jobs.JobBusinessExecutionResult>",
             "_identity" => OrchestrationIdentity,
@@ -397,9 +468,15 @@ public sealed partial class OutboxDispatchConventionTests
             "<OrganizationId>k__BackingField" => "System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>",
             "<DefinitionKey>k__BackingField" or "<Queue>k__BackingField" or "<CapacityGroup>k__BackingField" => "System.String",
             "<AttemptId>k__BackingField" => "LearnStack.SharedKernel.Jobs.BackgroundJobAttemptId",
-            "<Token>k__BackingField" => "System.Guid",
+            "<Token>k__BackingField" or "<AdmissionToken>k__BackingField" => "System.Guid",
+            "<Profile>k__BackingField" => "System.String",
+            "<LedgerStage>k__BackingField" => "LearnStack.SharedKernel.Jobs.BackgroundJobLedgerStage",
+            "<Stage>k__BackingField" => "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobExecutionStage>",
+            "<FinalizeAttemptOrdinal>k__BackingField" => "System.Int32",
+            "<SelectedNormalAttemptId>k__BackingField" => "System.Nullable`1<LearnStack.SharedKernel.Jobs.BackgroundJobAttemptId>",
+            "<IsRecovery>k__BackingField" => "System.Boolean",
             "<WakeGeneration>k__BackingField" => "System.Int64",
-            "<Deadline>k__BackingField" or "<AdmittedAt>k__BackingField" or "<OwnershipUntil>k__BackingField" => "System.DateTimeOffset",
+            "<Deadline>k__BackingField" or "<AdmittedAt>k__BackingField" or "<OwnershipUntil>k__BackingField" or "<OriginalDueAt>k__BackingField" => "System.DateTimeOffset",
             "<NormalAttemptOrdinal>k__BackingField" => "System.Int32",
             _ => "unlisted identity field:" + name,
         };
@@ -416,7 +493,9 @@ public sealed partial class OutboxDispatchConventionTests
     public void Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention()
     {
         using var census = ProductionCensus.Read();
-        EvaluateDetector(census, JobOrchestrationOffenders).Should().BeEmpty();
+        var baseline = EvaluateDetector(census, JobOrchestrationOffenders);
+        baseline.Should().BeEmpty("the exact orchestration manifest must match; offenders: {0}",
+            string.Join(Environment.NewLine, baseline));
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var guarded = new Dictionary<string, string[]>
         {
@@ -454,7 +533,7 @@ public sealed partial class OutboxDispatchConventionTests
             AssertMutation(census, "an approved owner forwarding a retained orchestration resource",
                 () => AddBoundaryFieldGetter(census.Types[(InfrastructureAssembly, typeName)], "ForwardOrchestrationResource", field), JobOrchestrationOffenders);
         var control = census.Types[(InfrastructureAssembly, OrchestrationControl)];
-        foreach (var (methodName, bound) in new[] { ("TryBegin", 64), ("Enqueue", 128) })
+        foreach (var (methodName, bound) in new[] { ("TryBegin", 64), ("TryBeginRecovery", 64), ("Enqueue", 128) })
         {
             var instruction = control.Methods.Single(method => method.Name == methodName).Body.Instructions
                 .Single(instruction => OrchestrationConstant(instruction) == bound);

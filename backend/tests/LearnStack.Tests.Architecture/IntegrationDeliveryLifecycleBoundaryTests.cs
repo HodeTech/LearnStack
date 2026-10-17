@@ -54,6 +54,7 @@ public sealed partial class OutboxDispatchConventionTests
         var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
                 method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync"))
             .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
+            .Concat(frame.Methods.Where(method => method.Name == "FailOwnedAsync"))
             .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
                     typeof(IDbContextTransaction), typeof(RelationalTransaction), typeof(DatabaseFacade) }
                 .SelectMany(type => type.GetMethods().Where(method => LifecycleTerminalMethods.Contains(method.Name, StringComparer.Ordinal)
@@ -106,6 +107,17 @@ public sealed partial class OutboxDispatchConventionTests
                 && IntegrationLifecycleCapability(target, types) == "database.CommitAsync");
         AssertMutation(census, "a missing real physical completion site", () =>
             ReplaceInstruction(physicalCommit, OpCodes.Ldstr, "missing physical completion"), IntegrationLifecycleOffenders);
+        var ownedFailure = frame.Methods.Single(method => method.Name == "FailOwnedAsync");
+        AssertMutation(census, "an exposed private frame cleanup capability", () =>
+            ChangeAttributes(() => ownedFailure.Attributes, value => ownedFailure.Attributes = value,
+                (ownedFailure.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), IntegrationLifecycleOffenders);
+        var cleanupCalls = OwnedBodies(census).Where(item => item.Owner.DeclaringType == frame)
+            .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                && IntegrationLifecycleCapability(target, types) == "owned-frame.fail").ToArray();
+        cleanupCalls.Should().HaveCount(2, "only explicit frame failure and disposal share the private rollback cleanup");
+        foreach (var call in cleanupCalls)
+            AssertMutation(census, "a missing real private frame cleanup path", () =>
+                ReplaceInstruction(call, OpCodes.Nop, null!), IntegrationLifecycleOffenders);
         foreach (var (assembly, type, name, parameters, terminalCapability) in new[]
                  {
                      (AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
@@ -116,6 +128,14 @@ public sealed partial class OutboxDispatchConventionTests
                          new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                      (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
                          new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalRecoveryAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalCheckpointAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation }, "database.RollbackAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadQuarantinePresenceAsync",
+                         new[] { BoundaryCancellation }, "database.RollbackAsync"),
                  })
         {
             var owner = types[(assembly, type)].Methods.Single(method => method.Name == name && ParametersMatch(method, parameters));
@@ -176,6 +196,11 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "unit lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, unit, types)).Select(TypeId), [TypeId(adapter)]);
         CheckSet(offenders, "frame lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, scope, types)).Select(TypeId), [TypeId(frame)]);
         if (!adapter.IsSealed || !frame.IsSealed || !frame.IsNestedPrivate) offenders.Add("The unit adapter and its private frame must remain sealed");
+        var ownedFailures = frame.Methods.Where(method => method.Name == "FailOwnedAsync").ToArray();
+        if (ownedFailures.Length != 1 || !ownedFailures[0].IsPrivate || ownedFailures[0].IsStatic
+            || ownedFailures[0].HasGenericParameters || ownedFailures[0].Parameters.Count != 0
+            || ownedFailures[0].ReturnType.FullName != LifecycleTask)
+            offenders.Add("Private frame cleanup remains one closed parameterless rollback implementation");
         foreach (var type in new[] { unit, adapter })
         {
             CheckLifecycleDeclarations(type, "BeginTransactionAsync", LifecycleScopeTask,
@@ -213,12 +238,13 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation])],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
-            ["unit.rollback"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync")],
+            ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
-                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"), Owner(InfrastructureAssembly, LifecycleFrame, "DisposeAsync")],
+                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+            ["owned-frame.fail"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync"), Owner(InfrastructureAssembly, LifecycleFrame, "DisposeAsync")],
             ["database.CommitAsync"] =
             [
                 Owner(InfrastructureAssembly, LifecycleAdapter, "CommitFrameAsync"),
@@ -245,7 +271,16 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.RollbackAsync"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "RollbackCoreAsync"),
                 Owner(InfrastructureAssembly, LifecyclePlatform + "/Handle", "DisposeAsync"),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
-                    ["LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation])],
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation]),
+                // Read-only metadata probes own a separate connection/transaction and join its actual rollback/cleanup.
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalRecoveryAsync",
+                    ["LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalCheckpointAsync",
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
+                    ["LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadQuarantinePresenceAsync",
+                    [BoundaryCancellation])],
             ["database.Commit"] = [],
             ["database.Rollback"] = [],
         };
@@ -276,6 +311,10 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var name = target.Name[(target.Name.LastIndexOf('.') + 1)..];
         var cancellation = ParametersMatch(target, [BoundaryCancellation]);
+        if (types.TryGetValue((InfrastructureAssembly, LifecycleFrame), out var frame)
+            && SameType(target.DeclaringType, frame) && name == "FailOwnedAsync")
+            return target.Parameters.Count == 0 && target.ReturnType.FullName == LifecycleTask
+                ? "owned-frame.fail" : "invalid-owned-frame";
         if (types.TryGetValue((KernelAssembly, LifecycleUnit), out var unit)
             && (SameType(target.DeclaringType, unit) || Derives(target.DeclaringType, unit, types)))
             return name switch

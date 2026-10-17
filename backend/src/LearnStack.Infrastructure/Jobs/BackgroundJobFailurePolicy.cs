@@ -29,7 +29,7 @@ internal sealed record BackgroundJobFailureDecision(BackgroundJobFailureDisposit
 /// <summary>ADR-0047's ordered top-level Result/exception policy.</summary>
 internal static class BackgroundJobFailurePolicy
 {
-    internal static BackgroundJobFailureDecision Classify(Result<None>? result, Exception? failure,
+    internal static BackgroundJobFailureDecision Classify(IResultBase? result, Exception? failure,
         bool commitAcknowledged, bool durableOutcomeUncertain, bool ownedCancellationRequested)
     {
         if (commitAcknowledged) return new(BackgroundJobFailureDisposition.Succeeded, null, null);

@@ -33,7 +33,7 @@ public sealed class BackgroundJobCapacityCleanupTests
         var recovery = RecoveryFixture.Create();
         var owner = JobApplicationSourceOwner.Create();
         using var binding = owner.Enter();
-        var command = new RecordBackgroundJobCapacityCleanupCommand(recovery, evidence);
+        var command = new RecordBackgroundJobCapacityCleanupCommand(recovery, evidence, CheckpointGate());
         var catalog = BackgroundJobDefinitionRegistry.CreateEmpty();
         var admission = new BackgroundJobExecutionAdmission(catalog, catalog, new AuditCatalog([new BackgroundJobAuditCatalogSource()]));
         var context = Context(recovery);
@@ -104,7 +104,8 @@ public sealed class BackgroundJobCapacityCleanupTests
         var recovery = RecoveryFixture.Create();
         var owner = JobApplicationSourceOwner.Create();
         using var binding = owner.Enter();
-        var command = new RecordBackgroundJobCapacityCleanupCommand(recovery, BackgroundJobCapacityCleanupEvidence.NeverStarted);
+        var command = new RecordBackgroundJobCapacityCleanupCommand(recovery, BackgroundJobCapacityCleanupEvidence.NeverStarted,
+            CheckpointGate());
         var catalog = BackgroundJobDefinitionRegistry.CreateEmpty();
         var admission = new BackgroundJobExecutionAdmission(catalog, catalog, new AuditCatalog([new BackgroundJobAuditCatalogSource()]));
         var context = Context(recovery);
@@ -132,7 +133,8 @@ public sealed class BackgroundJobCapacityCleanupTests
     public async Task An_unframed_checkpoint_is_refused_before_the_handler_and_cannot_be_created_without_a_source_owner()
     {
         var recovery = RecoveryFixture.Create();
-        var create = () => new RecordBackgroundJobCapacityCleanupCommand(recovery, BackgroundJobCapacityCleanupEvidence.NeverStarted);
+        var create = () => new RecordBackgroundJobCapacityCleanupCommand(recovery, BackgroundJobCapacityCleanupEvidence.NeverStarted,
+            CheckpointGate());
         create.Should().Throw<InvalidOperationException>();
         var owner = JobApplicationSourceOwner.Create();
         using var binding = owner.Enter();
@@ -151,6 +153,14 @@ public sealed class BackgroundJobCapacityCleanupTests
     private static JobTenantContext Context(BackgroundJobCapacityRecoveryReceipt recovery) => JobTenantContext.FromValidatedJob(
         recovery.TenantId, recovery.OrganizationId, recovery.JobId, null, null, null,
         "00-11111111111111111111111111111111-1111111111111111-01", "tenancy");
+
+    private static BackgroundJobCommitGate CheckpointGate()
+    {
+        var gate = new BackgroundJobRunGate(new BackgroundJobRunGate.RuntimeStop())
+            .OpenBoundary(BackgroundJobCheckpointKind.TransactionalCleanup);
+        gate.TryIssue().Should().BeTrue("the explicit synthetic checkpoint has been issued");
+        return gate;
+    }
 
     private sealed class RecoveryFixture : BackgroundJobCapacityRecoveryReceipt.MintingSource
     {

@@ -3,17 +3,22 @@ using System.Diagnostics.CodeAnalysis;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
 public sealed record BackgroundJobControlHealth(int Executions, int PendingOutcomes,
     bool RenewalHealthy, bool RecoveryHealthy, bool TerminalHealthy, bool CleanupConfirmed,
-    long Renewals, long Retries, long Terminalized, long UnknownOutcomes);
+    long Renewals, long Retries, long Terminalized, long UnknownOutcomes)
+{
+    public bool? HasQuarantinedJobs { get; init; }
+    public bool QuarantineObservationHealthy { get; init; }
+}
 
 /// <summary>Independent finite renewal, recovery and terminal lanes; none invokes module work.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "The facade owns actual lane completion and the private cancellation source, including retained cleanup.")]
-internal sealed class BackgroundJobControl
+internal sealed partial class BackgroundJobControl
 {
     private readonly object _sync = new();
     private readonly Dictionary<Guid, BackgroundJobExecutionControl> _executions = [];
@@ -36,6 +41,7 @@ internal sealed class BackgroundJobControl
     private object? _controlOperation, _terminalOperation;
     private OwnedBackgroundJobControl<BackgroundJobProbeResult>? _controlProbe, _terminalProbe;
     private PendingCommitCursor? _pendingControl, _pendingTerminal;
+    private BackgroundJobTerminalNoStartOperation? _terminalNoStart;
     private Activity? _terminalActivity;
     private Task? _cancellation;
     private bool _started, _stopping, _cleanupFault, _renewalFault, _controlFault, _terminalFault;
@@ -64,13 +70,19 @@ internal sealed class BackgroundJobControl
         get
         {
             lock (_sync)
-                return new(_executions.Count, _requests.Count + PendingCount(_pendingControl) + PendingCount(_pendingTerminal),
+                return new(_executions.Count, _requests.Count + PendingCount(_pendingControl) + PendingCount(_pendingTerminal)
+                    + (_terminalNoStart?.PendingOutcomes ?? 0),
                     !_cleanupFault && !_renewalFault && !_executions.Values.Any(item => item.RenewalRefused) && Fresh(_renewalProgress),
                     !_cleanupFault && !_controlFault && _pendingControl is null
                         && !_requests.Any(item => item.Checkpoint is { TimelyReturn.IsCompletedSuccessfully: true } checkpoint
                             && !checkpoint.TimelyReturn.Result) && Fresh(_controlProgress),
-                    !_cleanupFault && !_terminalFault && _pendingTerminal is null && Fresh(_terminalProgress), Completion.IsCompletedSuccessfully,
-                    _renewals, _retries, _terminalized, _unknown);
+                    !_cleanupFault && !_terminalFault && _pendingTerminal is null
+                        && (_terminalNoStart?.Healthy ?? true) && Fresh(_terminalProgress), Completion.IsCompletedSuccessfully,
+                    _renewals, _retries, _terminalized, _unknown)
+                {
+                    HasQuarantinedJobs = _quarantinePresence,
+                    QuarantineObservationHealthy = QuarantineObservationHealthy(),
+                };
         }
     }
 
@@ -82,9 +94,45 @@ internal sealed class BackgroundJobControl
         {
             if (_stopping || !_gate.TryAdmit() || !work.TryAdmitContinuation()
                 || RetainedIds().Contains(claim.JobId.Value) || _executions.Count >= 64) return null;
-            var execution = new BackgroundJobExecutionControl(this, work, claim, _time);
+            var execution = new BackgroundJobExecutionControl(this, work, claim, _gate.RunStop, _time);
             _executions.Add(claim.JobId.Value, execution);
             return execution;
+        }
+    }
+
+    internal BackgroundJobExecutionControl? TryBeginRecovery(BackgroundJobId job, long generation, string queue,
+        HangfireGenerationWork.Invocation work)
+    {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        lock (_sync)
+        {
+            if (_stopping || !_gate.TryAdmit() || !work.TryAdmitContinuation()
+                || RetainedIds().Contains(job.Value) || _executions.Count >= 64) return null;
+            var execution = new BackgroundJobExecutionControl(this, work, job, generation, queue, _gate.RunStop, _time);
+            _executions.Add(job.Value, execution);
+            return execution;
+        }
+    }
+
+    internal bool CanRoute(BackgroundJobId job)
+    {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        lock (_sync)
+            return !_stopping && _gate.TryAdmit() && _executions.Count < 64 && !RetainedIds().Contains(job.Value);
+    }
+
+    internal bool TryBeginExternalStatus(BackgroundJobExecutionControl execution, out CancellationToken token)
+    {
+        BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
+        lock (_sync)
+        {
+            token = default;
+            if (_stopping || !_gate.TryAdmit() || !_executions.TryGetValue(execution.JobId.Value, out var actual)
+                || !ReferenceEquals(actual, execution)) return false;
+            // Pure status accounting has its own bounded SQL task after actual
+            // probe cleanup. This token grants no new app/provider/Run entry.
+            token = _stop.Token;
+            return true;
         }
     }
 
@@ -92,10 +140,10 @@ internal sealed class BackgroundJobControl
     {
         lock (_sync)
         {
-            if (!_executions.TryGetValue(execution.Claim.JobId.Value, out var actual)
+            if (!_executions.TryGetValue(execution.JobId.Value, out var actual)
                 || !ReferenceEquals(actual, execution))
                 throw new InvalidOperationException("Only the actual execution's final cleanup releases its identity.");
-            _executions.Remove(execution.Claim.JobId.Value);
+            _executions.Remove(execution.JobId.Value);
         }
     }
 
@@ -165,6 +213,7 @@ internal sealed class BackgroundJobControl
         if (result.CleanupFailed) return Task.FromResult(false);
         if (result.CommitAcknowledged) return Task.FromResult(true);
         if (execution.Identity is not { } identity) return Task.FromResult(false);
+        if (identity.Profile == "external") return execution.FinishExternalFinalizeAsync(result, _store);
         execution.Gate.Close();
         if (identity.CapacityGroup is not null)
         {
@@ -182,6 +231,17 @@ internal sealed class BackgroundJobControl
         // a canceled wait is never a permanent business refusal.
         return Task.FromResult(true);
     }
+
+    internal Task<bool> FinishFinalizerAsync(BackgroundJobExecutionControl execution, JobBusinessExecutionResult result,
+        OwnedBackgroundJobControl<BackgroundJobCheckpointHistoryObservation>? history) =>
+        Enqueue(new(execution, RequestKind.Finalizer, null, null, _time.GetTimestamp())
+        { FinalizerResult = result, FinalizerHistory = history });
+
+    internal Task<bool> ExecuteExternalNormalAsync(BackgroundJobExecutionControl execution) =>
+        execution.ExecuteExternalNormalAsync(_executor, _store);
+
+    internal Task<bool> ExecuteExternalRecoveryAsync(BackgroundJobExecutionControl execution) =>
+        execution.ExecuteExternalRecoveryAsync(_executor, _store);
 
     private Task<bool> Enqueue(CompletionRequest request)
     {
@@ -231,10 +291,10 @@ internal sealed class BackgroundJobControl
                         foreach (var row in rows)
                         {
                             var execution = active.Single(item => ReferenceEquals(item.Identity, row.Identity));
-                            if (!execution.Gate.CommitAcknowledged) execution.RecordRenewal(row, _renewalFlight.IssuedAt);
+                            if (!execution.LeaseWorkSettled) execution.RecordRenewal(row, _renewalFlight.IssuedAt);
                         }
                         foreach (var execution in active)
-                            if (!renewed.Contains(execution.Identity!) && !execution.Gate.CommitAcknowledged) execution.RefuseRenewal();
+                            if (!renewed.Contains(execution.Identity!) && !execution.LeaseWorkSettled) execution.RefuseRenewal();
                         lock (_sync) _renewals += renewed.Count;
                     }
                     else
@@ -246,7 +306,7 @@ internal sealed class BackgroundJobControl
                             lock (_sync) _unknown++;
                             foreach (var probe in _renewalOperation.Probes)
                             {
-                                var execution = active.Single(item => item.Claim.JobId.Value == probe.JobId);
+                                var execution = active.Single(item => item.JobId.Value == probe.JobId);
                                 _ = Enqueue(new(execution, RequestKind.Renewal, probe, null, _time.GetTimestamp()));
                             }
                         }
@@ -285,6 +345,7 @@ internal sealed class BackgroundJobControl
         {
             try
             {
+                if (QuarantineReadDue() && !await RefreshQuarantineAsync().ConfigureAwait(false)) return;
                 CompletionRequest? request;
                 lock (_sync) request = outcomeTurn ? _requests.FirstOrDefault(item => _time.GetTimestamp() >= item.Due) : null;
                 outcomeTurn = !outcomeTurn;
@@ -308,7 +369,7 @@ internal sealed class BackgroundJobControl
                     else
                     {
                         var selected = (BackgroundJobControlLane)lane;
-                        lane = (lane + 1) % 4;
+                        lane = (lane + 1) % Enum.GetValues<BackgroundJobControlLane>().Length;
                         var operation = await _store.RunRecoveryQuantumAsync(selected, RetainedIds(), _stop.Token).ConfigureAwait(false);
                         _controlOperation = operation;
                         if (!await QualifyControlAsync(operation, retainPendingProbes: true).ConfigureAwait(false)) return;
@@ -329,6 +390,16 @@ internal sealed class BackgroundJobControl
 
     private async Task ProcessRequestAsync(CompletionRequest request)
     {
+        if (request.Kind == RequestKind.NoPlanTerminal)
+        {
+            await ProcessNoPlanTerminalRequestAsync(request).ConfigureAwait(false);
+            return;
+        }
+        if (request.Kind == RequestKind.Finalizer)
+        {
+            await ProcessFinalizerRequestAsync(request).ConfigureAwait(false);
+            return;
+        }
         if (request.Cleanup is not null)
         {
             await ProcessCapacityRequestAsync(request).ConfigureAwait(false);
@@ -378,6 +449,71 @@ internal sealed class BackgroundJobControl
             }
         }
         else FinishRequest(request, true);
+        _controlOperation = null;
+    }
+
+    private async Task ProcessFinalizerRequestAsync(CompletionRequest request)
+    {
+        if (request.Probe is { } probe)
+        {
+            _controlProbe = await _store.ProbeCommitAsync(probe, _stop.Token).ConfigureAwait(false);
+            if (!_controlProbe.CleanupConfirmed) { SealControl(); return; }
+            var observation = _controlProbe;
+            _controlProbe = null;
+            if (observation.Failed || observation.Value is null
+                || observation.Value.Disposition is BackgroundJobProbeDisposition.Unresolved or BackgroundJobProbeDisposition.Missing)
+            {
+                lock (_sync) { _controlFault = true; _unknown++; request.Due = Later(_bounds.RecoveryProbeInterval); }
+                return;
+            }
+            if (observation.Value.Disposition != BackgroundJobProbeDisposition.RolledBack)
+            {
+                // Changed owner is only the end of this old authority. It is
+                // never interpreted as the original finalizer/status success.
+                FinishRequest(request, true);
+                return;
+            }
+            request.Probe = null;
+        }
+        if (request.Execution.Identity is not { } identity || request.FinalizerResult is not { } result)
+            throw new InvalidOperationException("Finalizer request lost its exact ordinary origin.");
+        // Preserve the concrete actual task before its first asynchronous wait.
+        // Replacement is allowed only after the previous result cleaned and,
+        // when COMMIT was uncertain, its exact locked probe proved rollback.
+        var publication = new TaskCompletionSource<Task<OwnedBackgroundJobControl<BackgroundJobControlChange>>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var actual = publication.Task.Unwrap();
+        lock (_sync)
+        {
+            if (_stopping) { FinishRequest(request, true); return; }
+            // Stop must see the retained slot before any synchronous SQL prefix.
+            request.FinalizerTask = actual;
+            _controlOperation = request;
+        }
+        try { publication.TrySetResult(_store.FinishExternalFinalizeAsync(identity, result, request.FinalizerHistory, _stop.Token)); }
+        catch (Exception failure) when (Catchable(failure)) { publication.TrySetException(failure); }
+        OwnedBackgroundJobControl<BackgroundJobControlChange> operation;
+        try { operation = await actual.ConfigureAwait(false); }
+        catch (Exception failure) when (Catchable(failure))
+        {
+            // The actual failed task remains on the retained request slot.
+            SealControl();
+            FinishRequest(request, false);
+            return;
+        }
+        _controlOperation = operation;
+        if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
+        if (operation.CommitUncertain && operation.Probes.Count != 1)
+        {
+            SealControl();
+            FinishRequest(request, false);
+            return;
+        }
+        if (!RetainFailedRequest(request, operation))
+        {
+            if (operation.Value is { Phase: "finalize_pending" }) lock (_sync) _retries++;
+            FinishRequest(request, true);
+        }
         _controlOperation = null;
     }
 
@@ -515,7 +651,8 @@ internal sealed class BackgroundJobControl
             lock (_sync)
             {
                 if (_stopping || !_gate.TryAdmit()) return;
-                var operation = new BackgroundJobCapacityCheckpointOperation(_executor, request.Recovery, cleanup, _bounds, _time);
+                var operation = new BackgroundJobCapacityCheckpointOperation(_executor, request.Recovery, cleanup,
+                    _gate.RunStop, _bounds, _time);
                 request.Execution.HoldCapacityCheckpoint(operation);
                 request.Checkpoint = operation;
                 operation.Start();
@@ -571,6 +708,7 @@ internal sealed class BackgroundJobControl
         {
             try
             {
+                if (!await AdvanceTerminalNoStartAsync().ConfigureAwait(false)) return;
                 PendingCommitCursor? pending;
                 lock (_sync) pending = _pendingTerminal;
                 if (pending is not null)
@@ -684,7 +822,14 @@ internal sealed class BackgroundJobControl
         await _stopRequested.Task.ConfigureAwait(false);
         BackgroundJobExecutionControl[] executions;
         CompletionRequest[] requests;
-        lock (_sync) { executions = _executions.Values.ToArray(); requests = _requests.ToArray(); }
+        BackgroundJobTerminalNoStartOperation? terminalNoStart;
+        lock (_sync)
+        {
+            executions = _executions.Values.ToArray();
+            requests = _requests.ToArray();
+            terminalNoStart = _terminalNoStart;
+        }
+        terminalNoStart?.RequestStop();
         foreach (var execution in executions) execution.CloseExecution();
         // Business work has already returned before its completion request is
         // queued. Host stop leaves its durable lease for fenced future recovery.
@@ -699,6 +844,21 @@ internal sealed class BackgroundJobControl
                 var result = await checkpoint.Completion.ConfigureAwait(false);
                 clean = !result.CleanupFailed;
             }
+            if (request.FinalizerTask is { } finalizer)
+            {
+                try { clean &= (await finalizer.ConfigureAwait(false)).CleanupConfirmed; }
+                catch (Exception failure) when (Catchable(failure)) { clean = false; }
+            }
+            if (request.NoPlanStatusTask is { } noPlanStatus)
+            {
+                try { clean &= (await noPlanStatus.ConfigureAwait(false)).CleanupConfirmed; }
+                catch (Exception failure) when (Catchable(failure)) { clean = false; }
+            }
+            if (request.NoPlanProbeTask is { } noPlanProbe)
+            {
+                try { clean &= (await noPlanProbe.ConfigureAwait(false)).CleanupConfirmed; }
+                catch (Exception failure) when (Catchable(failure)) { clean = false; }
+            }
             if (!clean) RetainCleanup();
             FinishRequest(request, clean);
         }
@@ -711,6 +871,10 @@ internal sealed class BackgroundJobControl
             var loops = await _loopsPublished.Task.ConfigureAwait(false);
             await Task.WhenAll(loops).ConfigureAwait(false);
             await _stopRelay.ConfigureAwait(false);
+            BackgroundJobTerminalNoStartOperation? terminalNoStart;
+            lock (_sync) terminalNoStart = _terminalNoStart;
+            if (terminalNoStart is not null
+                && !await terminalNoStart.JoinAfterLaneStoppedAsync().ConfigureAwait(false)) RetainCleanup();
             _stop.Dispose();
             lock (_sync) { if (!_cleanupFault) _completion.TrySetResult(); }
         }
@@ -719,9 +883,10 @@ internal sealed class BackgroundJobControl
 
     private Guid[] RetainedIds()
     {
-        lock (_sync) return _executions.Keys.Concat(_requests.Select(request => request.Execution.Claim.JobId.Value))
+        lock (_sync) return _executions.Keys.Concat(_requests.Select(request => request.Execution.JobId.Value))
             .Concat(_pendingControl?.Probes.Select(probe => probe.JobId) ?? [])
             .Concat(_pendingTerminal?.Probes.Select(probe => probe.JobId) ?? [])
+            .Concat(_terminalNoStart?.RetainedIds ?? [])
             .Concat(RetainedOperationIds(_controlOperation)).Concat(RetainedOperationIds(_terminalOperation))
             .Distinct().ToArray();
     }
@@ -755,7 +920,7 @@ internal sealed class BackgroundJobControl
     private static bool Catchable(Exception failure) => BackgroundJobControlResources.Catchable(failure);
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private enum RequestKind { Admission, Business, InvalidEnvelope, Renewal, CapacityDeferred }
+    private enum RequestKind { Admission, Business, InvalidEnvelope, Renewal, CapacityDeferred, Finalizer, NoPlanTerminal }
     private sealed class CompletionRequest(BackgroundJobExecutionControl execution, RequestKind kind,
         BackgroundJobCommitProbe? probe, BackgroundJobFailureDecision? decision, long due,
         BackgroundJobActualCleanup? cleanup = null)
@@ -768,6 +933,13 @@ internal sealed class BackgroundJobControl
         internal BackgroundJobCapacityRecoveryReceipt? Recovery { get; set; }
         internal OwnedBackgroundJobControl<BackgroundJobCapacityRecoveryReceipt>? Acquisition { get; set; }
         internal BackgroundJobCapacityCheckpointOperation? Checkpoint { get; set; }
+        internal JobBusinessExecutionResult? FinalizerResult { get; init; }
+        internal OwnedBackgroundJobControl<BackgroundJobCheckpointHistoryObservation>? FinalizerHistory { get; init; }
+        internal Task<OwnedBackgroundJobControl<BackgroundJobControlChange>>? FinalizerTask { get; set; }
+        internal JobBusinessExecutionResult? NoPlanResult { get; init; }
+        internal BackgroundJobCommitProbe? NoPlanOrigin { get; init; }
+        internal Task<OwnedBackgroundJobControl<BackgroundJobControlChange>>? NoPlanStatusTask { get; set; }
+        internal Task<OwnedBackgroundJobControl<BackgroundJobProbeResult>>? NoPlanProbeTask { get; set; }
         internal bool CleanupCommitted { get; set; }
         internal long Due { get; set; } = due;
         internal TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

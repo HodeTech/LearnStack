@@ -2,6 +2,7 @@ using System.Reflection;
 using Hangfire;
 using Hangfire.Common;
 using Hangfire.Server;
+using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
@@ -28,20 +29,22 @@ public static class HangfireInvocationContract
 
     public static JobActivator CreateActivator(BackgroundJobWorkerPoolRegistration pool,
         BackgroundJobInfrastructureRegistry topology, PostgresBackgroundJobRoutingStore routing,
-        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences) =>
-        CreateActivator(pool, topology, routing, executor, recurrences, null);
+        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences, BackgroundJobRuntimeGate runtime) =>
+        CreateActivator(pool, topology, routing, executor, recurrences, runtime, null);
 
     internal static JobActivator CreateActivator(BackgroundJobWorkerPoolRegistration pool,
         BackgroundJobInfrastructureRegistry topology, PostgresBackgroundJobRoutingStore routing,
-        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences, BackgroundJobControl? jobs)
+        JobExecutor executor, BackgroundJobRecurrenceRegistry recurrences, BackgroundJobRuntimeGate runtime,
+        BackgroundJobControl? jobs)
     {
         ArgumentNullException.ThrowIfNull(pool);
         ArgumentNullException.ThrowIfNull(topology);
         ArgumentNullException.ThrowIfNull(routing);
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(recurrences);
+        ArgumentNullException.ThrowIfNull(runtime);
         if (!topology.Pools.TryGetValue(pool.Name, out var registered) || !ReferenceEquals(pool, registered)) throw Refused();
-        return new ClosedActivator(pool, routing, executor, recurrences, jobs);
+        return new ClosedActivator(pool, routing, executor, recurrences, runtime, jobs);
     }
 
     internal static JobActivator BindGeneration(JobActivator activator, HangfireGeneration generation) =>
@@ -68,11 +71,11 @@ public static class HangfireInvocationContract
 
     private sealed class ClosedActivator(BackgroundJobWorkerPoolRegistration pool,
         PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
-        BackgroundJobRecurrenceRegistry recurrences, BackgroundJobControl? jobs,
+        BackgroundJobRecurrenceRegistry recurrences, BackgroundJobRuntimeGate runtime, BackgroundJobControl? jobs,
         HangfireGeneration? generation = null) : JobActivator
     {
         internal ClosedActivator Bind(HangfireGeneration owner) => generation is null
-            ? new(pool, routing, executor, recurrences, jobs, owner) : throw Refused();
+            ? new(pool, routing, executor, recurrences, runtime, jobs, owner) : throw Refused();
 
         public override JobActivatorScope BeginScope(PerformContext context)
         {
@@ -80,7 +83,7 @@ public static class HangfireInvocationContract
             var job = context.BackgroundJob.Job;
             Validate(job, pool, recurrences);
             if (generation?.TryAdmitInvocation() == false) throw Refused();
-            return new ClosedScope(new BoundInvocation(job, routing, executor, generation, jobs));
+            return new ClosedScope(new BoundInvocation(job, routing, executor, runtime, generation, jobs));
         }
 
         public override object ActivateJob(Type jobType) => throw Refused();
@@ -100,7 +103,7 @@ public static class HangfireInvocationContract
     }
 
     internal sealed class BoundInvocation(Job job, PostgresBackgroundJobRoutingStore routing, JobExecutor executor,
-        HangfireGeneration? owner = null, BackgroundJobControl? jobs = null)
+        BackgroundJobRuntimeGate runtime, HangfireGeneration? owner = null, BackgroundJobControl? jobs = null)
     {
         private readonly TaskCompletionSource<Task> _operationPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _operationObserver;
@@ -131,9 +134,10 @@ public static class HangfireInvocationContract
             // scheduling or a possibly blocking synchronous framework prefix.
             work.HoldInvocation(this);
             _operationObserver = ObserveOperationAsync(work);
-            _wrapperWait = WaitForOperationAsync(work, owner!.InvocationWait, owner.InvocationTime);
+            _wrapperWait = WaitForOperationAsync(work);
             try
             {
+                work.BeginStageWait(BackgroundJobInvocationStage.Framework);
                 Task operation;
                 if (ExecutionContext.IsFlowSuppressed()) operation = Task.Run(() => RunFrameworkAsync(id, generation, work));
                 else
@@ -162,12 +166,13 @@ public static class HangfireInvocationContract
             await work.CompleteAsync(_cleanupConfirmed).ConfigureAwait(false);
         }
 
-        private async Task<bool> WaitForOperationAsync(HangfireGenerationWork.Invocation work,
-            TimeSpan timeout, TimeProvider time)
+        private async Task<bool> WaitForOperationAsync(HangfireGenerationWork.Invocation work)
         {
             try
             {
-                await _operationObserver!.WaitAsync(timeout, time).ConfigureAwait(false);
+                if (await Task.WhenAny(_operationObserver!, work.ReturnRequested).ConfigureAwait(false) != _operationObserver)
+                    return false;
+                await _operationObserver!.ConfigureAwait(false);
                 return true;
             }
             catch (Exception failure) when (Catchable(failure))
@@ -185,13 +190,30 @@ public static class HangfireInvocationContract
             BackgroundJobExecutionControl? execution = null;
             try
             {
-                if (!MayContinue(work)) { cleanupConfirmed = true; return; }
+                // An Outcome can already expose its next durable generation
+                // while this instance still owns old task/callback cleanup.
+                // Refuse before SQL can strand a successor routing lease;
+                // TryBegin still fences a race after actual routing acquisition.
+                if (!MayContinue(work) || jobs?.CanRoute(id) == false) { cleanupConfirmed = true; return; }
                 var token = work?.Token ?? CancellationToken.None;
                 var route = routing.TryClaimOwnedAsync(id, generation, token);
                 work?.HoldRouting(route);
                 var read = await route.ConfigureAwait(false);
                 cleanupConfirmed = read.CleanupConfirmed;
-                if (!cleanupConfirmed || read.Failed || read.Claim is not { } claim) return;
+                if (!cleanupConfirmed || read.Failed) return;
+                if (read.Claim is not { } claim)
+                {
+                    // Only a clean null routing result in an actual validated
+                    // external pool may try fresh, nonexecuting recovery. The
+                    // locked acquisition decides eligibility, never this hint.
+                    if (owner?.IsExternalPool != true || jobs is null || work is null || !MayContinue(work)) return;
+                    execution = jobs.TryBeginRecovery(id, generation, job.Queue!, work);
+                    if (execution is null) return;
+                    work.HoldExecution(execution);
+                    cleanupConfirmed = false;
+                    cleanupConfirmed = await jobs.ExecuteExternalRecoveryAsync(execution).ConfigureAwait(false);
+                    return;
+                }
                 if (claim.Queue != job.Queue) throw Refused();
                 if (!MayContinue(work)) return;
                 // Direct unbound contract fixtures exercise framework admission
@@ -203,8 +225,10 @@ public static class HangfireInvocationContract
                     work.HoldExecution(execution);
                 }
                 var admission = execution is null
-                    ? executor.ExecuteAsync(claim, startGate: () => MayContinue(work), cancellationToken: token)
-                    : executor.ExecutePublishedAsync(claim, execution.Publication, () => MayContinue(work), token);
+                    ? executor.ExecuteAsync(claim, new BackgroundJobRunGate(runtime.RunStop),
+                        startGate: () => MayContinue(work), cancellationToken: token)
+                    : executor.ExecutePublishedAsync(claim, execution.Publication, execution.AdmissionGate,
+                        () => MayContinue(work), token);
                 work?.HoldAdmission(admission);
                 execution?.HoldAdmission(admission);
                 cleanupConfirmed = false;
@@ -215,15 +239,24 @@ public static class HangfireInvocationContract
                 if (result.Outcome == JobStartExecutionOutcome.Started && result.Receipt is { } receipt
                     && !execution.Gate.IsClosed && !execution.Token.IsCancellationRequested)
                 {
+                    if (receipt.Envelope.Profile == "external" && receipt.LedgerStage == BackgroundJobLedgerStage.Normal)
+                    {
+                        cleanupConfirmed = false;
+                        cleanupConfirmed = await jobs!.ExecuteExternalNormalAsync(execution).ConfigureAwait(false);
+                        return;
+                    }
                     // A local generation drain closes new admission, not an
                     // already acknowledged business execution or its renewal.
+                    if (!work!.BeginStageWait(receipt.Stage == BackgroundJobExecutionStage.Finalize
+                        ? BackgroundJobInvocationStage.Finalize : BackgroundJobInvocationStage.Transactional)) return;
                     var business = executor.ExecuteBusinessAsync(receipt, execution.Gate, execution.Token);
                     execution.HoldBusiness(business);
                     work!.HoldBusiness(business);
                     cleanupConfirmed = false;
                     var completed = await business.ConfigureAwait(false);
                     BackgroundJobActualCleanup? actualCleanup = null;
-                    if (!completed.CommitAcknowledged && !completed.CleanupFailed && receipt.Envelope.CapacityGroup is not null)
+                    if (!completed.CommitAcknowledged && !completed.CleanupFailed
+                        && receipt.Envelope is { Profile: "transactional", CapacityGroup: not null })
                     {
                         actualCleanup = await work.PrepareCapacityCleanupAsync(execution).ConfigureAwait(false);
                         if (actualCleanup is null) return;

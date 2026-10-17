@@ -46,6 +46,8 @@ public sealed partial class OutboxDispatchConventionTests
         (InfrastructureAssembly, CapacityOperation, [".ctor", "Start", "Schedule", "RequestStop", "RelayStopAsync", "ObserveActualAsync", "ObserveWaitAsync"]),
         (InfrastructureAssembly, OrchestrationStore, ["AcquireCapacityRecoveryAsync", "FinishCapacityRecoveryAsync", "ReadRecoveryCandidateAsync", "ProbeCapacityAsync"]),
         (DeliveryApplication, JobCommitGate, ["TrySealUnusedExecution"]),
+        .. RecoveryMinterSeams().GroupBy(seam => seam.Type).Select(group =>
+            (DeliveryApplication, group.Key, group.Select(seam => seam.Name).Distinct(StringComparer.Ordinal).ToArray())),
     ];
 
     private static SortedSet<string> JobCapacityOffenders(ProductionCensus census)
@@ -90,7 +92,7 @@ public sealed partial class OutboxDispatchConventionTests
             ("AdmissionToken", "System.Guid"), ("WakeGeneration", "System.Int64"), ("RecoveryToken", "System.Guid"),
             ("OwnershipUntil", "System.DateTimeOffset"), ("DbNow", "System.DateTimeOffset")]);
         Facts(candidate, [("Receipt", CapacityRecovery)]);
-        Facts(command, [("Recovery", CapacityRecovery), ("Evidence", CapacityEvidence), ("SourceOwner", AppJobOwner),
+        Facts(command, [("Recovery", CapacityRecovery), ("Evidence", CapacityEvidence), ("SourceOwner", AppJobOwner), ("Gate", JobCommitGate),
             ("CommitStarted", "System.Boolean"), ("CommitAcknowledged", "System.Boolean"), ("KnownRollback", "System.Boolean")]);
         if (!actual.IsNotPublic || !recovery.IsPublic || !candidate.IsNestedFamily || !operation.IsNotPublic || !operation.IsSealed
             || !command.IsPublic || !command.IsSealed)
@@ -99,17 +101,17 @@ public sealed partial class OutboxDispatchConventionTests
         Surface(recovery, [".ctor", .. recovery.Properties.Select(property => "get_" + property.Name)]);
         Surface(candidate, [".ctor", "get_Receipt"]);
         Surface(command, [".ctor", "BindOwner", "RequireOwner", "RecordCleanup", "MarkCommitting", "RecordCommitted", "RecordRolledBack",
-            "get_Recovery", "get_Evidence", "get_SourceOwner", "get_CommitStarted", "set_CommitStarted", "get_CommitAcknowledged",
+            "get_Recovery", "get_Evidence", "get_SourceOwner", "get_Gate", "get_CommitStarted", "set_CommitStarted", "get_CommitAcknowledged",
             "set_CommitAcknowledged", "get_KnownRollback", "set_KnownRollback"]);
         if (command.Properties.Where(property => property.SetMethod is not null).Any(property => !property.SetMethod!.IsPrivate)
-            || command.Properties.Where(property => property.Name is "Recovery" or "Evidence" or "SourceOwner").Any(property => property.SetMethod is not null))
+            || command.Properties.Where(property => property.Name is "Recovery" or "Evidence" or "SourceOwner" or "Gate").Any(property => property.SetMethod is not null))
             offenders.Add("Checkpoint identity is immutable and only its typed owner records durability facts");
         var evidence = types[(DeliveryApplication, CapacityEvidence)];
         CheckSet(offenders, "exact capacity cleanup discriminants", evidence.Fields.Where(field => field.IsLiteral).Select(field => field.Name),
             ["TransactionalRollback", "NeverStarted"]);
         if (!evidence.IsEnum) offenders.Add("Capacity evidence is the closed two-value enum");
         Source(CapacityActualSource, InfrastructureAssembly, OrchestrationInvocation, [".ctor", "MintCleanup"]);
-        Source(CapacityRecoverySource, DeliveryApplication, OrchestrationStore, [".ctor", "CaptureCandidate", "ConfirmCandidate"]);
+        Source(CapacityRecoverySource, DeliveryApplication, OrchestrationStore, RecoveryMinterSurface());
 
         Guard(InfrastructureAssembly, CapacityActual, ".ctor", "System.Void",
             [OrchestrationExecution, CapacityAdmissionResult, CapacityEnvelope, CapacityBusinessResult], MethodAttributes.Private, false,
@@ -133,8 +135,8 @@ public sealed partial class OutboxDispatchConventionTests
         Guard(DeliveryApplication, CapacityRecoverySource, "CaptureCandidate", CapacityCandidate, ["System.Data.Common.DbDataReader"], MethodAttributes.Family, true,
             [Id(InfrastructureAssembly, OrchestrationStore, "ReadRecoveryCandidateAsync")]);
         Guard(DeliveryApplication, CapacityRecoverySource, "ConfirmCandidate", CapacityRecovery, [CapacityCandidate], MethodAttributes.Family, true,
-            [Id(InfrastructureAssembly, OrchestrationStore, "AcquireCapacityRecoveryAsync"), Id(InfrastructureAssembly, OrchestrationStore, "ProbeCapacityAsync")]);
-        Guard(DeliveryApplication, CapacityCommand, ".ctor", "System.Void", [CapacityRecovery, CapacityEvidence], MethodAttributes.Public, false,
+            [Id(InfrastructureAssembly, OrchestrationStore, "AcquireCapacityRecoveryAsync"), Id(InfrastructureAssembly, OrchestrationStore, "ProbeCommitAsync")]);
+        Guard(DeliveryApplication, CapacityCommand, ".ctor", "System.Void", [CapacityRecovery, CapacityEvidence, JobCommitGate], MethodAttributes.Public, false,
             [Id(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync")]);
         Guard(DeliveryApplication, CapacityCommand, "BindOwner", "System.Void", [LifecycleUnit, "System.Boolean"], MethodAttributes.Assembly, false,
             [Id(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")]);
@@ -163,11 +165,13 @@ public sealed partial class OutboxDispatchConventionTests
         Guard(InfrastructureAssembly, OrchestrationExecution, "HoldCapacityCheckpoint", "System.Void", [CapacityOperation], MethodAttributes.Assembly, false,
             [Id(InfrastructureAssembly, OrchestrationControl, "ProcessCapacityRequestAsync")]);
         Guard(InfrastructureAssembly, OrchestrationExecution, "JoinBusinessObserversAsync", TaskOf("System.Boolean"), [], MethodAttributes.Assembly, false,
-            [Id(InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync"), Id(InfrastructureAssembly, OrchestrationExecution, "JoinAsync")]);
+            [Id(InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync"), Id(InfrastructureAssembly, OrchestrationExecution, "JoinAsync"),
+                Id(InfrastructureAssembly, OrchestrationExecution, "FinishExternalFinalizeAsync"),
+                Id(InfrastructureAssembly, OrchestrationExecution, "RequestNoPlanTerminalAfterPrepareAsync")]);
         Guard(InfrastructureAssembly, OrchestrationExecution, "JoinBusinessObserversCoreAsync", TaskOf("System.Boolean"), [], MethodAttributes.Private, false,
             [Id(InfrastructureAssembly, OrchestrationExecution, "JoinBusinessObserversAsync")]);
         Guard(InfrastructureAssembly, CapacityOperation, ".ctor", "System.Void",
-            [JobExecutorType, CapacityRecovery, CapacityActual, "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider"], MethodAttributes.Assembly, false,
+            [JobExecutorType, CapacityRecovery, CapacityActual, JobRunGate + "/RuntimeStop", "LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeOptions", "System.TimeProvider"], MethodAttributes.Assembly, false,
             [Id(InfrastructureAssembly, OrchestrationControl, "ProcessCapacityRequestAsync")]);
         Guard(InfrastructureAssembly, CapacityOperation, "Start", "System.Void", [], MethodAttributes.Assembly, false,
             [Id(InfrastructureAssembly, OrchestrationControl, "ProcessCapacityRequestAsync")]);
@@ -184,7 +188,7 @@ public sealed partial class OutboxDispatchConventionTests
             [Id(InfrastructureAssembly, CapacityOperation, ".ctor")]);
         var callback = CapacityScheduleCallback(census, offenders);
         Guard(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync", TaskOf(CapacityResult),
-            [CapacityRecovery, CapacityActual, BoundaryCancellation], MethodAttributes.Assembly, false,
+            [CapacityRecovery, CapacityActual, JobCommitGate, BoundaryCancellation], MethodAttributes.Assembly, false,
             [callback is null ? "missing actual checkpoint callback" : MethodId(callback)]);
         Guard(InfrastructureAssembly, OrchestrationStore, "AcquireCapacityRecoveryAsync",
             TaskOf("LearnStack.Infrastructure.Jobs.OwnedBackgroundJobControl`1<" + CapacityRecovery + ">"), [CapacityActual, BoundaryCancellation], MethodAttributes.Assembly, false,
@@ -196,13 +200,14 @@ public sealed partial class OutboxDispatchConventionTests
         Guard(InfrastructureAssembly, OrchestrationStore, "ReadRecoveryCandidateAsync", TaskOf(CapacityCandidate),
             ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "System.Guid", "System.Guid", BoundaryCancellation], MethodAttributes.Private, false,
             [Id(InfrastructureAssembly, OrchestrationStore, "AcquireCapacityRecoveryAsync"), Id(InfrastructureAssembly, OrchestrationStore, "ProbeCapacityAsync")]);
-        Guard(InfrastructureAssembly, OrchestrationStore, "ProbeCapacityAsync", TaskOf("LearnStack.Infrastructure.Jobs.BackgroundJobProbeResult"),
+        Guard(InfrastructureAssembly, OrchestrationStore, "ProbeCapacityAsync", TaskOf(OrchestrationStore + "/CapacityProbe"),
             ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe",
                 OrchestrationStore + "/ControlRow", "System.DateTimeOffset", BoundaryCancellation], MethodAttributes.Private, false,
             [Id(InfrastructureAssembly, OrchestrationStore, "ProbeCommitAsync")]);
         Guard(DeliveryApplication, JobCommitGate, "TrySealUnusedExecution", "System.Boolean", [], MethodAttributes.Public, false,
             [Id(InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
         CheckCapacityOrder(census, offenders);
+        CheckRecoveryMinterSeams(census, offenders, sitesByName, instructionsByName, bodies);
         return offenders;
 
         string Id(string assembly, string type, string method) => JobOwner(offenders, types, assembly, type, method);
@@ -308,10 +313,19 @@ public sealed partial class OutboxDispatchConventionTests
         var confirm = Find(acquire, CapacityRecoverySource, "ConfirmCandidate");
         if (!AwaitedBetween(acquire, commit, confirm))
             offenders.Add("A candidate is not recovery authority before the actual acquisition COMMIT ACK");
-        var probe = Body(OrchestrationStore, "ProbeCapacityAsync");
-        if (!AwaitedBetween(probe, Find(probe, OrchestrationStore, "ReadRecoveryCandidateAsync"),
-                Find(probe, CapacityRecoverySource, "ConfirmCandidate")))
-            offenders.Add("Recovery probe confirmation follows its actual guarded database projection");
+        var probe = Body(OrchestrationStore, "ProbeCommitAsync");
+        var projected = Find(probe, OrchestrationStore, "ProbeCapacityAsync");
+        var rolledBack = Array.FindIndex(probe, instruction => instruction.Operand is MethodReference target
+            && IntegrationLifecycleCapability(target, census.Types) == "database.RollbackAsync");
+        var cleaned = Find(probe, "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "CleanupAsync");
+        var rollbackAck = Find(probe, "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_ProbeRollbackAcknowledged");
+        var cleanupAck = Find(probe, "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_CleanupConfirmed");
+        var failed = Find(probe, "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", "get_Failure");
+        var confirmed = Find(probe, CapacityRecoverySource, "ConfirmCandidate");
+        if (!AwaitedBetween(probe, projected, rolledBack) || !AwaitedBetween(probe, rolledBack, cleaned)
+            || !AwaitedBetween(probe, cleaned, confirmed)
+            || rollbackAck <= cleaned || cleanupAck <= rollbackAck || failed <= cleanupAck || confirmed <= failed)
+            offenders.Add("Recovery probe confirmation follows its actual projection, acknowledged rollback and positive physical cleanup");
 
         var unused = Body(JobCommitGate, "TrySealUnusedExecution");
         var compare = Find(unused, "System.Threading.Interlocked", "CompareExchange");
