@@ -78,11 +78,16 @@ public static partial class HangfireStorageContract
         return string.Join(Environment.NewLine, statements);
     }
 
-    internal static IReadOnlyDictionary<string, (string Body, string Language, string Settings)> Guards() =>
-        GuardDefinition().Matches(Resource("Guards.sql")).ToDictionary(match => match.Groups[1].Value,
-            match => (match.Groups[4].Value, match.Groups[2].Value,
-                "search_path=" + match.Groups[3].Value), StringComparer.Ordinal);
+    internal static IReadOnlyDictionary<string, (string Body, string Language, string Settings, string Volatility)> Guards() =>
+        GuardDefinition().Matches(Resource("Guards.sql")).ToDictionary(match => match.Groups["name"].Value,
+            match => (match.Groups["body"].Value, match.Groups["language"].Value,
+                "search_path=" + match.Groups["settings"].Value, match.Groups["volatility"].Value switch
+                {
+                    "IMMUTABLE" => "i",
+                    "STABLE" => "s",
+                    _ => "v",
+                }), StringComparer.Ordinal);
 
-    [GeneratedRegex(@"CREATE FUNCTION public\.(fn_hangfire_\w+)\([^\n]*\) RETURNS \w+\nLANGUAGE (sql|plpgsql)(?: IMMUTABLE| STABLE)? SET search_path = ([^\n]+)\nAS \$\$([\s\S]*?)\$\$;")]
+    [GeneratedRegex(@"CREATE FUNCTION public\.(?<name>fn_hangfire_\w+)\([^\n]*\) RETURNS \w+\nLANGUAGE (?<language>sql|plpgsql)(?: (?<volatility>IMMUTABLE|STABLE|VOLATILE))? SET search_path = (?<settings>[^\n]+)\nAS \$\$(?<body>[\s\S]*?)\$\$;")]
     private static partial Regex GuardDefinition();
 }

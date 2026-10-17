@@ -17,6 +17,19 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 public sealed class HangfireStorageContractTests
 {
     [Fact]
+    public void Guard_contract_retains_exact_volatility_including_default_and_explicit_volatile_triggers()
+    {
+        var guards = HangfireStorageContract.Guards();
+        guards.Should().HaveCount(11);
+        guards.Where(pair => pair.Value.Volatility == "i").Select(pair => pair.Key).Should().BeEquivalentTo(
+            ["fn_hangfire_queue", "fn_hangfire_server", "fn_hangfire_state_valid"]);
+        guards.Where(pair => pair.Value.Volatility == "s").Select(pair => pair.Key).Should().BeEquivalentTo(
+            ["fn_hangfire_recurrence", "fn_hangfire_invocation", "fn_hangfire_parameter_valid", "fn_hangfire_metadata_valid"]);
+        guards.Where(pair => pair.Value.Volatility == "v").Select(pair => pair.Key).Should().BeEquivalentTo(
+            ["fn_hangfire_job_guard", "fn_hangfire_state_guard", "fn_hangfire_parameter_guard", "fn_hangfire_metadata_guard"]);
+    }
+
+    [Fact]
     public void Every_provider_option_closes_runtime_ddl_reconnect_enlistment_and_degraded_startup()
     {
         var options = HangfireStorageBootstrap.Options();

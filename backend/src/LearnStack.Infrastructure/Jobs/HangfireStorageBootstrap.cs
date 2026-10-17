@@ -126,12 +126,14 @@ public static class HangfireStorageBootstrap
             Require(connection, """
                 SELECT count(*) = 1 AND bool_and(p.proowner='learnstack_migration'::regrole AND NOT p.prosecdef
                   AND p.prosrc=@body AND l.lanname=@language AND p.proconfig=ARRAY[@settings]::text[]
+                  AND p.provolatile::text=@volatility
                   AND has_function_privilege(current_user,p.oid,'EXECUTE')
                   AND NOT EXISTS (SELECT FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
                       WHERE acl.grantee NOT IN (p.proowner,'learnstack_outbox_admin'::regrole) OR (acl.grantee<>p.proowner AND acl.is_grantable)))
                 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
                 WHERE n.nspname='public' AND p.proname=@name
-                """, ("name", name), ("body", definition.Body), ("language", definition.Language), ("settings", definition.Settings));
+                """, ("name", name), ("body", definition.Body), ("language", definition.Language), ("settings", definition.Settings),
+                ("volatility", definition.Volatility));
         foreach (var table in HangfireStorageContract.Columns.Keys)
         {
             var expected = table switch

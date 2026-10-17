@@ -5230,6 +5230,8 @@ and fixture definitions must make the eventual controls non-vacuous.
 - **Asserts:** schema 23, exact stock objects/ACLs, guarded sync/async connections,
   disabled unguarded reconnect/schema preparation/degraded startup, bounded native
   SQL and the qualified dependency/licence graph are required before workers start.
+  Exact function volatility is verified with body/language/search-path/ACL facts;
+  a stale snapshot category cannot silently weaken the live recurrence-write guard.
   Prevalidation and conditional-join premises precede activation. A nonempty exact
   termination-capability census confines the sole FailFast(string) sink and callers;
   exception overloads, alternate Exit/Kill and forwarding/delegate/async escapes fail.
@@ -5242,7 +5244,7 @@ and fixture definitions must make the eventual controls non-vacuous.
   behavior; dirty inventory/filter/deadline controls refuse before workers start.
 - **Type:** composition/source census and real boot/role/blocked-SQL controls.
   **Kind:** structural + startup + behavioural.
-- **Status:** **Registered** — P02b-4 Steps 2, 4 and 9.
+- **Status:** **Registered** — P02b-4 Steps 2, 4, 8 and 9.
 
 ### `BackgroundJob_Capacity_Is_Tenant_Wide_And_Quiescence_Bound`
 

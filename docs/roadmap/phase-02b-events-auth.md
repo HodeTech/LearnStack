@@ -7399,6 +7399,41 @@ qualification; Unit and Architecture suites are not repeated or claimed here.
 Native runtime, fairness and capacity integration remain pending before both
 full Step 8 review rounds. This focused qualification does not close Step 8.
 
+#### Native recurring-write serialization
+
+Recipient fault qualification is committed as `35c3e0d5`; normal hooks preserve
+its validated source hashes/modes. Actual stock recurring `Job` writes now lock
+the exact unsuperseded revision inside the vendor transaction. The explicit
+volatile trigger takes a fresh snapshot after earlier waits, and bootstrap checks
+the installed volatility with its existing body/language/search-path/ACL contract.
+A generated additive migration upgrades already-migrated stores and restores the
+preceding exact body on Down. Canonical SQL remains in Standards 05.
+
+Ten focused PostgreSQL cases use the real stock manager without starting workers.
+They cover old-over-new refusal, an unchanged Job omission, retained older hints,
+volatility-only drift, independent migration Up and canonical replacement, and
+three actual lock interleavings. The same assertions reject the KEY SHARE,
+missing-active-predicate and stale nonlocking-snapshot controls. No elapsed sleep
+establishes those barriers; the tests observe actual blocking backend identities.
+
+Narrow source review identifies that applying canonical SQL before Up would mask
+an omitted upgrade body. The corrected test first upgrades the actual old body
+through the migration alone, then independently tests canonical replacement.
+No further concrete issue is identified. Earlier SQL-cast and test transaction
+cleanup failures remain separate receipts; a subsequent build-only receipt
+grants no test pass.
+
+The final 297-source Release build has zero warnings/errors. The ten focused
+cases and the broader 143-case PostgreSQL selection pass; the broader selection
+includes those ten cases. All 2,404 Unit cases pass, with zero failures/skips.
+Formatter verification reports no changes. The source/mode/artifact receipt,
+including current SQL and canonical carriers, closes at
+`aa38ded6b0042cba7a3521bbf02ada212b6cf09ae74c4fdde3ca5deac89aaa97`.
+This is local qualification of the guard/storage unit, not full Step 8 review or
+packet-wide CI. Owned runtime/tick integration, fairness, physical capacity and
+their real fault proofs remain within Step 8. All nineteen obligations remain
+Registered; both fresh full reviews still precede Step 9.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
