@@ -1,8 +1,5 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
@@ -14,22 +11,16 @@ public sealed class BackgroundJobRecurrenceDescriptor
     {
         Registration = registration;
         Scope = scope;
-        var canonical = string.Join('\n', registration.Key,
-            registration.Revision.ToString(CultureInfo.InvariantCulture),
-            registration.ActivatesAt.UtcTicks.ToString(CultureInfo.InvariantCulture), registration.Target.Value,
-            ((int)registration.Schedule).ToString(CultureInfo.InvariantCulture),
-            registration.Anchor.UtcTicks.ToString(CultureInfo.InvariantCulture),
-            registration.Period.Ticks.ToString(CultureInfo.InvariantCulture),
-            registration.Jitter.Ticks.ToString(CultureInfo.InvariantCulture),
-            ((int)registration.RecipientPolicy).ToString(CultureInfo.InvariantCulture),
-            ((int)registration.MisfirePolicy).ToString(CultureInfo.InvariantCulture),
-            ((int)scope).ToString(CultureInfo.InvariantCulture));
-        ManifestHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+        Facts = new(registration.Key, registration.Revision, registration.ActivatesAt,
+            registration.Target.Value, registration.Schedule, registration.Anchor, registration.Period,
+            registration.Jitter, registration.RecipientPolicy, registration.MisfirePolicy, scope);
+        ManifestHash = Facts.Fingerprint();
     }
 
     public BackgroundJobRecurrenceRegistration Registration { get; }
     public BackgroundJobScope Scope { get; }
     public string ManifestHash { get; }
+    internal BackgroundJobRecurrenceFacts Facts { get; }
 }
 
 /// <summary>Construction-free recurrence metadata. Unknown lookups preserve work for a compatible deployment.</summary>

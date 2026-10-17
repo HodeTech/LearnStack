@@ -768,8 +768,14 @@ invocation must positively join its original source and private callbacks before
 the exact same-source cleanup checkpoint; distinct recovery authority is required.
 Missing local cleanup parks unresolved occupancy for paced probes. Its
 [record](../roadmap/phase-02b-events-auth.md#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
-owns passing local qualification and pending full reviews. External execution and
-recurrence remain Steps 7–8.
+owns passing local qualification and both completed full reviews. Step 7 external
+execution and recovery are complete after both full reviews and verified
+corrections; its
+[closeout](../roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
+owns the source-specific receipts. Step 8 durable recurrence and restricted
+recipient submission are in progress; its
+[record](../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+owns current qualification. Production recurrence and business registries stay empty.
 
 [Database Standards](../standards/05-database.md#background-jobs) owns canonical
 storage/grants and reset-safe source deadlines, including five-second idle-session

@@ -226,6 +226,16 @@ read/selection budget in P02d-3. The
 [accepted package](../../roadmap/phase-02d-walking-skeleton.md#p02d-3-decision-package-2026-10-02)
 records the tests and step plan.
 
+### Job lifecycle projection
+
+Tenancy declares the status meanings for ADR-0047's closed job lifecycle
+projection. The framework reads only the minimal columns allowed by
+[Database Standards](../../standards/05-database.md#job-lifecycle-projection);
+tenantless orchestration constructs no Tenancy service and accepts no arbitrary
+tenant selector. The additive Tenancy migration owns this SELECT-only grant.
+The [Step 8 record](../../roadmap/phase-02b-events-auth.md#p02b-4-step-8--durable-recurrence-and-restricted-fan-out-2026-10-18)
+owns implementation and pending complete qualification.
+
 ## Entity-relationship diagram
 
 Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and

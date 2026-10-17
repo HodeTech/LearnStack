@@ -1,6 +1,6 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-**Current status — 2026-10-17.** P02b-0 through P02b-3 are complete.
+**Current status — 2026-10-18.** P02b-0 through P02b-3 are complete.
 P02b-2 is merged through [PR #30](https://github.com/HodeTech/LearnStack/pull/30);
 its [merge closeout](#p02b-2-merge-and-closeout-2026-10-13) owns final verification.
 P02b-3 is merged through [PR #31](https://github.com/HodeTech/LearnStack/pull/31);
@@ -35,7 +35,8 @@ owns capacity delivery and final local qualification. Step 7 external stages are
 committed under Accepted ADR-0061; both full review rounds and verified corrections
 are complete. Its
 [record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
-Steps 8–9 and P02b-5–8 remain pending. Production business definitions remain empty.
+Step 8 durable recurrence and restricted fan-out is in progress. Step 9 and
+P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -7161,6 +7162,76 @@ current-head backend/CI receipt. Step 9 still owns CI-duration qualification and
 full packet regression. All nineteen obligations remain Registered. The round-2
 correction commit closes Step 7 after both full reviews and verified corrections;
 Step 8 follows under the already Accepted plan. No new maintainer decision is pending.
+
+### P02b-4 Step 8 — durable recurrence and restricted fan-out (2026-10-18)
+
+**Implementation in progress.** Step 7 closes at `69405b16` after both full
+independent review rounds and verified corrections. Accepted ADR-0047 authorizes
+this step on `development`; no new decision is pending.
+
+The implementation is organized into three closure units within the unchanged
+approved Step 8. They do not replace the implementation commit and two fresh full
+review rounds required before Step 9:
+
+- Frozen monotonic manifests, UTC slots, coalescing and bounded lifecycle pages.
+- Actual-row recipient admission, scope recheck and atomic child/recipient receipt.
+- Owned runtime/tick integration, fairness, capacity and complete fault proofs.
+
+The first foundation adds idempotent manifest registration and one locked
+materialization quantum. Two actual sources converge; obsolete or conflicting
+revisions cannot overwrite the accepted manifest. Historical slots retain their
+stored target/policy; a newer manifest cannot be materialized by an older binary.
+CoalesceLatest atomically advances to the slot after the latest due occurrence.
+Future slots enter the index only when due. Pending/unknown targets defer without
+advancing and yield to healthy work. A denied occurrence INSERT rolls back both
+occurrence and manifest progress; restoring the narrow grant permits a clean retry.
+
+The focused foundation Release build has zero warnings/errors. Thirteen existing
+recurrence Unit cases pass; the extended PostgreSQL class passes eight cases and
+the production authority census passes one, all with zero failures/skips. Its
+266-source hash/mode receipt closes at
+`09aa9ca0275c531b65d11851a3674788762a8571c499a772e5140fcb62b765d1`.
+An initial missing test-helper compilation failure remains a separate receipt;
+no tests are credited to that failed build. These focused checks do not qualify
+the remaining fan-out/runtime surface or either full Step 8 review round. No
+production recurrence or business definition is added; nineteen obligations
+remain Registered.
+
+#### Lifecycle pages and foundation preflight
+
+Tenancy declares the status meanings as closed metadata. Its additive migration
+grants exactly eight SELECT columns; real dispatcher connections reject names,
+wider reads and tenancy writes. Raw tenant/organization pages bound examined keys
+before eligibility filtering. Frozen upper keys and recipient INSERTs advance in
+one transaction; denied INSERT controls leave neither bounds nor progress behind.
+The actual tenant query seeks past a 6,000-row ineligible prefix in a 12,000-row
+fixture without rescanning it. This is a raw-key eligibility sweep, not an MVCC
+snapshot cohort. No organization query-plan result is inferred from that test.
+
+Two planted same-revision manifest conflicts initially fail at the semantic
+materialization assertions. Both materializers now require the exact local hash
+when the revisions match, while preserving supported historical targets under a
+newer local manifest. Both cases pass in the restored clean run.
+
+Two independent foundation preflights inspect runtime/isolation and proof/corpus
+surfaces. Runtime has no verified finding. Proof review identifies that executing
+the canonical grant block after applying the migration cannot detect an omitted
+grant. The corrected test starts from a verified empty lifecycle ACL, proves the
+same exact-budget assertion rejects a missing required column, then runs the
+unaltered canonical block from an empty ACL and verifies its complete budget.
+These are bounded preflights, not either full Step 8 review round.
+
+The 275-source pre-correction receipt passes 35 PostgreSQL cases and both the
+positive and planted-violation authority cases, with zero failures/skips. It closes
+at `43873ad1a6b7c95bb578b4da04d2db8b7a6818e12be89236a50c949a977863e4`.
+After the proof correction and formatting, the Release build has zero warnings/
+errors; 35 PostgreSQL cases, all 2,396 Unit cases and the positive authority case
+pass with zero failures/skips. That 275-source receipt closes at
+`04894512bcfe8c444a82a5f16b956dd2c8e217d16146f4b88f860f842aa65b6c`.
+Earlier compilation failures and the two meaningful conflict failures remain
+separate receipts. These checks do not claim full packet regression or CI success.
+Restricted child admission and owned runtime/tick integration remain within this
+same Step 8, before its implementation/review closeout.
 
 ### Durable outbox dispatch
 

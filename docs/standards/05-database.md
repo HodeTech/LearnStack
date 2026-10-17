@@ -998,8 +998,8 @@ privileges implicitly.
 
 | Table | `learnstack_app` | `learnstack_platform` | `learnstack_outbox_admin` |
 |---|---|---|---|
-| `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | — |
-| `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | — |
+| `tenants` | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
+| `organizations` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | Lifecycle-column `SELECT` only; exact [projection grant](#job-lifecycle-projection) |
 | `tenant_domains` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_locales` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
 | `tenant_settings` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT` | — |
@@ -2016,8 +2016,9 @@ UPDATE. Dispatcher grants expose neither DTOs nor causal facts and cannot produc
 successful business completion. Schema guards enforce storage invariants; exact
 caller enrollment, live token predicates and same-transaction terminal MUST audit
 are runtime obligations of the typed execution and control owners. The minimal
-Tenancy lifecycle inventory SELECT grants remain absent until Step 8 ships its
-named reader and caller census through a later additive migration.
+Tenancy lifecycle inventory SELECT grants derive from ADR-0047 and are confined
+to the [named projection](#job-lifecycle-projection). Step 8 implements its bounded
+reader; complete caller enrollment and runtime qualification remain its closure gates.
 
 Eligibility indexes lead with their actual clock/order for the confined global
 scans; tenant and FK indexes remain complete. Clocks are runtime predicates. The
@@ -3653,6 +3654,24 @@ REVOKE ALL ON FUNCTION public.fn_background_job_occurrences_guard() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.fn_background_job_recipients_guard() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION public.fn_background_job_recipient_receipt() FROM PUBLIC;
+```
+
+### Job lifecycle projection
+
+Tenancy declares the status meanings as closed metadata; the job framework owns
+the exact minimal reads. No module service, query factory, delegate or arbitrary
+tenant selector is constructed by tenantless orchestration. Raw key pages contain
+at most 100 routes before eligibility filtering; their frozen upper bounds and
+last examined key belong to the same transaction as recipient INSERTs. This is
+an eligibility sweep, not a historical MVCC cohort. Recipient submission rechecks
+the exact admitted route under application-role scope.
+
+The additive Tenancy migration owns the projection grant. No table-level SELECT,
+name/content/entitlement access or tenancy mutation is granted to the dispatcher:
+
+```sql
+GRANT SELECT (id,status,deleted_at,default_organization_id) ON public.tenants TO learnstack_outbox_admin;
+GRANT SELECT (tenant_id,id,status,deleted_at) ON public.organizations TO learnstack_outbox_admin;
 ```
 
 ### P02b-4 stock Hangfire control storage

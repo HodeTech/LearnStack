@@ -259,8 +259,10 @@ non-superuser, directly or transitively. Superusers inherently reach every role;
 this check detects grant drift on a new physical connection, not continuous
 revocation of an existing session. No Seeder/web forwarding or shared app
 credential is allowed. [Database Standards](05-database.md#grant-matrix)
-owns exact status grants and audit INSERT-only; no business access or audit read,
-update or delete is admitted.
+owns exact status grants and audit INSERT-only. ADR-0047 additionally permits the
+[closed Tenancy lifecycle projection](05-database.md#job-lifecycle-projection)
+for durable job fan-out. Other business columns and tenancy mutations remain
+denied, as do audit read, update and delete.
 
 Routine confined poll/claim/mark receives ADR-0046's bounded audit exception;
 terminal state is MUST/SecurityEvent and atomic with its row-bound witness audit.
