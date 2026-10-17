@@ -7049,10 +7049,27 @@ remains separate; these focused checks are not a complete packet rerun.
 A separate source inspection finds no actionable issue in this correction;
 it supplies no second-full-review or complete native handoff credit.
 
-The terminal NoStart candidate query uses a volatile cutoff where candidate
-selection requires a stable statement timestamp. Fresh post-lock authority
-checks remain distinct. Actual-query planner qualification is in progress;
-source review alone supplies no measured future-backlog scan or timeout claim.
+The terminal NoStart candidate query used a volatile cutoff where selection
+requires a stable statement timestamp. A real migrated-schema regression seeds
+6,000 future terminal audit-backoff subjects with guarded NoStart/release history
+and 6,000 unrelated occupied subjects. The original query fails its stable-range
+assertion and records 36,000 loop-weighted plan-row visits, not distinct rows.
+Stable cutoffs alone still fail the one-due-page work bound: a flattened
+reservation EXISTS scans unrelated reservations. A local zero-offset fence keeps
+that probe correlated to each due candidate. Full positive history remains before
+LIMIT, and fresh post-lock authority checks remain unchanged.
+
+The exact corrected query passes both idle/one-due cardinalities, the stable
+index condition and fewer than 256 loop-weighted visits. Changing only its
+available-after cutoff back to the volatile clock exposes the large idle scan.
+All thirty-eight selected PostgreSQL cases, including existing control-query
+plans and terminal/history controls, pass with zero skips; three architecture
+checks pass and Release builds have zero warnings/errors. The first stable run's
+integer-only EXPLAIN JSON parser failure is retained separately and corrected to
+accept PostgreSQL's numeric row counts. The actual stable-only failures and their
+plan remain separate receipts; no measured timeout, forced planner option or
+new index/grant is claimed. Independent correction inspection finds no actionable
+issue and supplies no second-full-review credit.
 The existing provider tests preselect cancellation policy, so they do not prove
 an actual runtime cancellation becoming a durable Cancelled report and surviving
 fresh-host Reconcile. That control and the paired independent permanent-failure

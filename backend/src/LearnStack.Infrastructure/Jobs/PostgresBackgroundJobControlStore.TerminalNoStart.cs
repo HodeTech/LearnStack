@@ -5,6 +5,18 @@ namespace LearnStack.Infrastructure.Jobs;
 
 internal sealed partial class PostgresBackgroundJobControlStore
 {
+    // Keep the reservation probe correlated to each due job. Pulling it into
+    // a semi-join can scan unrelated occupied work even for a single due job.
+    internal const string TerminalNoStartSelectionSql = "SELECT j.id FROM background_jobs j WHERE ("
+        + BackgroundJobTerminalEligibility.TerminalNoStartBefore + ")" + """
+            AND (j.ownership_token IS NULL OR j.ownership_until<=statement_timestamp())
+            AND j.available_after<=statement_timestamp() AND NOT (j.id=ANY(@blocked))
+            AND EXISTS (SELECT 1 FROM background_job_reservations r
+                WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.attempt_id=j.current_attempt_id
+                    AND r.capacity_group=j.capacity_group AND r.released_at IS NULL OFFSET 0)
+        ORDER BY j.available_after,j.created_at,j.id LIMIT 1 FOR UPDATE SKIP LOCKED
+        """;
+
     /// <summary>The existing terminal lane acquires cleanup only; no terminal audit or provider entry is granted.</summary>
     internal async Task<OwnedBackgroundJobExternalRecovery> AcquireExternalTerminalNoStartAsync(
         IReadOnlyCollection<Guid> retainedJobIds, CancellationToken cancellationToken)
@@ -21,15 +33,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
         {
             if (await OpenAsync(resources, deadline.Token).ConfigureAwait(false))
             {
-                var command = Command(resources, "SELECT j.id FROM background_jobs j WHERE ("
-                    + BackgroundJobTerminalEligibility.TerminalNoStartBefore + ")" + """
-                        AND (j.ownership_token IS NULL OR j.ownership_until<=clock_timestamp())
-                        AND j.available_after<=clock_timestamp() AND NOT (j.id=ANY(@blocked))
-                        AND EXISTS (SELECT 1 FROM background_job_reservations r
-                            WHERE r.tenant_id=j.tenant_id AND r.job_id=j.id AND r.attempt_id=j.current_attempt_id
-                                AND r.capacity_group=j.capacity_group AND r.released_at IS NULL)
-                    ORDER BY j.available_after,j.created_at,j.id LIMIT 1 FOR UPDATE SKIP LOCKED
-                    """);
+                var command = Command(resources, TerminalNoStartSelectionSql);
                 command.Parameters.AddWithValue("blocked", retainedJobIds.ToArray());
                 var selected = await command.ExecuteScalarAsync(deadline.Token).ConfigureAwait(false) as Guid?;
                 await resources.FinishCommandAsync().ConfigureAwait(false);
