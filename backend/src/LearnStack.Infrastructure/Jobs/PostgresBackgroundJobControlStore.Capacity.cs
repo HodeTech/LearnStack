@@ -19,7 +19,7 @@ internal sealed partial class PostgresBackgroundJobControlStore
             if (await OpenAsync(resources, deadline.Token).ConfigureAwait(false))
             {
                 var row = await LockRowAsync(resources, claim.JobId.Value, deadline.Token).ConfigureAwait(false);
-                if (row is not null && row.Matches(claim) && row.Incomplete && row.Profile == "transactional"
+                if (row is not null && row.Matches(claim) && row.Incomplete && row.Profile is "transactional" or "external"
                     && row.CapacityGroup is not null && row.Phase == "pending" && row.OwnershipKind == "routing")
                 {
                     var command = Command(resources, """

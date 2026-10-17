@@ -32,7 +32,8 @@ records passing qualification and both full review rounds with verified correcti
 Steps 4–6 are locally complete after both full review rounds and verified
 corrections. The [Step 6 record](#p02b-4-step-6--tenant-capacity-reservations-2026-10-16)
 owns capacity delivery and final local qualification. Step 7 external stages are
-implemented under Accepted ADR-0061; both full review rounds remain pending. Its
+committed under Accepted ADR-0061; the first full review is complete. Verified
+corrections and the second full review remain open. Its
 [record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
 Steps 8–9 and P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
@@ -6079,7 +6080,8 @@ authorized under ADR-0047. Acceptance supplies no new runtime or passing proof.
 
 ### P02b-4 Step 7 — external stages and recovery (2026-10-17)
 
-**Implementation and focused qualification complete; both full reviews pending.** Step 6
+**Implementation committed; first full review complete, corrections in progress.**
+The second full review remains pending. Step 6
 closes at `0ea50b15` after both full reviews, verified corrections and 4,598 passing
 full-suite cases. Accepted ADR-0047 and ADR-0061 authorize this next step on
 `development`; no further decision or permission is pending.
@@ -7011,11 +7013,51 @@ The remaining Step 7 checkpoints are explicit:
 | Uninvokable retirement/invalid-envelope cleanup and candidate progress | Implemented; twenty-one dedicated cases, actual retirement-index seek and corrected alternate-index assertions pass |
 | Native application-source contention | Genuine contention regression passes with the provider task retained and an unrelated transactional job completing at the application-source floor |
 | Complete exact census and relevant backend regression | Focused implementation qualification and correction checks pass; full packet regression/CI remain Step 9 |
-| Step commit and two fresh full review rounds | Implementation commit prepared; neither full review round has started |
+| Step commit and two fresh full review rounds | Implementation committed as `6e90a52f`; first full review complete, corrections in progress and second full review pending |
 
-Neither full Step 7 review round has started.
-All nineteen packet obligations remain Registered; no production business definition
-is added. Steps 8–9 and real PR/CI closeout remain pending.
+The first full Step 7 review is complete; its corrections and the second full
+review remain open. All nineteen packet obligations remain Registered; no
+production business definition is added. Steps 8–9 and real PR/CI closeout remain pending.
+
+#### Step 7 full review round 1 (2026-10-17)
+
+Implementation commit `6e90a52f` passes normal hooks and leaves a clean tree.
+Three fresh independent reviewers inspect the complete Step 7 range from
+`0ea50b15`: GPT-6-astra at xhigh for runtime/authority, and two GPT-6.1-sol
+reviewers at xhigh for storage/isolation/audit and proofs/composition/corpus.
+These are full source reviews, distinct from the earlier slice preflights;
+reviewers run no toolchain and supply no additional runtime or CI receipts.
+
+The unique findings are external capacity deferral, the terminal NoStart
+candidate cutoff, and required provider-causality qualification. The runtime
+review independently corroborates the capacity and causality findings, with
+no additional verified runtime defect. No new tenant/org isolation, privilege,
+policy, release or terminal-audit atomicity defect is established.
+
+External normal admission correctly refuses a full capacity group without
+inserting an attempt or reservation. Its shared control disposition still
+accepts only the transactional profile, silently leaving the external routing
+lease. A real app-admission/native-control regression fails the unchanged
+implementation at that retained routing owner. The correction admits the two
+ordinary profiles through the same exact pending/routing/token/generation/live
+lease fences; finalizer admission remains separate. The corrected real-path
+case passes, including the recorded five-second wait, genuine provider/Outcome
+release, new admission before the old lease expires, and stale-token refusal.
+The twenty-one related PostgreSQL cases and all 2,396 Unit cases also pass with
+zero skips and a zero-warning/error Release build. The original red receipt
+remains separate; these focused checks are not a complete packet rerun.
+A separate source inspection finds no actionable issue in this correction;
+it supplies no second-full-review or complete native handoff credit.
+
+The terminal NoStart candidate query uses a volatile cutoff where candidate
+selection requires a stable statement timestamp. Fresh post-lock authority
+checks remain distinct. Actual-query planner qualification is in progress;
+source review alone supplies no measured future-backlog scan or timeout claim.
+The existing provider tests preselect cancellation policy, so they do not prove
+an actual runtime cancellation becoming a durable Cancelled report and surviving
+fresh-host Reconcile. That control and the paired independent permanent-failure
+versus stop case are required by Accepted ADR-0061; their qualification remains
+open. Neither gap is deferred to an unspecified later consumer.
 
 ### Durable outbox dispatch
 
