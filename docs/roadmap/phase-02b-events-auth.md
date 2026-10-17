@@ -7489,6 +7489,46 @@ guards and retained-work, fairness and shutdown fault qualification remain befor
 both fresh full Step 8 reviews. Nineteen obligations remain Registered; Step 9 is
 pending and no packet-wide regression or CI success is claimed here.
 
+#### Actual native hold and parent-source pins
+
+Runtime commit `c500bcba` precedes this test-only qualification. An actual Npgsql
+diagnostic callback holds the stock recurring manager on its owned native thread.
+Two registered keys still produce two completed durable children. This is a
+bounded synthetic callback hold, not a network-fault reproduction or a minimum
+connection-pool proof. The fixture has explicit unrelated connection headroom.
+
+The original one-key assertion could pass with the hard native-flight guard
+removed because the same-key cooldown independently prevented replacement. A
+narrow source review identified that masking premise. Two keys now establish a
+second eligible native opportunity; the test reads the actual published owner
+under its lock and verifies that its original thread remains the sole owner.
+The first strengthened run fails only because a string assertion selects the
+wrong overload; its corrected explicit collection assertion preserves the premise.
+
+Before testing source retention, all ordinary pools, shared maintenance, bridge,
+parent control lanes and recurrence loop/cancellation relay positively join.
+The held native invocation still prevents parent completion and both actual
+source lifetimes from disposing. Releasing the callback permits actual SDK/thread
+return, parent completion and positive disposal without cleanup faults. An
+independent nested-finally join retains the original thread even when an
+assertion or parent shutdown fails.
+
+Two separate temporary source controls are decisive: removing only the hard
+native-flight guard admits the second key and fails the original-owner assertion;
+removing only the parent's recurrence completion await makes stop finish early
+and fails the finite-stop assertion. Each control builds without warnings/errors,
+fails the same test and is restored byte-for-byte with its original file mode.
+No deliberate violation is committed.
+
+The final restored 323-source Release build has zero warnings/errors. All 76
+recurrence PostgreSQL cases pass with zero failures/skips in 43 seconds, including
+the actual native hold, tenant/organization fan-out, native races, recipient
+receipts/history and stored quarantine paths. The runner's nonempty/zero-skip
+guard passes and scoped formatting reports no changes. The source receipt closes
+at `c9331866654efc91c83769cb718398416c97084897f38547a0a18f9cd2253416`.
+The narrow review supplies no full Step 8 review credit. Remaining recipient
+retention/fairness and exact capability guards still precede both full rounds.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
