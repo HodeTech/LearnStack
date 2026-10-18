@@ -38,6 +38,7 @@ GIT = '/usr/bin/git'
 FIND = '/usr/bin/find'
 FILE = '/usr/bin/file'
 REALPATH = '/usr/bin/realpath'
+STAT = '/usr/bin/stat'
 HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker', '/tmp', '/var/tmp')
 
 # Sole duration owner. These are bounded path allocations, not a hosted fit
@@ -800,8 +801,8 @@ def docker_complete(deadline, *, forced):
         time.sleep(POLL_SECONDS)
 
 
-def image_layer_observation(candidate, deadline):
-    """Private read-only provenance diagnostic; never makes a scan pass."""
+def image_layer_snapshot(candidate, deadline):
+    """Private positive image provenance, never a filename/content allowance."""
     docker = [DOCKER, '--host', 'unix:///var/run/docker.sock']
 
     def inventory():
@@ -844,9 +845,7 @@ def image_layer_observation(candidate, deadline):
 
     try:
         before = inventory()
-        if not before[1]:
-            require(inventory() == before, 'image_metadata_unavailable')
-            return 'image_metadata_no_match'
+        require(before[1], 'image_metadata_no_match')
         require(candidate.startswith('/var/lib/docker/overlay2/') and len(candidate) <= 4096,
                 'image_metadata_unavailable')
         raw = command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
@@ -856,14 +855,40 @@ def image_layer_observation(candidate, deadline):
         require(len(canonical) == len(before[1]) + 1
                 and all(re.fullmatch(r'/var/lib/docker/overlay2/[0-9a-f]{64}/diff', path)
                         for path in canonical[:-1]), 'image_metadata_unavailable')
-        match = any(canonical[-1].startswith(path + '/') for path in canonical[:-1])
+        layers = sorted(set(canonical[:-1]))
+        kinds = command([SUDO, '-n', STAT, '--format=%F', '--', *layers],
+                        deadline, 'image_metadata_unavailable').decode('ascii').splitlines()
+        require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable')
+        require(any(canonical[-1].startswith(path + '/') for path in layers), 'image_metadata_no_match')
         require(inventory() == before, 'image_metadata_unavailable')
         require(command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
                         deadline, 'image_metadata_unavailable') == raw, 'image_metadata_unavailable')
-        return 'image_metadata_match' if match else 'image_metadata_no_match'
-    except (Refusal, ValueError, UnicodeError, TypeError):
-        # Metadata/diagnostic faults retain the original crash-scan refusal.
-        return 'image_metadata_unavailable'
+        return before, tuple(canonical)
+    except Refusal:
+        raise
+    except (ValueError, UnicodeError, TypeError):
+        raise Refusal('image_metadata_unavailable') from None
+
+
+def find_crash_candidate(roots, deadline, image_layers=()):
+    # Exact metadata-proved diff directories only; never overlay parents or a
+    # writable container layer. Keep default no-symlink-follow and -xdev.
+    require(len(image_layers) <= 512 and all(re.fullmatch(
+        r'/var/lib/docker/overlay2/[0-9a-f]{64}/diff', path) for path in image_layers),
+        'crash_prune_invalid')
+    predicate = ['-type', 'f', '(', '-name', 'core', '-o', '-regex', '.*/core\\.[0-9]+',
+                 '-o', '-name', '*.core', '-o', '-name', '*.dmp', '-o', '-name', '*.dump',
+                 '-o', '-name', '*.crash', ')', '-print0', '-quit']
+    if image_layers:
+        paths = []
+        for path in image_layers:
+            if paths:
+                paths.append('-o')
+            paths.extend(('-path', path))
+        predicate = ['(', '-type', 'd', '(', *paths, ')', '-prune', ')', '-o', '(', *predicate, ')']
+    argv = [SUDO, '-n', FIND, *roots, '-xdev', *predicate]
+    require(sum(len(os.fsencode(arg)) + 1 for arg in argv) <= 128 * 1024, 'crash_prune_bound')
+    return command(argv, deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
 
 
 def crash_scan(deadline):
@@ -877,10 +902,26 @@ def crash_scan(deadline):
         ('containerd', 'containerd'), ('containers', 'containers'), ('volumes', 'volumes')))
     # Read-only, fixed predicates. Container scratch proofs remain in the native
     # tests; this additionally inspects actual host file-collector destinations.
-    value = command([SUDO, '-n', FIND, *roots, '-xdev', '-type', 'f', '(', '-name', 'core',
-                     '-o', '-regex', '.*/core\\.[0-9]+', '-o', '-name', '*.core',
-                     '-o', '-name', '*.dmp', '-o', '-name', '*.dump', '-o', '-name', '*.crash', ')',
-                     '-print0', '-quit'], end, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
+    value = find_crash_candidate(roots, end)
+    image_count, provenance = 0, ''
+    if value:
+        candidate = os.fsdecode(value[:-1]) if value.endswith(b'\0') and value.count(b'\0') == 1 else ''
+        if candidate.startswith('/var/lib/docker/overlay2/'):
+            try:
+                before = image_layer_snapshot(candidate, end)
+            except Refusal as failure:
+                provenance = '_' + failure.reason
+            else:
+                # The first hit alone never supplies a clean scan. Search all
+                # original roots again, excluding only proved read-only images.
+                layers = tuple(sorted(set(before[1][:-1])))
+                value = find_crash_candidate(roots, end, layers)
+                try:
+                    require(image_layer_snapshot(candidate, end) == before, 'crash_image_metadata_changed')
+                except Refusal:
+                    raise Refusal('crash_image_metadata_changed') from None
+                image_count = len(layers)
+                provenance = '_image_metadata_no_match'
     if value:
         # Preserve the refusal while identifying only a finite scope/name class.
         # Paths, candidate contents and collector/provider text stay private.
@@ -917,9 +958,9 @@ def crash_scan(deadline):
             except Refusal:
                 # A diagnostic fault cannot replace or suppress the scan refusal.
                 format_class = 'probe_refused'
-        provenance = ('_' + image_layer_observation(candidate, end)
-                      if scope == 'docker_overlay' else '')
-        raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind + '_' + format_class + provenance)
+        raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind + '_' + format_class
+                      + (provenance if scope == 'docker_overlay' else ''))
+    return {'verifiedImageDirectories': image_count}
 
 
 def export_hashes(output, deadline=None):
@@ -1012,7 +1053,7 @@ def execute(mode):
             # even read-only sudo or the transient unit's privilege. Provisioning
             # independently repeats qualification, drift and write/readback checks.
             prevalidate_native(provisioner, execution)
-            crash_scan(execution)
+            receipt['crashInventoryBefore'] = crash_scan(execution)
         require(not command([SYSTEMCTL, 'list-units', '--all', '--plain', '--no-legend', unit],
                             execution, 'unit_baseline_unreadable').strip(), 'unit_already_exists')
         started = True
@@ -1111,7 +1152,7 @@ def execute(mode):
                     error = error or 'docker_cleanup_incomplete'
         try:
             if mode == 'native' and started:
-                crash_scan(cleanup)
+                receipt['crashInventoryAfter'] = crash_scan(cleanup)
         except Refusal as failure:
             success, error = False, error or failure.reason
         if success:

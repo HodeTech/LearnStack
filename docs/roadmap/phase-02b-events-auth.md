@@ -9313,6 +9313,32 @@ validation; actual hosted provenance, workload cause and full qualification
 remain pending. Main protection is independently read back unchanged in full,
 including strict mode and all seven required contexts.
 
+Source `f53c36fc` starts
+[run 39145489321](https://github.com/HodeTech/LearnStack/actions/runs/39145489321).
+Meta, OpenAPI and secret scan pass. Its native job still deliberately refuses,
+but now positively binds the private candidate to a presently inspected image
+layer: `unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_match`.
+This proves that candidate's path provenance on that source, not its content or
+earlier runs' files. Docker's
+[classic overlay2 documentation](https://docs.docker.com/engine/storage/drivers/overlayfs-driver/#image-and-container-layers-on-disk)
+distinguishes image lower layers from the separate writable container layer.
+
+The resulting applicability correction retains the first scan unchanged. Only a
+fresh, stable exact-ID image snapshot containing that same candidate authorizes
+a second scan over every original root, pruning solely verified existing image
+`diff` directories. A complete matching snapshot after that scan is mandatory
+before a clean return. Unsupported/unreadable metadata, non-directory layers,
+drift, malformed output, budget exhaustion and all nonpruned candidates remain
+failures. Each pre-launch and cleanup scan independently requalifies its own
+snapshot and records only its verified-directory count. No filename, format,
+overlay-parent or writable-container allowance is added; no file is deleted.
+
+All 32 copied-owner controls pass. They include real `find` traversal in an owned
+temporary tree: the image file is first, yet a later writable/prefix/merged/work/
+volume artifact still appears; malformed and post-scan-changing metadata cannot
+make the result clean. No developer Docker state or host collector is changed.
+Focused review and actual hosted qualification still precede closure.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four

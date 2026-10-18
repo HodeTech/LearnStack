@@ -55,13 +55,24 @@ elif name == 'docker':
            else 'image_inspect' if args[:2] == ['image', 'inspect'] else 'docker')
     print(config.get(key, ''), end='')
 elif name == 'find':
-    print(config.get('crash', ''), end='')
+    if config.get('real_find'):
+        # Map only this fixed test root into the owned temporary tree; execute
+        # the real find parser/traversal with the owner's unchanged expression.
+        args = [config['real_find_root'] + arg[len('/var/lib/docker'):]
+                if arg == '/var/lib/docker' or arg.startswith('/var/lib/docker/') else arg
+                for arg in sys.argv[1:]]
+        os.execv('/usr/bin/find', ['/usr/bin/find', *args])
+    print(config.get('crash_after_prune' if '-prune' in sys.argv else 'crash', ''), end='')
 elif name == 'file':
     print(config.get('file_description', ''), end='')
 elif name == 'realpath':
     assert sys.argv[1:3] == ['-e', '--']
     for path in sys.argv[sys.argv.index('--') + 1:]:
         print(config.get('realpaths', {}).get(path, path))
+elif name == 'stat':
+    assert sys.argv[1:3] == ['--format=%F', '--']
+    for path in sys.argv[3:]:
+        print(config.get('kinds', {}).get(path, 'directory'))
 elif name == 'dotnet':
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     os.setsid()
@@ -105,7 +116,7 @@ class OwnerControls(unittest.TestCase):
         self.configure()
         fixture = FIXTURE.replace('PYTHON', sys.executable, 1)
         replacements = {'PROC': str(self.bin / 'proc'), 'CGROUP': str(self.bin / 'cgroup')}
-        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND', 'FILE', 'REALPATH'):
+        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND', 'FILE', 'REALPATH', 'STAT'):
             executable = self.bin / name.lower().replace('_', '-')
             executable.write_text(fixture)
             executable.chmod(0o700)
@@ -529,7 +540,7 @@ except launcher.Refusal as failure:
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)
 
-    def test_image_provenance_is_closed_read_only_and_never_suppresses_refusal(self):
+    def test_image_provenance_prunes_only_verified_directories_after_complete_rerun(self):
         layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
         parent = '/var/lib/docker/overlay2/' + 'c' * 64 + '/diff'
         link = '/var/lib/docker/overlay2/l/' + 'D' * 26
@@ -547,15 +558,31 @@ except launcher.Refusal as failure:
                                 ('/var/lib/docker/overlay2/' + 'e' * 64 + '/diff/PRIVATE-CANARY.dump', 'no_match')):
                 with self.subTest(path=path):
                     self.configure(crash=path + '\0')
-                    self.refuses('unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_' + label,
-                                 self.owner.crash_scan, time.monotonic() + 3)
+                    if label == 'match':
+                        self.assertEqual({'verifiedImageDirectories': 2}, self.owner.crash_scan(time.monotonic() + 3))
+                    else:
+                        self.refuses('unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_no_match',
+                                     self.owner.crash_scan, time.monotonic() + 3)
             docker_calls = [call['argv'] for call in self.calls() if call['name'] == 'docker']
             self.assertTrue(docker_calls)
             self.assertTrue(all(args[:2] == ['--host', 'unix:///var/run/docker.sock'] for args in docker_calls))
             self.assertTrue(all(args[2] == 'info' or args[2:4] in (['image', 'ls'], ['image', 'inspect'])
                                 for args in docker_calls))
             self.assertTrue(all(image in args for args in docker_calls if args[2:4] == ['image', 'inspect']))
-            self.assertNotIn('PRIVATE-CANARY', self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+            pruned = [call['argv'] for call in self.calls() if call['name'] == 'find' and '-prune' in call['argv']]
+            self.assertTrue(pruned)
+            for args in pruned:
+                self.assertEqual([layer, parent], [args[i + 1] for i, arg in enumerate(args) if arg == '-path'])
+            self.configure(crash=candidate + '\0')
+            for unsafe in ('/var/lib/docker/overlay2/' + 'e' * 64 + '/diff/PRIVATE-CANARY.dump',
+                           layer + '-prefix/PRIVATE-CANARY.dump', '/var/lib/docker/buildkit/PRIVATE-CANARY.dump',
+                           '/var/lib/docker/volumes/PRIVATE-CANARY.dump', '/var/crash/PRIVATE-CANARY.dump',
+                           str(temporary / 'PRIVATE-CANARY.dump'), str(self.owner.ROOT / 'PRIVATE-CANARY.dump')):
+                self.configure(crash_after_prune=unsafe + '\0')
+                with self.assertRaises(self.owner.Refusal) as caught:
+                    self.owner.crash_scan(time.monotonic() + 3)
+                self.assertTrue(caught.exception.reason.startswith('unexpected_crash_artifact_'))
+                self.assertNotIn('PRIVATE-CANARY', caught.exception.reason)
 
     def test_image_provenance_missing_malformed_changed_or_unsupported_is_unavailable(self):
         layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
@@ -564,7 +591,7 @@ except launcher.Refusal as failure:
         record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer}}}
         valid = {'image_info': json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
                  'image_ids': image + '\n', 'image_inspect': json.dumps(record) + '\n',
-                 'status': {}, 'realpaths': {}}
+                 'status': {}, 'realpaths': {}, 'kinds': {}}
         changes = [
             {'image_info': ''}, {'image_info': '[]'},
             {'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})},
@@ -574,13 +601,14 @@ except launcher.Refusal as failure:
             {'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})},
             {'image_inspect': json.dumps({**record, 'driver': None})},
             {'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})},
-            {'realpaths': {layer: '/tmp/escaped'}}, {'status': {'docker': 1}}, {'status': {'realpath': 1}},
+            {'realpaths': {layer: '/tmp/escaped'}}, {'kinds': {layer: 'regular file'}},
+            {'status': {'docker': 1}}, {'status': {'realpath': 1}}, {'status': {'stat': 1}},
         ]
         for change in changes:
             with self.subTest(change=change):
                 self.configure(**{**valid, **change})
-                self.assertEqual('image_metadata_unavailable',
-                                 self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+                self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+                             candidate, time.monotonic() + 3)
         self.configure(**valid)
         original = self.owner.command
         lists = 0
@@ -592,8 +620,8 @@ except launcher.Refusal as failure:
                     return b''
             return original(argv, *args, **kwargs)
         with mock.patch.object(self.owner, 'command', side_effect=changed):
-            self.assertEqual('image_metadata_unavailable',
-                             self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+                         candidate, time.monotonic() + 3)
         canonical_reads = 0
         def canonical_changed(argv, *args, **kwargs):
             nonlocal canonical_reads
@@ -604,11 +632,60 @@ except launcher.Refusal as failure:
                     return value.replace(b'/diff', b'/changed')
             return value
         with mock.patch.object(self.owner, 'command', side_effect=canonical_changed):
-            self.assertEqual('image_metadata_unavailable',
-                             self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+                         candidate, time.monotonic() + 3)
         self.configure(**{**valid, 'image_ids': ''})
-        self.assertEqual('image_metadata_no_match',
-                         self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+        self.refuses('image_metadata_no_match', self.owner.image_layer_snapshot,
+                     candidate, time.monotonic() + 3)
+
+    def test_real_find_prunes_exact_image_diff_and_still_finds_later_writable_artifact(self):
+        virtual = '/var/lib/docker/overlay2/'
+        layer, writable = virtual + 'b' * 64 + '/diff', virtual + 'e' * 64 + '/diff'
+        tree = self.root / 'docker-tree'
+        def actual(path):
+            return tree / path.removeprefix('/var/lib/docker/')
+        for path in (layer, writable, layer + '-prefix', virtual + 'b' * 64 + '/merged',
+                     virtual + 'b' * 64 + '/work', '/var/lib/docker/volumes/owned'):
+            actual(path).mkdir(parents=True)
+        image = actual(layer) / 'image.dump'
+        image.write_text('immutable image fixture')
+        self.configure(real_find=True, real_find_root=str(tree))
+        roots = [layer, writable]
+        first = self.owner.find_crash_candidate(roots, time.monotonic() + 3)
+        self.assertEqual(os.fsencode(image) + b'\0', first)
+        self.assertEqual(b'', self.owner.find_crash_candidate(roots, time.monotonic() + 3, (layer,)))
+        for path in (writable, layer + '-prefix', virtual + 'b' * 64 + '/merged',
+                     virtual + 'b' * 64 + '/work', '/var/lib/docker/volumes/owned'):
+            dirty = actual(path) / 'unexpected.dump'
+            dirty.write_text('dirty control')
+            self.assertEqual(os.fsencode(dirty) + b'\0', self.owner.find_crash_candidate(
+                [layer, path], time.monotonic() + 3, (layer,)))
+            dirty.unlink()
+        self.refuses('crash_prune_invalid', self.owner.find_crash_candidate, roots,
+                     time.monotonic() + 3, (virtual + 'b' * 64,))
+        self.refuses('crash_prune_invalid', self.owner.find_crash_candidate, roots,
+                     time.monotonic() + 3, (layer,) * 513)
+        self.refuses('crash_prune_bound', self.owner.find_crash_candidate, ['x' * (128 * 1024)],
+                     time.monotonic() + 3, (layer,))
+
+    def test_image_metadata_change_after_pruned_scan_cannot_be_clean(self):
+        layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
+        candidate = layer + '/PRIVATE-CANARY.dump'
+        image = 'sha256:' + 'a' * 64
+        record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer}}}
+        self.configure(image_info=json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
+                       image_ids=image + '\n', image_inspect=json.dumps(record), crash=candidate + '\0')
+        original, lists = self.owner.command, 0
+        def changed(argv, *args, **kwargs):
+            nonlocal lists
+            if argv[0] == self.owner.DOCKER and argv[3:5] == ['image', 'ls']:
+                lists += 1
+                if lists == 3:
+                    return b''
+            return original(argv, *args, **kwargs)
+        with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(self.root)}), \
+             mock.patch.object(self.owner, 'command', side_effect=changed):
+            self.refuses('crash_image_metadata_changed', self.owner.crash_scan, time.monotonic() + 3)
 
     def test_discovery_uses_unique_ids_and_rejects_partial_aborted_and_duplicate_batches(self):
         cases = self.population()['all']
