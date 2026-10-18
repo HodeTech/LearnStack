@@ -51,6 +51,8 @@ elif name == 'docker':
     print(config.get('docker', ''), end='')
 elif name == 'find':
     print(config.get('crash', ''), end='')
+elif name == 'file':
+    print(config.get('file_description', ''), end='')
 elif name == 'dotnet':
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     os.setsid()
@@ -94,7 +96,7 @@ class OwnerControls(unittest.TestCase):
         self.configure()
         fixture = FIXTURE.replace('PYTHON', sys.executable, 1)
         replacements = {'PROC': str(self.bin / 'proc'), 'CGROUP': str(self.bin / 'cgroup')}
-        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND'):
+        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND', 'FILE'):
             executable = self.bin / name.lower().replace('_', '-')
             executable.write_text(fixture)
             executable.chmod(0o700)
@@ -485,10 +487,24 @@ except launcher.Refusal as failure:
             ):
                 with self.subTest(scope=scope, kind=kind):
                     self.configure(crash=path + '\0')
-                    self.refuses('unexpected_crash_artifact_' + scope + '_' + kind,
+                    self.refuses('unexpected_crash_artifact_' + scope + '_' + kind + '_unknown',
                                  self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='PRIVATE-CANARY without a delimiter')
-            self.refuses('unexpected_crash_artifact_unknown_unknown',
+            self.refuses('unexpected_crash_artifact_unknown_unknown_unknown',
+                         self.owner.crash_scan, time.monotonic() + 2)
+            for description, label in (
+                ('PostgreSQL custom database dump - v1.15-0 PRIVATE-CANARY', 'postgresql_backup'),
+                ('ELF 64-bit LSB core file PRIVATE-CANARY', 'elf_core'),
+                ('Mini DuMP crash report PRIVATE-CANARY', 'minidump'),
+                ('ASCII text PRIVATE-CANARY', 'text'),
+                ('gzip compressed data PRIVATE-CANARY', 'compressed'),
+                ('PRIVATE-CANARY', 'unknown'),
+            ):
+                self.configure(crash='/var/lib/docker/PRIVATE-CANARY.dump\0', file_description=description)
+                self.refuses('unexpected_crash_artifact_docker_dump_' + label,
+                             self.owner.crash_scan, time.monotonic() + 2)
+            self.configure(status={'file': 1})
+            self.refuses('unexpected_crash_artifact_docker_dump_unknown',
                          self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)

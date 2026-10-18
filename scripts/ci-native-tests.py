@@ -36,6 +36,7 @@ SYSTEMCTL = '/usr/bin/systemctl'
 DOCKER = '/usr/bin/docker'
 GIT = '/usr/bin/git'
 FIND = '/usr/bin/find'
+FILE = '/usr/bin/file'
 HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker', '/tmp', '/var/tmp')
 
 # Sole duration owner. These are bounded path allocations, not a hosted fit
@@ -799,6 +800,7 @@ def docker_complete(deadline, *, forced):
 
 
 def crash_scan(deadline):
+    end = min(deadline, time.monotonic() + SCAN_SECONDS)
     locations = [(str(ROOT), 'workspace'), (os.environ['RUNNER_TEMP'], 'runner_temp')]
     locations.extend(zip(HOST_CRASH_ROOTS, ('apport', 'systemd', 'docker', 'tmp', 'var_tmp')))
     roots = [path for path, _ in locations if Path(path).exists()]
@@ -807,7 +809,7 @@ def crash_scan(deadline):
     value = command([SUDO, '-n', FIND, *roots, '-xdev', '-type', 'f', '(', '-name', 'core',
                      '-o', '-regex', '.*/core\\.[0-9]+', '-o', '-name', '*.core',
                      '-o', '-name', '*.dmp', '-o', '-name', '*.dump', '-o', '-name', '*.crash', ')',
-                     '-print0', '-quit'], deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
+                     '-print0', '-quit'], end, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
     if value:
         # Preserve the refusal while identifying only a finite scope/name class.
         # Paths, candidate contents and collector/provider text stay private.
@@ -818,7 +820,25 @@ def crash_scan(deadline):
         kind = ('core' if name == 'core' else 'numbered_core' if re.fullmatch(r'core\.[0-9]+', name)
                 else next((suffix for suffix in ('core', 'dmp', 'dump', 'crash')
                            if name.endswith('.' + suffix)), 'unknown'))
-        raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind)
+        format_class = 'unknown'
+        if candidate:
+            try:
+                description = command([SUDO, '-n', FILE, '--brief', '--', candidate],
+                                      end, 'crash_format_unreadable').decode('utf-8', errors='replace')
+                if description.startswith('PostgreSQL custom database dump'):
+                    format_class = 'postgresql_backup'
+                elif description.startswith('ELF ') and 'core file' in description:
+                    format_class = 'elf_core'
+                elif description.startswith(('Mini DuMP', 'Minidump')):
+                    format_class = 'minidump'
+                elif description.startswith(('ASCII text', 'UTF-8 Unicode text', 'Unicode text')):
+                    format_class = 'text'
+                elif description.startswith('gzip compressed data'):
+                    format_class = 'compressed'
+            except Refusal:
+                # A diagnostic fault cannot replace or suppress the scan refusal.
+                pass
+        raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind + '_' + format_class)
 
 
 def export_hashes(output, deadline=None):

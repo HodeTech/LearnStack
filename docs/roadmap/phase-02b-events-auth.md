@@ -9264,6 +9264,15 @@ closed reason is `unexpected_crash_artifact_docker_dump`. The actual matching
 file/format remains unknown. No candidate is excluded, no host setting is
 changed and no native hosted pass is claimed.
 
+A further read-only diagnostic invokes fixed `/usr/bin/file` only for the
+private NUL-delimited candidate and maps its captured description to a finite
+format label. It shares the original scan's twenty-second allocation. Every
+candidate still refuses, including unknown formats and failed/timed-out probes;
+no description, path or contents are exported. All 26 launcher controls pass,
+and an independent focused review finds no defect. Actual classification and
+native hosted qualification remain pending; this adds no collector authority
+or file exclusion.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four
