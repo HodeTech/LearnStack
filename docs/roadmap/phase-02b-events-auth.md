@@ -8776,8 +8776,8 @@ Real exact-head CI must still qualify the complete unchanged job budgets.
 
 ### P02b-4 local closeout (2026-10-18)
 
-**Local implementation and review complete; PR-head CI/merge pending.** All nine
-approved steps are delivered on `development`. Every step completed both fresh
+**Local implementation and review complete; [PR #32](https://github.com/HodeTech/LearnStack/pull/32) open.**
+All nine approved steps are delivered on `development`. Every step completed both fresh
 independent review rounds and its verified correction checks. The full Step 9
 rounds and final qualification corrections are recorded above; focused checks do
 not count as additional full rounds. Accepted ADR bodies/metadata and earlier
@@ -8842,6 +8842,22 @@ The next packet is **P02b-5 API authentication**, beginning with G10/G11/G12
 starts in this closeout. P02b-5–8 and the overall Phase 02b exit remain open.
 Real exact-head seven-job CI, its unchanged duration ceilings and the maintainer's
 PR review/merge remain separate; this local closeout does not claim them passed.
+
+#### PR handoff and current CI ownership
+
+[PR #32](https://github.com/HodeTech/LearnStack/pull/32) opens `development` →
+`main`, based on `ed60157c14d33fad926fd201b49c08e2d24eed1f`. The locally qualified
+implementation is committed at `199b033e`; this handoff adds only documentation.
+The closed C# receipt above remains byte-identical after normal commit hooks.
+
+The PR's [live checks](https://github.com/HodeTech/LearnStack/pull/32/checks) own
+current exact-head CI results, durations and downloadable artifacts. The initial
+[run](https://github.com/HodeTech/LearnStack/actions/runs/39120117263) starts on
+`199b033e`; a subsequent documentation push supersedes that unfinished run and
+requires a fresh complete check set. No partial or superseded result establishes
+final-head success. All seven required names and strict freshness remain enabled;
+backend, integration and demo keep their unchanged twenty-minute job ceilings.
+The maintainer owns PR review and merge; no merge is claimed here.
 
 ### Durable outbox dispatch
 
