@@ -7588,6 +7588,39 @@ controls still precede both fresh full Step 8 review rounds. Nineteen packet
 obligations remain Registered, Step 9 remains pending, and this qualification
 claims neither packet-wide regression nor CI success.
 
+#### Recurrence core capability qualification
+
+After `b72ce6ce`, a new nonempty production census closes the four concrete
+recurrence owners' constructors, startup/cancellation callbacks and parent
+completion capability. It pins exact declaring assembly, method signature,
+visibility, caller, opcode and multiplicity. The internal sealed native client's
+primary constructor has public IL visibility; the census records that actual
+shape without changing production accessibility. Null-conditional native stop
+and thread-exit calls likewise retain their exact compiled opcodes.
+
+A narrow review finds that name/count checks alone could accept a foreign
+cleanup target. Cleanup checks now require the exact trusted .NET 10 facade
+identity, full signature, instance/static shape and opcode. Actual configured
+awaiter identities preserve multiplicity, including both non-generic native
+awaits. Attached foreign capability, Thread and nested awaiter controls must fail
+the same detector; each restores the original operand before removing its
+temporary in-memory type. No assembly file or production source is mutated.
+
+Earlier guard runs record incorrect constructor/opcode premises separately;
+mutation cases failing their clean baseline receive no dirty-control credit.
+The final 326-source Release build has zero warnings/errors. Thirteen focused
+Architecture cases pass in twelve seconds with zero skips: the baseline, eleven
+clean/dirty/restored controls and the catalogue count. The two added companion
+methods bring the published count to 247. Scoped formatter verification reports
+no changes. Its source/mode/artifact receipt closes at
+`8d62c2fd3956e1bc2d182ea1dcda0f1ff61e7e00f6a5388480e971942ad4c4d2`.
+
+This qualifies the core capability slice, not semantic task-dataflow enforcement
+or the complete recurrence census. Field/holder and publication ownership,
+native SDK invocation, memory-only ticks and exclusion-list guards remain before
+both full Step 8 review rounds. Nineteen packet obligations remain Registered;
+Step 9 is pending. Neither narrow source review supplies full-round credit.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
