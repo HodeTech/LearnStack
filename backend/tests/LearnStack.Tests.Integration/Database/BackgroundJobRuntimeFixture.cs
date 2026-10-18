@@ -35,7 +35,12 @@ public sealed class BackgroundJobFixtureProbe : IBackgroundJobFixtureProbe
     public IReadOnlyList<string> Constructions => _constructions;
     public Func<string, IServiceProvider, CancellationToken, Task<Result<None>>> Body { get; set; } =
         (_, _, _) => Task.FromResult(Result.Ok(None.Value));
-    public void Constructed(string request) => _constructions.Add(request);
+    internal Action<string>? OnConstructed { get; set; }
+    public void Constructed(string request)
+    {
+        _constructions.Add(request);
+        OnConstructed?.Invoke(request);
+    }
     public Task<Result<None>> ExecuteAsync(string request, IServiceProvider services, CancellationToken cancellationToken) =>
         Body(request, services, cancellationToken);
 }
@@ -265,8 +270,10 @@ internal sealed class BackgroundJobRuntimeFixture
                 public sealed record {{root}} : IRequest<Result<None>>
                 {
                     public static int Constructions;
+                    public static Action? OnConstruction;
                     public Parameters Parameters { get; init; }
-                    public {{root}}(Parameters parameters) { Parameters = parameters; Interlocked.Increment(ref Constructions); }
+                    public {{root}}(Parameters parameters)
+                    { Parameters = parameters; Interlocked.Increment(ref Constructions); OnConstruction?.Invoke(); }
                 }
                 """;
         foreach (var request in new[] { "Submit", "SubmitOrganization", "Nested", "PublicSubmit", "TenantRoot", "OrganizationRoot", "PendingRoot", "CapacityRoot" })

@@ -8465,6 +8465,42 @@ complete nineteen-rule reconciliation, full regression/packaging/CI-budget proof
 and both full Step 9 reviews remain open. All nineteen obligations remain
 Registered.
 
+#### Constructor-time context and trace qualification
+
+A four-case real executor theory covers tenant-wide/organization work, each with
+success or cancellation while its actual business task remains held. After real
+routing/admission cleanup, observation-only fixture hooks capture parameter,
+root-request and handler constructors plus Body entry/continuations. Every
+mandatory capture sees the exact stored tenant/org, SystemActor, causal actor,
+job/incoming identity, module and correlation. Both sampled ActivitySources retain
+the stored causal trace: parameter/root observe `job.execution`, while handler
+and Body keep their genuine MediatR child and execution ancestry. The unrelated
+caller context and Activity retain their exact references throughout and after
+actual cleanup.
+
+The same assertion rejects a real parameter construction before job ownership.
+A separate trace-only capture at the genuine constructor preserves correct job
+context but selects the caller Activity; context facts pass and the independent
+trace predicate rejects it. These are oracle controls, not a claimed production
+source-reorder mutation. Static hooks restore their exact prior values only after
+the actual task becomes terminal. A failed bounded join supplies no cleanup
+claim. Caller AsyncLocal isolation alone does not prove each explicit finally
+setter; existing cleanup/Activity fault cases remain complementary.
+
+All 24 selected business PostgreSQL cases pass, including the four new cases,
+with zero failures/skips in 17 seconds. The final CI-mode Release build has zero
+warnings/errors and scoped two-file formatting reports no changes. Initial
+generic-assertion/cancellation-forwarding analyzer warnings are corrected with
+explicit intentional noncancellation of the held Body waits. Focused independent
+source inspection finds no defect; it is not either full Step 9 review round.
+No production context writer or execution authority changes.
+
+The final 378-source receipt is
+`e77b70cd875f2b208d46deaac82f248b21e508dbcbd9bb5598a9b0030cf14a7c`.
+Combined privileged capacity, complete nineteen-rule reconciliation, distribution
+and full regression/CI-budget qualification, and both full Step 9 reviews remain
+open. All nineteen obligations remain Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
