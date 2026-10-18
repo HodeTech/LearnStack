@@ -231,10 +231,6 @@ export async function startDemo(mode) {
       cwd: backendRoot,
       timeout: 180000,
     });
-    await run('dotnet', ['tool', 'restore'], 'Pinned tools restore', {
-      cwd: backendRoot,
-      timeout: 60000,
-    });
     await run('pnpm', ['--filter', '@learnstack/web', 'build:ingress'], 'Ingress compilation', {
       cwd: join(repositoryRoot, 'frontend'),
     });
@@ -410,13 +406,8 @@ export async function startDemo(mode) {
       });
       if (rows.split('\n').includes('keycloak')) throw new Error('Owned Keycloak did not stop');
     }
-    console.log('demo: building production API and renderer');
-    await run(
-      'dotnet',
-      ['build', 'src/LearnStack.Api', '--configuration', 'Release', '--no-restore', '--nologo'],
-      'Production API build',
-      { cwd: backendRoot },
-    );
+    // make migrate already built the fresh Release API used by both demo modes.
+    console.log('demo: building production renderer');
     await run('pnpm', ['--filter', '@learnstack/web', 'build'], 'Production renderer build', {
       cwd: join(repositoryRoot, 'frontend'),
       timeout: 180000,
