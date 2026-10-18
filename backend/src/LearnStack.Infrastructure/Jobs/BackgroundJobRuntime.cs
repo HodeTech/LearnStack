@@ -31,7 +31,8 @@ public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState Stat
     IReadOnlyList<BackgroundJobPoolHealth> Pools, IReadOnlyList<BackgroundJobMaintenanceHealth> Maintenance,
     BackgroundJobControlHealth? Control = null, BackgroundJobApplicationCapacity? ApplicationCapacity = null)
 {
-    public bool IsHealthy => State == BackgroundJobRuntimeState.Running && BridgeHealthy
+    public bool InstrumentationHealthy { get; init; } = true;
+    public bool IsHealthy => InstrumentationHealthy && State == BackgroundJobRuntimeState.Running && BridgeHealthy
         && ExpirationHealthy && FetchedJobHeartbeatHealthy && RunningPools == Capacity.Pools
         && RetainedPools == 0 && RetainedInvocations == 0 && Pools.All(pool => !pool.MetadataHeartbeatFault)
         && Control is
@@ -133,6 +134,9 @@ public sealed class BackgroundJobRuntime
                 _sourceLifetime = ObserveSourceLifetimeAsync();
             }
         }
+        // The callback can now see every initialized readonly owner. Bind once
+        // before pinning a source; a duplicate observer cannot strand a new pin.
+        _executor.Observation.Bind(this, recurrences, time);
         _source.RetainBackgroundJobsUntil(_sourceLifetime);
         applicationSource?.RetainBackgroundJobsUntil(_sourceLifetime);
     }
@@ -220,7 +224,10 @@ public sealed class BackgroundJobRuntime
                         GenerationCleanupComplete = pool.Generation?.CleanupComplete == true,
                     }).ToArray()),
                     Array.AsReadOnly(new[] { MaintenanceHealth("expiration", expiration), MaintenanceHealth("fetched_job_heartbeat", heartbeat) }),
-                    _jobs.Snapshot, _applicationCapacity);
+                    _jobs.Snapshot, _applicationCapacity)
+                {
+                    InstrumentationHealthy = _executor.Observation.IsHealthy,
+                };
             }
         }
     }

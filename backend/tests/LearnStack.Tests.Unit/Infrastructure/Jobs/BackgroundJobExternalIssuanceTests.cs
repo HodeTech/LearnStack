@@ -15,8 +15,11 @@ using Xunit;
 namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
 /// <summary>Preconstruction memory refusals only; no provider success or durability is claimed.</summary>
-public sealed class BackgroundJobExternalIssuanceTests
+public sealed class BackgroundJobExternalIssuanceTests : IDisposable
 {
+    private readonly List<BackgroundJobObservation> _observations = [];
+    public void Dispose() { foreach (var observation in _observations) observation.Dispose(); }
+
     [Theory]
     [InlineData("unacknowledged")]
     [InlineData("borrowed_ack")]
@@ -86,11 +89,13 @@ public sealed class BackgroundJobExternalIssuanceTests
             fingerprint, operation);
     }
 
-    private static JobExecutor Executor(IServiceScopeFactory scopes, ITenantContextAccessor accessor)
+    private JobExecutor Executor(IServiceScopeFactory scopes, ITenantContextAccessor accessor)
     {
         var registry = BackgroundJobDefinitionRegistry.CreateEmpty();
+        var observation = new BackgroundJobObservation(registry, TimeProvider.System);
+        _observations.Add(observation);
         return new(scopes, accessor, new BackgroundJobExecutionAdmission(registry, registry,
-            new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new BackgroundJobRuntimeOptions());
+            new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new BackgroundJobRuntimeOptions(), observation);
     }
 
     private sealed class ThrowingRestoreAccessor : ITenantContextAccessor

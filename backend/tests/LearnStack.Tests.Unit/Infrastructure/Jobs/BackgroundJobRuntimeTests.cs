@@ -12,8 +12,11 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
-public sealed class BackgroundJobRuntimeTests
+public sealed class BackgroundJobRuntimeTests : IDisposable
 {
+    private readonly List<BackgroundJobObservation> _observations = [];
+    public void Dispose() { foreach (var observation in _observations) observation.Dispose(); }
+
     [Fact]
     public async Task Stop_before_start_joins_positive_unissued_ownership_without_resolving_the_source()
     {
@@ -107,13 +110,15 @@ public sealed class BackgroundJobRuntimeTests
     private static PrivilegedDataSource Source() => new(() =>
         throw new InvalidOperationException("The unissued runtime must not resolve its source."));
 
-    private static BackgroundJobRuntime Runtime(PrivilegedDataSource source,
+    private BackgroundJobRuntime Runtime(PrivilegedDataSource source,
         BackgroundJobDefinitionRegistry definitions, BackgroundJobRuntimeGate gate, BackgroundJobPhysicalPoolSettings settings,
         bool bindMessaging = true)
     {
         var bounds = new BackgroundJobRuntimeOptions();
+        var observation = new BackgroundJobObservation(definitions, TimeProvider.System);
+        _observations.Add(observation);
         var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
-            new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds);
+            new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds, observation);
         var routing = new PostgresBackgroundJobRoutingStore(source, definitions, bounds, new SystemGuidFactory(), gate);
         var runtime = new BackgroundJobRuntime(source, definitions, BackgroundJobRecurrenceRegistry.CreateEmpty(), executor, routing, gate,
             bounds, new SystemGuidFactory(), TimeProvider.System, settings, new HangfireBoundedLogProvider());

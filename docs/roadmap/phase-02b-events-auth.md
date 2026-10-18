@@ -8045,6 +8045,48 @@ The manual real metadata callback does not claim Core's scheduling-cadence proof
 The focused inspection has no open findings and supplies no full Step 9 review
 credit. Metric emitters and complete packet qualification remain pending.
 
+#### Memory-only job metric collector qualification
+
+One required concrete observation singleton binds the actual API runtime after
+its snapshot owners initialize and before either source pin. The shared
+API/Seeder composition creates no runtime or worker. Five observable families
+project counts, exact SQL eligibility age, confirmed heartbeat age, component
+state and fixed monotonic control observations. Each callback captures one
+immutable memory snapshot and materializes its finite sparse measurements.
+The [metric inventory](../standards/10-observability.md#required-metrics) owns
+names and dimensions. Queue age remains the stored SQL sample; the earlier
+acquisition/freshness timestamp cannot extrapolate it. Retained aggregate and
+per-pool series remain distinct even for a legal pool named `none`.
+
+Actual MeterListener controls cover required DI, missing registration,
+bind-once/disposal authority, conservative freshness, missing versus confirmed
+heartbeats and complete empty-sample zeroes. Real PostgreSQL/native controls
+observe cold unknown work under empty registries, preserve prior quarantine
+samples through actual grant refusal and check complete metric identities for
+the legal `none` pool. Fifty-eight unit and ten PostgreSQL cases pass with zero
+failures/skips; their production and fixture sources remain unchanged through
+the subsequent Architecture corrections.
+
+Three new Architecture companions inspect actual singleton descriptors, consumed
+instrument/callback arguments, binding receiver/order/dominance and the transitive
+memory method graph, including reached static initializers. Balanced clean/dirty/
+restored controls reject indirect SQL, arbitrary delegates, hidden or extra Meter
+registrations, name/callback bait and skipped binding. An initial seven-case run
+passes six cases and fails a new fixture's ambiguous instance/static constructor
+selection. After that correction, a four-case run passes three and reveals an
+unreachable skipped-binding mutation: existing branch targets bypass its prefix.
+Moving the mutation onto the actual landing instruction corrects the control;
+the final three metric companions pass with zero failures/skips. The complete
+existing runtime/source-owner companion passes against the same shared walk.
+
+The final 356-source snapshot builds in CI Release with zero warnings/errors;
+its source/artifact receipt is
+`0327dabd84b0f91c0db248312f7747e0f6439756491160756bd6bfae43740100`.
+Focused collector and guard inspections close their verified findings; neither
+supplies a full Step 9 review round. Stage/event instrumentation, complete
+control-path accounting, nineteen-rule enforcement, whole regression/CI-budget
+qualification and both full Step 9 reviews remain pending.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

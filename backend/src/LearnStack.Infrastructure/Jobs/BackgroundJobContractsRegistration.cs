@@ -22,6 +22,8 @@ public static class BackgroundJobContractsRegistration
             provider.GetRequiredService<BackgroundJobDefinitionRegistry>());
         services.TryAddSingleton<BackgroundJobExecutionAdmission>();
         services.TryAddSingleton<BackgroundJobRuntimeOptions>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<BackgroundJobObservation>();
         services.TryAddSingleton<JobExecutor>();
         services.TryAddScoped<PostgresBackgroundJobScheduler>();
         services.TryAddScoped<IBackgroundJobScheduler>(provider => provider.GetRequiredService<PostgresBackgroundJobScheduler>());

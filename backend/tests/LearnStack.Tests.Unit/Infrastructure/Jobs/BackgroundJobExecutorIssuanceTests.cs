@@ -90,6 +90,7 @@ public sealed class BackgroundJobExecutorIssuanceTests
 
     private sealed class Fixture : IAsyncDisposable
     {
+        private readonly BackgroundJobObservation _observation;
         private readonly PrivilegedDataSource _source = new(() =>
             throw new InvalidOperationException("This memory-only fixture cannot resolve a database."));
         private readonly HangfireGenerationWork _generation;
@@ -102,8 +103,9 @@ public sealed class BackgroundJobExecutorIssuanceTests
             var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
             var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
             var options = new BackgroundJobRuntimeOptions();
+            _observation = new(definitions, TimeProvider.System);
             Executor = new(Scopes, Substitute.For<ITenantContextAccessor>(),
-                new(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), options);
+                new(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), options, _observation);
             Control = new(_source, definitions, Executor, gate, options, new SystemGuidFactory(), TimeProvider.System);
             _generation = new(definitions.Infrastructure.Pools["transactional"], gate);
         }
@@ -128,6 +130,7 @@ public sealed class BackgroundJobExecutorIssuanceTests
                 // this unopened fixture has no database or application resources.
             }
             await _source.DisposeAsync();
+            _observation.Dispose();
         }
     }
 }

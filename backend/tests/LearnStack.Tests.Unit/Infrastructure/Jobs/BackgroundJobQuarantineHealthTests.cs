@@ -107,14 +107,16 @@ public sealed class BackgroundJobQuarantineHealthTests
     // qualified separately against guarded PostgreSQL and the native facade.
     private sealed class Fixture : IAsyncDisposable
     {
+        private readonly BackgroundJobObservation _observation;
         private readonly PrivilegedDataSource _source = new(() => throw new InvalidOperationException("Memory health must not resolve a source."));
         internal Clock Time { get; } = new();
         internal BackgroundJobControl Control { get; }
         internal Fixture(BackgroundJobRuntimeOptions bounds)
         {
             var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
+            _observation = new(definitions, TimeProvider.System);
             var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
-                new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds);
+                new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), bounds, _observation);
             Control = new(_source, definitions, executor, new(definitions.Infrastructure), bounds, new SystemGuidFactory(), Time);
         }
         internal void Observe(bool value, bool controlValue = false)
@@ -141,6 +143,7 @@ public sealed class BackgroundJobQuarantineHealthTests
             await Control.Completion.WaitAsync(TimeSpan.FromSeconds(5));
             _source.IsValueCreated.Should().BeFalse();
             await _source.DisposeAsync();
+            _observation.Dispose();
         }
     }
     private sealed class Clock : TimeProvider

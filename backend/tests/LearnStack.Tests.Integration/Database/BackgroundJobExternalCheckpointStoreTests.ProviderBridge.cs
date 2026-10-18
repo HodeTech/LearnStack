@@ -180,7 +180,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         var accessor = services.GetRequiredService<ITenantContextAccessor>();
         var observer = new ProviderScopeObserver(services.GetRequiredService<IServiceScopeFactory>(), accessor);
         return (new(observer, accessor, services.GetRequiredService<BackgroundJobExecutionAdmission>(),
-            services.GetRequiredService<BackgroundJobRuntimeOptions>()), observer);
+            services.GetRequiredService<BackgroundJobRuntimeOptions>(), services.GetRequiredService<BackgroundJobObservation>()), observer);
     }
 
     private static Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> BridgeCanaryHost(

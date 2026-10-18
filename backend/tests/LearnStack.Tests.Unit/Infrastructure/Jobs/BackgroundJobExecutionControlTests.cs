@@ -26,8 +26,9 @@ public sealed class BackgroundJobExecutionControlTests
         var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
         var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
         var time = new DisposalPauseTimeProvider();
+        using var observation = new BackgroundJobObservation(definitions, time);
         var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
-            new BackgroundJobExecutionAdmission(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new());
+            new BackgroundJobExecutionAdmission(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new(), observation);
         var owner = new BackgroundJobControl(source, definitions, executor,
             gate, new(), new SystemGuidFactory(), time);
         var generation = new HangfireGenerationWork(new("probe", BackgroundJobWorkerPoolKind.Transactional, 2, ["probe"]), gate);
@@ -118,8 +119,9 @@ public sealed class BackgroundJobExecutionControlTests
         var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
         var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
         var time = new DisposalPauseTimeProvider();
+        using var observation = new BackgroundJobObservation(definitions, time);
         var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
-            new BackgroundJobExecutionAdmission(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new());
+            new BackgroundJobExecutionAdmission(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new(), observation);
         var owner = new BackgroundJobControl(source, definitions, executor, gate, new(), new SystemGuidFactory(), time);
         var generation = new HangfireGenerationWork(new("probe", BackgroundJobWorkerPoolKind.Transactional, 1, ["probe"]), gate);
         var current = await BeginAsync(owner, generation);

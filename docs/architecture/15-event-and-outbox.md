@@ -746,6 +746,16 @@ singleton outbox/delivery processors before startup. The shared source outlives 
 finite host wait until jobs and both processors positively finish privileged
 source use; a connection-cleanup fault retains its concrete owner and closes that
 SQL lane. Application callback completion is a separate ownership concern.
+Step 9 adds required [job observation](../glossary.md#background-jobs), shared with
+Seeder without resolving the API runtime. Its observable collectors bind the
+concrete facade once and materialize memory snapshots; the serialized control
+reader supplies durable status aggregates after acknowledged rollback/cleanup.
+Unknown durable work remains visible with empty local registries, and failed
+refresh retains the last sample with explicit unhealthy freshness. Observation
+supplies no source release, business completion or external-quiescence authority.
+The [metric inventory](../standards/10-observability.md#required-metrics) and
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+distinguish implemented observable families from pending stage/control signals.
 [Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
 owns the source-release contract and current physical floor; adding later SQL
 lanes requires requalification.

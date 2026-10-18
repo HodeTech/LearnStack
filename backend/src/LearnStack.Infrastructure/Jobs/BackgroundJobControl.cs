@@ -18,6 +18,9 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     public BackgroundJobDurableObservation? Observation { get; init; }
     public long? ObservationTimestamp { get; init; }
     public bool ObservationFailed { get; init; }
+    public long? RenewalTimestamp { get; init; }
+    public long? RecoveryTimestamp { get; init; }
+    public long? TerminalTimestamp { get; init; }
     public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
 }
 
@@ -100,6 +103,9 @@ internal sealed partial class BackgroundJobControl
                     Observation = _observation,
                     ObservationTimestamp = _observationObservedAt,
                     ObservationFailed = _observationFault,
+                    RenewalTimestamp = _renewalProgress,
+                    RecoveryTimestamp = _controlProgress,
+                    TerminalTimestamp = _terminalProgress,
                     Recurrence = _recurrence.Snapshot,
                 };
         }

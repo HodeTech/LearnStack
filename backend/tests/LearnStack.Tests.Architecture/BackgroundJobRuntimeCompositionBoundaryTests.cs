@@ -207,6 +207,9 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHostedAliases();
         CheckRuntimeOwnerConstruction();
         CheckHealthObservation();
+        CheckMemoryObservation(JobMetricRoots(census, offenders), "jobs metrics");
+        if (types.TryGetValue((InfrastructureAssembly, JobObservation), out var observation))
+            CheckMemoryObservation(observation.Methods.Where(method => method.IsConstructor && !method.IsStatic), "job observer construction");
         return offenders;
 
         void Exact(TypeDefinition type, string name, string target, string[] expected) =>
@@ -396,14 +399,28 @@ public sealed partial class OutboxDispatchConventionTests
                 "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext", BoundaryCancellation);
             CheckBridgeCapturedField(offenders, census, health, "<runtime>P", JobRuntime,
                 [healthConstructor + ":stfld", check + ":ldfld"]);
-            var pending = new Queue<MethodDefinition>(health.Methods.Where(method => MethodId(method) == check));
+            CheckMemoryObservation(health.Methods.Where(method => MethodId(method) == check), "jobs health");
+        }
+
+        void CheckMemoryObservation(IEnumerable<MethodDefinition> roots, string label)
+        {
+            var pending = new Queue<MethodDefinition>(roots);
             var visited = new HashSet<string>(StringComparer.Ordinal);
             while (pending.TryDequeue(out var method))
             {
                 if (!visited.Add(MethodId(method))) continue;
                 foreach (var body in ownedBodies.Where(item => item.Owner == method).Select(item => item.Body))
+                {
+                    var metadata = new[] { body.ReturnType }.Concat(body.Parameters.Select(parameter => parameter.ParameterType))
+                        .Concat(body.GenericParameters.SelectMany(parameter => parameter.Constraints).Select(constraint => constraint.ConstraintType))
+                        .Concat(body.Body.Variables.Select(variable => variable.VariableType))
+                        .Concat(body.Body.ExceptionHandlers.Where(handler => handler.CatchType is not null).Select(handler => handler.CatchType));
+                    foreach (var reference in metadata.SelectMany(Il.ExpandedTypeReferences).Where(IsPersistenceObservationType))
+                        offenders.Add(MethodId(method) + ": " + label + " observation carries persistence/provider signature state " + reference.FullName);
                     foreach (var instruction in body.Body.Instructions)
                     {
+                        if (instruction.OpCode == OpCodes.Calli)
+                            offenders.Add(MethodId(method) + ": " + label + " observation reaches an indirect call");
                         var reference = instruction.Operand switch
                         {
                             MethodReference target => target.DeclaringType,
@@ -411,6 +428,9 @@ public sealed partial class OutboxDispatchConventionTests
                             TypeReference type => type,
                             _ => null,
                         };
+                        if (reference is not null)
+                            foreach (var expanded in Il.ExpandedTypeReferences(reference).Where(IsPersistenceObservationType))
+                                offenders.Add(MethodId(method) + ": " + label + " observation carries persistence/provider operand state " + expanded.FullName);
                         if (reference is not null && !IsGenerationContextNullObservation(method, instruction)
                             && (reference.Namespace.StartsWith("Npgsql", StringComparison.Ordinal)
                                 || reference.Namespace.StartsWith("System.Data", StringComparison.Ordinal)
@@ -418,18 +438,55 @@ public sealed partial class OutboxDispatchConventionTests
                                 || reference.Scope is not null && Key(reference).Assembly is "Hangfire.Core" or "Hangfire.PostgreSql"
                                 || reference.FullName is "System.IServiceProvider" or "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory"
                                     or "Microsoft.Extensions.DependencyInjection.IKeyedServiceProvider"))
-                            offenders.Add(MethodId(method) + ": jobs health observation reaches persistence/provider activation " + reference.FullName);
+                            offenders.Add(MethodId(method) + ": " + label + " observation reaches persistence/provider activation " + reference.FullName);
+                        if (instruction.Operand is FieldReference staticField
+                            && instruction.OpCode.Code is Code.Ldsfld or Code.Ldsflda or Code.Stsfld
+                            && types.TryGetValue(Key(staticField.DeclaringType), out var fieldOwner))
+                            foreach (var initializer in fieldOwner.Methods.Where(target => target.IsConstructor && target.IsStatic))
+                                pending.Enqueue(initializer);
                         if (instruction.Operand is not MethodReference call) continue;
+                        if (label == "job observer construction" && call.DeclaringType.FullName == "System.Diagnostics.Metrics.Meter"
+                            && (call.Name == ".ctor" || call.Name.StartsWith("CreateObservable", StringComparison.Ordinal))
+                            && (method.DeclaringType.FullName != JobObservation || !method.IsConstructor || body != method))
+                            offenders.Add(MethodId(method) + ": job observer construction forwards a hidden Meter or observable registration");
+                        var callTypes = new[] { call.DeclaringType, call.ReturnType }
+                            .Concat(call.Parameters.Select(parameter => parameter.ParameterType))
+                            .Concat(call is GenericInstanceMethod instance ? instance.GenericArguments : Enumerable.Empty<TypeReference>());
+                        foreach (var referenceType in callTypes.SelectMany(Il.ExpandedTypeReferences).Where(IsPersistenceObservationType))
+                            offenders.Add(MethodId(method) + ": " + label + " observation carries persistence/provider call state " + referenceType.FullName);
                         if (!HasAttachedDeclaringType(call))
                         {
-                            offenders.Add(MethodId(method) + ": jobs health observation reaches a detached method target " + call.Name);
+                            offenders.Add(MethodId(method) + ": " + label + " observation reaches a detached method target " + call.Name);
                             continue;
                         }
+                        if (call.DeclaringType.FullName == "System.Threading.Tasks.Task" && call.Name == "Run"
+                            || call.DeclaringType.FullName == "System.Threading.Thread" && call.Name is ".ctor" or "Start"
+                            || call.Name == "Invoke" && call.DeclaringType.Namespace == "System"
+                                && (call.DeclaringType.Name.StartsWith("Func`", StringComparison.Ordinal)
+                                    || call.DeclaringType.Name.StartsWith("Action", StringComparison.Ordinal)))
+                            offenders.Add(MethodId(method) + ": " + label + " observation schedules work or invokes an arbitrary delegate");
                         if (DynamicResolution(call) || call.Name == "Invoke" && call.DeclaringType.Namespace == "System.Reflection")
-                            offenders.Add(MethodId(method) + ": jobs health observation reaches dynamic activation");
-                        if (!types.TryGetValue(Key(call.DeclaringType), out var targetType)) continue;
+                            offenders.Add(MethodId(method) + ": " + label + " observation reaches dynamic activation");
+                        if (call.DeclaringType.FullName is "System.Delegate" or "System.MulticastDelegate"
+                            && call.Name is "DynamicInvoke" or "DynamicInvokeImpl" or "Invoke")
+                            offenders.Add(MethodId(method) + ": " + label + " observation invokes an arbitrary delegate");
+                        if (!types.TryGetValue(Key(call.DeclaringType), out var targetType))
+                        {
+                            if (call.Name is "Invoke" or "BeginInvoke" or "EndInvoke" or "DynamicInvoke")
+                                offenders.Add(MethodId(method) + ": " + label + " observation invokes an unresolved external delegate");
+                            continue;
+                        }
+                        foreach (var initializer in targetType.Methods.Where(target => target.IsConstructor && target.IsStatic))
+                            pending.Enqueue(initializer);
+                        if (targetType.BaseType?.FullName is "System.MulticastDelegate" or "System.Delegate"
+                            && call.Name is "Invoke" or "BeginInvoke" or "EndInvoke")
+                            offenders.Add(MethodId(method) + ": " + label + " observation invokes an arbitrary delegate");
                         var declaration = call is GenericInstanceMethod generic ? generic.ElementMethod : call;
-                        foreach (var target in targetType.Methods.Where(candidate => candidate.FullName == declaration.FullName))
+                        var signature = declaration.FullName.Replace(declaration.DeclaringType.FullName, targetType.FullName, StringComparison.Ordinal);
+                        var targets = targetType.Methods.Where(candidate => candidate.FullName == signature).ToArray();
+                        if (targets.Length != 1)
+                            offenders.Add(MethodId(method) + ": " + label + " observation reaches a missing or ambiguous production declaration " + signature);
+                        foreach (var target in targets)
                             pending.Enqueue(target);
                         if (targetType.IsInterface || !targetType.IsSealed)
                             foreach (var implementation in types.Values.Where(candidate => !candidate.IsInterface && Derives(candidate, targetType, types)))
@@ -437,9 +494,17 @@ public sealed partial class OutboxDispatchConventionTests
                                              && ParametersMatch(candidate, call.Parameters.Select(parameter => parameter.ParameterType.FullName).ToArray())))
                                     pending.Enqueue(target);
                     }
+                }
             }
         }
     }
+
+    private static bool IsPersistenceObservationType(TypeReference reference) =>
+        reference.Namespace.StartsWith("Npgsql", StringComparison.Ordinal)
+        || reference.Namespace.StartsWith("System.Data", StringComparison.Ordinal)
+        || reference.Namespace.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
+        || reference.FullName is "System.IServiceProvider" or "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory"
+            or "Microsoft.Extensions.DependencyInjection.IKeyedServiceProvider";
 
     private static bool IsGenerationContextNullObservation(MethodDefinition method, Instruction instruction) =>
         method.DeclaringType.FullName == JobGeneration && method.Name == "get_Snapshot"

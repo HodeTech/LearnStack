@@ -43,9 +43,10 @@ internal sealed class JobStartCleanupOwnership(AsyncServiceScope? scope, IUnitOf
 
 /// <summary>Owns separate framework admission and ordinary business scopes through actual cleanup.</summary>
 public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantContextAccessor accessor,
-    BackgroundJobExecutionAdmission admission, BackgroundJobRuntimeOptions options)
+    BackgroundJobExecutionAdmission admission, BackgroundJobRuntimeOptions options, BackgroundJobObservation observation)
 {
     internal IServiceScopeFactory ScopeFactory => scopes;
+    internal BackgroundJobObservation Observation { get; } = observation ?? throw new ArgumentNullException(nameof(observation));
 
     public async Task<JobStartExecutionResult> ExecuteAsync(BackgroundJobRoutingClaim claim,
         BackgroundJobRunGate run, Func<bool>? startGate = null, CancellationToken cancellationToken = default)

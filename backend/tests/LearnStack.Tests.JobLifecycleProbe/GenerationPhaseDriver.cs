@@ -39,8 +39,9 @@ internal static class GenerationPhaseDriver
         // The database has no business jobs. These closed dependencies refuse
         // any accidental execution instead of introducing a business fixture.
         await using var services = new ServiceCollection().BuildServiceProvider();
+        using var observation = new BackgroundJobObservation(definitions, TimeProvider.System);
         var executor = new JobExecutor(services.GetRequiredService<IServiceScopeFactory>(),
-            new StaticTenantContextAccessor(null), new BackgroundJobExecutionAdmission(definitions, definitions, new RefusingAuditCatalog()), bounds);
+            new StaticTenantContextAccessor(null), new BackgroundJobExecutionAdmission(definitions, definitions, new RefusingAuditCatalog()), bounds, observation);
         var activator = HangfireInvocationContract.CreateActivator(pool, topology, routing, executor,
             BackgroundJobRecurrenceRegistry.CreateEmpty(), gate);
         var clock = scenario.StartsWith("gen_stall_", StringComparison.Ordinal) ? new PhaseTimeProvider() : null;

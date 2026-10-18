@@ -132,6 +132,7 @@ public sealed class BackgroundJobCapacityCleanupTests
 
     private sealed class Fixture : IAsyncDisposable
     {
+        private readonly BackgroundJobObservation _observation;
         private readonly PrivilegedDataSource _source = new(() =>
             throw new InvalidOperationException("This memory-only fixture must not open a database source."));
         private readonly HangfireGenerationWork _generation;
@@ -142,8 +143,9 @@ public sealed class BackgroundJobCapacityCleanupTests
             var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
             var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
             var bounds = new BackgroundJobRuntimeOptions();
+            _observation = new(definitions, TimeProvider.System);
             var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
-                new(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), bounds);
+                new(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), bounds, _observation);
             Control = new(_source, definitions, executor, gate, bounds, new SystemGuidFactory(), TimeProvider.System);
             _generation = new(new("probe", BackgroundJobWorkerPoolKind.Transactional, 1, ["probe"]), gate);
         }
@@ -179,6 +181,7 @@ public sealed class BackgroundJobCapacityCleanupTests
             Control.RequestStop();
             await Task.WhenAll(_generation.Completion, Control.Completion).WaitAsync(TestWait);
             await _source.DisposeAsync();
+            _observation.Dispose();
         }
     }
 }

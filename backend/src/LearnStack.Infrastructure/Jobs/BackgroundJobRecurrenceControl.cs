@@ -7,7 +7,10 @@ namespace LearnStack.Infrastructure.Jobs;
 
 public sealed record BackgroundJobRecurrenceHealth(int ApplicationOwners, int RetainedApplications,
     int PendingHistory, bool NativeOutstanding, bool NativeRetained, bool SqlHealthy,
-    bool NativeHealthy, bool CleanupConfirmed, bool HasQuarantinedControl, bool IsHealthy);
+    bool NativeHealthy, bool CleanupConfirmed, bool HasQuarantinedControl, bool IsHealthy)
+{
+    public long? ProgressTimestamp { get; init; }
+}
 
 /// <summary>Fair durable quanta remain independent of native timers and actual application cleanup.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
@@ -82,7 +85,10 @@ internal sealed class BackgroundJobRecurrenceControl
                 return new(_recipients.Count, retained, history, nativeOutstanding, nativeRetained,
                     sqlHealthy, nativeHealthy, Completion.IsCompletedSuccessfully, _quarantined,
                     _started && !_stopping && sqlHealthy && nativeHealthy && retained == 0 && history == 0
-                        && _deploymentMismatch.Count == 0 && !_quarantined);
+                        && _deploymentMismatch.Count == 0 && !_quarantined)
+                {
+                    ProgressTimestamp = _progress,
+                };
             }
         }
     }

@@ -47,6 +47,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         using var globals = new RecurrenceGlobalFilters();
         var runtime = RecurrenceRuntime(host.Services, source, recurrences,
             new() { SnapshotInterval = TimeSpan.FromSeconds(1) }, definitions);
+        using var metrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         runtime.Snapshot.Control!.Observation.Should().BeNull();
         try
         {
@@ -60,6 +61,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                     && (snapshot with { Control = snapshot.Control with { HasDeferredWork = false } }).IsHealthy);
             });
             AssertUnsupportedObservation(snapshot.Control!.Observation!, artifact);
+            BackgroundJobMetricProbe.One(metrics.Read(), "learnstack_job_state_count", ("kind", "deferred"),
+                ("artifact", artifact), ("reason", "unknown")).Should().Be(1);
             snapshot.Control.Recurrence!.IsHealthy.Should().BeTrue(
                 "there is no local recurrence declaration whose fault could mask the durable health refusal");
             snapshot.IsHealthy.Should().BeFalse();

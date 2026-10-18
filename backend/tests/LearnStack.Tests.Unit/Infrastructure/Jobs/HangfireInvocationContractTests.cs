@@ -111,8 +111,9 @@ public sealed class HangfireInvocationContractTests
         using var source = new PrivilegedDataSource(() => throw new InvalidOperationException("Must not resolve a credential."));
         var routing = new PostgresBackgroundJobRoutingStore(source, definitions, options, new SystemGuidFactory());
         var scopes = Substitute.For<IServiceScopeFactory>();
+        using var observation = new BackgroundJobObservation(definitions, TimeProvider.System);
         var executor = new JobExecutor(scopes, Substitute.For<ITenantContextAccessor>(),
-            new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), options);
+            new BackgroundJobExecutionAdmission(definitions, definitions, Substitute.For<IAuditCatalog>()), options, observation);
         var activator = HangfireInvocationContract.CreateActivator(topology.Pools["transactional"], topology,
             routing, executor, BackgroundJobRecurrenceRegistry.CreateEmpty(), new BackgroundJobRuntimeGate(topology));
         var job = new Job(typeof(HangfireJobWakeup), HangfireInvocationContract.JobMethod, [Id, 1L], "transactional");

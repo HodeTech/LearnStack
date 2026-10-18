@@ -28,6 +28,9 @@ internal static class Il
     internal static IEnumerable<TypeReference> ReferencedTypeReferences(TypeDefinition type) =>
         WithGenerated(type).SelectMany(ReferencedTypes).SelectMany(ReferencesOf);
 
+    /// <summary>Expand one method-level operand without widening a callback walk to unrelated type members.</summary>
+    internal static IEnumerable<TypeReference> ExpandedTypeReferences(TypeReference reference) => ReferencesOf(reference);
+
     /// <summary>
     /// Whether a type names a namespace anywhere the IL can carry it: its base type and
     /// interfaces, its attributes, its members' signatures, and its method bodies.

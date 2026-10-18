@@ -249,6 +249,11 @@ backend treat business rejections as system failures.
 | `learnstack_inbox_deadletter_total` | counter | event_type, subscription |
 | `learnstack_job_duration_seconds` | histogram | job_name |
 | `learnstack_job_failed_total` | counter | job_name |
+| `learnstack_job_state_count` | observable gauge | kind, pool, profile, capacity_group, recurrence, artifact, reason |
+| `learnstack_job_oldest_eligible_age_seconds` | observable gauge | profile |
+| `learnstack_job_heartbeat_age_seconds` | observable gauge | component, pool |
+| `learnstack_job_component_state` | observable gauge | component, pool, state, reason |
+| `learnstack_job_control_total` | observable counter | operation, pool |
 | `learnstack_provider_request_duration_seconds` | histogram | provider, operation, outcome |
 | `learnstack_classroom_active_sessions` | gauge | tenant |
 | `learnstack_classroom_participants_active` | gauge | tenant |
@@ -269,7 +274,11 @@ Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
 both independent review rounds are complete. The subscriber/inbox inventory is
 accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13);
 Step 4 implements it with real worker, finite-label and memory-only observation
-proofs. Job metrics remain P02b-4.
+proofs. P02b-4 Step 9 implements the five observable job families above under
+[ADR-0047](../decisions/0047-transactional-background-job-runtime.md#lifecycle-and-observation).
+Stage duration/failure/uncertainty and complete control-path instrumentation
+remain in progress; its [record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns qualification and remaining delivery.
 `event_type` comes only from the finite declared registry plus fixed
 unknown/retired/invalid categories. `subscription` comes only from declared stable
 subscription IDs plus fixed `invalid`; a well-formed undeclared ID is still
@@ -299,6 +308,32 @@ causal metadata is restored only in the app-role executor; the bypass scheduler
 emits a fresh validated attempt trace without reading payload or causal-envelope
 columns. No raw exception details, stored type/subscription text or payload enters
 its diagnostics.
+
+Job observation binds one required concrete singleton to the actual API runtime
+after its snapshot owners initialize and before either source pin. Shared
+API/Seeder registration constructs no runtime, worker or source. Collection
+captures one immutable runtime snapshot per callback; it performs no SQL, DI
+resolution, arbitrary callback invocation or scheduling. Unbound or unobserved
+durable state emits no healthy empty-queue sample. A complete empty sample emits
+explicit finite zero cells. Refresh faults preserve prior values and expose the
+failure and conservative freshness age separately.
+
+Job pending counts include every unresolved non-dead-lettered job. Queue age is
+the stored SQL statement-time sample for exact normal eligibility; it is not
+extrapolated from the earlier acquisition/freshness timestamp. Missing confirmed
+metadata heartbeats emit `not_observed` state without a fabricated zero age;
+confirmed monotonic zero is valid. Pool/group/recurrence labels use frozen
+registries, while profiles, artifact categories, reasons and operations are fixed.
+No tenant/org/job/attempt/operation/trace identity or payload is a job metric tag.
+Aggregate retained work uses `kind=retained_total`; per-pool work uses `retained`,
+so a legitimate pool named `none` cannot alias the aggregate series.
+
+Job control totals keep a fixed label per monotonic source: generation creation,
+shared maintenance invocations, bridge ACK/failure/deferral, renewal ACK,
+confirmed retry/terminal transitions and uncertainty observations. A confirmed
+terminal total can include an exact locked-history receipt after lost ACK;
+it does not assert the original physical acknowledgement. These process
+observations are distinct from durable accounting and from business failures.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
 
@@ -57,6 +58,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         using var globals = new RecurrenceGlobalFilters();
         var runtime = RecurrenceRuntime(host.Services, source, BackgroundJobRecurrenceRegistry.CreateEmpty(),
             new() { SnapshotInterval = TimeSpan.FromSeconds(1) });
+        using var metrics = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         runtime.Snapshot.Control!.HasQuarantinedControl.Should().BeNull();
         await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         try
@@ -67,16 +69,23 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             runtime.Snapshot.Control!.Recurrence!.IsHealthy.Should().BeTrue(
                 "the empty local recurrence registry cannot hide durable quarantine from an earlier process");
             runtime.Snapshot.IsHealthy.Should().BeFalse();
+            BackgroundJobMetricProbe.One(metrics.Read(), "learnstack_job_state_count", ("kind", "quarantined"),
+                ("artifact", kind[..^1])).Should().Be(1);
             await SchemaQueries.ExecuteAsync(owner, null,
                 "REVOKE SELECT ON " + table + " FROM learnstack_outbox_admin");
             await using (var refused = await PostgresFixture.OpenAsync(database.OutboxConnectionString))
                 await FluentActions.Awaiting(() => SchemaQueries.ExecuteAsync(refused, null,
                     "SELECT quarantined_at FROM " + table)).Should().ThrowAsync<PostgresException>()
                     .Where(failure => failure.SqlState == PostgresErrorCodes.InsufficientPrivilege);
-            await RecurrenceEventuallyAsync(() => Task.FromResult(!runtime.Snapshot.Control!.ObservationHealthy));
+            await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.ObservationFailed));
             runtime.Snapshot.Control!.HasQuarantinedControl.Should().BeTrue();
             runtime.Snapshot.Control.HasQuarantinedJobs.Should().BeFalse();
             runtime.Snapshot.IsHealthy.Should().BeFalse();
+            var failedSample = metrics.Read();
+            BackgroundJobMetricProbe.One(failedSample, "learnstack_job_state_count", ("kind", "quarantined"),
+                ("artifact", kind[..^1])).Should().Be(1);
+            BackgroundJobMetricProbe.One(failedSample, "learnstack_job_component_state", ("component", "durable_observation"),
+                ("state", "refresh_failed")).Should().Be(1);
             await SchemaQueries.ExecuteAsync(owner, null,
                 "GRANT SELECT ON " + table + " TO learnstack_outbox_admin");
             await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.ObservationHealthy));
