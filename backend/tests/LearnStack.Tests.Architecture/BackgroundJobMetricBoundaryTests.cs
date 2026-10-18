@@ -255,6 +255,7 @@ public sealed partial class OutboxDispatchConventionTests
                 [claimConstructor + ":" + kind + ":call", observe + ":" + kind + ":callvirt"]);
         }
         else offenders.Add("Missing actual bridge repair observation owners");
+        roots.AddRange(LeaseObservationRoots(census, offenders));
         return roots;
     }
 
@@ -307,7 +308,22 @@ public sealed partial class OutboxDispatchConventionTests
         var ignored = new SortedSet<string>(StringComparer.Ordinal);
         var roots = JobMetricRoots(census, ignored);
         ignored.Should().BeEmpty();
-        roots.Should().HaveCount(10, "five actual collectors and five fixed-memory control/recurrence recorders or predicates are independently reached");
+        roots.Should().HaveCount(12, "five actual collectors and seven fixed-memory control/execution/recurrence recorders or predicates are independently reached");
+        foreach (var recorder in roots.Where(method => method.Name == "ObserveLeaseLoss"))
+        {
+            var asynchronous = new CustomAttribute(recorder.Module.ImportReference(
+                typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute).GetConstructor([typeof(Type)])!));
+            asynchronous.ConstructorArguments.Add(new(recorder.Module.ImportReference(typeof(Type)), recorder.DeclaringType));
+            recorder.CustomAttributes.Add(asynchronous);
+            try
+            {
+                EvaluateDetector(census, RuntimeLifetimeOffenders).Should().Contain(value =>
+                    value.Contains("two concrete synchronous instance helpers", StringComparison.Ordinal),
+                    "an async-void recorder cannot retain its synchronous fixed-memory claim");
+            }
+            finally { recorder.CustomAttributes.Remove(asynchronous); }
+            EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        }
         var root = roots.Single(method => method.Name == "CollectCounts");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var helper = AddProbe(application, "MetricMemoryHelper");
@@ -332,7 +348,7 @@ public sealed partial class OutboxDispatchConventionTests
             }
             finally { memory.Body.Instructions.Remove(indirect); }
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
-            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName is OrchestrationControl or RcControl))
+            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName is OrchestrationControl or OrchestrationExecution or RcControl))
             {
                 var recorderCall = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(sql));
                 recorder.Body.Instructions.Insert(0, recorderCall);
@@ -348,6 +364,17 @@ public sealed partial class OutboxDispatchConventionTests
         }
         finally { root.Body.Instructions.Remove(call); application.Types.Remove(helper); }
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        AssertMutation(census, "an indirect discarded Task.Delay in a first-loss recorder", () =>
+        {
+            var recorder = roots.Single(method => method.DeclaringType.FullName == OrchestrationExecution && method.Name == "ObserveLeaseLoss");
+            var delayOwner = AddProbe(application, "MetricDelayHelper");
+            var delay = AddCall(delayOwner, "Delay", application.ImportReference(typeof(Task).GetMethod("Delay", [typeof(int)])!), OpCodes.Call);
+            delay.Body.Instructions.Insert(0, Instruction.Create(OpCodes.Ldc_I4_1));
+            delay.Body.Instructions.Insert(2, Instruction.Create(OpCodes.Pop));
+            var invokeDelay = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(delay));
+            recorder.Body.Instructions.Insert(0, invokeDelay);
+            return () => { recorder.Body.Instructions.Remove(invokeDelay); application.Types.Remove(delayOwner); };
+        }, RuntimeLifetimeOffenders);
         AssertMutation(census, "an unlisted recurrence progress caller outside the actual awaited SQL observation", () =>
         {
             var owner = census.Types[(InfrastructureAssembly, RcControl)];
@@ -623,6 +650,45 @@ public sealed partial class OutboxDispatchConventionTests
             return () => { ctor.Body.Instructions.Remove(receiver); ctor.Body.Instructions.Remove(call); observation.Methods.Remove(hidden); };
         }, RuntimeLifetimeOffenders);
         var executor = census.Types[(InfrastructureAssembly, JobExecutorType)];
+        var execution = census.Types[(InfrastructureAssembly, OrchestrationExecution)];
+        var leaseRecorder = execution.Methods.Single(method => method.Name == "ObserveLeaseLoss");
+        AssertMutation(census, "a balanced removal of the first-loss CompareExchange gate", () =>
+        {
+            var compare = leaseRecorder.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.Name == "CompareExchange" && target.DeclaringType.FullName == "System.Threading.Interlocked");
+            var original = compare.Operand;
+            compare.OpCode = OpCodes.Pop;
+            compare.Operand = null;
+            var replacements = new[] { Instruction.Create(OpCodes.Pop), Instruction.Create(OpCodes.Pop), Instruction.Create(OpCodes.Ldc_I4_0) };
+            for (var index = 0; index < replacements.Length; index++)
+                leaseRecorder.Body.Instructions.Insert(leaseRecorder.Body.Instructions.IndexOf(compare) + 1 + index, replacements[index]);
+            return () =>
+            {
+                compare.OpCode = OpCodes.Call; compare.Operand = original;
+                foreach (var instruction in replacements) leaseRecorder.Body.Instructions.Remove(instruction);
+            };
+        }, RuntimeLifetimeOffenders);
+        AssertMutation(census, "a constructor-unrelated acknowledged lease eligibility writer", () =>
+        {
+            var extra = new MethodDefinition("InventLeaseEligibility", MethodAttributes.Private, execution.Module.TypeSystem.Void);
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Stfld, execution.Fields.Single(field => field.Name == "_leaseObservationEligible")));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            execution.Methods.Add(extra);
+            return () => execution.Methods.Remove(extra);
+        }, RuntimeLifetimeOffenders);
+        AssertMutation(census, "an unlisted direct persistent lease-loss recorder caller", () =>
+        {
+            var parent = census.Types[(InfrastructureAssembly, OrchestrationControl)];
+            var extra = new MethodDefinition("InventPersistentLeaseLoss", MethodAttributes.Private, parent.Module.TypeSystem.Void);
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_2));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, parent.Methods.Single(method => method.Name == "ObserveLeaseLoss")));
+            extra.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            parent.Methods.Add(extra);
+            return () => parent.Methods.Remove(extra);
+        }, RuntimeLifetimeOffenders);
         var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
         foreach (var fieldName in new[] { "_priorHintRepairs", "_expiredTokenRepairs" })
             AssertMutation(census, "an unlisted bridge repair field reader " + fieldName,

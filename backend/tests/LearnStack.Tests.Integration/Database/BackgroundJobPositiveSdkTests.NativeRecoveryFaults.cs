@@ -104,14 +104,16 @@ public sealed partial class BackgroundJobPositiveSdkTests
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, true, false, true)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, true, false)]
     public async Task Native_recovery_timer_initialization_keeps_host_stop_independent_and_requires_the_actual_handle(
-        bool leaseTimer, bool throwBeforeReturn, bool change)
+        bool leaseTimer, bool throwBeforeReturn, bool change, bool stopAfterHold)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -150,16 +152,32 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 acquired.CommitAcknowledged.Should().BeTrue();
                 acquired.CleanupConfirmed.Should().BeTrue();
             }
-            stopping = Task.Run(generation.RequestHostStop);
-            await stopping.WaitAsync(TimeSpan.FromSeconds(5));
-            execution.RunGate.IsClosed.Should().BeTrue();
-            work.ReturnRequested.IsCompleted.Should().BeTrue();
+            control.Snapshot.LeaseLossElapsed.Should().Be(0);
+            control.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
+            if (stopAfterHold)
+            {
+                stopping = Task.Run(generation.RequestHostStop);
+                await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+                execution.RunGate.IsClosed.Should().BeTrue();
+                work.ReturnRequested.IsCompleted.Should().BeTrue();
+            }
+            else
+            {
+                // The real acquisition has ACKed; only the native monotonic
+                // observation clock advances while the actual timer prefix holds.
+                time.Advance(TimeSpan.FromSeconds(61));
+                execution.RunGate.IsClosed.Should().BeFalse();
+            }
             control.Snapshot.Executions.Should().Be(1);
             time.Release();
             clean = await actual.WaitAsync(TimeSpan.FromSeconds(15));
+            control.Snapshot.LeaseLossElapsed.Should().Be(stopAfterHold ? 0 : 1);
+            control.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
+            if (!stopAfterHold) execution.RunGate.IsClosed.Should().BeTrue();
             var faultBeforeJoin = execution.CleanupFault;
             var joined = await execution.JoinAsync(clean);
             await work.CompleteAsync(joined);
+            generation.CloseStarts();
             clean.Should().Be(!throwBeforeReturn, "only an actual returned timer handle permits positive cleanup");
             faultBeforeJoin.Should().Be(throwBeforeReturn);
             joined.Should().Be(!throwBeforeReturn);
@@ -226,6 +244,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
         private readonly ManualResetEventSlim _release = new();
         private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _held, _productionDisposals;
+        private long _offset;
+        public override long GetTimestamp() => System.GetTimestamp() + Interlocked.Read(ref _offset);
+        internal void Advance(TimeSpan value) => Interlocked.Add(ref _offset, (long)(value.TotalSeconds * TimestampFrequency));
         private readonly bool _holdChange = change;
         internal Task Entered => _entered.Task;
         internal int ProductionDisposals => Volatile.Read(ref _productionDisposals);

@@ -5,6 +5,8 @@ using LearnStack.SharedKernel.Jobs;
 
 namespace LearnStack.Infrastructure.Jobs;
 
+internal enum BackgroundJobLeaseLossCause { None, RenewalRefused, Elapsed }
+
 /// <summary>One generation-owned start/business operation and its immutable renewal authority.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "Only actual operation/callback cleanup may release this generation-owned deadline source.")]
@@ -35,6 +37,8 @@ internal sealed partial class BackgroundJobExecutionControl
     private bool _joined, _cleanupFault;
     private int _released;
     private int _renewalClosed;
+    private int _firstLeaseLoss;
+    private bool _leaseObservationEligible;
     private BackgroundJobCommitGate? _businessGate;
 
     internal BackgroundJobExecutionControl(BackgroundJobControl owner, HangfireGenerationWork.Invocation work,
@@ -91,8 +95,25 @@ internal sealed partial class BackgroundJobExecutionControl
 
     internal void RefuseRenewal()
     {
+        ObserveLeaseLoss(BackgroundJobLeaseLossCause.RenewalRefused);
         Interlocked.Exchange(ref _renewalClosed, 1);
         CloseExecution();
+    }
+
+    // An already-visible stop/join/settlement wins at this observation point.
+    // The cause CAS is not a universal ordering primitive for the process gate.
+    private void ObserveLeaseLoss(BackgroundJobLeaseLossCause cause)
+    {
+        lock (_sync)
+        {
+            if (cause is not (BackgroundJobLeaseLossCause.RenewalRefused or BackgroundJobLeaseLossCause.Elapsed)
+                || !_leaseObservationEligible || _joined || _cleanupFault
+                || LeaseWorkSettled || RunGate.IsClosed || Volatile.Read(ref _renewalClosed) != 0
+                || Interlocked.CompareExchange(ref _firstLeaseLoss, (int)cause, 0) != 0) return;
+        }
+        // Fixed Interlocked cells only; never acquire the parent's state lock
+        // or notify a metric listener from a lease callback.
+        _owner.ObserveLeaseLoss(cause);
     }
 
     internal bool RecordRenewal(BackgroundJobRenewal renewal, long issuedAt)
@@ -124,6 +145,7 @@ internal sealed partial class BackgroundJobExecutionControl
             }
             else
             {
+                if (remaining <= TimeSpan.Zero || now >= _leaseExpiry) ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
                 Interlocked.Exchange(ref _renewalClosed, 1);
                 RunGate.Close();
             }
@@ -155,6 +177,7 @@ internal sealed partial class BackgroundJobExecutionControl
                     }
                     else
                     {
+                        ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
                         Interlocked.Exchange(ref _renewalClosed, 1);
                         RunGate.Close();
                         stop = true;
@@ -190,6 +213,7 @@ internal sealed partial class BackgroundJobExecutionControl
             lock (_sync)
             {
                 if (_joined || LeaseWorkSettled || _time.GetTimestamp() < _leaseExpiry) return;
+                ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
                 Interlocked.Exchange(ref _renewalClosed, 1);
                 RunGate.Close();
             }
@@ -261,6 +285,7 @@ internal sealed partial class BackgroundJobExecutionControl
                 _ => throw new InvalidOperationException("Job publication returned an invalid execution stage."),
             };
             var identity = BackgroundJobExecutionIdentity.FromReceipt(receipt);
+            lock (_sync) _leaseObservationEligible = true;
             // Debit from before framework read/admission issuance. This is
             // conservative when admission cleanup is slow and cannot grant a
             // fresh business budget beyond the durable database deadline.
@@ -269,7 +294,13 @@ internal sealed partial class BackgroundJobExecutionControl
             if (remaining <= TimeSpan.Zero) { Volatile.Write(ref _identity, identity); CloseExecution(); return; }
             var leaseRemaining = receipt.OwnershipUntil - receipt.AdmittedAt
                 - _time.GetElapsedTime(_issuedAt, _time.GetTimestamp());
-            if (leaseRemaining <= TimeSpan.Zero) { Volatile.Write(ref _identity, identity); RefuseRenewal(); return; }
+            if (leaseRemaining <= TimeSpan.Zero)
+            {
+                Volatile.Write(ref _identity, identity);
+                ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
+                RefuseRenewal();
+                return;
+            }
             lock (_sync)
                 _leaseExpiry = checked(_time.GetTimestamp() + (long)(leaseRemaining.TotalSeconds * _time.TimestampFrequency));
             _leaseTimer = _time.CreateTimer(static state => ((BackgroundJobExecutionControl)state!).LeaseElapsed(),

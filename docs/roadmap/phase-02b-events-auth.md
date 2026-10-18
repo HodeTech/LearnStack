@@ -8319,6 +8319,50 @@ Lease/late accounting, nineteen-rule enforcement, full regression, unchanged
 CI-budget qualification and both full Step 9 reviews remain open. No catalogue
 obligation is promoted here.
 
+#### First lease-loss observation qualification
+
+Two fixed process totals retain the first observed renewal refusal or elapsed
+local lease per validated start publication or clean recovery receipt. The
+execution's cause CAS precedes its Interlocked-only persistent parent recorder;
+recording adds no task, source, grant, listener or execution authority. Existing
+identity publication stays in place. Already-visible stop, settlement, join,
+cleanup fault or permanent renewal closure suppress a new count. Gate observation
+does not establish universal atomic ordering with concurrent host stop.
+
+The seven-case unit matrix covers refusal, actual timer callback after controlled
+clock advance, stop, join, settled work, missing publication and repeated recording
+while Run remains open. The latter distinguishes a real first-cause CAS from
+duplicate suppression supplied by a separately closed gate. Existing held timer
+Change/disposal controls preserve zero counts. Real renewal-owner PostgreSQL cases
+distinguish a physical ACK from lost ACK plus original locked history. Actual
+Outcome ACK with held cleanup, including stored recovery selection, remains zero.
+
+Eight recovery-timer cases use real acknowledged PostgreSQL acquisition and
+actual held timer factory/Change handles. Six stop/fault cases preserve zero;
+two advance only the local monotonic observation clock during a held lease timer
+prefix, then observe one elapsed loss before identity publication and no provider
+entry. These are controlled-clock proofs, not wall-clock lease-duration benchmarks.
+Cleanup still owns the actual returned handle; a hidden failed handle remains
+retained. They do not independently qualify expiry before recovery Bind or every
+normal publication/renewal elapsed branch.
+
+All 519 selected Jobs unit and five focused Architecture cases pass with zero
+failures/skips. The first PostgreSQL run passes eleven cases and finds two fixture
+shutdown omissions: elapsed-only cases had not closed generation starts before
+awaiting completion. After that test-only correction, all thirteen pass in
+94 seconds. Production and Architecture/unit source hashes are unchanged between
+receipts. The corrected CI-mode Release build has zero warnings/errors; scoped
+fourteen-file format verification reports no changes. The initial build's helper
+return-type analyzer warning is corrected. Focused source review closes an async
+metadata/discarded-task enforcement gap with transitive scheduling rejection and
+balanced dirty/restored controls. This is not either full Step 9 review round.
+
+The final 370-source receipt is
+`8ef7ac676619345655f818c371ee63cbf995564009703bd9243408724862795e`.
+Late settlement, nineteen-rule enforcement, full regression, unchanged CI-budget
+qualification and both full Step 9 reviews remain open. All nineteen obligations
+remain Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

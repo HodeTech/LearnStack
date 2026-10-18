@@ -169,6 +169,8 @@ public sealed partial class BackgroundJobObservation : IDisposable
             Add(control.Retries, "retry_confirmed");
             Add(control.Terminalized, "terminal_confirmed");
             Add(control.UnknownOutcomes, "uncertainty_observation");
+            Add(control.LeaseLossRenewalRefused, "lease_loss_renewal_refused");
+            Add(control.LeaseLossElapsed, "lease_loss_elapsed");
             if (control.Recurrence is { } recurrence)
             {
                 Add(recurrence.OccurrencesAcknowledged, "occurrence_acknowledged");

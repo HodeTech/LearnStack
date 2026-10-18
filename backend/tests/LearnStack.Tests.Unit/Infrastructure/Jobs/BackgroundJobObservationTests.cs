@@ -63,6 +63,12 @@ public sealed partial class BackgroundJobObservationTests
         fixture.ObserveRecurrence();
         using var probe = new Probe(fixture.Observer);
         var points = probe.Collect();
+        One(points, "learnstack_job_control_total", ("operation", "lease_loss_renewal_refused"), ("pool", "none")).Should().Be(0);
+        One(points, "learnstack_job_control_total", ("operation", "lease_loss_elapsed"), ("pool", "none")).Should().Be(0);
+        fixture.ObserveLeaseLosses(2, 3);
+        points = probe.Collect();
+        One(points, "learnstack_job_control_total", ("operation", "lease_loss_renewal_refused"), ("pool", "none")).Should().Be(2);
+        One(points, "learnstack_job_control_total", ("operation", "lease_loss_elapsed"), ("pool", "none")).Should().Be(3);
         One(points, "learnstack_job_control_total", ("operation", "renewal_acknowledged"), ("pool", "none")).Should().Be(2);
         One(points, "learnstack_job_control_total", ("operation", "renewal_history_confirmed"), ("pool", "none")).Should().Be(3);
         points.Where(point => point.Instrument == "learnstack_job_control_total").Select(point => point.Tags["operation"])
@@ -71,6 +77,7 @@ public sealed partial class BackgroundJobObservationTests
                 "bridge_deferred", "renewal_acknowledged", "renewal_history_confirmed", "retry_confirmed", "terminal_confirmed",
                 "uncertainty_observation",
                 "bridge_repair_prior_ack_hint_acknowledged", "bridge_repair_expired_token_acknowledged",
+                "lease_loss_renewal_refused", "lease_loss_elapsed",
                 "occurrence_acknowledged", "skipped_slot_acknowledged", "fanout_page_acknowledged",
                 "fanout_route_examined_acknowledged", "fanout_recipient_inserted_acknowledged", "fanout_completed_acknowledged",
             ]);
@@ -238,6 +245,11 @@ public sealed partial class BackgroundJobObservationTests
         {
             Set("_renewals", acknowledged);
             Set("_renewalsConfirmed", historyConfirmed);
+        }
+        internal void ObserveLeaseLosses(long refused, long elapsed)
+        {
+            Set("_leaseLossRenewalRefused", refused);
+            Set("_leaseLossElapsed", elapsed);
         }
         internal void ObserveRecurrence()
         {

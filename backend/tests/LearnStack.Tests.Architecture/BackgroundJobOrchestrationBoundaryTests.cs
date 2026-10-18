@@ -191,7 +191,7 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationControl, "_pendingTerminal", false, ["ProbePendingAsync", "QualifyTerminalAsync", "RetainedIds", "RunTerminalAsync", "get_Snapshot"]);
         Field(OrchestrationControl, "_terminalActivity", false, ["RunTerminalAsync"]);
         Field(OrchestrationControl, "_cancellation", false, ["RelayStopAsync"]);
-        Field(OrchestrationExecution, "_owner", true, [".ctor", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "ReleaseAfterPrivateCleanup", "RequestNoPlanTerminalAfterPrepareAsync", "RetryExternalKnownAsync"]);
+        Field(OrchestrationExecution, "_owner", true, [".ctor", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "ObserveLeaseLoss", "ReleaseAfterPrivateCleanup", "RequestNoPlanTerminalAfterPrepareAsync", "RetryExternalKnownAsync"]);
         Field(OrchestrationExecution, "_work", true, [".ctor", "CloseExecution", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "LeaseElapsed", "RecordRenewal", "RequestNoPlanTerminalAfterPrepareAsync", "RequestNoPlanTerminalAsync", "RetryExternalKnownAsync", "StartRecoveryLease", "get_Token"]);
         Field(OrchestrationExecution, "_deadlineStop", true, [".ctor", "JoinBusinessObserversCoreAsync", "ObserveDeadlineAsync"]);
         Field(OrchestrationExecution, "_publicationObservation", true, [".ctor", "JoinBusinessObserversCoreAsync", "WaitForPublicationAsync"]);

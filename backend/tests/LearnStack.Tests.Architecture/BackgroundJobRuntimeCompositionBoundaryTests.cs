@@ -469,7 +469,7 @@ public sealed partial class OutboxDispatchConventionTests
                             offenders.Add(MethodId(method) + ": " + label + " observation reaches a detached method target " + call.Name);
                             continue;
                         }
-                        if (call.DeclaringType.FullName == "System.Threading.Tasks.Task" && call.Name == "Run"
+                        if (call.DeclaringType.FullName == "System.Threading.Tasks.Task" && call.Name is "Run" or "Delay" or "Yield"
                             || call.DeclaringType.FullName == "System.Threading.Thread" && call.Name is ".ctor" or "Start"
                             || call.Name == "Invoke" && call.DeclaringType.Namespace == "System"
                                 && (call.DeclaringType.Name.StartsWith("Func`", StringComparison.Ordinal)

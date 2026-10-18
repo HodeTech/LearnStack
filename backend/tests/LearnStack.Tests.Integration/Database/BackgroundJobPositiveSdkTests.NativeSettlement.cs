@@ -129,6 +129,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
             stored.OwnershipKind.Should().BeNull();
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalized.Value)).Should().Be(0);
             controller.CanRoute(job).Should().BeFalse("the original acknowledged Outcome still owns actual cleanup");
+            controller.Snapshot.LeaseLossElapsed.Should().Be(0);
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
             // Force the legal interleaving: a new-generation opaque hint has
             // already completed while the old native identity forbids routing.
             // Its ACK postpones repair; vendor success is not domain completion.
@@ -177,6 +179,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         held.Should().Be(1);
         runtime.Snapshot.Control!.Executions.Should().Be(0);
+        runtime.Snapshot.Control.LeaseLossElapsed.Should().Be(0);
+        runtime.Snapshot.Control.LeaseLossRenewalRefused.Should().Be(0);
     }
 
     private static async Task PersistRetainedSdkOutcomeAsync(DisposableSchemaDatabase database,

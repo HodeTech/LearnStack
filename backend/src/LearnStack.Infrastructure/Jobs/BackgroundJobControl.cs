@@ -20,6 +20,8 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     public bool ObservationFailed { get; init; }
     public long? RenewalTimestamp { get; init; }
     public long RenewalsConfirmed { get; init; }
+    public long LeaseLossRenewalRefused { get; init; }
+    public long LeaseLossElapsed { get; init; }
     public long? RecoveryTimestamp { get; init; }
     public long? TerminalTimestamp { get; init; }
     public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
@@ -60,6 +62,7 @@ internal sealed partial class BackgroundJobControl
     private bool _controlSealed;
     private long? _renewalProgress, _controlProgress, _terminalProgress;
     private long _renewals, _renewalsConfirmed, _retries, _terminalized, _unknown;
+    private long _leaseLossRenewalRefused, _leaseLossElapsed;
 
     internal BackgroundJobControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
         JobExecutor executor, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
@@ -106,10 +109,21 @@ internal sealed partial class BackgroundJobControl
                     ObservationFailed = _observationFault,
                     RenewalTimestamp = _renewalProgress,
                     RenewalsConfirmed = _renewalsConfirmed,
+                    LeaseLossRenewalRefused = Interlocked.Read(ref _leaseLossRenewalRefused),
+                    LeaseLossElapsed = Interlocked.Read(ref _leaseLossElapsed),
                     RecoveryTimestamp = _controlProgress,
                     TerminalTimestamp = _terminalProgress,
                     Recurrence = _recurrence.Snapshot,
                 };
+        }
+    }
+
+    internal void ObserveLeaseLoss(BackgroundJobLeaseLossCause cause)
+    {
+        switch (cause)
+        {
+            case BackgroundJobLeaseLossCause.RenewalRefused: Interlocked.Increment(ref _leaseLossRenewalRefused); break;
+            case BackgroundJobLeaseLossCause.Elapsed: Interlocked.Increment(ref _leaseLossElapsed); break;
         }
     }
 

@@ -109,6 +109,8 @@ public sealed class BackgroundJobExecutionControlTests
         var healthyHandle = () => healthyToken.WaitHandle;
         failedHandle.Should().Throw<ObjectDisposedException>();
         healthyHandle.Should().Throw<ObjectDisposedException>();
+        owner.Snapshot.LeaseLossElapsed.Should().Be(0);
+        owner.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
     }
 
     [Fact]
@@ -165,10 +167,76 @@ public sealed class BackgroundJobExecutionControlTests
             await Task.WhenAll(generation.Completion, owner.Completion).WaitAsync(TestWait);
         }
         owner.Snapshot.Executions.Should().Be(0);
+        owner.Snapshot.LeaseLossElapsed.Should().Be(0);
+        owner.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("refused")]
+    [InlineData("elapsed")]
+    [InlineData("stopped")]
+    [InlineData("joined")]
+    [InlineData("settled")]
+    [InlineData("unpublished")]
+    [InlineData("recording_without_closure")]
+    public async Task First_lease_loss_requires_published_provenance_and_keeps_its_first_cause_after_cleanup(string mode)
+    {
+        await using var source = new PrivilegedDataSource(() => throw new InvalidOperationException("The lease observation fixture opens no database."));
+        var definitions = BackgroundJobDefinitionRegistry.CreateEmpty();
+        var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
+        var time = new DisposalPauseTimeProvider();
+        using var observation = new BackgroundJobObservation(definitions, time);
+        var executor = new JobExecutor(Substitute.For<IServiceScopeFactory>(), Substitute.For<ITenantContextAccessor>(),
+            new(definitions, definitions, new AuditCatalog([new BackgroundJobAuditCatalogSource()])), new(), observation);
+        var owner = new BackgroundJobControl(source, definitions, executor, gate, new(), new SystemGuidFactory(), time);
+        var generation = new HangfireGenerationWork(new("probe", BackgroundJobWorkerPoolKind.Transactional, 1, ["probe"]), gate);
+        var current = await BeginAsync(owner, generation, publish: mode != "unpublished");
+        try
+        {
+            if (mode == "stopped") gate.StopStarts();
+            if (mode == "joined") (await current.Execution.JoinBusinessObserversAsync()).Should().BeTrue();
+            if (mode == "settled")
+            {
+                current.Execution.Gate.TryIssue().Should().BeTrue();
+                ((bool)typeof(BackgroundJobCommitGate).GetMethod("TryBeginCommit", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(current.Execution.Gate, null)!).Should().BeTrue();
+                // Memory-only acknowledged gate history; no physical COMMIT claim.
+                typeof(BackgroundJobCommitGate).GetMethod("RecordCommitted", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(current.Execution.Gate, null);
+            }
+            if (mode == "refused") current.Execution.RefuseRenewal();
+            if (mode == "recording_without_closure")
+            {
+                var record = typeof(BackgroundJobExecutionControl).GetMethod("ObserveLeaseLoss", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                record.Invoke(current.Execution, [BackgroundJobLeaseLossCause.None]);
+                record.Invoke(current.Execution, [(BackgroundJobLeaseLossCause)99]);
+                owner.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
+                for (var attempt = 0; attempt < 2; attempt++) record.Invoke(current.Execution, [BackgroundJobLeaseLossCause.RenewalRefused]);
+                current.Execution.RunGate.IsClosed.Should().BeFalse("recording is not execution authority closure");
+                current.Execution.RefuseRenewal();
+            }
+            time.Advance(TimeSpan.FromSeconds(61));
+            if (mode != "unpublished") time.LeaseTimer(current.Execution).FireCallback();
+            current.Execution.RefuseRenewal();
+            current.Execution.RefuseRenewal();
+            owner.Snapshot.LeaseLossElapsed.Should().Be(mode == "elapsed" ? 1 : 0);
+            owner.Snapshot.LeaseLossRenewalRefused.Should().Be(mode is "refused" or "recording_without_closure" ? 1 : 0);
+            source.IsValueCreated.Should().BeFalse();
+        }
+        finally
+        {
+            await current.Invocation.CompleteAsync(await current.Execution.JoinAsync(operationCleanupConfirmed: true).WaitAsync(TestWait));
+            generation.CloseStarts();
+            owner.RequestStop();
+            await Task.WhenAll(generation.Completion, owner.Completion).WaitAsync(TestWait);
+        }
+        owner.Snapshot.Executions.Should().Be(0);
+        owner.Snapshot.LeaseLossElapsed.Should().Be(mode == "elapsed" ? 1 : 0);
+        owner.Snapshot.LeaseLossRenewalRefused.Should().Be(mode is "refused" or "recording_without_closure" ? 1 : 0);
     }
 
     private static async Task<(BackgroundJobExecutionControl Execution, HangfireGenerationWork.Invocation Invocation,
-        ConfirmedStartReceipt Receipt)> BeginAsync(BackgroundJobControl owner, HangfireGenerationWork generation)
+        ConfirmedStartReceipt Receipt)> BeginAsync(BackgroundJobControl owner, HangfireGenerationWork generation, bool publish = true)
     {
         var receipt = JobAdmissionFixtureReceipt.Create("tenancy.probe.v1", TenantId.From(Guid.CreateVersion7()),
             null, BackgroundJobExecutionStage.Transactional);
@@ -177,8 +245,9 @@ public sealed class BackgroundJobExecutionControlTests
             ?? throw new InvalidOperationException("The test execution was not admitted.");
         invocation.HoldExecution(execution);
         receipt = JobAdmissionFixtureReceipt.Create(receipt.Envelope.DefinitionKey, receipt.Envelope.TenantId,
-            receipt.Envelope.OrganizationId, receipt.Stage, execution.AdmissionGate, receipt.Claim, bindRun: false);
-        var admission = Task.FromResult(new JobStartExecutionResult(JobStartExecutionOutcome.Started, receipt, false, receipt.SourceOwner));
+            receipt.Envelope.OrganizationId, receipt.Stage, execution.AdmissionGate, receipt.Claim, bindRun: false, acknowledgeAdmission: publish);
+        var admission = Task.FromResult(new JobStartExecutionResult(publish ? JobStartExecutionOutcome.Started : JobStartExecutionOutcome.LostClaim,
+            publish ? receipt : null, false, receipt.SourceOwner));
         invocation.HoldAdmission(admission);
         execution.HoldAdmission(admission);
         // Reuse the isolated receipt fixture; production publication authority
@@ -186,7 +255,7 @@ public sealed class BackgroundJobExecutionControlTests
         var publication = (TaskCompletionSource<ConfirmedStartReceipt?>)(typeof(BackgroundJobStartPublication)
             .GetField("_completion", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(execution.Publication)
             ?? throw new InvalidOperationException("The admission publication is missing."));
-        publication.SetResult(receipt);
+        publication.SetResult(publish ? receipt : null);
         await execution.WaitForPublicationAsync().WaitAsync(TestWait);
         return (execution, invocation, receipt);
     }
@@ -204,6 +273,9 @@ public sealed class BackgroundJobExecutionControlTests
     private sealed class DisposalPauseTimeProvider : TimeProvider
     {
         private readonly Dictionary<BackgroundJobExecutionControl, DisposalPauseTimer> _leaseTimers = [];
+        private long _offset;
+        public override long GetTimestamp() => System.GetTimestamp() + Interlocked.Read(ref _offset);
+        internal void Advance(TimeSpan value) => Interlocked.Add(ref _offset, (long)(value.TotalSeconds * TimestampFrequency));
 
         internal DisposalPauseTimer LeaseTimer(BackgroundJobExecutionControl execution)
         {
@@ -214,13 +286,13 @@ public sealed class BackgroundJobExecutionControlTests
         {
             var timer = System.CreateTimer(callback, state, dueTime, period);
             if (state is not BackgroundJobExecutionControl execution) return timer;
-            var owned = new DisposalPauseTimer(timer);
+            var owned = new DisposalPauseTimer(timer, callback, state);
             lock (_leaseTimers) _leaseTimers.Add(execution, owned);
             return owned;
         }
     }
 
-    private sealed class DisposalPauseTimer(ITimer inner) : ITimer
+    private sealed class DisposalPauseTimer(ITimer inner, TimerCallback callback, object? state) : ITimer
     {
         private readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -237,6 +309,7 @@ public sealed class BackgroundJobExecutionControlTests
         internal int ChangesAfterDisposal => Volatile.Read(ref _changesAfterDisposal);
         internal int Disposals => Volatile.Read(ref _disposals);
         internal void ReleaseDisposal() => _release.TrySetResult();
+        internal void FireCallback() => callback(state);
 
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {

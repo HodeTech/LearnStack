@@ -47,6 +47,9 @@ internal sealed partial class BackgroundJobExecutionControl
             }
             if (receipt is null || RunGate.IsClosed || Token.IsCancellationRequested) return true;
 
+            lock (_sync) _leaseObservationEligible = true;
+            if (receipt.OwnershipUntil - receipt.DbNow - _time.GetElapsedTime(observedAt, _time.GetTimestamp()) <= TimeSpan.Zero)
+                ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
             _recoverySource = JobApplicationSourceOwner.Create();
             try
             {
@@ -149,6 +152,7 @@ internal sealed partial class BackgroundJobExecutionControl
             remaining = receipt.OwnershipUntil - receipt.DbNow - _time.GetElapsedTime(observedAt, now);
             if (remaining <= TimeSpan.Zero)
             {
+                ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
                 Interlocked.Exchange(ref _renewalClosed, 1);
                 RunGate.Close();
             }
@@ -184,6 +188,8 @@ internal sealed partial class BackgroundJobExecutionControl
                     Volatile.Write(ref _identity, identity);
                     return true;
                 }
+                if (remaining <= TimeSpan.Zero || _time.GetTimestamp() >= _leaseExpiry)
+                    ObserveLeaseLoss(BackgroundJobLeaseLossCause.Elapsed);
                 Interlocked.Exchange(ref _renewalClosed, 1);
                 RunGate.Close();
             }

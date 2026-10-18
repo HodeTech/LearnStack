@@ -407,6 +407,18 @@ these process totals conservatively omit it, retain ownership and never backfill
 it from current row state. Deployment-mismatch deferral counts only a true
 fenced mutation. Operational bridge failures remain distinct from job failures.
 
+Lease-loss totals preserve the first observed cause per acknowledged execution:
+`lease_loss_renewal_refused` or `lease_loss_elapsed`, both with `pool=none`.
+Only a validated start publication or clean acknowledged recovery receipt enables
+observation. Elapsed means the actual local lease clock has reached its bound;
+it is not inferred from a failed timer update, a refused recovery proof or an
+overall stage deadline. Already-visible stop, settled work, join, failed cleanup
+or permanent renewal closure suppress a new observation. This gate read and the
+cause CAS do not establish a universal atomic ordering with concurrent host stop.
+The first-cause cell prevents relabelling; persistent parent totals survive actual
+execution removal. Recording performs only fixed-memory atomics and grants no
+renewal, execution or cleanup authority.
+
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
 `tenancy:feature-flags`, `tenancy:settings`, `audit:config`, or

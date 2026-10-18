@@ -49,6 +49,8 @@ public sealed partial class BackgroundJobControlTests
             await proxy.RenewalCommitHeld.WaitAsync(deadline.Token);
             controller.Snapshot.Renewals.Should().Be(0);
             controller.Snapshot.RenewalsConfirmed.Should().Be(0);
+            controller.Snapshot.LeaseLossElapsed.Should().Be(0);
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(0);
             var flight = (BackgroundJobRenewalOperation)typeof(BackgroundJobControl)
                 .GetField("_renewalFlight", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                 .GetValue(controller)!;
@@ -66,6 +68,8 @@ public sealed partial class BackgroundJobControlTests
                 "a clean history receipt cannot restore the private permission closed by an uncertain renewal");
             execution.RunGate.IsClosed.Should().Be(loseAcknowledgement);
             controller.Snapshot.Retries.Should().Be(0);
+            controller.Snapshot.LeaseLossElapsed.Should().Be(0);
+            controller.Snapshot.LeaseLossRenewalRefused.Should().Be(loseAcknowledgement ? 1 : 0);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
         }
         finally
