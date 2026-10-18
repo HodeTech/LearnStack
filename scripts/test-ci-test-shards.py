@@ -88,6 +88,14 @@ class ShardControls(unittest.TestCase):
         self.assertTrue(OWNER.different_layouts(manifest, self.plan))
         self.assertNotEqual(first['owners'], OWNER.assign(manifest, self.plan, '2')['owners'])
 
+    def test_one_selector_cannot_cross_original_trait_partitions(self):
+        for first, second in (('nonDocker', 'ordinary'), ('native', 'ordinary'), ('nonDocker', 'native')):
+            manifest = self.manifest()
+            case, other = manifest[first][0], manifest[second][0]
+            case['assembly'], case['method'] = other['assembly'], other['method']
+            for attempt in ('1', '2'):
+                self.refuses('selector_partition_conflict', OWNER.assign, manifest, self.plan, attempt)
+
     def test_estimates_cannot_hide_new_cases_or_move_native_or_project_base(self):
         manifest = self.manifest()
         new = self.case('new.tests.project', 'New.Project.Method', 9999)

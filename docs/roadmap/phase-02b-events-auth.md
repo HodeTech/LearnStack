@@ -9575,6 +9575,23 @@ matrices, new execution authority, aggregate/API enforcement and actual two-atte
 hosted qualification remain Steps 2–3. Step 1's commit and both fresh independent
 review rounds must complete before Step 2 starts; their receipts follow here.
 
+**Step 1 review round 1.** A fresh `gpt-6.1-sol` reviewer at `xhigh` examines
+`94f201ab..480fb1b4` across the standards and code-review lenses. One Major is
+verified: disjoint case-ID populations could still split the same assembly/FQN
+between original trait partitions. Manifest validation now refuses that conflict;
+controls cover every non-Docker/native/ordinary boundary under both assignments.
+All 21 controls pass, including the supported equal-FQN/different-assembly case.
+The reviewer independently verifies the prepared fix, all five timing artifact
+hashes, complete discovery/filter diagnostics and unchanged A/B assignment
+digests. No other actionable finding is confirmed.
+
+The reviewer also replays a real focused VSTest protocol/TRX proof: all eleven
+cases across both Unicode methods and the three corrected exception rows pass
+with unique IDs and exact completed-stream fields. Its local execution took
+1.082 seconds; this supplies the protocol boundary proof missing from the full
+Unit run, without claiming cgroup or hosted execution qualification. The fix
+commit precedes the fresh second review. Step 2 has not started.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

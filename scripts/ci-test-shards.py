@@ -172,6 +172,12 @@ def validate_manifest(manifest):
             and populations['all'] == populations['native'] | populations['ordinary']
             and not populations['nonDocker'].keys() & populations['all'].keys()
             and whole == populations['nonDocker'] | populations['all'], 'population_union_invalid')
+    selector_owners = {}
+    for part in ('nonDocker', 'native', 'ordinary'):
+        for case in manifest[part]:
+            key = method_key(case)
+            require(selector_owners.get(key, part) == part, 'selector_partition_conflict')
+            selector_owners[key] = part
     return populations
 
 
