@@ -9684,6 +9684,16 @@ All 34 shard controls pass, including real leaf refusal before fork, prompt
 parent detection, finite live-start timeout and retained failed-start cleanup.
 The fix commit and fresh focused verification follow before Step 3 starts.
 
+**Step 2 correction verification and closeout.** The correction is committed at
+`fc67d1f8`. A fresh `gpt-6.1-sol` reviewer at `high` approves the focused change
+without findings. All 34 shard and 38 launcher controls independently pass;
+42 supplemental assertions exercise malformed/absent startup diagnostics,
+terminal/disappeared units, readiness races, earlier deadlines and cancellation
+followed by actual parent cleanup. These unprivileged controls do not qualify
+hosted Linux containment. Both full Step 2 reviews and the verified correction
+are complete. Step 3 now owns finite workflow/API aggregate enforcement, corpus
+reconciliation and actual two-assignment final-source qualification.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
