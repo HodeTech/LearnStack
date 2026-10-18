@@ -41,6 +41,10 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             original.Envelope.Queue, CancellationToken.None);
         acquired.ThrowIfFailed();
         var recovery = BindRecovery(acquired, runtime);
+        using var ambient = new System.Diagnostics.Activity("foreign-recovery-caller").SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C).Start();
+        var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(observation);
+        using var traces = new BackgroundJobTraceProbe(observation);
         // Legal retained data without its selection, written as learnstack_app.
         // No actual provider execution/causality is claimed by this fixture.
         await using (var app = await PostgresFixture.OpenAsync(database.AppConnectionString))
@@ -75,12 +79,14 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         await using var proxy = new CommitResponseDroppingProxy(database.AppConnectionString, dropCommitRequest: !committed);
         await using var brokenHost = RecoveryHost(database, preparing: true, appConnectionString: proxy.ConnectionString);
         var broken = brokenHost.Services.GetRequiredService<JobExecutor>();
+        using var brokenMetrics = new BackgroundJobStageProbe(brokenHost.Services.GetRequiredService<BackgroundJobObservation>());
         var gate = recovery.Run.OpenBoundary(noStart ? BackgroundJobCheckpointKind.NoStart : BackgroundJobCheckpointKind.Outcome);
         var result = await (noStart
             ? broken.RecordExternalNoStartAsync(recovery, read.Handle!, gate, CancellationToken.None)
             : broken.SelectStoredExternalOutcomeAsync(recovery, read.Handle!, gate, CancellationToken.None));
         result.CleanupFailed.Should().BeFalse();
         result.CommitUncertain.Should().BeTrue();
+        brokenMetrics.Duration(noStart ? "no_start" : "selected_outcome").Tags["outcome"].Should().Be("UnknownCommit");
         result.Outcome!.IsNoStart.Should().Be(noStart);
         result.Outcome.IsStoredCompleted.Should().Be(!noStart);
         if (!noStart)
@@ -140,6 +146,10 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         }
         recovery.Run.Close();
         recovery.SourceOwner.CleanupConfirmed.Should().BeTrue();
+        var reads = traces.Started.Where(activity => activity.OperationName == "job.external_read").ToArray();
+        reads.Should().ContainSingle().Which.ParentSpanId.Should().Be(default(System.Diagnostics.ActivitySpanId));
+        reads[0].TraceId.Should().NotBe(ambient.TraceId);
+        traces.Stopped.Should().Contain(reads);
     }
 
     [Theory]
@@ -172,11 +182,16 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             original.Envelope.Queue, CancellationToken.None);
         acquired.ThrowIfFailed();
         var recovery = BindRecovery(acquired, runtime);
+        using var ambient = new System.Diagnostics.Activity("foreign-recovery-caller").SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C).Start();
+        var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(observation);
+        using var traces = new BackgroundJobTraceProbe(observation);
         if (mode == "no_start")
         {
             var noStartRead = await executor.ReadExternalStateAsync(recovery, CancellationToken.None);
             (await executor.RecordExternalNoStartAsync(recovery, noStartRead.Handle!,
                 recovery.Run.OpenBoundary(BackgroundJobCheckpointKind.NoStart), CancellationToken.None)).CommitAcknowledged.Should().BeTrue();
+            metrics.Duration("no_start").Tags["outcome"].Should().Be("Acknowledged");
         }
         else if (mode != "absent")
         {
@@ -206,6 +221,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             var selected = await executor.SelectStoredExternalOutcomeAsync(recovery, read.Handle!, gate, CancellationToken.None);
             selected.CommitAcknowledged.Should().BeTrue();
             selected.CleanupFailed.Should().BeFalse();
+            metrics.Duration("selected_outcome").Tags["outcome"].Should().Be("Acknowledged");
         }
         else
         {
@@ -227,6 +243,11 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         (await RetainedSelectionFactsAsync(database, original)).Should().Be(immutable);
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
         recovery.SourceOwner.CleanupConfirmed.Should().BeTrue();
+        var reads = traces.Started.Where(activity => activity.OperationName == "job.external_read").ToArray();
+        reads.Should().NotBeEmpty().And.OnlyContain(activity => activity.ParentSpanId == default
+            && activity.TraceId != ambient.TraceId);
+        traces.Stopped.Should().Contain(reads);
+        System.Diagnostics.Activity.Current.Should().BeSameAs(ambient);
         recovery.Run.Close();
     }
 

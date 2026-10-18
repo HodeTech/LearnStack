@@ -751,7 +751,7 @@ internal sealed partial class BackgroundJobControl
                 if (!await QualifyTerminalAsync(acquired).ConfigureAwait(false)) return;
                 if (acquired.Value is { } claim)
                 {
-                    _terminalActivity = new Activity("job.terminal").SetIdFormat(ActivityIdFormat.W3C);
+                    _terminalActivity = _executor.Observation.CreateActivity(JobTraceOperation.Terminal, default);
                     _terminalActivity.Start();
                     var operation = await _terminal.TryTerminalizeAsync(claim, _terminalActivity.Id!, _stop.Token).ConfigureAwait(false);
                     _terminalOperation = operation;

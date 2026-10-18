@@ -119,8 +119,7 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 validatedEnvelope = read.Value;
                 accessor.Current = CreateContext(read.Value);
                 _ = ActivityContext.TryParse(read.Value.Traceparent, null, isRemote: true, out var parent);
-                activity = new Activity("job.admission").SetIdFormat(ActivityIdFormat.W3C)
-                    .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
+                activity = telemetry.CreateActivity(JobTraceOperation.Admission, parent);
                 activity.Start();
                 scope = scopes.CreateAsyncScope();
                 unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -186,8 +185,13 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                         try
                         {
                             Activity.Current = previousActivity;
-                            accessor.Current = previous;
                         }
+                        catch
+                        {
+                            cleanupFailed = true;
+                            retainedCleanup.Add(new(null, unit, null, activity, authority));
+                        }
+                        try { accessor.Current = previous; }
                         catch
                         {
                             cleanupFailed = true;

@@ -25,7 +25,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name.Length == 0,
+            ShouldListenTo = source => source.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {

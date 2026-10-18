@@ -77,7 +77,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var held = 0;
         using var listener = new ActivityListener
         {
-            ShouldListenTo = activitySource => activitySource.Name.Length == 0,
+            ShouldListenTo = activitySource => activitySource.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {

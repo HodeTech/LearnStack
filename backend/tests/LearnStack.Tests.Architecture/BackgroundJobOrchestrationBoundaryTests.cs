@@ -221,7 +221,7 @@ public sealed partial class OutboxDispatchConventionTests
             ["HoldExecution", "PrepareCapacityCleanupAsync", "RequestCancellation", "CompleteAsync", "JoinReconcileTimeoutCancellationAsync"]);
         Field(OrchestrationInvocation, "_framework", false, ["HoldInvocation", "CompleteAsync"]);
         Field(OrchestrationInvocation, "_routing", false, ["HoldRouting", "CompleteAsync"]);
-        Field(OrchestrationControl, "_executor", true, [".ctor", "AdvanceTerminalNoStartAsync", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "ProcessCapacityRequestAsync"]);
+        Field(OrchestrationControl, "_executor", true, [".ctor", "AdvanceTerminalNoStartAsync", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "ProcessCapacityRequestAsync", "RunTerminalAsync"]);
         Field(OrchestrationRenewal, "_published", true, [".ctor", "Schedule"]);
         Field(OrchestrationRenewal, "_actual", false, ["Schedule"]);
         Field(OrchestrationRenewal, "<Completion>k__BackingField", true, [".ctor", "get_Completion"]);

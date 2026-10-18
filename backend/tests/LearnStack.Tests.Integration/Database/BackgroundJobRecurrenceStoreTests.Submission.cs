@@ -1,11 +1,14 @@
 using System.Text.Json;
+using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Observability;
 using LearnStack.Modules.Tenancy.Infrastructure.Jobs;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,9 +33,34 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         var constructions = Fixture.RootConstructions;
         await using var host = RecipientHost(database, probe);
         var gate = BackgroundJobTestRun.Create().OpenBoundary(BackgroundJobCheckpointKind.RecipientSubmission);
+        var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(observation);
+        var accessor = host.Services.GetRequiredService<ITenantContextAccessor>();
+        using var ambient = new Activity("foreign-recipient-caller").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var previous = accessor.Current;
+        var foreign = new BackgroundJobFixtureContext(tenant: SchemaFixture.TenantB);
+        accessor.Current = foreign;
+        using var processor = new TenantContextSpanProcessor(accessor);
+        using var traces = new BackgroundJobTraceProbe(observation, processor.OnStart);
+        JobRecipientSubmissionResult result;
+        try
+        {
+            result = await host.Services.GetRequiredService<JobExecutor>().ExecuteRecipientAsync(claim,
+                BackgroundJobLifecycleProjectionDeclaration.Create(), gate, CancellationToken.None);
+            accessor.Current.Should().BeSameAs(foreign);
+            Activity.Current.Should().BeSameAs(ambient);
+        }
+        finally { accessor.Current = previous; }
 
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteRecipientAsync(claim,
-            BackgroundJobLifecycleProjectionDeclaration.Create(), gate, CancellationToken.None);
+        var span = traces.Started.Should().ContainSingle().Which;
+        span.Source.Name.Should().Be(BackgroundJobObservation.InstrumentationName);
+        span.OperationName.Should().Be("job.recipient_submission");
+        span.ParentSpanId.Should().Be(default(System.Diagnostics.ActivitySpanId));
+        span.TraceId.Should().NotBe(ambient.TraceId);
+        span.GetTagItem("tenant.id").Should().BeNull("the recipient root must not inherit the caller's tenant during OnStart");
+        traces.Stopped.Should().ContainSingle().Which.Should().BeSameAs(span);
+        metrics.Duration("recipient_submission").Tags["outcome"].Should().Be("Acknowledged");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total" || point.Name == "learnstack_job_unknown_outcome_total");
 
         result.Failure.Should().BeNull();
         result.Status.Should().Be(JobRecipientSubmissionStatus.Accepted);

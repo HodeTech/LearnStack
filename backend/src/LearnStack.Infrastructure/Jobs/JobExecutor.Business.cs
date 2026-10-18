@@ -56,8 +56,7 @@ public sealed partial class JobExecutor
             var context = CreateContext(receipt.Envelope);
             accessor.Current = context;
             _ = ActivityContext.TryParse(receipt.Envelope.Traceparent, null, isRemote: true, out var parent);
-            activity = new Activity("job.execution").SetIdFormat(ActivityIdFormat.W3C)
-                .SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
+            activity = telemetry.CreateActivity(JobTraceOperation.Execution, parent);
             activity.Start();
             scope = scopes.CreateAsyncScope();
             unit = scope.Value.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -128,11 +127,13 @@ public sealed partial class JobExecutor
                 cleanupFailed = true;
                 retained.Add(new(null, null, null, activity, null));
             }
-            try
+            try { Activity.Current = previousActivity; }
+            catch
             {
-                Activity.Current = previousActivity;
-                accessor.Current = previous;
+                cleanupFailed = true;
+                retained.Add(new(scope, unit, null, activity, authority, sourceBinding));
             }
+            try { accessor.Current = previous; }
             catch
             {
                 cleanupFailed = true;

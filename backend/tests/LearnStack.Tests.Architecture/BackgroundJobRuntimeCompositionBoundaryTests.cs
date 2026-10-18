@@ -207,11 +207,12 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHostedAliases();
         CheckRuntimeOwnerConstruction();
         CheckHealthObservation();
+        CheckJobTracing(census, offenders);
         CheckMemoryObservation(JobMetricRoots(census, offenders), "jobs metrics");
         if (types.TryGetValue((InfrastructureAssembly, JobObservation), out var observation))
         {
             CheckMemoryObservation(observation.Methods.Where(method => method.IsConstructor && !method.IsStatic), "job observer construction");
-            CheckMemoryObservation(observation.Methods.Where(method => method.Name is "StartStage" or "RecordStage"), "job stage metrics");
+            CheckMemoryObservation(observation.Methods.Where(method => method.Name is "StartStage" or "RecordStage" or "CreateActivity"), "job stage metrics");
         }
         return offenders;
 
@@ -452,6 +453,12 @@ public sealed partial class OutboxDispatchConventionTests
                             && (call.Name == ".ctor" || call.Name.StartsWith("Create", StringComparison.Ordinal))
                             && (method.DeclaringType.FullName != JobObservation || !method.IsConstructor || method.IsStatic || body != method))
                             offenders.Add(MethodId(method) + ": " + label + " observation forwards a hidden Meter or instrument registration");
+                        if (call.DeclaringType.FullName == "System.Diagnostics.ActivitySource" && call.Name == ".ctor"
+                            && (method.DeclaringType.FullName != JobObservation || !method.IsConstructor || method.IsStatic || body != method))
+                            offenders.Add(MethodId(method) + ": " + label + " observation forwards a hidden ActivitySource");
+                        if (call.DeclaringType.FullName == "System.Diagnostics.Activity" && call.Name == "Start"
+                            || call.DeclaringType.FullName == "System.Diagnostics.ActivitySource" && call.Name == "StartActivity")
+                            offenders.Add(MethodId(method) + ": " + label + " observation starts an Activity before its actual owner");
                         var callTypes = new[] { call.DeclaringType, call.ReturnType }
                             .Concat(call.Parameters.Select(parameter => parameter.ParameterType))
                             .Concat(call is GenericInstanceMethod instance ? instance.GenericArguments : Enumerable.Empty<TypeReference>());

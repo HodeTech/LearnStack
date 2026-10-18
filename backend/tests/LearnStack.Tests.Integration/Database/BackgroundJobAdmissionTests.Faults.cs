@@ -189,8 +189,10 @@ public sealed partial class BackgroundJobAdmissionTests
         probe.Constructions.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task A_throwing_Activity_stopped_observer_cannot_replace_a_confirmed_start_or_prevent_restoration()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_throwing_Activity_stopped_observer_cannot_replace_a_confirmed_start_or_prevent_restoration(bool restorationFault)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -202,7 +204,7 @@ public sealed partial class BackgroundJobAdmissionTests
         var callbacks = 0;
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name.Length == 0,
+            ShouldListenTo = source => source.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = stopped =>
             {
@@ -217,7 +219,19 @@ public sealed partial class BackgroundJobAdmissionTests
         using var activity = new Activity("activity-cleanup-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
         var telemetry = host.Services.GetRequiredService<BackgroundJobObservation>();
         using var metrics = new BackgroundJobStageProbe(telemetry, throwOnMeasurement: true);
-        var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
+        var restorationCallbacks = 0;
+        EventHandler<ActivityChangedEventArgs> restoration = (_, change) =>
+        {
+            if (!restorationFault || callbacks == 0 || !ReferenceEquals(change.Current, activity)
+                || change.Previous?.OperationName != "job.admission" || change.Previous.TraceId != trace
+                || Interlocked.CompareExchange(ref restorationCallbacks, 1, 0) != 0) return;
+            throw new InvalidOperationException("Deliberate Activity restoration observer fault.");
+        };
+        Activity.CurrentChanged += restoration;
+        JobStartExecutionResult result;
+        try { result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create()); }
+        finally { Activity.CurrentChanged -= restoration; }
+        restorationCallbacks.Should().Be(restorationFault ? 1 : 0);
         callbacks.Should().Be(1, "the fault must arise from the actual admission Activity's Stop callback");
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.Receipt.Should().NotBeNull();

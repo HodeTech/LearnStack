@@ -14,7 +14,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
-public sealed class BackgroundJobObservationTests
+public sealed partial class BackgroundJobObservationTests
 {
     private static readonly string[] RequiredInstruments =
     [

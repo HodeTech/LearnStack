@@ -9,6 +9,7 @@ public sealed partial class BackgroundJobObservation : IDisposable
 {
     public const string InstrumentationName = "learnstack.jobs";
     private readonly Meter _meter = new(InstrumentationName);
+    private readonly ActivitySource _activities = new(InstrumentationName);
     private readonly FrozenSet<string> _pools;
     private readonly FrozenSet<string> _groups;
     private readonly FrozenSet<string> _jobs, _retiredJobs;
@@ -258,7 +259,8 @@ public sealed partial class BackgroundJobObservation : IDisposable
     public void Dispose()
     {
         Interlocked.Exchange(ref _disposed, 1);
-        _meter.Dispose();
+        try { _meter.Dispose(); }
+        finally { _activities.Dispose(); }
     }
 
     private sealed record Binding(BackgroundJobRuntime Runtime, TimeProvider Time, FrozenSet<string> Recurrences);

@@ -73,7 +73,7 @@ public sealed partial class BackgroundJobBusinessTests
         var callbacks = 0;
         using var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name.Length == 0,
+            ShouldListenTo = source => source.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = stopped =>
             {

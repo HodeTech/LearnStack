@@ -69,7 +69,10 @@ public sealed partial class JobExecutor
             deadline.CancelAfter(options.SqlTimeout);
             registration = deadline.Token.UnsafeRegister(StopRecipient, gate);
             deadline.Token.ThrowIfCancellationRequested();
-            activity = new Activity("job.recipient_submission").SetIdFormat(ActivityIdFormat.W3C).Start();
+            accessor.Current = null;
+            Activity.Current = null;
+            activity = telemetry.CreateActivity(JobTraceOperation.RecipientSubmission, default);
+            activity.Start();
             var context = JobTenantContext.ForRecipient(claim.TenantId, claim.OrganizationId,
                 activity.Id!, claim.RecurrenceKey.Split('.')[0]);
             accessor.Current = context;
@@ -94,7 +97,13 @@ public sealed partial class JobExecutor
                 cleanupFailed = true;
                 retained.Add(new(null, null, null, activity, null));
             }
-            try { Activity.Current = previousActivity; accessor.Current = previous; }
+            try { Activity.Current = previousActivity; }
+            catch
+            {
+                cleanupFailed = true;
+                retained.Add(new(scope, unit, deadline, activity, authority, sourceBinding, registration));
+            }
+            try { accessor.Current = previous; }
             catch
             {
                 cleanupFailed = true;

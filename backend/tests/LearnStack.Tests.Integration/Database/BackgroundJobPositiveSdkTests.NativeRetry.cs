@@ -61,7 +61,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var held = 0;
         using var listener = new ActivityListener
         {
-            ShouldListenTo = activitySource => !lostOutcomeAck && activitySource.Name.Length == 0,
+            ShouldListenTo = activitySource => !lostOutcomeAck && activitySource.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {
@@ -262,7 +262,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         ActivityContext.TryParse(storedEnvelope.Traceparent, null, out var trace).Should().BeTrue();
         using var listener = new ActivityListener
         {
-            ShouldListenTo = activitySource => qualifyReconcilePolicy && activitySource.Name.Length == 0,
+            ShouldListenTo = activitySource => qualifyReconcilePolicy && activitySource.Name == BackgroundJobObservation.InstrumentationName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {

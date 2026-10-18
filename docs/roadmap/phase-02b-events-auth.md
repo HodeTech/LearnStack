@@ -8138,6 +8138,44 @@ tracing/Start ownership, remaining branch/lease/control instrumentation,
 nineteen-rule enforcement, whole regression/CI-budget qualification and both full
 Step 9 reviews still precede packet closeout.
 
+#### Named-source tracing and cleanup ownership qualification
+
+The required observation singleton owns `learnstack.jobs`; its finite factory
+returns an unstarted W3C Activity. All eight actual owners capture it before
+`Start`. Recipient and pre-envelope recovery reads start independent roots;
+terminalization keeps the real suppressed control lane. Trusted envelopes supply
+the other parents. Recipient startup clears the caller's context before central
+enrichment; it invents no tenant tags before the actual route context exists.
+All seven executor owners independently attempt Activity and tenant restoration,
+including a restoration callback fault after an actual COMMIT acknowledgement.
+
+Absent, refusing, propagation-only, sampled and throwing samplers preserve the
+factory contract. The first unit run detects an all-zero fallback parent;
+omitting `SetParentId` for a default parent produces a genuine root. The corrected
+373 Jobs unit and 70 real PostgreSQL cases pass with zero failures/skips. Actual
+recipient, capacity, stored-selection/no-start, recovery, held/faulted cleanup and
+lost-ACK premises accompany source/parent/measurement assertions. The first PG
+selection accidentally includes a helper-name filter and is canceled; it earns
+no full passing receipt. The replacement uses 35 exact test-method identities.
+
+The source census binds the consumed source name, readonly owner, factory and
+disposal receivers, actual retained Activity slot and Start/Dispose instructions.
+Its memory walk follows the actual factory through helpers and static
+initializers. Name bait, early Start, spare slots, hidden sources, helper SQL and
+helper Start controls pass in the corrected ten-case Architecture cohort. Final
+disposal method-group controls additionally distinguish an actual call from a
+captured reference; all ten final Architecture cases pass with zero failures or
+skips. The final 362-source receipt is
+`ca0549e92bcb4bad50ea5fc7d82218bc3831a2bc9bcad49c21c6c6000095c9f9`.
+Only the tracing guard differs from the preceding 373-unit/70-PostgreSQL source
+snapshot; all production and behavioral fixtures remain byte-identical. Caller
+operation/parent policy is behavioral qualification, not a general IL dataflow
+claim. Focused reviews supply no full Step 9 review-round credit.
+
+Complete control/lease/late-settlement accounting, nineteen-rule enforcement,
+whole regression and unchanged CI-budget qualification, and both full Step 9
+reviews still precede packet closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

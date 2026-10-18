@@ -167,6 +167,26 @@ Manual spans:
 - Use-case handlers wrap interesting subdivisions: `provider_create_room`, `token_issuance`, `event_dispatch`.
 - Naming: `<module>.<operation>`: `education.publish_course`, `classroom.create_room`.
 
+Background-job stages use the required observation owner's `learnstack.jobs`
+source. Admission, business execution, external execute/reconcile, external read,
+checkpoint, capacity cleanup, recipient submission and terminalization retain
+their finite `job.*` names. The factory returns an unstarted Activity; the actual
+stage owns it before `Start` and through existing cleanup. An absent/refusing
+sampler preserves W3C correlation through an unstarted fallback. A catchable
+sampler fault also marks observation unhealthy; it does not retry notification
+or replace an Activity after `Start`.
+
+Validated envelopes supply declared parents. A recovery read before the app-role
+envelope acknowledgement, recipient submission before a child exists, and the
+payload-free terminal lane start independent roots. Recipient startup clears the
+caller's tenant context before `Start`, then installs its route context using the
+actual span ID. Its root has no invented tenant attribution; submission spans
+inside that context receive normal enrichment. External provider and terminal
+spans acquire no tenant authority for tracing. Activity restoration and tenant
+restoration are attempted independently through arbitrary observer faults.
+Step 9's delivery record owns qualification; named tracing alone does not close
+the packet's execution, observation or lifecycle obligations.
+
 ### Span Attributes
 
 Required (auto-enriched by `TenantContextSpanProcessor`):

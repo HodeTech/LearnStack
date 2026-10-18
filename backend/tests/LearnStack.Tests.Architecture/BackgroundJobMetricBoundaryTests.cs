@@ -92,7 +92,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "exact job observation getter callers", sites.Where(site => TargetsDeclaredType(site.Target, executor)
                 && site.Target.Name == "get_Observation").Select(site => site.Owner),
             new[] { RuntimeConstructorId, InfrastructureAssembly + ":LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeSnapshot " + JobRuntime + "::get_Snapshot()" }
-                .Concat(stageOwners));
+                .Concat(stageOwners).Append(JobOwner(offenders, types, InfrastructureAssembly, OrchestrationControl, "RunTerminalAsync")));
         CheckSet(offenders, "required shared job observation registration", sites.Where(site => site.Target is GenericInstanceMethod
                 && (site.Target.Name.StartsWith("Add", StringComparison.Ordinal) || site.Target.Name.StartsWith("TryAdd", StringComparison.Ordinal)))
             .Where(site => ((GenericInstanceMethod)site.Target).GenericArguments.Any(argument => argument.FullName == JobObservation))

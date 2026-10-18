@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
@@ -37,6 +38,10 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         using var globals = new GlobalFilterSnapshot();
         using var deadline = new CancellationTokenSource(TestWait);
         var runtime = Runtime(host.Services, source, bounds, physical);
+        using var ambient = new Activity("foreign-terminal-caller").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(observation);
+        using var traces = new BackgroundJobTraceProbe(observation);
         await using var locker = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         NpgsqlTransaction? locked = null;
         try
@@ -68,6 +73,13 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             await EventuallyQualificationAsync(async () => runtime.Snapshot.Control is { Executions: 0, PendingOutcomes: 0 }
                 && await NativePermanentControlSettledAsync(database, job, deadline.Token), deadline.Token);
             await AssertNativePermanentControlAuditAsync(database, job, admitted.CurrentAttempt!.Value, deadline.Token);
+            metrics.Duration("capacity_cleanup").Tags["outcome"].Should().Be("UnknownCommit");
+            metrics.Points.Should().ContainSingle(point => point.Name == "learnstack_job_unknown_outcome_total"
+                && point.Tags["stage"] == "capacity_cleanup");
+            var terminal = traces.Started.Single(activity => activity.OperationName == "job.terminal");
+            terminal.ParentSpanId.Should().Be(default(System.Diagnostics.ActivitySpanId));
+            terminal.TraceId.Should().NotBe(ambient.TraceId);
+            traces.Stopped.Should().Contain(terminal);
             (await ReadCapacityCleanupEvidenceAsync(database, job)).Should().Be((true, true, "transactional_rollback"));
             probe.Constructions.Should().Equal("CapacityRoot");
             proxy.CompletedCommits.Should().Be(3, "locked reconciliation must not issue another app checkpoint");

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
@@ -107,6 +108,9 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var applicationSource = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         using var globals = new GlobalFilterSnapshot();
         var runtime = Runtime(host.Services, source, bounds, new(true, 52));
+        var observation = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(observation);
+        using var traces = new BackgroundJobTraceProbe(observation);
         var lockReleased = false;
         var verified = false;
         try
@@ -156,6 +160,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 checkpoint.Entered.Task.IsCompleted.Should().BeFalse();
                 originalOwner.CleanupConfirmed.Should().BeFalse();
                 (await ReadCapacityCleanupEvidenceAsync(database, job)).Should().Be((false, false, (string?)null));
+                metrics.Points.Should().NotContain(point => point.Tags.GetValueOrDefault("stage") == "capacity_cleanup");
+                traces.Started.Should().NotContain(activity => activity.OperationName == "job.capacity_cleanup");
                 applicationSource.Dispose();
                 source.Dispose();
                 runtime.RequestStop();
@@ -173,6 +179,12 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 await EventuallyAsync(async () => (await ReadCapacityCleanupEvidenceAsync(database, job))
                     == (true, true, "transactional_rollback"));
                 await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.Executions == 0));
+                metrics.Duration("capacity_cleanup").Tags["outcome"].Should().Be("Acknowledged");
+                var span = traces.Started.Single(activity => activity.OperationName == "job.capacity_cleanup");
+                ActivityContext.TryParse(BackgroundJobRuntimeFixture.Traceparent, null, out var parent).Should().BeTrue();
+                span.TraceId.Should().Be(parent.TraceId);
+                span.ParentSpanId.Should().Be(parent.SpanId);
+                traces.Stopped.Should().Contain(span);
                 originalOwner.CleanupConfirmed.Should().BeTrue();
                 var reopen = () => originalOwner.Enter();
                 reopen.Should().Throw<InvalidOperationException>("only the final native join closes the original owner");

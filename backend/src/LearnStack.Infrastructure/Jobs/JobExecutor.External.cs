@@ -102,8 +102,8 @@ public sealed partial class JobExecutor
                 accessor.Current = null;
                 denial = BackgroundJobExecutionAdmission.EnterExternal();
                 _ = ActivityContext.TryParse(envelope.Traceparent, null, isRemote: true, out var parent);
-                activity = new Activity(original is null ? "job.external_reconcile" : "job.external_execute")
-                    .SetIdFormat(ActivityIdFormat.W3C).SetParentId(parent.TraceId, parent.SpanId, parent.TraceFlags);
+                activity = telemetry.CreateActivity(original is null ? JobTraceOperation.ExternalReconcile
+                    : JobTraceOperation.ExternalExecute, parent);
                 activity.Start();
                 scope = scopes.CreateAsyncScope();
                 var registry = scope.Value.ServiceProvider.GetRequiredService<BackgroundJobDefinitionRegistry>();
@@ -165,7 +165,13 @@ public sealed partial class JobExecutor
                 cleanupFailed = true;
                 retained.Add(new(null, null, null, activity, null));
             }
-            try { Activity.Current = previousActivity; accessor.Current = previous; }
+            try { Activity.Current = previousActivity; }
+            catch
+            {
+                cleanupFailed = true;
+                retained.Add(new(scope, null, null, activity, denial, registration: registration));
+            }
+            try { accessor.Current = previous; }
             catch
             {
                 cleanupFailed = true;
