@@ -35,8 +35,10 @@ owns capacity delivery and final local qualification. Step 7 external stages are
 committed under Accepted ADR-0061; both full review rounds and verified corrections
 are complete. Its
 [record](#p02b-4-step-7--external-stages-and-recovery-2026-10-17) owns current evidence.
-Step 8 durable recurrence and restricted fan-out is in progress. Step 9 and
-P02b-5–8 remain pending. Production business definitions remain empty.
+Step 8 durable recurrence and restricted fan-out is locally complete after both
+full review rounds and verified corrections; its
+[closeout](#step-8-full-review-round-2-2026-10-18) owns final qualification. Step 9
+and P02b-5–8 remain pending. Production business definitions remain empty.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -7165,7 +7167,9 @@ Step 8 follows under the already Accepted plan. No new maintainer decision is pe
 
 ### P02b-4 Step 8 — durable recurrence and restricted fan-out (2026-10-18)
 
-**Implementation in progress.** Step 7 closes at `69405b16` after both full
+**Locally complete after both full review rounds and verified corrections.**
+The [round-2 closeout](#step-8-full-review-round-2-2026-10-18) owns final evidence.
+Step 7 closes at `69405b16` after both full
 independent review rounds and verified corrections. Accepted ADR-0047 authorizes
 this step on `development`; no new decision is pending.
 
@@ -7738,6 +7742,85 @@ Step 9 explicitly owns durable unknown/deployment-mismatch observation, includin
 an empty-registry restart. Local registration mismatch flags alone do not qualify
 that cold durable-health surface. These corrections add no new ADR decision,
 role/grant, production business definition or general lifecycle selector.
+
+#### Step 8 full review round 2 (2026-10-18)
+
+Three new independent reviewers inspected the complete `69405b16..f687924b`
+range: GPT-6-astra xhigh (runtime/lifecycle), GPT-6.1-sol xhigh
+(persistence/authority/security), and GPT-6.1-sol high (proofs/corpus). The
+persistence lens verified no finding. Runtime and proofs independently found
+the same Major acceptance-proof gap, counted once: ADR-0059 explicitly requires
+recurrence progress while the actual control generation stays drained/held.
+The earlier native-manager-thread hold and empty-registry delayed-job repair
+proofs did not establish this composed scenario. No new Step 8 runtime defect
+was verified. These full reviews ran no toolchain/database checks.
+
+The new real-facade test preregisters a due 61-day-old, 30-day-interval manifest,
+then locks that actual row before starting the runtime. It holds the actual
+control generation's owned Invocation, requests drain, positively joins its
+normal children and verifies zero occurrences/native jobs before unlocking.
+The retention barrier is explicitly synthetic; no network/business fault is
+claimed. A coalesced occurrence skips two slots and completes one reciprocal
+recipient/child with one normal attempt while the same generation remains held.
+Three real SDK ticks remain Enqueued during drain; three actual duplicate store
+quanta add no slot. Releasing and positively joining the original generation
+permits a replacement to execute those ticks without another occurrence, child,
+normal attempt or feature execution. Actual runtime and both source lifetimes
+must confirm cleanup/disposal.
+
+A separate inherited Major parent-start race was verified against the Step 8
+base as well as current code. Facade startup could pass its final admission,
+then encounter an already stopped parent's throwing Start guard and retain a
+false cleanup failure indefinitely. This is not attributed to the new child
+race or Step 8 diff. It is corrected now within the packet: an already-started
+parent still rejects duplicates, but stop before its first start returns
+neutrally using RequestStop's actual empty-loop witness. No cleanup flag or
+completion promise is reset.
+
+The new stopped-parent leaf fails at the original guard on unchanged `f687924b`
+production, then passes with the correction. Its executed negative receipt is
+`6a01365667134f9e6ff9c03d74da65f5fa4e9eac756b7367333d54f2571a9970`.
+An initial test-only blocking-Result analyzer error is recorded separately and
+receives no execution credit. The corrected actual-facade test holds the real
+parent monitor, observes the original facade task's Starting state after its
+last admission, then calls stop before parent admission and releases the
+monitor. It joins that same startup task, facade and actual sources without
+awaiting under a monitor. A distinct already-admitted-parent case preserves
+duplicate refusal. The full facade barrier is qualified on corrected code;
+no old-code full-facade cleanup claim is made.
+
+Both focused correction reviewers approve the inspected source and causal test
+premises; these are verification of round-2 corrections, not a third full review.
+The first corrected 333-source receipt records a zero-warning/error Release
+build and four focused PostgreSQL cases passing with no skips:
+`88e67c6e998d603c87874635eee1deeac615b124732359ab8860abd82186aa12`.
+
+A deliberate, uncommitted source control couples control-generation drain to
+the shared process start gate. The same held-generation test then fails at
+post-drain durable child progress, after its actual join/row-lock premises,
+and performs its ordinary barrier/owner cleanup. That dirty receipt is
+`ba68cf1a3dd7a77c9490dc82fe1d3208c585569c88ae714cdda10c291ae968fe`.
+The generation source is restored byte-for-byte and the corrected source/mode
+inventory matches again. No mutant enters the change. The test demonstrates
+its ability to reject the forbidden dependency; it is not a production fault
+or unconditional delivery-latency guarantee.
+
+Final clean-source qualification freezes 333 changed/new C# sources and records
+a zero-warning/error Release build, 2,408 Unit cases, 94 recurrence PostgreSQL
+cases and 57 focused Architecture cases passing with zero skips. The focused
+Architecture run takes 4m12s. The final receipt is
+`268a030f9ee059860732668f78061973caf5cd6da342d5a43191a526915d9431`.
+Scoped formatter verification returns no changes. Both full Step 8 review rounds
+and verified corrections are complete; this closes Step 8 locally.
+
+Step 9 follows under the already Accepted plan. Its scope includes durable
+unknown/deployment-mismatch observation, full job metrics and health, complete
+nineteen-rule enforcement, the skill/carrier handoffs and full packet regression.
+The historical complete Architecture run exceeds the existing backend CI budget;
+Step 9 must measure and reduce repeated detector scans while preserving every
+subject and clean/dirty/restored control. No nineteen-rule promotion, complete
+backend/frontend/demo, packaging, CI-duration compliance or real PR-head CI
+success is claimed by Step 8 receipts. No maintainer decision is pending.
 
 ### Durable outbox dispatch
 

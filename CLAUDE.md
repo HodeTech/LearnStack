@@ -252,7 +252,10 @@ corrections. Step 7 external stages are committed under Accepted ADR-0061.
 Both full review rounds and verified corrections are complete; its
 [closeout](docs/roadmap/phase-02b-events-auth.md#step-7-full-review-round-2-2026-10-17)
 owns the source-specific validation receipts.
-Step 8 durable recurrence and restricted fan-out is in progress; Step 9 remains pending.
+Step 8 durable recurrence and restricted fan-out is locally complete after both
+full review rounds and verified corrections; its
+[closeout](docs/roadmap/phase-02b-events-auth.md#step-8-full-review-round-2-2026-10-18)
+owns final qualification. Step 9 remains pending.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.
@@ -485,8 +488,8 @@ Then read the phase that is live and the one it stands on:
   verification. Step 6 capacity is locally complete after both full review
   rounds and verified corrections. Step 7 external stages are implemented under
   Accepted ADR-0061; both full review rounds and verified corrections are complete.
-  Step 8 durable recurrence and restricted fan-out is in progress;
-  Step 9 remains pending.
+  Step 8 durable recurrence and restricted fan-out is locally complete after
+  both full review rounds and verified corrections. Step 9 remains pending.
   Each later packet accepts its gates first.
 - [docs/roadmap/phase-02d-walking-skeleton.md](docs/roadmap/phase-02d-walking-skeleton.md)
   — complete and merged; the delivered public-site baseline and P02b-0 handoff.

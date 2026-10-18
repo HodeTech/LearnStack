@@ -159,7 +159,8 @@ internal sealed partial class BackgroundJobControl
     {
         lock (_sync)
         {
-            if (_started || _stopping) throw new InvalidOperationException("Job control starts once.");
+            if (_started) throw new InvalidOperationException("Job control starts once.");
+            if (_stopping) return;
             _started = true;
         }
         var loops = new List<Task>();

@@ -79,6 +79,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             }
             finally { Monitor.Exit(childLock); }
             await originalStart.WaitAsync(TimeSpan.FromSeconds(30));
+            Action repeat = parent.Start;
+            repeat.Should().Throw<InvalidOperationException>("an admitted parent retains its duplicate-start refusal after stop");
             await parent.Completion.WaitAsync(TimeSpan.FromSeconds(30));
             await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(30));
             AssertStoppedRecurrenceHasNoIssuedWork(child);
@@ -136,6 +138,106 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await RecurrenceEventuallyAsync(() => Task.FromResult(source.IsDisposalComplete && application.IsDisposalComplete));
         source.HasUnconfirmedCleanup.Should().BeFalse();
         application.HasUnconfirmedCleanup.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Stopped_parent_keeps_late_first_start_neutral_without_issuing_control_loops()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var host = RecipientHost(database, new());
+        await using var source = Source(database);
+        var runtime = RecurrenceRuntime(host.Services, source, Fixture.Recurrences(), new());
+        var parent = NativeHoldField<BackgroundJobControl>(runtime, "_jobs");
+        var application = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
+        try
+        {
+            runtime.RequestStop();
+            Action late = parent.Start;
+            late.Should().NotThrow("stop already published the actual no-loop witness before first parent Start");
+            Task<Task[]> published;
+            lock (NativeHoldField<object>(parent, "_sync"))
+            {
+                NativeHoldField<bool>(parent, "_started").Should().BeFalse();
+                published = NativeHoldField<TaskCompletionSource<Task[]>>(parent, "_loopsPublished").Task;
+                published.IsCompletedSuccessfully.Should().BeTrue();
+            }
+            (await published.WaitAsync(TimeSpan.FromSeconds(30))).Should().BeEmpty();
+            await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            parent.Snapshot.CleanupConfirmed.Should().BeTrue();
+        }
+        finally
+        {
+            runtime.RequestStop();
+            await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            source.Dispose();
+            application.Dispose();
+        }
+        await RecurrenceEventuallyAsync(() => Task.FromResult(source.IsDisposalComplete && application.IsDisposalComplete));
+        source.HasUnconfirmedCleanup.Should().BeFalse();
+        application.HasUnconfirmedCleanup.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Actual_facade_start_after_final_admission_joins_when_stop_wins_the_parent_start_lock()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var host = RecipientHost(database, new());
+        var source = Source(database);
+        using var globals = new RecurrenceGlobalFilters();
+        var runtime = RecurrenceRuntime(host.Services, source, Fixture.Recurrences(), new());
+        var parent = NativeHoldField<BackgroundJobControl>(runtime, "_jobs");
+        var application = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
+        Task? startup = null;
+        try
+        {
+            var parentLock = NativeHoldField<object>(parent, "_sync");
+            Monitor.Enter(parentLock);
+            try
+            {
+                startup = Task.Run(() => runtime.StartAsync());
+                // The actual facade sets Starting only after preallocation and
+                // its final MayStart guard. Parent Start cannot pass our lock.
+                SpinWait.SpinUntil(() =>
+                {
+                    lock (NativeHoldField<object>(runtime, "_sync"))
+                        return NativeHoldField<BackgroundJobRuntimeState>(runtime, "_state") == BackgroundJobRuntimeState.Starting;
+                }, TimeSpan.FromSeconds(30)).Should().BeTrue("the original facade startup must pass its final admission");
+                NativeHoldField<bool>(parent, "_started").Should().BeFalse();
+                runtime.RequestStop();
+            }
+            finally { Monitor.Exit(parentLock); }
+            try { await startup.WaitAsync(TimeSpan.FromSeconds(30)); }
+            catch (HangfireStorageRefusedException) { } // Stopping may win the issued-start signal.
+            await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            parent.Snapshot.CleanupConfirmed.Should().BeTrue();
+            runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
+            source.Dispose();
+            application.Dispose();
+            await RecurrenceEventuallyAsync(() => Task.FromResult(source.IsDisposalComplete && application.IsDisposalComplete));
+            source.HasUnconfirmedCleanup.Should().BeFalse();
+            application.HasUnconfirmedCleanup.Should().BeFalse();
+        }
+        finally
+        {
+            // Failed cleanup remains a failure. Bound even the test's disposal
+            // observation; do not manufacture completion/reset sticky facts.
+            runtime.RequestStop();
+            try
+            {
+                if (startup is not null)
+                {
+                    try { await startup.WaitAsync(TimeSpan.FromSeconds(30)); }
+                    catch (HangfireStorageRefusedException) { }
+                }
+                await runtime.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            finally
+            {
+                source.Dispose();
+                application.Dispose();
+                await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+            }
+        }
     }
 
     private static void AssertStoppedRecurrenceHasNoIssuedWork(BackgroundJobRecurrenceControl child)
