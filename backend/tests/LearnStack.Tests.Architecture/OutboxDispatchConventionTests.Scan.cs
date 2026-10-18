@@ -83,6 +83,14 @@ public sealed partial class OutboxDispatchConventionTests
             Change(() => AddAsyncCallProbe(module, "InstructionIndexAsyncProbe", target));
             Change(() =>
             {
+                var detached = new MethodDefinition("DetachedIndexTarget", MethodAttributes.Private, module.TypeSystem.Void);
+                probe.Methods.Add(detached);
+                var undo = ReplaceInstruction(call, OpCodes.Call, detached);
+                probe.Methods.Remove(detached);
+                return undo;
+            });
+            Change(() =>
+            {
                 module.Types.Remove(probe);
                 return () => module.Types.Add(probe);
             });
@@ -150,6 +158,26 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var name in seenMethodNames)
                 census.MethodInstructions(name).SequenceEqual(methodsByName[name]).Should().BeTrue(
                     "the index must preserve actual body/owner/target/instruction order and multiplicity for {0}", name);
+            foreach (var (type, name) in new[]
+                     {
+                         (JobRuntimeGate, ".ctor"), (JobGeneration, ".ctor"), (JobRuntimeGate, "ForPool"),
+                         (JobFatalBoundary, "Terminate"), (JobRuntimeGate, "Terminate"),
+                         (JobRuntimeGate, "FailFast"), (JobRuntimeGate, "EnsureFinalExitRegistered"),
+                         (JobRuntimeGate, "OnFinalExit"), (JobRuntimeGate, "BeginFinalExit"),
+                         (JobFatalBoundary, ".ctor"), (JobRoutingStore, "TryClaimOwnedAsync"),
+                         (JobClosedActivator, ".ctor"), (JobBoundInvocation, ".ctor"),
+                         (JobClosedActivator, "Bind"), (JobInvocationContract, "BindGeneration"),
+                     })
+            {
+                var raw = methodsByName[name]
+                    .Where(item => item.Target.DeclaringType.FullName == type && item.Target.Name == name)
+                    .Select(item => MethodId(item.Owner) + ":" + item.Instruction.OpCode.Name + ":" + MethodId(item.Target)).ToArray();
+                var indexed = census.MethodInstructions(name)
+                    .Where(item => item.Target.DeclaringType.FullName == type && item.Target.Name == name)
+                    .Select(item => MethodId(item.Owner) + ":" + item.Instruction.OpCode.Name + ":" + MethodId(item.Target)).ToArray();
+                indexed.Should().Equal(raw,
+                    "selected Hangfire capability diagnostics must retain independent raw order and multiplicity");
+            }
             var fieldsByName = fields.ToLookup(item => item.Target.Name, StringComparer.Ordinal);
             seenFieldNames.UnionWith(fieldsByName.Select(group => group.Key));
             foreach (var name in seenFieldNames)
@@ -167,6 +195,19 @@ public sealed partial class OutboxDispatchConventionTests
                     .OwnerId.Should().Be(MethodId(expected.Owner));
 
             var sites = CallSites(census).ToArray();
+            var ownedSites = OwnedCallSites(census).ToArray();
+            var ownerIds = new Dictionary<MethodDefinition, string>(ReferenceEqualityComparer.Instance);
+            ownedSites.Length.Should().Be(sites.Length, "typed call sites must retain every duplicate operand");
+            ownedSites.Zip(sites).All(pair => ReferenceEquals(pair.First.Target, pair.Second.Target)
+                    && OwnerId(pair.First.Owner) == pair.Second.Owner).Should().BeTrue(
+                "the independent legacy traversal must retain the same actual target references, owner identities and order after each mutation");
+            var legacyDetached = new SortedSet<string>(StringComparer.Ordinal);
+            var typedDetached = new SortedSet<string>(StringComparer.Ordinal);
+            RecordDetachedTargets(legacyDetached, sites);
+            RecordDetachedTargets(typedDetached, ownedSites);
+            typedDetached.Should().Equal(legacyDetached, "detached targets must preserve exact offender diagnostics");
+            foreach (var detached in ownedSites.Where(site => site.Target.Name == "DetachedIndexTarget"))
+                typedDetached.Should().Contain(OwnerId(detached.Owner) + ": detached production method target DetachedIndexTarget");
             foreach (var owner in census.Types.Values.Where(type => type.Namespace == "ReviewProbe").SelectMany(type => type.Methods))
             {
                 // These planted owners have either their ordinary body or one
@@ -181,6 +222,14 @@ public sealed partial class OutboxDispatchConventionTests
                 var ownerId = MethodId(owner);
                 sites.Where(site => site.Owner == ownerId).Select(site => site.Target)
                     .Should().Equal(expected, "ordinary and linked async owners retain every actual call operand in order");
+            }
+
+            string OwnerId(MethodDefinition owner)
+            {
+                if (ownerIds.TryGetValue(owner, out var identity)) return identity;
+                identity = MethodId(owner);
+                ownerIds.Add(owner, identity);
+                return identity;
             }
         }
     }

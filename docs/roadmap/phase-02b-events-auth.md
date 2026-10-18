@@ -8880,9 +8880,51 @@ report handoff; its inner proof lasts 659.906 seconds. Twenty-seven clean report
 pairs on disk do not repair the incomplete 26-row accepted receipt. Cleanup is
 confirmed; the run remains failed. Independent corrections address repeated
 architecture identity work and duplicate migration/API builds, preserving all
-cases, assertions, complete filters and existing deadlines. Their qualification
-and final exact-head hosted success remain pending. The earlier local receipts
-and completed review rounds retain their stated scopes.
+cases, assertions, complete filters and existing deadlines. Final exact-head
+hosted success remains pending. The earlier local receipts and completed review
+rounds retain their stated scopes.
+
+The demo correction is committed at `bc3691fb`: normal migration entry performs
+one fresh Release API build before all unchanged EF chains consume that build,
+and the demo launches the resulting API without a duplicate build. Nine executed
+Makefile controls cover freshness, chain discovery/order and sticky failures.
+The guarded frontend suite passes 1,625 cases with zero skips/todos; typecheck and
+lint pass. A fresh Git clone at that commit completes the actual CI-mode demo in
+658.115 seconds: setup 71.168 seconds, proof 575.766 seconds and confirmed cleanup
+10.686 seconds. All 27 accepted report pairs and nine screenshots are present;
+maximum normalized gzip JavaScript is 106,574 bytes, CLS is zero and all 27
+accessibility scores are one. Nine LCP medians remain advisory warnings. Owned
+processes/containers, private configuration and locks are removed. This local run
+overlaps Architecture CPU work and does not establish hosted budget fit or new
+manual accessibility evidence.
+
+The first census correction completes the unchanged non-Docker filter with 3,043
+passes and zero skips: 2,452 Unit, 410 Architecture, 177 HTTP and four Contract.
+Every case identity matches the preceding full run. Its closed 383-file C# receipt
+is `c367357d21cf39ae2d339b0d166651a5969891cb1d6c55a4c1a7bbaad22dc9e0`.
+Local duration is 1,565.200 seconds; this is not a passing twenty-minute CI claim.
+A subsequent measured-cost correction uses fresh per-evaluation instruction/name
+indexes while retaining exact identities, opcodes, duplicates, all original
+mutation controls and independent raw-traversal comparisons. It additionally
+requires the actual authority detector to reject an unrelated detached target.
+Plain fixture setup SQL uses the same real PostgreSQL through an owned nonpooled,
+non-enlisting connection; the roles script retains its actual `psql -f` path.
+The four added transport rows and 311 existing role/guard/migration/provider cases
+pass together (315 passes, zero skips, 73.715 seconds). They verify actual roles,
+ambient isolation, intact batches, rollback and observed physical-session exit.
+The short server-cancellation row does not prove expiration of the helper's own
+thirty-second deadline. Independent targeted source reviews find no blocking or
+major defect; they are correction checks, not another full Step 9 review round.
+The latest ten selected Architecture cases also pass with zero skips in 390.999
+seconds, including actual authority/application-source/runtime mutations, exact
+raw/index parity and the catalogue/Docker-trait controls. Their requested case
+identities match exactly. These and the 315 PostgreSQL cases close the unchanged
+385-file C# receipt
+`919b1ef74b5b6d456abd628ac6e664f5f61fbd9c6184fde9737234a219dd259c`.
+The Release build has zero warnings/errors; scoped whitespace formatting is clean.
+PostgreSQL qualification overlaps Architecture CPU work; these subset timings
+are not causal speedup measurements. Final hosted full-filter results remain
+pending; no complete current Docker run or seven-check success is inferred.
 
 ### Durable outbox dispatch
 

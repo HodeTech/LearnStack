@@ -74,16 +74,11 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var subject in subjects)
             if (!types.ContainsKey(subject)) offenders.Add("Missing live job admission subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
         if (offenders.Count != 0) return offenders;
         var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
-        // A fresh per-evaluation index avoids walking every production body
-        // for each exact capability while retaining all target occurrences.
-        var authorityInstructionsByTargetName = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference)
-            .Select(instruction => (Instruction: instruction, Target: (MethodReference)instruction.Operand))
-            .ToLookup(site => site.Target.Name, StringComparer.Ordinal);
+        var identities = new Dictionary<MethodReference, string>(ReferenceEqualityComparer.Instance);
         var claim = types[(DeliveryApplication, JobRoutingClaim)];
         var source = types[(DeliveryApplication, JobClaimSource)];
         var receipt = types[(DeliveryApplication, JobStartReceipt)];
@@ -101,7 +96,6 @@ public sealed partial class OutboxDispatchConventionTests
         if (!source.IsAbstract || source.IsSealed) offenders.Add("Routing claims require their closed abstract minting seam");
         CheckSet(offenders, "routing claim minting implementations", types.Values.Where(type => Derives(type, source, types)).Select(TypeId),
             [TypeId(types[(InfrastructureAssembly, JobRoutingStore)])]);
-        var receiptBodies = OwnedBodies(census).ToArray();
         foreach (var (fieldName, expected) in new[]
                  {
                      ("_run", new[] { JobOwner(offenders, types, DeliveryApplication, JobStartReceipt, "BindRun") + ":ldflda",
@@ -114,9 +108,9 @@ public sealed partial class OutboxDispatchConventionTests
             if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic || fields[0].FieldType.FullName != JobRunGate
                 || fields[0].IsInitOnly != (fieldName == "_admissionRun"))
                 offenders.Add("The receipt retains only its original run and one sticky binding: " + fieldName);
-            CheckSet(offenders, "exact receipt run binding field owners " + fieldName, receiptBodies.SelectMany(item => item.Body.Body.Instructions
-                .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, receipt) && field.Name == fieldName)
-                .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name)), expected);
+            CheckSet(offenders, "exact receipt run binding field owners " + fieldName, census.FieldInstructions(fieldName)
+                .Where(item => SameType(item.Target.DeclaringType, receipt) && item.Target.Name == fieldName)
+                .Select(item => Identity(item.Owner) + ":" + item.Instruction.OpCode.Name), expected);
         }
         var revalidation = AdmissionRevalidationMethod(census, offenders);
 
@@ -179,6 +173,14 @@ public sealed partial class OutboxDispatchConventionTests
         offenders.UnionWith(JobExternalActivationOffenders(census));
         return offenders;
 
+        string Identity(MethodReference method)
+        {
+            if (identities.TryGetValue(method, out var identity)) return identity;
+            identity = MethodId(method);
+            identities.Add(method, identity);
+            return identity;
+        }
+
         void Capability(string assembly, string typeName, string name, (string Assembly, string Type, string Method)[] owners,
             string[]? additionalOwners = null)
         {
@@ -186,9 +188,9 @@ public sealed partial class OutboxDispatchConventionTests
             if (target.Methods.Count(method => method.Name == name) != 1)
                 offenders.Add(typeName + "." + name + ": capability requires one exact declaration");
             CheckSet(offenders, "job capability " + typeName + "." + name,
-                sitesByTargetName[name].Where(site => SameType(site.Target.DeclaringType, target)).Select(site => site.Owner),
+                sitesByTargetName[name].Where(site => SameType(site.Target.DeclaringType, target)).Select(site => Identity(site.Owner)),
                 owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)).Concat(additionalOwners ?? []));
-            foreach (var site in authorityInstructionsByTargetName[name].Where(site => SameType(site.Target.DeclaringType, target)))
+            foreach (var site in census.MethodInstructions(name).Where(site => SameType(site.Target.DeclaringType, target)))
                 if (site.Instruction.OpCode != OpCodes.Call && site.Instruction.OpCode != OpCodes.Callvirt
                     && !(name == ".ctor" && site.Instruction.OpCode == OpCodes.Newobj))
                     offenders.Add(typeName + "." + name + ": authority cannot escape as a delegate");
@@ -207,7 +209,7 @@ public sealed partial class OutboxDispatchConventionTests
                 .Cast<MethodDefinition>().Distinct().ToArray();
             if (typed.Length != 1) offenders.Add("Delivery producer identity must come from its one actual subscription.HandlerType callback");
             CheckSet(offenders, "prepared delivery producer entry sites", sites.Where(site => site.Target.Name == "ExecutePreparedDeliveryAsync"
-                && site.Target.DeclaringType.FullName == DeliveryCoordinator).Select(site => site.Owner),
+                && site.Target.DeclaringType.FullName == DeliveryCoordinator).Select(site => Identity(site.Owner)),
                 new[] { MethodId(owner) }.Concat(typed.Select(MethodId)));
 
             MethodDefinition? Callback(MethodReference target)
@@ -279,9 +281,10 @@ public sealed partial class OutboxDispatchConventionTests
             var provider = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "InvokeExternalAsync");
             var recipient = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync");
             var owners = executor.Methods.Select(MethodId).ToHashSet(StringComparer.Ordinal);
-            var calls = sites.Where(site => owners.Contains(site.Owner)).ToArray();
+            var calls = sites.Where(site => site.Target.Name is "GetRequiredService" or "GetService" or "GetServices" or "Send"
+                && owners.Contains(Identity(site.Owner))).ToArray();
             var services = calls.Where(site => site.Target.Name is "GetRequiredService" or "GetService" or "GetServices")
-                .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-service"));
+                .Select(site => Identity(site.Owner) + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-service"));
             CheckSet(offenders, "framework executor service resolutions", services,
                 [owner + ":MediatR.ISender", owner + ":MediatR.ISender", owner + ":" + LifecycleUnit, owner + ":" + LifecycleUnit,
                  business + ":MediatR.ISender", business + ":" + LifecycleUnit,
@@ -293,7 +296,7 @@ public sealed partial class OutboxDispatchConventionTests
                  recipient + ":MediatR.ISender", recipient + ":" + LifecycleUnit, recipient + ":" + JobRecipientParticipant,
                  provider + ":LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry", provider + ":dynamic-service"]);
             var sends = calls.Where(site => site.Target.Name == "Send" && site.Target.DeclaringType.FullName == "MediatR.ISender")
-                .Select(site => site.Owner + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-request"));
+                .Select(site => Identity(site.Owner) + ":" + (site.Target is GenericInstanceMethod generic ? string.Join(",", generic.GenericArguments.Select(type => type.FullName)) : "dynamic-request"));
             CheckSet(offenders, "framework executor exact request dispatch", sends,
                 [owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.Application.Jobs.BackgroundJobEnvelope>",
                  owner + ":LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>",
@@ -307,7 +310,7 @@ public sealed partial class OutboxDispatchConventionTests
                 CheckSet(offenders, "framework request construction " + request,
                     sites.Where(site => site.Target.Name == ".ctor" && site.Target.DeclaringType.FullName == request
                         && site.Target.Parameters.Count is 1 or 3 && site.Target.Parameters[0].ParameterType.FullName == JobRoutingClaim)
-                        .Select(site => site.Owner), [owner]);
+                        .Select(site => Identity(site.Owner)), [owner]);
             foreach (var target in OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor
                          && item.Owner.Name is not ("ExecuteBusinessAsync" or "InvokeExternalAsync")).SelectMany(item => MethodOperands(item.Body)))
                 if (target.DeclaringType.FullName is "System.Activator" or "System.Reflection.MethodBase" or "System.Reflection.MethodInfo"
@@ -333,13 +336,12 @@ public sealed partial class OutboxDispatchConventionTests
             || !(declaring == handler || declaring.DeclaringType == handler))
         { offenders.Add("Admission's local revalidation cannot become another public or generic owner"); return null; }
         var method = methods[0];
-        var sites = CallSites(census).Where(site => site.Target.Name == method.Name && MethodId(site.Target) == MethodId(method)).ToArray();
-        CheckSet(offenders, "actual admission owner revalidation sites", sites.Select(site => site.Owner),
+        var sites = OwnedCallSites(census).Where(site => site.Target.Name == method.Name && MethodId(site.Target) == MethodId(method)).ToArray();
+        CheckSet(offenders, "actual admission owner revalidation sites", sites.Select(site => MethodId(site.Owner)),
             Enumerable.Repeat(MethodId(handle[0]), 19));
-        foreach (var instruction in bodies.SelectMany(item => item.Body.Body.Instructions)
-                     .Where(instruction => instruction.Operand is MethodReference target
-                         && target.Name == method.Name && MethodId(target) == MethodId(method)))
-            if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
+        foreach (var site in census.MethodInstructions(method.Name).Where(site => site.Target.Name == method.Name
+                     && MethodId(site.Target) == MethodId(method)))
+            if (site.Instruction.OpCode != OpCodes.Call && site.Instruction.OpCode != OpCodes.Callvirt)
                 offenders.Add("Admission revalidation cannot escape as a delegate");
         foreach (var (type, name) in new[] { (JobAdmission, "RequireStart"), (JobAdmission, "RequireContext"),
                      (AppJobOwner, "RequireOwnedMainUnit") })
@@ -429,13 +431,13 @@ public sealed partial class OutboxDispatchConventionTests
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64");
         var framework = RequireBoundaryMethod(offenders, invocation, "RunFrameworkAsync", BoundaryTask, MethodAttributes.Private,
             "LearnStack.SharedKernel.Jobs.BackgroundJobId", "System.Int64", "LearnStack.Infrastructure.Jobs.HangfireGenerationWork/Invocation");
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRoutingStore, "TryClaimOwnedAsync", reader,
+        CheckHangfireCapabilitySites(offenders, census, JobRoutingStore, "TryClaimOwnedAsync", reader,
             [publicReader + ":call", framework + ":callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, ".ctor", activatorConstructor,
+        CheckHangfireCapabilitySites(offenders, census, JobClosedActivator, ".ctor", activatorConstructor,
             [controlledCreate + ":newobj", bind + ":newobj"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobClosedActivator, "Bind", bind, [bindGeneration + ":callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobInvocationContract, "BindGeneration", bindGeneration,
+        CheckHangfireCapabilitySites(offenders, census, JobBoundInvocation, ".ctor", invocationConstructor, [begin + ":newobj"]);
+        CheckHangfireCapabilitySites(offenders, census, JobClosedActivator, "Bind", bind, [bindGeneration + ":callvirt"]);
+        CheckHangfireCapabilitySites(offenders, census, JobInvocationContract, "BindGeneration", bindGeneration,
             [HangfireGenerationConstructorId + ":call"]);
         var expected = new[] { MethodId(composition), create, controlledCreate, activatorConstructor, bind, begin, invocationConstructor, framework }
             .Concat(factory is null ? [] : new[] { MethodId(factory) })
@@ -623,7 +625,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var typeName in new[] { JobRoutingClaim, JobStartReceipt, JobOrigin })
             foreach (var getter in types[(DeliveryApplication, typeName)].Methods.Where(method => method.IsGetter && method.IsPublic))
                 AddCall(clean, "Observe" + typeName.Split('/').Last().Split('.').Last() + getter.Name, getter, OpCodes.Callvirt);
-        try { JobStepThreeOffenders(census).Should().BeEmpty("reading immutable identity does not install authority"); }
+        try { EvaluateDetector(census, JobStepThreeOffenders).Should().BeEmpty("reading immutable identity does not install authority"); }
         finally { application.Types.Remove(clean); }
     }
 }

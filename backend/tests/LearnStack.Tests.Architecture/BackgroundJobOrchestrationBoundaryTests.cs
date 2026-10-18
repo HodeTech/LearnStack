@@ -33,7 +33,7 @@ public sealed partial class OutboxDispatchConventionTests
         if (offenders.Count != 0) return offenders;
         if (!subjects[OrchestrationRequest].IsNestedPrivate || !subjects[OrchestrationRequest].IsSealed)
             offenders.Add("The concrete queued result owner remains nested private sealed");
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
         if (offenders.Count != 0) return offenders;
         var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
@@ -137,11 +137,11 @@ public sealed partial class OutboxDispatchConventionTests
         var renewalCallback = Callback(OrchestrationRenewal, "Schedule", OrchestrationStore, "RenewBatchAsync");
         if (renewalCallback is not null) ExactIds(OrchestrationStore, "RenewBatchAsync", [Identity(renewalCallback)]);
         var timerSites = sitesByTargetName["CreateTimer"].Where(site => site.Target.DeclaringType?.FullName == "System.TimeProvider"
-            && site.Owner.Contains(OrchestrationExecution, StringComparison.Ordinal)).ToArray();
-        CheckSet(offenders, "job lease timer construction", timerSites.Select(site => site.Owner),
+            && Identity(site.Owner).Contains(OrchestrationExecution, StringComparison.Ordinal)).ToArray();
+        CheckSet(offenders, "job lease timer construction", timerSites.Select(site => Identity(site.Owner)),
             [Id(OrchestrationExecution, "ObservePublicationAsync"), Id(OrchestrationExecution, "StartRecoveryLease")]);
         var wait = Method(OrchestrationRenewal, "ObserveWaitAsync");
-        if (wait is not null && sitesByTargetName["WaitAsync"].Count(site => site.Owner == Identity(wait)
+        if (wait is not null && sitesByTargetName["WaitAsync"].Count(site => Identity(site.Owner) == Identity(wait)
                 && ParametersMatch(site.Target, ["System.TimeSpan", "System.TimeProvider", "System.Threading.CancellationToken"])) != 1)
             offenders.Add("Renewal observation must retain its finite actual completion wait");
         RequireBound("TryBegin", 64);
@@ -300,7 +300,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (Method(type, name) is not { } method) return;
             CheckSet(offenders, "finite orchestration caller " + type + "::" + name,
                 sitesByTargetName[method.Name].Where(site => TargetsDeclaredType(site.Target, subjects[type])
-                    && Identity(site.Target) == Identity(method)).Select(site => site.Owner), expected);
+                    && Identity(site.Target) == Identity(method)).Select(site => Identity(site.Owner)), expected);
         }
         MethodDefinition? Callback(string type, string ownerName, string targetType, string targetName)
         {
@@ -317,7 +317,7 @@ public sealed partial class OutboxDispatchConventionTests
                 offenders.Add("The actual orchestration callback stays private: " + callback.FullName);
             CheckSet(offenders, "actual orchestration callback issuance " + callback.FullName,
                 sitesByTargetName[callback.Name].Where(site => HasAttachedDeclaringType(site.Target)
-                    && Identity(site.Target) == Identity(callback)).Select(site => site.Owner), [Identity(owner)]);
+                    && Identity(site.Target) == Identity(callback)).Select(site => Identity(site.Owner)), [Identity(owner)]);
             return callback;
         }
         void Field(string type, string name, bool readOnly, string[] owners) => FieldIds(type, name, readOnly,

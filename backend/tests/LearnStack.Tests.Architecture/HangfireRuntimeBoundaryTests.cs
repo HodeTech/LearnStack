@@ -31,7 +31,7 @@ public sealed partial class OutboxDispatchConventionTests
         // This is the nonempty structural portion of the Registered rule. It does
         // not establish runtime state dominance, prevalidation or child qualification.
         using var census = ProductionCensus.Read();
-        HangfireRuntimeOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, HangfireRuntimeOffenders).Should().BeEmpty(
             "Fix: retain the closed frozen fatal capability, sole string sink and explicitly owned public Core constructor; "
             + "qualify runtime ordering separately under ADR-0059/0060");
     }
@@ -78,19 +78,19 @@ public sealed partial class OutboxDispatchConventionTests
 
         // The named registration alone creates the process gate; the closed pool
         // owner alone constructs generations after the facade preallocates owners.
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, ".ctor", gateConstructor,
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, ".ctor", gateConstructor,
             [InfrastructureAssembly + ":" + JobRuntimeGate + " " + JobRuntimeRegistration + "::CreateGate(System.IServiceProvider):newobj"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobGeneration, ".ctor", generationConstructor,
+        CheckHangfireCapabilitySites(offenders, census, JobGeneration, ".ctor", generationConstructor,
             [InfrastructureAssembly + ":System.Threading.Tasks.Task LearnStack.Infrastructure.Jobs.HangfirePoolOwner::SuperviseAsync():newobj"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "ForPool", forPool, [generationConstructor + ":callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobFatalBoundary, "Terminate", poolFatal,
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "ForPool", forPool, [generationConstructor + ":callvirt"]);
+        CheckHangfireCapabilitySites(offenders, census, JobFatalBoundary, "Terminate", poolFatal,
             [construct + ":callvirt", unwind + ":callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "Terminate", fatal, [poolFatal + ":callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "FailFast", sink, [fatal + ":call", fatal + ":call"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "EnsureFinalExitRegistered", registerExit,
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "Terminate", fatal, [poolFatal + ":callvirt"]);
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "FailFast", sink, [fatal + ":call", fatal + ":call"]);
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "EnsureFinalExitRegistered", registerExit,
             [generationConstructor + ":callvirt", InfrastructureAssembly + ":System.Void " + JobRuntime + "/BootstrapInvocation::Execute():callvirt"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "OnFinalExit", onExit, [gateConstructor + ":ldftn"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, "BeginFinalExit", beginExit, [onExit + ":call"]);
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "OnFinalExit", onExit, [gateConstructor + ":ldftn"]);
+        CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, "BeginFinalExit", beginExit, [onExit + ":call"]);
 
         var poolFactories = gate.Methods.Where(method => method.IsPrivate && !method.IsStatic
             && !method.HasGenericParameters && method.ReturnType.FullName == JobFatalBoundary
@@ -100,9 +100,9 @@ public sealed partial class OutboxDispatchConventionTests
         if (poolFactories.Length != 1) offenders.Add("The preallocated pool boundary requires exactly its closed constructor callback");
         var poolFactory = poolFactories.Length == 1 ? MethodId(poolFactories[0]) : "missing:pool constructor callback";
         if (poolFactories.Length == 1)
-            CheckHangfireCapabilitySites(offenders, ownedBodies, JobRuntimeGate, poolFactories[0].Name, poolFactory,
+            CheckHangfireCapabilitySites(offenders, census, JobRuntimeGate, poolFactories[0].Name, poolFactory,
                 [gateConstructor + ":ldftn"]);
-        CheckHangfireCapabilitySites(offenders, ownedBodies, JobFatalBoundary, ".ctor", boundaryConstructor, [poolFactory + ":newobj"]);
+        CheckHangfireCapabilitySites(offenders, census, JobFatalBoundary, ".ctor", boundaryConstructor, [poolFactory + ":newobj"]);
 
         CheckSet(offenders, "closed fatal capability consumers", ownedBodies
             .Where(item => item.Owner.DeclaringType.FullName != JobFatalBoundary && ReferencesCapability(item.Body, JobFatalBoundary))
@@ -195,13 +195,12 @@ public sealed partial class OutboxDispatchConventionTests
     }
 
     private static void CheckHangfireCapabilitySites(SortedSet<string> offenders,
-        IReadOnlyList<(MethodDefinition Body, MethodDefinition Owner)> ownedBodies,
-        string type, string name, string target, string[] callers)
+        ProductionCensus census, string type, string name, string target, string[] callers)
     {
-        CheckSet(offenders, "exact Hangfire capability callers " + type + "." + name, ownedBodies
-            .SelectMany(item => item.Body.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
-                    && method.DeclaringType.FullName == type && method.Name == name)
-                .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name + ":" + MethodId((MethodReference)instruction.Operand))),
+        CheckSet(offenders, "exact Hangfire capability callers " + type + "." + name,
+            census.MethodInstructions(name)
+                .Where(item => item.Target.DeclaringType.FullName == type && item.Target.Name == name)
+                .Select(item => MethodId(item.Owner) + ":" + item.Instruction.OpCode.Name + ":" + MethodId(item.Target)),
             callers.Select(caller => caller + ":" + target));
     }
 
@@ -213,7 +212,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Hangfire_runtime_census_rejects_fatal_and_constructor_escapes()
         {
             using var census = ProductionCensus.Read();
-            HangfireRuntimeOffenders(census).Should().BeEmpty("Fix: dirty controls require the actual nonempty clean runtime subjects");
+            EvaluateDetector(census, HangfireRuntimeOffenders).Should().BeEmpty("Fix: dirty controls require the actual nonempty clean runtime subjects");
             var types = census.Types;
             var gate = types[(InfrastructureAssembly, JobRuntimeGate)];
             var boundary = types[(InfrastructureAssembly, JobFatalBoundary)];
@@ -314,7 +313,7 @@ public sealed partial class OutboxDispatchConventionTests
                 }, HangfireRuntimeOffenders);
             var clean = AddProbe(application, "CleanRuntimeStateObserver");
             AddCall(clean, "Observe", gate.Methods.Single(method => method.Name == "get_State"), OpCodes.Callvirt);
-            try { HangfireRuntimeOffenders(census).Should().BeEmpty("read-only process state observation grants no fatal capability"); }
+            try { EvaluateDetector(census, HangfireRuntimeOffenders).Should().BeEmpty("read-only process state observation grants no fatal capability"); }
             finally { application.Types.Remove(clean); }
         }
 

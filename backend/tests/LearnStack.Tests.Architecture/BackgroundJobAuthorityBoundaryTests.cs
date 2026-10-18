@@ -18,9 +18,9 @@ public sealed partial class OutboxDispatchConventionTests
     public void BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority()
     {
         using var census = ProductionCensus.Read();
-        JobAuthorityOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, JobAuthorityOffenders).Should().BeEmpty(
             "Fix: retain the independent sticky admission, exact pipeline gate and guards at every alternate/privileged entry");
-        JobStepThreeOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, JobStepThreeOffenders).Should().BeEmpty(
             "Fix: retain the exact producer, opaque routing capability and acknowledged app-role start receipt path");
         CheckJobFrameworkMetadata();
     }
@@ -41,6 +41,29 @@ public sealed partial class OutboxDispatchConventionTests
                     AddCallProbe(application, "AdditionalJobActivator", enter, opcode), JobAuthorityOffenders);
             AssertMutation(census, "an async admission activator", () =>
                 AddAsyncCallProbe(application, "AsyncJobActivator", enter), JobAuthorityOffenders);
+            string? expectedDetached = null;
+            AssertMutation(census, "an unrelated detached production method target", () =>
+            {
+                var probe = AddProbe(application, "DetachedAuthorityTarget");
+                var detached = new MethodDefinition("UnrelatedDetachedAuthorityTarget",
+                    MethodAttributes.Private | MethodAttributes.Static, application.TypeSystem.Void);
+                probe.Methods.Add(detached);
+                var caller = new MethodDefinition("Run",
+                    MethodAttributes.Public | MethodAttributes.Static, application.TypeSystem.Void);
+                caller.Body.Instructions.Add(Instruction.Create(OpCodes.Call, detached));
+                caller.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                probe.Methods.Add(caller);
+                expectedDetached = MethodId(caller) + ": detached production method target UnrelatedDetachedAuthorityTarget";
+                probe.Methods.Remove(detached);
+                return () => application.Types.Remove(probe);
+            }, current =>
+            {
+                var found = JobAuthorityOffenders(current);
+                if (current.Types.ContainsKey((DeliveryApplication, "ReviewProbe.DetachedAuthorityTarget")))
+                    found.Should().Contain(expectedDetached!,
+                        "the unrelated raw detached target must retain its exact owner-qualified diagnostic");
+                return found;
+            });
             var guards = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == JobAdmission
                     && target.Name is "TryEnterRequest" or "RefusePrivilegedEntry" or "RequireContext" or "ModeFor").ToArray();
@@ -73,15 +96,26 @@ public sealed partial class OutboxDispatchConventionTests
             || snapshot.Fields.Any(field => field.FieldType.FullName is "LearnStack.SharedKernel.Jobs.IBackgroundJobRequestCatalog"
                 or "LearnStack.SharedKernel.Audit.IAuditCatalog"))
             offenders.Add("Admission must retain a sealed immutable snapshot without mutable catalogue authority");
-        var sites = CallSites(census).Where(site => site.Target.DeclaringType.FullName == JobAdmission).ToArray();
-        CheckSet(offenders, "ordinary job admission activators", sites.Where(site => site.Target.Name == "Enter").Select(site => site.Owner),
+        var identities = new Dictionary<MethodDefinition, string>(ReferenceEqualityComparer.Instance);
+        var allSites = OwnedCallSites(census).ToArray();
+        var detached = new SortedSet<string>(StringComparer.Ordinal);
+        RecordDetachedTargets(detached, allSites);
+        if (detached.Count != 0)
+        {
+            offenders.UnionWith(detached);
+            return offenders;
+        }
+        var sites = allSites.Where(site =>
+            (site.Target.Name is "Enter" or "TryEnterRequest" or "ModeFor" or "RequireContext" or "RefusePrivilegedEntry")
+            && site.Target.DeclaringType.FullName == JobAdmission).ToArray();
+        CheckSet(offenders, "ordinary job admission activators", sites.Where(site => site.Target.Name == "Enter").Select(site => Identity(site.Owner)),
             [Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync")]);
-        CheckSet(offenders, "job request gate", sites.Where(site => site.Target.Name == "TryEnterRequest").Select(site => site.Owner),
+        CheckSet(offenders, "job request gate", sites.Where(site => site.Target.Name == "TryEnterRequest").Select(site => Identity(site.Owner)),
             [Owner(DeliveryApplication, JobTenantBehavior, "Handle")]);
-        CheckSet(offenders, "closed framework transaction mode", sites.Where(site => site.Target.Name == "ModeFor").Select(site => site.Owner),
+        CheckSet(offenders, "closed framework transaction mode", sites.Where(site => site.Target.Name == "ModeFor").Select(site => Identity(site.Owner)),
             [Owner(DeliveryApplication, JobTransactionBehavior, "Handle")]);
         var revalidation = AdmissionRevalidationMethod(census, offenders);
-        CheckSet(offenders, "job context owner gates", sites.Where(site => site.Target.Name == "RequireContext").Select(site => site.Owner),
+        CheckSet(offenders, "job context owner gates", sites.Where(site => site.Target.Name == "RequireContext").Select(site => Identity(site.Owner)),
             [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"), Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
@@ -92,7 +126,7 @@ public sealed partial class OutboxDispatchConventionTests
              Owner(InfrastructureAssembly, JobExecutorType, "WriteExternalCheckpointAsync"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteRecipientAsync"),
              revalidation is null ? "missing exact admission revalidation" : MethodId(revalidation)]);
-        CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => site.Owner),
+        CheckSet(offenders, "privileged/alternate entry guards", sites.Where(site => site.Target.Name == "RefusePrivilegedEntry").Select(site => Identity(site.Owner)),
             [Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnection"), Owner(InfrastructureAssembly, PrivilegedSource, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, Store, "OpenConnectionAsync"), Owner(InfrastructureAssembly, DeliveryStore, "OpenConnectionAsync"),
              Owner(InfrastructureAssembly, BoundaryPlatform, "EnterAsync"), Owner(InfrastructureAssembly, BoundaryTransport, "PublishAsync"),
@@ -148,6 +182,14 @@ public sealed partial class OutboxDispatchConventionTests
                  "System.Nullable`1<LearnStack.Infrastructure.Jobs.BackgroundJobBridgeDeferral>", BoundaryCancellation),
              Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync")]);
         return offenders;
+
+        string Identity(MethodDefinition method)
+        {
+            if (identities.TryGetValue(method, out var identity)) return identity;
+            identity = MethodId(method);
+            identities.Add(method, identity);
+            return identity;
+        }
 
         string Owner(string assembly, string typeName, string name)
         {

@@ -164,14 +164,43 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </remarks>
     public async Task ExecuteAsSuperuserAsync(string sql)
     {
-        var result = await _container.ExecAsync(
-            ["psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", Database, "-c", sql]);
-
-        if (result.ExitCode != 0)
+        const int timeoutSeconds = 30;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
         {
-            throw new InvalidOperationException(
-                $"Superuser statement failed (exit {result.ExitCode}): {sql}{Environment.NewLine}"
-                + $"{result.Stderr}{Environment.NewLine}{result.Stdout}");
+            // This helper retains the container superuser privately. Every call
+            // owns a physical connection, outside any caller's ambient transaction.
+            Pooling = false,
+            Enlist = false,
+            Timeout = timeoutSeconds,
+            CommandTimeout = timeoutSeconds,
+            CancellationTimeout = 2000,
+        }.ConnectionString;
+        try
+        {
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(deadline.Token);
+            // Keep each caller's SQL intact, including its existing statement batch.
+            // Do not start a transaction: CREATE/DROP DATABASE must remain legal.
+            await using var command = new NpgsqlCommand(sql, connection)
+            {
+                CommandTimeout = timeoutSeconds,
+            };
+            await command.ExecuteNonQueryAsync(deadline.Token);
+        }
+        catch (PostgresException exception)
+        {
+            // Provider-role setup contains a generated password. Never include
+            // SQL, connection strings or provider error text in the test receipt.
+            throw new InvalidOperationException($"Superuser statement failed (SQLSTATE {exception.SqlState}).");
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Superuser statement exceeded its execution budget.");
+        }
+        catch (NpgsqlException)
+        {
+            throw new InvalidOperationException("Superuser statement connection failed.");
         }
     }
 

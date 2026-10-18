@@ -69,6 +69,9 @@ public sealed partial class OutboxDispatchConventionTests
         var sourceInstructions = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
             .Where(instruction => instruction.Operand is MethodReference).ToArray();
         RecordDetachedTargets(offenders, sites);
+        var sitesByTargetName = sites.ToLookup(site => site.Target.Name, StringComparer.Ordinal);
+        var sourceInstructionsByTargetName = sourceInstructions.ToLookup(
+            instruction => ((MethodReference)instruction.Operand).Name, StringComparer.Ordinal);
 
         // Original admission owns its source across sequential executor scopes.
         // Fresh recovery and terminal cleanup own distinct sources before their first app read.
@@ -143,11 +146,11 @@ public sealed partial class OutboxDispatchConventionTests
                 if (callers.Length != 1) { offenders.Add("Missing or overloaded job source caller: " + typeName + "::" + methodName); continue; }
                 allowed.Add(MethodId(callers[0]));
             }
-            var observed = sites.Where(site => TargetsDeclaredType(site.Target, subject) && site.Target.Name == name)
+            var observed = sitesByTargetName[name].Where(site => TargetsDeclaredType(site.Target, subject) && site.Target.Name == name)
                 .Select(site => site.Owner).Order(StringComparer.Ordinal).ToArray();
             if (!observed.SequenceEqual(allowed.Order(StringComparer.Ordinal)))
                 offenders.Add("Unexpected job source caller census: " + subject.FullName + "::" + name);
-            foreach (var instruction in sourceInstructions
+            foreach (var instruction in sourceInstructionsByTargetName[name]
                          .Where(instruction => instruction.Operand is MethodReference target
                              && TargetsDeclaredType(target, subject) && target.Name == name))
                 if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt

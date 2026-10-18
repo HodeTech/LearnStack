@@ -43,7 +43,7 @@ public sealed partial class OutboxDispatchConventionTests
              JobRunGate + "::TryIssueExternalExecute", JobRunGate + "::TryIssueExternalReconcile", JobExternalObservation + "::Capture"]);
         if (offenders.Count != 0) return offenders;
         var bodies = OwnedBodies(census).ToArray();
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         var provider = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "InvokeExternalAsync");
         var read = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "ReadExternalStateCoreAsync");
         var write = JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "WriteExternalCheckpointAsync");
@@ -73,12 +73,12 @@ public sealed partial class OutboxDispatchConventionTests
             // Reflection is the only issuance route; direct helper/delegate calls
             // cannot borrow the bridge's generic constraints or port privileges.
             CheckSet(offenders, "provider bridge direct callers " + name,
-                sites.Where(site => SameType(site.Target.DeclaringType, executor) && site.Target.Name == name).Select(site => site.Owner), []);
+                sites.Where(site => SameType(site.Target.DeclaringType, executor) && site.Target.Name == name).Select(site => MethodId(site.Owner)), []);
             CheckSet(offenders, "provider issuance " + gate,
-                sites.Where(site => site.Target.DeclaringType.FullName == JobRunGate && site.Target.Name == gate).Select(site => site.Owner), [MethodId(method)]);
+                sites.Where(site => site.Target.DeclaringType.FullName == JobRunGate && site.Target.Name == gate).Select(site => MethodId(site.Owner)), [MethodId(method)]);
             CheckSet(offenders, "typed provider call " + portMethod,
                 sites.Where(site => site.Target.DeclaringType.GetElementType().FullName == JobExternalPort && site.Target.Name == portMethod)
-                    .Select(site => site.Owner), [MethodId(method)]);
+                    .Select(site => MethodId(site.Owner)), [MethodId(method)]);
             var instructions = bodies.Where(item => item.Owner == method).SelectMany(item => item.Body.Body.Instructions).ToArray();
             var issued = Array.FindIndex(instructions, instruction => instruction.Operand is MethodReference target
                 && target.DeclaringType.FullName == JobRunGate && target.Name == gate);
@@ -103,9 +103,9 @@ public sealed partial class OutboxDispatchConventionTests
             || externalEntries[0].ReturnType.FullName != "System.IDisposable")
             offenders.Add("External provider denial entry remains one closed static scope factory");
         CheckSet(offenders, "actual provider report capture", sites.Where(site => site.Target.DeclaringType.FullName == JobExternalObservation
-                && site.Target.Name == "Capture").Select(site => site.Owner), bridgeIds);
+                && site.Target.Name == "Capture").Select(site => MethodId(site.Owner)), bridgeIds);
         CheckSet(offenders, "provider denial scope entry", sites.Where(site => site.Target.DeclaringType.FullName == JobAdmission
-            && site.Target.Name == "EnterExternal").Select(site => site.Owner), [provider]);
+            && site.Target.Name == "EnterExternal").Select(site => MethodId(site.Owner)), [provider]);
 
         var entries = admission.Methods.Where(method => method.Name == "EnterExternalCheckpoint").ToArray();
         if (entries.Length != 4) offenders.Add("External app entry requires exactly three sealed request overloads and one private owner implementation");
@@ -119,7 +119,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (!entry.IsPublic || entry.IsStatic || entry.HasGenericParameters || entry.ReturnType.FullName != "System.IDisposable")
                 offenders.Add("External request entry is a closed instance capability: " + request);
             CheckSet(offenders, "external request entry callers " + request, sites.Where(site => SameType(site.Target.DeclaringType, admission)
-                && site.Target.Name == entry.Name && ParametersMatch(site.Target, [request, LifecycleUnit])).Select(site => site.Owner), [owner]);
+                && site.Target.Name == entry.Name && ParametersMatch(site.Target, [request, LifecycleUnit])).Select(site => MethodId(site.Owner)), [owner]);
         }
         var cores = entries.Where(method => ParametersMatch(method, [JobCheckpointOwner, LifecycleUnit])).ToArray();
         if (cores.Length != 1 || !cores[0].IsPrivate || cores[0].IsStatic || cores[0].HasGenericParameters
@@ -127,9 +127,11 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("External checkpoint owner entry remains one private exact implementation");
         CheckSet(offenders, "private external checkpoint entry callers", sites.Where(site => SameType(site.Target.DeclaringType, admission)
             && site.Target.Name == "EnterExternalCheckpoint" && ParametersMatch(site.Target, [JobCheckpointOwner, LifecycleUnit]))
-            .Select(site => site.Owner), wrapperIds);
+            .Select(site => MethodId(site.Owner)), wrapperIds);
 
-        var providerBodies = bodies.Where(item => MethodId(item.Owner) == provider).SelectMany(item => item.Body.Body.Instructions).ToArray();
+        var providerBodies = bodies.Where(item => item.Owner.Name == "InvokeExternalAsync"
+                && item.Owner.DeclaringType.FullName == JobExecutorType && MethodId(item.Owner) == provider)
+            .SelectMany(item => item.Body.Body.Instructions).ToArray();
         CheckSet(offenders, "closed provider reflected bridge names", providerBodies.Where(instruction => instruction.OpCode == OpCodes.Ldstr
             && instruction.Operand is string text && text.StartsWith("CallExternal", StringComparison.Ordinal)).Select(instruction => (string)instruction.Operand),
             ["CallExternalExecuteAsync", "CallExternalReconcileAsync"]);

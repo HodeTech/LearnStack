@@ -5388,7 +5388,8 @@ and fixture definitions make the implemented controls non-vacuous.
 
 - **Asserts:** immutable sticky admission positively enumerates ordinary/framework
   requests and refuses Platform/provisioning/direct privileged/admin/bypass paths
-  before work, independently of accessor mutation, new DI scopes or permissive gates.
+  before work, independently of accessor mutation, new DI scopes or permissive gates;
+  detached production method targets cannot hide caller authority.
 - **Type:** request/capability census and actual sender/direct-entry/warm-source
   controls.
   **Kind:** structural + behavioural.

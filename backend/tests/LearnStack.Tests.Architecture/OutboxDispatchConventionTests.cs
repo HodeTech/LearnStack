@@ -443,6 +443,45 @@ public sealed partial class OutboxDispatchConventionTests
     private static IEnumerable<(string Owner, MethodReference Target)> CallSites(ProductionCensus census) =>
         census.ReadCallSites(EnumerateCallSites(census));
 
+    private readonly record struct OwnedCallSite(MethodDefinition Owner, MethodReference Target);
+
+    // Retain actual owners until a detector selects a target. Each invocation
+    // traverses the current graph, including every duplicate method operand.
+    private static IEnumerable<OwnedCallSite> OwnedCallSites(ProductionCensus census) =>
+        census.ReadOwnedCallSites(EnumerateOwnedCallSites(census));
+
+    private static IEnumerable<OwnedCallSite> EnumerateOwnedCallSites(ProductionCensus census)
+    {
+        var types = census.Types;
+        var asyncOwners = new Dictionary<(string Assembly, string Type), MethodDefinition>();
+        foreach (var method in types.Values.SelectMany(type => type.Methods))
+            foreach (var attribute in method.CustomAttributes.Where(attribute =>
+                         attribute.AttributeType.FullName is "System.Runtime.CompilerServices.AsyncStateMachineAttribute"
+                             or "System.Runtime.CompilerServices.IteratorStateMachineAttribute"
+                             or "System.Runtime.CompilerServices.AsyncIteratorStateMachineAttribute"))
+            {
+                if (attribute.ConstructorArguments.FirstOrDefault().Value is TypeReference generated)
+                    asyncOwners[Key(generated)] = method;
+            }
+        foreach (var method in types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody))
+        {
+            MethodDefinition? owner = null;
+            foreach (var instruction in method.Body.Instructions)
+            {
+                if (instruction.Operand is not MethodReference target) continue;
+                owner ??= method.Name == "MoveNext" && asyncOwners.TryGetValue(Key(method.DeclaringType), out var original)
+                    ? original : method;
+                yield return new(owner, target);
+            }
+        }
+    }
+
+    private static void RecordDetachedTargets(SortedSet<string> offenders, IEnumerable<OwnedCallSite> sites)
+    {
+        foreach (var site in sites.Where(site => !HasAttachedDeclaringType(site.Target)))
+            offenders.Add(MethodId(site.Owner) + ": detached production method target " + site.Target.Name);
+    }
+
     private static IEnumerable<(string Owner, MethodReference Target)> EnumerateCallSites(ProductionCensus census)
     {
         // Attribute mapping is deliberate: a nested type merely named
@@ -558,6 +597,8 @@ public sealed partial class OutboxDispatchConventionTests
             ReferenceEquals(current.Types, current.Types).Should().BeTrue("one detector call reuses its type index");
             var sites = CallSites(current);
             ReferenceEquals(sites, CallSites(current)).Should().BeTrue("one detector call reuses its read-only call-site snapshot");
+            var typedSites = OwnedCallSites(current);
+            ReferenceEquals(typedSites, OwnedCallSites(current)).Should().BeTrue("one detector call reuses its read-only typed owner snapshot");
             var bodies = OwnedBodies(current);
             ReferenceEquals(bodies, OwnedBodies(current)).Should().BeTrue("one detector call reuses its read-only body ownership snapshot");
             var present = current.Types.ContainsKey(probeKey);
@@ -565,24 +606,29 @@ public sealed partial class OutboxDispatchConventionTests
                 "attribute-linked body ownership must reflect each baseline, mutation and restoration");
             sites.Any(site => site.Owner == owner && MethodId(site.Target) == MethodId(target)).Should().Be(present,
                 "the type index and attribute-linked async calls must both reflect each baseline, mutation and restoration");
+            typedSites.Any(site => MethodId(site.Owner) == owner && MethodId(site.Target) == MethodId(target)).Should().Be(present,
+                "typed call sites must reflect the same clean, dirty and restored actual graph");
             var offenders = new SortedSet<string>(StringComparer.Ordinal);
             if (present) offenders.Add("The detector scan contains its planted async subject.");
             return offenders;
         });
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("the final scan must release its cache");
         ReferenceEquals(OwnedBodies(census), OwnedBodies(census)).Should().BeFalse("the final scan must release body ownership");
+        ReferenceEquals(OwnedCallSites(census), OwnedCallSites(census)).Should().BeFalse("unscoped typed call sites remain fresh");
         var failure = new InvalidOperationException("synthetic detector failure");
         var failingScan = () => EvaluateDetector(census, current =>
         {
             _ = current.Types;
             _ = OwnedBodies(current);
             _ = CallSites(current);
+            _ = OwnedCallSites(current);
             _ = current.MethodInstructions(target.Name);
             _ = current.FieldInstructions("_missing");
             throw failure;
         });
         failingScan.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("a failed detector must also release its scan");
+        ReferenceEquals(OwnedCallSites(census), OwnedCallSites(census)).Should().BeFalse("a failed detector must release typed call sites");
     }
 
     private static Action ChangeAttributes<T>(Func<T> read, Action<T> write, T replacement)
@@ -658,6 +704,9 @@ public sealed partial class OutboxDispatchConventionTests
         public IEnumerable<(string Owner, MethodReference Target)> ReadCallSites(IEnumerable<(string Owner, MethodReference Target)> sites) =>
             _scan is { } scan ? scan.CallSites ??= Array.AsReadOnly(sites.ToArray()) : sites;
 
+        public IEnumerable<OwnedCallSite> ReadOwnedCallSites(IEnumerable<OwnedCallSite> sites) =>
+            _scan is { } scan ? scan.OwnedCallSites ??= Array.AsReadOnly(sites.ToArray()) : sites;
+
         public IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> ReadOwnedBodies(IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
             _scan is { } scan ? scan.OwnedBodies ??= Array.AsReadOnly(bodies.ToArray()) : bodies;
 
@@ -694,6 +743,7 @@ public sealed partial class OutboxDispatchConventionTests
         {
             internal Dictionary<(string Assembly, string Type), TypeDefinition>? Types { get; set; }
             internal IReadOnlyList<(string Owner, MethodReference Target)>? CallSites { get; set; }
+            internal IReadOnlyList<OwnedCallSite>? OwnedCallSites { get; set; }
             internal IReadOnlyList<(MethodDefinition Body, MethodDefinition Owner)>? OwnedBodies { get; set; }
             internal DetectorInstructionIndex? Instructions { get; set; }
 
@@ -702,6 +752,7 @@ public sealed partial class OutboxDispatchConventionTests
                 if (ReferenceEquals(census._scan, this)) census._scan = null;
                 Types = null;
                 CallSites = null;
+                OwnedCallSites = null;
                 OwnedBodies = null;
                 Instructions = null;
             }
