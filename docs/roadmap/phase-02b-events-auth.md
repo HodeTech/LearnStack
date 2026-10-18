@@ -46,6 +46,9 @@ recurrence definitions remain empty.
 2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 authorizes the bounded native provisioning/partition follow-up; implementation
 and exact-head hosted qualification remain in progress.
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) proposes a bounded
+CI topology after actual hosted backend/ordinary budget failure; no dependent
+shard implementation is authorized before maintainer approval.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -9231,6 +9234,57 @@ in the refusal. Paths, contents and provider text are not exported. All 26
 launcher controls pass; an independent focused review confirms that nonempty
 or malformed candidates still refuse. Actual hosted requalification remains
 pending; this diagnostic correction supplies no passing native proof.
+
+###### First split-run result and bounded topology proposal
+
+Run 39140874785 completes with failure on source `6daa9a1c`, merge checkout
+`853678c01c2c877e8bf5d7f81f559fc86ffbc9c4`. Backend reaches its twenty-minute
+ceiling: complete TRXs contain 2,452 Unit, 177 HTTP Integration and four Contract
+passes with zero skips; Architecture has no final TRX. Its 152 recognized passing
+console rows do not qualify the remaining population or a complete run.
+
+Ordinary Docker discovers all 2,401 cases and records 503 distinct passing case
+IDs before `deadline_exhausted`; 1,898 cases remain censored. There is no final
+Integration TRX. Failure cleanup positively joins its owned workload in the
+recorded 0.475-second path, with forced cleanup and no successful natural Docker
+disposal claim. The aggregate correctly fails. This is measured failure of the
+current arrangement, not permission to change timeouts or omit cases.
+
+Frontend passes all 1,625 cases and its ingress proof; OpenAPI and secret scan
+pass. Demo's verified artifact contains 27 JSON/HTML report pairs, nine screenshots,
+accessibility 1 throughout, CLS 0 and maximum normalized gzip JavaScript 106,553
+bytes. Its setup/proof intervals are 182.954/658.518 seconds; 10.647-second owned
+cleanup passes. These successes remain specific to this source.
+
+Corrections `14584012` and `37ff4c59` are pushed normally after that run finishes.
+[Run 39142456800](https://github.com/HodeTech/LearnStack/actions/runs/39142456800)
+requalifies the separate meta/native corrections. Meta, frontend, OpenAPI and
+secret scan pass. Native still refuses before provisioning/test launch; its new
+closed reason is `unexpected_crash_artifact_docker_dump`. The actual matching
+file/format remains unknown. No candidate is excluded, no host setting is
+changed and no native hosted pass is claimed.
+
+ADR-0062's reopen condition is met. Proposed
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
+backend-base VM retaining non-test gates and cheap non-Docker suites, four
+Architecture method shards, ten ordinary Docker method shards and the unchanged
+native VM. The two backend required names become complete fail-closed aggregates;
+all seven names, strict protection and twenty-minute execution ceilings remain.
+Actual Release discovery and exact method-filter rediscovery must prove every
+theory row has exactly one owner, with independent aggregate recomputation.
+Timing estimates are advisory; the proposed counts are not a hosted fit proof.
+Repeated restore/build across fifteen base/Architecture/ordinary VMs replaces
+two such VMs; the runner and queue cost is explicit. No shard code is implemented
+before maintainer acceptance. The proposal names three implementation steps,
+each requiring commit and two fresh independent review rounds.
+
+Two independent proposal reviews (GPT-6-sol xhigh and GPT-6.1-sol xhigh)
+approve the revised ADR and index without remaining findings. They independently
+check retained failure artifacts, the pinned method-filter contract, exact
+bounded supersession, cross-VM population agreement, aggregate-side independent
+assignment recomputation, backend-base non-test gates and the sixteen-VM cost.
+Actual selection, ownership, reserves and fit remain pending implementation and
+hosted qualification. This is proposal review, not maintainer acceptance.
 
 ### Durable outbox dispatch
 
