@@ -32,7 +32,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission()
     {
         using var census = ProductionCensus.Read();
-        RecipientOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, RecipientOffenders).Should().BeEmpty(
             "Fix: keep recipient authority on the exact actual-row mint, framework owner and reciprocal receipt path");
     }
 
@@ -193,7 +193,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Background_job_recipient_census_detects_extra_authority_and_missing_real_fences()
         {
             using var census = ProductionCensus.Read();
-            RecipientOffenders(census).Should().BeEmpty("dirty controls require the actual production path to be clean first");
+            EvaluateDetector(census, RecipientOffenders).Should().BeEmpty("dirty controls require the actual production path to be clean first");
             var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
             var capabilities = RecipientCapabilityMethods(census).ToArray();
             capabilities.Should().NotBeEmpty();
@@ -272,7 +272,7 @@ public sealed partial class OutboxDispatchConventionTests
             var clean = AddProbe(application, "CleanRecipientObservation");
             foreach (var getter in claim.Methods.Where(method => method.IsGetter && method.IsPublic))
                 AddCall(clean, "Observe" + getter.Name, getter, OpCodes.Callvirt);
-            try { RecipientOffenders(census).Should().BeEmpty("observing immutable routing facts grants no authority"); }
+            try { EvaluateDetector(census, RecipientOffenders).Should().BeEmpty("observing immutable routing facts grants no authority"); }
             finally { application.Types.Remove(clean); }
         }
 
@@ -320,7 +320,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var subject in RecipientSubjects())
             if (!types.ContainsKey(subject)) offenders.Add("Missing recipient authority subject: " + subject.Type);
         if (offenders.Count != 0) return offenders;
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
         if (offenders.Count != 0) return offenders;
         var bodies = OwnedBodies(census).ToArray();
@@ -329,7 +329,9 @@ public sealed partial class OutboxDispatchConventionTests
             .Where(instruction => instruction.Operand is MethodReference)
             .ToLookup(instruction => (((MethodReference)instruction.Operand).DeclaringType.FullName, ((MethodReference)instruction.Operand).Name));
         var fieldWrites = bodies.SelectMany(item => item.Body.Body.Instructions.Where(instruction =>
-                instruction.Operand is FieldReference && (instruction.OpCode == OpCodes.Stfld || instruction.OpCode == OpCodes.Ldflda))
+                instruction.Operand is FieldReference target
+                && (target.DeclaringType.FullName == RecipientClaim || target.DeclaringType.FullName == JobRecipientParticipant)
+                && (instruction.OpCode == OpCodes.Stfld || instruction.OpCode == OpCodes.Ldflda))
             .Select(instruction => (Field: (FieldReference)instruction.Operand, Writer: MethodId(item.Owner) + ":" + instruction.OpCode.Name)))
             .ToLookup(write => (write.Field.DeclaringType.FullName, write.Field.Name), write => write.Writer);
         var claim = types[(DeliveryApplication, RecipientClaim)];
@@ -509,7 +511,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         var registrations = sites.Where(site => site.Target is GenericInstanceMethod generic && generic.Name == "TryAddScoped"
             && generic.GenericArguments.Count == 2 && generic.GenericArguments[0].FullName == JobRecipientParticipant
-            && generic.GenericArguments[1].FullName == RecipientPostgres).Select(site => site.Owner);
+            && generic.GenericArguments[1].FullName == RecipientPostgres).Select(site => MethodId(site.Owner));
         CheckSet(offenders, "closed recipient participant registration", registrations,
             [JobOwner(offenders, types, InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobContractsRegistration", "AddLearnStackBackgroundJobContracts")]);
         var complete = bodies.Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
@@ -604,7 +606,7 @@ public sealed partial class OutboxDispatchConventionTests
                     offenders.Add("Occurrence input permits only its typed constructor and exact private record-copy constructor");
             }
             CheckSet(offenders, "recipient capability " + type + "." + name, calls[(type, name)]
-                    .Where(site => type != RecipientOccurrence || ParametersMatch(site.Target, parameters)).Select(site => site.Owner),
+                    .Where(site => type != RecipientOccurrence || ParametersMatch(site.Target, parameters)).Select(site => MethodId(site.Owner)),
                 owners.Select(owner => JobOwner(offenders, types, owner.Assembly, owner.Type, owner.Method)));
             foreach (var instruction in instructions[(type, name)].Where(instruction => type != RecipientOccurrence
                          || ParametersMatch((MethodReference)instruction.Operand, parameters)))

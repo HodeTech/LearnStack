@@ -61,7 +61,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var subject in required)
             if (!types.ContainsKey(subject)) offenders.Add("Missing closed capacity subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
-        var sites = CallSites(census).ToArray();
+        var sites = OwnedCallSites(census).ToArray();
         var bodies = OwnedBodies(census).ToArray();
         var instructions = bodies.SelectMany(item => item.Body.Body.Instructions)
             .Where(instruction => instruction.Operand is MethodReference).ToArray();
@@ -221,7 +221,7 @@ public sealed partial class OutboxDispatchConventionTests
                 || methods[0].ReturnType.FullName != result || !ParametersMatch(methods[0], parameters))
                 offenders.Add("Capacity capability requires its exact closed signature: " + typeName + "::" + name);
             CheckSet(offenders, "capacity authority callers " + typeName + "::" + name,
-                sitesByName[name].Where(site => TargetsDeclaredType(site.Target, type) && site.Target.Name == name).Select(site => site.Owner), owners);
+                sitesByName[name].Where(site => TargetsDeclaredType(site.Target, type) && site.Target.Name == name).Select(site => MethodId(site.Owner)), owners);
             foreach (var instruction in instructionsByName[name].Where(instruction => instruction.Operand is MethodReference target
                          && TargetsDeclaredType(target, type) && target.Name == name))
                 if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt
@@ -368,9 +368,9 @@ public sealed partial class OutboxDispatchConventionTests
         { offenders.Add("Capacity scheduling cannot accept another task factory"); return null; }
         var callback = methods[0];
         var callbackId = MethodId(callback);
-        CheckSet(offenders, "actual capacity scheduling callback callers", CallSites(census)
+        CheckSet(offenders, "actual capacity scheduling callback callers", OwnedCallSites(census)
             .Where(site => site.Target.Name == callback.Name && MethodId(site.Target) == callbackId)
-            .Select(site => site.Owner), [MethodId(schedulers[0])]);
+            .Select(site => MethodId(site.Owner)), [MethodId(schedulers[0])]);
         return callback;
     }
 }

@@ -82,7 +82,7 @@ public sealed partial class OutboxDispatchConventionTests
     ];
 
     private static void CheckRecoveryMinterSeams(ProductionCensus census, SortedSet<string> offenders,
-        ILookup<string, (string Owner, MethodReference Target)> sitesByName, ILookup<string, Instruction> instructionsByName,
+        ILookup<string, OwnedCallSite> sitesByName, ILookup<string, Instruction> instructionsByName,
         (MethodDefinition Body, MethodDefinition Owner)[] bodies)
     {
         var seams = RecoveryMinterSeams();
@@ -142,7 +142,7 @@ public sealed partial class OutboxDispatchConventionTests
                     offenders.Add("Renewal publication callback remains its private captured projection");
                 CheckSet(offenders, "renewal publication callback issuance", sitesByName[callback.Name].Where(site =>
                     TargetsDeclaredType(site.Target, callback.DeclaringType) && ParametersMatch(site.Target, [RecoveryRenewalRow]))
-                    .Select(site => site.Owner), [MethodId(renewal)]);
+                    .Select(site => MethodId(site.Owner)), [MethodId(renewal)]);
             }
         }
         var ids = resolved.ToDictionary(item => item.Key, item => MethodId(item.Value), StringComparer.Ordinal);
@@ -151,7 +151,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (!resolved.TryGetValue(seam.Key, out var method)) continue;
             CheckSet(offenders, "exact recovery mint callers " + seam.Key,
                 sitesByTarget[(seam.Type, seam.Name)].Where(site => TargetsDeclaredType(site.Target, method.DeclaringType)
-                    && ParametersMatch(site.Target, seam.Parameters)).Select(site => site.Owner),
+                    && ParametersMatch(site.Target, seam.Parameters)).Select(site => MethodId(site.Owner)),
                 seam.Owners.Select(owner => ids.TryGetValue(owner, out var id) ? id : "missing:" + owner));
             foreach (var instruction in instructionsByTarget[(seam.Type, seam.Name)].Where(instruction =>
                          instruction.Operand is MethodReference target && TargetsDeclaredType(target, method.DeclaringType)

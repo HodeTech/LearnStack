@@ -8963,7 +8963,7 @@ empty readable all-state Docker baseline. These are closed observations, not
 exclusive-VM attestation, successful-write evidence or child-limit qualification.
 
 The full Docker command is canceled at the twenty-minute job ceiling. Console
-retains 629 completed rows: 600 passes and 29 failures. Six direct failures report
+retains 629 recognized completed rows: 600 passes and 29 failures. Six direct failures report
 native supervisor refusal; 23 phase failures comprise fifteen exact pipe refusals
 and eight membership failures. The latter's endpoint states are still unknown;
 do not relabel them. Ordinary completed rows continue until cancellation, but no
@@ -8989,6 +8989,24 @@ The corrected local guarded frontend runs all 1,625 cases with zero skips/todos;
 typecheck/lint pass. This local correction is not a passing hosted frontend result.
 Final full-source CI remains red; native authority approval and independently
 measured backend/Docker budget corrections still block PR closure.
+
+
+A subsequent independent budget correction retains typed owners until the capacity
+and recipient detectors select their actual targets, and formats recipient field
+writers only for the two target-type families the detector actually consumes.
+Global detached-target checks, exact assembly/signature/opcode/duplicate checks,
+all existing mutation schedules and fresh per-evaluation caches remain intact.
+Three standalone recipient checks use the same disposable evaluation scope.
+An independent applied source review has no finding. The CI-mode Release build
+has zero warnings/errors. All 29 selected capacity/recipient rows, raw/typed/index
+parity companion and five corpus guards pass with zero skips in 191.804 seconds;
+case identities exactly match the previous complete run. The unchanged 385-file
+source receipt is
+`c2521f3b2fe67289f796c9442e77f0977f96a9ec6272d2bfa39f7ef3e8d96c09`.
+These local subset timings are not a causal speedup measurement or a full hosted
+budget result. Other completed hosted cost evidence and repeated fresh-database
+migration work remain assigned to P02b-4's active CI qualification; no case,
+required check, timeout or production behavior is removed to obtain a pass.
 
 ### Durable outbox dispatch
 
