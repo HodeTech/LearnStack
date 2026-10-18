@@ -493,7 +493,8 @@ jobs:
   backend-integration:
     name: backend integration (Testcontainers)
     if: always()
-    needs: [backend-integration-tests, backend-native]
+    # Base's immutable full-manifest/toolchain witness joins the two scopes.
+    needs: [backend-base, backend-integration-tests, backend-native]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -60,7 +60,7 @@ class AggregateControls(unittest.TestCase):
     def jobs(self, scope, context=None):
         owners = ['base'] + ['architecture-' + str(i) for i in range(self.plan['counts']['architecture'])]
         if scope == 'integration':
-            owners = ['native'] + ['ordinary-' + str(i) for i in range(self.plan['counts']['ordinary'])]
+            owners = ['base', 'native'] + ['ordinary-' + str(i) for i in range(self.plan['counts']['ordinary'])]
         return [self.job(owner, n + 1, context) for n, owner in enumerate(owners)]
 
     def metadata(self, owner='base', context=None):
@@ -73,12 +73,13 @@ class AggregateControls(unittest.TestCase):
     def write(self, output, name, value):
         RESULTS.OWNER.write_json(output / name, value)
 
-    def outputs(self, temporary, scope, attempt='1'):
-        context, manifest = self.context(attempt), self.fixture.manifest()
+    def outputs(self, temporary, scope, attempt='1', manifest=None):
+        context = self.context(attempt)
+        manifest = self.fixture.manifest() if manifest is None else manifest
         assignment = PLAN.assign(manifest, self.plan, attempt)
         result = {}
         for owner, cases in assignment['owners'].items():
-            if (owner == 'base' or owner.startswith('architecture-')) != (scope == 'backend'):
+            if owner != 'base' and owner.startswith('architecture-') != (scope == 'backend'):
                 continue
             path = Path(temporary) / owner; path.mkdir()
             (path / 'results').mkdir()
@@ -207,7 +208,7 @@ class AggregateControls(unittest.TestCase):
         context = self.context()
         run = {'id': 123, 'run_attempt': 1, 'head_sha': context['headSha'], 'path': '.github/workflows/ci.yml',
                'event': 'pull_request', 'name': 'ci', 'repository': {'full_name': 'HodeTech/LearnStack'},
-               'pull_requests': [{'head': {'sha': context['headSha']}}]}
+               'pull_requests': [{'number': 32, 'head': {'sha': 'c' * 40}}]}
         RESULTS.verify_run(run, context)
         run['head_sha'] = context['sourceSha']
         self.refuses('run_api_identity_mismatch', RESULTS.verify_run, run, context)
@@ -264,6 +265,28 @@ class AggregateControls(unittest.TestCase):
             clean = RESULTS.read_json(base / 'assignment.json'); dirty = copy.deepcopy(clean); dirty['selected'] = []
             self.write(base, 'assignment.json', dirty); self.rehash(base)
             self.refuses('selected_population_mismatch', RESULTS.validate_outputs, outputs, context, self.plan, 'backend')
+
+    def test_common_base_witness_refuses_cross_scope_classification_or_toolchain_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); first = root / 'backend'; second = root / 'integration'
+            first.mkdir(); second.mkdir()
+            backend = self.outputs(first, 'backend')
+            self.assertTrue(RESULTS.validate_outputs(backend, self.context(), self.plan, 'backend')['success'])
+            manifest = self.fixture.manifest()
+            method = manifest['ordinary'][0]['method']
+            moved = [case for case in manifest['ordinary'] if case['method'] == method]
+            for part in ('all', 'ordinary'):
+                manifest[part] = [case for case in manifest[part] if case['method'] != method]
+            manifest['nonDocker'].extend(moved)
+            integration = self.outputs(second, 'integration', manifest=manifest)
+            # The API owner resolves this same unique base artifact for both
+            # aggregates; it cannot be replaced by a separate scope's witness.
+            integration['base'] = backend['base']
+            self.refuses('cross_job_discovery_mismatch', RESULTS.validate_outputs,
+                         integration, self.context(), self.plan, 'integration')
+            del integration['base']
+            self.refuses('common_manifest_witness_missing', RESULTS.validate_outputs,
+                         integration, self.context(), self.plan, 'integration')
 
     def test_actual_trx_and_completed_fields_are_rechecked_even_with_matching_hashes(self):
         for changed in ('completed', 'trx', 'missing'):
@@ -348,7 +371,7 @@ class AggregateControls(unittest.TestCase):
                     return {'id': 123, 'run_attempt': 1, 'head_sha': context['headSha'],
                         'path': '.github/workflows/ci.yml', 'event': 'pull_request', 'name': 'ci',
                         'repository': {'full_name': context['repository']},
-                        'pull_requests': [{'head': {'sha': context['headSha']}}]}
+                        'pull_requests': [{'number': 32, 'head': {'sha': 'c' * 40}}]}
             with mock.patch.object(RESULTS, 'ROOT', root), mock.patch.object(RESULTS, 'Api', FixtureApi), \
                     mock.patch.object(RESULTS.OWNER, 'shard_context', return_value=context), \
                     mock.patch.dict(os.environ, {'LEARNSTACK_CI_STARTED_AT': str(int(time.time()))}), \

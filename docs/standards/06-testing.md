@@ -150,8 +150,11 @@ with their selector. Advisory weights never define membership or a wall bound.
 two always-running aggregates under the unchanged backend/integration required
 names. Each verifies current-attempt job outcomes through the read-only Actions
 API, downloads immutable artifact IDs, verifies archive hashes and recomputes
-assignment and complete exact case/TRX unions. Base also requires the actual
-Release build, format and Hangfire distribution/source/replacement gates.
+assignment and complete exact case/TRX unions. Both scopes compare their full
+manifest/toolchain to the same uniquely named, immutable current-attempt base
+artifact. Integration additionally requires base as this common witness; it
+does not count base's non-Docker cases in its Docker union. Base also requires
+the actual Release build, format and Hangfire distribution/source/replacement gates.
 Matching worker digests alone cannot replace API or result evidence.
 
 Base/Architecture use only the approved non-root child and owned systemd/cgroup

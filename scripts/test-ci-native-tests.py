@@ -1032,7 +1032,7 @@ except launcher.Refusal as failure:
         self.assertIn('runs-on: ubuntu-24.04', native)
         self.assertIn('name: backend integration (Testcontainers)', aggregate)
         self.assertIn('if: always()', aggregate)
-        self.assertIn('needs: [backend-integration-tests, backend-native]', aggregate)
+        self.assertIn('needs: [backend-base, backend-integration-tests, backend-native]', aggregate)
         self.assertIn('python3 scripts/ci-test-shards.py aggregate-integration', aggregate)
         self.assertIn('actions: read', aggregate)
         self.assertLess(self.owner.RESERVE_SECONDS, self.owner.JOB_SECONDS)

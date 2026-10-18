@@ -170,7 +170,7 @@ def workflow_topology(documents, plan):
                 and upload.get('with', {}).get('if-no-files-found') == 'error', 'artifact_upload_invalid')
     for scope, job_id, needs in (
         ('backend', 'backend', ['backend-base', 'backend-architecture']),
-        ('integration', 'backend-integration', ['backend-integration-tests', 'backend-native'])):
+        ('integration', 'backend-integration', ['backend-base', 'backend-integration-tests', 'backend-native'])):
         job = jobs[job_id]
         require(job.get('name') == REQUIRED[job_id] and job.get('if') == 'always()'
                 and job.get('needs') == needs and job.get('timeout-minutes') == 5
@@ -257,14 +257,18 @@ def verify_run(run, context):
             and run.get('repository', {}).get('full_name') == context['repository'], 'run_api_identity_mismatch')
     if context['eventName'] == 'pull_request':
         pulls = run.get('pull_requests')
+        number = re.search(r'/pull/([1-9][0-9]*)/merge$', context['workflowRef'])
+        # The REST pull-request projection tracks the current branch, not the
+        # original event. run.head_sha is the immutable event identity; the raw
+        # checked-out merge parent independently binds that to sourceSha.
         require(isinstance(pulls, list) and len(pulls) == 1
-                and pulls[0].get('head', {}).get('sha') == context['headSha'], 'run_pull_head_mismatch')
+                and number and pulls[0].get('number') == int(number[1]), 'run_pull_identity_mismatch')
 
 
 def verify_jobs(jobs, context, plan, scope):
     owners = ['base'] + ['architecture-' + str(i) for i in range(plan['counts']['architecture'])]
     if scope == 'integration':
-        owners = ['native'] + ['ordinary-' + str(i) for i in range(plan['counts']['ordinary'])]
+        owners = ['base', 'native'] + ['ordinary-' + str(i) for i in range(plan['counts']['ordinary'])]
     require(scope in ('backend', 'integration') and isinstance(jobs, list), 'aggregate_scope_invalid')
     names = {producer_name(owner) for owner in owners}
     all_names = {*REQUIRED.values(), *names, producer_name('base'), producer_name('native'),
@@ -436,13 +440,18 @@ def verify_receipt(output, context, owner, plan, assignment):
 
 
 def validate_outputs(outputs, context, plan, scope):
-    require(isinstance(outputs, dict) and outputs, 'aggregate_owners_incomplete')
-    manifest = read_json(next(iter(outputs.values())) / 'discovery.json')['population']
+    require(isinstance(outputs, dict) and 'base' in outputs, 'common_manifest_witness_missing')
+    # Both protected results independently fetch the same uniquely named,
+    # current-attempt immutable base artifact. Its full manifest/toolchain binds
+    # the two otherwise disjoint scopes transitively across all twenty workers.
+    manifest = read_json(outputs['base'] / 'discovery.json')['population']
     assignment = PLAN.assign(manifest, plan, context['runAttempt'])
     PLAN.different_layouts(manifest, plan)
     provided, identities = {}, {}
     for owner, output in outputs.items():
-        _, provided[owner], identity = verify_receipt(output, context, owner, plan, assignment)
+        _, selected, identity = verify_receipt(output, context, owner, plan, assignment)
+        if scope == 'backend' or owner != 'base':
+            provided[owner] = selected
         require(not identities or identities['toolchain'] == identity['toolchain'], 'cross_job_toolchain_mismatch')
         identities['toolchain'] = identity['toolchain']
         for assembly, adapter in identity['adapters'].items():

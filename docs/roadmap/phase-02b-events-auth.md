@@ -9744,6 +9744,35 @@ No host privilege, collector, Docker mutation or Linux containment is exercised
 by these local offline controls. The implementation commit and required fresh
 reviews precede final qualification.
 
+**Step 3 review round 1 and verified corrections.** A fresh `gpt-6.1-sol`
+reviewer at `xhigh` reviews `83be42d6..10e1b164` and requests changes with one
+Blocker (cross-scope concordance) and one Major (mutable PR projection). All
+47 shard/result, 37 launcher, 18 provisioning, seven ADR parser and five
+CorpusConsistency controls independently pass on that reviewed source. Root
+verifies both findings before correction. The cross-scope coverage gap is: matching manifests inside each aggregate alone
+cannot prove that the two scopes agree on the same classification. Integration
+now additionally requires the same current-attempt immutable base artifact that
+backend already verifies. All producers' full manifests/toolchains are bound
+transitively to that common witness; integration's union/count excludes base's
+non-Docker cases. A planted whole-selector classification change is refused.
+
+A second verified API issue concerns old-event reruns: REST's pull-request
+projection follows the current branch head even while the run's head SHA stays
+at its original event. Root independently observes this on run 39148006960.
+Verification retains immutable run head plus the raw checked-out merge-parent
+relation, and binds the PR number without treating its mutable head as a run
+snapshot. A control supplies a newer PR projection with the older valid event.
+
+The initial hosted run 39170247704 exposes one additional frontend failure:
+the exhaustive product-source classifier does not yet classify the new CI
+files. The five exact CI plan/owner/control paths are added to its existing
+non-runtime inventory, with classification assertions. Unknown scripts remain
+refused. The guarded full frontend suite then passes 1,625 cases in two
+packages with zero skips/todos; lint and typecheck pass. No product behavior or
+broad extension exemption changes. All 48 shard/result controls and 37 launcher
+controls pass after these corrections. These local results do not qualify the
+initial hosted execution or the final two assignments.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
