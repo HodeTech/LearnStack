@@ -32,8 +32,10 @@ owns review, packet and exact PR-head CI/job-budget status),
 [ADR-0060 Fatal Hangfire Startup and Unsafe Unwind](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md)
 (Accepted 2026-10-16; exceptional boundary and runtime proofs implemented),
 [ADR-0061 Known External Job Failure Policy](../decisions/0061-known-external-job-failure-policy.md)
-(Accepted 2026-10-17; Step 7 qualified and Step 9 enforcement implemented). The
-catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
+(Accepted 2026-10-17; Step 7 qualified and Step 9 enforcement implemented),
+[ADR-0063 Complete Bounded CI Test Shards](../decisions/0063-complete-bounded-ci-test-shards.md)
+(Accepted 2026-10-18; general CI obligation Registered, implementation pending).
+The catalogue grows as subsequent ADRs and phases land their tests; per-test ownership
 stays with the originating ADR / standard.
 
 The single source of truth for the **identifier**, the **assertion**, the
@@ -5440,6 +5442,25 @@ and fixture definitions make the implemented controls non-vacuous.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
   `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)).
+
+### `CI_Test_Shards_Are_Complete_And_Bounded`
+
+- **Asserts:** complete actual Release populations have one selector-group owner;
+  versioned finite plans, exact selected-filter discovery and executed case-ID
+  unions agree. Current-attempt producer/API/artifact evidence, unique canonical
+  required names, mandatory non-test gates and bounded aggregates refuse missing,
+  stale, skipped, failed or incomplete work. Distinct complete A/B assignments
+  qualify final-source independence and finite execution/meta/aggregate budgets;
+  advisory duration estimates never establish membership or fit. Native and
+  non-Docker authorities remain separated.
+- **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md).
+- **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
+  result proofs. **Kind:** structural + behavioural.
+- **Status:** **Registered** — P02b-4 CI follow-up Steps 1–3; planned owners
+  `scripts/ci-test-shards.py`, `scripts/test-ci-test-shards.py` and workflow
+  aggregates. Implementation and hosted qualification are not implied by
+  acceptance; status changes only with the actual enforcement controls.
+- **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References
 

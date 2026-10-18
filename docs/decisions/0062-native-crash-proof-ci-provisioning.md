@@ -298,6 +298,33 @@ seven final-source checks. Source controls, local spikes and passing subsets do
 not establish those outcomes. If fit/ownership fails, report the exact boundary
 and obtain a revised decision; do not silently split again or weaken assertions.
 
+## Amendments
+
+### Amendment 1 — bounded CI shards and additive non-Docker owner (2026-10-18)
+
+Accepted [ADR-0063](0063-complete-bounded-ci-test-shards.md) replaces this record's
+single ordinary Docker execution VM with a manually bounded shard set. The exact
+clauses and preserved requirements are quoted in its
+[relationship section](0063-complete-bounded-ci-test-shards.md#exact-relationship-to-adr-0062).
+The non-Docker population/aggregate and confined transient systemd/cgroup owner
+are additive seams. Native collector authority and every excluded-host rule stay
+here; non-Docker receives no Docker baseline/cleanup, collector or crash scan.
+
+The accepted initial plan is base + six Architecture + twelve ordinary + native,
+with manual Architecture 4–6 / ordinary 8–12 and a twenty-execution-VM cap.
+All execution jobs keep twenty-minute ceilings; each of the two existing backend
+required names belongs to one five-minute fail-closed aggregate. Complete actual
+case-ID unions, independent filter/assignment proof and two distinct complete
+assignments on the same final source remain mandatory. All seven protection
+contexts and strict mode remain unchanged. This is bounded supersession plus
+additive CI authority, not an ADR-0041 factual correction or record retirement.
+
+Acceptance precedes dependent implementation. The three-step
+[delivery record](../roadmap/phase-02b-events-auth.md#adr-0063-acceptance-and-implementation-2026-10-18)
+owns progress and actual final-source qualification; the ordinary membership-I/O
+fault remains independent corrective work under this record. This amendment
+rewrites none of the Accepted body, date or acceptance metadata above.
+
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).

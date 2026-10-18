@@ -2,15 +2,19 @@
 
 ## Status
 
-Proposed — approval pending.
+Accepted — 2026-10-18.
 
 **Date:** 2026-10-18 **Deciders:** @cemil
 
-This proposal reopens ADR-0062's execution arrangement after actual hosted qualification
-fails its time budget. It authorizes no dependent implementation before maintainer
-acceptance. Native collector authority remains exclusively ADR-0062's. The additional
-non-Docker process-owner authority is expressly bounded below; it includes no collector
-or Docker authority.
+**Maintainer acceptance — 2026-10-18.** The maintainer approves the reviewed
+revision at `b3ee4ea6`, with both independent review receipts recorded at
+`2e1fedc7`, and authorizes the three dependent implementation steps on
+`development`. This reopens ADR-0062's execution arrangement after actual hosted
+budget failure. Native collector authority remains exclusively ADR-0062's;
+non-Docker process-owner authority includes no collector or Docker authority.
+Acceptance is not implementation or hosted fit. The new general catalogue rule
+is Registered; each implementation step still requires a commit and two fresh
+independent review rounds before advancing.
 
 ## Decision Drivers
 
@@ -33,7 +37,7 @@ or Docker authority.
 
 ## Considered Options
 
-1. **Complete selector-group shards on separate VMs** (recommended). Retain every case,
+1. **Complete selector-group shards on separate VMs** (chosen). Retain every case,
    bound manual topology tuning and require complete unions behind the existing required
    names. Actual wall-time fit and a second distinct assignment must qualify before
    rollout closes.

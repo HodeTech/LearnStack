@@ -46,12 +46,11 @@ recurrence definitions remain empty.
 2026-10-18. Its [CI acceptance](#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 authorizes the bounded native provisioning/partition follow-up; implementation
 and exact-head hosted qualification remain in progress.
-[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) proposes a bounded
-CI topology after actual hosted backend/ordinary budget failure. Its
-[review revision](#adr-0063-review-revision-2026-10-18) owns the revised proposal
-and current source-specific evidence. Native passes on `3553ff16`; the separate
-ordinary membership-I/O fault remains under ADR-0062. No dependent shard
-implementation is authorized before maintainer approval.
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) is Accepted —
+2026-10-18. Its [acceptance record](#adr-0063-acceptance-and-implementation-2026-10-18)
+owns the three authorized CI steps and actual two-assignment qualification.
+Native passes on `3553ff16`; the separate ordinary membership-I/O fault remains
+under ADR-0062. Acceptance is not implementation or packet/PR closeout.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -9505,6 +9504,25 @@ bounded replacement/additive disclosure happen **only after acceptance**. Their
 future implementation must update actual catalogue counts in the enforcement
 change, not preclaim them here. Full execution fit and the independent ordinary
 owner failure remain open qualification work; no runtime feature is added.
+
+###### ADR-0063 acceptance and implementation (2026-10-18)
+
+The maintainer explicitly approves revised ADR-0063 and its three implementation
+steps and requests implementation. Acceptance binds
+`b3ee4ea6`, with two fresh independent review receipts recorded at `2e1fedc7`.
+It authorizes the initial base + six Architecture + twelve ordinary + native
+plan, manual Architecture 4–6 / ordinary 8–12 under twenty execution VMs,
+complete A/B attempts, confined non-Docker systemd ownership and aggregate-only
+read Actions API authority. Seven required contexts, strict protection and
+execution twenty-minute / aggregate five-minute ceilings remain unchanged.
+
+ADR-0062 Amendment 1 discloses the bounded replacement/additive seam without
+rewriting its Accepted body/metadata. The new general CI rule is Registered;
+implementation and actual final-source fit remain pending. This acceptance
+commit precedes any dependent code. The three steps follow ADR-0063's canonical
+plan, each with commit and two fresh independent review rounds. Verified owner
+faults remain corrections under ADR-0062, not presumed consequences of sharding.
+Work stays on `development`; PR #32 stays open and the maintainer owns merge.
 
 ### Durable outbox dispatch
 
