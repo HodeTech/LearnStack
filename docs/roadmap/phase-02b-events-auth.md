@@ -8408,6 +8408,22 @@ Nineteen-rule enforcement, shared workflow guidance, full regression, unchanged
 CI-budget qualification and both full Step 9 reviews remain open. All nineteen
 obligations remain Registered.
 
+#### Shared background-job workflow guidance
+
+The shared `add-background-job` skill now describes the actual typed scheduler,
+explicit registry/catalog composition, ordinary transaction owner, external
+prepare/execute/finalize and three-state failure policy, capacity declaration and
+recurrence path. The common skill catalogue links it for every agent runtime.
+A focused source review corrects release wording for known failed/cancelled but
+quiescent effects, distinguishes capacity declarations from optional entitlement
+keys, and preserves all seven framework requests when replacing empty defaults.
+It provides no full Step 9 review-round credit or feature business definition.
+
+The preceding late-settlement commit's hook changes only six property-pattern
+indents and one trailing blank line. Reconstructing the exact pre-hook bytes
+matches its recorded hash; no semantic tokens change. Its test receipts remain
+pre-hook source receipts, rather than a newly claimed post-hook test run.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
