@@ -4079,6 +4079,26 @@ lower `MaxPoolSize` before bootstrap, using settings captured from the same
 immutable configuration as the source. Nonpooling remains allowed with the same
 owner bounds; its positive `MaxPoolSize` is not a physical-checkout cap.
 
+The floor is a conservative supported envelope, not an observed simultaneous
+peak. Its complete acquisition ledger is:
+
+| Allowance | Actual owner / nesting boundary |
+|---|---|
+| `W` | One stock worker acquisition lane per declared worker; a storage wrapper alone is not a physical checkout. |
+| `4P` | Per-generation metadata heartbeat, watchdog, cancellation watcher and lifecycle allowance; retained cleanup still belongs to that one generation. |
+| `2C` | Delayed and recurring schedulers, each with parallelism one and sequential reuse of its outer distributed-lock connection. |
+| Original eleven | Shared expiration and fetched-job heartbeat; four bridge native calls plus serialized SQL; two concrete slots in each messaging store. |
+| Five control slots | One batch renewal, control/recovery plus fresh probe, terminal plus fresh probe; unconfirmed cleanup seals each lane. |
+| Two recurrence slots | One serialized SQL flight and one native manager, including actual return and cleanup. |
+| `U` | One privileged routing/recovery/history/status flight per admitted invocation, including retained cleanup; application work uses the separate source. |
+
+Lifecycle activity need not overlap every normal child, and control-tick invocation
+reserve is conservative. Ordinary stock worker state locks are released before
+`PerformJob`; their wrapper lifetime does not prove a nested physical checkout
+throughout business execution. Genuine scheduler, native-client lock and
+original/fresh-probe nesting remain included. Long polling/reconnect or another
+source borrower changes this ledger and requires requalification.
+
 The API application source has one `ApplicationDataSourceLifetime` owner and a
 stable `Lazy<NpgsqlDataSource>` registration, without a raw-source DI alias.
 Container disposal requests release; actual release waits for the same job and
@@ -4116,7 +4136,11 @@ corrections.
 
 These are current acquisition inventories under Accepted ADR-0047, not
 deployment-wide PostgreSQL capacity guarantees. Independent progress at each
-supported boundary requires real qualification in the Step 5 delivery record.
+supported boundary has source-specific qualification in the
+[Step 9 record](../roadmap/phase-02b-events-auth.md#combined-physical-capacity-qualification).
+The combined real-owner proof at the default52 configuration complements the
+complete ledger and existing topology/retention controls; it does not claim52
+simultaneously busy connections or a tight empirical minimum.
 Later SQL lanes require a new census and requalification; Phase 11 owns measured
 production capacity and PgBouncer.
 

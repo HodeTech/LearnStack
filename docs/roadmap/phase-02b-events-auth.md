@@ -8542,6 +8542,45 @@ companions. Combined privileged capacity and complete regression/packaging/boot/
 CI-budget qualification remain pending before full Step 9 reviews and closeout.
 All nineteen obligations remain Registered.
 
+#### Combined physical-capacity qualification
+
+The actual registered job runtime, outbox and delivery processors share the
+captured keyed guarded source at Pooling=true/MaxPoolSize=52. Their actual
+completion tasks remain bound; the fixture explicitly starts those instances,
+without claiming GenericHost startup ordering. One real stock expiration
+invocation waits on a unique-key conflict for its exact resource. An independent
+observer identifies its backend through the setup transaction's blocking PID;
+a finite caller wait expires while that actual invocation remains Retained.
+
+Two independently selected terminal-audit scopes forward the genuine writer and
+hold cleanup after their actual terminal/MUST commits, before connection disposal.
+Three distinct confined-role, tagged backend PIDs and all pending cleanup facts
+are checked before and after TenantB's actual native job creates an organization,
+commits its business/MUST row and reaches stock Succeeded. An absent-owner control
+fails the same conjunction. Observers use a separate source. Finally every hold
+releases, all three real owners join, Busy reaches zero, native server rows vanish
+and the disposed tagged pool has no remaining backends.
+
+The [canonical ledger](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
+counts all current simultaneous/nested/retained owner classes.52 remains a
+conservative supported floor, not a measured exact peak. Pinned source review
+corrects an earlier planning premise: ordinary Worker state-lock disposal precedes
+PerformJob, so its wrapper lifetime does not establish an extra nested checkout.
+The existing actual composition51 refusal and maximum158 topology/cleanup proofs
+remain complementary; no52-socket saturation or51 impossibility claim is made.
+
+Validation: CI=true Release build has zero warnings/errors. Four real PostgreSQL
+cases pass with zero failures/skips, including the new combined case, both actual
+messaging/source lifetime cases and retained-expiration native progress. The
+closed382-file source receipt is
+`b1fbb3344ff9df6f905937705a5c6ce493e59792f7facdccc947a8074aa9b451`.
+The initial new-case run reached its business observer but failed on a test-only
+text/UUID comparison; the corrected observer and all four cases pass on the final
+receipt. Independent focused source review confirms the corrected expiration
+physical witness, selective audit forwarding and actual joins, with no remaining
+verified finding. This is not a full Step9 review round or complete packet
+regression. All nineteen rules remain Registered pending that qualification.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
