@@ -9847,6 +9847,15 @@ using the pinned SDK/adapter confirms the actual wire field and sanitization;
 completion, containment or passing-test evidence. A fresh focused review and
 subsequent full hosted runs remain required.
 
+The fresh `gpt-6.1-sol` / `high` diagnostic review approves
+`70c8fdea..4a14a812` with no findings. It independently passes 38 launcher and
+49 combined selector/aggregate controls, 18 focused privacy/boundary probes
+and eight rehashed measurement mutations. Passing cases export no diagnostic;
+missing or nonempty failure-location evidence cannot qualify a successful
+producer. The next hosted source incorporates both full review corrections
+and this independently verified diagnostic. Five failed facade rows and
+complete final-source A/B qualification remain open.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
