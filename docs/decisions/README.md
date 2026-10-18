@@ -182,7 +182,9 @@ acceptance record does not claim dependency installation or implementation.
 
 ADR-0047 is Accepted on 2026-10-15 and appears in Active ADRs. Its reserved
 number is consumed; G9 and the package's new job parts are Accepted. P02b-4
-implementation and enforcement remain pending.
+implementation and enforcement are locally complete; its
+[closeout](../roadmap/phase-02b-events-auth.md#p02b-4-local-closeout-2026-10-18)
+owns qualification and outstanding PR/CI/merge work.
 
 **SLA:** any draft whose target phase is currently in progress without an Accepted ADR
 is a blocker on the phase exit checklist for that phase. The roadmap's Phase Exit

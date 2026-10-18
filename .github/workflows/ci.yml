@@ -147,6 +147,7 @@ jobs:
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
             --filter "Requires!=Docker" \
+            --logger "console;verbosity=normal" \
             --logger trx \
             --results-directory ../artifacts/backend-tests
 
@@ -197,6 +198,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      # Observation only: never change collector, limits, services or containers.
+      # The native fixture retains its independent prerequisite refusal.
+      - name: Observe native proof environment without provisioning
+        env:
+          LEARNSTACK_RUNNER_CONTEXT: ${{ runner.environment }}
+        run: |
+          mkdir -p artifacts/backend-integration
+          python3 scripts/ci-native-environment.py > artifacts/backend-integration/environment.json
+          cat artifacts/backend-integration/environment.json
 
       # Same shape as the `backend` job: the SDK comes from backend/global.json, by that
       # path — a repo-root path does not exist, and setup-dotnet pointed at one fails the
@@ -254,6 +265,7 @@ jobs:
           dotnet test LearnStack.slnx \
             --no-restore --no-build --configuration Release \
             --filter "Requires=Docker" \
+            --logger "console;verbosity=normal" \
             --logger trx \
             --results-directory ../artifacts/backend-integration
 
@@ -686,6 +698,9 @@ jobs:
 
       - name: ADR lifecycle parser controls
         run: python3 scripts/test-adr-status.py
+
+      - name: Read-only native environment and duration logging controls
+        run: python3 scripts/test-ci-native-environment.py
 
       - name: Accepted ADR disclosure
         env:
