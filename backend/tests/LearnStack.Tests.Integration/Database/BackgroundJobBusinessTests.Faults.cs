@@ -36,6 +36,7 @@ public sealed partial class BackgroundJobBusinessTests
         });
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         var publication = new BackgroundJobStartPublication();
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var running = host.Services.GetRequiredService<JobExecutor>().ExecutePublishedAsync(claim, publication, BackgroundJobTestRun.Create().OpenBoundary(BackgroundJobCheckpointKind.Admission), null, CancellationToken.None);
         try
         {
@@ -43,6 +44,7 @@ public sealed partial class BackgroundJobBusinessTests
             receipt.Should().NotBeNull();
             await cleanup.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             running.IsCompleted.Should().BeFalse();
+            metrics.Points.Should().BeEmpty("actual admission scope cleanup has not completed yet");
             receipt!.SourceOwner.CleanupConfirmed.Should().BeFalse("the actual admission unit is still retained");
             probe.Constructions.Should().BeEmpty();
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.CurrentAttempt.Should().Be(receipt.AttemptId.Value);
@@ -52,6 +54,7 @@ public sealed partial class BackgroundJobBusinessTests
         result.CleanupFailed.Should().BeFalse();
         result.SourceOwner.CleanupConfirmed.Should().BeTrue();
         result.Receipt.Should().BeSameAs(await publication.Completion);
+        metrics.Duration("admission").Tags.Should().Contain("outcome", "Acknowledged").And.Contain("cleanup", "clean");
     }
 
     [Theory]
@@ -97,6 +100,8 @@ public sealed partial class BackgroundJobBusinessTests
         };
         var admission = await AdmitAsync(host.Services, job);
         using var outer = new Activity("business-cleanup-parent").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var telemetry = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(telemetry, throwOnMeasurement: true);
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
         result.CommitAcknowledged.Should().BeTrue();
         result.Decision.Disposition.Should().Be(BackgroundJobFailureDisposition.Succeeded);
@@ -109,6 +114,9 @@ public sealed partial class BackgroundJobBusinessTests
         host.Services.GetRequiredService<ITenantContextAccessor>().Current.Should().BeSameAs(original);
         callbacks.Should().Be(activityFault ? 1 : 0);
         (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.Phase.Should().Be("completed");
+        metrics.Duration("transactional").Tags.Should().Contain("outcome", "Acknowledged").And.Contain("cleanup", "retained");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total" || point.Name == "learnstack_job_unknown_outcome_total");
+        telemetry.IsHealthy.Should().BeFalse();
     }
 
     [Fact]
@@ -121,6 +129,7 @@ public sealed partial class BackgroundJobBusinessTests
         var probe = new BackgroundJobFixtureProbe();
         await using var host = Fixture.Host(database, probe, appConnectionString: proxy.ConnectionString);
         var admission = await AdmitAsync(host.Services, job);
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional))
             .WaitAsync(TimeSpan.FromSeconds(10));
         proxy.DroppedCommitResponses.Should().Be(1);
@@ -131,6 +140,9 @@ public sealed partial class BackgroundJobBusinessTests
         result.Decision.Disposition.Should().Be(BackgroundJobFailureDisposition.Reconcile);
         (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.Phase.Should().Be("completed");
         probe.Constructions.Should().Equal("TenantRoot");
+        metrics.Duration("transactional").Tags["outcome"].Should().Be("UnknownCommit");
+        metrics.Points.Should().ContainSingle(point => point.Name == "learnstack_job_unknown_outcome_total" && point.Value == 1);
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total");
     }
 
     [Theory]

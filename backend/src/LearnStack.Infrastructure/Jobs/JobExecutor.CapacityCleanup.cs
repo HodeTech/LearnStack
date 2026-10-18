@@ -13,6 +13,8 @@ public sealed partial class JobExecutor
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         cleanup.RequireRecovery(recovery);
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var previous = accessor.Current;
         var previousActivity = Activity.Current;
         AsyncServiceScope? scope = null;
@@ -81,6 +83,11 @@ public sealed partial class JobExecutor
             cleanupFailed |= !await cleanup.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
             if (cleanupFailed) cleanup.SourceOwner.CloseIssuance();
         }
+        var observed = command?.CommitAcknowledged == true ? JobObservedOutcome.Acknowledged
+            : command?.CommitStarted == true && command.KnownRollback != true ? JobObservedOutcome.UnknownCommit
+            : JobObservedOutcome.NotCommitted;
+        telemetry.RecordStage(stageStarted, cleanup.Envelope.DefinitionKey, cleanup.Envelope.Profile,
+            JobObservedStage.CapacityCleanup, observed, cleanupFailed);
         return new(command?.CommitAcknowledged == true, command?.CommitStarted == true,
             command?.KnownRollback == true || command?.CommitStarted != true && !cleanupFailed, cleanupFailed)
         {

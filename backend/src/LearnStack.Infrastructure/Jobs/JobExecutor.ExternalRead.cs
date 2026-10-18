@@ -26,6 +26,8 @@ public sealed partial class JobExecutor
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         if ((original is null) == (recovery is null)) throw new ArgumentException("An external read has one exact origin.");
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var request = original is not null ? new ReadBackgroundJobExternalStateQuery(original)
             : new ReadBackgroundJobExternalStateQuery(recovery!);
         var source = request.Authority.SourceOwner;
@@ -120,6 +122,10 @@ public sealed partial class JobExecutor
         var status = request.CommitAcknowledged ? JobExternalReadStatus.Completed
             : request.Authority.Run.IsClosed || token.IsCancellationRequested
                 ? JobExternalReadStatus.Refused : JobExternalReadStatus.Failed;
+        var envelope = original?.Envelope ?? handle?.Snapshot.Envelope;
+        telemetry.RecordStage(stageStarted, envelope?.DefinitionKey, "external", JobObservedStage.ExternalRead,
+            status == JobExternalReadStatus.Completed ? JobObservedOutcome.Acknowledged
+                : status == JobExternalReadStatus.Refused ? JobObservedOutcome.Refused : JobObservedOutcome.Failed, cleanupFailed);
         return new(status, handle, cleanupFailed, request, retained.AsReadOnly());
     }
 

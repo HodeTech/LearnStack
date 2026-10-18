@@ -247,8 +247,9 @@ backend treat business rejections as system failures.
 | `learnstack_delivery_heartbeat_age_seconds` | gauge | — |
 | `learnstack_inbox_dedup_total` | counter | event_type, subscription |
 | `learnstack_inbox_deadletter_total` | counter | event_type, subscription |
-| `learnstack_job_duration_seconds` | histogram | job_name |
-| `learnstack_job_failed_total` | counter | job_name |
+| `learnstack_job_duration_seconds` | histogram | job_name, profile, stage, outcome, cleanup |
+| `learnstack_job_failed_total` | counter | job_name, profile, stage, reason |
+| `learnstack_job_unknown_outcome_total` | counter | job_name, profile, stage, reason |
 | `learnstack_job_state_count` | observable gauge | kind, pool, profile, capacity_group, recurrence, artifact, reason |
 | `learnstack_job_oldest_eligible_age_seconds` | observable gauge | profile |
 | `learnstack_job_heartbeat_age_seconds` | observable gauge | component, pool |
@@ -274,9 +275,9 @@ Outbox metrics above are implemented in P02b-2 Step 3 under ADR-0046;
 both independent review rounds are complete. The subscriber/inbox inventory is
 accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-decision-package-2026-10-13);
 Step 4 implements it with real worker, finite-label and memory-only observation
-proofs. P02b-4 Step 9 implements the five observable job families above under
+proofs. P02b-4 Step 9 implements the five observable and three stage families above under
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md#lifecycle-and-observation).
-Stage duration/failure/uncertainty and complete control-path instrumentation
+Stage qualification, tracing, lease-loss and complete control-path instrumentation
 remain in progress; its [record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
 owns qualification and remaining delivery.
 `event_type` comes only from the finite declared registry plus fixed
@@ -327,6 +328,30 @@ registries, while profiles, artifact categories, reasons and operations are fixe
 No tenant/org/job/attempt/operation/trace identity or payload is a job metric tag.
 Aggregate retained work uses `kind=retained_total`; per-pool work uses `retained`,
 so a legitimate pool named `none` cannot alias the aggregate series.
+
+Job stage duration measures through actual executor-owned scope, Activity,
+context, authority, source, auxiliary and owned registration cleanup. It excludes
+the outer native invocation's later private-token/owner cleanup and never ends
+at a caller's finite-wait timeout. The interval ends before synchronous metric
+notification; a held notification still retains the actual task.
+`cleanup=retained` preserves failed cleanup;
+it cannot reverse a physical COMMIT acknowledgement. Confirmed stage failure and
+uncertain write/effect counters are separate; neither counts unique failed jobs.
+A successfully acknowledged Finalize remains successful even when it applies a
+selected failed provider outcome. An inferred clean no-COMMIT path is not a
+physical rollback acknowledgement.
+
+An explicit provider Failed report can increment stage failure before its durable
+outcome checkpoint; the report grants no release or retry authority. Running is
+pending. Unknown is an uncertain effect; a provider fault counts that uncertainty
+only after the typed bridge actually admits the provider call. Scope/adapter
+construction faults before that point remain unissued faults. Capacity cleanup
+without an acknowledgement or uncertain COMMIT reports neutral `NotCommitted`;
+its result does not distinguish refusal from a failed write. Job names use the
+frozen definition registry plus fixed `unknown`/`retired`, and every other stage
+dimension is closed. Catchable synchronous metric-listener faults mark observation
+unhealthy without changing the completed result or retrying notification. A
+blocked listener stays part of the actual owned task.
 
 Job control totals keep a fixed label per monotonic source: generation creation,
 shared maintenance invocations, bridge ACK/failure/deferral, renewal ACK,

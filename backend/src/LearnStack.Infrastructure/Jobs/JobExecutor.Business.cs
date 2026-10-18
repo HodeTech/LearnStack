@@ -20,6 +20,8 @@ public sealed partial class JobExecutor
         if (entryRefused && !gate.IsClosed)
             throw new InvalidOperationException("A job commit gate belongs to exactly one execution.");
 
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var previous = accessor.Current;
         var previousActivity = Activity.Current;
         AsyncServiceScope? scope = null;
@@ -33,7 +35,7 @@ public sealed partial class JobExecutor
         JobExternalReadResult? finalizationRead = null;
         var retained = new List<JobStartCleanupOwnership>();
         // The callback changes one memory gate. Runtime owns private cancellation and its actual callbacks.
-        using var registration = cancellationToken.Register(CloseBusinessGate, gate);
+        var registration = cancellationToken.Register(CloseBusinessGate, gate);
         try
         {
             if (entryRefused)
@@ -155,6 +157,13 @@ public sealed partial class JobExecutor
                 receipt.SourceOwner.CloseIssuance();
             cleanupFailed |= !await receipt.SourceOwner.JoinAuxiliaryCleanupAsync().ConfigureAwait(false);
             if (cleanupFailed) receipt.SourceOwner.CloseIssuance();
+            try { registration.Dispose(); }
+            catch (Exception caught) when (BackgroundJobControlResources.Catchable(caught))
+            {
+                cleanupFailed = true;
+                receipt.SourceOwner.CloseIssuance();
+                retained.Add(new(null, null, null, null, null, registration: registration));
+            }
         }
 
         var commitStarted = !entryRefused && gate.CommitStarted;
@@ -163,6 +172,17 @@ public sealed partial class JobExecutor
         var knownRollback = !entryRefused && (gate.KnownRollback || !commitStarted && !acknowledged && !cleanupFailed);
         var decision = BackgroundJobFailurePolicy.Classify(response, failure, acknowledged, uncertain,
             cancellationToken.IsCancellationRequested || gate.IsClosed);
+        var observed = acknowledged ? JobObservedOutcome.Acknowledged
+            : uncertain ? JobObservedOutcome.UnknownCommit
+            : entryRefused ? JobObservedOutcome.Refused
+            : decision.Disposition switch
+            {
+                BackgroundJobFailureDisposition.Retry => JobObservedOutcome.Retry,
+                BackgroundJobFailureDisposition.Terminal => JobObservedOutcome.Terminal,
+                _ => JobObservedOutcome.Retained,
+            };
+        telemetry.RecordStage(stageStarted, receipt.Envelope.DefinitionKey, receipt.Envelope.Profile,
+            BackgroundJobObservation.BusinessStage(receipt.Stage), observed, cleanupFailed, decision.ErrorCode);
         return new(decision, acknowledged, commitStarted, knownRollback, uncertain, cleanupFailed,
             receipt, gate, !entryRefused, retained.AsReadOnly(), finalizationRead);
     }

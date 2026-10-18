@@ -11,6 +11,10 @@ public sealed partial class BackgroundJobObservation : IDisposable
     private readonly Meter _meter = new(InstrumentationName);
     private readonly FrozenSet<string> _pools;
     private readonly FrozenSet<string> _groups;
+    private readonly FrozenSet<string> _jobs, _retiredJobs;
+    private readonly TimeProvider _time;
+    private readonly Histogram<double> _duration;
+    private readonly Counter<long> _failed, _unknown;
     private Binding? _binding;
     private int _faulted, _disposed;
 
@@ -20,11 +24,17 @@ public sealed partial class BackgroundJobObservation : IDisposable
         ArgumentNullException.ThrowIfNull(time);
         _pools = definitions.Infrastructure.Pools.Keys.ToFrozenSet(StringComparer.Ordinal);
         _groups = definitions.Infrastructure.CapacityGroups.Keys.ToFrozenSet(StringComparer.Ordinal);
+        _jobs = definitions.DefinitionKeys.ToFrozenSet(StringComparer.Ordinal);
+        _retiredJobs = definitions.RetiredKeys.ToFrozenSet(StringComparer.Ordinal);
+        _time = time;
         _meter.CreateObservableGauge("learnstack_job_state_count", CollectCounts, "1");
         _meter.CreateObservableGauge("learnstack_job_oldest_eligible_age_seconds", CollectEligibleAge, "s");
         _meter.CreateObservableGauge("learnstack_job_heartbeat_age_seconds", CollectHeartbeatAge, "s");
         _meter.CreateObservableGauge("learnstack_job_component_state", CollectComponents, "1");
         _meter.CreateObservableCounter("learnstack_job_control_total", CollectControlTotals, "1");
+        _duration = _meter.CreateHistogram<double>("learnstack_job_duration_seconds", "s");
+        _failed = _meter.CreateCounter<long>("learnstack_job_failed_total", "1");
+        _unknown = _meter.CreateCounter<long>("learnstack_job_unknown_outcome_total", "1");
     }
 
     internal bool IsHealthy => Volatile.Read(ref _faulted) == 0 && Volatile.Read(ref _disposed) == 0;

@@ -41,6 +41,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         using var globals = new NativeSdkGlobalFilterSnapshot();
         var runtime = NativeSdkRuntime(host.Services, source, bounds);
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(resource, prepared, finalized));
         submitted.IsSuccess.Should().BeTrue();
         var job = submitted.Value;
@@ -81,6 +82,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         runtime.Snapshot.CleanupConfirmed.Should().BeTrue();
         runtime.Snapshot.RetainedInvocations.Should().Be(0);
+        metrics.Duration("execute").Tags["outcome"].Should().Be(mode == "running" ? "Running" : "UnknownEffect");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total");
+        metrics.Points.Count(point => point.Name == "learnstack_job_unknown_outcome_total").Should().Be(mode == "unknown" ? 1 : 0,
+            "a valid Running report is pending and does not invent an unknown effect");
         if (mode == "unknown")
         {
             // New host, source, gate and facade: no process-local quarantine
@@ -161,6 +166,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             runtimeGate, bounds, new SystemGuidFactory(), time);
         var generation = new HangfireGenerationWork(Fixture.Registry.Infrastructure.Pools["external"], runtimeGate, bounds, time);
         var work = generation.TryBegin()!;
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var job = flow.Receipt.Envelope.JobId;
         var execution = control.TryBeginRecovery(job, await GenerationAsync(database, job), flow.Receipt.Envelope.Queue, work)!;
         work.HoldExecution(execution);
@@ -203,6 +209,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 var providerTask = (Task<JobExternalExecutionResult>)NativeSdkField(execution, "_externalProvider");
                 var returned = await providerTask.WaitAsync(TimeSpan.FromSeconds(10));
                 returned.CleanupFailed.Should().BeFalse();
+                returned.ProviderIssued.Should().BeTrue();
                 if (mode is "late_success" or "late_running")
                 {
                     returned.Status.Should().Be(JobExternalExecutionStatus.Reported);
@@ -264,6 +271,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         await generation.Completion.WaitAsync(TimeSpan.FromSeconds(10));
         control.Snapshot.Executions.Should().Be(0);
+        if (mode is "fault" or "timeout")
+        {
+            metrics.Duration("reconcile").Tags["outcome"].Should().Be("ProviderFault");
+            metrics.Points.Should().ContainSingle(point => point.Name == "learnstack_job_unknown_outcome_total" && point.Value == 1);
+        }
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total");
     }
 
     private static async Task<BackgroundJobRuntimeSnapshot> QuarantineAsOnlyHealthFaultAsync(

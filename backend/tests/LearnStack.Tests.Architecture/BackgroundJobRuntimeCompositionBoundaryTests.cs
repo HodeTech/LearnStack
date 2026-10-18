@@ -209,7 +209,10 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHealthObservation();
         CheckMemoryObservation(JobMetricRoots(census, offenders), "jobs metrics");
         if (types.TryGetValue((InfrastructureAssembly, JobObservation), out var observation))
+        {
             CheckMemoryObservation(observation.Methods.Where(method => method.IsConstructor && !method.IsStatic), "job observer construction");
+            CheckMemoryObservation(observation.Methods.Where(method => method.Name is "StartStage" or "RecordStage"), "job stage metrics");
+        }
         return offenders;
 
         void Exact(TypeDefinition type, string name, string target, string[] expected) =>
@@ -445,10 +448,10 @@ public sealed partial class OutboxDispatchConventionTests
                             foreach (var initializer in fieldOwner.Methods.Where(target => target.IsConstructor && target.IsStatic))
                                 pending.Enqueue(initializer);
                         if (instruction.Operand is not MethodReference call) continue;
-                        if (label == "job observer construction" && call.DeclaringType.FullName == "System.Diagnostics.Metrics.Meter"
-                            && (call.Name == ".ctor" || call.Name.StartsWith("CreateObservable", StringComparison.Ordinal))
-                            && (method.DeclaringType.FullName != JobObservation || !method.IsConstructor || body != method))
-                            offenders.Add(MethodId(method) + ": job observer construction forwards a hidden Meter or observable registration");
+                        if (call.DeclaringType.FullName == "System.Diagnostics.Metrics.Meter"
+                            && (call.Name == ".ctor" || call.Name.StartsWith("Create", StringComparison.Ordinal))
+                            && (method.DeclaringType.FullName != JobObservation || !method.IsConstructor || method.IsStatic || body != method))
+                            offenders.Add(MethodId(method) + ": " + label + " observation forwards a hidden Meter or instrument registration");
                         var callTypes = new[] { call.DeclaringType, call.ReturnType }
                             .Concat(call.Parameters.Select(parameter => parameter.ParameterType))
                             .Concat(call is GenericInstanceMethod instance ? instance.GenericArguments : Enumerable.Empty<TypeReference>());

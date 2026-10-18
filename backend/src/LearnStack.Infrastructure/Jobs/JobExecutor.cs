@@ -68,6 +68,8 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
         if (gate is not { Kind: BackgroundJobCheckpointKind.Admission })
             throw new ArgumentException("Admission requires its exact prebound stage.", nameof(gate));
         options.Validate();
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var sourceOwner = JobApplicationSourceOwner.Create();
         var sourceBinding = sourceOwner.Enter();
         var previous = accessor.Current;
@@ -222,6 +224,18 @@ public sealed partial class JobExecutor(IServiceScopeFactory scopes, ITenantCont
                 sourceOwner.CloseIssuance();
             publication.SettleNoReceipt();
         }
+        var observed = outcome switch
+        {
+            JobStartExecutionOutcome.Started => JobObservedOutcome.Acknowledged,
+            JobStartExecutionOutcome.Indeterminate => JobObservedOutcome.UnknownCommit,
+            JobStartExecutionOutcome.Failed => JobObservedOutcome.Failed,
+            JobStartExecutionOutcome.InvalidEnvelope => JobObservedOutcome.Invalid,
+            JobStartExecutionOutcome.LostClaim => JobObservedOutcome.LostClaim,
+            JobStartExecutionOutcome.CapacityDeferred => JobObservedOutcome.CapacityDeferred,
+            _ => JobObservedOutcome.Canceled,
+        };
+        telemetry.RecordStage(stageStarted, validatedEnvelope?.DefinitionKey, validatedEnvelope?.Profile,
+            JobObservedStage.Admission, observed, cleanupFailed);
         return new(outcome, command?.Receipt, cleanupFailed, sourceOwner)
         {
             RetainedCleanup = retainedCleanup.AsReadOnly(),

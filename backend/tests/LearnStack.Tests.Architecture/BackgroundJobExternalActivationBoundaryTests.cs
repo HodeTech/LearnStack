@@ -63,7 +63,7 @@ public sealed partial class OutboxDispatchConventionTests
             if (!method.IsPrivate || !method.IsStatic || method.GenericParameters.Count != 2
                 || method.ReturnType.FullName != "System.Threading.Tasks.Task`1<" + JobExternalObservation + ">"
                 || !ParametersMatch(method, ["System.Object", "System.Object", "LearnStack.SharedKernel.Jobs.BackgroundJobExternalContext",
-                    "System.String", authority, BoundaryCancellation]))
+                    "System.String", authority, JobExecutorType + "/ExternalInvocationObservation", BoundaryCancellation]))
                 offenders.Add("The provider bridge lost its closed typed signature: " + name);
             if (method.GenericParameters.Count == 2)
                 for (var index = 0; index < 2; index++)

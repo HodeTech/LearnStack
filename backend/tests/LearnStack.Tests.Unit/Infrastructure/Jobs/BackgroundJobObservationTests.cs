@@ -16,10 +16,11 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
 public sealed class BackgroundJobObservationTests
 {
-    private static readonly string[] ObservableInstruments =
+    private static readonly string[] RequiredInstruments =
     [
         "learnstack_job_component_state", "learnstack_job_control_total", "learnstack_job_heartbeat_age_seconds",
-        "learnstack_job_oldest_eligible_age_seconds", "learnstack_job_state_count",
+        "learnstack_job_duration_seconds", "learnstack_job_failed_total", "learnstack_job_oldest_eligible_age_seconds",
+        "learnstack_job_state_count", "learnstack_job_unknown_outcome_total",
     ];
     [Fact]
     public void Required_shared_observation_resolves_without_a_runtime_and_missing_registration_refuses_executor_activation()
@@ -60,7 +61,7 @@ public sealed class BackgroundJobObservationTests
         fixture.Time.Advance(TimeSpan.FromSeconds(10));
         using var probe = new Probe(fixture.Observer);
         var points = probe.Collect();
-        probe.Instruments.Order(StringComparer.Ordinal).Should().Equal(ObservableInstruments);
+        probe.Instruments.Order(StringComparer.Ordinal).Should().Equal(RequiredInstruments.Order(StringComparer.Ordinal));
         One(points, "learnstack_job_state_count", ("kind", "pending"), ("profile", "external")).Should().Be(4);
         One(points, "learnstack_job_state_count", ("kind", "deferred"), ("artifact", "job"), ("reason", "unknown")).Should().Be(2);
         One(points, "learnstack_job_state_count", ("kind", "reserved"), ("capacity_group", "unknown")).Should().Be(1);
@@ -101,6 +102,47 @@ public sealed class BackgroundJobObservationTests
         fixture.Source.IsValueCreated.Should().BeFalse();
     }
 
+    [Fact]
+    public void Actual_stage_measurements_keep_elapsed_time_private_labels_and_uncertain_effects_distinct()
+    {
+        var time = new Clock();
+        using var observer = new BackgroundJobObservation(BackgroundJobDefinitionRegistry.CreateEmpty(), time);
+        using var probe = new Probe(observer);
+        var started = observer.StartStage();
+        time.Advance(TimeSpan.FromSeconds(7));
+        observer.RecordStage(started, "raw:019712ac-1234-7000-8000-0000000000ab", "private-profile", JobObservedStage.Finalize,
+            JobObservedOutcome.Acknowledged, true);
+        var duration = probe.Current.Single();
+        duration.Value.Should().Be(7);
+        duration.Tags.Should().Contain("job_name", "unknown").And.Contain("profile", "unknown")
+            .And.Contain("stage", "finalize").And.Contain("outcome", "Acknowledged").And.Contain("cleanup", "retained");
+        observer.RecordStage(started, null, "external", JobObservedStage.Execute, JobObservedOutcome.Running, false);
+        observer.RecordStage(started, null, "external", JobObservedStage.Execute, JobObservedOutcome.UnissuedProviderFault, false);
+        probe.Current.Should().NotContain(point => point.Instrument == "learnstack_job_failed_total" || point.Instrument == "learnstack_job_unknown_outcome_total");
+        observer.RecordStage(started, null, "external", JobObservedStage.Reconcile, JobObservedOutcome.ProviderFault, false);
+        probe.Current.Should().ContainSingle(point => point.Instrument == "learnstack_job_unknown_outcome_total" && point.Value == 1);
+        observer.RecordStage(started, null, "transactional", JobObservedStage.Transactional, JobObservedOutcome.Retry, false, "raw-provider-text");
+        probe.Current.Single(point => point.Instrument == "learnstack_job_failed_total").Tags["reason"].Should().Be("stage_failed");
+        probe.Current.SelectMany(point => point.Tags.Values).Should().NotContain(value => value.Contains("raw", StringComparison.Ordinal)
+            || value.Contains("private", StringComparison.Ordinal));
+        observer.IsHealthy.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Throwing_metric_listeners_fault_health_without_rethrowing_or_reemitting_the_completed_stage()
+    {
+        var time = new Clock();
+        using var observer = new BackgroundJobObservation(BackgroundJobDefinitionRegistry.CreateEmpty(), time);
+        using var probe = new Probe(observer, throwOnMeasurement: true);
+        var started = observer.StartStage();
+        var record = () => observer.RecordStage(started, null, "external", JobObservedStage.Outcome, JobObservedOutcome.UnknownCommit, false);
+        record.Should().NotThrow();
+        probe.Current.Should().HaveCount(2, "duration and uncertainty are each attempted once despite separate listener faults");
+        probe.Current.Count(point => point.Instrument == "learnstack_job_duration_seconds").Should().Be(1);
+        probe.Current.Count(point => point.Instrument == "learnstack_job_unknown_outcome_total").Should().Be(1);
+        observer.IsHealthy.Should().BeFalse();
+    }
+
     private static double One(IReadOnlyList<Sample> points, string instrument, params (string Key, string Value)[] tags) =>
         points.Single(point => point.Instrument == instrument && tags.All(tag => point.Tags.GetValueOrDefault(tag.Key) == tag.Value)).Value;
 
@@ -111,7 +153,7 @@ public sealed class BackgroundJobObservationTests
         private readonly MeterListener _listener = new();
         private readonly List<Sample> _samples = [];
         internal HashSet<string> Instruments { get; } = new(StringComparer.Ordinal);
-        internal Probe(BackgroundJobObservation observation)
+        internal Probe(BackgroundJobObservation observation, bool throwOnMeasurement = false)
         {
             var meter = typeof(BackgroundJobObservation).GetField("_meter", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(observation);
@@ -122,11 +164,18 @@ public sealed class BackgroundJobObservationTests
                 listener.EnableMeasurementEvents(instrument);
             };
             _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
-                _samples.Add(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!))));
+            {
+                _samples.Add(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!)));
+                if (throwOnMeasurement) throw new InvalidOperationException("Deliberate synchronous metric listener fault.");
+            });
             _listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
-                _samples.Add(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!))));
+            {
+                _samples.Add(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!)));
+                if (throwOnMeasurement) throw new InvalidOperationException("Deliberate synchronous metric listener fault.");
+            });
             _listener.Start();
         }
+        internal Sample[] Current => _samples.ToArray();
         internal Sample[] Collect()
         {
             _samples.Clear();

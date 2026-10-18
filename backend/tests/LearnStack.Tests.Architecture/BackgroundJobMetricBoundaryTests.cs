@@ -10,6 +10,17 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class OutboxDispatchConventionTests
 {
     private const string JobObservation = "LearnStack.Infrastructure.Jobs.BackgroundJobObservation";
+    private static readonly string[] JobStageExecutorNames =
+    [
+        "ExecutePublishedAsync", "ExecuteBusinessAsync", "InvokeExternalAsync", "ReadExternalStateCoreAsync",
+        "WriteExternalCheckpointAsync", "ExecuteCapacityCleanupAsync", "ExecuteRecipientAsync",
+    ];
+    private static readonly (string Name, string Factory, string Numeric, string Unit, string Field)[] JobStageInstrumentInventory =
+    [
+        ("learnstack_job_duration_seconds", "CreateHistogram", "System.Double", "s", "_duration"),
+        ("learnstack_job_failed_total", "CreateCounter", "System.Int64", "1", "_failed"),
+        ("learnstack_job_unknown_outcome_total", "CreateCounter", "System.Int64", "1", "_unknown"),
+    ];
     private static readonly (string Instrument, string Factory, string Callback)[] JobObservableInventory =
     [
         ("learnstack_job_state_count", "CreateObservableGauge", "CollectCounts"),
@@ -48,10 +59,28 @@ public sealed partial class OutboxDispatchConventionTests
         var dispose = RequireBoundaryMethod(offenders, observation, "Dispose", "System.Void", MethodAttributes.Public);
         CheckBridgeCapturedField(offenders, census, observation, "_meter", "System.Diagnostics.Metrics.Meter",
             new[] { observerConstructor + ":stfld", dispose + ":ldfld" }
-                .Concat(Enumerable.Repeat(observerConstructor + ":ldfld", JobObservableInventory.Length)).ToArray());
+                .Concat(Enumerable.Repeat(observerConstructor + ":ldfld", JobObservableInventory.Length + 3)).ToArray());
         var bind = RequireBoundaryMethod(offenders, observation, "Bind", "System.Void", MethodAttributes.Assembly,
             JobRuntime, "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", "System.TimeProvider");
         var sites = CallSites(census).ToArray();
+        var stageOwners = JobStageExecutorNames.Select(name => JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, name)).ToArray();
+        var startStage = RequireBoundaryMethod(offenders, observation, "StartStage", "System.Nullable`1<System.Int64>", MethodAttributes.Assembly);
+        var recordStage = RequireBoundaryMethod(offenders, observation, "RecordStage", "System.Void", MethodAttributes.Assembly,
+            "System.Nullable`1<System.Int64>", "System.String", "System.String", "LearnStack.Infrastructure.Jobs.JobObservedStage",
+            "LearnStack.Infrastructure.Jobs.JobObservedOutcome", "System.Boolean", "System.String");
+        foreach (var (target, name, owners) in new[]
+                 {
+                     (startStage, "StartStage", stageOwners),
+                     (recordStage, "RecordStage", stageOwners.Append(JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, "InvokeExternalAsync")).ToArray()),
+                 })
+        {
+            CheckSet(offenders, "actual finite job stage metric calls " + target,
+                sites.Where(site => HasAttachedDeclaringType(site.Target) && TargetsDeclaredType(site.Target, observation)
+                    && site.Target.Name == name && MethodId(site.Target) == target).Select(site => site.Owner), owners);
+            CheckSet(offenders, "job stage metric calls have no delegate or alternate opcode " + name,
+                census.MethodInstructions(name).Where(site => HasAttachedDeclaringType(site.Target) && TargetsDeclaredType(site.Target, observation))
+                    .Select(site => site.OwnerId + ":" + site.Instruction.OpCode.Name), owners.Select(owner => owner + ":callvirt"));
+        }
         foreach (var failure in JobMetricRegistrationOffenders(new ServiceCollection().AddLearnStackBackgroundJobContracts()))
             offenders.Add(failure);
         CheckSet(offenders, "exact once job observation binding", sites.Where(site => TargetsDeclaredType(site.Target, observation)
@@ -62,7 +91,8 @@ public sealed partial class OutboxDispatchConventionTests
                 .Select(site => site.OwnerId + ":" + site.Instruction.OpCode.Name), [RuntimeConstructorId + ":callvirt"]);
         CheckSet(offenders, "exact job observation getter callers", sites.Where(site => TargetsDeclaredType(site.Target, executor)
                 && site.Target.Name == "get_Observation").Select(site => site.Owner),
-            [RuntimeConstructorId, InfrastructureAssembly + ":LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeSnapshot " + JobRuntime + "::get_Snapshot()"]);
+            new[] { RuntimeConstructorId, InfrastructureAssembly + ":LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeSnapshot " + JobRuntime + "::get_Snapshot()" }
+                .Concat(stageOwners));
         CheckSet(offenders, "required shared job observation registration", sites.Where(site => site.Target is GenericInstanceMethod
                 && (site.Target.Name.StartsWith("Add", StringComparison.Ordinal) || site.Target.Name.StartsWith("TryAdd", StringComparison.Ordinal)))
             .Where(site => ((GenericInstanceMethod)site.Target).GenericArguments.Any(argument => argument.FullName == JobObservation))
@@ -144,6 +174,28 @@ public sealed partial class OutboxDispatchConventionTests
         }
         CheckSet(offenders, "actual nonempty job observable instrument/callback inventory", observed,
             JobObservableInventory.Select(item => item.Instrument + ":" + item.Factory + ":" + item.Callback));
+        var stages = new List<string>();
+        foreach (var instruction in observerCtor.Body.Instructions)
+        {
+            if (instruction.Operand is not MethodReference factory || factory.DeclaringType.FullName != "System.Diagnostics.Metrics.Meter"
+                || !factory.Name.StartsWith("Create", StringComparison.Ordinal) || factory.Name.StartsWith("CreateObservable", StringComparison.Ordinal)) continue;
+            var count = factory.Parameters.Count + 2;
+            var end = observerCtor.Body.Instructions.IndexOf(instruction);
+            var args = observerCtor.Body.Instructions.Skip(Math.Max(0, end - count)).Take(count).ToArray();
+            if (instruction.OpCode != OpCodes.Callvirt || args.Length != count || count < 5
+                || args[0].OpCode != OpCodes.Ldarg_0 || args[1].OpCode != OpCodes.Ldfld
+                || args[1].Operand is not FieldReference { Name: "_meter" } meter || !TargetsDeclaredType(meter, observation)
+                || args[2].OpCode != OpCodes.Ldstr || args[2].Operand is not string name
+                || args[3].OpCode != OpCodes.Ldstr || args[3].Operand is not string unit
+                || args.Skip(4).Any(argument => argument.OpCode != OpCodes.Ldnull)
+                || factory is not GenericInstanceMethod { GenericArguments.Count: 1 } numeric
+                || instruction.Next?.OpCode != OpCodes.Stfld || instruction.Next.Operand is not FieldReference field
+                || !TargetsDeclaredType(field, observation))
+                offenders.Add("A synchronous job metric has no exact consumed receiver, name, unit, numeric type or stored field");
+            else stages.Add(name + ":" + factory.Name + ":" + numeric.GenericArguments[0].FullName + ":" + unit + ":" + field.Name);
+        }
+        CheckSet(offenders, "actual nonempty synchronous job instrument metadata", stages,
+            JobStageInstrumentInventory.Select(item => item.Name + ":" + item.Factory + ":" + item.Numeric + ":" + item.Unit + ":" + item.Field));
         return roots;
     }
 
@@ -454,6 +506,19 @@ public sealed partial class OutboxDispatchConventionTests
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
         }
         finally { ctor.Body.Instructions.Remove(markerRead); ctor.Body.Instructions.Remove(markerPop); application.Types.Remove(holder); }
+        var actualInitializer = observation.Methods.Single(method => method.IsConstructor && method.IsStatic);
+        AssertMutation(census, "a hidden Meter registered in the actual observer static constructor", () =>
+        {
+            var instructions = new[]
+            {
+                Instruction.Create(OpCodes.Ldstr, "learnstack.jobs"), Instruction.Create(OpCodes.Ldnull),
+                Instruction.Create(OpCodes.Newobj, actualInitializer.Module.ImportReference(
+                    typeof(System.Diagnostics.Metrics.Meter).GetConstructor([typeof(string), typeof(string)])!)),
+                Instruction.Create(OpCodes.Pop),
+            };
+            for (var index = 0; index < instructions.Length; index++) actualInitializer.Body.Instructions.Insert(index, instructions[index]);
+            return () => { foreach (var instruction in instructions) actualInitializer.Body.Instructions.Remove(instruction); };
+        }, RuntimeLifetimeOffenders);
         var hidden = new MethodDefinition("RegisterHidden", MethodAttributes.Private, ctor.Module.TypeSystem.Void);
         foreach (var instruction in original)
         {
@@ -521,6 +586,66 @@ public sealed partial class OutboxDispatchConventionTests
                 runtimeCtor.Body.Instructions.Remove(skip); runtimeCtor.Body.Instructions.Remove(receiver);
             };
         }, RuntimeLifetimeOffenders);
+        var histogram = ctor.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+            && method.DeclaringType.FullName == "System.Diagnostics.Metrics.Meter" && method.Name == "CreateHistogram");
+        AssertMutation(census, "a duration histogram whose emitted unit silently changes to milliseconds", () =>
+        {
+            var unit = ctor.Body.Instructions[ctor.Body.Instructions.IndexOf(histogram) - 4];
+            unit.OpCode.Should().Be(OpCodes.Ldstr);
+            unit.Operand.Should().Be("s");
+            unit.Operand = "ms";
+            return () => unit.Operand = "s";
+        }, RuntimeLifetimeOffenders);
+
+        var executorBody = OwnedBodies(census).Single(item => item.Owner.DeclaringType == executor
+            && item.Owner.Name == "ExecutePublishedAsync" && item.Body.Body.Instructions.Any(instruction =>
+                instruction.Operand is MethodReference method && method.DeclaringType.FullName == JobObservation && method.Name == "StartStage")).Body;
+        var start = executorBody.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+            && method.DeclaringType.FullName == JobObservation && method.Name == "StartStage");
+        AssertMutation(census, "an unused StartStage method group replacing the actual timing call", () =>
+        {
+            var local = new VariableDefinition(executorBody.Module.ImportReference(typeof(long?)));
+            var initialized = executorBody.Body.InitLocals;
+            executorBody.Body.InitLocals = true;
+            executorBody.Body.Variables.Add(local);
+            start.OpCode = OpCodes.Ldftn;
+            var replacements = new[]
+            {
+                Instruction.Create(OpCodes.Newobj, executorBody.Module.ImportReference(
+                    typeof(Func<long?>).GetConstructor([typeof(object), typeof(IntPtr)])!)),
+                Instruction.Create(OpCodes.Pop), Instruction.Create(OpCodes.Ldloca, local),
+                Instruction.Create(OpCodes.Initobj, local.VariableType), Instruction.Create(OpCodes.Ldloc, local),
+            };
+            for (var index = 0; index < replacements.Length; index++)
+                executorBody.Body.Instructions.Insert(executorBody.Body.Instructions.IndexOf(start) + 1 + index, replacements[index]);
+            return () =>
+            {
+                start.OpCode = OpCodes.Callvirt;
+                foreach (var instruction in replacements) executorBody.Body.Instructions.Remove(instruction);
+                executorBody.Body.Variables.Remove(local);
+                executorBody.Body.InitLocals = initialized;
+            };
+        }, RuntimeLifetimeOffenders);
+
+        foreach (var method in observation.Methods.Where(method => method.Name is "StartStage" or "RecordStage"))
+        {
+            EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+            var instructions = new[]
+            {
+                Instruction.Create(OpCodes.Newobj, method.Module.ImportReference(typeof(Npgsql.NpgsqlCommand).GetConstructor(Type.EmptyTypes)!)),
+                Instruction.Create(OpCodes.Pop),
+            };
+            method.Body.Instructions.Insert(0, instructions[1]);
+            method.Body.Instructions.Insert(0, instructions[0]);
+            try
+            {
+                EvaluateDetector(census, RuntimeLifetimeOffenders).Should().Contain(value =>
+                    value.Contains("job stage metrics observation reaches persistence/provider activation", StringComparison.Ordinal),
+                    "each actual synchronous stage root must be independently selected by the memory walk");
+            }
+            finally { foreach (var instruction in instructions) method.Body.Instructions.Remove(instruction); }
+            EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+        }
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
     }
 }

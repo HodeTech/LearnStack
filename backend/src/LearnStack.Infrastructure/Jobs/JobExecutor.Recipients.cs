@@ -43,6 +43,8 @@ public sealed partial class JobExecutor
         if (gate is not { Kind: BackgroundJobCheckpointKind.RecipientSubmission })
             throw new ArgumentException("Recipient execution requires its exact prebound stage.", nameof(gate));
         options.Validate();
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var source = JobApplicationSourceOwner.Create();
         var previous = accessor.Current;
         var previousActivity = Activity.Current;
@@ -135,6 +137,11 @@ public sealed partial class JobExecutor
             : command?.Ineligible == true ? JobRecipientSubmissionStatus.Ineligible
             : gate.IsClosed ? JobRecipientSubmissionStatus.Canceled
             : response is { IsFailure: true } ? JobRecipientSubmissionStatus.LostClaim : JobRecipientSubmissionStatus.Failed;
+        telemetry.RecordStage(stageStarted, null, "control", JobObservedStage.RecipientSubmission,
+            status == JobRecipientSubmissionStatus.Accepted ? JobObservedOutcome.Acknowledged
+                : status == JobRecipientSubmissionStatus.Indeterminate ? JobObservedOutcome.UnknownCommit
+                : status == JobRecipientSubmissionStatus.Failed ? JobObservedOutcome.Failed : JobObservedOutcome.Refused,
+            cleanupFailed || !source.CleanupConfirmed);
         return new(status, command, cleanupFailed || !source.CleanupConfirmed, source, retained.AsReadOnly()) { Failure = failure };
     }
 

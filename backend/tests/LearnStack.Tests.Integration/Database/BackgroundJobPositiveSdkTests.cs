@@ -38,6 +38,7 @@ public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema)
         submitted.IsSuccess.Should().BeTrue();
         var job = submitted.Value;
         var executor = host.Services.GetRequiredService<JobExecutor>();
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var claim = await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job,
             await GenerationAsync(database, job));
         claim.Should().NotBeNull();
@@ -64,6 +65,7 @@ public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema)
         arm.CleanupFailed.Should().BeFalse();
         var executed = await executor.ExecuteExternalAsync(read.Handle, arm, CancellationToken.None);
         executed.Status.Should().Be(JobExternalExecutionStatus.Reported);
+        executed.ProviderIssued.Should().BeTrue();
         executed.CleanupFailed.Should().BeFalse();
         executed.Observation.Should().NotBeNull();
         executed.Observation!.IsCompleted.Should().BeTrue();
@@ -91,6 +93,13 @@ public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema)
         var finalized = await executor.ExecuteBusinessAsync(final, final.Run.OpenBoundary(BackgroundJobCheckpointKind.Finalize));
         finalized.CommitAcknowledged.Should().BeTrue();
         finalized.CleanupFailed.Should().BeFalse();
+        metrics.Duration("prepare").Tags["outcome"].Should().Be("Acknowledged");
+        metrics.Duration("finalize").Tags["outcome"].Should().Be("Acknowledged",
+            "acknowledged failure finalization is a successful finalize stage");
+        metrics.Duration("execute").Tags["outcome"].Should().Be(mode == "succeeded" ? "ProviderSucceeded"
+            : mode == "cancelled_not_repeatable" ? "ProviderCancelledNotRepeatable" : "ProviderFailed");
+        metrics.Points.Count(point => point.Name == "learnstack_job_failed_total").Should().Be(mode is "permanent" or "not_repeatable" ? 1 : 0);
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_unknown_outcome_total");
         (await provider.CountsAsync(operation)).Should().Be((1L, 0L, effectCount), "Finalize never invokes Execute or Reconcile");
         construction.Calls.Should().Be(1);
         (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalizedId.Value)).Should().Be(1);

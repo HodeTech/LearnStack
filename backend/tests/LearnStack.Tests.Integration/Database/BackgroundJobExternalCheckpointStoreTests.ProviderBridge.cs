@@ -78,10 +78,14 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         using var cancellation = new CancellationTokenSource();
         if (state == "cancelled") await cancellation.CancelAsync();
         var (bridge, scopes) = ObservedProviderBridge(host.Services);
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var result = await bridge.ExecuteExternalAsync(read.Handle!, arm, cancellation.Token);
         result.Status.Should().Be(state is "stopped" or "cancelled" ? JobExternalExecutionStatus.EntryRefused
             : JobExternalExecutionStatus.ProviderFault);
         result.Observation.Should().BeNull();
+        result.ProviderIssued.Should().BeFalse("a scope or adapter constructor fault is not an issued provider operation");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_unknown_outcome_total" || point.Name == "learnstack_job_failed_total");
+        metrics.Duration("execute").Tags["outcome"].Should().Be(state is "stopped" or "cancelled" ? "Refused" : "UnissuedProviderFault");
         result.CleanupFailed.Should().BeFalse();
         result.RetainedCleanup.Should().BeEmpty();
         scopes.Calls.Should().Be(state == "actual_canary" ? 1 : 0);

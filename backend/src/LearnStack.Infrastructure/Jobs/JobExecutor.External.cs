@@ -16,6 +16,7 @@ internal sealed record JobExternalExecutionResult(JobExternalExecutionStatus Sta
     BackgroundJobRetainedExternalObservation? Observation, bool CleanupFailed)
 {
     internal IReadOnlyList<JobStartCleanupOwnership> RetainedCleanup { get; init; } = [];
+    internal bool ProviderIssued { get; init; }
 }
 
 public sealed partial class JobExecutor
@@ -41,10 +42,18 @@ public sealed partial class JobExecutor
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         if ((armed is null) == (recovery is null)) throw new ArgumentException("Provider entry has one exact origin.");
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
+        var metricStage = armed is null ? JobObservedStage.Reconcile : JobObservedStage.Execute;
         if (recovery?.Receipt.Purpose == BackgroundJobExternalRecoveryPurpose.TerminalNoStart)
+        {
+            telemetry.RecordStage(stageStarted, null, "external", metricStage, JobObservedOutcome.Refused, false);
             return new(JobExternalExecutionStatus.EntryRefused, null, false);
+        }
+        var invocation = new ExternalInvocationObservation();
         var arm = armed?.Arm;
         var original = arm?.Receipt;
+        BackgroundJobEnvelope? envelopeForMetrics = original?.Envelope;
         var run = original?.Run ?? recovery!.Run;
         var source = original?.SourceOwner ?? recovery!.SourceOwner;
         var previous = accessor.Current;
@@ -78,6 +87,7 @@ public sealed partial class JobExecutor
                 throw new OperationCanceledException("The acknowledged Arm's observed entry window has expired.");
             }
             var snapshot = original is not null ? read.Require(original) : read.Require(recovery!);
+            envelopeForMetrics = snapshot.Envelope;
             if (original is not null && (snapshot.PlanJson is null || snapshot.NoStartRecorded || snapshot.OutcomeJson is not null
                 || snapshot.OutcomeState is not null || snapshot.FailurePolicy is not null
                 || snapshot.PlanFingerprint != arm!.PlanFingerprint || snapshot.OperationId != arm.OperationId))
@@ -123,7 +133,7 @@ public sealed partial class JobExecutor
                     call = (Task<BackgroundJobRetainedExternalObservation?>)typeof(JobExecutor)
                         .GetMethod(method, BindingFlags.NonPublic | BindingFlags.Static)!
                         .MakeGenericMethod(definition.ProfileRegistration.PlanType!, definition.ProfileRegistration.OutcomeType!)
-                        .Invoke(null, [adapter, plan, context, fingerprint, original is null ? recovery : arm!.Gate, token])!;
+                        .Invoke(null, [adapter, plan, context, fingerprint, original is null ? recovery : arm!.Gate, invocation, token])!;
                 }
                 catch (TargetInvocationException wrapped) when (wrapped.InnerException is { } failure)
                 {
@@ -179,12 +189,27 @@ public sealed partial class JobExecutor
             if (cleanupFailed) { source.CloseIssuance(); run.Close(); }
         }
         if (token.IsCancellationRequested) run.Close();
-        return new(status, observation, cleanupFailed) { RetainedCleanup = retained.AsReadOnly() };
+        var observed = status == JobExternalExecutionStatus.EntryRefused ? JobObservedOutcome.Refused
+            : status == JobExternalExecutionStatus.ProviderFault ? invocation.Issued
+                ? JobObservedOutcome.ProviderFault : JobObservedOutcome.UnissuedProviderFault
+            : observation?.State switch
+            {
+                BackgroundJobExternalState.Succeeded => JobObservedOutcome.ProviderSucceeded,
+                BackgroundJobExternalState.Failed => JobObservedOutcome.ProviderFailed,
+                BackgroundJobExternalState.Cancelled => observation.FailurePolicy == BackgroundJobExternalFailurePolicy.TransientRepeatable
+                    ? JobObservedOutcome.ProviderCancelledRepeatable : JobObservedOutcome.ProviderCancelledNotRepeatable,
+                BackgroundJobExternalState.Running => JobObservedOutcome.Running,
+                BackgroundJobExternalState.NeverStarted => JobObservedOutcome.NeverStarted,
+                _ => JobObservedOutcome.UnknownEffect,
+            };
+        telemetry.RecordStage(stageStarted, envelopeForMetrics?.DefinitionKey, "external", metricStage,
+            observed, cleanupFailed, observation?.FailurePolicy?.ToString());
+        return new(status, observation, cleanupFailed) { RetainedCleanup = retained.AsReadOnly(), ProviderIssued = invocation.Issued };
     }
 
     private static async Task<BackgroundJobRetainedExternalObservation?> CallExternalExecuteAsync<TPlan, TOutcome>(
         object adapter, object plan, BackgroundJobExternalContext captureContext, string fingerprint,
-        BackgroundJobCommitGate arm, CancellationToken token)
+        BackgroundJobCommitGate arm, ExternalInvocationObservation invocation, CancellationToken token)
         where TPlan : IBackgroundJobPlan where TOutcome : IBackgroundJobOutcome
     {
         var operation = (IBackgroundJobExternalOperation<TPlan, TOutcome>)adapter;
@@ -192,13 +217,14 @@ public sealed partial class JobExecutor
         var providerContext = captureContext with { };
         token.ThrowIfCancellationRequested();
         if (!arm.Run.TryIssueExternalExecute(arm)) return null;
+        invocation.MarkIssued();
         var report = await operation.ExecuteAsync(providerContext, typedPlan, token).ConfigureAwait(false);
         return BackgroundJobRetainedExternalObservation.Capture(captureContext, fingerprint, report);
     }
 
     private static async Task<BackgroundJobRetainedExternalObservation?> CallExternalReconcileAsync<TPlan, TOutcome>(
         object adapter, object plan, BackgroundJobExternalContext captureContext, string fingerprint,
-        BackgroundJobExternalRecoveryBinding recovery, CancellationToken token)
+        BackgroundJobExternalRecoveryBinding recovery, ExternalInvocationObservation invocation, CancellationToken token)
         where TPlan : IBackgroundJobPlan where TOutcome : IBackgroundJobOutcome
     {
         var operation = (IBackgroundJobExternalOperation<TPlan, TOutcome>)adapter;
@@ -206,7 +232,17 @@ public sealed partial class JobExecutor
         var providerContext = captureContext with { };
         token.ThrowIfCancellationRequested();
         if (!recovery.Run.TryIssueExternalReconcile(recovery)) return null;
+        invocation.MarkIssued();
         var report = await operation.ReconcileAsync(providerContext, typedPlan, token).ConfigureAwait(false);
         return BackgroundJobRetainedExternalObservation.Capture(captureContext, fingerprint, report);
+    }
+
+    // Memory provenance only. This records the exact bridge's successful entry
+    // CAS; it confers no provider, checkpoint, retry or quiescence permission.
+    private sealed class ExternalInvocationObservation
+    {
+        private int _issued;
+        internal bool Issued => Volatile.Read(ref _issued) != 0;
+        internal void MarkIssued() => Interlocked.Exchange(ref _issued, 1);
     }
 }

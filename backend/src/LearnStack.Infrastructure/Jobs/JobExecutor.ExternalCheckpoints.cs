@@ -107,6 +107,8 @@ public sealed partial class JobExecutor
     {
         BackgroundJobExecutionAdmission.RefusePrivilegedEntry();
         if ((arm is null) == (outcome is null)) throw new ArgumentException("An external checkpoint has one exact write.");
+        var telemetry = Observation;
+        var stageStarted = telemetry.StartStage();
         var metadata = arm?.Authority ?? outcome!.Authority;
         var gate = arm?.Gate ?? outcome!.Gate;
         var source = metadata.SourceOwner;
@@ -201,6 +203,13 @@ public sealed partial class JobExecutor
             : gate.CommitStarted && !gate.KnownRollback ? JobExternalCheckpointStatus.Indeterminate
             : metadata.Run.IsClosed || token.IsCancellationRequested || response is { IsFailure: true }
                 ? JobExternalCheckpointStatus.Refused : JobExternalCheckpointStatus.Failed;
+        var stage = arm is not null ? JobObservedStage.Arm
+            : outcome!.IsStoredCompleted ? JobObservedStage.SelectedOutcome
+            : gate.Kind == BackgroundJobCheckpointKind.NoStart ? JobObservedStage.NoStart : JobObservedStage.Outcome;
+        telemetry.RecordStage(stageStarted, envelope.DefinitionKey, envelope.Profile, stage,
+            status == JobExternalCheckpointStatus.Completed ? JobObservedOutcome.Acknowledged
+                : status == JobExternalCheckpointStatus.Indeterminate ? JobObservedOutcome.UnknownCommit
+                : status == JobExternalCheckpointStatus.Refused ? JobObservedOutcome.Refused : JobObservedOutcome.Failed, cleanupFailed);
         return new(status, arm, outcome, issued, cleanupFailed, retained.AsReadOnly());
     }
 }

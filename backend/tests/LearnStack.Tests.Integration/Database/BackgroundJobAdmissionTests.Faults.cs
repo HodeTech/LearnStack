@@ -115,6 +115,7 @@ public sealed partial class BackgroundJobAdmissionTests
         var store = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
         var claim = (await store.TryClaimAsync(job, 1))!;
         using var activity = new Activity("uncertain-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create()).WaitAsync(TimeSpan.FromSeconds(10));
         proxy.DroppedCommitResponses.Should().Be(1);
         result.Outcome.Should().Be(JobStartExecutionOutcome.Indeterminate);
@@ -128,6 +129,9 @@ public sealed partial class BackgroundJobAdmissionTests
         Fixture.RootConstructions.Should().Be(roots);
         host.Services.GetRequiredService<ITenantContextAccessor>().Current.Should().BeSameAs(original);
         Activity.Current.Should().BeSameAs(activity);
+        metrics.Duration("admission").Tags["outcome"].Should().Be("UnknownCommit");
+        metrics.Points.Should().ContainSingle(point => point.Name == "learnstack_job_unknown_outcome_total" && point.Value == 1);
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total");
     }
 
     [Fact]
@@ -142,6 +146,7 @@ public sealed partial class BackgroundJobAdmissionTests
         await using var host = Fixture.Host(database, probe, original, observation.Configure);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var activity = new Activity("cleanup-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
+        using var metrics = new BackgroundJobStageProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         result.Receipt.Should().NotBeNull();
@@ -154,6 +159,8 @@ public sealed partial class BackgroundJobAdmissionTests
         host.Services.GetRequiredService<ITenantContextAccessor>().Current.Should().BeSameAs(original);
         Activity.Current.Should().BeSameAs(activity);
         probe.Constructions.Should().BeEmpty();
+        metrics.Duration("admission").Tags.Should().Contain("outcome", "Acknowledged").And.Contain("cleanup", "retained");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total" || point.Name == "learnstack_job_unknown_outcome_total");
     }
 
     [Fact]
@@ -208,6 +215,8 @@ public sealed partial class BackgroundJobAdmissionTests
         await using var host = Fixture.Host(database, probe, original);
         var claim = (await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>().TryClaimAsync(job, 1))!;
         using var activity = new Activity("activity-cleanup-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var telemetry = host.Services.GetRequiredService<BackgroundJobObservation>();
+        using var metrics = new BackgroundJobStageProbe(telemetry, throwOnMeasurement: true);
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
         callbacks.Should().Be(1, "the fault must arise from the actual admission Activity's Stop callback");
         result.Outcome.Should().Be(JobStartExecutionOutcome.Started);
@@ -216,6 +225,9 @@ public sealed partial class BackgroundJobAdmissionTests
         Activity.Current.Should().BeSameAs(activity);
         host.Services.GetRequiredService<ITenantContextAccessor>().Current.Should().BeSameAs(original);
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+        metrics.Duration("admission").Tags.Should().Contain("outcome", "Acknowledged").And.Contain("cleanup", "retained");
+        metrics.Points.Should().NotContain(point => point.Name == "learnstack_job_failed_total" || point.Name == "learnstack_job_unknown_outcome_total");
+        telemetry.IsHealthy.Should().BeFalse("the throwing metric listener is visible without reversing the real COMMIT");
     }
 
     private static async Task WaitForApplicationRowLockAsync(string connectionString)

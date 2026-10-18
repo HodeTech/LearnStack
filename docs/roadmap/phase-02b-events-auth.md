@@ -8087,6 +8087,57 @@ supplies a full Step 9 review round. Stage/event instrumentation, complete
 control-path accounting, nineteen-rule enforcement, whole regression/CI-budget
 qualification and both full Step 9 reviews remain pending.
 
+#### Actual executor stage measurement qualification
+
+Three synchronous families add execution duration, confirmed stage failure and
+uncertain write/effect observations to the five memory collectors. Seven actual
+executor owners record after their existing scope/Activity/context/authority/
+source/auxiliary/registration cleanup. Duration excludes subsequent metric
+notification and the outer native owner's later private-token cleanup; a blocked
+listener still belongs to the actual task. Each instrument contains catchable
+listener faults independently, reports observation unhealthy and preserves the
+original result. A physical acknowledgement remains successful through cleanup
+or notification faults.
+
+The private provider-issued bit records the existing typed bridge's successful
+entry CAS immediately before the actual call. It grants no execution, checkpoint,
+retry or release permission. Construction/entry faults before that point do not
+become uncertain external effects. Valid Running reports remain pending;
+explicit Unknown and issued-call faults remain distinct from provider Failed.
+Capacity cleanup without acknowledgement or uncertain COMMIT uses neutral
+`NotCommitted`, since its existing result does not distinguish refusal from
+failure. Business cancellation registration disposal now completes before its
+final classification and measurement.
+
+All 364 Jobs unit cases and 25 selected real PostgreSQL cases pass with zero
+failures/skips. The latter retain actual dropped-COMMIT-response, post-ACK scope
+and Activity faults, held cleanup, throwing metric listeners, unissued provider
+constructors, genuine provider/finalization, Running/Unknown and issued reconcile
+fault/timeout premises. Measurement assertions accompany those durable facts;
+they do not substitute for them. These cases do not independently qualify every
+capacity, recipient or stored-selection metric branch.
+
+The first seven-case Architecture cohort passes six and fails a new stage-call
+scan on a deliberately detached method reference. Narrowing to an attached exact
+observer target before formatting identity fixes that detector regression.
+Focused review also closes call-reference versus call-opcode, synchronous unit/
+numeric metadata and actual stage-root selection gaps. Balanced method-group,
+seconds-to-milliseconds and direct SQL mutations exercise those same checks.
+The hidden-Meter boundary permits only the exact instance constructor; a dirty
+actual observer static initializer proves that distinction. The final seven
+Architecture cases pass with zero failures/skips, including the complete prior
+runtime/source and orchestration companions.
+
+The final 357-source snapshot builds in CI Release with zero warnings/errors;
+its source/artifact receipt is
+`847271cf34791d5cb0d930202de07500776afac2adc5463249e0bfe7d524e616`.
+Production and unit/PostgreSQL fixture sources remain byte-identical through the
+final guard corrections. Focused implementation and guard inspections have no
+open findings in this slice and supply no full Step 9 review credit. Named-source
+tracing/Start ownership, remaining branch/lease/control instrumentation,
+nineteen-rule enforcement, whole regression/CI-budget qualification and both full
+Step 9 reviews still precede packet closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

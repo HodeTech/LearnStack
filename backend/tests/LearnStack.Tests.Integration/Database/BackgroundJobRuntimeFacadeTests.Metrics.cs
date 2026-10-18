@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using System.Collections.Concurrent;
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
@@ -82,4 +83,37 @@ internal sealed class BackgroundJobMetricProbe : IDisposable
         points.Single(point => point.Name == name && tags.All(tag => point.Tags.GetValueOrDefault(tag.Key) == tag.Value)).Value;
     public void Dispose() => _listener.Dispose();
     internal sealed record Point(string Name, double Value, Dictionary<string, string> Tags);
+}
+
+/// <summary>Actual synchronous stage emissions only; collection never invokes gauges.</summary>
+internal sealed class BackgroundJobStageProbe : IDisposable
+{
+    private readonly MeterListener _listener = new();
+    private readonly ConcurrentQueue<BackgroundJobMetricProbe.Point> _points = new();
+
+    internal BackgroundJobStageProbe(BackgroundJobObservation observation, bool throwOnMeasurement = false)
+    {
+        var meter = typeof(BackgroundJobObservation).GetField("_meter", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(observation);
+        _listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (!instrument.IsObservable && ReferenceEquals(instrument.Meter, meter)) listener.EnableMeasurementEvents(instrument);
+        };
+        _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+        {
+            _points.Enqueue(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!)));
+            if (throwOnMeasurement) throw new InvalidOperationException("Deliberate job metric listener fault.");
+        });
+        _listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+        {
+            _points.Enqueue(new(instrument.Name, value, tags.ToArray().ToDictionary(tag => tag.Key, tag => (string)tag.Value!)));
+            if (throwOnMeasurement) throw new InvalidOperationException("Deliberate job metric listener fault.");
+        });
+        _listener.Start();
+    }
+
+    internal BackgroundJobMetricProbe.Point[] Points => _points.ToArray();
+    internal BackgroundJobMetricProbe.Point Duration(string stage) => Points.Single(point => point.Name == "learnstack_job_duration_seconds"
+        && point.Tags["stage"] == stage);
+    public void Dispose() => _listener.Dispose();
 }
