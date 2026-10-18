@@ -47,8 +47,11 @@ recurrence definitions remain empty.
 authorizes the bounded native provisioning/partition follow-up; implementation
 and exact-head hosted qualification remain in progress.
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) proposes a bounded
-CI topology after actual hosted backend/ordinary budget failure; no dependent
-shard implementation is authorized before maintainer approval.
+CI topology after actual hosted backend/ordinary budget failure. Its
+[review revision](#adr-0063-review-revision-2026-10-18) owns the revised proposal
+and current source-specific evidence. Native passes on `3553ff16`; the separate
+ordinary membership-I/O fault remains under ADR-0062. No dependent shard
+implementation is authorized before maintainer approval.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -9425,6 +9428,75 @@ bounded supersession, cross-VM population agreement, aggregate-side independent
 assignment recomputation, backend-base non-test gates and the sixteen-VM cost.
 Actual selection, ownership, reserves and fit remain pending implementation and
 hosted qualification. This is proposal review, not maintainer acceptance.
+
+###### ADR-0063 review revision (2026-10-18)
+
+The maintainer's response reviews the proposal; it does **not** accept it.
+ADR-0063 remains Proposed. The initial `3f5f09e3` proposal and its first two
+reviews above are historical inputs, not reviews of this revision. No shard
+implementation or ADR-0062 amendment is authorized yet; `development` is retained,
+PR #32 is open and P02b-5 has not started.
+
+Fresh read-only API/artifact verification of
+[run 39148006960](https://github.com/HodeTech/LearnStack/actions/runs/39148006960)
+binds source `3553ff16` to merge checkout
+`6de31fcce66d7f53e4d5d28fd163f65ab8af4d85`. Native succeeds in 465 job seconds:
+31/31 cases, zero skips, exact fresh IDs/TRX fields/hashes, positive ownership,
+natural Docker absence and no forced cleanup. The launcher-only intervals are
+1.535/240.221/10.468 seconds; these exclude checkout/restore/build. Both fresh
+reader correction review rounds are complete. Meta passes 17 provisioning and
+38 launcher controls; frontend, OpenAPI, secret scan and demo also pass.
+
+Backend again lacks a completed Architecture TRX and reaches the configured
+ceiling. Its API interval includes the cancellation/post-step tail; that does
+not extend its twenty-minute configuration. Ordinary is a distinct failed path:
+416 passing IDs, 1,985 censored cases, no final TRX, `owned_completion_missing`
+and `workload_internal_membership_io`. Forced 0.459-second cleanup witnesses
+cleanup ownership, not successful workload completion. The retained facts do
+not identify an errno or establish the root cause. ADR-0062 owns that correction;
+sharding cannot count it as a measured deadline or waive it. The integration
+aggregate correctly fails despite native success. Protection API readback still
+has the same seven app-bound contexts and strict mode; no setting is changed.
+
+Review dispositions are verified against the current tree and retained evidence:
+
+| Review topic | Verified disposition |
+|---|---|
+| Stale native/meta Context and reader follow-up | Corrected source-scoped history: meta race fixed; image provenance and reader both reviewed; native now passes. Earlier ordinary internal/completion faults remain separate. |
+| Four Architecture bins, 152 versus 346 rows | Confirmed weak sizing, not a fit proof. First/current/earlier console prefixes are 152/294/346 with no final TRX. Ordinary's ratio cannot predict CPU-bound Architecture. Local maximum is not a hosted upper bound. |
+| Sum/wall confusion and 782-second window | Corrected: the window includes discovery/fixtures/test lifetime; 203 seconds already includes 60 seconds upload. Historical sums do not establish spare capacity or ordinary-only wall time. |
+| Backend-base sizing | Newly extracted complete suite intervals and pre-test walls appear in ADR-0063. Base candidate remains one VM; its new discovery/owner/export and isolated fit still require measurement. |
+| Repeated fixture/discovery costs | Confirmed: SharedSchema spans 75 classes; split VMs repeat container/migration/seed and other fixtures. Missing per-fixture/CPU measurements are unknown, never zero. |
+| Fixed counts and new ADR per tuning attempt | Revised proposal permits reviewed manual Architecture 4–6 / ordinary 8–12, at most twenty backend/test execution VMs; initial 6/12. No automatic/dynamic expansion or larger ceiling. |
+| Process composition and independence | Require two genuinely different A/B assignments on the same source via two full attempts; bin renumbering cannot qualify. Fix actual dependence if exposed. |
+| Collection versus process/VM alternatives | Existing Integration collection parallelism and Architecture's two-thread cap clarified. Separate processes on fewer VMs are a credible unqualified alternative; VMs are not required merely to isolate static state. |
+| Non-Docker cgroup privilege | Explicit new bounded hosted-only transient systemd authority requires acceptance; child stays non-root. Non-Docker gets no Docker baseline/cleanup, crash scan or collector authority. |
+| Plan, timing/default costs and selector bounds | Proposed tracked JSON/owner, versioned frozen weights with provenance, unknown-method census, explicit 60-second estimate and finite direct-argv/filter bounds; actual selection still independently rediscovered. |
+| Aggregate outcomes/names/ceilings | Backend requires base/all Architecture; integration requires all ordinary/native. Each unique required name belongs solely to an always-running aggregate, each bounded to five minutes. All seven protection settings remain. |
+| Rerun/attempt/artifact semantics | Single-attempt receipts with immutable artifact IDs and attempt-specific job verification. Failed/aggregate-only reruns cannot reuse old siblings; recovery is Re-run all jobs. |
+| General control owner and meta ceiling | Proposed general `CI_Test_Shards_Are_Complete_And_Bounded`, Registered only at acceptance, then Implemented with actual Python/meta controls. Native/Hangfire and Docker-trait rules keep their own scope; meta stays five minutes. |
+| Cost, queue, toolchain and filter identity | Public standard minutes are free; effective organization concurrency is unknown. Queue extends feedback, not running ceiling. Each receipt records actual console/adapter; actual xUnit FQN producer is cited. |
+| Probe path, terminology, diagnostics | Full probe README named; base is project-owned, only Architecture/ordinary selector-sharded. Finite/private diagnostics remain bounded; raw provider output is not added. |
+
+The first fresh full revision review (GPT-6.1-sol, xhigh) approves with no
+Blocker/Major/Minor finding. It independently verifies native result integrity,
+base intervals, the current ordinary failure, source/merge identity and all seven
+strict app-bound protection contexts. Its suggestions are incorporated: explicit
+initial A/B algorithms and the 56-second current meta baseline with a provisional
+30-second new-control allocation. Only aggregates propose
+job-level `actions: read` beside `contents: read`; no execution token gains
+permission. A second fresh
+full review follows. This is proposal review, not acceptance or hosted fit.
+
+The revised three steps are specified once in
+[ADR-0063 Implementation Notes](../decisions/0063-complete-bounded-ci-test-shards.md#implementation-notes):
+actual selector/plan controls; bounded execution/phase evidence; workflow/aggregate
+and two-assignment qualification. Each retains commit and two fresh independent
+review rounds before advancing. New general-rule registration and ADR-0062's dated
+bounded replacement/additive disclosure happen **only after acceptance**. Their
+future implementation must update actual catalogue counts in the enforcement
+change, not preclaim them here. Full execution fit and the independent ordinary
+owner failure remain open qualification work; no runtime feature is added.
 
 ### Durable outbox dispatch
 

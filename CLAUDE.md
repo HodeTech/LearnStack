@@ -263,9 +263,11 @@ Accepted ADR-0062 (2026-10-18) authorizes the bounded native CI follow-up; its
 [acceptance record](docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns implementation, follow-up reviews and exact-head hosted qualification.
 Actual hosted backend/ordinary budget failures reopen the CI arrangement;
-[ADR-0063](docs/decisions/0063-complete-bounded-ci-test-shards.md) is Proposed,
-with implementation awaiting maintainer approval. Native prerequisite
-investigation remains separately owned by ADR-0062.
+[ADR-0063](docs/decisions/0063-complete-bounded-ci-test-shards.md) remains Proposed.
+It is revised after external review; implementation awaits maintainer approval. Its [revision record](docs/roadmap/phase-02b-events-auth.md#adr-0063-review-revision-2026-10-18)
+owns bounded manual tuning, two-assignment qualification and current CI
+evidence. Native passes on `3553ff16`; the separate ordinary membership-I/O
+failure remains under ADR-0062. Neither packet nor PR is closed.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.

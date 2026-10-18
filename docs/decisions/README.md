@@ -110,7 +110,7 @@ owns outstanding hosted CI/PR qualification. Phase 11 owns production qualificat
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0063 | [Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md) | Proposed after actual backend/ordinary time-budget failure; finite separate-VM method groups, complete case-ID aggregates, unchanged seven required names and twenty-minute ceilings | P02b-4 final hosted qualification; approval required before dependent implementation |
+| 0063 | [Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md) | Revised proposal: bounded manual Architecture/ordinary counts, complete selector/case-ID aggregates and two-assignment qualification; seven required names and twenty-minute execution ceilings unchanged | P02b-4 final hosted qualification; approval required before dependent implementation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
