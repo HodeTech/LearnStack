@@ -463,6 +463,34 @@ class ExecutionProgress:
         require(len(self.expected) == len(expected), 'duplicate_discovery_identity')
         self.seen, self.outcomes = set(), Counter()
         self.offset, self.pending, self.completed = 0, b'', False
+        self.backup = path.with_name(path.stem + '.bak' + path.suffix)
+        require(not os.path.lexists(self.backup), 'execution_diagnostic_changed')
+        # Own generation zero before the append-mode writer starts. Opening
+        # lazily after a rotation cannot establish which generations were lost.
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        except OSError:
+            raise Refusal('execution_diagnostic_changed') from None
+        self.reader = os.fdopen(fd, 'rb', buffering=0)
+        self.generations = 0
+
+    def close(self):
+        self.reader.close()
+
+    @staticmethod
+    def file_identity(value):
+        require(stat.S_ISREG(value.st_mode), 'execution_diagnostic_changed')
+        return value.st_dev, value.st_ino
+
+    def read_current(self):
+        require(os.fstat(self.reader.fileno()).st_size >= self.reader.tell(), 'execution_diagnostic_changed')
+        chunk = self.reader.read(MAX_BYTES - self.offset + 1)
+        self.offset += len(chunk)
+        require(self.offset <= MAX_BYTES, 'execution_diagnostic_bound')
+        lines = (self.pending + chunk).split(b'\n')
+        self.pending = lines.pop()
+        for line in lines:
+            self.line(line)
 
     def results(self, payload):
         require(isinstance(payload, dict) and isinstance(payload.get('NewTestResults'), list),
@@ -515,17 +543,40 @@ class ExecutionProgress:
             self.completed = True
 
     def poll(self, *, final=False):
-        if self.path.exists():
-            with self.path.open('rb') as stream:
-                require(os.fstat(stream.fileno()).st_size >= self.offset, 'execution_diagnostic_changed')
-                stream.seek(self.offset)
-                chunk = stream.read(MAX_BYTES - self.offset + 1)
-            self.offset += len(chunk)
-            require(self.offset <= MAX_BYTES, 'execution_diagnostic_bound')
-            lines = (self.pending + chunk).split(b'\n')
-            self.pending = lines.pop()
-            for line in lines:
-                self.line(line)
+        while True:
+            self.read_current()
+            old = self.file_identity(os.fstat(self.reader.fileno()))
+            try:
+                current = self.file_identity(os.lstat(self.path))
+            except FileNotFoundError:
+                # The normal writer briefly unpublishes the path while rolling.
+                # Retain/drain the old descriptor; an unresolved final gap fails.
+                require(not final, 'execution_incomplete')
+                return
+            if current == old:
+                break
+            require(self.generations < 16, 'execution_diagnostic_bound')
+            prospective = None
+            try:
+                require(self.file_identity(os.lstat(self.backup)) == old, 'execution_diagnostic_changed')
+                fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                prospective = os.fdopen(fd, 'rb', buffering=0)
+                require(self.file_identity(os.fstat(prospective.fileno())) == current,
+                        'execution_diagnostic_changed')
+                self.read_current()  # Include a tail published just before rename.
+                require(self.file_identity(os.lstat(self.backup)) == old
+                        and self.file_identity(os.lstat(self.path)) == current
+                        and os.fstat(self.reader.fileno()).st_size == self.reader.tell(),
+                        'execution_diagnostic_changed')
+                self.reader.close()
+                self.reader, prospective = prospective, None
+                self.generations += 1
+                # Pending bytes and the 64 MiB lifetime total cross generations.
+            except OSError:
+                raise Refusal('execution_diagnostic_changed') from None
+            finally:
+                if prospective is not None:
+                    prospective.close()
         if final:
             require(not self.pending and self.completed, 'execution_incomplete')
 
@@ -634,11 +685,14 @@ def workload(mode, context, private, output, deadline, work):
                     continue  # Discovery already proved this assembly owns no case in this partition.
                 diagnostic = private / (assembly + '-execution.diag')
                 progress = ExecutionProgress(diagnostic, assembly, expected, stream)
-                statuses.append(dotnet(['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
-                                        '--disable-build-servers', '--filter', FILTERS[mode],
-                                        '--logger', 'console;verbosity=normal', '--logger', 'trx',
-                                        '--results-directory', str(raw_results), '--diag', str(diagnostic),
-                                        '--', 'RunConfiguration.BatchSize=1'], deadline, work, consume, progress))
+                try:
+                    statuses.append(dotnet(['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
+                                            '--disable-build-servers', '--filter', FILTERS[mode],
+                                            '--logger', 'console;verbosity=normal', '--logger', 'trx',
+                                            '--results-directory', str(raw_results), '--diag', str(diagnostic),
+                                            '--', 'RunConfiguration.BatchSize=1'], deadline, work, consume, progress))
+                finally:
+                    progress.close()
                 for candidate in private.glob(diagnostic.stem + '*'):
                     candidate.unlink()
     finally:

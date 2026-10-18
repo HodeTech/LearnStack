@@ -175,12 +175,18 @@ requiring actual validation, not a mathematical runtime guarantee.
 
 ### Candidate sizing and filter feasibility
 
-The pinned VSTest 17.12.0 filter contract and xUnit adapter 2.8.2 support exact
+The inspected VSTest 17.12.0 filter contract and xUnit adapter 2.8.2 support exact
 `FullyQualifiedName` selection. The current sanitized discovery omits that field;
 implementation must obtain and verify it from actual discovery before selecting
 any shard. A method selector keeps every discovered theory row together. Current
 historical method groups are much smaller than entire test classes, so grouping
 by class would impose an avoidable large indivisible workload.
+
+`Microsoft.NET.Test.Sdk` 17.12.0 is not a pin for the SDK's console executable.
+The local observed console is `18.6.0-release-26329-109`; an actual two-method
+selection and pre-owned diagnostic-file experiment passes on that SDK. This is
+narrow local feasibility, not hosted selection or complete-shard qualification.
+The decision's independent actual-filter rediscovery remains mandatory.
 
 The historical ordinary receipt has 2,397 rows in 1,073 method groups and about
 2,296 summed test-duration seconds. Ten deterministic longest-first bins are

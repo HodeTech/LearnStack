@@ -9347,6 +9347,46 @@ a fixed owner-stage map and finite exception families, never exception text,
 provider type names, filenames or stack output. The closed fact supplements
 the failed receipt; no retry, passing result or completion witness is invented.
 
+The second fresh focused review approves `f53c36fc..e710bb61` without findings,
+independently passing all 33 controls. On source `e710bb61`,
+[run 39146395561](https://github.com/HodeTech/LearnStack/actions/runs/39146395561)
+passes the complete hosted native job in 420 seconds. The verified artifact
+contains 31 passing native cases, zero skips and exact fresh-discovery IDs;
+all five completed-result fields equal the final TRX and every exported hash
+matches. Actual setup/execution/cleanup intervals inside the launcher are
+2.825/231.561/10.628 seconds. Ownership and natural Docker absence are positive;
+forced cleanup is false. The collector changes from `systemd_coredump` to the
+supported file policy with inherited zero limits. Independent pre/post scans
+verify 78/94 image directories respectively; neither reuses the other's snapshot.
+This qualifies that source's native job, not the complete PR or another source.
+The same hosted meta job passes 17 provisioning and 33 launcher controls,
+including actual GNU `find` traversal. Backend/ordinary fit remains separate.
+
+An independent source/filesystem investigation also verifies a normal VSTest
+diagnostic-rotation incompatibility. It does not establish the cause of any
+hosted ordinary failure. The inspected release sources
+[v17.12.0](https://github.com/microsoft/vstest/blob/v17.12.0/src/Microsoft.TestPlatform.PlatformAbstractions/common/Tracing/RollingFileTraceListener.cs)
+and [v18.6.0](https://github.com/microsoft/vstest/blob/v18.6.0/src/Microsoft.TestPlatform.PlatformAbstractions/common/Tracing/RollingFileTraceListener.cs)
+rename the current file to one expected backup before publishing its replacement.
+The old reader rejects a shorter replacement; a reproduced exists/open race
+throws `FileNotFoundError`. The package pin `Microsoft.NET.Test.Sdk` 17.12.0 does
+not itself pin the SDK console; the observed local console is
+`18.6.0-release-26329-109`. Release-source equivalence is not an assertion about
+an unobserved hosted build commit.
+
+The reader correction owns generation zero before launch, retains its descriptor
+and requires exact device/inode/backup continuity before each handoff. It drains
+old tails, preserves partial lines and defers only a live rename gap; a final
+unresolved gap, missing generation, unknown backup, truncation or replacement
+remains red. The cumulative 64 MiB bound spans generations; handoffs are bounded
+and descriptors close on success/refusal. All 38 copied-owner controls pass,
+including actual rename/race, hidden generation and cumulative-bound controls.
+Two real local pure predicate cases also pass with the pre-owned file and actual
+SDK writer: exact discovered IDs and all five final-result fields match TRX.
+This small append/protocol receipt does not qualify actual rotation, Docker,
+hosted cgroups or whole-job fit. Fresh review rounds and final-source hosted
+qualification remain pending for this independent reader correction.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four

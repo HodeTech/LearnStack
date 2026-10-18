@@ -113,6 +113,7 @@ class OwnerControls(unittest.TestCase):
         (self.bin / 'cgroup').mkdir()
         (self.root / 'backend').mkdir()
         self.config = {}
+        self.progresses = []
         self.configure()
         fixture = FIXTURE.replace('PYTHON', sys.executable, 1)
         replacements = {'PROC': str(self.bin / 'proc'), 'CGROUP': str(self.bin / 'cgroup')}
@@ -150,6 +151,8 @@ class OwnerControls(unittest.TestCase):
         while any((self.bin / 'proc').iterdir()) and time.monotonic() < end:
             time.sleep(0.02)
         self.assertEqual([], list((self.bin / 'proc').iterdir()))
+        for progress in self.progresses:
+            progress.close()
         self.temporary.cleanup()
 
     def configure(self, **values):
@@ -159,6 +162,11 @@ class OwnerControls(unittest.TestCase):
     def calls(self):
         path = self.bin / 'calls.jsonl'
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def progress(self, path, assembly, expected, stream):
+        value = self.owner.ExecutionProgress(path, assembly, expected, stream)
+        self.progresses.append(value)
+        return value
 
     def refuses(self, reason, function, *args, **kwargs):
         with self.assertRaises(self.owner.Refusal) as caught:
@@ -349,7 +357,7 @@ except launcher.Refusal as failure:
         self.configure(console=['raw PRIVATE-CANARY', '  Passed ' + case['name'] + ' [< 1 ms]'],
                        diagnostic_chunks=[self.execution_event([case]), self.execution_complete([case])])
         evidence, console = io.StringIO(), io.StringIO()
-        progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', [case], evidence)
+        progress = self.progress(diagnostic, 'LearnStack.Tests.Integration', [case], evidence)
         with contextlib.redirect_stdout(console):
             status = self.owner.dotnet(['test', '--diag', str(diagnostic)], time.monotonic() + 3,
                                        '/owned/work', lambda _value: None, progress)
@@ -374,7 +382,7 @@ except launcher.Refusal as failure:
         self.configure(diagnostic_chunks=[self.execution_event(cases[:1]), partial], delay=1)
         console = io.StringIO()
         with (output / 'completed-cases.jsonl').open('w') as stream:
-            progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
+            progress = self.progress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
             with contextlib.redirect_stdout(console):
                 self.refuses('deadline_exhausted', self.owner.dotnet, ['test', '--diag', str(diagnostic)],
                              time.monotonic() + 0.2, '/owned/work', lambda _line: None, progress)
@@ -392,8 +400,8 @@ except launcher.Refusal as failure:
         for mutation in ('missing', 'wrong', 'duplicate', 'skip', 'none', 'notfound', 'unknown', 'boolean'):
             with self.subTest(mutation=mutation):
                 stream = io.StringIO()
-                progress = self.owner.ExecutionProgress(self.root / 'unused.diag',
-                                                       'LearnStack.Tests.Integration', [case], stream)
+                progress = self.progress(self.root / ('unused-' + mutation + '.diag'),
+                                         'LearnStack.Tests.Integration', [case], stream)
                 result = self.execution_result(case)
                 if mutation == 'missing':
                     result['TestCase'].pop('Id')
@@ -411,16 +419,135 @@ except launcher.Refusal as failure:
         cases = self.population()['ordinary']
         diagnostic = self.root / 'tail.diag'
         stream = io.StringIO()
-        progress = self.owner.ExecutionProgress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
+        progress = self.progress(diagnostic, 'LearnStack.Tests.Integration', cases, stream)
         diagnostic.write_text(self.execution_complete(cases, tail=cases))
         with contextlib.redirect_stdout(io.StringIO()):
             progress.poll(final=True)
         self.assertEqual([case['id'] for case in cases], [json.loads(line)['id'] for line in stream.getvalue().splitlines()])
-        incomplete = self.owner.ExecutionProgress(self.root / 'missing.diag',
-                                                 'LearnStack.Tests.Integration', cases, io.StringIO())
+        incomplete = self.progress(self.root / 'missing.diag',
+                                   'LearnStack.Tests.Integration', cases, io.StringIO())
         with contextlib.redirect_stdout(io.StringIO()):
             self.refuses('execution_incomplete', incomplete.line,
                          self.execution_complete(cases[:1], tail=cases[:1]).encode())
+
+    def test_rotated_execution_preserves_old_tail_partial_line_and_exact_case_ids(self):
+        cases = self.population()['ordinary']
+        path = self.root / 'rotate.diag'
+        stream = io.StringIO()
+        progress = self.progress(path, 'LearnStack.Tests.Integration', cases, stream)
+        self.assertEqual(0o600, path.stat().st_mode & 0o777)
+        second = self.execution_event(cases[1:])
+        path.write_text(self.execution_event(cases[:1]) + second[:100])
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.poll()
+            path.rename(progress.backup)
+            with progress.backup.open('a') as old:
+                old.write(second[100:150])
+            path.write_text(second[150:] + self.execution_complete(cases))
+            progress.poll(final=True)
+        self.assertEqual([case['id'] for case in cases], [json.loads(x)['id'] for x in stream.getvalue().splitlines()])
+        self.assertEqual(1, progress.generations)
+        self.assertNotIn('PRIVATE-CANARY', stream.getvalue())
+        progress.close()
+        self.assertTrue(progress.reader.closed)
+
+    def test_rotation_gap_is_deferred_while_live_but_never_counts_as_final_completion(self):
+        case = self.case(1)
+        path = self.root / 'gap.diag'
+        progress = self.progress(path, 'LearnStack.Tests.Integration', [case], io.StringIO())
+        path.write_text(self.execution_event([case]))
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.poll()
+            path.rename(progress.backup)
+            progress.poll()
+            self.assertFalse(progress.completed)
+            path.write_text(self.execution_complete([case]))
+            progress.poll(final=True)
+        final = self.progress(self.root / 'final-gap.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        final.path.rename(final.backup)
+        self.refuses('execution_incomplete', final.poll, final=True)
+
+    def test_unknown_or_changed_diagnostic_generations_refuse_instead_of_skipping(self):
+        case = self.case(1)
+        for mutation in ('double', 'missing_backup', 'wrong_backup', 'symlink', 'truncate'):
+            path = self.root / (mutation + '.diag')
+            progress = self.progress(path, 'LearnStack.Tests.Integration', [case], io.StringIO())
+            path.write_text(self.execution_event([case]))
+            with contextlib.redirect_stdout(io.StringIO()): progress.poll()
+            if mutation == 'truncate':
+                path.write_text('')
+            else:
+                path.rename(progress.backup)
+                path.write_text('')
+                if mutation == 'double':
+                    path.replace(progress.backup)
+                    path.write_text('')
+                elif mutation == 'missing_backup':
+                    progress.backup.rename(progress.backup.with_suffix('.unknown'))
+                elif mutation == 'wrong_backup':
+                    progress.backup.unlink()
+                    progress.backup.write_text('wrong generation')
+                elif mutation == 'symlink':
+                    path.unlink()
+                    path.symlink_to(progress.backup)
+            self.refuses('execution_diagnostic_changed', progress.poll)
+        for preexisting in ('current', 'backup'):
+            path = self.root / (preexisting + '-preexisting.diag')
+            target = path if preexisting == 'current' else path.with_name(path.stem + '.bak' + path.suffix)
+            target.touch()
+            self.refuses('execution_diagnostic_changed', self.owner.ExecutionProgress, path,
+                         'LearnStack.Tests.Integration', [case], io.StringIO())
+
+    def test_rotation_reopen_race_and_cumulative_bounds_stay_red(self):
+        case = self.case(1)
+        path = self.root / 'race.diag'
+        progress = self.progress(path, 'LearnStack.Tests.Integration', [case], io.StringIO())
+        path.rename(progress.backup)
+        path.write_text('')
+        original = os.open
+        opened = []
+        def racing_open(candidate, flags, *args):
+            fd = original(candidate, flags, *args)
+            if candidate == path:
+                opened.append(fd)
+                path.replace(progress.backup)
+                path.write_text('')
+            return fd
+        with mock.patch.object(self.owner.os, 'open', side_effect=racing_open):
+            self.refuses('execution_diagnostic_changed', progress.poll)
+        self.assertEqual(1, len(opened))
+        with self.assertRaises(OSError): os.fstat(opened[0])
+        bound = self.progress(self.root / 'bytes.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        with mock.patch.object(self.owner, 'MAX_BYTES', 2048):
+            bound.path.write_bytes(b'x' * 1400 + b'\n')
+            bound.poll()
+            bound.path.rename(bound.backup)
+            bound.path.write_bytes(b'x' * 1400 + b'\n')
+            self.refuses('execution_diagnostic_bound', bound.poll)
+        repeated = self.progress(self.root / 'repeated.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        for _ in range(16):
+            repeated.path.replace(repeated.backup)
+            repeated.path.touch()
+            repeated.poll()
+        repeated.path.replace(repeated.backup)
+        repeated.path.touch()
+        self.refuses('execution_diagnostic_bound', repeated.poll)
+
+    def test_workload_closes_stream_descriptor_when_actual_launcher_refuses(self):
+        private, output = self.root / 'private-workload', self.root / 'output-workload'
+        private.mkdir(); output.mkdir()
+        captured = []
+        def refused(*args):
+            captured.append(args[-1])
+            raise self.owner.Refusal('launcher_join_failed')
+        with mock.patch.object(self.owner, 'cgroup_path', return_value='/owned/work'), \
+             mock.patch.object(self.owner, 'discover', return_value=self.population()), \
+             mock.patch.object(self.owner, 'test_projects', return_value=[('fixture', 'LearnStack.Tests.Integration')]), \
+             mock.patch.object(self.owner, 'dotnet', side_effect=refused):
+            self.refuses('launcher_join_failed', self.owner.workload, 'ordinary', {}, private, output,
+                         time.monotonic() + 3, '/owned/work')
+        self.assertEqual(1, len(captured))
+        self.assertTrue(captured[0].reader.closed)
 
     def test_populated_and_missing_cgroup_never_count_as_empty(self):
         group = Path(self.owner.CGROUP) / 'work'
