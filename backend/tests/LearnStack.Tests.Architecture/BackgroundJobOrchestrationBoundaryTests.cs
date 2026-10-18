@@ -41,18 +41,11 @@ public sealed partial class OutboxDispatchConventionTests
         // These indexes live for this one read-only detector evaluation only.
         // A mutation and its undo each receive a fresh complete metadata scan.
         var identities = new Dictionary<MethodReference, string>(ReferenceEqualityComparer.Instance);
-        var methodsById = types.Values.SelectMany(type => type.Methods).ToLookup(Identity, StringComparer.Ordinal);
+        var methodsByName = types.Values.SelectMany(type => type.Methods).ToLookup(method => method.Name, StringComparer.Ordinal);
         var bodiesByOwner = bodies.ToLookup(item => item.Owner, ReferenceEqualityComparer.Instance);
         // Rebuild the index inside each detector evaluation so mutations and
         // restoration remain visible without rescanning every instruction per field.
-        var fieldSites = bodies.SelectMany(item =>
-            {
-                var owner = Identity(item.Owner);
-                return item.Body.Body.Instructions.Where(instruction => instruction.Operand is FieldReference)
-                    .Select(instruction => (Owner: owner, Instruction: instruction,
-                        Field: (FieldReference)instruction.Operand));
-            })
-            .ToLookup(item => item.Field.Name, StringComparer.Ordinal);
+        var fieldSites = OrchestrationFieldSites(bodies);
         foreach (var name in names.Take(4).Append(OrchestrationCheckpoint).Append(OrchestrationTerminal))
         {
             var type = subjects[name];
@@ -166,7 +159,7 @@ public sealed partial class OutboxDispatchConventionTests
             }
             else Exact(seam.Type, seam.Name, seam.Callers);
         }
-        CheckExternalAsyncRetention(census, offenders, subjects, bodies, fieldSites);
+        CheckExternalAsyncRetention(census, offenders, subjects, bodies, fieldSites, Identity);
         CheckTerminalPrivilegedAwaits(census, offenders, subjects[OrchestrationTerminal]);
 
         Field(OrchestrationControl, "_executions", true, [".ctor", "CanRoute", "RelayStopAsync", "Release", "RetainedIds", "RunRenewalAsync", "TryBegin", "TryBeginExternalStatus", "TryBeginRecovery", "get_Snapshot"]);
@@ -303,7 +296,7 @@ public sealed partial class OutboxDispatchConventionTests
             var owner = Method(type, ownerName);
             if (owner is null) return null;
             var delegates = bodiesByOwner[owner].SelectMany(item => DelegateTargets(item.Body))
-                .Select(reference => methodsById[Identity(reference)].SingleOrDefault())
+                .Select(reference => OrchestrationDeclaration(methodsByName, reference, Identity))
                 .Where(candidate => candidate is not null && MethodOperands(candidate).Any(target =>
                     TargetsDeclaredType(target, subjects[targetType]) && target.Name == targetName)).Cast<MethodDefinition>().Distinct().ToArray();
             if (delegates.Length != 1) { offenders.Add("Missing or additional actual orchestration callback: " + type + "::" + ownerName); return null; }
@@ -326,7 +319,8 @@ public sealed partial class OutboxDispatchConventionTests
             if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic || fields[0].IsInitOnly != readOnly
                 || fields[0].FieldType.FullName != OrchestrationFieldType(type, name))
             { offenders.Add("Missing or retyped orchestration resource owner: " + type + ":" + name); return; }
-            var access = fieldSites[name].Where(item => TargetsDeclaredType(item.Field, subjects[type])).ToArray();
+            var access = fieldSites[name].Where(item => TargetsDeclaredType(item.Field, subjects[type]))
+                .Select(item => (Owner: Identity(item.Owner), item.Instruction, item.Field)).ToArray();
             CheckSet(offenders, "retained orchestration resource callers " + type + ":" + name,
                 access.Select(item => item.Owner).Distinct(), expected);
             var requiredWrites = readOnly ? subjects[type].Methods.Count(method => method.Name == ".ctor"
@@ -361,6 +355,19 @@ public sealed partial class OutboxDispatchConventionTests
                 offenders.Add("A finite orchestration completion retains its actual owner: " + type + ":" + fieldName);
         }
     }
+
+    private static MethodDefinition? OrchestrationDeclaration(ILookup<string, MethodDefinition> methodsByName,
+        MethodReference reference, Func<MethodReference, string> identity)
+    {
+        var expected = identity(reference);
+        return methodsByName[reference.Name].Where(candidate => identity(candidate) == expected).SingleOrDefault();
+    }
+
+    private static ILookup<string, (MethodDefinition Owner, Instruction Instruction, FieldReference Field)> OrchestrationFieldSites(
+        IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
+        bodies.SelectMany(item => item.Body.Body.Instructions.Where(instruction => instruction.Operand is FieldReference)
+                .Select(instruction => (item.Owner, Instruction: instruction, Field: (FieldReference)instruction.Operand)))
+            .ToLookup(item => item.Field.Name, StringComparer.Ordinal);
 
     private static int OrchestrationWrites(string type, string name) =>
         ExternalOrchestrationFields.SingleOrDefault(field => field.Type == type && field.Name == name)?.Writes ?? type switch

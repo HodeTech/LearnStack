@@ -7910,6 +7910,25 @@ fresh baseline for the next bounded optimization. The unchanged twenty-minute
 whole-backend CI budget remains unqualified. Full job observation, complete
 packet regression and both full Step 9 review rounds remain pending.
 
+The next two-file slice removes eager orchestration identity formatting while
+retaining the complete declaration and field-access inventories. Actual delegate
+resolution uses a name bucket followed by the unchanged exact identity and unique
+match policy. Field owners remain actual attributed method references until the
+original name/type filters select them; string deduplication and opcode/write/
+address counts stay in their original positions. An independent companion
+compares the old/new declaration policy with foreign namesakes and overloads,
+then checks every field group and ordered occurrence before the full mutations.
+
+Both complete orchestration companions pass with zero failures/skips after a CI
+Release build with zero warnings/errors. Their summed case time changes from the
+fresh 293.681-second baseline to 191.688 seconds (33.271 and 158.417 seconds).
+This approximately 35% reduction applies only to those two companions, including
+the additional equivalence checks. The final 338-source/artifact receipt is
+`3a8555f7481c4fb74a8123676a9ab61c5141f6e71d8cdccd393db8e2962a43f6`.
+A focused independent inspection finds no correction; it supplies no full Step 9
+review credit or whole-workflow duration proof. The twenty-minute CI budget and
+the remaining observation/enforcement/packet work stay open.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

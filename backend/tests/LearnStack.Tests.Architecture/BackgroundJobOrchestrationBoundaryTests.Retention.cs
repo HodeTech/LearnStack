@@ -36,7 +36,8 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static void CheckExternalAsyncRetention(ProductionCensus census, SortedSet<string> offenders,
         Dictionary<string, TypeDefinition> subjects, (MethodDefinition Body, MethodDefinition Owner)[] bodies,
-        ILookup<string, (string Owner, Instruction Instruction, FieldReference Field)> fieldSites)
+        ILookup<string, (MethodDefinition Owner, Instruction Instruction, FieldReference Field)> fieldSites,
+        Func<MethodReference, string> identity)
     {
         var executor = subjects[OrchestrationExecutor];
         foreach (var group in ExternalOrchestrationAsyncSlots.GroupBy(slot => slot.Method))
@@ -54,7 +55,7 @@ public sealed partial class OutboxDispatchConventionTests
                 else
                     CheckSet(offenders, "actual async resource stays with its attributed owner " + group.Key + ":" + slot.Name,
                         fieldSites[fields[0].Name].Where(item => TargetsDeclaredType(item.Field, state))
-                            .Select(item => item.Owner).Distinct(),
+                            .Select(item => identity(item.Owner)).Distinct(),
                         [MethodId(method)]);
             }
             foreach (var slot in group.Where(slot => slot.Name is "scope" or "retained"))
@@ -138,6 +139,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers()
     {
         using var census = ProductionCensus.Read();
+        AssertOrchestrationIndexEquivalence(census);
         var baseline = EvaluateDetector(census, JobOrchestrationOffenders);
         baseline.Should().BeEmpty("the exact orchestration manifest must match; offenders: {0}",
             string.Join(Environment.NewLine, baseline));
@@ -270,6 +272,54 @@ public sealed partial class OutboxDispatchConventionTests
                     state.Fields.Add(extra);
                     return () => state.Fields.Remove(extra);
                 }, JobOrchestrationOffenders);
+        }
+    }
+
+    // Compare the old complete lookup policy with the candidate prefilter once
+    // in the companion, not inside every clean/dirty/restored detector pass.
+    private static void AssertOrchestrationIndexEquivalence(ProductionCensus census)
+    {
+        AssertDeclarations();
+        var infrastructure = census.Modules.Single(module => module.Assembly.Name.Name == InfrastructureAssembly);
+        var foreign = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+        var callback = census.Types[(InfrastructureAssembly, OrchestrationRenewal)].Methods.Single(method => method.Name == "Schedule");
+        var probe = new TypeDefinition(callback.DeclaringType.Namespace, callback.DeclaringType.Name,
+            TypeAttributes.Class, foreign.TypeSystem.Object);
+        var namesake = new MethodDefinition(callback.Name, MethodAttributes.Private, foreign.ImportReference(callback.ReturnType));
+        foreach (var parameter in callback.Parameters)
+            namesake.Parameters.Add(new ParameterDefinition(foreign.ImportReference(parameter.ParameterType)));
+        probe.Methods.Add(namesake);
+        foreign.Types.Add(probe);
+        var overload = new MethodDefinition(callback.Name, MethodAttributes.Private, infrastructure.ImportReference(callback.ReturnType));
+        overload.Parameters.Add(new ParameterDefinition(infrastructure.TypeSystem.String));
+        callback.DeclaringType.Methods.Add(overload);
+        try { AssertDeclarations([callback, namesake, overload]); }
+        finally { callback.DeclaringType.Methods.Remove(overload); foreign.Types.Remove(probe); }
+        AssertDeclarations();
+
+        using var scan = census.BeginDetectorScan();
+        var bodies = OwnedBodies(census).ToArray();
+        var expected = bodies.SelectMany(item => item.Body.Body.Instructions
+            .Where(instruction => instruction.Operand is FieldReference)
+            .Select(instruction => (Owner: MethodId(item.Owner), Instruction: instruction,
+                Field: (FieldReference)instruction.Operand))).ToLookup(item => item.Field.Name, StringComparer.Ordinal);
+        var actual = OrchestrationFieldSites(bodies);
+        expected.Should().NotBeEmpty();
+        actual.Select(group => group.Key).Should().Equal(expected.Select(group => group.Key));
+        foreach (var group in expected)
+            actual[group.Key].Select(item => (Owner: MethodId(item.Owner), item.Instruction, item.Field))
+                .SequenceEqual(group).Should().BeTrue("deferred owner formatting preserves every actual field operand and its order");
+
+        void AssertDeclarations(IEnumerable<MethodReference>? extra = null)
+        {
+            var methods = census.Types.Values.SelectMany(type => type.Methods).ToArray();
+            var oldIndex = methods.ToLookup(MethodId, StringComparer.Ordinal);
+            var newIndex = methods.ToLookup(method => method.Name, StringComparer.Ordinal);
+            var targets = OwnedBodies(census).Where(item => item.Owner.DeclaringType.Namespace == "LearnStack.Infrastructure.Jobs")
+                .SelectMany(item => DelegateTargets(item.Body)).ToArray();
+            targets.Should().NotBeEmpty("real orchestration and job callbacks are nonempty comparison subjects");
+            foreach (var target in targets.Concat(extra ?? []))
+                OrchestrationDeclaration(newIndex, target, MethodId).Should().BeSameAs(oldIndex[MethodId(target)].SingleOrDefault());
         }
     }
 }
