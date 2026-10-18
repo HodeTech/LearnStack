@@ -9285,6 +9285,34 @@ changing scan traversal, predicates or any failure decision. All 26 controls
 pass and independent focused review approves. The candidate remains unexplained;
 no allowlist, deletion, shard implementation or passing native result is claimed.
 
+Diagnostic source `d39233d5` starts
+[run 39144033895](https://github.com/HodeTech/LearnStack/actions/runs/39144033895).
+Meta, frontend, OpenAPI, secret scan and demo pass. Native still refuses before
+provisioning/tests, now classified as an overlay-area `.dump` with generic binary
+data format. Neither its contents nor image ownership is established by that
+classification. Ordinary Docker records 146 passing case IDs before
+`owned_completion_missing`; its failed receipt records forced cleanup and a
+positive cleanup-ownership witness, not successful execution or natural Docker
+disposal. No final Integration TRX exists. This early failure is distinct from
+the earlier measured deadline exhaustion and remains under investigation.
+
+The next read-only diagnostic compares the private candidate's canonical path
+with exact-ID-bound image-layer metadata from the fixed local Docker socket.
+Only classic `overlay2` at the expected root is understood; stable inventory and
+canonical paths are required. Only finite match/no-match/unavailable labels can
+leave the owner. Every crash candidate still refuses, including a positive
+image-layer match; no path is pruned or declared benign. A separate closed
+workload-error fact supplements a failed ownership receipt without replacing its
+failure or supplying completion evidence. Malformed ownership remains a failed
+receipt; a planted control first exposes an unguarded cleanup shape and then
+passes after the explicit dictionary guard. The provisioning owner is unchanged.
+All 30 launcher controls, the unchanged 17 provisioning controls and seven ADR
+parser controls pass. The independent focused source/proof review verifies the
+corrections and reports no remaining finding. This is offline diagnostic
+validation; actual hosted provenance, workload cause and full qualification
+remain pending. Main protection is independently read back unchanged in full,
+including strict mode and all seven required contexts.
+
 ADR-0062's reopen condition is met. Proposed
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) describes one
 backend-base VM retaining non-test gates and cheap non-Docker suites, four

@@ -48,11 +48,20 @@ elif name == 'systemctl':
         for key, value in config.get('unit', {}).items():
             print(key + '=' + str(value))
 elif name == 'docker':
-    print(config.get('docker', ''), end='')
+    args = sys.argv[1:]
+    if args[:2] == ['--host', 'unix:///var/run/docker.sock']:
+        args = args[2:]
+    key = ('image_info' if args[0] == 'info' else 'image_ids' if args[:2] == ['image', 'ls']
+           else 'image_inspect' if args[:2] == ['image', 'inspect'] else 'docker')
+    print(config.get(key, ''), end='')
 elif name == 'find':
     print(config.get('crash', ''), end='')
 elif name == 'file':
     print(config.get('file_description', ''), end='')
+elif name == 'realpath':
+    assert sys.argv[1:3] == ['-e', '--']
+    for path in sys.argv[sys.argv.index('--') + 1:]:
+        print(config.get('realpaths', {}).get(path, path))
 elif name == 'dotnet':
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     os.setsid()
@@ -96,7 +105,7 @@ class OwnerControls(unittest.TestCase):
         self.configure()
         fixture = FIXTURE.replace('PYTHON', sys.executable, 1)
         replacements = {'PROC': str(self.bin / 'proc'), 'CGROUP': str(self.bin / 'cgroup')}
-        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND', 'FILE'):
+        for name in ('DOTNET', 'SUDO', 'SYSTEMD_RUN', 'SYSTEMCTL', 'DOCKER', 'GIT', 'FIND', 'FILE', 'REALPATH'):
             executable = self.bin / name.lower().replace('_', '-')
             executable.write_text(fixture)
             executable.chmod(0o700)
@@ -493,7 +502,8 @@ except launcher.Refusal as failure:
             ):
                 with self.subTest(scope=scope, kind=kind):
                     self.configure(crash=path + '\0')
-                    self.refuses('unexpected_crash_artifact_' + scope + '_' + kind + '_unknown',
+                    provenance = '_image_metadata_unavailable' if scope == 'docker_overlay' else ''
+                    self.refuses('unexpected_crash_artifact_' + scope + '_' + kind + '_unknown' + provenance,
                                  self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='PRIVATE-CANARY without a delimiter')
             self.refuses('unexpected_crash_artifact_unknown_unknown_unknown',
@@ -518,6 +528,87 @@ except launcher.Refusal as failure:
                          self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)
+
+    def test_image_provenance_is_closed_read_only_and_never_suppresses_refusal(self):
+        layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
+        parent = '/var/lib/docker/overlay2/' + 'c' * 64 + '/diff'
+        link = '/var/lib/docker/overlay2/l/' + 'D' * 26
+        candidate = layer + '/PRIVATE-CANARY.dump'
+        image = 'sha256:' + 'a' * 64
+        record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer, 'LowerDir': link}}}
+        self.configure(image_info=json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
+                       image_ids=image + '\n' + image + '\n', image_inspect=json.dumps(record) + '\n',
+                       realpaths={link: parent}, crash=candidate + '\0', file_description='data\n')
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}):
+            for path, label in ((candidate, 'match'), (parent + '/PRIVATE-CANARY.dump', 'match'),
+                                (layer + '-prefix/PRIVATE-CANARY.dump', 'no_match'),
+                                ('/var/lib/docker/overlay2/' + 'e' * 64 + '/diff/PRIVATE-CANARY.dump', 'no_match')):
+                with self.subTest(path=path):
+                    self.configure(crash=path + '\0')
+                    self.refuses('unexpected_crash_artifact_docker_overlay_dump_binary_data_image_metadata_' + label,
+                                 self.owner.crash_scan, time.monotonic() + 3)
+            docker_calls = [call['argv'] for call in self.calls() if call['name'] == 'docker']
+            self.assertTrue(docker_calls)
+            self.assertTrue(all(args[:2] == ['--host', 'unix:///var/run/docker.sock'] for args in docker_calls))
+            self.assertTrue(all(args[2] == 'info' or args[2:4] in (['image', 'ls'], ['image', 'inspect'])
+                                for args in docker_calls))
+            self.assertTrue(all(image in args for args in docker_calls if args[2:4] == ['image', 'inspect']))
+            self.assertNotIn('PRIVATE-CANARY', self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+
+    def test_image_provenance_missing_malformed_changed_or_unsupported_is_unavailable(self):
+        layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
+        candidate = layer + '/PRIVATE-CANARY.dump'
+        image = 'sha256:' + 'a' * 64
+        record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer}}}
+        valid = {'image_info': json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
+                 'image_ids': image + '\n', 'image_inspect': json.dumps(record) + '\n',
+                 'status': {}, 'realpaths': {}}
+        changes = [
+            {'image_info': ''}, {'image_info': '[]'},
+            {'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})},
+            {'image_info': json.dumps({'driver': 'overlay2', 'root': '/private/other'})},
+            {'image_ids': 'short\n'}, {'image_ids': image + '\ninvalid\n'},
+            {'image_inspect': ''}, {'image_inspect': '[]'},
+            {'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})},
+            {'image_inspect': json.dumps({**record, 'driver': None})},
+            {'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})},
+            {'realpaths': {layer: '/tmp/escaped'}}, {'status': {'docker': 1}}, {'status': {'realpath': 1}},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                self.configure(**{**valid, **change})
+                self.assertEqual('image_metadata_unavailable',
+                                 self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+        self.configure(**valid)
+        original = self.owner.command
+        lists = 0
+        def changed(argv, *args, **kwargs):
+            nonlocal lists
+            if argv[0] == self.owner.DOCKER and argv[3:5] == ['image', 'ls']:
+                lists += 1
+                if lists == 2:
+                    return b''
+            return original(argv, *args, **kwargs)
+        with mock.patch.object(self.owner, 'command', side_effect=changed):
+            self.assertEqual('image_metadata_unavailable',
+                             self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+        canonical_reads = 0
+        def canonical_changed(argv, *args, **kwargs):
+            nonlocal canonical_reads
+            value = original(argv, *args, **kwargs)
+            if self.owner.REALPATH in argv:
+                canonical_reads += 1
+                if canonical_reads == 2:
+                    return value.replace(b'/diff', b'/changed')
+            return value
+        with mock.patch.object(self.owner, 'command', side_effect=canonical_changed):
+            self.assertEqual('image_metadata_unavailable',
+                             self.owner.image_layer_observation(candidate, time.monotonic() + 3))
+        self.configure(**{**valid, 'image_ids': ''})
+        self.assertEqual('image_metadata_no_match',
+                         self.owner.image_layer_observation(candidate, time.monotonic() + 3))
 
     def test_discovery_uses_unique_ids_and_rejects_partial_aborted_and_duplicate_batches(self):
         cases = self.population()['all']
@@ -647,6 +738,46 @@ except launcher.Refusal as failure:
         output.joinpath('completed-cases.jsonl').write_text(json.dumps(
             {**cases[0], 'outcome': 'Passed', 'duration': '00:00:00.0010000'}) + '\n')
         self.refuses('completed_evidence_incomplete', self.owner.validate_results, output, cases)
+
+    def test_failed_workload_diagnostic_exposes_only_closed_fact_and_never_completion(self):
+        private = self.root / 'private'
+        private.mkdir()
+        self.assertEqual('workload_diagnostic_unavailable', self.owner.workload_failure(private))
+        path = private / 'workload.json'
+        for reason, expected in (('execution_diagnostic_bound', 'execution_diagnostic_bound'),
+                                 ('completed_case_unexpected', 'completed_case_unexpected'),
+                                 ('PRIVATE-CANARY provider message', 'workload_refused'),
+                                 ({'private': 'PRIVATE-CANARY'}, 'workload_refused')):
+            self.owner.write_json(path, {'protocol': 1, 'success': False, 'error': reason})
+            self.assertEqual(expected, self.owner.workload_failure(private))
+        for value in ({'protocol': 1, 'success': True}, [], None, {'protocol': 99, 'success': False}):
+            self.owner.write_json(path, value)
+            self.assertEqual('workload_diagnostic_unavailable', self.owner.workload_failure(private))
+        path.write_text('PRIVATE-CANARY invalid JSON')
+        self.assertEqual('workload_diagnostic_unavailable', self.owner.workload_failure(private))
+
+    def test_malformed_ownership_still_writes_failed_completion_receipt(self):
+        private, output = self.root / 'private', self.root / 'output'
+        (self.bin / 'cgroup/cgroup.controllers').touch()
+        fields = {'SubState': 'exited', 'ActiveState': 'active', 'ExecMainCode': '1',
+                  'ExecMainExitTimestampMonotonic': '1'}
+        def launch(*args):
+            self.owner.write_json(private / 'ownership.json', [])
+        with contextlib.ExitStack() as stack:
+            for name, value in (
+                ('identity', {}), ('locations', ('owned.service', private, output)),
+                ('deadlines', (time.monotonic() + 3, time.monotonic() + 6)),
+                ('lower_core', None), ('docker_census', {}), ('command', b''),
+                ('unit_properties', fields), ('docker_complete', False),
+            ):
+                stack.enter_context(mock.patch.object(self.owner, name, return_value=value))
+            stack.enter_context(mock.patch.object(self.owner, 'launch_unit', side_effect=launch))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            self.assertEqual(1, self.owner.execute('ordinary'))
+        result = self.owner.read_json(output / 'result.json')
+        self.assertEqual('owned_completion_missing', result['error'])
+        self.assertFalse(result['success'])
+        self.assertFalse(result['ownershipComplete'])
 
     def test_aggregate_requires_both_jobs_complete_matching_artifacts_and_current_identity(self):
         context = {'sourceSha': 'a' * 40, 'runId': '42', 'runAttempt': '1', 'repository': 'HodeTech/LearnStack',
