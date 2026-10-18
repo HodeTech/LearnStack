@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed ADR-0062 execution and aggregate owner. No command/path CLI overrides.
+"""Closed ADR-0062/0063 execution owner. No command/path CLI overrides.
 
 The delegated work cgroup is retained by a live supervisor sibling. RemainAfterExit
 alone does not retain an empty cgroup: systemd prunes it on SERVICE_EXITED. Only
@@ -64,12 +64,10 @@ MAX_BYTES = 64 * 1024 * 1024
 MAX_CASES = 100000
 PROTOCOL = 1
 ROOT = Path(__file__).resolve().parents[1]
-JOBS = {'native': 'backend-native', 'ordinary': 'backend-integration-tests'}
-OUTPUTS = {'native': 'backend-native', 'ordinary': 'backend-integration'}
 SHARD_JOBS = {'base': 'backend-base', 'native-shard': 'backend-native',
               **{'architecture-' + str(i): 'backend-architecture' for i in range(6)},
               **{'ordinary-' + str(i): 'backend-integration-tests' for i in range(12)}}
-OUTPUTS.update({mode: 'backend-' + mode for mode in SHARD_JOBS})
+OUTPUTS = {mode: 'backend-' + mode for mode in SHARD_JOBS}
 OUTPUTS['native-shard'] = 'backend-native'
 FILTERS = {'all': 'Requires=Docker', 'native': 'Requires=Docker&NativeCrashProof=true',
            'ordinary': 'Requires=Docker&NativeCrashProof!=true'}
@@ -101,11 +99,11 @@ def shard_call(function, *args):
 
 
 def native_mode(mode):
-    return mode in ('native', 'native-shard')
+    return mode == 'native-shard'
 
 
 def docker_mode(mode):
-    return mode in ('native', 'ordinary', 'native-shard') or mode.startswith('ordinary-')
+    return mode == 'native-shard' or mode.startswith('ordinary-')
 
 
 def shard_name(mode):
@@ -113,7 +111,7 @@ def shard_name(mode):
 
 
 def job_name(mode):
-    return SHARD_JOBS.get(mode, JOBS.get(mode))
+    return SHARD_JOBS.get(mode)
 
 
 class Refusal(Exception):
@@ -185,9 +183,9 @@ def command(argv, deadline, reason, *, cap=COMMAND_SECONDS):
 
 def identity(mode):
     env = os.environ
-    require(mode in (*JOBS, *SHARD_JOBS, 'aggregate'), 'mode_refused')
+    require(mode in (*SHARD_JOBS, 'aggregate', 'aggregate-backend'), 'mode_refused')
     require(sys.platform == 'linux' and env.get('GITHUB_ACTIONS') == 'true', 'unsupported_context')
-    expected_job = job_name(mode) or 'backend-integration'
+    expected_job = 'backend' if mode == 'aggregate-backend' else job_name(mode) or 'backend-integration'
     require(env.get('GITHUB_JOB') == expected_job, 'job_identity_mismatch')
     for name in CONTEXT_NAMES:
         copy_name = 'ATTEMPT' if name == 'RUN_ATTEMPT' else name
@@ -206,7 +204,7 @@ def identity(mode):
             'checkout_mismatch')
     require(command([GIT, 'rev-parse', '--verify', 'HEAD'], time.monotonic() + COMMAND_SECONDS,
                     'checkout_mismatch').decode().strip() == env['GITHUB_SHA'], 'checkout_mismatch')
-    if mode != 'aggregate':
+    if mode not in ('aggregate', 'aggregate-backend'):
         if mode in SHARD_JOBS:
             plan = shard_call(shard_owner().load_plan)
             if mode not in ('base', 'native-shard'):
@@ -217,16 +215,38 @@ def identity(mode):
                 and env.get('LEARNSTACK_NATIVE_RUNNER_OS') == env.get('RUNNER_OS') == 'Linux'
                 and env.get('LEARNSTACK_NATIVE_RUNNER_ARCH') == env.get('RUNNER_ARCH') == 'X64'
                 and env.get('LEARNSTACK_NATIVE_RUNNER_LABEL') ==
-                ('ubuntu-24.04' if mode != 'ordinary' else 'ubuntu-latest'), 'unsupported_context')
+                'ubuntu-24.04', 'unsupported_context')
         try:
             require(json.loads(env.get('LEARNSTACK_NATIVE_JOB_CONTAINER', '')) in (None, {})
                     and json.loads(env.get('LEARNSTACK_NATIVE_JOB_SERVICES', '')) in (None, {}),
                     'unsupported_job_topology')
         except ValueError:
             raise Refusal('unsupported_job_topology') from None
-    return {'sourceSha': env['GITHUB_SHA'], 'runId': env['GITHUB_RUN_ID'],
+    context = {'sourceSha': env['GITHUB_SHA'], 'runId': env['GITHUB_RUN_ID'],
             'runAttempt': env['GITHUB_RUN_ATTEMPT'], 'repository': env['GITHUB_REPOSITORY'],
             'workflowRef': env['GITHUB_WORKFLOW_REF'], 'workflowSha': env['GITHUB_WORKFLOW_SHA']}
+    return source_context(context) if mode in SHARD_JOBS else context
+
+
+def source_context(context):
+    event = os.environ.get('GITHUB_EVENT_NAME')
+    head = os.environ.get('LEARNSTACK_CI_HEAD_SHA', '')
+    require(event in ('pull_request', 'push', 'workflow_dispatch')
+            and re.fullmatch(r'[0-9a-f]{40}', head), 'event_identity_invalid')
+    if event == 'pull_request':
+        header = command([GIT, 'cat-file', '-p', 'HEAD'], time.monotonic() + COMMAND_SECONDS,
+                         'merge_parent_unreadable').decode().split('\n\n', 1)[0]
+        parents = re.findall(r'^parent ([0-9a-f]{40})$', header, re.MULTILINE)
+        require(len(parents) == 2 and parents[-1] == head
+                and head != context['sourceSha'], 'merge_parent_mismatch')
+    else:
+        require(head == context['sourceSha'], 'head_source_mismatch')
+    return {**context, 'headSha': head, 'eventName': event}
+
+
+def shard_context(job):
+    require(job in ('backend', 'backend-integration'), 'aggregate_job_invalid')
+    return source_context(identity('aggregate-backend' if job == 'backend' else 'aggregate'))
 
 
 def locations(mode, context):
@@ -465,32 +485,6 @@ def validate_partition(manifest):
         require(len(matches) == 1, 'native_class_unclassified')
         actual_classes.update(matches)
     require(actual_classes == set(NATIVE_CLASSES), 'native_class_missing')
-
-
-def discover(private, deadline, work):
-    manifest = {part: [] for part in FILTERS}
-    manifest['assemblies'] = []
-    for project, assembly in test_projects():
-        manifest['assemblies'].append(assembly)
-        for part, expression in FILTERS.items():
-            diagnostic = private / (assembly + '-' + part + '.diag')
-            names = []
-            def line(value):
-                if value.startswith('    '):
-                    names.append(value[4:])
-            status = dotnet(['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
-                             '--disable-build-servers', '--list-tests', '--filter', expression,
-                             '--diag', str(diagnostic)], deadline, work, line)
-            require(status == 0, 'discovery_command_failed')
-            cases = discovery_log(diagnostic, assembly)
-            require(Counter(case['name'] for case in cases) == Counter(names), 'discovery_console_mismatch')
-            manifest[part].extend(cases)
-            # Diagnostic files contain serialized theory inputs. No raw file is
-            # copied to artifacts or retained after its identity extraction.
-            for candidate in private.glob(diagnostic.stem + '*'):
-                candidate.unlink()
-    validate_partition(manifest)
-    return manifest
 
 
 PREFLIGHT_REFUSALS = (
@@ -938,45 +932,9 @@ def shard_workload(mode, context, private, output, deadline, work):
 
 
 def workload(mode, context, private, output, deadline, work):
+    require(mode in SHARD_JOBS, 'mode_refused')
     require(cgroup_path('self') == work, 'worker_outside_owned_subtree')
-    if mode in SHARD_JOBS:
-        return shard_workload(mode, context, private, output, deadline, work)
-    manifest = discover(private, deadline, work)
-    write_json(output / 'discovery.json', {'protocol': PROTOCOL, 'identity': context, 'population': manifest})
-    # Raw TRX initially stays private; only the sanitized projection is exported.
-    raw_results = private / 'trx'
-    raw_results.mkdir(mode=0o700)
-    refusal_stream = (output / 'native-refusals.jsonl').open('x', encoding='utf-8') if mode == 'native' else None
-    try:
-        with (output / 'completed-cases.jsonl').open('x', encoding='utf-8') as stream:
-            refusal_seen = set()
-            def consume(line):
-                if refusal_stream is not None:
-                    native_refusal(line, refusal_stream, refusal_seen)
-            statuses = []
-            for project, assembly in test_projects():
-                expected = [case for case in manifest[mode] if case['assembly'] == assembly.casefold()]
-                if not expected:
-                    continue  # Discovery already proved this assembly owns no case in this partition.
-                diagnostic = private / (assembly + '-execution.diag')
-                progress = ExecutionProgress(diagnostic, assembly, expected, stream)
-                try:
-                    statuses.append(dotnet(['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
-                                            '--disable-build-servers', '--filter', FILTERS[mode],
-                                            '--logger', 'console;verbosity=normal', '--logger', 'trx',
-                                            '--results-directory', str(raw_results), '--diag', str(diagnostic),
-                                            '--', 'RunConfiguration.BatchSize=1'], deadline, work, consume, progress))
-                finally:
-                    progress.close()
-                for candidate in private.glob(diagnostic.stem + '*'):
-                    candidate.unlink()
-    finally:
-        if refusal_stream is not None:
-            refusal_stream.close()
-    export_results(raw_results, output, deadline)
-    require(statuses and all(status == 0 for status in statuses), 'tests_failed')
-    count = validate_results(output, manifest[mode])
-    write_json(private / 'workload.json', {'protocol': PROTOCOL, 'success': True, 'cases': count})
+    return shard_workload(mode, context, private, output, deadline, work)
 
 
 def join_workload(pid, work, execution, cleanup):
@@ -1142,6 +1100,7 @@ def launch_unit(mode, context, private, unit, deadline):
                      for name in CONTEXT_NAMES)
     forwarded.update('LEARNSTACK_NATIVE_' + name for name in
                      ('RUNNER_CONTEXT', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_LABEL', 'JOB_CONTAINER', 'JOB_SERVICES'))
+    forwarded.update(('GITHUB_EVENT_NAME', 'LEARNSTACK_CI_HEAD_SHA'))
     env = [name + '=' + os.environ[name] for name in sorted(forwarded) if name in os.environ]
     log = private / 'unit-private.log'
     log.touch(mode=0o600, exist_ok=False)
@@ -1552,13 +1511,9 @@ def execute(mode):
         receipt['ownershipComplete'] = True
         manifest = read_json(output / 'discovery.json')
         require(manifest['identity'] == context, 'discovery_identity_mismatch')
-        if mode in SHARD_JOBS:
-            plan = shard_call(shard_owner().load_plan)
-            assignment = shard_call(shard_owner().assign, manifest['population'], plan, context['runAttempt'])
-            receipt['cases'] = validate_results(output, assignment['owners'][shard_name(mode)])
-        else:
-            validate_partition(manifest['population'])
-            receipt['cases'] = validate_results(output, manifest['population'][mode])
+        plan = shard_call(shard_owner().load_plan)
+        assignment = shard_call(shard_owner().assign, manifest['population'], plan, context['runAttempt'])
+        receipt['cases'] = validate_results(output, assignment['owners'][shard_name(mode)])
         require(read_json(private / 'workload.json').get('success') is True, 'workload_failed')
         receipt['executionSeconds'] = round(time.monotonic() - began - receipt['setupSeconds'], 3)
         success = True
@@ -1640,56 +1595,14 @@ def execute(mode):
     return 0 if success else 1
 
 
-def validate_aggregate(context):
-    require(os.environ.get('LEARNSTACK_NATIVE_RESULT') == 'success'
-            and os.environ.get('LEARNSTACK_ORDINARY_RESULT') == 'success', 'execution_job_not_successful')
-    manifests = []
-    for mode in ('native', 'ordinary'):
-        output = ROOT / 'artifacts/ci-aggregate' / mode
-        result = read_json(output / 'result.json')
-        require(result.get('protocol') == PROTOCOL and result.get('identity') == context
-                and result.get('partition') == mode and result.get('job') == JOBS[mode]
-                and result.get('success') is True and result.get('complete') is True
-                and result.get('ownershipComplete') is True and result.get('dockerAbsent') is True
-                and result.get('forcedCleanup') is False and result.get('error') is None,
-                'execution_receipt_incomplete')
-        if mode == 'native':
-            provisioning = read_json(output / 'provisioning.json')
-            require(provisioning.get('protocol') == PROTOCOL
-                    and provisioning.get('scope') == 'native_ci_setup_not_child_qualification'
-                    and provisioning.get('collectorAfter') == 'supported_file'
-                    and provisioning.get('softCore') == provisioning.get('hardCore') == 'zero'
-                    and provisioning.get('sourceSha') == context['sourceSha']
-                    and provisioning.get('runId') == context['runId']
-                    and provisioning.get('runAttempt') == context['runAttempt']
-                    and provisioning.get('job') == JOBS[mode], 'provisioning_receipt_incomplete')
-            require(read_bytes(output / 'native-refusals.jsonl') == b'', 'native_refusal_reported')
-        require(result.get('artifacts') == export_hashes(output), 'artifact_hash_mismatch')
-        discovery = read_json(output / 'discovery.json')
-        require(discovery.get('protocol') == PROTOCOL and discovery.get('identity') == context,
-                'discovery_identity_mismatch')
-        population = discovery['population']
-        validate_partition(population)
-        require(result.get('cases') == validate_results(output, population[mode]), 'result_count_mismatch')
-        manifests.append(population)
-    require(manifests[0] == manifests[1], 'cross_job_discovery_mismatch')
-    print(json.dumps({'protocol': PROTOCOL, 'identity': context, 'success': True,
-                      'cases': len(manifests[0]['all'])}, sort_keys=True))
-    return 0
-
-
-def aggregate():
-    return validate_aggregate(identity('aggregate'))
-
-
 def interrupted(_signal, _frame):
     global CANCELLED
     CANCELLED = True
 
 
 def main():
-    modes = (*JOBS, *SHARD_JOBS)
-    if len(sys.argv) != 2 or sys.argv[1] not in (*modes, 'aggregate', 'upload-budget',
+    modes = (*SHARD_JOBS,)
+    if len(sys.argv) != 2 or sys.argv[1] not in (*modes, 'upload-budget',
                                                *('_' + mode + '-leaf' for mode in modes)):
         print('{"protocol":1,"error":"mode_refused"}')
         return 1
@@ -1702,7 +1615,14 @@ def main():
             return 0
         if mode.startswith('_'):
             return leaf(mode[1:].removesuffix('-leaf'))
-        return aggregate() if mode == 'aggregate' else execute(mode)
+        spec = importlib.util.spec_from_file_location('ci_topology', Path(__file__).with_name('ci-test-shard-results.py'))
+        topology = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(topology)
+        try:
+            topology.source_topology(shard_owner().load_plan())
+        except topology.Refusal as failure:
+            raise Refusal(failure.reason) from None
+        return execute(mode)
     except (Refusal, OSError, ValueError, KeyError, TypeError, UnicodeError, ET.ParseError) as failure:
         reason = failure.reason if isinstance(failure, Refusal) else 'launcher_internal_refusal'
         print(json.dumps({'protocol': PROTOCOL, 'error': reason}, sort_keys=True))

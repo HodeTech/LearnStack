@@ -9694,6 +9694,56 @@ hosted Linux containment. Both full Step 2 reviews and the verified correction
 are complete. Step 3 now owns finite workflow/API aggregate enforcement, corpus
 reconciliation and actual two-assignment final-source qualification.
 
+###### ADR-0063 Step 3 — workflow and aggregate enforcement (2026-10-19)
+
+After Step 2 closeout `83be42d6`, the workflow connects the initial base + six
+Architecture + twelve ordinary + one native execution arrangement. Every
+execution remains on an exclusive Ubuntu 24.04 VM with a twenty-minute ceiling;
+both always-running required aggregates retain five minutes. Their canonical
+names and the other five required names remain unchanged. Only aggregates gain
+job-scoped read-only Actions permission; execution gains no token authority.
+
+The aggregate source owner parses actual workflow YAML through the runner's
+bundled Ruby/Psych safe parser, with duplicate keys, aliases, tags and complex
+keys refused. No package is added. Literal indices/counts, unique protected
+names across workflows, mandatory Release/execute/upload gates and narrow
+permissions must agree with the tracked plan before execution. PR head and
+actual merge checkout remain distinct and are related through the raw commit's
+parent header, including shallow checkouts.
+
+Every aggregate uses current-attempt job API outcomes and immutable artifact
+IDs/digests before independently recomputing complete selection/result unions.
+Private bounded ZIP extraction allows only named sanitized files and refuses
+paths, symlinks, duplicate entries and oversize evidence. Case IDs, five result
+fields, complete TRX counters, non-test gates, actual toolchain hashes and
+scoped resources are checked again. Native provisioning/crash/no-refusal and
+natural Docker disposal stay mandatory. Missing, failed, skipped, stale or
+forced work cannot become a passing aggregate. Partial reruns cannot reuse
+previous-attempt siblings; recovery is Re-run all jobs.
+
+Source enforcement and its planted controls update the general CI catalogue
+rule to Implemented; its mechanically verified count is now 222 Implemented,
+131 in Architecture and 91 elsewhere, with 254 declared Architecture methods
+unchanged. This does not close Step 3 or qualify fit. Implementation commit,
+two fresh comprehensive reviews, verified corrections and two genuinely
+different complete final-source hosted attempts remain required. No complete
+P02b-4/PR CI or merge is claimed by local validation.
+
+Step 3 local validation passes 47 actual-owner shard/aggregate controls (34
+retained plan/execution controls plus 13 new result/API/topology controls),
+37 launcher controls and 18 provisioning controls. The retired unsharded
+aggregate's single test is replaced by the new complete API/result controls;
+its duplicate discovery/workload/aggregate and CLI paths are removed. The
+launcher descriptor-cleanup proof now exercises the real shard workload.
+Five CorpusConsistency cases verify the new catalogue counts, and seven ADR
+parser controls pass. Changed-document relative links and diff whitespace are
+clean. A retained predecessor native artifact is independently downloaded by
+immutable ID and its exact API ZIP digest is verified by the new safe extractor;
+this is archive-format evidence, not final-source execution qualification.
+No host privilege, collector, Docker mutation or Linux containment is exercised
+by these local offline controls. The implementation commit and required fresh
+reviews precede final qualification.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

@@ -138,6 +138,8 @@ class OwnerControls(unittest.TestCase):
             recovered = recovered.replace(new, old, 1)
         self.assertEqual(original, recovered, 'Every non-seam byte must remain unchanged')
         self.assertEqual(hashlib.sha256(SOURCE.read_bytes()).digest(), hashlib.sha256(original).digest())
+        for filename in ('ci-test-shards.py', 'ci-test-shards-plan.json'):
+            (scripts / filename).write_bytes((ROOT / 'scripts' / filename).read_bytes())
         self.copy = scripts / SOURCE.name
         self.copy.write_bytes(copied)
         spec = importlib.util.spec_from_file_location('ci_owner_control', self.copy)
@@ -226,28 +228,9 @@ class OwnerControls(unittest.TestCase):
         ET.ElementTree(root).write(path, encoding='utf-8')
         return path
 
-    def write_artifact(self, mode, context, population):
-        output = self.root / 'artifacts/ci-aggregate' / mode
-        output.mkdir(parents=True)
-        self.trx(output / 'results', population[mode])
-        self.owner.write_json(output / 'discovery.json', {'protocol': 1, 'identity': context, 'population': population})
-        output.joinpath('completed-cases.jsonl').write_text(''.join(json.dumps(
-            {**case, 'outcome': 'Passed', 'duration': '00:00:00.0010000'}) + '\n' for case in population[mode]))
-        if mode == 'native':
-            output.joinpath('native-refusals.jsonl').write_text('')
-            self.owner.write_json(output / 'provisioning.json', {
-                'protocol': 1, 'scope': 'native_ci_setup_not_child_qualification', 'collectorAfter': 'supported_file',
-                'softCore': 'zero', 'hardCore': 'zero', 'sourceSha': context['sourceSha'],
-                'runId': context['runId'], 'runAttempt': context['runAttempt'], 'job': 'backend-native'})
-        self.owner.write_json(output / 'result.json', {
-            'protocol': 1, 'identity': context, 'partition': mode, 'job': self.owner.JOBS[mode],
-            'success': True, 'complete': True, 'ownershipComplete': True, 'dockerAbsent': True,
-            'forcedCleanup': False, 'error': None, 'cases': len(population[mode]),
-            'artifacts': self.owner.export_hashes(output)})
-        return output
-
     def test_cli_is_closed_and_budget_query_is_read_only(self):
-        for args in ([], ['native', '--command', '/bin/true'], ['--help'], ['_native-leaf', '/tmp'], ['arbitrary']):
+        for args in ([], ['native'], ['ordinary'], ['aggregate'], ['native', '--command', '/bin/true'],
+                     ['--help'], ['_native-leaf', '/tmp'], ['arbitrary']):
             result = subprocess.run([sys.executable, self.copy, *args], capture_output=True, text=True, check=False)
             self.assertEqual(1, result.returncode)
             self.assertEqual('mode_refused', json.loads(result.stdout)['error'])
@@ -257,7 +240,7 @@ class OwnerControls(unittest.TestCase):
         self.assertEqual([], self.calls())
 
     def test_unqualified_leaf_never_invokes_host_executables(self):
-        result = subprocess.run([sys.executable, self.copy, '_native-leaf'], env={}, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, self.copy, '_native-shard-leaf'], env={}, capture_output=True, text=True)
         self.assertEqual(1, result.returncode)
         self.assertEqual('unsupported_context', json.loads(result.stdout)['error'])
         self.assertEqual([], self.calls())
@@ -266,15 +249,16 @@ class OwnerControls(unittest.TestCase):
         old_cwd = Path.cwd()
         try:
             os.chdir(self.root)
-            for mode, job, label in (('native', 'backend-native', 'ubuntu-24.04'),
-                                     ('ordinary', 'backend-integration-tests', 'ubuntu-latest')):
+            for mode, job, label in (('native-shard', 'backend-native', 'ubuntu-24.04'),
+                                     ('ordinary-0', 'backend-integration-tests', 'ubuntu-24.04')):
                 env = {'GITHUB_ACTIONS': 'true', 'GITHUB_JOB': job,
                        'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64',
                        'LEARNSTACK_NATIVE_RUNNER_CONTEXT': 'github-hosted',
                        'LEARNSTACK_NATIVE_RUNNER_OS': 'Linux',
                        'LEARNSTACK_NATIVE_RUNNER_ARCH': 'X64',
                        'LEARNSTACK_NATIVE_RUNNER_LABEL': label,
-                       'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null'}
+                       'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null', 'GITHUB_EVENT_NAME': 'push',
+                       'LEARNSTACK_CI_HEAD_SHA': 'a' * 40}
                 for name, value in {
                     'RUN_ID': '42', 'RUN_ATTEMPT': '1', 'JOB': job,
                     'SHA': 'a' * 40, 'REPOSITORY': 'HodeTech/LearnStack',
@@ -536,15 +520,22 @@ except launcher.Refusal as failure:
     def test_workload_closes_stream_descriptor_when_actual_launcher_refuses(self):
         private, output = self.root / 'private-workload', self.root / 'output-workload'
         private.mkdir(); output.mkdir()
+        spec = importlib.util.spec_from_file_location('ci_stream_fixtures', ROOT / 'scripts/test-ci-test-shards.py')
+        fixtures = importlib.util.module_from_spec(spec); spec.loader.exec_module(fixtures)
+        fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
+        manifest = fixture.manifest()
+        expected = self.owner.shard_owner().assign(manifest, fixture.plan, '1')['owners']['ordinary-0']
         captured = []
-        def refused(*args):
+        def refused(*args, **kwargs):
             captured.append(args[-1])
             raise self.owner.Refusal('launcher_join_failed')
         with mock.patch.object(self.owner, 'cgroup_path', return_value='/owned/work'), \
-             mock.patch.object(self.owner, 'discover', return_value=self.population()), \
+             mock.patch.object(self.owner, 'runtime_toolchain', return_value={}), \
+             mock.patch.object(self.owner, 'discover_selectors', return_value=manifest), \
+             mock.patch.object(self.owner, 'selected_discovery', return_value=expected), \
              mock.patch.object(self.owner, 'test_projects', return_value=[('fixture', 'LearnStack.Tests.Integration')]), \
              mock.patch.object(self.owner, 'dotnet', side_effect=refused):
-            self.refuses('launcher_join_failed', self.owner.workload, 'ordinary', {}, private, output,
+            self.refuses('launcher_join_failed', self.owner.workload, 'ordinary-0', {'runAttempt': '1'}, private, output,
                          time.monotonic() + 3, '/owned/work')
         self.assertEqual(1, len(captured))
         self.assertTrue(captured[0].reader.closed)
@@ -991,43 +982,17 @@ except launcher.Refusal as failure:
                 ('identity', {}), ('locations', ('owned.service', private, output)),
                 ('deadlines', (time.monotonic() + 3, time.monotonic() + 6)),
                 ('lower_core', None), ('docker_census', {}), ('command', b''),
+                ('qualify_shard_vm', {}), ('observe_vm_memory', 1024),
                 ('unit_properties', fields), ('docker_complete', False),
             ):
                 stack.enter_context(mock.patch.object(self.owner, name, return_value=value))
             stack.enter_context(mock.patch.object(self.owner, 'launch_unit', side_effect=launch))
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-            self.assertEqual(1, self.owner.execute('ordinary'))
+            self.assertEqual(1, self.owner.execute('ordinary-0'))
         result = self.owner.read_json(output / 'result.json')
         self.assertEqual('owned_completion_missing', result['error'])
         self.assertFalse(result['success'])
         self.assertFalse(result['ownershipComplete'])
-
-    def test_aggregate_requires_both_jobs_complete_matching_artifacts_and_current_identity(self):
-        context = {'sourceSha': 'a' * 40, 'runId': '42', 'runAttempt': '1', 'repository': 'HodeTech/LearnStack',
-                   'workflowRef': 'reviewed-source', 'workflowSha': 'a' * 40}
-        outputs = {mode: self.write_artifact(mode, context, self.population()) for mode in self.owner.JOBS}
-        old = {key: os.environ.get(key) for key in ('LEARNSTACK_NATIVE_RESULT', 'LEARNSTACK_ORDINARY_RESULT')}
-        try:
-            os.environ.update({'LEARNSTACK_NATIVE_RESULT': 'success', 'LEARNSTACK_ORDINARY_RESULT': 'success'})
-            with contextlib.redirect_stdout(io.StringIO()): self.assertEqual(0, self.owner.validate_aggregate(context))
-            for bad in ('failure', 'cancelled', 'skipped', 'timed_out', ''):
-                for variable in old:
-                    os.environ[variable] = bad
-                    self.refuses('execution_job_not_successful', self.owner.validate_aggregate, context)
-                    os.environ[variable] = 'success'
-            self.refuses('execution_receipt_incomplete', self.owner.validate_aggregate, {**context, 'sourceSha': 'b' * 40})
-            for mode, output in outputs.items():
-                result = self.owner.read_json(output / 'result.json')
-                self.owner.write_json(output / 'result.json', {**result, 'forcedCleanup': True})
-                self.refuses('execution_receipt_incomplete', self.owner.validate_aggregate, context)
-                self.owner.write_json(output / 'result.json', result)
-            output = outputs['ordinary']
-            (output / 'completed-cases.jsonl').write_text('')
-            self.refuses('artifact_hash_mismatch', self.owner.validate_aggregate, context)
-        finally:
-            for key, value in old.items():
-                if value is None: os.environ.pop(key, None)
-                else: os.environ[key] = value
 
     def test_unit_command_uses_nonroot_fixed_delegate_handshake_and_private_output(self):
         unit = 'learnstack-ci-42-1-native.service'
@@ -1054,9 +1019,7 @@ except launcher.Refusal as failure:
         ordinary = source.split('  backend-integration-tests:\n', 1)[1].split('\n  # ───', 1)[0]
         native = source.split('  backend-native:\n', 1)[1].split('\n  # ───', 1)[0]
         aggregate = source.split('  backend-integration:\n', 1)[1].split('\n  # ───', 1)[0]
-        backend = source.split('  backend:\n', 1)[1].split('\n  # ───', 1)[0]
-        self.assertIn('--filter "Requires!=Docker"', backend)
-        for mode, block in (('ordinary', ordinary), ('native', native)):
+        for mode, block in (('ordinary-${{ matrix.index }}', ordinary), ('native-shard', native)):
             self.assertIn('timeout-minutes: 20', block)
             self.assertLess(block.index('LEARNSTACK_CI_STARTED_AT='), block.index('uses: actions/checkout@'))
             self.assertIn('python3 scripts/ci-native-tests.py ' + mode, block)
@@ -1070,8 +1033,8 @@ except launcher.Refusal as failure:
         self.assertIn('name: backend integration (Testcontainers)', aggregate)
         self.assertIn('if: always()', aggregate)
         self.assertIn('needs: [backend-integration-tests, backend-native]', aggregate)
-        self.assertIn('LEARNSTACK_NATIVE_RESULT: ${{ needs.backend-native.result }}', aggregate)
-        self.assertIn('LEARNSTACK_ORDINARY_RESULT: ${{ needs.backend-integration-tests.result }}', aggregate)
+        self.assertIn('python3 scripts/ci-test-shards.py aggregate-integration', aggregate)
+        self.assertIn('actions: read', aggregate)
         self.assertLess(self.owner.RESERVE_SECONDS, self.owner.JOB_SECONDS)
         self.assertEqual(self.owner.RESERVE_SECONDS, self.owner.TAIL_SECONDS + self.owner.UPLOAD_SECONDS)
 

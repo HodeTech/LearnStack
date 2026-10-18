@@ -27,8 +27,15 @@ host-wide crash/collector setting is changed **by this fixture**.
 Accepted [ADR-0062](../../../docs/decisions/0062-native-crash-proof-ci-provisioning.md)
 authorizes separate, named CI provisioning on an exclusive disposable native VM.
 `scripts/ci-native-provisioning.py` verifies or sets the fixed file collector;
-`scripts/ci-native-tests.py` owns the complete native/ordinary partition and
-fail-closed required aggregate. Their offline controls run in `meta`; actual
+`scripts/ci-native-tests.py` owns native execution and the ordinary complement.
+Accepted [ADR-0063](../../../docs/decisions/0063-complete-bounded-ci-test-shards.md)
+adds finite selector shards. Its API/result owner
+`scripts/ci-test-shard-results.py` independently verifies every current-attempt
+producer behind the same required integration aggregate. The native population
+and every child assertion remain intact. Only native receives collector setup;
+base/Architecture have no Docker or collector authority. Rerun all jobs when
+retrying; previous-attempt siblings cannot supply current proof.
+Their offline controls run in `meta`; actual
 hosted qualification is recorded in the
 [CI implementation record](../../../docs/roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18).
 This does not change the fixture's independent collector/resource checks or

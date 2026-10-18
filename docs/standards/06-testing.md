@@ -103,8 +103,8 @@ the class, it runs it in the `backend` job: the hosted runners also
 carry a Docker socket, so the container starts and the test passes — nothing goes red,
 and the Docker suite stops being where the Docker tests live. Its companion,
 `The_Docker_Trait_Sweep_Can_Actually_Fail`, feeds the predicate the shapes it must and must
-not flag. Backend's `scripts/assert-tests-ran.py` rejects an empty assembly run.
-The two Docker executions and their aggregate additionally require their exact
+not flag. Both backend aggregates reject an empty or incomplete assigned population.
+All Docker executions and their aggregate additionally require their exact
 discovered case identities, complete results and zero skips: a filter matching
 nothing exits `0` without those guards.
 
@@ -112,7 +112,7 @@ All three: real module configuration, no mocked repositories, and coverage of th
 happy path and the edges.
 
 Under [ADR-0062](../decisions/0062-native-crash-proof-ci-provisioning.md),
-`scripts/ci-native-tests.py` owns both complementary Docker executions:
+`scripts/ci-native-tests.py` owns the complementary Docker populations:
 `Requires=Docker&NativeCrashProof=true` and
 `Requires=Docker&NativeCrashProof!=true`. The existing source-trait rule also
 restricts the shared native trait to the two complete native proof classes and
@@ -130,11 +130,48 @@ Native alone uses the exclusive disposable Ubuntu 24.04 VM and closed
 `scripts/ci-native-provisioning.py` owner. Setup verifies a supported collector or
 writes only literal `core`; it never restores a pipe. The unchanged child fixture
 still qualifies its own preconditions and actual native exits. The required
-aggregate checks both job outcomes and matching complete artifacts. Offline
+aggregate checks every producer outcome and matching complete artifacts. Offline
 provisioning/launcher controls run in `meta`. The
 [CI acceptance and implementation record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns actual review and hosted qualification; local controls do not establish VM
 ownership, no-dump proof or either execution's whole-job budget fit.
+
+### Complete bounded CI assignments
+
+[ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) extends that
+execution owner to base, Architecture and ordinary selector-group shards. The
+tracked [plan](../../scripts/ci-test-shards-plan.json) is the count/weight
+source of truth; the finite workflow matrix must agree before launch. Actual
+Release discovery supplies assembly, case ID and FullyQualifiedName. Selected
+filters are independently rediscovered before execution; all theory rows stay
+with their selector. Advisory weights never define membership or a wall bound.
+
+`scripts/ci-test-shards.py` and `scripts/ci-test-shard-results.py` implement the
+two always-running aggregates under the unchanged backend/integration required
+names. Each verifies current-attempt job outcomes through the read-only Actions
+API, downloads immutable artifact IDs, verifies archive hashes and recomputes
+assignment and complete exact case/TRX unions. Base also requires the actual
+Release build, format and Hangfire distribution/source/replacement gates.
+Matching worker digests alone cannot replace API or result evidence.
+
+Base/Architecture use only the approved non-root child and owned systemd/cgroup
+boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
+access or crash inventory. Ordinary retains Docker ownership; native alone
+retains collector provisioning and independent crash assertions. Every execution
+keeps twenty minutes, both aggregates five minutes, and meta five minutes. The
+new offline plan/result controls share one thirty-second allocation in meta.
+Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
+gaps and scoped resource observations accompany every successful execution.
+Uninstrumented fixture/container measurements remain unknown.
+
+Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
+siblings must belong to the current run attempt. Odd/even attempts select the
+two deterministic layouts; final qualification requires genuinely distinct
+co-membership, including SharedSchema methods, on the same source, plan,
+toolchain and complete case population. The
+[CI follow-up record](../roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+owns actual hosted fit and the two complete attempts; local controls do not
+establish either.
 
 **An isolation test connects as `learnstack_app`.** One that runs as
 `learnstack_migration`, `learnstack_platform` or `learnstack_outbox_admin`
@@ -391,7 +428,7 @@ Real LiveKit is **not** required in CI; a fake provider satisfies the contract.
 2. Static analysis — the Roslyn analyzers run in the build; ESLint and TypeScript in the
    `frontend` job.
 3. Unit, architecture and contract tests, and the Docker-free integration tests — the
-   `backend` job.
+   base/Architecture executions behind the required `backend` aggregate.
 4. Complete ordinary and native Docker executions — required together by the
    `backend-integration` aggregate, with its existing check name unchanged.
 5. Frontend unit and component tests — the `frontend` job.

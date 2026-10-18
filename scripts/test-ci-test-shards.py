@@ -645,4 +645,7 @@ class ShardControls(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    # Explicit loading is intentional: unittest discover ignores hyphenated
+    # script filenames. Both actual-owner suites share meta's one 30s budget.
+    AggregateControls = module('ci_shard_result_controls', 'test-ci-test-shard-results.py').AggregateControls
     unittest.main()

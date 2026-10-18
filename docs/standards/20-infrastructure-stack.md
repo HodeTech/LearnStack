@@ -755,10 +755,22 @@ execution stays complete behind the existing required integration result. This
 is not developer/shared/production host authority or a weaker child precondition.
 The closed owners are `scripts/ci-native-provisioning.py` and
 `scripts/ci-native-tests.py`; their offline subprocess/partition controls run in
-`meta`. Exact discovery/result identities and both execution outcomes gate the
+`meta`. Exact discovery/result identities and all required execution outcomes gate the
 aggregate. The [CI record](../roadmap/phase-02b-events-auth.md#adr-0062-acceptance-and-ci-implementation-2026-10-18)
 owns reviews and actual hosted qualification. Local controls do not qualify the
 hosted process boundary, complete partitions or their budget fit.
+
+**Complete bounded CI execution — ADR-0063.** The
+[testing standard](06-testing.md#complete-bounded-ci-assignments) owns actual
+selector/assignment/result requirements and retry procedure. The tracked plan
+and literal workflow matrices provide finite base/Architecture/ordinary/native
+execution behind the same seven protected results. Only the two aggregates gain
+job-scoped `actions: read`; executors retain `contents: read`. Base/Architecture
+add only an owned transient systemd/cgroup seam on exclusive hosted Ubuntu 24.04
+VMs, without Docker or collector authority. Native's ADR-0062 authority remains
+exclusive. No application runtime, production infrastructure or local/shared
+host authority follows. Each execution remains bounded to twenty minutes and
+each aggregate to five; actual final-source fit is recorded in the phase.
 
 - Step 4's API composition registers one `BackgroundJobHostedService` over
   [`BackgroundJobRuntime`](../glossary.md#background-jobs), with singleton hosted

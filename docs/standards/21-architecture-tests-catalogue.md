@@ -164,8 +164,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**221 rules in this catalogue are Implemented, and 131 of them are in that assembly.**
-The other 90 are no less binding, and most could not live there. The table says where
+**222 rules in this catalogue are Implemented, and 131 of them are in that assembly.**
+The other 91 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -5456,10 +5456,16 @@ and fixture definitions make the implemented controls non-vacuous.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
-- **Status:** **Registered** — P02b-4 CI follow-up Steps 1–3; planned owners
-  `scripts/ci-test-shards.py`, `scripts/test-ci-test-shards.py` and workflow
-  aggregates. Implementation and hosted qualification are not implied by
-  acceptance; status changes only with the actual enforcement controls.
+- **Status:** **Implemented** — `scripts/ci-test-shards.py`,
+  `scripts/ci-test-shard-results.py`, `scripts/ci-native-tests.py` and the two
+  workflow aggregates; actual-owner planted controls in
+  `scripts/test-ci-test-shards.py` and `scripts/test-ci-test-shard-results.py`
+  run together in meta's bounded allocation. They cover selector/plan closure,
+  authority separation, startup/retained ownership, both case unions,
+  current-attempt API jobs, immutable artifact IDs/digests, safe ZIP extraction,
+  gates/toolchain/resource fields, partial-rerun refusals and canonical-name
+  collisions. The phase's Step 3 record separately owns actual final-source
+  two-assignment hosted qualification; source enforcement is not a fit claim.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References

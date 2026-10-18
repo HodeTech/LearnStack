@@ -3,8 +3,10 @@
 from collections import defaultdict
 import hashlib
 import json
+import importlib.util
 from pathlib import Path
 import re
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / 'scripts/ci-test-shards-plan.json'
@@ -191,6 +193,11 @@ def selector_bytes(key):
     return b''.join(len(part.encode()).to_bytes(4, 'big') + part.encode() for part in key)
 
 
+def manifest_digest(manifest):
+    return digest({'assemblies': sorted(manifest['assemblies']),
+                   **{part: sorted(manifest[part], key=case_key) for part in PARTS}})
+
+
 def assign(manifest, plan, attempt):
     validate_plan(plan)
     validate_manifest(manifest)
@@ -224,8 +231,7 @@ def assign(manifest, plan, attempt):
     require(all(result.values()), 'empty_shard')
     for cases in result.values():
         cases.sort(key=case_key)
-    return {'variant': layout, 'planDigest': digest(plan), 'manifestDigest': digest({'assemblies': sorted(manifest['assemblies']),
-                **{part: sorted(manifest[part], key=case_key) for part in PARTS}}),
+    return {'variant': layout, 'planDigest': digest(plan), 'manifestDigest': manifest_digest(manifest),
             'owners': result, 'unknownWeights': sorted(unknown)}
 
 
@@ -283,3 +289,27 @@ def different_layouts(manifest, plan):
                         ('ordinary' if scope == 'shared' else scope) + '-')}
         require(groups(first) != groups(second), 'assignment_not_distinct')
     return True
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ('topology', 'aggregate-backend', 'aggregate-integration'):
+        print('{"protocol":1,"error":"mode_refused"}')
+        return 1
+    spec = importlib.util.spec_from_file_location('ci_shard_results', Path(__file__).with_name('ci-test-shard-results.py'))
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    try:
+        if sys.argv[1] == 'topology':
+            result.source_topology(load_plan())
+            print('{"protocol":1,"topology":"complete"}')
+            return 0
+        return result.aggregate(sys.argv[1].removeprefix('aggregate-'))
+    except (Refusal, result.Refusal, result.OWNER.Refusal, result.OWNER.ET.ParseError,
+            OSError, ValueError, TypeError, KeyError) as failure:
+        reason = failure.reason if hasattr(failure, 'reason') else 'aggregate_internal_refusal'
+        print(json.dumps({'protocol': 1, 'error': reason}, sort_keys=True))
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
