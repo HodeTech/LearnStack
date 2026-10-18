@@ -9220,6 +9220,18 @@ focused review confirms the race and correction without broadening the owner.
 This correction does not make the failed meta receipt pass; final-source hosted
 qualification remains required. Other jobs continue to measure their actual paths.
 
+The native job builds successfully with zero warnings/errors, then refuses
+before collector provisioning or test launch on `unexpected_crash_artifact`.
+Its read-only environment receipt confirms an empty Docker baseline and
+`systemd_coredump`; the retained receipt does not identify the matching file.
+No legitimate source/build candidate is established, and no exclusion is added.
+The scanner retains its exact roots, predicates, deadline and strict refusal,
+using NUL-delimited private output to classify only a finite root/name category
+in the refusal. Paths, contents and provider text are not exported. All 26
+launcher controls pass; an independent focused review confirms that nonempty
+or malformed candidates still refuse. Actual hosted requalification remains
+pending; this diagnostic correction supplies no passing native proof.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

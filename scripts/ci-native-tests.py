@@ -799,15 +799,26 @@ def docker_complete(deadline, *, forced):
 
 
 def crash_scan(deadline):
-    roots = [str(ROOT), os.environ['RUNNER_TEMP'], *HOST_CRASH_ROOTS]
-    roots = [path for path in roots if Path(path).exists()]
+    locations = [(str(ROOT), 'workspace'), (os.environ['RUNNER_TEMP'], 'runner_temp')]
+    locations.extend(zip(HOST_CRASH_ROOTS, ('apport', 'systemd', 'docker', 'tmp', 'var_tmp')))
+    roots = [path for path, _ in locations if Path(path).exists()]
     # Read-only, fixed predicates. Container scratch proofs remain in the native
     # tests; this additionally inspects actual host file-collector destinations.
     value = command([SUDO, '-n', FIND, *roots, '-xdev', '-type', 'f', '(', '-name', 'core',
                      '-o', '-regex', '.*/core\\.[0-9]+', '-o', '-name', '*.core',
                      '-o', '-name', '*.dmp', '-o', '-name', '*.dump', '-o', '-name', '*.crash', ')',
-                     '-print', '-quit'], deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
-    require(not value, 'unexpected_crash_artifact')
+                     '-print0', '-quit'], deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
+    if value:
+        # Preserve the refusal while identifying only a finite scope/name class.
+        # Paths, candidate contents and collector/provider text stay private.
+        candidate = os.fsdecode(value[:-1]) if value.endswith(b'\0') and value.count(b'\0') == 1 else ''
+        scope = next((label for root, label in sorted(locations, key=lambda item: -len(item[0]))
+                      if candidate.startswith(root.rstrip('/') + '/')), 'unknown')
+        name = Path(candidate).name
+        kind = ('core' if name == 'core' else 'numbered_core' if re.fullmatch(r'core\.[0-9]+', name)
+                else next((suffix for suffix in ('core', 'dmp', 'dump', 'crash')
+                           if name.endswith('.' + suffix)), 'unknown'))
+        raise Refusal('unexpected_crash_artifact_' + scope + '_' + kind)
 
 
 def export_hashes(output, deadline=None):

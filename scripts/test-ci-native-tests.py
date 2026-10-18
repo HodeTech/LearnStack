@@ -469,6 +469,30 @@ except launcher.Refusal as failure:
         self.assertFalse(self.owner.docker_complete(time.monotonic() + 2, forced=True))
         self.assertTrue(all('--all' in call['argv'] for call in self.calls() if call['name'] == 'docker'))
 
+    def test_crash_inventory_refuses_with_only_closed_scope_and_name_class(self):
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}):
+            for path, scope, kind in (
+                (str(self.owner.ROOT / 'PRIVATE-CANARY' / 'core.123'), 'workspace', 'numbered_core'),
+                (str(temporary / 'PRIVATE-CANARY.dmp'), 'runner_temp', 'dmp'),
+                ('/var/crash/PRIVATE-CANARY.crash', 'apport', 'crash'),
+                ('/var/lib/systemd/coredump/PRIVATE-CANARY.core', 'systemd', 'core'),
+                ('/var/lib/docker/PRIVATE-CANARY.dump', 'docker', 'dump'),
+                ('/tmp/PRIVATE-CANARY/core', 'tmp', 'core'),
+                ('/var/tmp/PRIVATE-CANARY.dmp', 'var_tmp', 'dmp'),
+                ('/unclassified/PRIVATE-CANARY.unknown', 'unknown', 'unknown'),
+            ):
+                with self.subTest(scope=scope, kind=kind):
+                    self.configure(crash=path + '\0')
+                    self.refuses('unexpected_crash_artifact_' + scope + '_' + kind,
+                                 self.owner.crash_scan, time.monotonic() + 2)
+            self.configure(crash='PRIVATE-CANARY without a delimiter')
+            self.refuses('unexpected_crash_artifact_unknown_unknown',
+                         self.owner.crash_scan, time.monotonic() + 2)
+            self.configure(crash='')
+            self.owner.crash_scan(time.monotonic() + 2)
+
     def test_discovery_uses_unique_ids_and_rejects_partial_aborted_and_duplicate_batches(self):
         cases = self.population()['all']
         raw = [{'Id': case['id'], 'DisplayName': case['name'], 'Source': '/private/LearnStack.Tests.Integration.dll',
