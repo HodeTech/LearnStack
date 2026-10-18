@@ -8424,6 +8424,47 @@ indents and one trailing blank line. Reconstructing the exact pre-hook bytes
 matches its recorded hash; no semantic tokens change. Its test receipts remain
 pre-hook source receipts, rather than a newly claimed post-hook test run.
 
+#### Production manifest and route qualification
+
+A single fresh structural census compares every disk-discovered production
+project and each module's four assemblies with the loaded population. It pins
+both empty-registry factory paths and catalogue implementations, rejects
+business/recurrence constructors in scaffold modules (including delegate/async
+forms), and checks frozen registry state. The actual Program provider separately
+resolves both registries, catalogue aliases, seven framework requests, exact
+pool/queue/worker topology and nonempty runtime/health/hosted registrations before
+asserting empty business/tombstone/recurrence manifests and unopened sources.
+Missing/duplicate registrations and valid nonempty fixture registries exercise
+the same predicates; recurrence rejection remains independent of definitions.
+
+The actual fourteen-route/method/handler multiset includes eight public actions,
+liveness, OpenAPI, Scalar UI and its three static assets. Real extra dashboard,
+recovery, neutral-path and probe-controller endpoints fail that predicate.
+Whole-production IL additionally pins all four endpoint-registration call sites
+and concrete/inherited public controller actions, covering paths not executed by
+the Development host. Pinned dashboard method/type and generic middleware
+capabilities have dirty controls without adding a dashboard runtime dependency.
+A focused source review closes conditional-route, default-dashboard-options and
+inherited-action false passes; it is not either full Step 9 review round.
+
+Seven focused Architecture/corpus/discovery cases and the actual API composition
+case pass with zero failures/skips. Sixteen actual PostgreSQL policy-selection
+cases pass, including the added accepted nonrepeatable Failed outcome at admission
+six and rejected false-exhaustion projection; SQL source is unchanged by later
+guard corrections. The initial host assertion omitted Scalar's static assets;
+its approved exact inventory now includes them. The corpus counter exposed four
+previous observation companion methods absent from the prose tally; the
+mechanically verified total is 254, including the new manifest method. The final
+CI-mode Release build has zero warnings/errors. Three-file format qualification
+reports no changes.
+
+The final 377-source receipt is
+`532c29d65f6362a9ea6d25a3c3d2e30827baa19213211847429821748f457105`.
+Constructor-time context proof, combined privileged capacity qualification,
+complete nineteen-rule reconciliation, full regression/packaging/CI-budget proof
+and both full Step 9 reviews remain open. All nineteen obligations remain
+Registered.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

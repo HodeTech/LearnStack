@@ -83,6 +83,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [InlineData("cancelled", "transient_repeatable", 6, "failed", "normal_attempts_exhausted", true)]
     [InlineData("failed", "permanent", 6, "failed", "external_failed", true)]
     [InlineData("failed", "permanent", 6, "failed", "normal_attempts_exhausted", false)]
+    [InlineData("failed", "transient_not_repeatable", 6, "failed", "external_failed", true)]
+    [InlineData("failed", "transient_not_repeatable", 6, "failed", "normal_attempts_exhausted", false)]
     [InlineData("cancelled", "transient_not_repeatable", 6, "failed", "external_cancelled", true)]
     [InlineData("cancelled", "transient_not_repeatable", 6, "failed", "normal_attempts_exhausted", false)]
     [InlineData("succeeded", null, 1, "succeeded", "none", true)]
