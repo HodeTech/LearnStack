@@ -9592,6 +9592,18 @@ with unique IDs and exact completed-stream fields. Its local execution took
 Unit run, without claiming cgroup or hosted execution qualification. The fix
 commit precedes the fresh second review. Step 2 has not started.
 
+**Step 1 review round 2 and closeout.** A new `gpt-6-sol` reviewer at `xhigh`
+independently reviews `94f201ab..0c97dd29` and approves with no actionable finding.
+The reviewer verifies the committed partition refusal, all 21 new and 38 existing
+controls, all 44 real selected-filter diagnostics, both exact unions and changed
+co-memberships, all five timing-source hashes and both Unit identity/protocol
+receipts. The current plan reports three ordinary selectors with unknown weights;
+they remain owned and use the declared advisory default. Step 1 is complete with
+both required review rounds and the verified correction committed. Step 2 now
+owns bounded execution and resource/identity receipts; Step 3 owns workflow/API
+enforcement and actual two-attempt hosted qualification. No hosted fit follows
+from this closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
