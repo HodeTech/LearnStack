@@ -308,6 +308,11 @@ describe('P02d-7 exact demo identity boundary', () => {
       'shared/probe.mjs',
       'frontend/apps/web/src/probe.vue',
       'scripts/probe.runtime',
+      'scripts/new-probe.py',
+      'scripts/probes/hangfire-lifecycle/NewProbe.cs',
+      'third-party/hangfire/runtime.mjs',
+      'third-party/new-vendor/README.md',
+      'shared/hidden.d.ts',
       'backend/feature/Probe.cs',
     ])
       expect(() => demoSourceClassification(path)).toThrow('Unclassified');
@@ -321,6 +326,11 @@ describe('P02d-7 exact demo identity boundary', () => {
       'README.md',
       'docs/example.md',
       'scripts/seed.sh',
+      'scripts/probe-hangfire-lifecycle.py',
+      'scripts/probes/hangfire-lifecycle/Program.cs',
+      'third-party/hangfire/verify-distribution.py',
+      'third-party/hangfire/core/corresponding-source.tar.gz',
+      'third-party/hangfire/qualification/MaintenanceProbe.cs',
       'frontend/apps/web/src/app/globals.css',
     ])
       expect(demoSourceClassification(path)).toBe('other');

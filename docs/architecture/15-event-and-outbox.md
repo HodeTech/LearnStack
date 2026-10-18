@@ -755,7 +755,9 @@ refresh retains the last sample with explicit unhealthy freshness. Observation
 supplies no source release, business completion or external-quiescence authority.
 The [metric inventory](../standards/10-observability.md#required-metrics) and
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-distinguish implemented observable families from pending stage/control signals.
+record the implemented observable, stage, trace, lease-loss and control signals
+and their source-specific qualification. Full regression, both full Step 9 reviews
+and packet closeout remain pending in that record.
 [Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
 owns the source-release contract and current physical floor; adding later SQL
 lanes requires requalification.

@@ -116,8 +116,17 @@ public sealed partial class OutboxDispatchConventionTests
             // compare two reads of the same index or normalize away duplicates.
             var methods = new List<DetectorMethodInstruction>();
             var fields = new List<DetectorFieldInstruction>();
+            var expectedBodies = new Dictionary<MethodDefinition, List<MethodDefinition>>(ReferenceEqualityComparer.Instance);
+            var ownerOrder = new List<MethodDefinition>();
             foreach (var (body, owner) in EnumerateOwnedBodies(census))
             {
+                if (!expectedBodies.TryGetValue(owner, out var group))
+                {
+                    group = [];
+                    expectedBodies.Add(owner, group);
+                    ownerOrder.Add(owner);
+                }
+                group.Add(body);
                 foreach (var instruction in body.Body.Instructions)
                 {
                     if (instruction.Operand is MethodReference method) methods.Add(new(body, owner, instruction, method));
@@ -126,6 +135,16 @@ public sealed partial class OutboxDispatchConventionTests
             }
             methods.Should().NotBeEmpty();
             fields.Should().NotBeEmpty();
+            var indexedBodies = ObservationBodiesByOwner(OwnedBodies(census));
+            indexedBodies.Select(group => group.Key).Should().Equal(ownerOrder,
+                "observation roots must retain the independently enumerated actual owner order");
+            foreach (var owner in ownerOrder)
+                indexedBodies[owner].SequenceEqual(expectedBodies[owner], ReferenceEqualityComparer.Instance).Should().BeTrue(
+                    "ordinary and attribute-linked bodies must preserve exact references, order and multiplicity after every metadata mutation");
+            expectedBodies.Values.Should().Contain(group => group.Count > 1,
+                "the real production population must exercise a method and its linked generated body");
+            var absentOwner = new MethodDefinition("_absentObservationOwner", MethodAttributes.Private, module.TypeSystem.Void);
+            indexedBodies[absentOwner].Should().BeEmpty("an owner absent from the actual current body population cannot acquire another method's body");
             var methodsByName = methods.ToLookup(item => item.Target.Name, StringComparer.Ordinal);
             seenMethodNames.UnionWith(methodsByName.Select(group => group.Key));
             foreach (var name in seenMethodNames)

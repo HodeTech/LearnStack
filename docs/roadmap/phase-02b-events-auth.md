@@ -8581,6 +8581,82 @@ physical witness, selective audit forwarding and actual joins, with no remaining
 verified finding. This is not a full Step9 review round or complete packet
 regression. All nineteen rules remain Registered pending that qualification.
 
+#### Step 9 full review round 1 (2026-10-18)
+
+Three fresh independent reviewers inspect `390515b8..d2bb2ee7` and the necessary
+adjacent paths: runtime/security/ownership, enforcement/test falsifiability, and
+corpus/composition/CI/distribution. The corpus reviewer also inspects the later
+two-file frontend inventory correction. These are full Step 9 reviews; earlier
+focused preflights do not count toward this round. Reviewers perform read-only
+source inspections and do not claim independently executed regression results.
+
+No Blocker or Major is verified. One Minor finding identifies two live
+observation summaries that still describe delivered stage/trace/lease/control
+signals as pending. Both summaries are corrected and independently rechecked;
+full packet qualification remains explicitly pending. All nineteen catalogue
+obligations remain Registered.
+
+The complete non-Docker CI filter executes 3,043 passing cases with zero failures
+or skips: 2,452 Unit, 410 Architecture, 177 HTTP Integration and four Contract.
+Its local wall time is 1,641.70 seconds, with part of the run sharing the host
+with Docker validation. This is not a hosted-runner benchmark or proof of the
+unchanged twenty-minute whole-job budget. Repeated observation-body selection
+inside a fresh detector evaluation is the next measured optimization candidate;
+case identity, every mutation/restoration and the parallelism bound must remain.
+
+Full frontend typecheck, lint and build pass. Its first full test run exposes
+unclassified offline Hangfire probe/kit files. An exact 32-path inventory fixes
+that test-only classification; unknown probe/vendor/runtime paths still reject,
+and runtime import modelling is unchanged. The corrected complete guarded test
+run passes all 1,616 cases with zero skips/todos; corrected typecheck and lint
+also pass. No application build output changes with these test-helper edits.
+
+The complete Docker complement is still running on the same frozen C# source.
+It exposes an exhaustion-plan fixture whose entire population makes the broad
+and narrow indexes equivalent, and a routing-wait observer that requires an SQL
+suffix beyond PostgreSQL's default activity-text buffer. Source cross-checks
+identify test-fixture defects, not demonstrated production failures. Corrections
+and actual PostgreSQL reruns remain pending until this frozen run ends. A third
+failure compares the latest schema to a historical predecessor while assuming
+only the terminal-history function changes; later indexes invalidate that
+premise. The correction will test the exact target/predecessor boundary and
+retain a separate complete latest job-inventory round trip. Full
+regression, demo/boot, CI-budget qualification, promotion and fresh full round 2
+remain open; this record does not declare Step 9 or P02b-4 complete.
+
+The completed Docker run executes 2,428 cases: 2,425 pass, the three identified
+fixture cases fail, and none are skipped. Local wall time is 2,287.77 seconds;
+this also supplies no hosted-runner or whole-job budget claim. The closed
+382-file first-run receipt is
+`1f44da4ddb710b882952141858a2a4fc49bf4e962ce9741c5ed1c3660eecf25c`.
+
+Corrections retain the real planner and exact exhausted-index assertion by adding
+an independently counted due, zero-attempt population; stable cutoff and volatile
+dirty-control bounds remain unchanged. The routing observer opens before the
+operation and uses the exact blocking backend dependency, with absent/wrong-PID
+controls and a genuinely pending operation before caller cancellation. The
+rollback test retains singleton function differences at its exact target boundary,
+then separately compares the entire latest job inventory. No production SQL,
+lease/retry limit, migration, grant or schema exception changes.
+
+The observation traversal now groups actual bodies by reference-identical owner
+once per fresh detector evaluation. Every original root, diagnostic and
+clean/dirty/restored visit remains; the existing companion independently checks
+actual group identity/order/multiplicity, linked async bodies and missing owners
+through its real metadata mutations. No Fact or case is removed or added.
+
+CI-mode Release build has zero warnings/errors; scoped formatting reports no
+changes. All twelve affected real PostgreSQL cases and eleven Architecture cases
+pass with zero failures/skips, including the cache, credential, runtime, three
+metric and five corpus guards. Their closed 383-file receipt is
+`7337d9765902903797a50a222ad44adc41033444917c8a23e3d5ab2fb2bc3e95`.
+Independent correction checks of all five C# files find no remaining issue; these
+are round-1 fix verification, not full round 2. The runtime-lifetime case records
+129.93 seconds versus 176.09 in the earlier full run, while the credential case
+records 211.55 versus 204.60. Different cohorts/shared load prevent attributing
+those durations to an isolated speedup or claiming CI-budget fit. Whole-job
+qualification remains required without raising its ceiling.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

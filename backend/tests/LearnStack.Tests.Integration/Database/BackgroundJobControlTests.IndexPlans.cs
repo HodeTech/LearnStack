@@ -28,15 +28,31 @@ public sealed partial class BackgroundJobControlTests
             "retirement" => PostgresBackgroundJobControlStore.SelectionSql(BackgroundJobControlLane.Retirement),
             _ => PostgresBackgroundJobTerminalStore.ClaimSelectionSql,
         };
+        var duePopulation = lane == "exhaustion" ? "normal_attempts=6" : "true";
         foreach (var due in new[] { 0, 1 })
         {
             if (due != 0)
                 await SchemaQueries.ExecuteAsync(dispatcher, null, $"""
-                    WITH due AS (SELECT id FROM background_jobs ORDER BY id LIMIT 1)
+                    WITH due AS (SELECT id FROM background_jobs
+                        WHERE {duePopulation} ORDER BY id LIMIT 1)
                     UPDATE background_jobs j SET {clock}=clock_timestamp()-interval '1 minute'
                     FROM due WHERE j.id=due.id
                     """);
             await SchemaQueries.ExecuteAsync(owner, null, "ANALYZE background_jobs");
+            if (lane == "exhaustion")
+            {
+                await using var population = new NpgsqlCommand("""
+                    SELECT count(*) FILTER (WHERE normal_attempts=0 AND available_after<=statement_timestamp()),
+                        count(*) FILTER (WHERE normal_attempts=6 AND available_after<=statement_timestamp()),
+                        count(*) FILTER (WHERE normal_attempts=6 AND available_after>statement_timestamp())
+                    FROM background_jobs
+                    """, (NpgsqlConnection)dispatcher);
+                await using var rows = await population.ExecuteReaderAsync();
+                (await rows.ReadAsync()).Should().BeTrue();
+                rows.GetInt64(0).Should().Be(6001, "the broad index must include an independently ineligible due population");
+                rows.GetInt64(1).Should().Be(due);
+                rows.GetInt64(2).Should().Be(6001 - due);
+            }
             var clean = await ExplainControlAsync((NpgsqlConnection)dispatcher, sql);
             var nodes = PlanNodes(clean).ToArray();
             nodes.Where(node => node.TryGetProperty("Index Name", out _)).Select(node => node.GetProperty("Index Name").GetString())
@@ -107,6 +123,21 @@ public sealed partial class BackgroundJobControlTests
             _ => "available_after=clock_timestamp()+interval '1 day'",
         };
         await SchemaQueries.ExecuteAsync(dispatcher, null, "UPDATE background_jobs SET " + assignment);
+        if (lane == "exhaustion")
+        {
+            // A mixed due population makes the exhausted partial index selective;
+            // equal index populations cannot require a particular cost-based choice.
+            await using var transaction = await app.BeginTransactionAsync();
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                INSERT INTO background_jobs (id, tenant_id, definition_key, profile, queue, parameters, original_due_at, traceparent)
+                SELECT uuidv7(), @tenant, 'fixture.backlog.v1', 'transactional', 'transactional', '{}',
+                    clock_timestamp()-interval '1 minute', @trace FROM generate_series(1,6001)
+                """, ("tenant", SchemaFixture.TenantA), ("trace", BackgroundJobSchemaSeed.Traceparent));
+            await transaction.CommitAsync();
+            await SchemaQueries.ExecuteAsync(dispatcher, null,
+                "UPDATE background_jobs SET available_after=clock_timestamp()-interval '1 day' WHERE normal_attempts=0");
+        }
     }
 
     private static async Task<string> ExplainControlAsync(NpgsqlConnection dispatcher, string sql)

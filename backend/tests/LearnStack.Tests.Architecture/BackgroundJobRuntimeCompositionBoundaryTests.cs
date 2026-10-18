@@ -123,6 +123,7 @@ public sealed partial class OutboxDispatchConventionTests
         var hostedDispose = RequireBoundaryMethod(offenders, hosted, "Dispose", "System.Void", MethodAttributes.Public);
         var bootstrapExecute = InfrastructureAssembly + ":System.Void " + JobRuntime + "/BootstrapInvocation::Execute()";
         var ownedBodies = OwnedBodies(census).ToArray();
+        var observationBodies = ObservationBodiesByOwner(ownedBodies);
         var sites = CallSites(census).ToArray();
         RecordDetachedTargets(offenders, sites);
         Exact(runtime, ".ctor", constructor, [factory + ":newobj"]);
@@ -413,7 +414,7 @@ public sealed partial class OutboxDispatchConventionTests
             while (pending.TryDequeue(out var method))
             {
                 if (!visited.Add(MethodId(method))) continue;
-                foreach (var body in ownedBodies.Where(item => item.Owner == method).Select(item => item.Body))
+                foreach (var body in observationBodies[method])
                 {
                     var metadata = new[] { body.ReturnType }.Concat(body.Parameters.Select(parameter => parameter.ParameterType))
                         .Concat(body.GenericParameters.SelectMany(parameter => parameter.Constraints).Select(constraint => constraint.ConstraintType))
@@ -508,6 +509,10 @@ public sealed partial class OutboxDispatchConventionTests
             }
         }
     }
+
+    private static ILookup<MethodDefinition, MethodDefinition> ObservationBodiesByOwner(
+        IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
+        bodies.ToLookup(item => item.Owner, item => item.Body, (IEqualityComparer<MethodDefinition>)ReferenceEqualityComparer.Instance);
 
     private static bool IsPersistenceObservationType(TypeReference reference) =>
         reference.Namespace.StartsWith("Npgsql", StringComparison.Ordinal)

@@ -140,13 +140,20 @@ public sealed class BackgroundJobRoutingCleanupTests(SchemaFixture schema)
         await using var source = Source(database);
         var store = Store(source, gate);
         await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        await using var observer = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         await using var transaction = await owner.BeginTransactionAsync();
         await SchemaQueries.ExecuteAsync(owner, transaction, "LOCK TABLE background_jobs IN ACCESS EXCLUSIVE MODE");
+        var blocker = ((NpgsqlConnection)owner).ProcessID;
+        using var observationDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        (await HasRoutingLockAsync(observer, blocker, observationDeadline.Token)).Should().BeFalse();
         using var cancellation = new CancellationTokenSource();
         var running = store.TryClaimOwnedAsync(job, 1, cancellation.Token);
         try
         {
-            await WaitForRoutingLockAsync(database.OutboxConnectionString);
+            await WaitForRoutingLockAsync(observer, blocker, observationDeadline.Token);
+            running.IsCompleted.Should().BeFalse("the actual lock waiter must be observed before requesting caller cancellation");
+            (await HasRoutingLockAsync(observer, observer.ProcessID, observationDeadline.Token)).Should().BeFalse(
+                "an unrelated backend cannot satisfy the same blocker-identity barrier");
             gate.StopStarts();
             await cancellation.CancelAsync();
             var canceled = await running.WaitAsync(TimeSpan.FromSeconds(10));
@@ -223,20 +230,27 @@ public sealed class BackgroundJobRoutingCleanupTests(SchemaFixture schema)
     private static PostgresBackgroundJobRoutingStore Store(PrivilegedDataSource source,
         BackgroundJobRuntimeGate? gate = null) => new(source, Fixture.Registry, new(), new SystemGuidFactory(), gate);
 
-    private static async Task WaitForRoutingLockAsync(string connectionString)
+    private static async Task WaitForRoutingLockAsync(NpgsqlConnection connection, int blocker, CancellationToken cancellationToken)
     {
-        await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
         var deadline = Stopwatch.StartNew();
         while (deadline.Elapsed < TimeSpan.FromSeconds(5))
         {
-            await using var command = new NpgsqlCommand("""
-                SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()
-                    AND usename = 'learnstack_outbox_admin' AND wait_event_type = 'Lock'
-                    AND query LIKE '%WITH candidate AS%' AND query LIKE '%UPDATE background_jobs%'
-                """, connection);
-            if ((long)(await command.ExecuteScalarAsync())! > 0) return;
-            await Task.Delay(TimeSpan.FromMilliseconds(25));
+            if (await HasRoutingLockAsync(connection, blocker, cancellationToken)) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
         }
         throw new TimeoutException("The real routing read did not reach its PostgreSQL lock wait.");
+    }
+
+    private static async Task<bool> HasRoutingLockAsync(NpgsqlConnection connection, int blocker, CancellationToken cancellationToken)
+    {
+        // Activity text is truncated before this routing query's UPDATE suffix.
+        // Observe the exact real lock dependency instead of matching that text.
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+                AND usename='learnstack_outbox_admin' AND wait_event_type='Lock'
+                AND @blocker=ANY(pg_blocking_pids(pid)))
+            """, connection);
+        command.Parameters.AddWithValue("blocker", blocker);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 }

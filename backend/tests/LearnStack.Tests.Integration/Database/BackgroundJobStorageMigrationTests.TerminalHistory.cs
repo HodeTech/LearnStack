@@ -13,8 +13,12 @@ public sealed partial class BackgroundJobStorageMigrationTests
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var context = Platform(database);
+        var latest = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var migrator = context.GetService<IMigrator>();
+        const string target = "20261017163051_add_external_job_terminal_history_guard";
+        await migrator.MigrateAsync(target);
         var current = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
-        await context.GetService<IMigrator>().MigrateAsync("20261017134946_add_background_job_quarantine_observation");
+        await migrator.MigrateAsync("20261017134946_add_background_job_quarantine_observation");
         var prior = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
         var added = current.Except(prior).Should().ContainSingle().Which;
         var removed = prior.Except(current).Should().ContainSingle().Which;
@@ -26,9 +30,12 @@ public sealed partial class BackgroundJobStorageMigrationTests
             .And.NotContain("no-plan terminal completion requires complete positive no-start history");
         removed.Should().Contain("an unowned recovery wake retains its scheduling cycle",
             "Down restores the effective recovery-wake function, preserving its later policy and scheduling guards");
-        await context.Database.MigrateAsync();
+        await migrator.MigrateAsync(target);
         (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current,
             "the function-only forward migration preserves every RLS, grant, index and trigger fact");
+        await context.Database.MigrateAsync();
+        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(latest,
+            "later migrations and their complete job inventory must also return unchanged");
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 }

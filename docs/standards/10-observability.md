@@ -297,9 +297,10 @@ accepted by the [P02b-3 package](../roadmap/phase-02b-events-auth.md#p02b-3-deci
 Step 4 implements it with real worker, finite-label and memory-only observation
 proofs. P02b-4 Step 9 implements the five observable and three stage families above under
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md#lifecycle-and-observation).
-Stage qualification, tracing, lease-loss and complete control-path instrumentation
-remain in progress; its [record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-owns qualification and remaining delivery.
+Stage, tracing, lease-loss and control-path instrumentation are implemented with
+source-specific qualification; the
+[Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns those receipts and the pending full regression, review and packet closeout.
 `event_type` comes only from the finite declared registry plus fixed
 unknown/retired/invalid categories. `subscription` comes only from declared stable
 subscription IDs plus fixed `invalid`; a well-formed undeclared ID is still
