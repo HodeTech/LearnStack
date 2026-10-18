@@ -7621,6 +7621,50 @@ native SDK invocation, memory-only ticks and exclusion-list guards remain before
 both full Step 8 review rounds. Nineteen packet obligations remain Registered;
 Step 9 is pending. Neither narrow source review supplies full-round credit.
 
+#### Recurrence ownership, hint and publication guard qualification
+
+After `59a19e15`, the same two companion methods close the new owners' field
+inventories, resource types, exact access sites and whole-production holders.
+Actual async attributes identify permitted state-machine holders. Generic
+resource identities are checked recursively; same-name foreign resources and
+forwarding accessors are rejected. Each completion source retains its actual
+concrete owner. Existing physical-source, privileged-entry and rollback caller
+allowsets are unchanged.
+
+Native registration uses the exact stock manager seam, two manifest arguments,
+control queue, UTC minute hint and Relaxed misfire policy. The census includes
+the stock V2 recurrence interface. The fourteen-method tick closure admits only
+its enumerated memory calls/fields and pinned framework/vendor leaves; injected
+scheduling, indirect calls, changed tick identity or early readiness reads fail.
+This establishes a closed work surface, not an absolute latency guarantee or
+general argument/control-flow proof.
+
+Recipient selection retains its sole caller, bounded collection snapshot,
+actual UUID-array parameter and retained-ID SQL exclusion. Source-order checks
+pin publication before Start, cancellation join acknowledgement before source
+disposal, and positive completion after actual cleanup/thread-exit observation.
+The previously recorded actual PostgreSQL/retained-task controls supply the
+separate causal lifecycle evidence; structural order alone is not its substitute.
+
+Narrow independent inspections identify and verify corrections to the V2
+interface census, resource/generic identities, cancellation join acknowledgement,
+provider invocation identity and tick token. Earlier build/clean-premise errors
+are retained separately. The initial 43-case run has one passing catalogue case
+and 42 clean-baseline failures caused by an ambiguous completion-signal selector;
+none receives dirty-control credit. The corrected selector distinguishes the
+returned signal from positive owner completion.
+
+The final 330-source Release build has zero warnings/errors. All fifty focused
+Architecture cases pass in one minute ten seconds, with zero skips: the baseline,
+48 clean/dirty/restored cases and the unchanged 247-method catalogue count.
+Scoped formatter verification reports no changes; its workspace-load warning is
+not reported as a build warning. The source/mode/artifact receipt closes at
+`cc7fcc480cd9234aa9d80ef189d3a602bc32c5e10b884e5393cd797bd22c7b4a`.
+
+This completes the new guard slice. Both fresh full Step 8 review rounds remain
+before Step 9; these narrow inspections award neither round. All nineteen packet
+obligations remain Registered. No packet-wide regression or CI success is claimed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

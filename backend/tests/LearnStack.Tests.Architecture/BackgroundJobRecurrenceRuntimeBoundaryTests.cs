@@ -38,12 +38,54 @@ public sealed partial class OutboxDispatchConventionTests
     [InlineData("native_stop")]
     [InlineData("recipient_cancel_join")]
     [InlineData("thread_exit")]
+    [InlineData("sdk_queue")]
+    [InlineData("sdk_cron")]
+    [InlineData("sdk_tick_type")]
+    [InlineData("sdk_manager")]
+    [InlineData("sdk_payload")]
+    [InlineData("sdk_misfire")]
+    [InlineData("sdk_arity")]
+    [InlineData("sdk_key_slot")]
+    [InlineData("sdk_extra_caller")]
+    [InlineData("sdk_interface_caller")]
+    [InlineData("sdk_swapped_literals")]
+    [InlineData("ownership_extra_holder")]
+    [InlineData("ownership_public_field")]
+    [InlineData("ownership_published_type")]
+    [InlineData("ownership_forwarded_field")]
+    [InlineData("ownership_completion_state")]
+    [InlineData("ownership_foreign_resource")]
+    [InlineData("ownership_foreign_generic")]
+    [InlineData("ownership_forwarded_stop")]
+    [InlineData("ownership_forwarded_manager")]
+    [InlineData("memory_wake")]
+    [InlineData("memory_field")]
+    [InlineData("memory_helper")]
+    [InlineData("memory_indirect")]
+    [InlineData("memory_scheduling")]
+    [InlineData("memory_tick_type")]
+    [InlineData("memory_vendor_identity")]
+    [InlineData("memory_readiness_wait")]
+    [InlineData("memory_extra_caller")]
+    [InlineData("exclusion_sql")]
+    [InlineData("exclusion_typed_array")]
+    [InlineData("exclusion_clone")]
+    [InlineData("exclusion_limit")]
+    [InlineData("exclusion_delegated_binding")]
+    [InlineData("exclusion_foreign_binding")]
+    [InlineData("publication_before_start")]
+    [InlineData("publication_dispose_before_join_ack")]
     public void Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup(string mutation)
     {
         using var census = ProductionCensus.Read();
         var types = census.Types;
         AssertMutation(census, mutation, () =>
         {
+            if (mutation.StartsWith("sdk_", StringComparison.Ordinal)) return MutateRecurrenceSdk(census, mutation);
+            if (mutation.StartsWith("ownership_", StringComparison.Ordinal)) return MutateRecurrenceOwnership(census, mutation);
+            if (mutation.StartsWith("memory_", StringComparison.Ordinal)) return MutateRecurrenceMemory(census, mutation);
+            if (mutation.StartsWith("exclusion_", StringComparison.Ordinal) || mutation.StartsWith("publication_", StringComparison.Ordinal))
+                return MutateRecurrencePublication(census, mutation);
             var recipient = types[(InfrastructureAssembly, RcRecipient)];
             if (mutation == "constructor_visibility")
             {
@@ -166,6 +208,12 @@ public sealed partial class OutboxDispatchConventionTests
             MethodAttributes.Public, [(JobRuntime, "PreallocateOwners", "newobj")]);
         Cap(RcControl, "BindNativeClient", "System.Void", [RcClient], MethodAttributes.Assembly,
             [(OrchestrationControl, "BindRecurrenceClient", "callvirt")]);
+        Cap(OrchestrationControl, "BindRecurrenceClient", "System.Void", [RcClient], MethodAttributes.Assembly,
+            [(JobRuntime, "PreallocateOwners", "callvirt")]);
+        Cap(OrchestrationControl, "SignalRecurrenceTick", "System.Void", ["System.String", "System.Int64"], MethodAttributes.Assembly,
+            [(RcBound, "RunTickAsync", "callvirt")]);
+        Cap(RcBound, "RunTickAsync", BoundaryTask, ["System.String", "System.Int64"], MethodAttributes.Assembly,
+            [(RcTick, "RunAsync", "callvirt")]);
         Cap(RcControl, "Start", "System.Void", [], MethodAttributes.Assembly,
             [(OrchestrationControl, "ScheduleLoops", "callvirt")]);
         Cap(RcControl, "RequestStop", "System.Void", [], MethodAttributes.Assembly,
@@ -209,6 +257,10 @@ public sealed partial class OutboxDispatchConventionTests
         RequireAwaits(RcNative, "ObserveAsync", [GenericAwaiter(BoundaryTask), configured,
             GenericAwaiter("System.Nullable`1<System.Boolean>"), configured]);
         RequireAwaits(RcControl, "ObserveCompletionAsync", [GenericAwaiter(BoundaryTask), configured, configured, configured]);
+        offenders.UnionWith(RecurrenceSdkOffenders(census));
+        offenders.UnionWith(RecurrenceOwnershipOffenders(census));
+        offenders.UnionWith(RecurrenceMemoryOffenders(census));
+        offenders.UnionWith(RecurrencePublicationOffenders(census));
         return offenders;
 
         void Cap(string type, string name, string result, string[] parameters, MethodAttributes visibility,
