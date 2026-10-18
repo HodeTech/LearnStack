@@ -25,27 +25,32 @@ public sealed partial class OutboxDispatchConventionTests
         CheckJobFrameworkMetadata();
     }
 
-    /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
-    [Fact]
-    public void Background_job_authority_census_detects_extra_activation_and_removed_live_guards()
+    public sealed partial class JobAuthorityMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var admission = census.Types[(DeliveryApplication, JobAdmission)];
-        var enter = admission.Methods.Single(method => method.Name == "Enter");
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-            AssertMutation(census, "an unauthorized admission activator through " + opcode, () =>
-                AddCallProbe(application, "AdditionalJobActivator", enter, opcode), JobAuthorityOffenders);
-        AssertMutation(census, "an async admission activator", () =>
-            AddAsyncCallProbe(application, "AsyncJobActivator", enter), JobAuthorityOffenders);
-        var guards = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == JobAdmission
-                && target.Name is "TryEnterRequest" or "RefusePrivilegedEntry" or "RequireContext" or "ModeFor").ToArray();
-        guards.Should().NotBeEmpty("the real runtime gates must be nonempty subjects before dirty controls run");
-        foreach (var guard in guards)
-            AssertMutation(census, "a missing actual job authority gate", () =>
-                ReplaceInstruction(guard, OpCodes.Ldstr, "missing job authority gate"), JobAuthorityOffenders);
-        AssertJobStepThreeControls(census);
+
+        /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
+        [Fact]
+        public void Background_job_authority_census_detects_extra_activation_and_removed_live_guards()
+        {
+            using var census = ProductionCensus.Read();
+            var admission = census.Types[(DeliveryApplication, JobAdmission)];
+            var enter = admission.Methods.Single(method => method.Name == "Enter");
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                AssertMutation(census, "an unauthorized admission activator through " + opcode, () =>
+                    AddCallProbe(application, "AdditionalJobActivator", enter, opcode), JobAuthorityOffenders);
+            AssertMutation(census, "an async admission activator", () =>
+                AddAsyncCallProbe(application, "AsyncJobActivator", enter), JobAuthorityOffenders);
+            var guards = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == JobAdmission
+                    && target.Name is "TryEnterRequest" or "RefusePrivilegedEntry" or "RequireContext" or "ModeFor").ToArray();
+            guards.Should().NotBeEmpty("the real runtime gates must be nonempty subjects before dirty controls run");
+            foreach (var guard in guards)
+                AssertMutation(census, "a missing actual job authority gate", () =>
+                    ReplaceInstruction(guard, OpCodes.Ldstr, "missing job authority gate"), JobAuthorityOffenders);
+            AssertJobStepThreeControls(census);
+        }
+
     }
 
     private static SortedSet<string> JobAuthorityOffenders(ProductionCensus census)

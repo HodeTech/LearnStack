@@ -55,116 +55,121 @@ public sealed partial class OutboxDispatchConventionTests
             + "whose private PublishAsync is the sole production IEventBus publisher; producers use IOutbox");
     }
 
-    [Fact]
-    public void Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution()
+    public sealed partial class JobAuthorityMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
-        var extensions = typeof(ServiceProviderKeyedServiceExtensions).GetMethods()
-            .Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService" or "GetKeyedServices")
-            .ToArray();
-        var targets = extensions.Concat(typeof(IKeyedServiceProvider).GetMethods())
-            .Concat(typeof(ServiceProvider).GetMethods().Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService"));
-        foreach (var target in targets)
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "extra keyed resolution through " + target.DeclaringType!.Name + "." + target.Name + "/" + opcode,
-                    () => AddCallProbe(application, "CredentialCaller", application.ImportReference(target), opcode), CredentialOffenders);
 
-        var resolver = application.ImportReference(extensions.First());
-        AssertMutation(census, "a cross-assembly async keyed resolver", () =>
-            AddAsyncCallProbe(application, "AsyncCredentialCaller", resolver), CredentialOffenders);
-        AssertMutation(census, "an unrelated helper on the sanctioned composition type", () =>
+        [Fact]
+        public void Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution()
         {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var method = AddCall(type, "UnrelatedCredentialHelper", resolver, OpCodes.Call);
-            return () => type.Methods.Remove(method);
-        }, CredentialOffenders);
-        AssertMutation(census, "a generated-name impersonation of the composition root", () =>
-        {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var generated = new TypeDefinition(string.Empty, "<AddLearnStackOutboxDispatcher>d__999", TypeAttributes.NestedPrivate,
-                type.Module.TypeSystem.Object);
-            type.NestedTypes.Add(generated);
-            AddCall(generated, "MoveNext", resolver, OpCodes.Call);
-            return () => type.NestedTypes.Remove(generated);
-        }, CredentialOffenders);
-        AssertMutation(census, "AnyKey enumeration even inside a sanctioned root", () =>
-        {
-            var type = census.Types[(BoundaryApi, BoundaryComposition)];
-            var method = AddCall(type, "AnyCredential", type.Module.ImportReference(typeof(KeyedService)
-                .GetProperty(nameof(KeyedService.AnyKey))!.GetMethod!), OpCodes.Call);
-            return () => type.Methods.Remove(method);
-        }, CredentialOffenders);
-        AssertMutation(census, "an outbox credential indexer in another production assembly", () =>
-            AddStringProbe(application, "CredentialIndexer", "ConnectionStrings:OutboxDispatcher"), CredentialOffenders);
-        AssertMutation(census, "an outbox environment credential in another production assembly", () =>
-            AddStringProbe(application, "CredentialEnvironment", "ConnectionStrings__OutboxDispatcher"), CredentialOffenders);
-        foreach (var alias in new[] { "OUTBOXDISPATCHER", "CONNECTIONSTRINGS:OUTBOXDISPATCHER", "CONNECTIONSTRINGS__OUTBOXDISPATCHER" })
-            AssertMutation(census, "a case-insensitive configuration alias " + alias, () =>
-                AddStringProbe(application, "UppercaseCredentialAlias", alias), CredentialOffenders);
-        foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, Store) })
-            foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda })
-                AssertMutation(census, "an extra privileged-source forwarding helper using " + opcode, () =>
-                {
-                    var type = census.Types[subject];
-                    var source = type.Fields.Single(field => field.Name == "_source");
-                    var method = new MethodDefinition("ForwardSource", MethodAttributes.Private, type.Module.TypeSystem.Void);
-                    method.Body.Instructions.Add(Instruction.Create(opcode, source));
-                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
-                    method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                    type.Methods.Add(method);
-                    return () => type.Methods.Remove(method);
-                }, CredentialOffenders);
-        var store = census.Types[(InfrastructureAssembly, Store)];
-        var storeConstructor = store.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-        AssertMutation(census, "a second consumer constructing the privileged store", () =>
-            AddCallProbe(application, "AdditionalStoreConsumer", storeConstructor, OpCodes.Newobj), CredentialOffenders);
-        var resolveStore = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
-            && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(OutboxDispatchStore));
-        AssertMutation(census, "an unkeyed locator escaping through the privileged store", () =>
-            AddCallProbe(application, "LocatedStoreConsumer", application.ImportReference(resolveStore), OpCodes.Call), CredentialOffenders);
-        AssertMutation(census, "an unrelated helper on the approved worker using the privileged store", () =>
-        {
-            var worker = census.Types[(BoundaryApi, BoundaryWorker)];
-            var method = AddCall(worker, "UnrelatedStoreConsumer", store.Methods.Single(method => method.Name == "TryClaimAsync"), OpCodes.Call);
-            return () => worker.Methods.Remove(method);
-        }, CredentialOffenders);
-        var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
-        foreach (var name in new[] { "ExecuteAsync", "ClaimNextAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
-            AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
-                AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
-        AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
-            AddBoundaryFieldGetter(boundaryWorker, "StartAsync", "_source"), CredentialOffenders);
-        foreach (var name in new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" })
-            AssertMutation(census, "a public raw-source overload borrowing the approved store name " + name, () =>
-                AddBoundaryFieldGetter(store, name, "_source"), CredentialOffenders);
-        foreach (var method in new[] { boundaryWorker.Methods.Single(item => item.Name == "StartAsync"),
+            using var census = ProductionCensus.Read();
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
+            var extensions = typeof(ServiceProviderKeyedServiceExtensions).GetMethods()
+                .Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService" or "GetKeyedServices")
+                .ToArray();
+            var targets = extensions.Concat(typeof(IKeyedServiceProvider).GetMethods())
+                .Concat(typeof(ServiceProvider).GetMethods().Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService"));
+            foreach (var target in targets)
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "extra keyed resolution through " + target.DeclaringType!.Name + "." + target.Name + "/" + opcode,
+                        () => AddCallProbe(application, "CredentialCaller", application.ImportReference(target), opcode), CredentialOffenders);
+
+            var resolver = application.ImportReference(extensions.First());
+            AssertMutation(census, "a cross-assembly async keyed resolver", () =>
+                AddAsyncCallProbe(application, "AsyncCredentialCaller", resolver), CredentialOffenders);
+            AssertMutation(census, "an unrelated helper on the sanctioned composition type", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var method = AddCall(type, "UnrelatedCredentialHelper", resolver, OpCodes.Call);
+                return () => type.Methods.Remove(method);
+            }, CredentialOffenders);
+            AssertMutation(census, "a generated-name impersonation of the composition root", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var generated = new TypeDefinition(string.Empty, "<AddLearnStackOutboxDispatcher>d__999", TypeAttributes.NestedPrivate,
+                    type.Module.TypeSystem.Object);
+                type.NestedTypes.Add(generated);
+                AddCall(generated, "MoveNext", resolver, OpCodes.Call);
+                return () => type.NestedTypes.Remove(generated);
+            }, CredentialOffenders);
+            AssertMutation(census, "AnyKey enumeration even inside a sanctioned root", () =>
+            {
+                var type = census.Types[(BoundaryApi, BoundaryComposition)];
+                var method = AddCall(type, "AnyCredential", type.Module.ImportReference(typeof(KeyedService)
+                    .GetProperty(nameof(KeyedService.AnyKey))!.GetMethod!), OpCodes.Call);
+                return () => type.Methods.Remove(method);
+            }, CredentialOffenders);
+            AssertMutation(census, "an outbox credential indexer in another production assembly", () =>
+                AddStringProbe(application, "CredentialIndexer", "ConnectionStrings:OutboxDispatcher"), CredentialOffenders);
+            AssertMutation(census, "an outbox environment credential in another production assembly", () =>
+                AddStringProbe(application, "CredentialEnvironment", "ConnectionStrings__OutboxDispatcher"), CredentialOffenders);
+            foreach (var alias in new[] { "OUTBOXDISPATCHER", "CONNECTIONSTRINGS:OUTBOXDISPATCHER", "CONNECTIONSTRINGS__OUTBOXDISPATCHER" })
+                AssertMutation(census, "a case-insensitive configuration alias " + alias, () =>
+                    AddStringProbe(application, "UppercaseCredentialAlias", alias), CredentialOffenders);
+            foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, Store) })
+                foreach (var opcode in new[] { OpCodes.Ldfld, OpCodes.Ldflda })
+                    AssertMutation(census, "an extra privileged-source forwarding helper using " + opcode, () =>
+                    {
+                        var type = census.Types[subject];
+                        var source = type.Fields.Single(field => field.Name == "_source");
+                        var method = new MethodDefinition("ForwardSource", MethodAttributes.Private, type.Module.TypeSystem.Void);
+                        method.Body.Instructions.Add(Instruction.Create(opcode, source));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                        method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                        type.Methods.Add(method);
+                        return () => type.Methods.Remove(method);
+                    }, CredentialOffenders);
+            var store = census.Types[(InfrastructureAssembly, Store)];
+            var storeConstructor = store.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            AssertMutation(census, "a second consumer constructing the privileged store", () =>
+                AddCallProbe(application, "AdditionalStoreConsumer", storeConstructor, OpCodes.Newobj), CredentialOffenders);
+            var resolveStore = typeof(ServiceProviderServiceExtensions).GetMethods().Single(method => method.Name == "GetRequiredService"
+                && method.IsGenericMethodDefinition && method.GetParameters().Length == 1).MakeGenericMethod(typeof(OutboxDispatchStore));
+            AssertMutation(census, "an unkeyed locator escaping through the privileged store", () =>
+                AddCallProbe(application, "LocatedStoreConsumer", application.ImportReference(resolveStore), OpCodes.Call), CredentialOffenders);
+            AssertMutation(census, "an unrelated helper on the approved worker using the privileged store", () =>
+            {
+                var worker = census.Types[(BoundaryApi, BoundaryWorker)];
+                var method = AddCall(worker, "UnrelatedStoreConsumer", store.Methods.Single(method => method.Name == "TryClaimAsync"), OpCodes.Call);
+                return () => worker.Methods.Remove(method);
+            }, CredentialOffenders);
+            var boundaryWorker = census.Types[(BoundaryApi, BoundaryWorker)];
+            foreach (var name in new[] { "ExecuteAsync", "ClaimNextAsync", "DispatchAsync", "DispatchNormalAsync", "RefreshAsync" })
+                AssertMutation(census, "a public store-forwarding overload borrowing the approved worker name " + name, () =>
+                    AddBoundaryFieldGetter(boundaryWorker, name, "_store"), CredentialOffenders);
+            AssertMutation(census, "a public raw-source overload borrowing the approved worker name StartAsync", () =>
+                AddBoundaryFieldGetter(boundaryWorker, "StartAsync", "_source"), CredentialOffenders);
+            foreach (var name in new[] { "AcquireAsync", "UpdateAsync", "TryTerminalizeAsync", "IsDurablyTerminalAsync", "ReadSnapshotAsync" })
+                AssertMutation(census, "a public raw-source overload borrowing the approved store name " + name, () =>
+                    AddBoundaryFieldGetter(store, name, "_source"), CredentialOffenders);
+            foreach (var method in new[] { boundaryWorker.Methods.Single(item => item.Name == "StartAsync"),
                      store.Methods.Single(item => item.Name == "ReadSnapshotAsync") })
-        {
-            AssertMutation(census, "a changed source-reader visibility", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
-                    (method.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Private), CredentialOffenders);
-            AssertMutation(census, "a static source reader replacing its approved instance binding", () =>
-                ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
-                    method.Attributes | MethodAttributes.Static), CredentialOffenders);
-            AssertMutation(census, "a changed source-reader return type", () =>
             {
-                var original = method.ReturnType;
-                method.ReturnType = method.Module.TypeSystem.Object;
-                return () => method.ReturnType = original;
-            }, CredentialOffenders);
-            AssertMutation(census, "a changed source-reader parameter type", () =>
-            {
-                var parameter = method.Parameters[0];
-                var original = parameter.ParameterType;
-                parameter.ParameterType = method.Module.TypeSystem.Int32;
-                return () => parameter.ParameterType = original;
-            }, CredentialOffenders);
+                AssertMutation(census, "a changed source-reader visibility", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                        (method.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Private), CredentialOffenders);
+                AssertMutation(census, "a static source reader replacing its approved instance binding", () =>
+                    ChangeAttributes(() => method.Attributes, value => method.Attributes = value,
+                        method.Attributes | MethodAttributes.Static), CredentialOffenders);
+                AssertMutation(census, "a changed source-reader return type", () =>
+                {
+                    var original = method.ReturnType;
+                    method.ReturnType = method.Module.TypeSystem.Object;
+                    return () => method.ReturnType = original;
+                }, CredentialOffenders);
+                AssertMutation(census, "a changed source-reader parameter type", () =>
+                {
+                    var parameter = method.Parameters[0];
+                    var original = parameter.ParameterType;
+                    parameter.ParameterType = method.Module.TypeSystem.Int32;
+                    return () => parameter.ParameterType = original;
+                }, CredentialOffenders);
+            }
+            var dispatch = boundaryWorker.Methods.Single(method => method.Name == "DispatchAsync");
+            AssertMutation(census, "a public store-consumer method replacing its private binding", () =>
+                ChangeAttributes(() => dispatch.Attributes, value => dispatch.Attributes = value,
+                    (dispatch.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), CredentialOffenders);
         }
-        var dispatch = boundaryWorker.Methods.Single(method => method.Name == "DispatchAsync");
-        AssertMutation(census, "a public store-consumer method replacing its private binding", () =>
-            ChangeAttributes(() => dispatch.Attributes, value => dispatch.Attributes = value,
-                (dispatch.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), CredentialOffenders);
+
     }
 
     [Fact]

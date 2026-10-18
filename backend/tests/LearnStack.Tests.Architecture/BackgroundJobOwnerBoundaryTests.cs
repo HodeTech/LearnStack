@@ -31,153 +31,156 @@ public sealed partial class OutboxDispatchConventionTests
             "Fix: retain one exact receipt/unit/root participant and the existing owner-only Complete boundary");
     }
 
-    [Fact]
-    public void Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates()
+    public sealed partial class JobExecutionMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var capabilities = JobOwnerCapabilities(census).ToArray();
-        capabilities.Should().NotBeEmpty("the owner census starts with actual production authority");
-        foreach (var capability in capabilities)
-        {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "an extra job owner capability through " + opcode, () =>
-                    AddCallProbe(application, "AdditionalJobOwner", capability, opcode), JobOwnerOffenders);
-            AssertMutation(census, "an asynchronous job owner escape", () =>
-                AddAsyncCallProbe(application, "AsyncJobOwner", capability), JobOwnerOffenders);
-            AssertMutation(census, "an overload borrowing an approved owner name", () =>
-            {
-                var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
-                return () => capability.DeclaringType.Methods.Remove(method);
-            }, JobOwnerOffenders);
-        }
-        var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability =>
-                SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
-        actualSites.Should().NotBeEmpty("the production callback and coordinator paths are live even with zero business definitions");
-        foreach (var site in actualSites)
-        {
-            AssertMutation(census, "a deleted actual owner gate", () => ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
-            AssertMutation(census, "a delegate escape in an approved owner", () =>
-                ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), JobOwnerOffenders);
-        }
-        AssertMutation(census, "a second job completion implementation", () =>
-        {
-            var probe = AddProbe(application, "AdditionalJobCompletion");
-            probe.BaseType = application.ImportReference(census.Types[(DeliveryApplication, JobParticipant)]);
-            return () => application.Types.Remove(probe);
-        }, JobOwnerOffenders);
-        foreach (var subject in JobOwnerSubjects())
-            AssertMutation(census, "a missing real job owner subject", () =>
-            {
-                var type = census.Types[subject];
-                var module = type.Module;
-                module.Types.Remove(type);
-                return () => module.Types.Add(type);
-            }, JobOwnerOffenders);
-        var context = census.Types[(KernelAssembly, JobTrustedContext)];
-        var constructor = context.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-        AssertMutation(census, "a publicly constructible trusted job context", () =>
-            ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
-                (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobOwnerOffenders);
-        var completionBody = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
-            && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
-        var acknowledgement = completionBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == JobCommitGate && target.Name == "RecordCommitted");
-        AssertMutation(census, "job acknowledgement before the actual owned Complete", () =>
-        {
-            var index = completionBody.Instructions.IndexOf(acknowledgement);
-            completionBody.Instructions.Remove(acknowledgement);
-            completionBody.Instructions.Insert(0, acknowledgement);
-            return () => { completionBody.Instructions.Remove(acknowledgement); completionBody.Instructions.Insert(index, acknowledgement); };
-        }, JobOwnerOffenders);
-        var sqlSites = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
-                && item.Owner.Name is "PreflightAsync" or "FenceAsync")
-            .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.OpCode == OpCodes.Ldstr
-                && instruction.Operand is string sql && sql.Contains("FROM background_jobs", StringComparison.Ordinal)
-                    || instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string update
-                    && update.StartsWith("UPDATE background_jobs", StringComparison.Ordinal)).ToArray();
-        sqlSites.Should().HaveCount(3, "the real unlocked preflight, exact row lock and fresh-time UPDATE are distinct");
-        foreach (var sql in sqlSites)
-            AssertMutation(census, "a removed actual preflight or final-fence SQL", () =>
-                ReplaceInstruction(sql, OpCodes.Ldstr, "missing job SQL fence"), JobOwnerOffenders);
-        var releaseSql = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant)
-            .SelectMany(item => item.Body.Body.Instructions).Single(instruction => instruction.OpCode == OpCodes.Ldstr
-                && instruction.Operand is string sql && sql.StartsWith("UPDATE background_job_reservations", StringComparison.Ordinal));
-        AssertMutation(census, "a removed successful grouped reservation release", () =>
-            ReplaceInstruction(releaseSql, OpCodes.Ldstr, "missing reservation release"), JobOwnerOffenders);
-        foreach (var site in sqlSites)
-            foreach (var predicate in new[] { "capacity_group IS NOT DISTINCT FROM @capacity", "r.attempt_id = @attempt", "r.released_at IS NULL" })
-                AssertMutation(census, "a grouped completion fence without " + predicate, () =>
-                    ReplaceInstruction(site, OpCodes.Ldstr, ((string)site.Operand).Replace(predicate, "TRUE", StringComparison.Ordinal)),
-                    JobOwnerOffenders);
 
-        var budgetBodies = OwnedBodies(census).ToArray();
-        var capture = budgetBodies.Single(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
-            && item.Owner.Name == "CaptureCommitBudgetAsync" && item.Body.Name == "MoveNext").Body.Body;
-        var begin = capture.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.Name == "BeginCommitBudgetRead");
-        var query = capture.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == "Npgsql.NpgsqlCommand" && method.Name == "ExecuteReaderAsync");
-        AssertMutation(census, "starting the monotonic budget after the query", () =>
-            MoveBudgetInstructionAfter(capture, begin, query), JobOwnerOffenders);
-        foreach (var projection in capture.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldstr
-                     && instruction.Operand is string sql && sql.StartsWith("SELECT ", StringComparison.Ordinal)).ToArray())
-            AssertMutation(census, "a changed database-time budget projection", () =>
-                ReplaceInstruction(projection, OpCodes.Ldstr, ((string)projection.Operand).Replace("clock_timestamp()", "NULL", StringComparison.Ordinal)),
-                JobOwnerOffenders);
-        var transactionBudget = capture.Instructions.Single(instruction => instruction.OpCode == OpCodes.Ldstr
-            && instruction.Operand is string sql && sql.StartsWith("SELECT ownership_until,", StringComparison.Ordinal));
-        AssertMutation(census, "a missing budget-local tenant predicate", () =>
-            ReplaceInstruction(transactionBudget, OpCodes.Ldstr,
-                ((string)transactionBudget.Operand).Replace("tenant_id = @tenant", "TRUE", StringComparison.Ordinal)), JobOwnerOffenders);
-        foreach (var site in capture.Instructions.Where(instruction => instruction.Operand is MethodReference method
-                     && method.DeclaringType.FullName == "LearnStack.Infrastructure.Jobs.BackgroundJobExternalCheckpointSql"
-                     && method.Name is "Identity" or "Live").ToArray())
-            AssertMutation(census, "a removed Prepare budget identity/live call", () =>
-                ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
-        foreach (var fenceName in new[] { "FenceAsync", "FencePrepareAsync", "FenceFinalizeAsync" })
+        [Fact]
+        public void Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates()
         {
-            var fence = budgetBodies.Single(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
-                && item.Owner.Name == fenceName && item.Body.Name == "MoveNext").Body.Body;
-            var budget = fence.Instructions.Single(instruction => instruction.Operand is MethodReference method
-                && method.Name == "CaptureCommitBudgetAsync");
-            var writes = fence.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldstr
-                && instruction.Operand is string sql && sql.StartsWith("UPDATE background_jobs", StringComparison.Ordinal)).ToArray();
-            writes.Should().HaveCount(fenceName == "FenceFinalizeAsync" ? 2 : 1,
-                "Finalize has separate completed and terminal writes after the same captured budget");
-            foreach (var write in writes)
-                AssertMutation(census, "a budget captured after the completion write", () =>
-                    MoveBudgetInstructionAfter(fence, budget, write), JobOwnerOffenders);
-        }
-        foreach (var fieldName in new[] { "_commitBudgetStartedAt", "_commitBudgetRemaining", "_commitBudgetState" })
-        {
-            var field = census.Types[(DeliveryApplication, JobParticipant)].Fields.Single(field => field.Name == fieldName);
-            AssertMutation(census, "a publicly writable completion budget", () =>
-                ChangeAttributes(() => field.Attributes, value => field.Attributes = value,
-                    (field.Attributes & ~FieldAttributes.FieldAccessMask) | FieldAttributes.Public), JobOwnerOffenders);
-            var writes = budgetBodies.Where(item => item.Owner.DeclaringType.FullName == JobParticipant)
-                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is FieldReference target
-                    && target.Name == fieldName && instruction.OpCode == (fieldName == "_commitBudgetState" ? OpCodes.Ldflda : OpCodes.Stfld)).ToArray();
-            writes.Should().NotBeEmpty("the budget has actual publication/consumption state");
-            foreach (var write in writes)
-                AssertMutation(census, "missing owner-local budget publication/consumption", () =>
-                    ReplaceInstruction(write, OpCodes.Nop, null!), JobOwnerOffenders);
-        }
-        var participant = census.Types[(DeliveryApplication, JobParticipant)];
-        var stateField = participant.Fields.Single(field => field.Name == "_commitBudgetState");
-        foreach (var name in new[] { "BeginCommitBudgetRead", "RecordCommitBudget", "TryBeginCommit" })
-        {
-            var owner = participant.Methods.Single(method => method.Name == name);
-            AssertMutation(census, "an approved method directly resetting its one-way budget state", () =>
+            using var census = ProductionCensus.Read();
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var capabilities = JobOwnerCapabilities(census).ToArray();
+            capabilities.Should().NotBeEmpty("the owner census starts with actual production authority");
+            foreach (var capability in capabilities)
             {
-                var reset = Instruction.Create(OpCodes.Stfld, stateField);
-                owner.Body.Instructions.Insert(0, reset);
-                return () => owner.Body.Instructions.Remove(reset);
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "an extra job owner capability through " + opcode, () =>
+                        AddCallProbe(application, "AdditionalJobOwner", capability, opcode), JobOwnerOffenders);
+                AssertMutation(census, "an asynchronous job owner escape", () =>
+                    AddAsyncCallProbe(application, "AsyncJobOwner", capability), JobOwnerOffenders);
+                AssertMutation(census, "an overload borrowing an approved owner name", () =>
+                {
+                    var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                    return () => capability.DeclaringType.Methods.Remove(method);
+                }, JobOwnerOffenders);
+            }
+            var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability =>
+                    SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
+            actualSites.Should().NotBeEmpty("the production callback and coordinator paths are live even with zero business definitions");
+            foreach (var site in actualSites)
+            {
+                AssertMutation(census, "a deleted actual owner gate", () => ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
+                AssertMutation(census, "a delegate escape in an approved owner", () =>
+                    ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), JobOwnerOffenders);
+            }
+            AssertMutation(census, "a second job completion implementation", () =>
+            {
+                var probe = AddProbe(application, "AdditionalJobCompletion");
+                probe.BaseType = application.ImportReference(census.Types[(DeliveryApplication, JobParticipant)]);
+                return () => application.Types.Remove(probe);
             }, JobOwnerOffenders);
-        }
-        foreach (var (assembly, type, name) in new[]
-                 {
+            foreach (var subject in JobOwnerSubjects())
+                AssertMutation(census, "a missing real job owner subject", () =>
+                {
+                    var type = census.Types[subject];
+                    var module = type.Module;
+                    module.Types.Remove(type);
+                    return () => module.Types.Add(type);
+                }, JobOwnerOffenders);
+            var context = census.Types[(KernelAssembly, JobTrustedContext)];
+            var constructor = context.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            AssertMutation(census, "a publicly constructible trusted job context", () =>
+                ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
+                    (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobOwnerOffenders);
+            var completionBody = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
+                && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
+            var acknowledgement = completionBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == JobCommitGate && target.Name == "RecordCommitted");
+            AssertMutation(census, "job acknowledgement before the actual owned Complete", () =>
+            {
+                var index = completionBody.Instructions.IndexOf(acknowledgement);
+                completionBody.Instructions.Remove(acknowledgement);
+                completionBody.Instructions.Insert(0, acknowledgement);
+                return () => { completionBody.Instructions.Remove(acknowledgement); completionBody.Instructions.Insert(index, acknowledgement); };
+            }, JobOwnerOffenders);
+            var sqlSites = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
+                    && item.Owner.Name is "PreflightAsync" or "FenceAsync")
+                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.OpCode == OpCodes.Ldstr
+                    && instruction.Operand is string sql && sql.Contains("FROM background_jobs", StringComparison.Ordinal)
+                        || instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string update
+                        && update.StartsWith("UPDATE background_jobs", StringComparison.Ordinal)).ToArray();
+            sqlSites.Should().HaveCount(3, "the real unlocked preflight, exact row lock and fresh-time UPDATE are distinct");
+            foreach (var sql in sqlSites)
+                AssertMutation(census, "a removed actual preflight or final-fence SQL", () =>
+                    ReplaceInstruction(sql, OpCodes.Ldstr, "missing job SQL fence"), JobOwnerOffenders);
+            var releaseSql = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant)
+                .SelectMany(item => item.Body.Body.Instructions).Single(instruction => instruction.OpCode == OpCodes.Ldstr
+                    && instruction.Operand is string sql && sql.StartsWith("UPDATE background_job_reservations", StringComparison.Ordinal));
+            AssertMutation(census, "a removed successful grouped reservation release", () =>
+                ReplaceInstruction(releaseSql, OpCodes.Ldstr, "missing reservation release"), JobOwnerOffenders);
+            foreach (var site in sqlSites)
+                foreach (var predicate in new[] { "capacity_group IS NOT DISTINCT FROM @capacity", "r.attempt_id = @attempt", "r.released_at IS NULL" })
+                    AssertMutation(census, "a grouped completion fence without " + predicate, () =>
+                        ReplaceInstruction(site, OpCodes.Ldstr, ((string)site.Operand).Replace(predicate, "TRUE", StringComparison.Ordinal)),
+                        JobOwnerOffenders);
+
+            var budgetBodies = OwnedBodies(census).ToArray();
+            var capture = budgetBodies.Single(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
+                && item.Owner.Name == "CaptureCommitBudgetAsync" && item.Body.Name == "MoveNext").Body.Body;
+            var begin = capture.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.Name == "BeginCommitBudgetRead");
+            var query = capture.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == "Npgsql.NpgsqlCommand" && method.Name == "ExecuteReaderAsync");
+            AssertMutation(census, "starting the monotonic budget after the query", () =>
+                MoveBudgetInstructionAfter(capture, begin, query), JobOwnerOffenders);
+            foreach (var projection in capture.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldstr
+                         && instruction.Operand is string sql && sql.StartsWith("SELECT ", StringComparison.Ordinal)).ToArray())
+                AssertMutation(census, "a changed database-time budget projection", () =>
+                    ReplaceInstruction(projection, OpCodes.Ldstr, ((string)projection.Operand).Replace("clock_timestamp()", "NULL", StringComparison.Ordinal)),
+                    JobOwnerOffenders);
+            var transactionBudget = capture.Instructions.Single(instruction => instruction.OpCode == OpCodes.Ldstr
+                && instruction.Operand is string sql && sql.StartsWith("SELECT ownership_until,", StringComparison.Ordinal));
+            AssertMutation(census, "a missing budget-local tenant predicate", () =>
+                ReplaceInstruction(transactionBudget, OpCodes.Ldstr,
+                    ((string)transactionBudget.Operand).Replace("tenant_id = @tenant", "TRUE", StringComparison.Ordinal)), JobOwnerOffenders);
+            foreach (var site in capture.Instructions.Where(instruction => instruction.Operand is MethodReference method
+                         && method.DeclaringType.FullName == "LearnStack.Infrastructure.Jobs.BackgroundJobExternalCheckpointSql"
+                         && method.Name is "Identity" or "Live").ToArray())
+                AssertMutation(census, "a removed Prepare budget identity/live call", () =>
+                    ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
+            foreach (var fenceName in new[] { "FenceAsync", "FencePrepareAsync", "FenceFinalizeAsync" })
+            {
+                var fence = budgetBodies.Single(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
+                    && item.Owner.Name == fenceName && item.Body.Name == "MoveNext").Body.Body;
+                var budget = fence.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                    && method.Name == "CaptureCommitBudgetAsync");
+                var writes = fence.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldstr
+                    && instruction.Operand is string sql && sql.StartsWith("UPDATE background_jobs", StringComparison.Ordinal)).ToArray();
+                writes.Should().HaveCount(fenceName == "FenceFinalizeAsync" ? 2 : 1,
+                    "Finalize has separate completed and terminal writes after the same captured budget");
+                foreach (var write in writes)
+                    AssertMutation(census, "a budget captured after the completion write", () =>
+                        MoveBudgetInstructionAfter(fence, budget, write), JobOwnerOffenders);
+            }
+            foreach (var fieldName in new[] { "_commitBudgetStartedAt", "_commitBudgetRemaining", "_commitBudgetState" })
+            {
+                var field = census.Types[(DeliveryApplication, JobParticipant)].Fields.Single(field => field.Name == fieldName);
+                AssertMutation(census, "a publicly writable completion budget", () =>
+                    ChangeAttributes(() => field.Attributes, value => field.Attributes = value,
+                        (field.Attributes & ~FieldAttributes.FieldAccessMask) | FieldAttributes.Public), JobOwnerOffenders);
+                var writes = budgetBodies.Where(item => item.Owner.DeclaringType.FullName == JobParticipant)
+                    .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is FieldReference target
+                        && target.Name == fieldName && instruction.OpCode == (fieldName == "_commitBudgetState" ? OpCodes.Ldflda : OpCodes.Stfld)).ToArray();
+                writes.Should().NotBeEmpty("the budget has actual publication/consumption state");
+                foreach (var write in writes)
+                    AssertMutation(census, "missing owner-local budget publication/consumption", () =>
+                        ReplaceInstruction(write, OpCodes.Nop, null!), JobOwnerOffenders);
+            }
+            var participant = census.Types[(DeliveryApplication, JobParticipant)];
+            var stateField = participant.Fields.Single(field => field.Name == "_commitBudgetState");
+            foreach (var name in new[] { "BeginCommitBudgetRead", "RecordCommitBudget", "TryBeginCommit" })
+            {
+                var owner = participant.Methods.Single(method => method.Name == name);
+                AssertMutation(census, "an approved method directly resetting its one-way budget state", () =>
+                {
+                    var reset = Instruction.Create(OpCodes.Stfld, stateField);
+                    owner.Body.Instructions.Insert(0, reset);
+                    return () => owner.Body.Instructions.Remove(reset);
+                }, JobOwnerOffenders);
+            }
+            foreach (var (assembly, type, name) in new[]
+                     {
                      (DeliveryApplication, JobParticipant, "BeginCommitBudgetRead"),
                      (DeliveryApplication, JobParticipant, "RecordCommitBudget"),
                      (DeliveryApplication, JobParticipant, "TryBeginCommit"),
@@ -187,96 +190,98 @@ public sealed partial class OutboxDispatchConventionTests
                      (DeliveryApplication, JobCommitGate, "TryBeginCheckpointCommitOwned"),
                      (DeliveryApplication, JobRunGate, "TryBeginCheckpointCommit"),
                  })
-        {
-            var capability = census.Types[(assembly, type)].Methods.Single(method => method.Name == name);
-            AssertMutation(census, "a public owner budget capability", () =>
-                ChangeAttributes(() => capability.Attributes, value => capability.Attributes = value,
-                    (capability.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobOwnerOffenders);
-        }
-        var run = census.Types[(DeliveryApplication, JobRunGate)].Methods.Single(method => method.Name == "TryBeginCheckpointCommit");
-        foreach (var site in run.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
-                     && (method.DeclaringType.FullName == "System.Diagnostics.Stopwatch" && method.Name == "GetElapsedTime"
-                         || method.DeclaringType.FullName == "System.Threading.Monitor" && method.Name is "Enter" or "Exit")).ToArray())
-            AssertMutation(census, "a removed elapsed or inside-lock admission boundary", () =>
-                ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
-        var elapsedSite = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == "System.Diagnostics.Stopwatch" && method.Name == "GetElapsedTime");
-        AssertMutation(census, "an elapsed method reference without an actual invocation", () =>
-            ReplaceInstruction(elapsedSite, OpCodes.Ldftn, elapsedSite.Operand), JobOwnerOffenders);
-        var monitorFinally = run.Body.ExceptionHandlers.Single(handler => handler.HandlerType == ExceptionHandlerType.Finally);
-        AssertMutation(census, "a lock-finally region whose start is outside the actual body", () =>
-        {
-            var original = monitorFinally.HandlerStart;
-            monitorFinally.HandlerStart = Instruction.Create(OpCodes.Nop);
-            return () => monitorFinally.HandlerStart = original;
-        }, JobOwnerOffenders);
-        var checkpointOwned = census.Types[(DeliveryApplication, JobCommitGate)].Methods
-            .Single(method => method.Name == "TryBeginCheckpointCommitOwned");
-        AssertMutation(census, "a removed owned checkpoint helper declaration", () =>
-        {
-            var methods = checkpointOwned.DeclaringType.Methods;
-            var index = methods.IndexOf(checkpointOwned);
-            methods.Remove(checkpointOwned);
-            return () => methods.Insert(index, checkpointOwned);
-        }, JobOwnerOffenders);
-        AssertMutation(census, "a changed owned checkpoint helper result", () =>
-        {
-            var original = checkpointOwned.ReturnType;
-            checkpointOwned.ReturnType = application.TypeSystem.Int32;
-            return () => checkpointOwned.ReturnType = original;
-        }, JobOwnerOffenders);
-        foreach (var parameter in checkpointOwned.Parameters)
-            AssertMutation(census, "a changed owned checkpoint budget parameter", () =>
             {
-                var original = parameter.ParameterType;
-                parameter.ParameterType = application.TypeSystem.String;
-                return () => parameter.ParameterType = original;
+                var capability = census.Types[(assembly, type)].Methods.Single(method => method.Name == name);
+                AssertMutation(census, "a public owner budget capability", () =>
+                    ChangeAttributes(() => capability.Attributes, value => capability.Attributes = value,
+                        (capability.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobOwnerOffenders);
+            }
+            var run = census.Types[(DeliveryApplication, JobRunGate)].Methods.Single(method => method.Name == "TryBeginCheckpointCommit");
+            foreach (var site in run.Body.Instructions.Where(instruction => instruction.Operand is MethodReference method
+                         && (method.DeclaringType.FullName == "System.Diagnostics.Stopwatch" && method.Name == "GetElapsedTime"
+                             || method.DeclaringType.FullName == "System.Threading.Monitor" && method.Name is "Enter" or "Exit")).ToArray())
+                AssertMutation(census, "a removed elapsed or inside-lock admission boundary", () =>
+                    ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
+            var elapsedSite = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == "System.Diagnostics.Stopwatch" && method.Name == "GetElapsedTime");
+            AssertMutation(census, "an elapsed method reference without an actual invocation", () =>
+                ReplaceInstruction(elapsedSite, OpCodes.Ldftn, elapsedSite.Operand), JobOwnerOffenders);
+            var monitorFinally = run.Body.ExceptionHandlers.Single(handler => handler.HandlerType == ExceptionHandlerType.Finally);
+            AssertMutation(census, "a lock-finally region whose start is outside the actual body", () =>
+            {
+                var original = monitorFinally.HandlerStart;
+                monitorFinally.HandlerStart = Instruction.Create(OpCodes.Nop);
+                return () => monitorFinally.HandlerStart = original;
             }, JobOwnerOffenders);
-        foreach (var attribute in new[] { MethodAttributes.Static, MethodAttributes.Virtual })
-            AssertMutation(census, "an open owned checkpoint helper shape", () =>
-                ChangeAttributes(() => checkpointOwned.Attributes, value => checkpointOwned.Attributes = value,
-                    checkpointOwned.Attributes | attribute), JobOwnerOffenders);
-        var helperCall = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCheckpointCommitOwned");
-        AssertMutation(census, "an elapsed observation after owned checkpoint admission", () =>
-            MoveBudgetInstructionAfter(run.Body, elapsedSite, helperCall), JobOwnerOffenders);
-        var monitorExit = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == "System.Threading.Monitor" && method.Name == "Exit");
-        AssertMutation(census, "owned checkpoint admission outside the acquired run lock", () =>
-            MoveBudgetInstructionAfter(run.Body, helperCall, monitorExit), JobOwnerOffenders);
-        var ownedGuardSites = checkpointOwned.Body.Instructions.Where(instruction =>
-            instruction.OpCode == OpCodes.Ldflda && instruction.Operand is FieldReference field
-                && field.Name is "_issued" or "_state" or "_armCommitWindow"
-            || instruction.OpCode.FlowControl == FlowControl.Cond_Branch
-            || instruction.OpCode == OpCodes.Newobj && instruction.Operand is MethodReference windowConstructor
-                && windowConstructor.DeclaringType.FullName == JobCommitGate + "/ArmCommitWindow"
-            || instruction.OpCode == OpCodes.Call && instruction.Operand is MethodReference exchange
-                && exchange.DeclaringType.FullName == "System.Threading.Interlocked" && exchange.Name == "CompareExchange").ToArray();
-        ownedGuardSites.Should().HaveCount(9, "three owned cells, four refusal/kind branches, one original interval and one window CAS are actual production IL");
-        foreach (var site in ownedGuardSites)
-            AssertMutation(census, "a removed issued/Open/Arm-window obligation in the owned helper", () =>
-                ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
-        var windowExchange = checkpointOwned.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == "System.Threading.Interlocked" && method.Name == "CompareExchange");
-        var finalOwnedCas = checkpointOwned.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCommitOwned");
-        AssertMutation(census, "an Arm window published after the owned COMMIT CAS", () =>
-            MoveBudgetInstructionAfter(checkpointOwned.Body, windowExchange, finalOwnedCas), JobOwnerOffenders);
-        var ownerCommit = census.Types[(DeliveryApplication, JobParticipant)].Methods.Single(method => method.Name == "TryBeginCommit");
-        var guardedCas = ownerCommit.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCheckpointCommit");
-        var plainOwnedCas = census.Types[(DeliveryApplication, JobCommitGate)].Methods.Single(method => method.Name == "TryBeginCommitOwned");
-        AssertMutation(census, "a run bypass of the owned checkpoint window", () =>
-            ReplaceInstruction(helperCall, OpCodes.Call, plainOwnedCas), JobOwnerOffenders);
-        var forwardedBudget = run.Body.Instructions.Take(run.Body.Instructions.IndexOf(helperCall))
-            .Where(instruction => instruction.OpCode != OpCodes.Nop).TakeLast(2).ToArray();
-        forwardedBudget.Should().HaveCount(2);
-        foreach (var argument in forwardedBudget)
-            AssertMutation(census, "a substituted interval forwarded to the owned checkpoint helper", () =>
-                ReplaceInstruction(argument, OpCodes.Ldnull, null!), JobOwnerOffenders);
-        var plainCas = census.Types[(DeliveryApplication, JobCommitGate)].Methods.Single(method => method.Name == "TryBeginCommit");
-        AssertMutation(census, "a direct plain CAS bypass of the owner budget", () =>
-            ReplaceInstruction(guardedCas, OpCodes.Call, plainCas), JobOwnerOffenders);
+            var checkpointOwned = census.Types[(DeliveryApplication, JobCommitGate)].Methods
+                .Single(method => method.Name == "TryBeginCheckpointCommitOwned");
+            AssertMutation(census, "a removed owned checkpoint helper declaration", () =>
+            {
+                var methods = checkpointOwned.DeclaringType.Methods;
+                var index = methods.IndexOf(checkpointOwned);
+                methods.Remove(checkpointOwned);
+                return () => methods.Insert(index, checkpointOwned);
+            }, JobOwnerOffenders);
+            AssertMutation(census, "a changed owned checkpoint helper result", () =>
+            {
+                var original = checkpointOwned.ReturnType;
+                checkpointOwned.ReturnType = application.TypeSystem.Int32;
+                return () => checkpointOwned.ReturnType = original;
+            }, JobOwnerOffenders);
+            foreach (var parameter in checkpointOwned.Parameters)
+                AssertMutation(census, "a changed owned checkpoint budget parameter", () =>
+                {
+                    var original = parameter.ParameterType;
+                    parameter.ParameterType = application.TypeSystem.String;
+                    return () => parameter.ParameterType = original;
+                }, JobOwnerOffenders);
+            foreach (var attribute in new[] { MethodAttributes.Static, MethodAttributes.Virtual })
+                AssertMutation(census, "an open owned checkpoint helper shape", () =>
+                    ChangeAttributes(() => checkpointOwned.Attributes, value => checkpointOwned.Attributes = value,
+                        checkpointOwned.Attributes | attribute), JobOwnerOffenders);
+            var helperCall = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCheckpointCommitOwned");
+            AssertMutation(census, "an elapsed observation after owned checkpoint admission", () =>
+                MoveBudgetInstructionAfter(run.Body, elapsedSite, helperCall), JobOwnerOffenders);
+            var monitorExit = run.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == "System.Threading.Monitor" && method.Name == "Exit");
+            AssertMutation(census, "owned checkpoint admission outside the acquired run lock", () =>
+                MoveBudgetInstructionAfter(run.Body, helperCall, monitorExit), JobOwnerOffenders);
+            var ownedGuardSites = checkpointOwned.Body.Instructions.Where(instruction =>
+                instruction.OpCode == OpCodes.Ldflda && instruction.Operand is FieldReference field
+                    && field.Name is "_issued" or "_state" or "_armCommitWindow"
+                || instruction.OpCode.FlowControl == FlowControl.Cond_Branch
+                || instruction.OpCode == OpCodes.Newobj && instruction.Operand is MethodReference windowConstructor
+                    && windowConstructor.DeclaringType.FullName == JobCommitGate + "/ArmCommitWindow"
+                || instruction.OpCode == OpCodes.Call && instruction.Operand is MethodReference exchange
+                    && exchange.DeclaringType.FullName == "System.Threading.Interlocked" && exchange.Name == "CompareExchange").ToArray();
+            ownedGuardSites.Should().HaveCount(9, "three owned cells, four refusal/kind branches, one original interval and one window CAS are actual production IL");
+            foreach (var site in ownedGuardSites)
+                AssertMutation(census, "a removed issued/Open/Arm-window obligation in the owned helper", () =>
+                    ReplaceInstruction(site, OpCodes.Nop, null!), JobOwnerOffenders);
+            var windowExchange = checkpointOwned.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == "System.Threading.Interlocked" && method.Name == "CompareExchange");
+            var finalOwnedCas = checkpointOwned.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCommitOwned");
+            AssertMutation(census, "an Arm window published after the owned COMMIT CAS", () =>
+                MoveBudgetInstructionAfter(checkpointOwned.Body, windowExchange, finalOwnedCas), JobOwnerOffenders);
+            var ownerCommit = census.Types[(DeliveryApplication, JobParticipant)].Methods.Single(method => method.Name == "TryBeginCommit");
+            var guardedCas = ownerCommit.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.DeclaringType.FullName == JobCommitGate && method.Name == "TryBeginCheckpointCommit");
+            var plainOwnedCas = census.Types[(DeliveryApplication, JobCommitGate)].Methods.Single(method => method.Name == "TryBeginCommitOwned");
+            AssertMutation(census, "a run bypass of the owned checkpoint window", () =>
+                ReplaceInstruction(helperCall, OpCodes.Call, plainOwnedCas), JobOwnerOffenders);
+            var forwardedBudget = run.Body.Instructions.Take(run.Body.Instructions.IndexOf(helperCall))
+                .Where(instruction => instruction.OpCode != OpCodes.Nop).TakeLast(2).ToArray();
+            forwardedBudget.Should().HaveCount(2);
+            foreach (var argument in forwardedBudget)
+                AssertMutation(census, "a substituted interval forwarded to the owned checkpoint helper", () =>
+                    ReplaceInstruction(argument, OpCodes.Ldnull, null!), JobOwnerOffenders);
+            var plainCas = census.Types[(DeliveryApplication, JobCommitGate)].Methods.Single(method => method.Name == "TryBeginCommit");
+            AssertMutation(census, "a direct plain CAS bypass of the owner budget", () =>
+                ReplaceInstruction(guardedCas, OpCodes.Call, plainCas), JobOwnerOffenders);
+        }
+
     }
 
     private static Action MoveBudgetInstructionAfter(MethodBody body, Instruction moved, Instruction anchor)

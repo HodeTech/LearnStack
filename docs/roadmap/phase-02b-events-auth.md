@@ -7929,6 +7929,40 @@ A focused independent inspection finds no correction; it supplies no full Step 9
 review credit or whole-workflow duration proof. The twenty-minute CI budget and
 the remaining observation/enforcement/packet work stay open.
 
+#### Bounded mutation-collection qualification
+
+Eight existing heavy companion Facts move into three public nested sealed
+partial classes. Each Fact still owns its independent Cecil graph and complete
+clean/dirty/restored sequence. Canonical rule Facts remain in the outer class.
+An explicit per-class collection attribute caps the Architecture assembly at two
+runner threads; neither the CI filter nor its timeout changes.
+
+All 249 source method token sequences and compiled signatures/attributes match
+before/after. Complete runner discovery preserves all 405 cases with exactly
+eight declaring-class substitutions and no missing, extra or duplicated cases.
+The first comparison omitted the custom-display NetArchTest meta case from its
+404-row namespace subset; the corrected comparison includes that unchanged case.
+A scratch actual-detector control proves distinct module/type/method/instruction
+objects, an offender in graph A with graph B clean, and both restored clean.
+The pinned xUnit factory selected by the actual assembly attribute assigns four
+distinct collection identities to the outer class and three nested classes.
+
+The 341-source snapshot passes a zero-warning/error Release build, all eight
+moved companions and six corpus/cache cases, with zero failures/skips. Scoped
+formatter verification reports no changes; a focused independent source review
+finds no correction. The source/artifact receipt is
+`21c209eaefce9e70e5bc55117b02629cfa6be7fa45a9f9bddf0c7dac0dfd1482`.
+The eight-case run takes 869.24 seconds of wall time; summed case durations are
+1,433.773 seconds. Completion-time/duration reconstruction is consistent with
+two overlapping collections. The adapter's TRX StartTime usually equals result
+receipt time, so it is not independent execution-start telemetry. These figures
+are workstation qualification, not a same-source speedup benchmark or CI proof.
+
+Repeated/full Architecture and complete backend-budget qualification remain
+pending, together with full job observation, nineteen-rule enforcement and both
+full Step 9 review rounds. No catalogue promotion or packet completion follows
+from this focused slice.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

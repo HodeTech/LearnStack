@@ -205,113 +205,118 @@ public sealed partial class OutboxDispatchConventionTests
             callers.Select(caller => caller + ":" + target));
     }
 
-    /// <summary>ADR-0060: planted controls exercise the same production capability/sink census.</summary>
-    [Fact]
-    public void Hangfire_runtime_census_rejects_fatal_and_constructor_escapes()
+    public sealed partial class JobLifecycleMutationTests
     {
-        using var census = ProductionCensus.Read();
-        HangfireRuntimeOffenders(census).Should().BeEmpty("Fix: dirty controls require the actual nonempty clean runtime subjects");
-        var types = census.Types;
-        var gate = types[(InfrastructureAssembly, JobRuntimeGate)];
-        var boundary = types[(InfrastructureAssembly, JobFatalBoundary)];
-        var generation = types[(InfrastructureAssembly, JobGeneration)];
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var capabilities = gate.Methods.Where(method => method.Name is ".ctor" or "FailFast" or "Terminate" or "ForPool")
-            .Concat(boundary.Methods.Where(method => method.Name is ".ctor" or "Terminate"))
-            .Concat(generation.Methods.Where(method => method.Name == ".ctor")).ToArray();
-        capabilities.Should().HaveCount(7, "the exact production capability chain must be present");
-        foreach (var capability in capabilities)
+
+        /// <summary>ADR-0060: planted controls exercise the same production capability/sink census.</summary>
+        [Fact]
+        public void Hangfire_runtime_census_rejects_fatal_and_constructor_escapes()
         {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
-                AssertMutation(census, "an extra fatal capability or construction through " + opcode, () =>
-                    AddCallProbe(application, "ExtraHangfireRuntimeCapability", capability, opcode), HangfireRuntimeOffenders);
-            AssertMutation(census, "an async fatal capability escape", () =>
-                AddAsyncCallProbe(application, "AsyncHangfireRuntimeCapability", capability), HangfireRuntimeOffenders);
-            AssertMutation(census, "a helper/overload borrowing an approved fatal capability name", () =>
+            using var census = ProductionCensus.Read();
+            HangfireRuntimeOffenders(census).Should().BeEmpty("Fix: dirty controls require the actual nonempty clean runtime subjects");
+            var types = census.Types;
+            var gate = types[(InfrastructureAssembly, JobRuntimeGate)];
+            var boundary = types[(InfrastructureAssembly, JobFatalBoundary)];
+            var generation = types[(InfrastructureAssembly, JobGeneration)];
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var capabilities = gate.Methods.Where(method => method.Name is ".ctor" or "FailFast" or "Terminate" or "ForPool")
+                .Concat(boundary.Methods.Where(method => method.Name is ".ctor" or "Terminate"))
+                .Concat(generation.Methods.Where(method => method.Name == ".ctor")).ToArray();
+            capabilities.Should().HaveCount(7, "the exact production capability chain must be present");
+            foreach (var capability in capabilities)
             {
-                var helper = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
-                return () => capability.DeclaringType.Methods.Remove(helper);
-            }, HangfireRuntimeOffenders);
-        }
-        var sinkTargets = new[]
-        {
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
+                    AssertMutation(census, "an extra fatal capability or construction through " + opcode, () =>
+                        AddCallProbe(application, "ExtraHangfireRuntimeCapability", capability, opcode), HangfireRuntimeOffenders);
+                AssertMutation(census, "an async fatal capability escape", () =>
+                    AddAsyncCallProbe(application, "AsyncHangfireRuntimeCapability", capability), HangfireRuntimeOffenders);
+                AssertMutation(census, "a helper/overload borrowing an approved fatal capability name", () =>
+                {
+                    var helper = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                    return () => capability.DeclaringType.Methods.Remove(helper);
+                }, HangfireRuntimeOffenders);
+            }
+            var sinkTargets = new[]
+            {
             application.ImportReference(typeof(Environment).GetMethod(nameof(Environment.FailFast), [typeof(string)])!),
             application.ImportReference(typeof(Environment).GetMethod(nameof(Environment.FailFast), [typeof(string), typeof(Exception)])!),
             application.ImportReference(typeof(Environment).GetMethod(nameof(Environment.Exit), [typeof(int)])!),
             application.ImportReference(typeof(System.Diagnostics.Process).GetMethod(nameof(System.Diagnostics.Process.Kill), Type.EmptyTypes)!),
             application.ImportReference(typeof(System.Diagnostics.Process).GetMethod(nameof(System.Diagnostics.Process.Kill), [typeof(bool)])!),
         };
-        foreach (var target in sinkTargets)
-        {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "a direct, alternate or delegated process termination sink", () =>
-                    AddCallProbe(application, "ExtraProcessTermination", target, opcode), HangfireRuntimeOffenders);
-            AssertMutation(census, "an asynchronous process termination sink", () =>
-                AddAsyncCallProbe(application, "AsyncProcessTermination", target), HangfireRuntimeOffenders);
-        }
-        foreach (var (owner, field) in new[] { (generation, "_boundary"), (boundary, "_gate"), (boundary, "_fatal") })
-            AssertMutation(census, "a fatal capability forwarding accessor", () =>
-                AddBoundaryFieldGetter(owner, "ForwardFatalCapability", field), HangfireRuntimeOffenders);
-        AssertMutation(census, "an interface forwarding declaration for the pool fatal capability", () =>
-        {
-            var probe = AddProbe(application, "FatalCapabilityPort");
-            probe.Attributes = TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract;
-            probe.BaseType = null;
-            probe.Methods.Add(new MethodDefinition("Forward", MethodAttributes.Public | MethodAttributes.Abstract | MethodAttributes.Virtual,
-                application.ImportReference(boundary)));
-            return () => application.Types.Remove(probe);
-        }, HangfireRuntimeOffenders);
-        var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target
-                && (IsHangfireTerminationSink(target) || target.DeclaringType.FullName == CoreProcessingServer && target.Name == ".ctor"
-                    || capabilities.Any(capability => SameType(target.DeclaringType, capability.DeclaringType)
-                        && target.Name == capability.Name))).ToArray();
-        actualSites.Should().NotBeEmpty("the production sink and public constructor must be exercised by mutation controls");
-        foreach (var instruction in actualSites)
-        {
-            AssertMutation(census, "a missing actual fatal/construction capability site", () =>
-                ReplaceInstruction(instruction, OpCodes.Nop, null!), HangfireRuntimeOffenders);
-            AssertMutation(census, "a delegate substituted inside an approved fatal/construction caller", () =>
-                ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand), HangfireRuntimeOffenders);
-        }
-        var coreConstructor = actualSites.Select(instruction => instruction.Operand).OfType<MethodReference>()
-            .Single(target => target.DeclaringType.FullName == CoreProcessingServer);
-        foreach (var opcode in new[] { OpCodes.Newobj, OpCodes.Call, OpCodes.Ldftn })
-            AssertMutation(census, "an additional public Core constructor escape", () =>
-                AddCallProbe(application, "ExtraCoreConstruction", coreConstructor, opcode), HangfireRuntimeOffenders);
-        AssertMutation(census, "an asynchronous public Core constructor escape", () =>
-            AddAsyncCallProbe(application, "AsyncCoreConstruction", coreConstructor), HangfireRuntimeOffenders);
-        var coreSite = actualSites.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == CoreProcessingServer);
-        var wrongCoreConstructor = new MethodReference(".ctor", application.TypeSystem.Void, application.ImportReference(coreConstructor.DeclaringType))
-        { HasThis = true };
-        wrongCoreConstructor.Parameters.Add(new ParameterDefinition(application.TypeSystem.String));
-        AssertMutation(census, "an alternate public Core constructor overload inside the approved owner", () =>
-            ReplaceInstruction(coreSite, OpCodes.Newobj, wrongCoreConstructor), HangfireRuntimeOffenders);
-        var sinkSite = actualSites.Single(instruction => instruction.Operand is MethodReference target && IsHangfireTerminationSink(target));
-        foreach (var target in sinkTargets.Skip(1))
-            AssertMutation(census, "an exception overload or alternate termination sink inside the sole sink owner", () =>
-                ReplaceInstruction(sinkSite, OpCodes.Call, target), HangfireRuntimeOffenders);
-        foreach (var name in new[] { "EnsureFinalExitRegistered", "OnFinalExit", "BeginFinalExit" })
-        {
-            var target = gate.Methods.Single(method => method.Name == name);
-            AssertMutation(census, "an additional final-exit authority caller", () =>
-                AddCallProbe(application, "ExtraFinalExitAuthority", target, OpCodes.Call), HangfireRuntimeOffenders);
-        }
-        var diagnostic = boundary.Methods.Single(method => method.Name == ".ctor").Body.Instructions
-            .First(instruction => instruction.OpCode == OpCodes.Ldstr);
-        AssertMutation(census, "an unfrozen fatal diagnostic fragment", () =>
-            ReplaceInstruction(diagnostic, OpCodes.Ldstr, "unexpected runtime diagnostic"), HangfireRuntimeOffenders);
-        foreach (var subject in new[] { gate, boundary, generation })
-            AssertMutation(census, "a missing actual runtime subject", () =>
+            foreach (var target in sinkTargets)
             {
-                var collection = subject.DeclaringType?.NestedTypes ?? subject.Module.Types;
-                collection.Remove(subject);
-                return () => collection.Add(subject);
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a direct, alternate or delegated process termination sink", () =>
+                        AddCallProbe(application, "ExtraProcessTermination", target, opcode), HangfireRuntimeOffenders);
+                AssertMutation(census, "an asynchronous process termination sink", () =>
+                    AddAsyncCallProbe(application, "AsyncProcessTermination", target), HangfireRuntimeOffenders);
+            }
+            foreach (var (owner, field) in new[] { (generation, "_boundary"), (boundary, "_gate"), (boundary, "_fatal") })
+                AssertMutation(census, "a fatal capability forwarding accessor", () =>
+                    AddBoundaryFieldGetter(owner, "ForwardFatalCapability", field), HangfireRuntimeOffenders);
+            AssertMutation(census, "an interface forwarding declaration for the pool fatal capability", () =>
+            {
+                var probe = AddProbe(application, "FatalCapabilityPort");
+                probe.Attributes = TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract;
+                probe.BaseType = null;
+                probe.Methods.Add(new MethodDefinition("Forward", MethodAttributes.Public | MethodAttributes.Abstract | MethodAttributes.Virtual,
+                    application.ImportReference(boundary)));
+                return () => application.Types.Remove(probe);
             }, HangfireRuntimeOffenders);
-        var clean = AddProbe(application, "CleanRuntimeStateObserver");
-        AddCall(clean, "Observe", gate.Methods.Single(method => method.Name == "get_State"), OpCodes.Callvirt);
-        try { HangfireRuntimeOffenders(census).Should().BeEmpty("read-only process state observation grants no fatal capability"); }
-        finally { application.Types.Remove(clean); }
+            var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target
+                    && (IsHangfireTerminationSink(target) || target.DeclaringType.FullName == CoreProcessingServer && target.Name == ".ctor"
+                        || capabilities.Any(capability => SameType(target.DeclaringType, capability.DeclaringType)
+                            && target.Name == capability.Name))).ToArray();
+            actualSites.Should().NotBeEmpty("the production sink and public constructor must be exercised by mutation controls");
+            foreach (var instruction in actualSites)
+            {
+                AssertMutation(census, "a missing actual fatal/construction capability site", () =>
+                    ReplaceInstruction(instruction, OpCodes.Nop, null!), HangfireRuntimeOffenders);
+                AssertMutation(census, "a delegate substituted inside an approved fatal/construction caller", () =>
+                    ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand), HangfireRuntimeOffenders);
+            }
+            var coreConstructor = actualSites.Select(instruction => instruction.Operand).OfType<MethodReference>()
+                .Single(target => target.DeclaringType.FullName == CoreProcessingServer);
+            foreach (var opcode in new[] { OpCodes.Newobj, OpCodes.Call, OpCodes.Ldftn })
+                AssertMutation(census, "an additional public Core constructor escape", () =>
+                    AddCallProbe(application, "ExtraCoreConstruction", coreConstructor, opcode), HangfireRuntimeOffenders);
+            AssertMutation(census, "an asynchronous public Core constructor escape", () =>
+                AddAsyncCallProbe(application, "AsyncCoreConstruction", coreConstructor), HangfireRuntimeOffenders);
+            var coreSite = actualSites.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == CoreProcessingServer);
+            var wrongCoreConstructor = new MethodReference(".ctor", application.TypeSystem.Void, application.ImportReference(coreConstructor.DeclaringType))
+            { HasThis = true };
+            wrongCoreConstructor.Parameters.Add(new ParameterDefinition(application.TypeSystem.String));
+            AssertMutation(census, "an alternate public Core constructor overload inside the approved owner", () =>
+                ReplaceInstruction(coreSite, OpCodes.Newobj, wrongCoreConstructor), HangfireRuntimeOffenders);
+            var sinkSite = actualSites.Single(instruction => instruction.Operand is MethodReference target && IsHangfireTerminationSink(target));
+            foreach (var target in sinkTargets.Skip(1))
+                AssertMutation(census, "an exception overload or alternate termination sink inside the sole sink owner", () =>
+                    ReplaceInstruction(sinkSite, OpCodes.Call, target), HangfireRuntimeOffenders);
+            foreach (var name in new[] { "EnsureFinalExitRegistered", "OnFinalExit", "BeginFinalExit" })
+            {
+                var target = gate.Methods.Single(method => method.Name == name);
+                AssertMutation(census, "an additional final-exit authority caller", () =>
+                    AddCallProbe(application, "ExtraFinalExitAuthority", target, OpCodes.Call), HangfireRuntimeOffenders);
+            }
+            var diagnostic = boundary.Methods.Single(method => method.Name == ".ctor").Body.Instructions
+                .First(instruction => instruction.OpCode == OpCodes.Ldstr);
+            AssertMutation(census, "an unfrozen fatal diagnostic fragment", () =>
+                ReplaceInstruction(diagnostic, OpCodes.Ldstr, "unexpected runtime diagnostic"), HangfireRuntimeOffenders);
+            foreach (var subject in new[] { gate, boundary, generation })
+                AssertMutation(census, "a missing actual runtime subject", () =>
+                {
+                    var collection = subject.DeclaringType?.NestedTypes ?? subject.Module.Types;
+                    collection.Remove(subject);
+                    return () => collection.Add(subject);
+                }, HangfireRuntimeOffenders);
+            var clean = AddProbe(application, "CleanRuntimeStateObserver");
+            AddCall(clean, "Observe", gate.Methods.Single(method => method.Name == "get_State"), OpCodes.Callvirt);
+            try { HangfireRuntimeOffenders(census).Should().BeEmpty("read-only process state observation grants no fatal capability"); }
+            finally { application.Types.Remove(clean); }
+        }
+
     }
 }

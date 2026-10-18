@@ -185,92 +185,97 @@ public sealed partial class OutboxDispatchConventionTests
         }, RecipientOffenders);
     }
 
-    /// <summary>ADR-0047: the production detector rejects added, removed, delegated and overloaded authority.</summary>
-    [Fact]
-    public void Background_job_recipient_census_detects_extra_authority_and_missing_real_fences()
+    public sealed partial class JobLifecycleMutationTests
     {
-        using var census = ProductionCensus.Read();
-        RecipientOffenders(census).Should().BeEmpty("dirty controls require the actual production path to be clean first");
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var capabilities = RecipientCapabilityMethods(census).ToArray();
-        capabilities.Should().NotBeEmpty();
-        foreach (var capability in capabilities)
+
+        /// <summary>ADR-0047: the production detector rejects added, removed, delegated and overloaded authority.</summary>
+        [Fact]
+        public void Background_job_recipient_census_detects_extra_authority_and_missing_real_fences()
         {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "an off-owner recipient capability through " + opcode, () =>
-                    AddCallProbe(application, "AdditionalRecipientAuthority", capability, opcode), RecipientOffenders);
-            AssertMutation(census, "an asynchronous recipient capability escape", () =>
-                AddAsyncCallProbe(application, "AsyncRecipientAuthority", capability), RecipientOffenders);
-            AssertMutation(census, "an overloaded recipient capability", () =>
+            using var census = ProductionCensus.Read();
+            RecipientOffenders(census).Should().BeEmpty("dirty controls require the actual production path to be clean first");
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var capabilities = RecipientCapabilityMethods(census).ToArray();
+            capabilities.Should().NotBeEmpty();
+            foreach (var capability in capabilities)
             {
-                var extra = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
-                return () => capability.DeclaringType.Methods.Remove(extra);
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "an off-owner recipient capability through " + opcode, () =>
+                        AddCallProbe(application, "AdditionalRecipientAuthority", capability, opcode), RecipientOffenders);
+                AssertMutation(census, "an asynchronous recipient capability escape", () =>
+                    AddAsyncCallProbe(application, "AsyncRecipientAuthority", capability), RecipientOffenders);
+                AssertMutation(census, "an overloaded recipient capability", () =>
+                {
+                    var extra = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                    return () => capability.DeclaringType.Methods.Remove(extra);
+                }, RecipientOffenders);
+            }
+            var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability =>
+                    MethodId(target) == MethodId(capability))).ToArray();
+            actualSites.Should().NotBeEmpty("the detector must inspect real production construction and ownership");
+            foreach (var site in actualSites)
+            {
+                var target = ((MethodReference)site.Operand).FullName;
+                AssertMutation(census, "a removed actual recipient boundary " + target, () =>
+                    ReplaceInstruction(site, OpCodes.Nop, null!), RecipientOffenders);
+                AssertMutation(census, "a delegated actual recipient boundary " + target, () =>
+                    ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), RecipientOffenders);
+            }
+            foreach (var (assembly, name) in RecipientSubjects())
+                AssertMutation(census, "a removed recipient subject " + name, () =>
+                {
+                    var type = census.Types[(assembly, name)];
+                    var siblings = type.IsNested ? type.DeclaringType.NestedTypes : type.Module.Types;
+                    var index = siblings.IndexOf(type);
+                    siblings.Remove(type);
+                    return () => siblings.Insert(index, type);
+                }, RecipientOffenders);
+            foreach (var parent in new[] { RecipientClaimSource, JobRecipientParticipant })
+                AssertMutation(census, "a second recipient authority implementation", () =>
+                {
+                    var probe = AddProbe(application, "ExtraRecipientImplementation");
+                    probe.BaseType = application.ImportReference(census.Types[(DeliveryApplication, parent)]);
+                    return () => application.Types.Remove(probe);
+                }, RecipientOffenders);
+            var claim = census.Types[(DeliveryApplication, RecipientClaim)];
+            var constructor = claim.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            AssertMutation(census, "a publicly forgeable recipient witness", () =>
+                ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
+                    (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), RecipientOffenders);
+            var coordinator = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
+                && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
+            var ack = coordinator.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == JobRecipientParticipant && target.Name == "RecordCommitted");
+            AssertMutation(census, "recipient acknowledgement before owned COMMIT", () =>
+            {
+                var index = coordinator.Instructions.IndexOf(ack);
+                coordinator.Instructions.Remove(ack);
+                coordinator.Instructions.Insert(0, ack);
+                return () => { coordinator.Instructions.Remove(ack); coordinator.Instructions.Insert(index, ack); };
             }, RecipientOffenders);
+            var providerBodies = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == RecipientPostgres).ToArray();
+            var routeSql = providerBodies.SelectMany(item => item.Body.Body.Instructions).Where(instruction =>
+                instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string sql && sql.Contains("occurrence_id=@occurrence", StringComparison.Ordinal)).ToArray();
+            routeSql.Should().HaveCount(3, "the actual header, budget and receipt UPDATE each carry the full immutable route");
+            foreach (var sql in routeSql)
+                foreach (var predicate in RecipientRoutePredicates)
+                    AssertMutation(census, "an app-role recipient fence without " + predicate, () =>
+                        ReplaceInstruction(sql, OpCodes.Ldstr, ((string)sql.Operand).Replace(predicate, "TRUE", StringComparison.Ordinal)), RecipientOffenders);
+            var budgetBody = providerBodies.Single(item => item.Owner.Name == "FenceReceiptAsync" && item.Body.Name == "MoveNext").Body.Body;
+            var budgetBegin = budgetBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == JobRecipientParticipant && target.Name == "BeginCommitBudgetRead");
+            var budgetQuery = budgetBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == "Npgsql.NpgsqlCommand" && target.Name == "ExecuteReaderAsync");
+            AssertMutation(census, "a recipient budget started after the actual wire observation", () =>
+                MoveBudgetInstructionAfter(budgetBody, budgetBegin, budgetQuery), RecipientOffenders);
+            var clean = AddProbe(application, "CleanRecipientObservation");
+            foreach (var getter in claim.Methods.Where(method => method.IsGetter && method.IsPublic))
+                AddCall(clean, "Observe" + getter.Name, getter, OpCodes.Callvirt);
+            try { RecipientOffenders(census).Should().BeEmpty("observing immutable routing facts grants no authority"); }
+            finally { application.Types.Remove(clean); }
         }
-        var actualSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability =>
-                MethodId(target) == MethodId(capability))).ToArray();
-        actualSites.Should().NotBeEmpty("the detector must inspect real production construction and ownership");
-        foreach (var site in actualSites)
-        {
-            var target = ((MethodReference)site.Operand).FullName;
-            AssertMutation(census, "a removed actual recipient boundary " + target, () =>
-                ReplaceInstruction(site, OpCodes.Nop, null!), RecipientOffenders);
-            AssertMutation(census, "a delegated actual recipient boundary " + target, () =>
-                ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), RecipientOffenders);
-        }
-        foreach (var (assembly, name) in RecipientSubjects())
-            AssertMutation(census, "a removed recipient subject " + name, () =>
-            {
-                var type = census.Types[(assembly, name)];
-                var siblings = type.IsNested ? type.DeclaringType.NestedTypes : type.Module.Types;
-                var index = siblings.IndexOf(type);
-                siblings.Remove(type);
-                return () => siblings.Insert(index, type);
-            }, RecipientOffenders);
-        foreach (var parent in new[] { RecipientClaimSource, JobRecipientParticipant })
-            AssertMutation(census, "a second recipient authority implementation", () =>
-            {
-                var probe = AddProbe(application, "ExtraRecipientImplementation");
-                probe.BaseType = application.ImportReference(census.Types[(DeliveryApplication, parent)]);
-                return () => application.Types.Remove(probe);
-            }, RecipientOffenders);
-        var claim = census.Types[(DeliveryApplication, RecipientClaim)];
-        var constructor = claim.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-        AssertMutation(census, "a publicly forgeable recipient witness", () =>
-            ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
-                (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), RecipientOffenders);
-        var coordinator = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
-            && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
-        var ack = coordinator.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == JobRecipientParticipant && target.Name == "RecordCommitted");
-        AssertMutation(census, "recipient acknowledgement before owned COMMIT", () =>
-        {
-            var index = coordinator.Instructions.IndexOf(ack);
-            coordinator.Instructions.Remove(ack);
-            coordinator.Instructions.Insert(0, ack);
-            return () => { coordinator.Instructions.Remove(ack); coordinator.Instructions.Insert(index, ack); };
-        }, RecipientOffenders);
-        var providerBodies = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == RecipientPostgres).ToArray();
-        var routeSql = providerBodies.SelectMany(item => item.Body.Body.Instructions).Where(instruction =>
-            instruction.OpCode == OpCodes.Ldstr && instruction.Operand is string sql && sql.Contains("occurrence_id=@occurrence", StringComparison.Ordinal)).ToArray();
-        routeSql.Should().HaveCount(3, "the actual header, budget and receipt UPDATE each carry the full immutable route");
-        foreach (var sql in routeSql)
-            foreach (var predicate in RecipientRoutePredicates)
-                AssertMutation(census, "an app-role recipient fence without " + predicate, () =>
-                    ReplaceInstruction(sql, OpCodes.Ldstr, ((string)sql.Operand).Replace(predicate, "TRUE", StringComparison.Ordinal)), RecipientOffenders);
-        var budgetBody = providerBodies.Single(item => item.Owner.Name == "FenceReceiptAsync" && item.Body.Name == "MoveNext").Body.Body;
-        var budgetBegin = budgetBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == JobRecipientParticipant && target.Name == "BeginCommitBudgetRead");
-        var budgetQuery = budgetBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == "Npgsql.NpgsqlCommand" && target.Name == "ExecuteReaderAsync");
-        AssertMutation(census, "a recipient budget started after the actual wire observation", () =>
-            MoveBudgetInstructionAfter(budgetBody, budgetBegin, budgetQuery), RecipientOffenders);
-        var clean = AddProbe(application, "CleanRecipientObservation");
-        foreach (var getter in claim.Methods.Where(method => method.IsGetter && method.IsPublic))
-            AddCall(clean, "Observe" + getter.Name, getter, OpCodes.Callvirt);
-        try { RecipientOffenders(census).Should().BeEmpty("observing immutable routing facts grants no authority"); }
-        finally { application.Types.Remove(clean); }
+
     }
 
     private static (string Assembly, string Type)[] RecipientSubjects() =>
