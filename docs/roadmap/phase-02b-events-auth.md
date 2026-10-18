@@ -9889,6 +9889,23 @@ unknown. The corrected parser consumes all three actual record strings, and
 all forty launcher controls pass again. No application record or runtime
 policy changes. A new second focused review follows before publication.
 
+The fresh second `gpt-6-astra` / `high` review approves
+`ec5b045a..30ef90d4` without findings. Forty launcher and fourteen aggregate
+controls independently pass, alongside actual-record decoding, seven invalid
+protocol/privacy probes and rehashed success-receipt refusal mutations. Root
+also runs two deliberately failed pinned-xUnit scratch cases through the real
+wire: the exact test names expose only their closed stage or all three real
+record snapshots, both remain Failed, and the private canary is absent.
+
+Run 39172490912 finishes with 24 successful jobs and three failures: ordinary-9,
+ordinary-11 and their required integration aggregate. Backend and the five
+other required checks pass. Its longest Architecture job is 779 seconds;
+the longest ordinary job is 683 seconds and base is 314 seconds. These
+observations do not waive the two failed cases or qualify final-source A/B.
+The next source publishes the twice-reviewed diagnostic without changing any
+test, assignment, runtime behavior or bound. The live PR owns subsequent
+source/run receipts until packet closeout.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with
