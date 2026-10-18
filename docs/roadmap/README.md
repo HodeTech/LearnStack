@@ -143,9 +143,10 @@ owns the source-specific validation receipts.
 Step 8 durable recurrence and restricted fan-out is locally complete after both
 full review rounds and verified corrections; its
 [closeout](phase-02b-events-auth.md#step-8-full-review-round-2-2026-10-18)
-owns final qualification. Step 9 enforcement and packet closeout are in progress;
-its [record](phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-owns current work and remaining qualification.
+owns final qualification. P02b-4 is locally complete after all nine implementation
+steps, both independent review rounds per step and verified corrections. Its
+[local closeout](phase-02b-events-auth.md#p02b-4-local-closeout-2026-10-18)
+owns exact local qualification and remaining PR/CI/merge work.
 Step 4's [lifecycle acceptance](phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.
@@ -157,9 +158,8 @@ authorizes the conservative fatal boundary and dependent implementation on
 The [source-lifetime continuation](phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
 records the implemented pool/facade ownership, passing local qualification and
 completed full Step 4 review gates. Production business definitions remain empty.
-  Background jobs, API authentication,
-  realm reconciliation, BFF sessions
-  and phase-exit enforcement remain P02b-4–8.
+  P02b-4 background-job infrastructure is locally complete; API authentication,
+  realm reconciliation, BFF sessions and phase-exit enforcement remain P02b-5–8.
 - [Phase 03: Identity Domain, Authorization, and Admin Foundation](phase-03-identity-admin.md)
 - [Phase 04: Headless CMS, Page Builder, and Media Library](phase-04-cms-media-pages.md)
 - [Phase 05: Education Catalog and Learning Content](phase-05-education-learning-content.md)

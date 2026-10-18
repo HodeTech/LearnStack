@@ -755,9 +755,9 @@ refresh retains the last sample with explicit unhealthy freshness. Observation
 supplies no source release, business completion or external-quiescence authority.
 The [metric inventory](../standards/10-observability.md#required-metrics) and
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-record the implemented observable, stage, trace, lease-loss and control signals
-and their source-specific qualification. Full regression, both full Step 9 reviews
-and packet closeout remain pending in that record.
+record the implemented observable, stage, trace, lease-loss and control signals,
+their source-specific qualification, full review status and remaining packet/CI
+qualification.
 [Database Standards](../standards/05-database.md#shared-dispatcher-source-lifetime-and-capacity)
 owns the source-release contract and current physical floor; adding later SQL
 lanes requires requalification.
@@ -806,8 +806,8 @@ owns submission and app-role admission implementation/review status;
 the [Step 4 continuation](../roadmap/phase-02b-events-auth.md#source-lifetime-and-facade-continuation-2026-10-16)
 owns completed facade/source-lifetime implementation and qualification. Step 9
 implements full observation/enforcement and locally qualifies both extended
-canonical obligations. Its record retains pending full review, packet closeout
-and real PR-head CI qualification.
+canonical obligations. Its record owns full-review, local packet-closeout and
+real PR-head CI qualification status.
 
 ## Service extraction readiness
 

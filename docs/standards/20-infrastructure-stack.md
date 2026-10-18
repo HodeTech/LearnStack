@@ -820,7 +820,7 @@ production supervision and crash diagnostics; acceptance claims no delivered run
   Step 2 implements source/reset qualification; Step 4 completes actual maintenance/
   component/filter/pool qualification. Step 9 implements observation/enforcement
   and locally qualifies both extended catalogue obligations; its delivery record
-  retains pending full review, packet closeout and real PR-head CI qualification.
+  owns full-review, local packet-closeout and real PR-head CI qualification status.
 
 ## Network and Service Topology
 

@@ -27,7 +27,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced()
     {
         using var census = ProductionCensus.Read();
-        JobOwnerOffenders(census).Should().BeEmpty(
+        EvaluateDetector(census, JobOwnerOffenders).Should().BeEmpty(
             "Fix: retain one exact receipt/unit/root participant and the existing owner-only Complete boundary");
     }
 
@@ -588,22 +588,21 @@ public sealed partial class OutboxDispatchConventionTests
                 var fields = participant.Fields.Where(field => field.Name == fieldName).ToArray();
                 if (fields.Length != 1 || !fields[0].IsPrivate || fields[0].IsStatic)
                     offenders.Add("Missing private owner-local budget field: " + fieldName);
-                var writes = bodies.SelectMany(item => item.Body.Body.Instructions.Where(instruction =>
-                            instruction.Operand is FieldReference target && SameType(target.DeclaringType, participant)
-                            && target.Name == fieldName && instruction.OpCode == (fieldName == "_commitBudgetState" ? OpCodes.Ldflda : OpCodes.Stfld))
-                        .Select(_ => item.Owner.Name)).ToArray();
+                var accesses = census.FieldInstructions(fieldName)
+                    .Where(item => SameType(item.Target.DeclaringType, participant)).ToArray();
+                var writes = accesses.Where(item => item.Instruction.OpCode ==
+                        (fieldName == "_commitBudgetState" ? OpCodes.Ldflda : OpCodes.Stfld))
+                    .Select(item => item.Owner.Name).ToArray();
                 CheckSet(offenders, "required one-way budget writes for " + fieldName, writes,
                     fieldName == "_commitBudgetState"
                         ? ["BeginCommitBudgetRead", "BeginCommitBudgetRead", "RecordCommitBudget", "RecordCommitBudget", "TryBeginCommit"]
                         : writerNames);
-                foreach (var item in bodies)
-                    foreach (var instruction in item.Body.Body.Instructions.Where(instruction =>
-                                 instruction.OpCode == OpCodes.Stfld || instruction.OpCode == OpCodes.Ldflda))
-                        if (instruction.Operand is FieldReference target && SameType(target.DeclaringType, participant)
-                            && target.Name == fieldName && (fieldName == "_commitBudgetState" && instruction.OpCode == OpCodes.Stfld
-                                || item.Owner.DeclaringType.FullName != JobParticipant
-                                || !writerNames.Contains(item.Owner.Name, StringComparer.Ordinal)))
-                            offenders.Add("A different method cannot rewrite the original completion budget: " + MethodId(item.Owner));
+                foreach (var item in accesses.Where(item => item.Instruction.OpCode == OpCodes.Stfld
+                                                       || item.Instruction.OpCode == OpCodes.Ldflda))
+                    if (fieldName == "_commitBudgetState" && item.Instruction.OpCode == OpCodes.Stfld
+                        || item.Owner.DeclaringType.FullName != JobParticipant
+                        || !writerNames.Contains(item.Owner.Name, StringComparer.Ordinal))
+                        offenders.Add("A different method cannot rewrite the original completion budget: " + MethodId(item.Owner));
             }
             var capture = bodies.Where(item => item.Owner.DeclaringType.FullName == JobPostgresParticipant
                 && item.Owner.Name == "CaptureCommitBudgetAsync").SelectMany(item => item.Body.Body.Instructions).ToArray();

@@ -300,7 +300,8 @@ proofs. P02b-4 Step 9 implements the five observable and three stage families ab
 Stage, tracing, lease-loss and control-path instrumentation are implemented with
 source-specific qualification; the
 [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
-owns those receipts and the pending full regression, review and packet closeout.
+owns those receipts and full-regression, review, packet-closeout and remaining
+PR/CI qualification status.
 `event_type` comes only from the finite declared registry plus fixed
 unknown/retired/invalid categories. `subscription` comes only from declared stable
 subscription IDs plus fixed `invalid`; a well-formed undeclared ID is still

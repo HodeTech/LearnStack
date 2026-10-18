@@ -23,7 +23,8 @@ production-census enforcement; its
 owns validation, review and PR closeout status),
 [ADR-0047 Transactional Background Job Runtime](../decisions/0047-transactional-background-job-runtime.md)
 (Accepted 2026-10-15; P02b-4 obligations implemented and locally qualified;
-full Step 9 review/packet closeout remains pending),
+the [Step 9 record](../roadmap/phase-02b-events-auth.md#p02b-4-step-9--enforcement-and-packet-closeout-2026-10-18)
+owns review, packet and exact PR-head CI/job-budget status),
 [ADR-0058 Bounded Stock Hangfire Maintenance](../decisions/0058-bounded-stock-hangfire-maintenance.md)
 (Accepted 2026-10-16; maintenance extensions and runtime proofs implemented),
 [ADR-0059 Owned Hangfire Server Generations](../decisions/0059-owned-hangfire-server-generations.md)
@@ -5114,11 +5115,15 @@ adds the exceptional fatal-boundary assignments below.
 [Accepted ADR-0061](../decisions/0061-known-external-job-failure-policy.md#architecture-tests)
 extends seven existing assertions for completed external-failure policy.
 [Step 7 qualification and both full reviews](../roadmap/phase-02b-events-auth.md#p02b-4-step-7--external-stages-and-recovery-2026-10-17)
-are complete; Step 9 enforcement remains pending. No rule is promoted by
-acceptance. All nineteen names are Registered. A step's partial foundation is not
-enforcement of the complete assertion; promotion names its actual tests when they ship.
+are complete. Step 9 implements and locally qualifies all nineteen complete
+assertions below; each Implemented status names its actual canonical owner.
+Acceptance alone promotes no rule, and a partial foundation does not enforce a
+complete assertion. The
+[Step 9 record](../roadmap/phase-02b-events-auth.md#canonical-enforcement-reconciliation)
+distinguishes executed local qualification from packet/review and exact PR-head
+CI/job-budget closure.
 Production business/recurrence registries remain empty; real framework subjects
-and fixture definitions must make the eventual controls non-vacuous.
+and fixture definitions make the implemented controls non-vacuous.
 
 ### `BackgroundJob_Submission_Is_Transactional_And_Stamped`
 
