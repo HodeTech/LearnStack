@@ -389,6 +389,40 @@ except launcher.Refusal as failure:
         self.refuses('execution_incomplete', progress.poll, final=True)
         self.refuses('trx_missing', self.owner.validate_results, output, cases)
 
+    def test_failed_protocol_retains_only_closed_source_codes_and_bounded_line_numbers(self):
+        cases = [self.case(1), self.case(2)]
+        stream = io.StringIO()
+        progress = self.progress(self.root / 'failed-location.diag', 'LearnStack.Tests.Integration', cases, stream)
+        first = self.execution_result(cases[0]); first['Outcome'] = 2
+        first['ErrorMessage'] = 'PRIVATE-CANARY provider text'
+        first['ErrorStackTrace'] = ('PRIVATE-CANARY /private/path/Provider.cs:line 55\n'
+            '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 74\n'
+            '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 74\n'
+            r'C:\private\BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs:line 109' + '\n'
+            '/private/path/BackgroundJobRuntimeFacadeTests.ControlFailures.cs:line 10001\n')
+        second = self.execution_result(cases[1]); second['Outcome'] = 2
+        second['ErrorStackTrace'] = {'unexpected': 'PRIVATE-CANARY'}
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.results({'NewTestResults': [first, second]})
+        self.assertEqual([{'assembly': cases[0]['assembly'], 'id': cases[0]['id'], 'locations': [
+            {'source': 'facade_capacity_no_start', 'line': 109}, {'source': 'facade_control_failure', 'line': 74}]},
+            {'assembly': cases[1]['assembly'], 'id': cases[1]['id'], 'locations': []}], progress.failure_locations)
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.failure_locations))
+        self.assertNotIn('private', json.dumps(progress.failure_locations))
+        rows = [json.loads(line) for line in stream.getvalue().splitlines()]
+        self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'}
+                            and row['outcome'] == 'Failed' for row in rows))
+        self.assertEqual(5, len(self.owner.FAILURE_SOURCES))
+        for filename, code in self.owner.FAILURE_SOURCES.items():
+            self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration/Database' / filename).is_file())
+            progress.failure_locations.clear()
+            item = self.execution_result(cases[0]); item['Outcome'] = 2
+            item['ErrorStackTrace'] = '/private/path/' + filename + ':line 123'
+            progress.seen.clear()
+            with contextlib.redirect_stdout(io.StringIO()):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual([{'source': code, 'line': 123}], progress.failure_locations[0]['locations'])
+
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)
         for mutation in ('missing', 'wrong', 'duplicate', 'skip', 'none', 'notfound', 'unknown', 'boolean'):

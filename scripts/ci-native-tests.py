@@ -80,6 +80,11 @@ CANCELLED = False
 SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
+FAILURE_SOURCES = {'BackgroundJobRuntimeFacadeTests.ControlFailures.cs': 'facade_control_failure',
+                   'BackgroundJobRuntimeFacadeTests.CapacityNoStart.cs': 'facade_capacity_no_start',
+                   'BackgroundJobRuntimeFacadeTests.CapacityAdmission.cs': 'facade_capacity_admission',
+                   'BackgroundJobRuntimeFacadeTests.CapacityCleanup.cs': 'facade_capacity_cleanup',
+                   'BackgroundJobRuntimeFacadeTests.HeartbeatCutoff.cs': 'facade_heartbeat_cutoff'}
 
 
 def shard_owner():
@@ -538,6 +543,7 @@ class ExecutionProgress:
         self.reader = os.fdopen(fd, 'rb', buffering=0)
         self.generations = 0
         self.first_result_at = None
+        self.failure_locations = []
 
     def close(self):
         self.reader.close()
@@ -572,6 +578,21 @@ class ExecutionProgress:
             require(isinstance(duration, str) and re.fullmatch(
                 r'[0-9]+:[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,7})?', duration), 'execution_duration_invalid')
             outcome = {1: 'Passed', 2: 'Failed'}[raw['Outcome']]
+            if outcome == 'Failed':
+                # Qualification diagnostics only, never completion/authority
+                # evidence. Retain finite source codes and bounded integers;
+                # no raw stack, provider text, paths or exception messages.
+                trace = raw.get('ErrorStackTrace')
+                locations = set()
+                if isinstance(trace, str):
+                    for filename, code in FAILURE_SOURCES.items():
+                        for match in re.finditer(r'(?:[/\\]|^)' + re.escape(filename)
+                                                 + r':line ([1-9][0-9]{0,4})\b', trace[:65536]):
+                            line = int(match[1])
+                            if line <= 10000:
+                                locations.add((code, line))
+                self.failure_locations.append({'assembly': case['assembly'], 'id': case['id'],
+                    'locations': [{'source': code, 'line': line} for code, line in sorted(locations)[:8]]})
             if self.first_result_at is None:
                 self.first_result_at = time.monotonic()
             item = {**case, 'outcome': outcome, 'duration': duration}
@@ -899,7 +920,7 @@ def shard_workload(mode, context, private, output, deadline, work):
                 diagnostic = private / (assembly + '-execution.diag')
                 progress = ExecutionProgress(diagnostic, assembly, expected, stream)
                 item = {'assembly': assembly.casefold(), 'cases': len(expected), 'adapter': None,
-                        'firstResultSeconds': None, 'testProcessSeconds': None}
+                        'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': []}
                 measurements['projects'].append(item)
                 try:
                     argv = ['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
@@ -912,6 +933,7 @@ def shard_workload(mode, context, private, output, deadline, work):
                     item['adapter'] = adapter_evidence(private, diagnostic, project)
                 finally:
                     progress.close()
+                    item['failureLocations'] = progress.failure_locations
                     item['testProcessSeconds'] = round(time.monotonic() - began, 3)
                     if progress.first_result_at is not None:
                         item['firstResultSeconds'] = round(progress.first_result_at - began, 3)

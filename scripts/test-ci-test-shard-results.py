@@ -105,7 +105,8 @@ class AggregateControls(unittest.TestCase):
                     'total': len(selected), 'executed': len(selected), 'passed': len(selected), 'failed': 0, 'notExecuted': 0}.items()})
                 ET.ElementTree(root).write(path / 'results' / (assembly + '.trx'), encoding='utf-8')
                 projects.append({'assembly': assembly, 'cases': len(selected), 'adapter': {
-                    'assemblyVersion': '2.8.2.0', 'sha256': 'e' * 64}, 'firstResultSeconds': 0.1, 'testProcessSeconds': 1})
+                    'assemblyVersion': '2.8.2.0', 'sha256': 'e' * 64}, 'firstResultSeconds': 0.1,
+                    'testProcessSeconds': 1, 'failureLocations': []})
             (path / 'completed-cases.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in completed))
             self.write(path, 'resources.json', {'scope': 'owned_work_cgroup_excludes_docker_daemon',
                 'peakMemoryBytes': 1000000, 'cpuUsageMicroseconds': 200000, 'cpuUserMicroseconds': 150000,

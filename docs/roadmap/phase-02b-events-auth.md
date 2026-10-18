@@ -49,8 +49,11 @@ and exact-head hosted qualification remain in progress.
 [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md) is Accepted —
 2026-10-18. Its [acceptance record](#adr-0063-acceptance-and-implementation-2026-10-18)
 owns the three authorized CI steps and actual two-assignment qualification.
-Native passes on `3553ff16`; the separate ordinary membership-I/O fault remains
-under ADR-0062. Acceptance is not implementation or packet/PR closeout.
+Steps 1 and 2 are locally complete after both reviews and verified corrections.
+Step 3 source enforcement has completed both full reviews and verified
+corrections; its [record](#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+owns initial hosted failures and continuing two-assignment qualification.
+Acceptance is not packet/PR closeout.
 Phase 02b remains in progress. Earlier dated receipts retain their as-of state.
 
 **P02b-0 complete — 2026-10-12.** Phase 02d is complete and merged through PR #28;
@@ -9808,6 +9811,41 @@ pre-correction base evidence only, not final-source/global fit. Initial
 ordinary-10 reports two failed facade cases; their related three rows pass
 locally in isolation and exact-shard diagnosis continues. A fresh focused
 correction review and full final-source hosted qualification remain required.
+
+**Focused correction verification and hosted diagnosis.** A fresh
+`gpt-6.1-sol` reviewer at `high` approves `98ae41a8..70c8fdea` with no findings.
+It independently passes 49 shard/result, 37 launcher, five environment and
+18 provisioning controls, plus malformed-image, distinct-image aggregate,
+actual cancellation/reaping and topology-mutation probes. Both full source
+reviews and those verified corrections are complete; actual hosted
+qualification remains separate.
+
+Initial run 39170247704 finishes with all six Architecture producers, base,
+native and eight ordinary producers passing. The backend aggregate passes;
+integration correctly refuses failed producers. Four ordinary producers fail
+five facade cases: ordinary-0 capacity completion, ordinary-3 grouped cleanup,
+ordinary-9 common database outage, and ordinary-10 control timeout and
+never-started admission. Their failure receipts report forced cleanup and
+missing owned completion, not natural completion. Frontend and meta expose
+the already corrected classifier and obsolete observer assertion above.
+This predecessor run is not final-source qualification.
+
+An independent investigator runs the exact initial ordinary-10 assignment
+locally: all 176 IDs match its hosted selection and pass in 212.449 seconds.
+The three focused facade rows also pass. This macOS/SDK 10.0.302 evidence
+does not close the hosted Linux/SDK 10.0.402 failures. No test budget, method
+assignment, policy or outcome is changed on that evidence.
+
+To locate the next actual failure without exporting provider diagnostics,
+the existing measurement receipt retains only fixed source codes for the
+five affected facade source files and bounded line numbers, tied to an
+already validated failed case ID. Raw stacks, paths, exception types and
+messages remain private; missing frames remain unknown. Successful aggregate
+validation requires no failed-location entries. A real two-failure probe
+using the pinned SDK/adapter confirms the actual wire field and sanitization;
+49 shard/result and 38 launcher controls pass. This diagnostic provides no
+completion, containment or passing-test evidence. A fresh focused review and
+subsequent full hosted runs remain required.
 
 ### Durable outbox dispatch
 

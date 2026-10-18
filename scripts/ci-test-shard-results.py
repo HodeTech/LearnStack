@@ -438,7 +438,8 @@ def verify_receipt(output, context, owner, plan, assignment):
         require(item.get('cases') == len([case for case in selected if case['assembly'] == assembly])
                 and positive(item['cases']) and finite_seconds(item.get('firstResultSeconds'))
                 and finite_seconds(item.get('testProcessSeconds'))
-                and item['firstResultSeconds'] <= item['testProcessSeconds'], 'project_measurement_invalid')
+                and item['firstResultSeconds'] <= item['testProcessSeconds']
+                and item.get('failureLocations') == [], 'project_measurement_invalid')
         binary_identity(item.get('adapter'), ('assemblyVersion', 'sha256'))
         adapters[assembly] = item['adapter']
     gates = measured.get('nonTestGates')

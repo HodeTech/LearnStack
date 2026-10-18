@@ -275,8 +275,10 @@ the verified partition correction; its
 owns local discovery/result evidence. Step 2's bounded execution and receipt
 implementation is complete after both full reviews and verified correction; its
 [record](docs/roadmap/phase-02b-events-auth.md#adr-0063-step-2--bounded-shard-execution-2026-10-19)
-owns local evidence. Step 3 workflow/API enforcement and two-assignment hosted
-qualification remain in progress.
+owns local evidence. Step 3 workflow/API enforcement has completed both full
+reviews and verified corrections; its
+[record](docs/roadmap/phase-02b-events-auth.md#adr-0063-step-3--workflow-and-aggregate-enforcement-2026-10-19)
+owns the initial hosted failures and continuing two-assignment qualification.
 Step 4's [lifecycle acceptance](docs/roadmap/phase-02b-events-auth.md#maintainer-acceptance-and-step-4-adaptation-2026-10-16)
 and ADR-0059 are Accepted — 2026-10-16. Step 4 completes owned lifecycle and API
 composition qualification under Accepted ADR-0060; business execution stays Step 5.
