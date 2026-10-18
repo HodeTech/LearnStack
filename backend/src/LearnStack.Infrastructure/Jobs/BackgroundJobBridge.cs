@@ -6,7 +6,11 @@ using LearnStack.SharedKernel.Jobs;
 namespace LearnStack.Infrastructure.Jobs;
 
 public sealed record BackgroundJobBridgeSnapshot(int Outstanding, int Retained, long Acknowledged,
-    long Failed, long Deferred, long? LastProgressTimestamp);
+    long Failed, long Deferred, long? LastProgressTimestamp)
+{
+    public long PriorHintRepairsAcknowledged { get; init; }
+    public long ExpiredTokenRepairsAcknowledged { get; init; }
+}
 
 /// <summary>Independent, bounded handoff quanta. Host lifecycle/composition supplies its polling and shared deadline.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
@@ -21,6 +25,7 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
     private long _acknowledged;
     private long _failed;
     private long _deferred;
+    private long _priorHintRepairs, _expiredTokenRepairs;
     private long? _lastProgress;
 
     internal bool HasUnconfirmedCleanup => store.HasUnconfirmedCleanup;
@@ -33,7 +38,11 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
                 return new(_operations.Count(operation => !operation.Completion.IsCompleted),
                     _operations.Count(operation => !operation.Completion.IsCompleted
                         && time.GetElapsedTime(operation.Started, time.GetTimestamp()) >= options.BridgeWaitTimeout),
-                    _acknowledged, _failed, _deferred, _lastProgress);
+                    _acknowledged, _failed, _deferred, _lastProgress)
+                {
+                    PriorHintRepairsAcknowledged = _priorHintRepairs,
+                    ExpiredTokenRepairsAcknowledged = _expiredTokenRepairs,
+                };
         }
     }
 
@@ -62,8 +71,8 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
             }
             if (!claim.CanHandoff)
             {
-                await store.DeferAsync(claim, BackgroundJobBridgeDeferral.DeploymentMismatch, cancellationToken).ConfigureAwait(false);
-                lock (_gate) _deferred++;
+                if (await store.DeferAsync(claim, BackgroundJobBridgeDeferral.DeploymentMismatch, cancellationToken).ConfigureAwait(false))
+                    lock (_gate) _deferred++;
                 return true;
             }
             BridgeOperation operation;
@@ -118,7 +127,15 @@ public sealed class BackgroundJobBridge(PostgresBackgroundJobBridgeStore store, 
                         : await store.DeferAsync(operation.Claim, BackgroundJobBridgeDeferral.CreationFailed).ConfigureAwait(false);
                     lock (_gate)
                     {
-                        if (result is not null && changed) _acknowledged++;
+                        if (result is not null && changed)
+                        {
+                            _acknowledged++;
+                            switch (operation.Claim.Kind)
+                            {
+                                case BackgroundJobBridgeClaimKind.PriorAcknowledgedHint: _priorHintRepairs++; break;
+                                case BackgroundJobBridgeClaimKind.ExpiredPriorBridgeToken: _expiredTokenRepairs++; break;
+                            }
+                        }
                         else _failed++;
                         _lastProgress = time.GetTimestamp();
                     }

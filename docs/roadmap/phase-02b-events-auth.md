@@ -8279,6 +8279,46 @@ Bridge/lease/late accounting, nineteen-rule enforcement, full regression,
 unchanged CI-budget qualification and both full Step 9 reviews remain open.
 No catalogue obligation is promoted by this slice.
 
+#### Bridge repair qualification
+
+The locked bridge candidate classifies prior acknowledged hint, expired prior
+token without a hint, or unmarked state before replacing its token. Hint takes
+precedence. Two fixed process totals count the disjoint marked-repair subsets
+only after actual startup/native exit and a true fenced ACK return. Unmarked is
+not first-ever work: a prior creation-failure deferral can clear its markers.
+Deployment-mismatch deferral now counts only a true fenced status change.
+The existing eight metric families and authority/source/grant boundaries stay
+unchanged.
+
+Thirty-two PostgreSQL cases pass, including actual stock repairs for missing,
+failed and succeeded vendor hints; old-marker precedence; an actual stale ACK;
+and false mismatch deferral after real claim cleanup expires its fence. Two
+runtime/stock-client cases project both repair cells through the live listener.
+Their prior-hint setup uses a synthetic numeric hint, not a claimed earlier
+stock creation; the separate stock repair cases cover that provider boundary.
+Actual native startup/stop/join controls preserve zero repair counts while
+ownership is retained.
+
+The real status-connection cleanup is held after its matching COMMIT. A separate
+database read proves the vendor ACK while counters remain zero until the actual
+bool call returns. A throwing Closed-event cleanup control instead leaves zero
+visible ACKs and one retained logical owner; the actual native thread, observer
+and test callback have ended. The bool API cannot expose the ACK hidden behind
+cleanup failure, so no current-row inference backfills it. Exact locker/role
+barriers and nested finally cleanup constrain these tests.
+
+The corrected CI-mode Release build has zero warnings/errors. All 384 Jobs unit,
+six focused Architecture and 32 PostgreSQL cases pass with zero failures/skips.
+The first build rejects a test-local variable-name collision, corrected without
+runtime changes. Focused review also corrects the exact classification-getter
+caller census before testing; no findings remain and no full Step 9 credit is
+claimed. Exact typed fields, immutable classification and reached memory-only
+observation remain guarded. The final 369-source receipt is
+`ae0bb0721b6bce47230b38c07098cfa245a56fe51f16263d79a3e4254e62b799`.
+Lease/late accounting, nineteen-rule enforcement, full regression, unchanged
+CI-budget qualification and both full Step 9 reviews remain open. No catalogue
+obligation is promoted here.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

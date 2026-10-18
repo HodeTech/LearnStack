@@ -7,6 +7,8 @@ using Npgsql;
 
 namespace LearnStack.Infrastructure.Jobs;
 
+internal enum BackgroundJobBridgeClaimKind { Unmarked, PriorAcknowledgedHint, ExpiredPriorBridgeToken }
+
 /// <summary>An opaque transport obligation, minted only by a committed bridge acquisition.</summary>
 internal sealed class BackgroundJobBridgeClaim
 {
@@ -24,7 +26,8 @@ internal sealed class BackgroundJobBridgeClaim
             && definition.Readiness == BackgroundJobDefinitionReadiness.Active
             && definition.Queue == Queue
             && (definition.Profile == BackgroundJobExecutionProfile.Transactional ? "transactional" : "external") == row.GetString(8);
-        if (!JobId.IsInitialized() || JobId.Value.Version != 7 || WakeGeneration < 1 || Token == Guid.Empty)
+        Kind = (BackgroundJobBridgeClaimKind)row.GetInt32(9);
+        if (!JobId.IsInitialized() || JobId.Value.Version != 7 || WakeGeneration < 1 || Token == Guid.Empty || !Enum.IsDefined(Kind))
             throw new InvalidOperationException("The bridge returned an invalid obligation.");
     }
 
@@ -37,6 +40,7 @@ internal sealed class BackgroundJobBridgeClaim
     internal DateTimeOffset AvailableAfter { get; }
     internal DateTimeOffset DatabaseNow { get; }
     internal bool CanHandoff { get; }
+    internal BackgroundJobBridgeClaimKind Kind { get; }
 }
 
 internal enum BackgroundJobBridgeDeferral { DeploymentMismatch, CreationFailed }
@@ -78,7 +82,8 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token).ConfigureAwait(false);
             await using var command = new NpgsqlCommand("""
                 WITH candidate AS (
-                    SELECT id FROM background_jobs
+                    SELECT id, CASE WHEN vendor_job_id IS NOT NULL THEN 1
+                        WHEN bridge_token IS NOT NULL THEN 2 ELSE 0 END AS claim_kind FROM background_jobs
                     WHERE (phase IN ('pending','finalize_pending') OR (profile='external' AND phase='reconciling'
                             AND probe_after IS NOT NULL AND normal_attempts BETWEEN 1 AND 6 AND finalize_attempts=0
                             AND finalization_status IS NULL AND final_outcome_attempt_id IS NULL))
@@ -98,7 +103,8 @@ public sealed class PostgresBackgroundJobBridgeStore(PrivilegedDataSource source
                     handoff_check_at = clock_timestamp() + @lease
                 WHERE id = (SELECT id FROM candidate)
                 RETURNING id, definition_key, queue, wake_generation, bridge_token, bridge_until,
-                    CASE WHEN phase='reconciling' THEN probe_after ELSE available_after END, clock_timestamp(), profile
+                    CASE WHEN phase='reconciling' THEN probe_after ELSE available_after END, clock_timestamp(), profile,
+                    (SELECT claim_kind FROM candidate)
                 """, connection, transaction) { CommandTimeout = TimeoutSeconds };
             command.Parameters.AddWithValue("retained", retained.Select(id => id.Value).ToArray());
             command.Parameters.AddWithValue("token", ids.NewUuidV4());

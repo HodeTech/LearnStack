@@ -70,6 +70,7 @@ public sealed partial class BackgroundJobObservationTests
                 "generation", "expiration_invocation", "fetched_heartbeat_invocation", "bridge_acknowledged", "bridge_failed",
                 "bridge_deferred", "renewal_acknowledged", "renewal_history_confirmed", "retry_confirmed", "terminal_confirmed",
                 "uncertainty_observation",
+                "bridge_repair_prior_ack_hint_acknowledged", "bridge_repair_expired_token_acknowledged",
                 "occurrence_acknowledged", "skipped_slot_acknowledged", "fanout_page_acknowledged",
                 "fanout_route_examined_acknowledged", "fanout_recipient_inserted_acknowledged", "fanout_completed_acknowledged",
             ]);

@@ -230,6 +230,31 @@ public sealed partial class OutboxDispatchConventionTests
                 [caller + ":" + id + ":call"]);
         }
         else offenders.Add("Missing actual recurrence progress memory owner");
+        if (types.TryGetValue((InfrastructureAssembly, JobBridge), out var bridge)
+            && types.TryGetValue((InfrastructureAssembly, JobBridgeClaim), out var bridgeClaim))
+        {
+            var snapshot = RequireBoundaryMethod(offenders, bridge, "get_Snapshot", "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeSnapshot", MethodAttributes.Public);
+            var observe = JobOwner(offenders, types, InfrastructureAssembly, JobBridge, "ObserveAsync");
+            foreach (var field in new[] { "_priorHintRepairs", "_expiredTokenRepairs" })
+            {
+                CheckBridgeCapturedField(offenders, census, bridge, field, "System.Int64",
+                    [snapshot + ":ldfld", observe + ":ldfld", observe + ":stfld"]);
+                if (bridge.Fields.SingleOrDefault(candidate => candidate.Name == field) is not { IsInitOnly: false })
+                    offenders.Add("A bridge repair observation retains its mutable scalar owner: " + field);
+            }
+            var claimConstructor = RequireBoundaryMethod(offenders, bridgeClaim, ".ctor", "System.Void", MethodAttributes.Assembly,
+                "Npgsql.NpgsqlDataReader", "LearnStack.Infrastructure.Jobs.BackgroundJobDefinitionRegistry");
+            var kind = RequireBoundaryMethod(offenders, bridgeClaim, "get_Kind", "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaimKind", MethodAttributes.Assembly);
+            CheckBridgeCapturedField(offenders, census, bridgeClaim, "<Kind>k__BackingField", "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaimKind",
+                [claimConstructor + ":stfld", kind + ":ldfld"]);
+            if (bridgeClaim.Fields.SingleOrDefault(field => field.Name == "<Kind>k__BackingField") is not { IsInitOnly: true })
+                offenders.Add("The prior-state bridge classification remains immutable claim metadata");
+            CheckSet(offenders, "exact bridge repair classification consumer", census.MethodInstructions("get_Kind")
+                .Where(site => TargetsDeclaredType(site.Target, bridgeClaim))
+                .Select(site => site.OwnerId + ":" + MethodId(site.Target) + ":" + site.Instruction.OpCode.Name),
+                [claimConstructor + ":" + kind + ":call", observe + ":" + kind + ":callvirt"]);
+        }
+        else offenders.Add("Missing actual bridge repair observation owners");
         return roots;
     }
 
@@ -598,6 +623,17 @@ public sealed partial class OutboxDispatchConventionTests
             return () => { ctor.Body.Instructions.Remove(receiver); ctor.Body.Instructions.Remove(call); observation.Methods.Remove(hidden); };
         }, RuntimeLifetimeOffenders);
         var executor = census.Types[(InfrastructureAssembly, JobExecutorType)];
+        var bridge = census.Types[(InfrastructureAssembly, JobBridge)];
+        foreach (var fieldName in new[] { "_priorHintRepairs", "_expiredTokenRepairs" })
+            AssertMutation(census, "an unlisted bridge repair field reader " + fieldName,
+                () => AddBoundaryFieldGetter(bridge, "ReadRepairOutsideSnapshot", fieldName), RuntimeLifetimeOffenders);
+        var bridgeClaim = census.Types[(InfrastructureAssembly, JobBridgeClaim)];
+        AssertMutation(census, "a mutable original bridge claim classification", () =>
+        {
+            var classification = bridgeClaim.Fields.Single(field => field.Name == "<Kind>k__BackingField");
+            classification.IsInitOnly = false;
+            return () => classification.IsInitOnly = true;
+        }, RuntimeLifetimeOffenders);
         var field = executor.Fields.Single(candidate => candidate.Name == "<Observation>k__BackingField");
         AssertMutation(census, "removing required observer readonly metadata", () =>
         {

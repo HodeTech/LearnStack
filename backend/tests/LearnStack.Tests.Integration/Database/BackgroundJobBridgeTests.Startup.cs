@@ -42,6 +42,8 @@ public sealed partial class BackgroundJobBridgeTests
             await EventuallyAsync(() => !operation.Thread.IsAlive && bridge.Snapshot.Retained == 1);
             operation.Completion.IsCompleted.Should().BeFalse();
             bridge.Snapshot.Outstanding.Should().Be(1);
+            bridge.Snapshot.PriorHintRepairsAcknowledged.Should().Be(0);
+            bridge.Snapshot.ExpiredTokenRepairsAcknowledged.Should().Be(0);
             (await bridge.RunQuantumAsync().WaitAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
             await EventuallyAsync(() => client.Calls == 2 && bridge.Snapshot.Acknowledged == 1);
             bridge.Snapshot.Outstanding.Should().Be(1, "another quantum cannot prune the held startup owner");
@@ -111,6 +113,8 @@ public sealed partial class BackgroundJobBridgeTests
             && (item.Operation.Thread.ThreadState & ThreadState.Unstarted) != 0);
         client.Calls.Should().Be(0);
         bridge.Snapshot.Outstanding.Should().Be(0);
+        bridge.Snapshot.PriorHintRepairsAcknowledged.Should().Be(0);
+        bridge.Snapshot.ExpiredTokenRepairsAcknowledged.Should().Be(0);
     }
 
     [Theory]
@@ -200,6 +204,8 @@ public sealed partial class BackgroundJobBridgeTests
         }
         operation.Completion.IsCompleted.Should().BeFalse("a failed observer grants no later cleanup inference");
         bridge.Snapshot.Outstanding.Should().Be(1);
+        bridge.Snapshot.PriorHintRepairsAcknowledged.Should().Be(0);
+        bridge.Snapshot.ExpiredTokenRepairsAcknowledged.Should().Be(0);
         (await ReadAsync(database, id)).BridgeToken.Should().Be(claim.Token);
     }
 

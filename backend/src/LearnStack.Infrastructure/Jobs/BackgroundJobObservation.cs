@@ -159,6 +159,8 @@ public sealed partial class BackgroundJobObservation : IDisposable
             Add(bridge.Acknowledged, "bridge_acknowledged");
             Add(bridge.Failed, "bridge_failed");
             Add(bridge.Deferred, "bridge_deferred");
+            Add(bridge.PriorHintRepairsAcknowledged, "bridge_repair_prior_ack_hint_acknowledged");
+            Add(bridge.ExpiredTokenRepairsAcknowledged, "bridge_repair_expired_token_acknowledged");
         }
         if (snapshot.Control is { } control)
         {

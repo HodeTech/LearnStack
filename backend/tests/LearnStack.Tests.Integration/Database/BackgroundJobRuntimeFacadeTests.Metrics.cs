@@ -4,6 +4,8 @@ using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.SharedKernel.Identifiers;
+using Npgsql;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
@@ -12,6 +14,60 @@ namespace LearnStack.Tests.Integration.Database;
 
 public sealed partial class BackgroundJobRuntimeFacadeTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actual_runtime_projects_disjoint_bridge_repair_ACKs_without_reclassifying_unmarked_work(bool priorHint)
+    {
+        await using var database = await DatabaseAsync();
+        var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, due: DateTimeOffset.UtcNow.AddHours(1));
+        await using var host = Fixture.Host(database, new());
+        await using var source = Source(database);
+        using var globals = new GlobalFilterSnapshot();
+        var bounds = new BackgroundJobRuntimeOptions();
+        var setup = new PostgresBackgroundJobBridgeStore(source, Fixture.Registry, bounds, new SystemGuidFactory());
+        var first = (await setup.TryClaimAsync([]))!;
+        first.Kind.Should().Be(BackgroundJobBridgeClaimKind.Unmarked);
+        if (priorHint) (await setup.AcknowledgeAsync(first, "123")).Should().BeTrue();
+        await using (var connection = await source.OpenConnectionAsync())
+        await using (var due = new NpgsqlCommand(priorHint
+            ? "UPDATE background_jobs SET handoff_check_at=clock_timestamp()-interval '1 second' WHERE id=@id"
+            : "UPDATE background_jobs SET bridge_until=clock_timestamp()-interval '1 second',handoff_check_at=clock_timestamp()-interval '1 second' WHERE id=@id", connection))
+        {
+            due.Parameters.AddWithValue("id", job.Value);
+            (await due.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        var runtime = Runtime(host.Services, source, bounds);
+        using var probe = new BackgroundJobMetricProbe(host.Services.GetRequiredService<BackgroundJobObservation>());
+        try
+        {
+            await runtime.StartAsync();
+            await EventuallyAsync(() => Task.FromResult(runtime.Snapshot.Bridge?.Acknowledged == 1));
+            var bridge = runtime.Snapshot.Bridge!;
+            bridge.PriorHintRepairsAcknowledged.Should().Be(priorHint ? 1 : 0);
+            bridge.ExpiredTokenRepairsAcknowledged.Should().Be(priorHint ? 0 : 1);
+            for (var scrape = 0; scrape < 2; scrape++)
+            {
+                var points = probe.Read();
+                BackgroundJobMetricProbe.One(points, "learnstack_job_control_total", ("operation", "bridge_repair_prior_ack_hint_acknowledged"), ("pool", "none"))
+                    .Should().Be(priorHint ? 1 : 0);
+                BackgroundJobMetricProbe.One(points, "learnstack_job_control_total", ("operation", "bridge_repair_expired_token_acknowledged"), ("pool", "none"))
+                    .Should().Be(priorHint ? 0 : 1);
+                points.Where(point => point.Name == "learnstack_job_control_total")
+                    .Should().OnlyContain(point => point.Tags.Count == 2 && point.Tags.ContainsKey("operation") && point.Tags.ContainsKey("pool"));
+            }
+            var row = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
+            row.NormalAttempts.Should().Be(0);
+            (await VendorAsync(source, job)).Should().NotBeNull();
+        }
+        finally
+        {
+            using var deadline = new CancellationTokenSource(TestWait);
+            await runtime.StopAsync(deadline.Token);
+            await runtime.Completion.WaitAsync(TestWait);
+        }
+    }
+
     [Fact]
     public async Task Actual_native_pool_named_none_keeps_aggregate_and_pool_metrics_distinct_without_private_labels()
     {

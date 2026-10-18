@@ -395,6 +395,18 @@ process totals, before cleanup qualification. A returned value or later durable
 history cannot backfill a lost ACK. Native ticks and repeated collection add no
 progress. All six use `pool=none` without recurrence/tenant/identity labels.
 
+Bridge repair totals are disjoint subsets of visible acknowledged handoffs.
+`bridge_repair_prior_ack_hint_acknowledged` uses a prior acknowledged hint;
+`bridge_repair_expired_token_acknowledged` uses an expired prior claim without
+that hint. Classification reads the locked candidate before replacing its token;
+hint takes precedence. An expired token proves acquisition, not native execution.
+Unmarked work is not necessarily first-ever work because deferral clears tokens.
+Only actual native exit followed by a true fenced ACK return adds a repair.
+The existing bool status API can hide a committed ACK behind failed cleanup;
+these process totals conservatively omit it, retain ownership and never backfill
+it from current row state. Deployment-mismatch deferral counts only a true
+fenced mutation. Operational bridge failures remain distinct from job failures.
+
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,
 `tenancy:feature-flags`, `tenancy:settings`, `audit:config`, or

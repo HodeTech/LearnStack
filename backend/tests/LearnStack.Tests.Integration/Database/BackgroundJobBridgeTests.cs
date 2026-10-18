@@ -37,6 +37,10 @@ public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
         await bridge.RunQuantumAsync();
         await EventuallyAsync(() => bridge.Snapshot.Outstanding == 0);
         bridge.Snapshot.Acknowledged.Should().Be(1, "the real stock future schedule must commit and acknowledge its opaque handoff");
+        bridge.Snapshot.PriorHintRepairsAcknowledged.Should().Be(0);
+        bridge.Snapshot.ExpiredTokenRepairsAcknowledged.Should().Be(0);
+        (await bridge.RunQuantumAsync()).Should().BeFalse();
+        bridge.Snapshot.Acknowledged.Should().Be(1);
         await bridge.StopAsync();
 
         var row = await ReadAsync(database, id);
@@ -89,6 +93,7 @@ public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
         var storage = HangfireStorageBootstrap.Create(source, Fixture.Registry.Infrastructure, new HangfireBoundedLogProvider());
         var client = new HangfireWakeupClient(storage, Filters());
         var first = (await store.TryClaimAsync([]))!; // Seeded eligible row is the sole candidate.
+        first.Kind.Should().Be(BackgroundJobBridgeClaimKind.Unmarked);
         var vendor = CreateInvariant(client, first)!; // Stock client creation is not canceled by these filters.
         (await store.AcknowledgeAsync(first, vendor)).Should().BeTrue();
         await using (var sql = await source.OpenConnectionAsync())
@@ -97,13 +102,20 @@ public sealed partial class BackgroundJobBridgeTests(SchemaFixture schema)
             else await ExecuteAsync(sql, "UPDATE public.job SET statename=@state WHERE id=@vendor::bigint", ("state", hintState), ("vendor", vendor));
             await ExecuteAsync(sql, "UPDATE background_jobs SET handoff_check_at=clock_timestamp()-interval '1 second' WHERE id=@id", ("id", id.Value));
         }
-        var repaired = (await store.TryClaimAsync([]))!; // Persisted repair check is due.
-        repaired.WakeGeneration.Should().Be(first.WakeGeneration);
-        repaired.Token.Should().NotBe(first.Token);
-        var secondVendor = CreateInvariant(client, repaired);
-        secondVendor.Should().NotBe(vendor);
-        (await store.AcknowledgeAsync(repaired, secondVendor!)).Should().BeTrue(); // Stock client returned a fresh numeric id.
-        (await ReadAsync(database, id)).Attempts.Should().Be(0);
+        var bridge = new BackgroundJobBridge(store, client, new(), TimeProvider.System);
+        try
+        {
+            (await bridge.RunQuantumAsync()).Should().BeTrue();
+            await EventuallyAsync(() => bridge.Snapshot.Outstanding == 0);
+            bridge.Snapshot.Acknowledged.Should().Be(1);
+            bridge.Snapshot.PriorHintRepairsAcknowledged.Should().Be(1);
+            bridge.Snapshot.ExpiredTokenRepairsAcknowledged.Should().Be(0);
+            var row = await ReadAsync(database, id);
+            row.Generation.Should().Be(first.WakeGeneration);
+            row.Vendor.Should().NotBe(vendor);
+            row.Attempts.Should().Be(0);
+        }
+        finally { await bridge.StopAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
     }
 
     [Fact]
