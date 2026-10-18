@@ -155,7 +155,7 @@ def workflow_context():
     return workspace
 
 
-def qualify_runtime(budget, workspace):
+def qualify_runtime(budget, workspace, *, docker=True):
     status, value = budget.command([GIT, 'rev-parse', '--verify', 'HEAD'], 'checkout_mismatch')
     require(status == 0 and value == (os.environ['GITHUB_SHA'] + '\n').encode(),
             'checkout_mismatch')
@@ -201,12 +201,14 @@ def qualify_runtime(budget, workspace):
     require(status == 0 and value in (b'microsoft\n', b'kvm\n', b'qemu\n'),
             'vm_evidence_missing')
     vm = value.decode('ascii').strip()
-    status, value = budget.command(
-        [DOCKER, 'ps', '--all', '--last', '1', '--format', '{{.State}}'],
-        'docker_baseline_unreadable')
-    require(status == 0, 'docker_baseline_unreadable')
-    # The most recent container in *any* state is enough to disprove emptiness.
-    require(value == b'', 'docker_baseline_nonempty')
+    if docker:
+        status, value = budget.command(
+            [DOCKER, 'ps', '--all', '--last', '1', '--format', '{{.State}}'],
+            'docker_baseline_unreadable')
+        require(status == 0, 'docker_baseline_unreadable')
+        # The most recent container in any state disproves emptiness. ADR-0063
+        # non-Docker qualification explicitly has no Docker authority.
+        require(value == b'', 'docker_baseline_nonempty')
     return {'cpus': cpus, 'kernelRelease': release, 'virtualization': vm}
 
 

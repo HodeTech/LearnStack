@@ -9604,6 +9604,59 @@ owns bounded execution and resource/identity receipts; Step 3 owns workflow/API
 enforcement and actual two-attempt hosted qualification. No hosted fit follows
 from this closeout.
 
+###### ADR-0063 Step 2 — bounded shard execution (2026-10-19)
+
+After Step 1 closeout `357b97fd`, the existing CI execution owner gains the
+finite base, Architecture, ordinary and native-shard paths. They use complete
+fresh selector discovery, recomputed plan ownership, independent selected-filter
+rediscovery before execution and exact completed-protocol/TRX reconciliation.
+All new dotnet argv pass the plan's byte bound before spawning. Base retains
+format and actual Hangfire publish/distribution/replacement controls; normal
+Release builds remain a prerequisite in the Step 3 workflow arrangement.
+Existing unsharded workflow paths remain active until that wiring ships.
+
+Non-Docker paths qualify the exclusive hosted Ubuntu 24.04 VM and use only the
+owned systemd/cgroup process boundary. They perform no Docker census/cleanup,
+collector read/write or crash inventory. The native setup writer remains
+native-only; a read-only qualification call explicitly excludes Docker for
+non-Docker jobs. Only the delegated owned unit enables CPU/memory accounting.
+The supervisor retains positive join and empty-subtree evidence before reading
+its work-cgroup CPU/memory peak. VM memory is separately sampled during polling:
+its observed maximum includes other VM work and is not a continuous peak bound.
+Container-specific peaks and uninstrumented fixture counts remain unknown.
+
+Receipts retain the actually selected SDK/console versions and binary hashes,
+the loaded adapter's diagnostic version/path-bound binary hash, per-project
+first-result and test-process intervals, discovery/selection, non-test gates and
+result export intervals. Advisory estimates retain unmeasured fixed terms and
+no invented wall bound. The existing finite whole-job/cleanup/upload budget is
+unchanged; forced termination cannot become success. Workflow/API aggregate
+validation of these receipts and actual hosted fit remain Step 3 obligations.
+
+The independent ADR-0062 membership fault is also addressed narrowly. Linux can
+return ENOENT/ESRCH when an enumerated task exits before its cmdline read. Only
+that candidate read, or a positive vanished-task recheck, is tolerated. An
+enumeration fault, non-exit cmdline fault, unreadable live candidate cgroup or
+outside testhost still refuses with finite stage/reason diagnostics. The
+previous hosted receipt lacks errno/suboperation evidence, so this is not a
+claim that ESRCH caused that run or that the hosted fault is already closed.
+
+Local checks: all 31 shard controls pass, including real owner selection/result
+flow, negative pre-spawn selection/bound checks, non-Docker parent authority
+controls, exit-race controls and metadata/resource shape checks. All 38 existing
+launcher controls and 18 provisioning controls pass. The latter execute a
+byte-verified copy through real temporary subprocesses, including the new
+non-Docker runtime reader with no Docker/collector/sudo operation. The reviewed
+provisioner source hash is updated for its explicit read-only Docker exclusion;
+all other copied bytes still must match. Actual local SDK/console observation
+and retained loaded-adapter diagnostics resolve SDK 10.0.302, console
+18.6.0-release-26329-109 and adapter assembly 2.8.2.0. These controls and local
+observations do not qualify hosted systemd, cgroups, Docker disposal or fit.
+
+Step 2's implementation commit and two fresh independent reviews follow before
+Step 3 begins. The general CI catalogue rule remains Registered; no final-source
+hosted success, complete packet CI or merge is claimed.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

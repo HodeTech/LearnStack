@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Execute the actual ADR-0063 plan/selector owner; no host mutation or model copy."""
 import copy
+import contextlib
+import errno
 import importlib.util
 import json
+import io
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -21,6 +25,7 @@ def module(name, file):
 
 OWNER = module('ci_shards_controls', 'ci-test-shards.py')
 LAUNCHER = module('ci_selector_discovery_controls', 'ci-native-tests.py')
+PROVISIONER = module('ci_shard_runtime_controls', 'ci-native-provisioning.py')
 
 
 class ShardControls(unittest.TestCase):
@@ -323,6 +328,256 @@ class ShardControls(unittest.TestCase):
             with self.assertRaises(LAUNCHER.Refusal) as caught:
                 LAUNCHER.validate_results(output, [case])
             self.assertEqual('completed_evidence_incomplete', caught.exception.reason)
+
+    def test_membership_exit_race_is_limited_to_candidate_cmdline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp); task = proc / '123'; task.mkdir()
+            (task / 'cmdline').write_bytes(b'dotnet\0testhost.dll\0')
+            (task / 'cgroup').write_text('0::/owned/work\n')
+            original = Path.read_bytes
+            def failing(path):
+                if path.name == self.failed_file:
+                    raise OSError(self.failed_errno, 'PRIVATE-CANARY')
+                return original(path)
+            with mock.patch.object(LAUNCHER, 'PROC', str(proc)):
+                self.assertEqual(1, LAUNCHER.testhost_membership('/owned/work'))
+                (task / 'cgroup').write_text('0::/foreign/work\n')
+                with self.assertRaises(LAUNCHER.Refusal) as caught:
+                    LAUNCHER.testhost_membership('/owned/work')
+                self.assertEqual('testhost_outside_owned_subtree', caught.exception.reason)
+                (task / 'cgroup').write_text('0::/owned/work\n')
+                self.failed_file = 'cmdline'
+                for self.failed_errno in (errno.ENOENT, errno.ESRCH):
+                    with mock.patch.object(Path, 'read_bytes', failing):
+                        self.assertEqual(0, LAUNCHER.testhost_membership('/owned/work'))
+                for self.failed_errno, reason in ((errno.EIO, 'io'), (errno.EACCES, 'permission')):
+                    with mock.patch.object(Path, 'read_bytes', failing):
+                        with self.assertRaises(LAUNCHER.Refusal) as caught:
+                            LAUNCHER.testhost_membership('/owned/work')
+                    self.assertEqual('membership_cmdline_' + reason, caught.exception.reason)
+                with mock.patch.object(LAUNCHER, 'cgroup_path', side_effect=LAUNCHER.Refusal('input_unreadable')):
+                    with self.assertRaises(LAUNCHER.Refusal) as caught:
+                        LAUNCHER.testhost_membership('/owned/work')
+                self.assertEqual('membership_cgroup_unreadable', caught.exception.reason)
+                with mock.patch.object(Path, 'iterdir', side_effect=ProcessLookupError(errno.ESRCH, 'PRIVATE-CANARY')):
+                    with self.assertRaises(LAUNCHER.Refusal) as caught:
+                        LAUNCHER.testhost_membership('/owned/work')
+                self.assertEqual('membership_enumeration_missing_task', caught.exception.reason)
+
+    def test_nondocker_vm_qualification_never_observes_docker(self):
+        calls = []
+        root = ROOT
+        class Budget:
+            def command(self, argv, reason):
+                calls.append(argv)
+                if argv[0] == PROVISIONER.DOCKER:
+                    return 0, b''
+                return {tuple([PROVISIONER.GIT, 'rev-parse', '--verify', 'HEAD']): (0, b'a' * 40 + b'\n'),
+                        tuple([PROVISIONER.GIT, 'rev-parse', '--show-toplevel']): (0, (str(root) + '\n').encode()),
+                        tuple([PROVISIONER.UNAME, '-s', '-r', '-m']): (0, b'Linux 6.8.0 x86_64\n'),
+                        tuple([PROVISIONER.ID, '-u']): (0, b'1001\n'),
+                        tuple([PROVISIONER.NPROC]): (0, b'4\n'),
+                        tuple([PROVISIONER.VIRT, '--container']): (1, b'none\n'),
+                        tuple([PROVISIONER.VIRT, '--vm']): (0, b'microsoft\n')}[tuple(argv)]
+            def read(self, path, reason, limit=4096):
+                return ('ID=ubuntu\nVERSION_ID="24.04"\n' if path == PROVISIONER.OS_RELEASE
+                        else '0::/init.scope\n')
+        with mock.patch.dict('os.environ', {'GITHUB_SHA': 'a' * 40}), \
+                mock.patch.object(PROVISIONER, 'CONTAINER_MARKERS', ()):
+            self.assertEqual(4, PROVISIONER.qualify_runtime(Budget(), root, docker=False)['cpus'])
+            self.assertFalse(any(argv[0] == PROVISIONER.DOCKER for argv in calls))
+            PROVISIONER.qualify_runtime(Budget(), root)
+            self.assertEqual(1, sum(argv[0] == PROVISIONER.DOCKER for argv in calls))
+        for mode in LAUNCHER.SHARD_JOBS:
+            self.assertEqual(mode == 'native-shard' or mode.startswith('ordinary-'), LAUNCHER.docker_mode(mode))
+            self.assertEqual(mode == 'native-shard', LAUNCHER.native_mode(mode))
+
+    def test_actual_adapter_evidence_binds_resolved_path_version_and_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); private = root / 'private'; private.mkdir()
+            project = 'tests/LearnStack.Tests.Example/LearnStack.Tests.Example.csproj'
+            binary = (root / 'backend' / project).parent / 'bin/Release/net10.0/xunit.runner.visualstudio.testadapter.dll'
+            binary.parent.mkdir(parents=True); binary.write_bytes(b'actual-binary-fixture')
+            diagnostic = private / 'example-execution.diag'
+            host = private / 'example-execution.host.123.diag'
+            original = ("Resolved assembly: xunit.runner.visualstudio.testadapter, from path: " + str(binary) + '\n'
+                        "inside assembly 'xunit.runner.visualstudio.testadapter, Version=2.8.2.0, Culture=neutral'\n")
+            host.write_text(original)
+            with mock.patch.object(LAUNCHER, 'ROOT', root):
+                evidence = LAUNCHER.adapter_evidence(private, diagnostic, project)
+                self.assertEqual('2.8.2.0', evidence['assemblyVersion'])
+                self.assertEqual(OWNER.hashlib.sha256(binary.read_bytes()).hexdigest(), evidence['sha256'])
+                for dirty in (original.replace(str(binary), str(root / 'foreign.dll')),
+                              original + original.replace('2.8.2.0', '2.8.1.0'), ''):
+                    host.write_text(dirty)
+                    with self.assertRaises(LAUNCHER.Refusal):
+                        LAUNCHER.adapter_evidence(private, diagnostic, project)
+
+    def test_actual_nondocker_parent_never_calls_docker_or_native_authorities(self):
+        context = {'runId': '42', 'runAttempt': '1', 'sourceSha': 'a' * 40}
+        for mode in ('base', 'architecture-0'):
+            with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+                root = Path(tmp); private = root / 'private'; output = root / 'output'
+                fake_cgroup = root / 'cgroup'; fake_cgroup.mkdir(); (fake_cgroup / 'cgroup.controllers').touch()
+                manifest = self.manifest()
+                selected = OWNER.assign(manifest, self.plan, '1')['owners'][mode]
+                def launch(*_):
+                    LAUNCHER.write_json(private / 'ownership.json', {'protocol': 1, 'workloadJoined': True,
+                        'workPopulated': False, 'witnessBeforeUnitExit': True, 'workloadStatus': 0,
+                        'forcedTermination': False})
+                    LAUNCHER.write_json(private / 'workload.json', {'success': True})
+                    LAUNCHER.write_json(output / 'discovery.json', {'identity': context, 'population': manifest})
+                for name, replacement in {'identity': lambda _: context,
+                    'deadlines': lambda: (time.monotonic() + 5, time.monotonic() + 10),
+                    'lower_core': lambda: None, 'locations': lambda *_: ('owned.service', private, output),
+                    'CGROUP': str(fake_cgroup), 'DOTNET': '/usr/bin/true', 'SHARDS': OWNER,
+                    'qualify_shard_vm': lambda *_: {'cpus': 4}, 'launch_unit': launch,
+                    'observe_vm_memory': lambda: 1024,
+                    'command': lambda *_args, **_kwargs: b'',
+                    'unit_properties': lambda *_: {'SubState': 'exited', 'ExecMainCode': '1',
+                        'ExecMainStatus': '0', 'ExecMainExitTimestampMonotonic': '123', 'Result': 'success'},
+                    'validate_results': lambda _out, cases: len(cases), 'export_hashes': lambda *_: {},
+                    'docker_census': mock.Mock(side_effect=AssertionError('Docker must not be observed')),
+                    'docker_complete': mock.Mock(side_effect=AssertionError('Docker must not be cleaned')),
+                    'crash_scan': mock.Mock(side_effect=AssertionError('Crash inventory forbidden')),
+                    'prevalidate_native': mock.Mock(side_effect=AssertionError('Native authority forbidden'))}.items():
+                    stack.enter_context(mock.patch.object(LAUNCHER, name, replacement))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                self.assertEqual(0, LAUNCHER.execute(mode))
+                result = LAUNCHER.read_json(output / 'result.json')
+                self.assertTrue(result['ownershipComplete'])
+                self.assertEqual(1024, result['observedVmMemoryPeakBytes'])
+                self.assertIsNone(result['dockerAbsent'])
+                self.assertFalse(result['authority']['docker'])
+                self.assertEqual(len(selected), result['cases'])
+                # Making only the Docker classification blind must break this
+                # same parent path before any fixture workload can rescue it.
+                with mock.patch.object(LAUNCHER, 'docker_mode', return_value=True), \
+                        mock.patch.object(LAUNCHER, 'locations', return_value=('other.service', root / 'other', root / 'other-out')):
+                    with self.assertRaises(AssertionError):
+                        LAUNCHER.execute(mode)
+
+    def test_actual_shard_workload_rediscovery_precedes_execution_and_retains_exact_results(self):
+        manifest = self.manifest(); context = {'runAttempt': '1'}
+        expected = OWNER.assign(manifest, self.plan, '1')['owners']['base']
+        assembly, project = 'LearnStack.Tests.Unit', 'tests/LearnStack.Tests.Unit/LearnStack.Tests.Unit.csproj'
+        for dirty in (False, True):
+            with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+                root = Path(tmp); private = root / 'private'; output = root / 'output'
+                private.mkdir(); output.mkdir(); (output / 'results').mkdir()
+                def execute(_argv, _deadline, _work, _consume, progress):
+                    self.assertEqual(1, selection.call_count)
+                    row = expected[0]
+                    payload = {'TestRunCompleteArgs': {'IsCanceled': False, 'IsAborted': False, 'Error': None,
+                        'TestRunStatistics': {'ExecutedTests': 1, 'Stats': {'Passed': 1}}},
+                        'LastRunTests': {'NewTestResults': [{'TestCase': {'Id': row['id'], 'DisplayName': row['name'],
+                            'Source': assembly + '.dll'}, 'Outcome': 1, 'Duration': '00:00:00.0010000'}]}}
+                    progress.line(progress.marker + json.dumps({'MessageType': 'TestExecution.Completed',
+                                                                'Payload': payload}).encode())
+                    prepared = root / 'prepared'; prepared.mkdir()
+                    self.result_fixture(prepared, row, row).replace(private / 'trx/actual.trx')
+                    return 0
+                actual = copy.deepcopy(expected)
+                if dirty:
+                    actual[0]['id'] = '00000000-0000-4000-8000-000000009999'
+                selection = mock.Mock(return_value=actual)
+                execution = mock.Mock(side_effect=execute)
+                for name, value in {'runtime_toolchain': lambda *_: {'sdk': '10.0.302'},
+                    'base_gates': lambda *_: {'format': True}, 'discover_selectors': lambda *_: manifest,
+                    'test_projects': lambda: iter([(project, assembly)]), 'selected_discovery': selection,
+                    'shard_dotnet': execution, 'adapter_evidence': lambda *_: {'assemblyVersion': '2.8.2.0'}}.items():
+                    stack.enter_context(mock.patch.object(LAUNCHER, name, value))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                if dirty:
+                    with self.assertRaises(LAUNCHER.Refusal) as caught:
+                        LAUNCHER.shard_workload('base', context, private, output, time.monotonic() + 5, '/owned')
+                    self.assertEqual('selected_population_mismatch', caught.exception.reason)
+                    execution.assert_not_called()
+                else:
+                    LAUNCHER.shard_workload('base', context, private, output, time.monotonic() + 5, '/owned')
+                    self.assertEqual(1, LAUNCHER.validate_results(output, expected))
+                    self.assertTrue(LAUNCHER.read_json(private / 'workload.json')['success'])
+                    assignment = LAUNCHER.read_json(output / 'assignment.json')
+                    self.assertEqual(expected, assignment['selected'])
+                    measurement = LAUNCHER.read_json(output / 'measurements.json')
+                    self.assertIsNone(measurement['fixtureStartupSeconds'])
+                    self.assertEqual(1, len(measurement['projects']))
+
+    def test_all_shard_dotnet_arguments_are_bounded_before_spawn(self):
+        with mock.patch.object(LAUNCHER, 'dotnet', return_value=0) as spawn:
+            with self.assertRaises(LAUNCHER.Refusal) as caught:
+                LAUNCHER.shard_dotnet(['x' * 65536], time.monotonic() + 5, '/owned', lambda _: None)
+            self.assertEqual('argv_bound', caught.exception.reason)
+            spawn.assert_not_called()
+            self.assertEqual(0, LAUNCHER.shard_dotnet(['--version'], time.monotonic() + 5,
+                                                    '/owned', lambda _: None, expect_testhost=False))
+            self.assertFalse(spawn.call_args.kwargs['expect_testhost'])
+
+    def test_accounting_enables_only_cpu_and_memory_on_the_owned_unit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            group = Path(tmp); (group / 'cgroup.controllers').write_text('cpu memory pids\n')
+            control = group / 'cgroup.subtree_control'; control.write_text('')
+            original = Path.write_text; calls = []
+            def kernel_write(path, value, **kwargs):
+                self.assertEqual(control, path)
+                self.assertEqual('+cpu +memory', value)
+                calls.append(value)
+                return original(path, 'cpu memory', **kwargs)
+            with mock.patch.object(Path, 'write_text', kernel_write):
+                LAUNCHER.enable_work_accounting(group)
+            self.assertEqual(['+cpu +memory'], calls)
+            (group / 'cgroup.controllers').write_text('pids\n'); calls.clear()
+            with mock.patch.object(Path, 'write_text', kernel_write):
+                with self.assertRaises(LAUNCHER.Refusal):
+                    LAUNCHER.enable_work_accounting(group)
+            self.assertEqual([], calls)
+
+    def test_resource_receipt_cannot_invent_container_or_fixture_measurements(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            (work / 'cpu.stat').write_text('usage_usec 123\nuser_usec 100\nsystem_usec 23\n')
+            peak = work / 'memory.peak'; peak.write_text('456\n')
+            result = LAUNCHER.work_resources(work)
+            self.assertEqual(456, result['peakMemoryBytes'])
+            self.assertEqual(123, result['cpuUsageMicroseconds'])
+            self.assertIsNone(result['dockerPeakMemoryBytes'])
+            self.assertIsNone(result['fixtureStartupCount'])
+            for value in ('unknown', '-1', '9' * 21):
+                peak.write_text(value)
+                with self.assertRaises(LAUNCHER.Refusal):
+                    LAUNCHER.work_resources(work)
+
+    def test_sdk_and_console_receipt_uses_the_queried_sdk_and_actual_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); sdk = root / 'sdk/10.0.302'; sdk.mkdir(parents=True)
+            console = sdk / 'vstest.console.dll'; console.write_bytes(b'actual-console-fixture')
+            deps = sdk / 'vstest.console.deps.json'
+            deps.write_text(json.dumps({'libraries': {'vstest.console/18.6.0': {}}}))
+            def query(argv, _deadline, _work, consume, **kwargs):
+                self.assertEqual(['--version'], argv)
+                self.assertFalse(kwargs['expect_testhost'])
+                consume('10.0.302'); return 0
+            with mock.patch.object(LAUNCHER, 'DOTNET', str(root / 'dotnet')), \
+                    mock.patch.object(LAUNCHER, 'shard_dotnet', side_effect=query):
+                result = LAUNCHER.runtime_toolchain(time.monotonic() + 5, '/owned')
+                self.assertEqual('10.0.302', result['sdk'])
+                self.assertEqual('18.6.0', result['console'])
+                self.assertEqual(OWNER.hashlib.sha256(console.read_bytes()).hexdigest(), result['consoleSha256'])
+                deps.write_text(json.dumps({'libraries': {'vstest.console/18.6.0': {}, 'vstest.console/18.5.0': {}}}))
+                with self.assertRaises(LAUNCHER.Refusal) as caught:
+                    LAUNCHER.runtime_toolchain(time.monotonic() + 5, '/owned')
+                self.assertEqual('console_identity_invalid', caught.exception.reason)
+
+    def test_vm_memory_samples_are_bounded_observations_not_a_container_peak(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(LAUNCHER, 'PROC', tmp):
+            path = Path(tmp) / 'meminfo'
+            path.write_text('MemTotal:       4096 kB\nMemAvailable:   1024 kB\n')
+            self.assertEqual(3072 * 1024, LAUNCHER.observe_vm_memory())
+            for text in ('MemTotal: 1 kB\nMemAvailable: 2 kB\n', 'MemTotal: 1 kB\n',
+                         'MemTotal: 1 kB\nMemTotal: 2 kB\nMemAvailable: 0 kB\n'):
+                path.write_text(text)
+                with self.assertRaises(LAUNCHER.Refusal):
+                    LAUNCHER.observe_vm_memory()
 
 
 if __name__ == '__main__':

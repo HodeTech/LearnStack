@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).with_name('ci-native-provisioning.py')
-SOURCE_SHA256 = '0a68bfedcc251956b0cc517195f3028a8ddc3baae360b2316149f2b5f1c24221'
+SOURCE_SHA256 = '2af57083522e7415ee73c2617644bf0b831065ebdacc580e75582c62366cda7b'
 FIXED_PATHS = {
     'CORE_PATTERN': '/proc/sys/kernel/core_pattern', 'OS_RELEASE': '/etc/os-release',
     'CGROUP_INIT': '/proc/1/cgroup', 'CGROUP_SELF': '/proc/self/cgroup',
@@ -262,6 +262,29 @@ class NativeProvisioningTests(unittest.TestCase):
         self.assertEqual('apport', receipt['collectorBefore'])
         self.assertTrue(receipt['changed'])
         self.assertNotIn(str(self.fixture.root), json.dumps(receipt))
+
+    def test_executed_nondocker_runtime_reader_has_no_docker_collector_or_sudo_calls(self):
+        runner = self.fixture.root / 'runtime-reader.py'
+        runner.write_text('''import importlib.util, json, time
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('owner', OWNER_LITERAL)
+owner = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(owner)
+result = owner.qualify_runtime(owner.Budget(time.monotonic() + 15, 2), Path.cwd(), docker=False)
+print(json.dumps(result))
+'''.replace('OWNER_LITERAL', repr(str(self.fixture.owner))))
+        original = self.fixture.pattern.read_bytes()
+        result = subprocess.run([sys.executable, str(runner)], cwd=self.fixture.repo,
+                                env=self.fixture.env, capture_output=True, text=True, timeout=20)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual('', result.stderr)
+        self.assertEqual(4, json.loads(result.stdout)['cpus'])
+        self.assertEqual(original, self.fixture.pattern.read_bytes())
+        self.assertFalse(self.fixture.commands('docker'))
+        self.assertFalse(self.fixture.commands('sudo'))
+        self.assertFalse(self.fixture.commands('tee'))
+        self.assertFalse(any(command['name'] == 'head' and command['args'][-1] == str(self.fixture.pattern)
+                             for command in self.fixture.commands()))
 
     def test_both_systemd_classes_take_the_same_fixed_writer(self):
         for executable in ('/usr/lib/systemd/systemd-coredump', '/lib/systemd/systemd-coredump'):
