@@ -134,8 +134,8 @@ public sealed partial class OutboxDispatchConventionTests
                          new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation }, "database.RollbackAsync"),
                      (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
                          new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadQuarantinePresenceAsync",
-                         new[] { BoundaryCancellation }, "database.RollbackAsync"),
+                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadDurableObservationAsync",
+                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobObservationManifest", "System.Collections.Generic.IReadOnlyCollection`1<System.Guid>", BoundaryCancellation }, "database.RollbackAsync"),
                  })
         {
             var owner = types[(assembly, type)].Methods.Single(method => method.Name == name && ParametersMatch(method, parameters));
@@ -279,8 +279,8 @@ public sealed partial class OutboxDispatchConventionTests
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
                     ["LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation]),
-                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadQuarantinePresenceAsync",
-                    [BoundaryCancellation])],
+                Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadDurableObservationAsync",
+                    ["LearnStack.Infrastructure.Jobs.BackgroundJobObservationManifest", "System.Collections.Generic.IReadOnlyCollection`1<System.Guid>", BoundaryCancellation])],
             ["database.Commit"] = [],
             ["database.Rollback"] = [],
         };

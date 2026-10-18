@@ -29,13 +29,13 @@ public sealed class BackgroundJobQuarantineHealthTests
         await using var fixture = new Fixture(bounds);
         fixture.Observe(false);
         fixture.Time.Advance(TimeSpan.FromSeconds(60));
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue("a supported 60-second cadence must not expire at 30 seconds");
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue("a supported 60-second cadence must not expire at 30 seconds");
         fixture.Control.Snapshot.RecoveryHealthy.Should().BeFalse("the original lane progress deadline remains independent");
         fixture.Progress();
         fixture.Control.Snapshot.RecoveryHealthy.Should().BeTrue();
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue();
         fixture.Time.Advance(TimeSpan.FromSeconds(100));
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Control.Snapshot.HasQuarantinedJobs.Should().BeFalse("staleness preserves, rather than replaces, the last sample");
     }
 
@@ -44,36 +44,40 @@ public sealed class BackgroundJobQuarantineHealthTests
     {
         await using var fixture = new Fixture(new());
         fixture.Control.Snapshot.HasQuarantinedJobs.Should().BeNull();
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Observe(false);
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue();
-        Set(fixture.Control, "_quarantineFault", true);
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue();
+        Set(fixture.Control, "_observationFault", true);
         Set(fixture.Control, "_controlFault", true);
         fixture.Progress();
         Set(fixture.Control, "_controlFault", false);
         fixture.Control.Snapshot.RecoveryHealthy.Should().BeTrue();
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Control.Snapshot.HasQuarantinedJobs.Should().BeFalse();
         fixture.Observe(true);
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue("the observation itself succeeded");
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue("the observation itself succeeded");
         fixture.Control.Snapshot.HasQuarantinedJobs.Should().BeTrue();
     }
 
     [Theory]
-    [InlineData(null, false, true, false)]
-    [InlineData(false, null, true, false)]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(true, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, true, true, false)]
-    public void Runtime_health_requires_a_fresh_known_negative_quarantine_sample(bool? present, bool? controlPresent, bool fresh, bool healthy)
+    [InlineData(null, false, false, true, false)]
+    [InlineData(false, null, false, true, false)]
+    [InlineData(false, false, null, true, false)]
+    [InlineData(false, false, true, true, false)]
+    [InlineData(false, false, false, false, false)]
+    [InlineData(false, false, false, true, true)]
+    [InlineData(true, false, false, true, false)]
+    [InlineData(false, true, false, true, false)]
+    [InlineData(true, true, false, true, false)]
+    public void Runtime_health_requires_a_fresh_known_negative_quarantine_sample(bool? present, bool? controlPresent,
+        bool? deferred, bool fresh, bool healthy)
     {
         var control = new BackgroundJobControlHealth(0, 0, true, true, true, false, 0, 0, 0, 0)
         {
             HasQuarantinedJobs = present,
             HasQuarantinedControl = controlPresent,
-            QuarantineObservationHealthy = fresh,
+            HasDeferredWork = deferred,
+            ObservationHealthy = fresh,
             Recurrence = new(0, 0, 0, false, false, true, true, false, false, true),
         };
         var snapshot = new BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState.Running,
@@ -88,14 +92,14 @@ public sealed class BackgroundJobQuarantineHealthTests
         fixture.Control.Snapshot.HasQuarantinedControl.Should().BeNull();
         fixture.Observe(false, true);
         fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeTrue();
-        Set(fixture.Control, "_quarantineFault", true);
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeTrue();
+        Set(fixture.Control, "_observationFault", true);
         fixture.Progress();
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
         fixture.Observe(false, true);
         fixture.Time.Advance(TimeSpan.FromMinutes(3));
-        fixture.Control.Snapshot.QuarantineObservationHealthy.Should().BeFalse();
+        fixture.Control.Snapshot.ObservationHealthy.Should().BeFalse();
         fixture.Control.Snapshot.HasQuarantinedControl.Should().BeTrue();
     }
 
@@ -115,10 +119,14 @@ public sealed class BackgroundJobQuarantineHealthTests
         }
         internal void Observe(bool value, bool controlValue = false)
         {
-            Set(Control, "_quarantinePresence", value);
-            Set(Control, "_controlQuarantinePresence", controlValue);
-            Set(Control, "_quarantineObservedAt", Time.GetTimestamp());
-            Set(Control, "_quarantineFault", false);
+            var points = BackgroundJobDurableObservationTests.EmptyPoints().Select(point => point with
+            {
+                Count = point.Label == "job" ? value ? 1 : 0 : point.Label == "recipient" && controlValue ? 1 : 0,
+            });
+            Set(Control, "_observation", BackgroundJobDurableObservation.Create(
+                BackgroundJobDurableObservationTests.EmptyManifest(), points));
+            Set(Control, "_observationObservedAt", Time.GetTimestamp());
+            Set(Control, "_observationFault", false);
             Progress();
         }
         internal void Progress()

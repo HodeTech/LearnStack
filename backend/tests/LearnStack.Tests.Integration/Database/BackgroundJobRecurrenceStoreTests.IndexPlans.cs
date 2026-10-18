@@ -64,6 +64,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 sameDetector.Should().Throw<Xunit.Sdk.XunitException>();
                 var examined = LifecyclePlanNodes(dirty.RootElement[0].GetProperty("Plan"))
                     .Where(node => node.TryGetProperty("Relation Name", out var relation) && relation.GetString() == index.Table)
+                    .Where(IsControlQuarantineScan)
                     .Sum(ExaminedQuarantineRows);
                 examined.Should().BeGreaterThanOrEqualTo(3000,
                     "the exact empty-observation query must scan this nonempty history when its partial index is removed");
@@ -79,10 +80,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
 
         async Task<JsonDocument> ExplainQuarantineAsync()
         {
-            await using var command = new NpgsqlCommand("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "
-                + PostgresBackgroundJobControlStore.QuarantinePresenceSql, (NpgsqlConnection)dispatcher)
-            { CommandTimeout = 5 };
-            return JsonDocument.Parse((string)(await command.ExecuteScalarAsync())!);
+            return JsonDocument.Parse(await BackgroundJobObservationQueries.ExplainAsync((NpgsqlConnection)dispatcher,
+                BackgroundJobObservationQueries.Manifest(Fixture.Definitions(), Fixture.Recurrences(manifest))));
         }
     }
 
@@ -92,10 +91,15 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         nodes.Where(node => node.TryGetProperty("Index Name", out _))
             .Select(node => node.GetProperty("Index Name").GetString()).Should().Contain(
                 "ix_background_job_recurrences_quarantined", "ix_background_job_occurrences_quarantined", "ix_background_job_recipients_quarantined");
-        nodes.Where(node => node.TryGetProperty("Relation Name", out var relation)
-                && relation.GetString()!.StartsWith("background_job_", StringComparison.Ordinal))
-            .Sum(ExaminedQuarantineRows).Should().BeLessThanOrEqualTo(16);
+        nodes.Where(IsControlQuarantineScan).Sum(ExaminedQuarantineRows).Should().BeLessThanOrEqualTo(16,
+            "quarantine lookups are separate from the exact live-population aggregation in the same actual statement");
     }
+
+    private static bool IsControlQuarantineScan(JsonElement node) =>
+        node.TryGetProperty("Relation Name", out var relation)
+        && relation.GetString()!.StartsWith("background_job_", StringComparison.Ordinal)
+        && (node.TryGetProperty("Index Name", out var index) && index.GetString()!.EndsWith("_quarantined", StringComparison.Ordinal)
+            || node.TryGetProperty("Filter", out var filter) && filter.GetString()!.Contains("quarantined_at IS NOT NULL", StringComparison.Ordinal));
 
     private static double ExaminedQuarantineRows(JsonElement node) =>
         (node.GetProperty("Actual Rows").GetDouble()

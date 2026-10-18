@@ -130,7 +130,7 @@ public sealed partial class OutboxDispatchConventionTests
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "AcquireExternalTerminalNoStartAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "FinishExternalFinalizeAsync"),
-             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadQuarantinePresenceAsync"),
+             Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadDurableObservationAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryClaimTerminalAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "TryTerminalizeAsync"),
              Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "BackoffKnownAuditRollbackAsync"),

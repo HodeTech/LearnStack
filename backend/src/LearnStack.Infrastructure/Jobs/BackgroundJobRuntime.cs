@@ -28,7 +28,8 @@ public sealed record BackgroundJobRuntimeSnapshot(BackgroundJobRuntimeState Stat
         && Control is
         {
             RenewalHealthy: true, RecoveryHealthy: true, TerminalHealthy: true,
-            QuarantineObservationHealthy: true, HasQuarantinedJobs: false, HasQuarantinedControl: false, Recurrence.IsHealthy: true
+            ObservationHealthy: true, HasQuarantinedJobs: false, HasQuarantinedControl: false,
+            HasDeferredWork: false, Recurrence.IsHealthy: true
         };
 }
 

@@ -51,7 +51,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             using var complete = new CancellationTokenSource(TimeSpan.FromSeconds(50));
             while ((await NativeUnresolvedFactsAsync(database, job)).Phase != "quarantined"
                 || runtime.Snapshot.Control!.Executions != 0
-                || runtime.Snapshot.Control is not { HasQuarantinedJobs: true, QuarantineObservationHealthy: true })
+                || runtime.Snapshot.Control is not { HasQuarantinedJobs: true, ObservationHealthy: true })
                 await Task.Delay(20, complete.Token);
             var facts = await NativeUnresolvedFactsAsync(database, job);
             facts.Should().Be(new NativeUnresolvedFacts("quarantined", 0, 1, 0, 1, 0, 0, 0, facts.Operation, "unknown_outcome"));
@@ -272,7 +272,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         while (true)
         {
             var snapshot = runtime.Snapshot;
-            if (snapshot.Control is { HasQuarantinedJobs: true, QuarantineObservationHealthy: true, Executions: 0 } observed
+            if (snapshot.Control is { HasQuarantinedJobs: true, ObservationHealthy: true, Executions: 0 } observed
                 && (snapshot with { Control = observed with { HasQuarantinedJobs = false } }).IsHealthy)
                 return snapshot;
             // Only this immutable test comparison substitutes the quarantine bit;

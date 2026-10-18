@@ -16,7 +16,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = Source(database);
         var store = Store(source);
-        var empty = await store.ReadQuarantinePresenceAsync();
+        var empty = await store.ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Definitions()), []);
         empty.ThrowIfFailed();
         empty.Value!.HasQuarantinedJobs.Should().BeFalse();
         empty.Value.HasQuarantinedControl.Should().BeFalse();
@@ -47,7 +47,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await using (var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString))
             await SchemaQueries.ExecuteAsync(dispatcher, null,
                 "UPDATE " + table + " SET quarantined_at=clock_timestamp(),last_error='invalid_control'");
-        var present = await store.ReadQuarantinePresenceAsync();
+        var present = await store.ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Definitions()), []);
         present.ThrowIfFailed();
         present.Value!.HasQuarantinedJobs.Should().BeFalse();
         present.Value.HasQuarantinedControl.Should().BeTrue();
@@ -63,7 +63,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         {
             await runtime.StartAsync();
             await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control is
-            { QuarantineObservationHealthy: true, HasQuarantinedJobs: false, HasQuarantinedControl: true }));
+            { ObservationHealthy: true, HasQuarantinedJobs: false, HasQuarantinedControl: true }));
             runtime.Snapshot.Control!.Recurrence!.IsHealthy.Should().BeTrue(
                 "the empty local recurrence registry cannot hide durable quarantine from an earlier process");
             runtime.Snapshot.IsHealthy.Should().BeFalse();
@@ -73,13 +73,13 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
                 await FluentActions.Awaiting(() => SchemaQueries.ExecuteAsync(refused, null,
                     "SELECT quarantined_at FROM " + table)).Should().ThrowAsync<PostgresException>()
                     .Where(failure => failure.SqlState == PostgresErrorCodes.InsufficientPrivilege);
-            await RecurrenceEventuallyAsync(() => Task.FromResult(!runtime.Snapshot.Control!.QuarantineObservationHealthy));
+            await RecurrenceEventuallyAsync(() => Task.FromResult(!runtime.Snapshot.Control!.ObservationHealthy));
             runtime.Snapshot.Control!.HasQuarantinedControl.Should().BeTrue();
             runtime.Snapshot.Control.HasQuarantinedJobs.Should().BeFalse();
             runtime.Snapshot.IsHealthy.Should().BeFalse();
             await SchemaQueries.ExecuteAsync(owner, null,
                 "GRANT SELECT ON " + table + " TO learnstack_outbox_admin");
-            await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.QuarantineObservationHealthy));
+            await RecurrenceEventuallyAsync(() => Task.FromResult(runtime.Snapshot.Control!.ObservationHealthy));
             runtime.Snapshot.Control!.HasQuarantinedControl.Should().BeTrue();
             runtime.Snapshot.IsHealthy.Should().BeFalse();
         }

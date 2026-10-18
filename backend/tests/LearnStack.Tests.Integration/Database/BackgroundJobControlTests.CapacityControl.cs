@@ -30,6 +30,7 @@ public sealed partial class BackgroundJobControlTests
         admitted.Outcome.Should().Be(JobStartExecutionOutcome.Started);
         try
         {
+            await AssertReservedObservationAsync("jobssubmissionfixture.resource", definitions);
             await DispatchAsync(database,
                 "UPDATE background_jobs SET ownership_until=clock_timestamp()-interval '1 microsecond' WHERE id=@id", ("id", first.Value));
             var recovered = await store.RunRecoveryQuantumAsync(BackgroundJobControlLane.Recovery, []);
@@ -40,6 +41,8 @@ public sealed partial class BackgroundJobControlTests
             parked.NormalAttempts.Should().Be(1);
             parked.CurrentAttempt.Should().Be(admitted.Receipt!.AttemptId.Value);
             parked.OwnershipToken.Should().BeNull();
+            await AssertReservedObservationAsync("jobssubmissionfixture.resource", definitions);
+            await AssertReservedObservationAsync("unknown", BackgroundJobDefinitionRegistry.CreateEmpty());
             await DispatchAsync(database,
                 "UPDATE background_jobs SET probe_after=clock_timestamp()-interval '1 microsecond' WHERE id=@id", ("id", first.Value));
             var probed = await store.RunRecoveryQuantumAsync(BackgroundJobControlLane.CapacityProbe, []);
@@ -47,6 +50,8 @@ public sealed partial class BackgroundJobControlTests
             probed.Value.Should().Contain(change => change.JobId == first.Value && change.Phase == "reconciling");
             var second = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
                 BackgroundJobRuntimeFixture.CapacityKey, capacityGroup: BackgroundJobRuntimeFixture.CapacityGroup);
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, definitions),
+                "transactional", 2, 1);
             var secondClaim = (await routing.TryClaimAsync(second, 1))!;
             var refused = await executor.ExecuteAsync(secondClaim, BackgroundJobTestRun.Create());
             refused.Outcome.Should().Be(JobStartExecutionOutcome.CapacityDeferred);
@@ -62,5 +67,14 @@ public sealed partial class BackgroundJobControlTests
                 .Should().Be(0L, "a different instance cannot manufacture the origin's positive cleanup witness");
         }
         finally { admitted.SourceOwner.CloseIssuance(); }
+
+        async Task AssertReservedObservationAsync(string label, BackgroundJobDefinitionRegistry manifest)
+        {
+            var sample = await BackgroundJobObservationQueries.ReadAsync(source, manifest);
+            BackgroundJobObservationQueries.AssertQueue(sample, "transactional", 1, 0);
+            sample.Points.Where(point => point.Family == BackgroundJobObservationFamily.ReservedCapacity)
+                .Should().ContainSingle().Which.Should().Be(new BackgroundJobObservationPoint(
+                    BackgroundJobObservationFamily.ReservedCapacity, label, 0, 1, 0, 0));
+        }
     }
 }

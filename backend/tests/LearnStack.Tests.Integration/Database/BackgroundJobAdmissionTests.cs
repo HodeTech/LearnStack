@@ -37,6 +37,19 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         var roots = Fixture.RootConstructions;
         await using var host = Fixture.Host(database, probe, original);
         var store = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
+        await using var observationSource = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
+        var future = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
+            tenant: SchemaFixture.TenantB, due: DateTimeOffset.UtcNow.AddDays(1));
+        await using (var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString))
+            await SchemaQueries.ExecuteAsync(dispatcher, null,
+                "UPDATE background_jobs SET available_after=clock_timestamp()-interval '1 second' WHERE id=@id", ("id", future.Value));
+        (await store.TryClaimAsync(future, 1)).Should().BeNull("original due time independently excludes the future job");
+        BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(observationSource, Fixture.Registry),
+            "transactional", 2, 1);
+        BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(observationSource, Fixture.Registry, [job.Value]),
+            "transactional", 2, 0);
+        BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(observationSource, Fixture.Registry, [future.Value]),
+            "transactional", 2, 1);
         var claim = (await store.TryClaimAsync(job, 1))!;
         claim.Should().NotBeNull();
         var routed = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
@@ -47,6 +60,8 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         routed.CurrentAttempt.Should().BeNull();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(0);
         (await store.TryClaimAsync(job, 1)).Should().BeNull("an active routing lease excludes another callback");
+        BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(observationSource, Fixture.Registry),
+            "transactional", 2, 0);
 
         using var activity = new Activity("outer-admission-proof").SetIdFormat(ActivityIdFormat.W3C).Start();
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
@@ -76,6 +91,8 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
         }
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
         (await store.TryClaimAsync(job, 1)).Should().BeNull("even an execution lease cannot be claimed as routing");
+        BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(observationSource, Fixture.Registry),
+            "transactional", 2, 0);
         probe.Constructions.Should().BeEmpty();
         Fixture.RootConstructions.Should().Be(roots);
         host.Services.GetRequiredService<ITenantContextAccessor>().Current.Should().BeSameAs(original);
@@ -166,6 +183,16 @@ public sealed partial class BackgroundJobAdmissionTests(SchemaFixture schema)
             services.RemoveAll<IEntitlementProvider>();
             services.AddSingleton<IEntitlementProvider>(new CapacityEntitlementProvider(0));
         });
+        await using var observationSource = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
+        var observation = await BackgroundJobObservationQueries.ReadAsync(observationSource,
+            host.Services.GetRequiredService<BackgroundJobDefinitionRegistry>());
+        BackgroundJobObservationQueries.AssertQueue(observation, "transactional", 1, reason is "capacity" or "generation" ? 1 : 0);
+        var deferred = observation.Points.Where(point => point.Family == BackgroundJobObservationFamily.Deferred);
+        if (reason is "unknown" or "pending" or "profile_mismatch")
+            deferred.Should().ContainSingle().Which.Should().Be(new BackgroundJobObservationPoint(
+                BackgroundJobObservationFamily.Deferred, "job", reason switch
+                { "unknown" => 1, "pending" => 3, "profile_mismatch" => 4, _ => throw new InvalidOperationException() }, 1, 0, 0));
+        else deferred.Should().BeEmpty();
         var claim = await host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>()
             .TryClaimAsync(job, reason == "generation" ? 2 : 1);
         if (reason == "capacity")

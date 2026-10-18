@@ -1,5 +1,6 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
+using System.Text.Json;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -22,27 +23,43 @@ public sealed partial class BackgroundJobControlTests
                     FROM chosen WHERE j.id=chosen.id
                     """);
             await SchemaQueries.ExecuteAsync(owner, null, "ANALYZE background_jobs");
-            var clean = PlanNodes(await ExplainControlAsync((Npgsql.NpgsqlConnection)dispatcher,
-                PostgresBackgroundJobControlStore.QuarantinePresenceSql));
-            clean.Where(node => node.TryGetProperty("Index Name", out _))
-                .Select(node => node.GetProperty("Index Name").GetString()).Should().Contain("ix_background_jobs_quarantined");
-            Removed(clean).Should().BeLessThan(100);
+            var clean = PlanNodes(await BackgroundJobObservationQueries.ExplainAsync((Npgsql.NpgsqlConnection)dispatcher,
+                BackgroundJobObservationQueries.Manifest(Fixture.Registry)));
+            AssertJobQuarantinePlan(clean);
             if (quarantines == 0)
             {
                 await SchemaQueries.ExecuteAsync(owner, null, "DROP INDEX ix_background_jobs_quarantined");
                 try
                 {
-                    var dirty = PlanNodes(await ExplainControlAsync((Npgsql.NpgsqlConnection)dispatcher,
-                        PostgresBackgroundJobControlStore.QuarantinePresenceSql));
-                    Removed(dirty).Should().BeGreaterThanOrEqualTo(6_000,
-                        "the same actual-query detector must expose an empty-observation backlog scan without the index");
+                    var dirty = PlanNodes(await BackgroundJobObservationQueries.ExplainAsync((Npgsql.NpgsqlConnection)dispatcher,
+                        BackgroundJobObservationQueries.Manifest(Fixture.Registry)));
+                    Action sameDetector = () => AssertJobQuarantinePlan(dirty);
+                    sameDetector.Should().Throw<Xunit.Sdk.XunitException>();
+                    Removed(dirty.Where(IsJobQuarantineScan)).Should().BeGreaterThanOrEqualTo(6_000,
+                        "the actual aggregate's quarantine arm must expose its backlog scan without the index");
                 }
                 finally
                 {
                     await SchemaQueries.ExecuteAsync(owner, null,
                         "CREATE INDEX ix_background_jobs_quarantined ON background_jobs(id) WHERE phase='quarantined'");
                 }
+                AssertJobQuarantinePlan(PlanNodes(await BackgroundJobObservationQueries.ExplainAsync((Npgsql.NpgsqlConnection)dispatcher,
+                    BackgroundJobObservationQueries.Manifest(Fixture.Registry))));
             }
         }
     }
+
+    private static void AssertJobQuarantinePlan(IEnumerable<JsonElement> nodes)
+    {
+        var scans = nodes.Where(IsJobQuarantineScan).ToArray();
+        scans.Where(node => node.TryGetProperty("Index Name", out _))
+            .Select(node => node.GetProperty("Index Name").GetString()).Should().Contain("ix_background_jobs_quarantined");
+        Removed(scans).Should().BeLessThan(100,
+            "this bounds the quarantine arm, not the separate exact live-backlog aggregate");
+    }
+
+    private static bool IsJobQuarantineScan(JsonElement node) =>
+        node.TryGetProperty("Relation Name", out var relation) && relation.GetString() == "background_jobs"
+        && (node.TryGetProperty("Index Name", out var index) && index.GetString() == "ix_background_jobs_quarantined"
+            || node.TryGetProperty("Filter", out var filter) && filter.GetString()!.Contains("'quarantined'", StringComparison.Ordinal));
 }

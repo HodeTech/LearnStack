@@ -7963,6 +7963,66 @@ pending, together with full job observation, nineteen-rule enforcement and both
 full Step 9 review rounds. No catalogue promotion or packet completion follows
 from this focused slice.
 
+#### Durable observation foundation qualification
+
+The existing serialized status-read owner now publishes one complete immutable
+aggregate after acknowledged rollback and actual resource cleanup. Frozen local
+metadata classifies unresolved jobs, relevant historical recurrence manifests,
+unfinished occurrences/recipients and unreleased reservations. The dispatcher
+reads no payload or causal envelope and receives no new grants, source, task or
+physical acquisition slot. Four independent indexed quarantine aggregates remain
+in the same statement. A failed or stale refresh retains the prior sample and
+cannot report healthy empty work.
+
+Cold native-runtime controls use genuinely empty definition and recurrence
+registries. Four isolated fixtures retain future jobs/manifests or future retry
+availability on unfinished children, without deployment-error markers. Completed
+or fully superseded parents cannot mask a missing child aggregate. Each real
+runtime reaches an otherwise healthy snapshot; only the copied deferred bit
+changes its health result. Observation leaves the durable records untouched and
+constructs no feature handler.
+
+The actual SQL hash CTE agrees with the independent .NET registry fingerprint
+for thirty-six schedule/policy/date combinations, including microsecond limits,
+unequal activation/anchor atoms, pre-epoch instants and maximum positive revision.
+Two additional revisions prove discovery of frozen history needed only by an
+actual pending occurrence. Diagnostic projections retain all production CTEs and
+bindings and run under two session timezone/display formats. Epoch-offset,
+repeated-anchor, omitted-history and removed-date-bound mutants fail their same
+assertions. The unmodified full reader also accepts the valid population.
+
+An intermediate fourteen-case cohort passes eleven cases and fails three new
+test assertions that incorrectly require a nonempty business queue in control-only
+fixtures. Explicit empty-queue versus single-job assertions correct that test
+error. The final 348-source snapshot passes a CI Release build with zero
+warnings/errors and all twenty-three selected PostgreSQL cases, with no failures
+or skips. This includes real rollback-response hold/loss, refresh grant refusal,
+last-sample preservation and actual-query partial-index removal controls. Its
+source/artifact receipt is
+`606e8b2a5945cec409c20f23d7c1c25f0ae8d0cb74d0a920848bfc336d1f951a`.
+Paired assertions in existing real admission, recovery, capacity and external
+checkpoint tests qualify status eligibility against actual stored transitions.
+They distinguish future original due time, retry availability, live/expired
+routing, execution ownership, actual retained identities, unknown/Pending/retired
+definitions and profile mismatch. Unreleased reservations remain counted after
+expiry under their declared group or fixed unknown label. Repeatable/no-start
+history admits real Normal routing after the proved backoff; selected outcomes
+admit real Finalize routing independently of the six-normal-attempt ceiling.
+These guarded state pairs do not claim independent removal tests for every
+redundant storage defense.
+
+The final eligibility cohort passes fifty-two PostgreSQL and sixteen model/health
+cases with zero failures/skips after a zero-warning/error CI Release build. Its
+348-source/artifact receipt is
+`af8b73b5899ffa0136cc0cdcd942d6cb5a003c904456be321043b760dcca7e80`.
+The six production files remain byte-identical to the focused source inspection
+and earlier three passing Architecture owner baselines. Focused inspections close
+three hash-fixture proof gaps; none supplies a full Step 9 review round.
+
+Complete metric emission, nineteen-rule enforcement, full regression/CI duration
+and both full Step 9 reviews remain in progress. No catalogue promotion or packet
+closeout is claimed by this slice.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

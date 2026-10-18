@@ -13,7 +13,11 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
 {
     public bool? HasQuarantinedJobs { get; init; }
     public bool? HasQuarantinedControl { get; init; }
-    public bool QuarantineObservationHealthy { get; init; }
+    public bool? HasDeferredWork { get; init; }
+    public bool ObservationHealthy { get; init; }
+    public BackgroundJobDurableObservation? Observation { get; init; }
+    public long? ObservationTimestamp { get; init; }
+    public bool ObservationFailed { get; init; }
     public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
 }
 
@@ -32,6 +36,7 @@ internal sealed partial class BackgroundJobControl
     private readonly BackgroundJobRuntimeGate _gate;
     private readonly BackgroundJobRuntimeOptions _bounds;
     private readonly TimeProvider _time;
+    private readonly BackgroundJobObservationManifest _observationManifest;
     private readonly CancellationTokenSource _stop = new();
     private readonly TaskCompletionSource _stopRequested = Signal();
     private readonly TaskCompletionSource<Task[]> _loopsPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -63,7 +68,9 @@ internal sealed partial class BackgroundJobControl
         _gate = gate;
         _bounds = bounds;
         _time = time;
-        _recurrence = new(source, definitions, recurrences ?? BackgroundJobRecurrenceRegistry.CreateEmpty(),
+        var recurrenceRegistry = recurrences ?? BackgroundJobRecurrenceRegistry.CreateEmpty();
+        _observationManifest = BackgroundJobObservationManifest.Create(definitions, recurrenceRegistry);
+        _recurrence = new(source, definitions, recurrenceRegistry,
             projection, executor, gate, bounds, ids, time);
         _completion = new(this, TaskCreationOptions.RunContinuationsAsynchronously);
         _stopRelay = RelayStopAsync();
@@ -86,9 +93,13 @@ internal sealed partial class BackgroundJobControl
                         && (_terminalNoStart?.Healthy ?? true) && Fresh(_terminalProgress), Completion.IsCompletedSuccessfully,
                     _renewals, _retries, _terminalized, _unknown)
                 {
-                    HasQuarantinedJobs = _quarantinePresence,
-                    HasQuarantinedControl = _controlQuarantinePresence,
-                    QuarantineObservationHealthy = QuarantineObservationHealthy(),
+                    HasQuarantinedJobs = _observation?.HasQuarantinedJobs,
+                    HasQuarantinedControl = _observation?.HasQuarantinedControl,
+                    HasDeferredWork = _observation?.HasDeferredWork,
+                    ObservationHealthy = ObservationHealthy(),
+                    Observation = _observation,
+                    ObservationTimestamp = _observationObservedAt,
+                    ObservationFailed = _observationFault,
                     Recurrence = _recurrence.Snapshot,
                 };
         }
@@ -356,7 +367,7 @@ internal sealed partial class BackgroundJobControl
         {
             try
             {
-                if (QuarantineReadDue() && !await RefreshQuarantineAsync().ConfigureAwait(false)) return;
+                if (ObservationReadDue() && !await RefreshObservationAsync().ConfigureAwait(false)) return;
                 CompletionRequest? request;
                 lock (_sync) request = outcomeTurn ? _requests.FirstOrDefault(item => _time.GetTimestamp() >= item.Due) : null;
                 outcomeTurn = !outcomeTurn;

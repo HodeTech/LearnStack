@@ -120,12 +120,16 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         if (committed)
         {
             proof.Value.Confirmation!.Matches(result.Outcome).Should().BeTrue();
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry),
+                "external", 1, 1);
             await using var finalHost = Fixture.Host(database, new BackgroundJobFixtureProbe());
             var claim = await FixtureClaim.ClaimAsync(database, job);
             var final = await finalHost.Services.GetRequiredService<JobExecutor>().ExecuteAsync(claim, BackgroundJobTestRun.Create());
             final.Receipt.Should().NotBeNull();
             final.Receipt!.AttemptId.Should().NotBe(original.AttemptId);
             final.Receipt.SelectedNormalAttemptId.Should().Be(original.AttemptId);
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry),
+                "external", 1, 0);
             var advanced = await store.ProbeExternalCheckpointAsync(origin, CancellationToken.None);
             advanced.ThrowIfFailed();
             advanced.Value!.Disposition.Should().Be(BackgroundJobCheckpointHistoryDisposition.Committed,

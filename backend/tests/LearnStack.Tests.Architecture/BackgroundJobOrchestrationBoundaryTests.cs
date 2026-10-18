@@ -164,7 +164,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         Field(OrchestrationControl, "_executions", true, [".ctor", "CanRoute", "RelayStopAsync", "Release", "RetainedIds", "RunRenewalAsync", "TryBegin", "TryBeginExternalStatus", "TryBeginRecovery", "get_Snapshot"]);
         Field(OrchestrationControl, "_requests", true, [".ctor", "Enqueue", "FinishRequest", "RelayStopAsync", "RetainedIds", "RunControlAsync", "get_Snapshot"]);
-        Field(OrchestrationControl, "_stop", true, [".ctor", "AdvanceTerminalNoStartAsync", "ObserveCompletionAsync", "PauseAsync", "ProbePendingAsync", "ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshQuarantineAsync", "RelayStopAsync", "RunControlAsync", "RunRenewalAsync", "RunTerminalAsync", "TryBeginExternalStatus"]);
+        Field(OrchestrationControl, "_stop", true, [".ctor", "AdvanceTerminalNoStartAsync", "ObserveCompletionAsync", "PauseAsync", "ProbePendingAsync", "ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshObservationAsync", "RelayStopAsync", "RunControlAsync", "RunRenewalAsync", "RunTerminalAsync", "TryBeginExternalStatus"]);
         Field(OrchestrationControl, "_stopRequested", true, [".ctor", "RelayStopAsync", "RequestStop"]);
         Field(OrchestrationControl, "_loopsPublished", true, [".ctor", "ObserveCompletionAsync", "RequestStop", "Start"]);
         Field(OrchestrationControl, "_completion", true, [".ctor", "ObserveCompletionAsync", "get_Completion"]);
@@ -172,7 +172,7 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationControl, "_completionObservation", true, [".ctor"]);
         Field(OrchestrationControl, "_renewalOperation", false, ["RunRenewalAsync"]);
         Field(OrchestrationControl, "_renewalFlight", false, ["RunRenewalAsync"]);
-        Field(OrchestrationControl, "_controlOperation", false, ["ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshQuarantineAsync", "RetainedIds", "RunControlAsync"]);
+        Field(OrchestrationControl, "_controlOperation", false, ["ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync", "RefreshObservationAsync", "RetainedIds", "RunControlAsync"]);
         Field(OrchestrationControl, "_terminalOperation", false, ["RetainedIds", "RunTerminalAsync"]);
         Field(OrchestrationControl, "_controlProbe", false, ["ProbePendingAsync", "ProcessCapacityRequestAsync", "ProcessFinalizerRequestAsync", "ProcessNoPlanTerminalRequestAsync", "ProcessRequestAsync"]);
         Field(OrchestrationControl, "_terminalProbe", false, ["ProbePendingAsync"]);

@@ -98,7 +98,11 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
                 await DispatchAsync(database, "UPDATE background_jobs SET available_after=clock_timestamp() WHERE id=@id", ("id", job.Value));
             }
             var route = (await routing.TryClaimAsync(job, generation))!;
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry),
+                "transactional", priorStart ? 2 : 1, 0);
             await DispatchAsync(database, "UPDATE background_jobs SET ownership_until=clock_timestamp()-interval '1 microsecond' WHERE id=@id", ("id", job.Value));
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry),
+                "transactional", priorStart ? 2 : 1, 1);
             var recovery = await control.RunRecoveryQuantumAsync(BackgroundJobControlLane.Recovery, []);
             recovery.ThrowIfFailed();
             recovery.Value.Should().Contain(change => change.JobId == job.Value && change.WakeGeneration == generation && change.Phase == "pending");
@@ -123,6 +127,14 @@ public sealed partial class BackgroundJobControlTests(SchemaFixture schema)
         var pending = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString, BackgroundJobRuntimeFixture.PendingKey);
         await using var source = Source(database.OutboxConnectionString);
         var registry = BackgroundJobDefinitionRegistry.Create([], BackgroundJobFrameworkRequests.All, [], [retired]);
+        var sample = await BackgroundJobObservationQueries.ReadAsync(source, registry);
+        BackgroundJobObservationQueries.AssertQueue(sample, "transactional", 3, 0);
+        sample.Points.Where(point => point.Family == BackgroundJobObservationFamily.Deferred).Should().BeEquivalentTo(
+            new[]
+            {
+                new BackgroundJobObservationPoint(BackgroundJobObservationFamily.Deferred, "job", 1, 2, 0, 0),
+                new BackgroundJobObservationPoint(BackgroundJobObservationFamily.Deferred, "job", 2, 1, 0, 0),
+            });
         var result = await Control(source, registry).RunRecoveryQuantumAsync(BackgroundJobControlLane.Retirement, []);
         result.ThrowIfFailed();
         result.Value.Should().ContainSingle(change => change.JobId == retiredJob.Value && change.TerminalReason == "retired_definition");

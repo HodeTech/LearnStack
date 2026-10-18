@@ -122,9 +122,10 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     }
 
     private static BackgroundJobRuntime RecurrenceRuntime(IServiceProvider services, PrivilegedDataSource source,
-        BackgroundJobRecurrenceRegistry recurrences, BackgroundJobRuntimeOptions bounds)
+        BackgroundJobRecurrenceRegistry recurrences, BackgroundJobRuntimeOptions bounds,
+        BackgroundJobDefinitionRegistry? definitions = null)
     {
-        var definitions = Fixture.Definitions();
+        definitions ??= Fixture.Definitions();
         var gate = new BackgroundJobRuntimeGate(definitions.Infrastructure);
         var ids = new SystemGuidFactory();
         var routing = new PostgresBackgroundJobRoutingStore(source, definitions, bounds, ids, gate);

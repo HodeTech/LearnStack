@@ -68,6 +68,23 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         proof.Value!.Disposition.Should().Be(BackgroundJobProbeDisposition.ControlCommitted);
         proof.Value.RecoveryReceipt.Should().BeNull();
         proof.Value.CurrentRecoveryAuthority.Should().BeFalse();
+        if (ordinal == 5)
+        {
+            var waiting = await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry);
+            BackgroundJobObservationQueries.AssertQueue(waiting, "external", 1, 0);
+            waiting.Points.Should().NotContain(point => point.Family == BackgroundJobObservationFamily.ReservedCapacity);
+            // The one-hour fifth backoff is already proved above. Advance only
+            // test eligibility, preserving every actual history and release fact.
+            await using (var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString))
+                await SchemaQueries.ExecuteAsync(dispatcher, null,
+                    "UPDATE background_jobs SET available_after=clock_timestamp() WHERE id=@id", ("id", job.Value));
+            BackgroundJobObservationQueries.AssertQueue(await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry),
+                "external", 1, 1);
+            var routing = new PostgresBackgroundJobRoutingStore(source, Fixture.Registry, new(), new SystemGuidFactory(), runtime);
+            var claim = await routing.TryClaimAsync(job, changed.Value!.WakeGeneration);
+            claim.Should().NotBeNull("the counted eligible row is genuinely normal-routable after repeatable outcome or positive no-start history");
+            claim!.LedgerStage.Should().Be(BackgroundJobLedgerStage.Normal);
+        }
         normal.Run.Close();
     }
 
@@ -205,6 +222,22 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
         result.Probes.Should().BeEmpty();
         (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job)).Should().Be(before);
         (await RetainedSelectionFactsAsync(database, normal)).Should().Be(facts);
+        var sample = await BackgroundJobObservationQueries.ReadAsync(source, Fixture.Registry);
+        BackgroundJobObservationQueries.AssertQueue(sample, "external", 1,
+            mode is "succeeded" or "permanent" or "not_repeatable" ? 1 : 0);
+        var reservations = sample.Points.Where(point => point.Family == BackgroundJobObservationFamily.ReservedCapacity);
+        if (mode is "absent" or "intent_only")
+            reservations.Should().ContainSingle().Which.Should().Be(new BackgroundJobObservationPoint(
+                BackgroundJobObservationFamily.ReservedCapacity, BackgroundJobRuntimeFixture.CapacityGroup, 0, 1, 0, 0));
+        else reservations.Should().BeEmpty();
+        var routing = new PostgresBackgroundJobRoutingStore(source, Fixture.Registry, new(), new SystemGuidFactory(), runtime);
+        var claim = await routing.TryClaimAsync(job, await RecoveryGenerationAsync(database, job));
+        if (mode is "succeeded" or "permanent" or "not_repeatable")
+        {
+            claim.Should().NotBeNull("these outcomes selected Finalize, independently of normal-retry refusal");
+            claim!.LedgerStage.Should().Be(BackgroundJobLedgerStage.Finalize);
+        }
+        else claim.Should().BeNull();
         normal.Run.Close();
     }
 

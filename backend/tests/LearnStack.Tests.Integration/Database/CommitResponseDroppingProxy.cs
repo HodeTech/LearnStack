@@ -270,7 +270,7 @@ internal sealed class CommitResponseDroppingProxy : IAsyncDisposable
                     && Interlocked.CompareExchange(ref _observeCheckpointLock, 2, 1) == 1)
                     emptyCheckpointReadCompleted = true;
             }
-            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("has_quarantined_jobs\0"u8) >= 0)
+            if (header[0] == (byte)'T' && body.AsSpan().IndexOf("observation_family\0"u8) >= 0)
             {
                 quarantineRead = true;
                 Interlocked.Increment(ref _quarantineReads);

@@ -15,7 +15,7 @@ public sealed partial class BackgroundJobControlTests
         await using var database = await DatabaseAsync();
         await using var source = Source(database.OutboxConnectionString);
         var store = Control(source);
-        var empty = await store.ReadQuarantinePresenceAsync();
+        var empty = await store.ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Registry), []);
         empty.ThrowIfFailed();
         empty.CleanupConfirmed.Should().BeTrue();
         empty.Value!.HasQuarantinedJobs.Should().BeFalse();
@@ -27,7 +27,7 @@ public sealed partial class BackgroundJobControlTests
         // A guarded status fixture, not an external execution/quiescence proof.
         await DispatchAsync(database, "UPDATE background_jobs SET phase='quarantined', quarantine_reason='unknown_outcome' WHERE id=@id",
             ("id", job.Value));
-        var present = await store.ReadQuarantinePresenceAsync();
+        var present = await store.ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Registry), []);
         present.ThrowIfFailed();
         present.CleanupConfirmed.Should().BeTrue();
         present.Value!.HasQuarantinedJobs.Should().BeTrue();
@@ -47,7 +47,7 @@ public sealed partial class BackgroundJobControlTests
         await using var source = Source(proxy.ConnectionString);
         var store = Control(source);
         proxy.HoldNextQuarantineRollbackResponse(loseResponse: false);
-        var read = store.ReadQuarantinePresenceAsync();
+        var read = store.ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Registry), []);
         try
         {
             await proxy.QuarantineRollbackHeld.WaitAsync(TimeSpan.FromSeconds(10));
@@ -74,7 +74,7 @@ public sealed partial class BackgroundJobControlTests
             commitsToPass: int.MaxValue, lifetime: TimeSpan.FromSeconds(30));
         await using var source = Source(proxy.ConnectionString);
         proxy.HoldNextQuarantineRollbackResponse(loseResponse: true);
-        var read = Control(source).ReadQuarantinePresenceAsync();
+        var read = Control(source).ReadDurableObservationAsync(BackgroundJobObservationQueries.Manifest(Fixture.Registry), []);
         try { await proxy.QuarantineRollbackHeld.WaitAsync(TimeSpan.FromSeconds(10)); }
         finally
         {
@@ -101,7 +101,7 @@ public sealed partial class BackgroundJobControlTests
         control.Start();
         try
         {
-            await WaitQuarantineHealthAsync(() => control.Snapshot.QuarantineObservationHealthy);
+            await WaitQuarantineHealthAsync(() => control.Snapshot.ObservationHealthy);
             control.Snapshot.HasQuarantinedJobs.Should().BeFalse();
             proxy.HoldNextQuarantineRollbackResponse(loseResponse: false);
             await proxy.QuarantineRollbackHeld.WaitAsync(TimeSpan.FromSeconds(10));
@@ -131,12 +131,12 @@ public sealed partial class BackgroundJobControlTests
         await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         try
         {
-            await WaitQuarantineHealthAsync(() => control.Snapshot.QuarantineObservationHealthy);
+            await WaitQuarantineHealthAsync(() => control.Snapshot.ObservationHealthy);
             await SchemaQueries.ExecuteAsync(owner, null, "REVOKE SELECT (phase) ON background_jobs FROM learnstack_outbox_admin");
-            await WaitQuarantineHealthAsync(() => !control.Snapshot.QuarantineObservationHealthy);
+            await WaitQuarantineHealthAsync(() => !control.Snapshot.ObservationHealthy);
             control.Snapshot.HasQuarantinedJobs.Should().BeFalse("failure must preserve the last good value, not invent a new sample");
             await SchemaQueries.ExecuteAsync(owner, null, "GRANT SELECT (phase) ON background_jobs TO learnstack_outbox_admin");
-            await WaitQuarantineHealthAsync(() => control.Snapshot.QuarantineObservationHealthy);
+            await WaitQuarantineHealthAsync(() => control.Snapshot.ObservationHealthy);
             control.Snapshot.HasQuarantinedJobs.Should().BeFalse();
         }
         finally
