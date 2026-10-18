@@ -196,6 +196,28 @@ public sealed partial class OutboxDispatchConventionTests
         }
         CheckSet(offenders, "actual nonempty synchronous job instrument metadata", stages,
             JobStageInstrumentInventory.Select(item => item.Name + ":" + item.Factory + ":" + item.Numeric + ":" + item.Unit + ":" + item.Field));
+        if (types.TryGetValue((InfrastructureAssembly, OrchestrationControl), out var control))
+        {
+            foreach (var (name, visibility, parameters) in new (string, MethodAttributes, string[])[]
+                     {
+                         ("ObserveExternalRetry", MethodAttributes.Assembly, []),
+                         ("ObserveRequestRetry", MethodAttributes.Private, [OrchestrationRequest]),
+                         ("ObserveRequestHistory", MethodAttributes.Private, [OrchestrationRequest,
+                             "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe",
+                             "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobControl`1<LearnStack.Infrastructure.Jobs.BackgroundJobProbeResult>"]),
+                     })
+            {
+                var id = RequireBoundaryMethod(offenders, control, name, "System.Void", visibility, parameters);
+                roots.AddRange(control.Methods.Where(method => MethodId(method) == id));
+            }
+            var predicate = control.Methods.Where(method => method.Name == "IsRetryTransition").ToArray();
+            if (predicate is not [{ IsPrivate: true, IsStatic: true, HasGenericParameters: false } test]
+                || test.ReturnType.FullName != "System.Boolean"
+                || !ParametersMatch(test, ["LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe"]))
+                offenders.Add("The retry observation predicate requires its one private static finite signature");
+            else roots.Add(test);
+        }
+        else offenders.Add("Missing actual control counter memory owner");
         return roots;
     }
 
@@ -248,7 +270,7 @@ public sealed partial class OutboxDispatchConventionTests
         var ignored = new SortedSet<string>(StringComparer.Ordinal);
         var roots = JobMetricRoots(census, ignored);
         ignored.Should().BeEmpty();
-        roots.Should().HaveCount(5);
+        roots.Should().HaveCount(9, "five actual collectors and four fixed-memory control recorders/predicates are independently reached");
         var root = roots.Single(method => method.Name == "CollectCounts");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var helper = AddProbe(application, "MetricMemoryHelper");
@@ -273,6 +295,19 @@ public sealed partial class OutboxDispatchConventionTests
             }
             finally { memory.Body.Instructions.Remove(indirect); }
             EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+            foreach (var recorder in roots.Where(method => method.DeclaringType.FullName == OrchestrationControl))
+            {
+                var recorderCall = Instruction.Create(OpCodes.Call, recorder.Module.ImportReference(sql));
+                recorder.Body.Instructions.Insert(0, recorderCall);
+                try
+                {
+                    EvaluateDetector(census, RuntimeLifetimeOffenders).Should().Contain(value =>
+                        value.Contains("jobs metrics observation reaches persistence/provider activation", StringComparison.Ordinal),
+                        "each permitted counter helper must reject transitive SQL independently: {0}", recorder.Name);
+                }
+                finally { recorder.Body.Instructions.Remove(recorderCall); }
+                EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();
+            }
         }
         finally { root.Body.Instructions.Remove(call); application.Types.Remove(helper); }
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty();

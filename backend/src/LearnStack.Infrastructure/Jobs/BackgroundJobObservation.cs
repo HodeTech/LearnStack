@@ -163,6 +163,7 @@ public sealed partial class BackgroundJobObservation : IDisposable
         if (snapshot.Control is { } control)
         {
             Add(control.Renewals, "renewal_acknowledged");
+            Add(control.RenewalsConfirmed, "renewal_history_confirmed");
             Add(control.Retries, "retry_confirmed");
             Add(control.Terminalized, "terminal_confirmed");
             Add(control.UnknownOutcomes, "uncertainty_observation");

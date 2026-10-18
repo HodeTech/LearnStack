@@ -78,6 +78,17 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(OrchestrationControl, "RequestStop", [(JobRuntime, "RequestStop"), (JobRuntime, "JoinOwnersAsync")]);
         Exact(OrchestrationControl, "FinishAdmissionAsync", [(OrchestrationBound, "RunFrameworkAsync")]);
         Exact(OrchestrationControl, "FinishBusinessAsync", [(OrchestrationBound, "RunFrameworkAsync")]);
+        Exact(OrchestrationControl, "ObserveExternalRetry", [(OrchestrationExecution, "RetryExternalKnownAsync"),
+            (OrchestrationExecution, "RetryExternalKnownAsync")]);
+        Exact(OrchestrationControl, "ObserveRequestRetry", [(OrchestrationControl, "ProcessRequestAsync"),
+            (OrchestrationControl, "ProcessFinalizerRequestAsync"), (OrchestrationControl, "ProcessCapacityRequestAsync"),
+            (OrchestrationControl, "ObserveRequestHistory")]);
+        Exact(OrchestrationControl, "ObserveRequestHistory", [(OrchestrationControl, "ProcessRequestAsync"),
+            (OrchestrationControl, "ProcessFinalizerRequestAsync"), (OrchestrationControl, "ProcessCapacityRequestAsync")]);
+        Exact(OrchestrationControl, "IsRetryTransition", [(OrchestrationControl, "RunControlAsync"),
+            (OrchestrationControl, "ObserveRequestHistory"), (OrchestrationControl, "ProbePendingAsync")]);
+        Exact(OrchestrationRequest, "get_RetryObserved", [(OrchestrationControl, "ObserveRequestRetry")]);
+        Exact(OrchestrationRequest, "set_RetryObserved", [(OrchestrationControl, "ObserveRequestRetry")]);
         Exact(OrchestrationControl, "ScheduleLoops", [(OrchestrationControl, "Start"), (OrchestrationControl, "Start")]);
         foreach (var name in new[] { "RunRenewalAsync", "RunControlAsync", "RunTerminalAsync" })
             Exact(OrchestrationControl, name, [(OrchestrationControl, "ScheduleLoops")]);
@@ -180,7 +191,7 @@ public sealed partial class OutboxDispatchConventionTests
         Field(OrchestrationControl, "_pendingTerminal", false, ["ProbePendingAsync", "QualifyTerminalAsync", "RetainedIds", "RunTerminalAsync", "get_Snapshot"]);
         Field(OrchestrationControl, "_terminalActivity", false, ["RunTerminalAsync"]);
         Field(OrchestrationControl, "_cancellation", false, ["RelayStopAsync"]);
-        Field(OrchestrationExecution, "_owner", true, [".ctor", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "ReleaseAfterPrivateCleanup", "RequestNoPlanTerminalAfterPrepareAsync"]);
+        Field(OrchestrationExecution, "_owner", true, [".ctor", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "ReleaseAfterPrivateCleanup", "RequestNoPlanTerminalAfterPrepareAsync", "RetryExternalKnownAsync"]);
         Field(OrchestrationExecution, "_work", true, [".ctor", "CloseExecution", "ExecuteExternalNormalAsync", "ExecuteExternalRecoveryAsync", "FinishExternalFinalizeAsync", "FinishUnresolvedExternalAsync", "LeaseElapsed", "RecordRenewal", "RequestNoPlanTerminalAfterPrepareAsync", "RequestNoPlanTerminalAsync", "RetryExternalKnownAsync", "StartRecoveryLease", "get_Token"]);
         Field(OrchestrationExecution, "_deadlineStop", true, [".ctor", "JoinBusinessObserversCoreAsync", "ObserveDeadlineAsync"]);
         Field(OrchestrationExecution, "_publicationObservation", true, [".ctor", "JoinBusinessObserversCoreAsync", "WaitForPublicationAsync"]);
@@ -507,7 +518,7 @@ public sealed partial class OutboxDispatchConventionTests
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var guarded = new Dictionary<string, string[]>
         {
-            [OrchestrationControl] = [".ctor", "TryBegin", "Release", "Start", "RequestStop", "FinishAdmissionAsync", "FinishBusinessAsync", "RunRenewalAsync", "RunControlAsync", "RunTerminalAsync"],
+            [OrchestrationControl] = [".ctor", "TryBegin", "Release", "Start", "RequestStop", "FinishAdmissionAsync", "FinishBusinessAsync", "RunRenewalAsync", "RunControlAsync", "RunTerminalAsync", "ObserveExternalRetry", "ObserveRequestRetry", "ObserveRequestHistory", "IsRetryTransition"],
             [OrchestrationExecution] = [".ctor", "HoldAdmission", "HoldBusiness", "HoldCapacityCheckpoint", "JoinAsync", "JoinBusinessObserversAsync", "JoinBusinessObserversCoreAsync", "ReleaseAfterPrivateCleanup", "ObservePublicationAsync", "ObserveDeadlineAsync", "RecordRenewal", "RefuseRenewal", "CloseExecution", "LeaseElapsed"],
             [OrchestrationRenewal] = [".ctor", "Start", "Schedule", "ObserveWaitAsync"],
             [OrchestrationIdentity] = [".ctor", "FromReceipt"],

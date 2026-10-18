@@ -241,13 +241,20 @@ internal sealed partial class BackgroundJobExecutionControl
         if (_externalRetry is not null) throw new InvalidOperationException("One native invocation owns one known retry disposition.");
         _externalRetry = store.RetryKnownExternalAsync(identity, mode, Token);
         var result = await _externalRetry.ConfigureAwait(false);
+        if (result.CommitAcknowledged && result.Value is { Phase: "pending" }) _owner.ObserveExternalRetry();
         if (!result.CleanupConfirmed) return false;
         if (!result.CommitUncertain || result.Probes.Count != 1 || Token.IsCancellationRequested
             || !_work.BeginStageWait(BackgroundJobInvocationStage.RecoveryConfirmation)) return true;
         // This is read-only historical confirmation, never another scheduling
         // attempt or a new recovery/external permission. Keep both actual tasks.
-        _externalRetryProbe = store.ProbeCommitAsync(result.Probes.Single(), Token);
-        return (await _externalRetryProbe.ConfigureAwait(false)).CleanupConfirmed;
+        var origin = result.Probes.Single();
+        _externalRetryProbe = store.ProbeCommitAsync(origin, Token);
+        var history = await _externalRetryProbe.ConfigureAwait(false);
+        if (history.CleanupConfirmed && !history.Failed && origin.Boundary == BackgroundJobCommitBoundary.ExternalKnownRetry
+            && origin.ExpectedPhase == "pending" && history.Value is
+            { Disposition: BackgroundJobProbeDisposition.ControlCommitted, Phase: "pending" } confirmed
+            && confirmed.WakeGeneration == origin.ExpectedGeneration) _owner.ObserveExternalRetry();
+        return history.CleanupConfirmed;
     }
 
     private async Task<bool> FinishUnresolvedExternalAsync(PostgresBackgroundJobControlStore store,

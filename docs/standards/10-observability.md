@@ -374,11 +374,16 @@ unhealthy without changing the completed result or retrying notification. A
 blocked listener stays part of the actual owned task.
 
 Job control totals keep a fixed label per monotonic source: generation creation,
-shared maintenance invocations, bridge ACK/failure/deferral, renewal ACK,
+shared maintenance invocations, bridge ACK/failure/deferral, renewal ACK and
+separate locked-history renewal confirmation,
 confirmed retry/terminal transitions and uncertainty observations. A confirmed
 terminal total can include an exact locked-history receipt after lost ACK;
 it does not assert the original physical acknowledgement. These process
 observations are distinct from durable accounting and from business failures.
+Retry confirmation requires the original transition's expected next generation;
+same-generation routing repair and changed ownership do not count. Physical ACK
+accounting precedes cleanup refusal without granting execution or cleanup
+authority. The fixed counter recorders invoke no listener and perform no SQL.
 
 Cache `cache.name` is a governed, low-cardinality family from the Standards 20
 inventory (`hub:host-map`, `hub:entitlement`, `identity:permissions`,

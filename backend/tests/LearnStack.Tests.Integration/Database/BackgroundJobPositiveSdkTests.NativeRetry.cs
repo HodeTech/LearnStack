@@ -99,6 +99,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var first = captured!;
             var outcomeTask = (Task<JobExternalCheckpointResult>)NativeSdkField(first, "_externalOutcome");
             outcomeTask.IsCompleted.Should().BeFalse("the first actual writer/cleanup is still retained");
+            runtime.Snapshot.Control!.Retries.Should().Be(0);
             typeof(BackgroundJobExecutionControl).GetField("_externalRetry", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(first).Should().BeNull("no disposition source may start before the actual writer has cleaned");
             var known = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
@@ -134,6 +135,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             retry.CleanupConfirmed.Should().BeTrue();
             retry.CommitAcknowledged.Should().BeTrue();
             retry.Value!.WakeGeneration.Should().Be(first.Identity.WakeGeneration + 1);
+            runtime.Snapshot.Control!.Retries.Should().Be(1, "the actual completed retry disposition is counted once");
             var final = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!;
             final.NormalAttempts.Should().Be(2);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(3,
@@ -303,6 +305,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 || runtime.Snapshot.Control!.Executions != 0) await Task.Delay(20, completion.Token);
             var row = (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, normal.Envelope.JobId))!;
             row.NormalAttempts.Should().Be(terminalReason is null ? 2 : 1);
+            runtime.Snapshot.Control!.Retries.Should().Be(terminalReason is null ? 1 : 0);
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, normal.Envelope.JobId))
                 .Should().Be(terminalReason is null ? 3 : 2);
             construction.Calls.Should().Be(mode == "reconcile" && terminalReason is null ? 2 : 1,

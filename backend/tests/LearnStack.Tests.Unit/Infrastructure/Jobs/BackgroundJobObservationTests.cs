@@ -59,8 +59,17 @@ public sealed partial class BackgroundJobObservationTests
             new(BackgroundJobObservationFamily.FanoutPending, "unknown", 3, 3, 0, 0),
         ]));
         fixture.Time.Advance(TimeSpan.FromSeconds(10));
+        fixture.ObserveRenewals(acknowledged: 2, historyConfirmed: 3);
         using var probe = new Probe(fixture.Observer);
         var points = probe.Collect();
+        One(points, "learnstack_job_control_total", ("operation", "renewal_acknowledged"), ("pool", "none")).Should().Be(2);
+        One(points, "learnstack_job_control_total", ("operation", "renewal_history_confirmed"), ("pool", "none")).Should().Be(3);
+        points.Where(point => point.Instrument == "learnstack_job_control_total").Select(point => point.Tags["operation"])
+            .Distinct().Should().BeSubsetOf([
+                "generation", "expiration_invocation", "fetched_heartbeat_invocation", "bridge_acknowledged", "bridge_failed",
+                "bridge_deferred", "renewal_acknowledged", "renewal_history_confirmed", "retry_confirmed", "terminal_confirmed",
+                "uncertainty_observation",
+            ]);
         probe.Instruments.Order(StringComparer.Ordinal).Should().Equal(RequiredInstruments.Order(StringComparer.Ordinal));
         One(points, "learnstack_job_state_count", ("kind", "pending"), ("profile", "external")).Should().Be(4);
         One(points, "learnstack_job_state_count", ("kind", "deferred"), ("artifact", "job"), ("reason", "unknown")).Should().Be(2);
@@ -213,6 +222,11 @@ public sealed partial class BackgroundJobObservationTests
         {
             Set("_observation", BackgroundJobDurableObservation.Create(BackgroundJobDurableObservationTests.EmptyManifest(), points));
             Set("_observationObservedAt", Time.GetTimestamp());
+        }
+        internal void ObserveRenewals(long acknowledged, long historyConfirmed)
+        {
+            Set("_renewals", acknowledged);
+            Set("_renewalsConfirmed", historyConfirmed);
         }
         private void Set(string name, object value) => typeof(BackgroundJobControl)
             .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(_control, value);

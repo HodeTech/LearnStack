@@ -8176,6 +8176,45 @@ Complete control/lease/late-settlement accounting, nineteen-rule enforcement,
 whole regression and unchanged CI-budget qualification, and both full Step 9
 reviews still precede packet closeout.
 
+#### Control transition counter qualification
+
+Actual control owners retain physical renewal, retry and terminal observations
+even when subsequent cleanup refuses release. The original completion request
+counts its retry once; a clean locked probe can confirm that exact transition.
+Same-generation routing repair and changed ownership do not imply a retry.
+The external execution owner likewise distinguishes its actual retry ACK from
+its original locked confirmation. Renewal history has a separate fixed
+`renewal_history_confirmed` cell and never reopens the closed execution lease.
+No counter recorder creates a source, task, listener invocation or authority.
+
+The new actual-owner PostgreSQL theory covers ACK, lost ACK with a real blocked
+confirmation query, and a later real admission that changes the original owner.
+All three corrected cases pass. The existing nine native known-outcome/recovery
+cases additionally assert direct retry ACK totals. The initial new theory uses
+an invalid 25 ms polling bound and leaves its probe pacing at the 30 s default;
+those setup defects are corrected to the accepted 50 ms and 5 s bounds. Its
+initial three failures do not constitute counter-runtime failures. The first
+build also rejects a nonexistent test-row property, replaced by an independent
+database generation read.
+
+The final source census roots each of the three recorders and the finite retry
+predicate in the existing memory walk. Reached/unreached SQL helpers and clean
+restoration distinguish these paths; exact references and typed bookkeeping
+owners remain bounded. Real-listener projection uses distinct acknowledged and
+history-confirmed renewal values. Focused reviews grant no full Step 9 round.
+
+The final CI-mode Release build has zero warnings/errors. All 373 Jobs unit and
+six final Architecture cases pass with zero failures/skips. The three corrected
+owner cases and nine native PostgreSQL cases cover byte-identical production and
+PG fixture inputs; the final changes affect only four guard/unit files. The
+final 363-source receipt is
+`067bf593428c041bcbb0b0e1857c0c2e1c8a635f55b0bed3608eb6c6fd7362e8`.
+
+Broader post-ACK cleanup and finalizer/capacity/external retry-probe owner
+qualification, recurrence/bridge/lease/late accounting, nineteen-rule enforcement,
+whole regression and unchanged CI-budget qualification, and both full Step 9
+reviews remain open. No catalogue obligation is promoted by this slice.
+
 ### Durable outbox dispatch
 
 P02b-1 Steps 2/3 implement `IOutbox`, replace Packet 3's step-7 shell with

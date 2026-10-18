@@ -19,6 +19,7 @@ public sealed record BackgroundJobControlHealth(int Executions, int PendingOutco
     public long? ObservationTimestamp { get; init; }
     public bool ObservationFailed { get; init; }
     public long? RenewalTimestamp { get; init; }
+    public long RenewalsConfirmed { get; init; }
     public long? RecoveryTimestamp { get; init; }
     public long? TerminalTimestamp { get; init; }
     public BackgroundJobRecurrenceHealth? Recurrence { get; init; }
@@ -58,7 +59,7 @@ internal sealed partial class BackgroundJobControl
     private bool _started, _stopping, _cleanupFault, _renewalFault, _controlFault, _terminalFault;
     private bool _controlSealed;
     private long? _renewalProgress, _controlProgress, _terminalProgress;
-    private long _renewals, _retries, _terminalized, _unknown;
+    private long _renewals, _renewalsConfirmed, _retries, _terminalized, _unknown;
 
     internal BackgroundJobControl(PrivilegedDataSource source, BackgroundJobDefinitionRegistry definitions,
         JobExecutor executor, BackgroundJobRuntimeGate gate, BackgroundJobRuntimeOptions bounds,
@@ -104,6 +105,7 @@ internal sealed partial class BackgroundJobControl
                     ObservationTimestamp = _observationObservedAt,
                     ObservationFailed = _observationFault,
                     RenewalTimestamp = _renewalProgress,
+                    RenewalsConfirmed = _renewalsConfirmed,
                     RecoveryTimestamp = _controlProgress,
                     TerminalTimestamp = _terminalProgress,
                     Recurrence = _recurrence.Snapshot,
@@ -312,6 +314,10 @@ internal sealed partial class BackgroundJobControl
                     // A finite wait is not actual batch/connection cleanup. This
                     // lane issues nothing else until the original task returns.
                     _renewalOperation = await _renewalFlight.Completion.ConfigureAwait(false);
+                    // A later cleanup fault cannot withdraw the physical ACK.
+                    // It still prevents accepting these leases or releasing resources.
+                    if (_renewalOperation.CommitAcknowledged)
+                        lock (_sync) _renewals += _renewalOperation.Value?.Count ?? 0;
                     if (_renewalOperation.CommitAcknowledged && !_renewalOperation.Failed)
                     {
                         var rows = _renewalOperation.Value ?? [];
@@ -323,7 +329,6 @@ internal sealed partial class BackgroundJobControl
                         }
                         foreach (var execution in active)
                             if (!renewed.Contains(execution.Identity!) && !execution.LeaseWorkSettled) execution.RefuseRenewal();
-                        lock (_sync) _renewals += renewed.Count;
                     }
                     else
                     {
@@ -400,6 +405,8 @@ internal sealed partial class BackgroundJobControl
                         lane = (lane + 1) % Enum.GetValues<BackgroundJobControlLane>().Length;
                         var operation = await _store.RunRecoveryQuantumAsync(selected, RetainedIds(), _stop.Token).ConfigureAwait(false);
                         _controlOperation = operation;
+                        if (operation.CommitAcknowledged)
+                            lock (_sync) _retries += operation.Probes.Count(IsRetryTransition);
                         if (!await QualifyControlAsync(operation, retainPendingProbes: true).ConfigureAwait(false)) return;
                         _controlOperation = null;
                     }
@@ -443,6 +450,7 @@ internal sealed partial class BackgroundJobControl
                 _controlProbe = null;
                 return;
             }
+            ObserveRequestHistory(request, probe, _controlProbe);
             _controlProbe = null;
             if (request.Kind != RequestKind.Business || resolution.Disposition != BackgroundJobProbeDisposition.RolledBack)
             {
@@ -469,10 +477,10 @@ internal sealed partial class BackgroundJobControl
         {
             var operation = await _store.FinishKnownRollbackAsync(identity, decision, _stop.Token).ConfigureAwait(false);
             _controlOperation = operation;
+            if (operation.CommitAcknowledged && operation.Value is { Phase: "pending" }) ObserveRequestRetry(request);
             if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
             if (!RetainFailedRequest(request, operation))
             {
-                if (operation.Value is { Phase: "pending" }) lock (_sync) _retries++;
                 FinishRequest(request, true);
             }
         }
@@ -488,6 +496,7 @@ internal sealed partial class BackgroundJobControl
             if (!_controlProbe.CleanupConfirmed) { SealControl(); return; }
             var observation = _controlProbe;
             _controlProbe = null;
+            ObserveRequestHistory(request, probe, observation);
             if (observation.Failed || observation.Value is null
                 || observation.Value.Disposition is BackgroundJobProbeDisposition.Unresolved or BackgroundJobProbeDisposition.Missing)
             {
@@ -530,6 +539,7 @@ internal sealed partial class BackgroundJobControl
             return;
         }
         _controlOperation = operation;
+        if (operation.CommitAcknowledged && operation.Value is { Phase: "finalize_pending" }) ObserveRequestRetry(request);
         if (!await QualifyControlAsync(operation).ConfigureAwait(false)) return;
         if (operation.CommitUncertain && operation.Probes.Count != 1)
         {
@@ -539,7 +549,6 @@ internal sealed partial class BackgroundJobControl
         }
         if (!RetainFailedRequest(request, operation))
         {
-            if (operation.Value is { Phase: "finalize_pending" }) lock (_sync) _retries++;
             FinishRequest(request, true);
         }
         _controlOperation = null;
@@ -570,6 +579,7 @@ internal sealed partial class BackgroundJobControl
                 _controlProbe = null;
                 return;
             }
+            ObserveRequestHistory(request, probe, _controlProbe);
             _controlProbe = null;
             request.Probe = null;
             if (probe.Boundary == BackgroundJobCommitBoundary.Admission
@@ -691,12 +701,12 @@ internal sealed partial class BackgroundJobControl
         var decision = request.Decision!;
         var finished = await _store.FinishCapacityRecoveryAsync(request.Recovery, decision, _stop.Token).ConfigureAwait(false);
         _controlOperation = finished;
+        if (finished.CommitAcknowledged && finished.Value is { Phase: "pending" }) ObserveRequestRetry(request);
         if (!await QualifyControlAsync(finished).ConfigureAwait(false)) return;
         _controlOperation = null;
         if (RetainFailedRequest(request, finished)) return;
-        if (finished.Value is { } change)
+        if (finished.Value is not null)
         {
-            if (change.Phase == "pending") lock (_sync) _retries++;
             FinishRequest(request, true);
         }
         else
@@ -755,9 +765,9 @@ internal sealed partial class BackgroundJobControl
                     _terminalActivity.Start();
                     var operation = await _terminal.TryTerminalizeAsync(claim, _terminalActivity.Id!, _stop.Token).ConfigureAwait(false);
                     _terminalOperation = operation;
-                    if (!await QualifyTerminalAsync(operation).ConfigureAwait(false)) return;
                     if (operation.CommitAcknowledged && operation.Value is not null) lock (_sync) _terminalized++;
-                    else if (operation.KnownRollback && operation.Failed)
+                    if (!await QualifyTerminalAsync(operation).ConfigureAwait(false)) return;
+                    if (operation.KnownRollback && operation.Failed)
                     {
                         var backoff = await _terminal.BackoffKnownAuditRollbackAsync(claim, _stop.Token).ConfigureAwait(false);
                         _terminalOperation = backoff;
@@ -830,6 +840,8 @@ internal sealed partial class BackgroundJobControl
             else
             {
                 if (terminal && observed.Value.Disposition == BackgroundJobProbeDisposition.TerminalCompleted) _terminalized++;
+                if (!terminal && observed.Value.Disposition == BackgroundJobProbeDisposition.ControlCommitted
+                    && IsRetryTransition(probe)) _retries++;
                 cursor.Index++;
                 cursor.Due = _time.GetTimestamp();
                 if (cursor.Index == cursor.Probes.Count)
@@ -935,6 +947,37 @@ internal sealed partial class BackgroundJobControl
         request.Completion.TrySetResult(cleanup);
     }
 
+    private void ObserveRequestRetry(CompletionRequest request)
+    {
+        lock (_sync)
+        {
+            if (request.RetryObserved) return;
+            request.RetryObserved = true;
+            _retries++;
+        }
+    }
+
+    private void ObserveRequestHistory(CompletionRequest request, BackgroundJobCommitProbe probe,
+        OwnedBackgroundJobControl<BackgroundJobProbeResult> observation)
+    {
+        if (!observation.CleanupConfirmed || observation.Failed || observation.Value is not { } value) return;
+        if (value.Disposition == BackgroundJobProbeDisposition.ControlCommitted && IsRetryTransition(probe))
+            ObserveRequestRetry(request);
+        else if (request.Kind == RequestKind.Renewal && probe.Boundary == BackgroundJobCommitBoundary.Renewal
+            && value.Disposition == BackgroundJobProbeDisposition.Renewed)
+            lock (_sync) _renewalsConfirmed++;
+    }
+
+    // Clearing an expired routing token leaves the same generation pending.
+    // It is bridge repair, not a new counted business/finalizer retry.
+    private static bool IsRetryTransition(BackgroundJobCommitProbe probe) =>
+        probe.Boundary is BackgroundJobCommitBoundary.Control or BackgroundJobCommitBoundary.ExternalKnownRetry
+            or BackgroundJobCommitBoundary.ExternalFinalizeDisposition
+        && probe.ExpectedPhase is "pending" or "finalize_pending"
+        && probe.ExpectedGeneration is { } generation && generation > 0 && generation - 1 == probe.WakeGeneration;
+
+    internal void ObserveExternalRetry() { lock (_sync) _retries++; }
+
     private async Task PauseAsync()
     {
         try { await Task.Delay(_bounds.ControlPoll, _time, _stop.Token).ConfigureAwait(false); }
@@ -970,6 +1013,7 @@ internal sealed partial class BackgroundJobControl
         internal Task<OwnedBackgroundJobControl<BackgroundJobControlChange>>? NoPlanStatusTask { get; set; }
         internal Task<OwnedBackgroundJobControl<BackgroundJobProbeResult>>? NoPlanProbeTask { get; set; }
         internal bool CleanupCommitted { get; set; }
+        internal bool RetryObserved { get; set; }
         internal long Due { get; set; } = due;
         internal TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
